@@ -34,5 +34,5 @@ pub struct InitArgs {
 }
 
 pub fn git_revision() -> String {
-    option_env!("PHALA_GIT_REVISION").unwrap_or("").to_string()
+    env!("PHALA_GIT_REVISION").to_string()
 }

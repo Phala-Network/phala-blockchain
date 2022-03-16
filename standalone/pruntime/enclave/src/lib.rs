@@ -6,7 +6,7 @@ use parity_scale_codec::Decode;
 
 use log::{error, info, warn};
 
-use sgx_tstd::sync::SgxMutex;
+use std::sync::Mutex;
 use sgx_types::sgx_status_t;
 
 mod libc_hacks;
@@ -16,7 +16,7 @@ use pal_sgx::SgxPlatform;
 use phactory::{benchmark, Phactory};
 
 lazy_static::lazy_static! {
-    static ref APPLICATION: SgxMutex<Phactory<SgxPlatform>> = SgxMutex::new(Phactory::new(SgxPlatform));
+    static ref APPLICATION: Mutex<Phactory<SgxPlatform>> = Mutex::new(Phactory::new(SgxPlatform));
 }
 
 #[no_mangle]
@@ -101,7 +101,7 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
 
 #[no_mangle]
 pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
-    if !benchmark::puasing() {
+    if !benchmark::paused() {
         info!("[{}] Benchmark thread started", index);
         benchmark::run();
     }
@@ -130,9 +130,9 @@ pub extern "C" fn ecall_prpc_request(
     output_buf_len: usize,
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
-    let mut factory = APPLICATION.lock().unwrap();
-    let (code, data) =
-        unsafe { factory.dispatch_prpc_request(path, path_len, data, data_len, output_buf_len) };
+    let path = unsafe { std::slice::from_raw_parts(path, path_len) };
+    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    let (code, data) = phactory::dispatch_prpc_request(path, data, output_buf_len, &APPLICATION);
     let (code, data) = if data.len() > output_buf_len {
         error!("ecall_prpc_request: output buffer too short");
         (500, vec![])

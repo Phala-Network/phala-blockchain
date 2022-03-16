@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) 2017-2022 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,32 +18,34 @@
 
 fn main() {
 	#[cfg(feature = "cli")]
-		cli::main();
+	cli::main();
 }
 
 #[cfg(feature = "cli")]
 mod cli {
 	include!("src/cli.rs");
 
-	use std::{fs, env, path::Path};
-	use sc_cli::structopt::clap::Shell;
+	use clap::{ArgEnum, IntoApp};
+	use clap_complete::{generate_to, Shell};
+	use std::{env, fs, path::Path};
 	use substrate_build_script_utils::{generate_cargo_keys, rerun_if_git_head_changed};
 
 	pub fn main() {
-		build_shell_completion();
+		// build_shell_completion();
 		generate_cargo_keys();
 
 		rerun_if_git_head_changed();
 	}
 
+	#[allow(dead_code)]
 	/// Build shell completion scripts for all known shells
-	/// Full list in https://github.com/kbknapp/clap-rs/blob/e9d0562a1dc5dfe731ed7c767e6cee0af08f0cf9/src/app/parser.rs#L123
 	fn build_shell_completion() {
-		for shell in &[Shell::Bash, Shell::Fish, Shell::Zsh, Shell::Elvish, Shell::PowerShell] {
+		for shell in Shell::value_variants() {
 			build_completion(shell);
 		}
 	}
 
+	#[allow(dead_code)]
 	/// Build the shell auto-completion for a given Shell
 	fn build_completion(shell: &Shell) {
 		let outdir = match env::var_os("OUT_DIR") {
@@ -51,13 +53,16 @@ mod cli {
 			Some(dir) => dir,
 		};
 		let path = Path::new(&outdir)
-			.parent().unwrap()
-			.parent().unwrap()
-			.parent().unwrap()
+			.parent()
+			.unwrap()
+			.parent()
+			.unwrap()
+			.parent()
+			.unwrap()
 			.join("completion-scripts");
 
 		fs::create_dir(&path).ok();
 
-		Cli::clap().gen_completions("phala-node", *shell, &path);
+		let _ = generate_to(*shell, &mut Cli::command(), "phala-node", &path);
 	}
 }

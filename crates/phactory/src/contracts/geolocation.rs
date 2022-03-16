@@ -126,7 +126,7 @@ impl contracts::NativeContract for Geolocation {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _: &mut contracts::QueryContext,
@@ -168,5 +168,10 @@ impl contracts::NativeContract for Geolocation {
     fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
         self.guard(&context.block.block_number);
         Ok(Default::default())
+    }
+
+    fn snapshot(&self) -> Self {
+        // TODO: this is really heavy, fix it or port me to wasm contract.
+        self.clone()
     }
 }

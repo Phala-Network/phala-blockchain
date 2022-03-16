@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use ink_lang as ink;
-pub use flip::Flip;
+pub use flip::{Flip, FlipRef};
 
 #[ink::contract]
 mod flip {

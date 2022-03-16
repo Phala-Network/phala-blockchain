@@ -2,6 +2,8 @@ mod extension;
 mod mock_types;
 mod pallet_pink;
 
+use std::time::{Duration, Instant};
+
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
@@ -95,8 +97,12 @@ parameter_types! {
     pub const MaxValueSize: u32 = 16_384;
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = 500_000_000_000;
-    pub const MaxCodeSize: u32 = 2 * 1024;
-    pub DefaultSchedule: Schedule<PinkRuntime> = <Schedule<PinkRuntime>>::default();
+    pub const MaxCodeSize: u32 = 2 * 1024 * 1024;
+    pub DefaultSchedule: Schedule<PinkRuntime> = {
+        let mut schedule = <Schedule<PinkRuntime>>::default();
+        schedule.limits.code_len = MaxCodeSize::get();
+        schedule
+    };
     pub const TransactionByteFee: u64 = 0;
 }
 
@@ -123,6 +129,36 @@ impl Config for PinkRuntime {
     type DepositPerByte = ConstU128<0>;
     type DepositPerItem = ConstU128<0>;
     type AddressGenerator = Pink;
+}
+
+
+#[derive(Clone, Copy)]
+pub enum CallMode {
+    Query,
+    Command,
+}
+
+struct CallInfo {
+    mode: CallMode,
+    start_at: Instant,
+}
+
+environmental::environmental!(call_info: CallInfo);
+
+pub fn using_mode<T>(mode: CallMode, f: impl FnOnce() -> T) -> T {
+    let mut info = CallInfo {
+        mode,
+        start_at: Instant::now(),
+    };
+    call_info::using(&mut info, f)
+}
+
+pub fn get_call_mode() -> Option<CallMode> {
+    call_info::with(|info| info.mode)
+}
+
+pub fn get_call_elapsed() -> Option<Duration> {
+    call_info::with(|info| info.start_at.elapsed())
 }
 
 #[cfg(test)]
@@ -185,7 +221,7 @@ mod tests {
     #[test]
     pub fn crypto_hashes_test() {
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        const GAS_LIMIT: Weight = 10_000_000_000;
+        const GAS_LIMIT: Weight = 1_000_000_000_000_000;
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
@@ -225,9 +261,10 @@ mod tests {
                 // We offset data in the contract tables by 1.
                 let mut params = vec![(n + 1) as u8];
                 params.extend_from_slice(input);
-                let result = Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
-                    .result
-                    .unwrap();
+                let result =
+                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
+                        .result
+                        .unwrap();
                 assert!(!result.did_revert());
                 let expected = hash_fn(input.as_ref());
                 assert_eq!(&result.data[..*expected_size], &*expected);

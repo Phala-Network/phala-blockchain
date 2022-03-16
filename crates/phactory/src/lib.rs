@@ -19,9 +19,9 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str;
+use std::{io::Write, marker::PhantomData};
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -51,6 +51,7 @@ use std::time::Instant;
 use types::Error;
 
 pub use contracts::pink;
+pub use prpc_service::dispatch_prpc_request;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
@@ -155,7 +156,7 @@ enum RuntimeDataSeal {
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
-    args: InitArgs,
+    pub args: InitArgs,
     skip_ra: bool,
     dev_mode: bool,
     machine_id: Vec<u8>,
@@ -265,7 +266,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             self.platform
                 .seal_data(filepath, &encoded_vec)
                 .map_err(Into::into)
-                .context("Seal runtime data")?;
+                .context("Failed to seal runtime data")?;
             info!("Persistent Runtime Data saved");
         }
         Ok(data)
@@ -300,7 +301,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Write to a tmpfile to avoid the previous checkpoint file being corrupted.
         let tmpfile = PathBuf::from(&self.args.sealing_path).join(TMP_CHECKPOINT_FILE);
         if tmpfile.is_symlink() {
-            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+            std::fs::remove_file(&tmpfile).context("Failed to remove tmp checkpoint file")?;
         }
 
         {
@@ -308,19 +309,41 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let file = self
                 .platform
                 .create_protected_file(&tmpfile, &key)
-                .map_err(|err| anyhow!("{:?}", err))?;
+                .map_err(|err| anyhow!("{:?}", err))
+                .context("Failed to create protected file")?;
 
-            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))?;
+            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))
+                .context("Failed to write checkpoint")?;
         }
 
         {
             // Post-process filenames
             let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
             let _ = std::fs::rename(&checkpoint_file, &backup);
-            std::fs::rename(&tmpfile, &checkpoint_file)?;
+            std::fs::rename(&tmpfile, &checkpoint_file).context("Failed to rename checkpoint")?;
         }
         info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
+        Ok(())
+    }
+
+    pub fn take_checkpoint_to_writer<W: std::io::Write>(
+        &mut self,
+        writer: W,
+    ) -> anyhow::Result<()> {
+        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
+            key.dump_secret_key().to_vec()
+        } else {
+            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
+        };
+        let key128 = derive_key_for_checkpoint(&key);
+        let nonce = rand::thread_rng().gen();
+        let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
+        serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
+            .context("Failed to write checkpoint")?;
+        enc_writer
+            .flush()
+            .context("Failed to flush encrypted writer")?;
         Ok(())
     }
 
@@ -345,7 +368,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump the checkpoint.
         if tmpfile.is_symlink() || tmpfile.exists() {
-            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+            std::fs::remove_file(&tmpfile).context("Failed to remove tmp checkpoint file")?;
         }
         std::os::unix::fs::symlink(&checkpoint_file, &tmpfile)?;
         scopeguard::defer! {
@@ -360,15 +383,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        let loader: PhactoryLoader<_> = serde_cbor::de::from_reader(file)?;
+        let loader: PhactoryLoader<_> =
+            serde_cbor::de::from_reader(file).context("Failed to decode state")?;
         Ok(Some(loader.0))
     }
 
-    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
-        if let Some(system) = self.system.as_mut() {
-            system.commit_changes()?;
-        }
-        Ok(())
+    pub fn restore_from_checkpoint_reader<R: std::io::Read>(
+        platform: &Platform,
+        sealing_path: &str,
+        reader: R,
+    ) -> anyhow::Result<Self> {
+        let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
+        let key128 = derive_key_for_checkpoint(&runtime_data.sk);
+        let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
+        let loader: PhactoryLoader<_> =
+            serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
+        Ok(loader.0)
     }
 }
 
@@ -406,7 +436,6 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                 let state = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Missing benchmark::State"))?;
-                benchmark::restore_state(state);
 
                 let mut factory: Self::Value = seq
                     .next_element()?
@@ -428,6 +457,7 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                         })
                     })?
                 };
+                benchmark::restore_state(state);
                 Ok(factory)
             }
         }
@@ -465,6 +495,7 @@ fn generate_random_iv() -> aead::IV {
     nonce_vec
 }
 
+#[allow(dead_code)]
 fn generate_random_info() -> [u8; 32] {
     let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();
@@ -480,4 +511,8 @@ fn display(e: impl core::fmt::Display) -> Value {
 
 fn error_msg(msg: &str) -> Value {
     json!({ "message": msg })
+}
+
+fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
+    sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
 }

@@ -214,7 +214,7 @@ impl contracts::NativeContract for Assets {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Self::QReq,
         _context: &mut contracts::QueryContext,
@@ -291,6 +291,11 @@ impl contracts::NativeContract for Assets {
             Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
+    }
+
+    fn snapshot(&self) -> Self {
+        // TODO: it's heavy
+        self.clone()
     }
 }
 

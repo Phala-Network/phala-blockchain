@@ -271,7 +271,7 @@ fn ias_spid() -> Result<sgx_spid_t> {
         return Err(anyhow!("Load SPID failure."));
     }
 
-    let key_str = str::from_utf8(key_slice).context("UTF8 decode key_slice")?;
+    let key_str = str::from_utf8(key_slice).context("Failed to decode key_slice")?;
     // println!("IAS SPID: {}", key_str.to_owned());
 
     decode_spid(&key_str[..key_len])
@@ -305,7 +305,7 @@ fn ias_key() -> Result<String> {
         return Err(anyhow!("Load IAS KEY failure."));
     }
 
-    let key_str = str::from_utf8(key_slice).context("UTF8 decode key_slice")?;
+    let key_str = str::from_utf8(key_slice).context("Failed to decode key_slice")?;
     // println!("IAS KEY: {}", key_str.to_owned());
 
     Ok(key_str[..key_len].to_owned())
@@ -353,10 +353,10 @@ pub fn get_sigrl_from_intel(gid: u32) -> Result<Vec<u8>> {
 
     if res.content_len() != None && res.content_len() != Some(0) {
         let res_body = res_body_buffer;
-        let encoded_sigrl = str::from_utf8(&res_body).context("UTF8 decode sigrl")?;
+        let encoded_sigrl = str::from_utf8(&res_body).context("Failed to decode sigrl")?;
         info!("Base64-encoded SigRL: {:?}", encoded_sigrl);
 
-        return Ok(base64::decode(encoded_sigrl).context("Base64 decode sigrl")?);
+        return Ok(base64::decode(encoded_sigrl).context("Failed to decode sigrl")?);
     }
 
     Ok(Vec::new())
@@ -419,21 +419,21 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> Result<(String, String, String)>
         return Err(anyhow!("Empty HTTP response"));
     }
 
-    let attn_report = String::from_utf8(res_body_buffer).context("UTF8 decode response")?;
+    let attn_report = String::from_utf8(res_body_buffer).context("Failed to decode attestation report")?;
     let sig = res
         .headers()
         .get("X-IASReport-Signature")
-        .context("Get X-IASReport-Signature")?
+        .context("No X-IASReport-Signature")?
         .to_string();
     let mut cert = res
         .headers()
         .get("X-IASReport-Signing-Certificate")
-        .context("Get X-IASReport-Signing-Certificate")?
+        .context("No X-IASReport-Signing-Certificate")?
         .to_string();
 
     // Remove %0A from cert, and only obtain the signing cert
     cert = cert.replace("%0A", "");
-    cert = percent_decode(cert).context("percent_decode cert")?;
+    cert = percent_decode(cert).context("Failed to url decode cert")?;
     let v: Vec<&str> = cert.split("-----").collect();
     let sig_cert = v[2].to_string();
 
@@ -488,12 +488,12 @@ fn init_quote() -> Result<(sgx_target_info_t, sgx_epid_group_id_t)> {
 
     if res != sgx_status_t::SGX_SUCCESS {
         error!("sgx_init_quote res = {:?}", res);
-        return Err(anyhow::Error::msg(res).context("init quote"));
+        return Err(anyhow::Error::msg(res).context("Failed to init quote"));
     }
 
     if rt != sgx_status_t::SGX_SUCCESS {
         error!("sgx_init_quote rt = {:?}", rt);
-        return Err(anyhow::Error::msg(rt).context("init quote"));
+        return Err(anyhow::Error::msg(rt).context("Failed to init quote"));
     }
     Ok((ti, eg))
 }
@@ -584,12 +584,12 @@ fn create_quote_vec(data: &[u8], sign_type: sgx_quote_sign_type_t) -> Result<Vec
 
     if result != sgx_status_t::SGX_SUCCESS {
         error!("ocall_get_quote result={}", result);
-        return Err(anyhow::Error::msg(result).context("get quote"));
+        return Err(anyhow::Error::msg(result).context("Failed to get quote"));
     }
 
     if rt != sgx_status_t::SGX_SUCCESS {
         error!("ocall_get_quote rt={}", rt);
-        return Err(anyhow::Error::msg(rt).context("get quote"));
+        return Err(anyhow::Error::msg(rt).context("Failed to get quote"));
     }
 
     // Added 09-28-2018
@@ -598,7 +598,7 @@ fn create_quote_vec(data: &[u8], sign_type: sgx_quote_sign_type_t) -> Result<Vec
         Ok(()) => info!("rsgx_verify_report passed!"),
         Err(x) => {
             error!("rsgx_verify_report failed with {:?}", x);
-            return Err(anyhow::Error::msg(x).context("verify report"));
+            return Err(anyhow::Error::msg(x).context("Failed to verify report"));
         }
     }
 

@@ -117,8 +117,7 @@ pub async fn maybe_sync_mq_egress(
                             }
                             Ok(Err(err)) => {
                                 error!("Error submitting message {}: {:?}", msg_info, err);
-                                use jsonrpsee_core::error::Error as RpcError;
-                                use phaxt::subxt::Error as SubxtError;
+                                use phaxt::subxt::{rpc::RpcError, BasicError as SubxtError};
                                 let report = match err {
                                     SubxtError::Rpc(RpcError::Request(err)) => {
                                         if err.contains("bad signature") {

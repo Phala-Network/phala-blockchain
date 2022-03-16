@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build and Test (Gramine)
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-11
+          toolchain: nightly-2022-02-23
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
@@ -41,22 +41,23 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-11
+          toolchain: nightly-2022-02-23
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
         with:
           submodules: 'true'
-      - uses: ./.github/actions/install_toolchain
+      - name: Install gramine
+        run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Build pRuntime
-        run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW PRUNTIME_CHECK_CALLS=1 make
+        run: make dist -C ./standalone/pruntime/pruntime/gramine-build/
       - name: Save pruntime binaries
         uses: actions/upload-artifact@v2
         with:
           name: pruntime-binaries
           path: |
-            ./standalone/pruntime/bin/app
-            ./standalone/pruntime/bin/enclave.signed.so
+            ./standalone/pruntime/bin/pruntime
+            ./standalone/pruntime/bin/pruntime.manifest
             ./standalone/pruntime/bin/Rocket.toml
 
   e2e-test:
@@ -66,13 +67,15 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-11
+          toolchain: nightly-2022-02-23
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
+      - name: Install gramine
+        run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Setup Node.js environment
         uses: actions/setup-node@v2
         with:
@@ -90,9 +93,9 @@ jobs:
           name: pruntime-binaries
           path: ./standalone/pruntime/bin
       - name: Change permission
-        run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app
+        run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/pruntime
       - name: Run E2E tests
-        run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && yarn test
+        run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && PRUNTIME_TYPE=gramine yarn test
     needs: [ build-core-blockchain, build-pruntime ]
 
   cargo-tests:
@@ -102,7 +105,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2021-11-11
+          toolchain: nightly-2022-02-23
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2

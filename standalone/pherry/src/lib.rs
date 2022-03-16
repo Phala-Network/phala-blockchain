@@ -801,7 +801,7 @@ pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<
         .set_url(uri)
         .build()
         .await
-        .context("Connect to substrate")
+        .context("Failed to connect to substrate")
 }
 
 async fn bridge(

@@ -1,3 +1,6 @@
+#[cfg(feature = "stream")]
+pub mod stream;
+
 use crate::CryptoError;
 
 use alloc::vec::Vec;

@@ -36,9 +36,22 @@ pub struct Args {
     #[structopt(
         default_value = "0",
         long,
-        help = "Assmue the give number of block finalized."
+        help = "Assume the give number of block finalized."
     )]
     assume_finalized: u32,
+
+    #[structopt(
+        default_value = "100000",
+        long,
+        help = "The number of blocks between two checkpoints. 0 for disabled"
+    )]
+    checkpoint_interval: u32,
+
+    #[structopt(
+        long,
+        help = "The checkpoint file to restore from. Default is to use the latest checkpoint."
+    )]
+    restore_from: Option<String>,
 }
 
 #[tokio::main]

@@ -913,7 +913,7 @@ impl contracts::NativeContract for Web3Analytics {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _: &mut contracts::QueryContext,
