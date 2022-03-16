@@ -105,7 +105,7 @@ where
 {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        if !matches!(get_call_mode(), Some(CallMode::Query)) {
+        if !is_query() {
             return Err(DispatchError::Other(
                 "http_request can only be called in query mode",
             ));
@@ -231,7 +231,11 @@ where
             .write()
             .unwrap()
             .set(self.address.as_ref().into(), key, value);
-        Ok(result)
+        if is_command() {
+            Ok(Ok(()))
+        } else {
+            Ok(result)
+        }
     }
 
     fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
@@ -243,7 +247,7 @@ where
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        if !matches!(get_call_mode(), Some(CallMode::Query)) {
+        if !is_query() {
             return Ok(None);
         }
         let value = GLOBAL_CACHE
@@ -258,7 +262,11 @@ where
             .write()
             .unwrap()
             .remove(self.address.as_ref(), key.as_ref());
-        Ok(value)
+        if is_command() {
+            Ok(None)
+        } else {
+            Ok(value)
+        }
     }
 }
 
@@ -276,6 +284,14 @@ impl<W> LimitedWriter<W> {
             limit,
         }
     }
+}
+
+fn is_query() -> bool {
+    matches!(get_call_mode(), Some(CallMode::Query))
+}
+
+fn is_command() -> bool {
+    matches!(get_call_mode(), Some(CallMode::Command))
 }
 
 impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
