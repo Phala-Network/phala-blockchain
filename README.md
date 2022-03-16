@@ -101,7 +101,7 @@ the _current_ rustc.
 4. Run pherry (node and pRuntime required):
 
     ```bash
-    ./target/release/pherry --dev
+    ./target/release/pherry --dev --no-wait
     ```
 
 5. Web UI (TODO: still being refactored)
