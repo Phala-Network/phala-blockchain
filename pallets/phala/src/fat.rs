@@ -12,7 +12,7 @@ pub mod pallet {
 
 	use crate::{mq::MessageOriginInfo, registry};
 	// Re-export
-	pub use crate::attestation::{Attestation, IasValidator};
+	pub use crate::attestation::Attestation;
 
 	use phala_types::{
 		contract::messaging::{ClusterEvent, ContractOperation},

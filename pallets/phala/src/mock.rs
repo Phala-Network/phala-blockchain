@@ -1,5 +1,4 @@
 use crate::{
-	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
 	mining, mq, ott, registry, stakepool,
 };
 
@@ -54,6 +53,7 @@ parameter_types! {
 	pub const MinInitP: u32 = 1;
 	pub const MiningEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
+	pub const OptOutAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
 }
@@ -124,8 +124,8 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 impl registry::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
-	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
+	type OptOutAttestationEnabled = OptOutAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
@@ -159,26 +159,6 @@ impl stakepool::Config for Test {
 impl ott::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
-}
-
-pub struct MockValidator;
-impl AttestationValidator for MockValidator {
-	fn validate(
-		_attestation: &Attestation,
-		_user_data_hash: &[u8; 32],
-		_now: u64,
-		_verify_pruntime: bool,
-		_pruntime_allowlist: Vec<Vec<u8>>,
-	) -> Result<IasFields, AttestationError> {
-		Ok(IasFields {
-			mr_enclave: [0u8; 32],
-			mr_signer: [0u8; 32],
-			isv_prod_id: [0u8; 2],
-			isv_svn: [0u8; 2],
-			report_data: [0u8; 64],
-			confidence_level: 128u8,
-		})
-	}
 }
 
 // This function basically just builds a genesis storage key/value store according to

@@ -17,10 +17,10 @@ pub mod pallet {
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
 
-	use crate::attestation::{AttestationValidator, Error as AttestationError};
+	use crate::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
 	// Re-export
-	pub use crate::attestation::{Attestation, IasValidator};
+	pub use crate::attestation::Attestation;
 
 	use phala_types::{
 		messaging::{
@@ -28,7 +28,7 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo,
+		WorkerRegistrationInfo, AttestationProvider
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -46,7 +46,10 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId>;
 
 		type UnixTime: UnixTime;
-		type AttestationValidator: AttestationValidator;
+
+		/// Enable OptOut Attestation, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		#[pallet::constant]
+		type OptOutAttestationEnabled: Get<bool>;
 
 		/// Verify attestation
 		///
@@ -155,6 +158,7 @@ pub mod pallet {
 		InvalidInput,
 		InvalidBenchReport,
 		WorkerNotFound,
+		OptOutDisabled,
 		// Gatekeeper related
 		InvalidGatekeeper,
 		InvalidMasterPubkey,
@@ -205,6 +209,7 @@ pub mod pallet {
 				runtime_version: 0,
 				last_updated: 0,
 				operator,
+				attestation_provider: AttestationProvider::RootOrCouncil,
 				confidence_level: 128u8,
 				initial_score: None,
 				features: vec![1, 4],
@@ -213,6 +218,7 @@ pub mod pallet {
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
 				WorkerEvent::Registered(messaging::WorkerInfo {
+					attestation_provider: AttestationProvider::RootOrCouncil,
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
@@ -302,12 +308,13 @@ pub mod pallet {
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
-			let fields = T::AttestationValidator::validate(
+			let attestation_report = crate::attestation::validate(
 				&attestation,
 				&runtime_info_hash,
 				now,
 				T::VerifyPRuntime::get(),
 				PRuntimeAllowList::<T>::get(),
+				T::OptOutAttestationEnabled::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
@@ -337,7 +344,8 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								confidence_level: fields.confidence_level,
+								attestation_provider: attestation_report.provider,
+								confidence_level: attestation_report.confidence_level,
 							}),
 						));
 						Self::deposit_event(Event::<T>::WorkerUpdated { pubkey });
@@ -350,14 +358,16 @@ pub mod pallet {
 							runtime_version: pruntime_info.version,
 							last_updated: now,
 							operator: pruntime_info.operator,
-							confidence_level: fields.confidence_level,
+							attestation_provider: attestation_report.provider,
+							confidence_level: attestation_report.confidence_level,
 							initial_score: None,
 							features: pruntime_info.features,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								confidence_level: fields.confidence_level,
+								attestation_provider: attestation_report.provider,
+								confidence_level: attestation_report.confidence_level,
 							}),
 						));
 						Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
@@ -611,6 +621,7 @@ pub mod pallet {
 						runtime_version: 0,
 						last_updated: 0,
 						operator: operator.clone(),
+						attestation_provider: AttestationProvider::RootOrCouncil,
 						confidence_level: 128u8,
 						initial_score: None,
 						features: vec![1, 4],
@@ -619,6 +630,7 @@ pub mod pallet {
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					*pubkey,
 					WorkerEvent::Registered(messaging::WorkerInfo {
+						attestation_provider: AttestationProvider::RootOrCouncil,
 						confidence_level: 128u8,
 					}),
 				));
@@ -674,6 +686,8 @@ pub mod pallet {
 		/// the worker can only be added to a stake pool if the pool owner is the same as the
 		/// operator. It ensures only the trusted person can control the worker.
 		pub operator: Option<AccountId>,
+		/// Who issues the attestation
+		pub attestation_provider: AttestationProvider,
 		/// The [confidence level](https://wiki.phala.network/en-us/mine/solo/1-2-confidential-level-evaluation/#confidence-level-of-a-miner)
 		/// of the worker
 		pub confidence_level: u8,
@@ -700,6 +714,7 @@ pub mod pallet {
 				AttestationError::OutdatedIASReport => Self::OutdatedIASReport,
 				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
 				AttestationError::InvalidUserDataHash => Self::InvalidRuntimeInfoHash,
+				AttestationError::OptOutDisabled => Self::OptOutDisabled,
 			}
 		}
 	}
@@ -735,11 +750,7 @@ pub mod pallet {
 							features: vec![4, 1],
 							operator: Some(1),
 						},
-						Attestation::SgxIas {
-							ra_report: Vec::new(),
-							signature: Vec::new(),
-							raw_signing_cert: Vec::new(),
-						}
+						Attestation::OptOut
 					),
 					Error::<Test>::GenesisBlockHashRejected
 				);
@@ -756,11 +767,7 @@ pub mod pallet {
 						features: vec![4, 1],
 						operator: Some(1),
 					},
-					Attestation::SgxIas {
-						ra_report: Vec::new(),
-						signature: Vec::new(),
-						raw_signing_cert: Vec::new(),
-					},
+					Attestation::OptOut,
 				));
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.operator, Some(1));
@@ -777,11 +784,7 @@ pub mod pallet {
 						features: vec![4, 1],
 						operator: Some(2),
 					},
-					Attestation::SgxIas {
-						ra_report: Vec::new(),
-						signature: Vec::new(),
-						raw_signing_cert: Vec::new(),
-					},
+					Attestation::OptOut,
 				));
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.last_updated, 100);

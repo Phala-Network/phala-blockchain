@@ -1238,6 +1238,7 @@ parameter_types! {
 	pub const MinInitP: u32 = 50;
 	pub const MiningEnabledByDefault: bool = false;
 	pub const MaxPoolWorkers: u32 = 200;
+	pub const OptOutAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = false;
 }
@@ -1245,8 +1246,8 @@ parameter_types! {
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
+	type OptOutAttestationEnabled = OptOutAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;

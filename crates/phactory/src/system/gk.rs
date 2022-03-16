@@ -1271,7 +1271,7 @@ pub mod tests {
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path};
-    use phala_types::{messaging as msg, WorkerPublicKey};
+    use phala_types::{AttestationProvider, messaging as msg, WorkerPublicKey};
     use std::cell::RefCell;
 
     type MiningInfoUpdateEvent = super::MiningInfoUpdateEvent<chain::BlockNumber>;
@@ -1445,6 +1445,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1478,6 +1479,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1575,6 +1577,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1640,6 +1643,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1694,6 +1698,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1775,6 +1780,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1848,6 +1854,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1918,6 +1925,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -2005,6 +2013,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: AttestationProvider::OptOut,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -2078,6 +2087,7 @@ pub mod tests {
             for i in 0..=1 {
                 let mut worker = r.for_worker(i);
                 worker.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                    attestation_provider: AttestationProvider::OptOut,
                     confidence_level: 2,
                 }));
             }

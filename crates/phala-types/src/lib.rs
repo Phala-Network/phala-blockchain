@@ -24,7 +24,8 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{
-        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+        ClusterPublicKey, ContractPublicKey,
+        EcdhPublicKey, MasterPublicKey, WorkerPublicKey, AttestationProvider,
     };
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
@@ -243,6 +244,7 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub struct WorkerInfo {
+        pub attestation_provider: AttestationProvider,
         pub confidence_level: u8,
     }
 
@@ -603,6 +605,17 @@ pub mod messaging {
 
 // Types used in storage
 
+#[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AttestationProvider {
+    Ias,
+    OptOut,
+    RootOrCouncil,
+    Unknown,
+}
+impl Default for AttestationProvider {
+    fn default() -> Self { AttestationProvider::Unknown }
+}
+
 #[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
 pub enum WorkerStateEnum<BlockNumber> {
     Empty,
@@ -630,6 +643,7 @@ pub struct WorkerInfo<BlockNumber> {
     // performance
     pub score: Option<Score>,
     // confidence-level
+    pub attestation_provider: AttestationProvider,
     pub confidence_level: u8,
     // version
     pub runtime_version: u32,
@@ -660,6 +674,7 @@ pub use sp_core::sr25519::Public as ClusterPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
 pub use sp_core::sr25519::Signature as Sr25519Signature;
+
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerIdentity {
     pub pubkey: WorkerPublicKey,
