@@ -75,10 +75,18 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
     {
         let mut env = env.buf_in_buf_out();
-        let call = Call {
+        let call_in_query = CallInQuery {
             address: env.ext().address().clone(),
         };
-        let output = match dispatch_ext_call!(func_id, call, env) {
+        let result = if matches!(get_call_mode(), Some(CallMode::Command)) {
+            let call = CallInCommand {
+                as_in_query: call_in_query,
+            };
+            dispatch_ext_call!(func_id, call, env)
+        } else {
+            dispatch_ext_call!(func_id, call_in_query, env)
+        };
+        let output = match result {
             Some(output) => output,
             None => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
@@ -95,22 +103,16 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     }
 }
 
-struct Call<AccountId> {
+struct CallInQuery<AccountId> {
     address: AccountId,
 }
 
-impl<AccountId> PinkExtBackend for Call<AccountId>
+impl<AccountId> PinkExtBackend for CallInQuery<AccountId>
 where
     AccountId: AsRef<[u8]>,
 {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        if !is_query() {
-            return Err(DispatchError::Other(
-                "http_request can only be called in query mode",
-            ));
-        }
-
         let uri = http_req::uri::Uri::try_from(request.url.as_str())
             .or(Err(DispatchError::Other("Invalid URL")))?;
 
@@ -231,11 +233,7 @@ where
             .write()
             .unwrap()
             .set(self.address.as_ref().into(), key, value);
-        if is_command() {
-            Ok(Ok(()))
-        } else {
-            Ok(result)
-        }
+        Ok(result)
     }
 
     fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
@@ -247,9 +245,6 @@ where
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        if !is_query() {
-            return Ok(None);
-        }
         let value = GLOBAL_CACHE
             .read()
             .unwrap()
@@ -262,11 +257,66 @@ where
             .write()
             .unwrap()
             .remove(self.address.as_ref(), key.as_ref());
-        if is_command() {
-            Ok(None)
-        } else {
-            Ok(value)
-        }
+        Ok(value)
+    }
+}
+
+struct CallInCommand<AccountId> {
+    as_in_query: CallInQuery<AccountId>,
+}
+
+/// This implementation is used when calling the extension in a command.
+/// # NOTE FOR IMPLEMENTORS
+/// Make sure the return values are deterministic.
+impl<AccountId> PinkExtBackend for CallInCommand<AccountId>
+where
+    AccountId: AsRef<[u8]>,
+{
+    type Error = DispatchError;
+
+    fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
+        return Err(DispatchError::Other(
+            "http_request can only be called in query mode",
+        ));
+    }
+
+    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.sign(args)
+    }
+
+    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
+        self.as_in_query.verify(args)
+    }
+
+    fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.derive_sr25519_key(salt)
+    }
+
+    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.get_public_key(args)
+    }
+
+    fn cache_set(
+        &self,
+        key: Cow<[u8]>,
+        value: Cow<[u8]>,
+    ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
+        let _ = self.as_in_query.cache_set(key, value);
+        Ok(Ok(()))
+    }
+
+    fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
+        let _ = self.as_in_query.cache_set_expire(key, expire);
+        Ok(())
+    }
+
+    fn cache_get(&self, _key: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(None)
+    }
+
+    fn cache_remove(&self, args: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let _ = self.as_in_query.cache_remove(args);
+        Ok(None)
     }
 }
 
@@ -284,14 +334,6 @@ impl<W> LimitedWriter<W> {
             limit,
         }
     }
-}
-
-fn is_query() -> bool {
-    matches!(get_call_mode(), Some(CallMode::Query))
-}
-
-fn is_command() -> bool {
-    matches!(get_call_mode(), Some(CallMode::Command))
 }
 
 impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
