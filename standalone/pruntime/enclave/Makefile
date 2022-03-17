@@ -42,11 +42,12 @@ export CARGO_CFG_MEMCHR_DISABLE_AUTO_SIMD=1
 
 all: $(Rust_Enclave_Name)
 
-$(Rust_Enclave_Name): $(Rust_Enclave_Files)
-ifeq ($(XARGO_SGX), 1)
-	RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target x86_64-unknown-linux-sgx --release
-	cp ./target/x86_64-unknown-linux-sgx/release/libenclaveapp.a ../lib/libenclave.a
+ifeq ($(V), 1)
+CARGO_ARGS = -vv
 else
-	cargo build --release
-	cp ./target/release/libenclaveapp.a ../lib/libenclave.a
+CARGO_ARGS =
 endif
+
+$(Rust_Enclave_Name): $(Rust_Enclave_Files)
+	cargo build $(CARGO_ARGS) --release
+	cp ./target/release/libenclaveapp.a ../lib/libenclave.a

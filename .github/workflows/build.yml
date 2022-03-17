@@ -25,7 +25,7 @@ jobs:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Build core blockchain
-        run: cargo build --verbose --profile testnet
+        run: cargo build -vv --profile testnet
       - name: Save core-blockchain binaries
         uses: actions/upload-artifact@v2
         with:
@@ -50,7 +50,7 @@ jobs:
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Build pRuntime
-        run: make dist -C ./standalone/pruntime/pruntime/gramine-build/
+        run: make V=1 dist -C ./standalone/pruntime/pruntime/gramine-build/
       - name: Save pruntime binaries
         uses: actions/upload-artifact@v2
         with:
@@ -113,4 +113,4 @@ jobs:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Run cargo tests
-        run: cargo test --verbose --workspace --exclude node-executor --exclude phala-node
+        run: cargo test -vv verbose --workspace --exclude node-executor --exclude phala-node
