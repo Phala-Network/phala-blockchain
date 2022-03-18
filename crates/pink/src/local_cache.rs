@@ -115,7 +115,12 @@ impl LocalCache {
     }
 
     pub fn remove(&mut self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
-        self.storages.get_mut(id)?.kvs.remove(key).map(|v| v.value)
+        let store = self.storages.get_mut(id)?;
+        let v = store.kvs.remove(key).map(|v| v.value);
+        if let Some(v) = &v {
+            store.size -= v.len() + key.len();
+        }
+        v
     }
 
     #[allow(dead_code)]
@@ -210,5 +215,7 @@ mod test {
         assert_eq!(get_size(&cache, b"id"), 9);
         assert!(cache.set(cow(b"id"), cow(b"foo"), cow(b"foo")).is_ok());
         assert_eq!(get_size(&cache, b"id"), 6);
+        assert!(cache.remove(b"id", b"foo").is_some());
+        assert_eq!(get_size(&cache, b"id"), 0);
     }
 }

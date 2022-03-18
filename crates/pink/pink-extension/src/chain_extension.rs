@@ -54,6 +54,9 @@ pub trait PinkExt {
     ///
     /// The default expiration time is 7 days. Use `cache_set_expire` to set a custom expiration
     /// time.
+    /// Values stored in cache can only be read in query functions.
+    ///
+    /// Alwasy returns `Ok(())` if it is called from a command context.
     #[ink(extension = 0xff000006, handle_status = false, returns_result = false)]
     fn cache_set(key: &[u8], value: &[u8]) -> Result<(), StorageQuotaExceeded>;
 
@@ -66,10 +69,15 @@ pub trait PinkExt {
     fn cache_set_expire(key: &[u8], expire: u64) -> ();
 
     /// Get a value from the local cache.
+    ///
+    /// Only for query functions. Always returns `None` if it is called from a command context.
     #[ink(extension = 0xff000008, handle_status = false, returns_result = false)]
     fn cache_get(key: &[u8]) -> Option<Vec<u8>>;
 
     /// Remove a value from the local cache.
+    ///
+    /// Returns the removed value if it existed. Always returns `None` if it is called from a
+    /// command context.
     #[ink(extension = 0xff000009, handle_status = false, returns_result = false)]
     fn cache_remove(args: &[u8]) -> Option<Vec<u8>>;
 }
