@@ -19,6 +19,10 @@ BIN_FILE = ../target/release/${BIN_NAME}
 CARGO_ARGS =
 endif
 
+ifeq ($(V),1)
+CARGO_ARGS += -vv
+endif
+
 PREFIX ?= ../../bin
 PRUNTIME_SEAL_DIR ?= data
 
