@@ -7,9 +7,6 @@ use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics
 
 use scale::{Decode, Encode};
 
-#[cfg(feature = "runtime_utils")]
-use ::{ink_env::test::EmittedEvent, std::convert::TryInto};
-
 pub use pink_extension_macro::contract;
 
 pub mod chain_extension;
@@ -66,7 +63,10 @@ impl Topics for PinkEvent {
 #[cfg(feature = "runtime_utils")]
 impl PinkEvent {
     pub fn event_topic() -> Hash {
-        topics_for(Self::OnBlockEndSelector(0))[0]
+        use std::convert::TryFrom;
+        let topics = topic::topics_for(Self::OnBlockEndSelector(0));
+        let topic: &[u8] = topics[0].as_ref();
+        Hash::try_from(topic).expect("Should not failed")
     }
 }
 
@@ -111,18 +111,7 @@ impl Environment for PinkEnvironment {
 }
 
 #[cfg(feature = "runtime_utils")]
-fn topics_for(event: impl Topics + Encode) -> Vec<Hash> {
-    EmittedEvent::new::<PinkEnvironment, _>(event)
-        .topics
-        .into_iter()
-        .map(|hash| {
-            hash.encoded_bytes()
-                .expect("Never fail")
-                .try_into()
-                .expect("Never fail")
-        })
-        .collect()
-}
+mod topic;
 
 #[cfg(test)]
 mod tests {
