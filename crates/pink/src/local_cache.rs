@@ -13,6 +13,7 @@ pub static GLOBAL_CACHE: Lazy<RwLock<LocalCache>> = Lazy::new(Default::default);
 
 #[derive(Default, Debug)]
 struct Storage {
+    // Sum of the size of all the keys and values.
     size: usize,
     kvs: HashMap<Vec<u8>, StorageValue>,
 }
