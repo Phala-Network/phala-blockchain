@@ -40,6 +40,12 @@ pub enum PinkEvent {
     OspMessage(OspMessage),
     /// Contract has an on_block_end ink message and will emit this event on instantiation.
     OnBlockEndSelector(u32),
+    /// Start the side VM.
+    StartSideVM {
+        wasm_code: Vec<u8>,
+        /// Number of memory wasm pages (64KB per page) to allocate for the side VM.
+        memory_pages: u32,
+    },
 }
 
 impl Topics for PinkEvent {

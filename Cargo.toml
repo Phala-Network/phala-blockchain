@@ -51,6 +51,7 @@ members = [
 	"crates/phala-types",
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
+	"crates/wasmer-tunables",
 	"crates/pink",
 	"crates/pink/pink-extension",
 	"crates/phaxt",
