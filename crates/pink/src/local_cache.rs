@@ -5,7 +5,7 @@
 
 use alloc::borrow::Cow;
 use once_cell::sync::Lazy;
-use std::{collections::HashMap, sync::RwLock};
+use std::{collections::HashMap, sync::RwLock, time::Instant};
 
 pub use pink_extension::chain_extension::StorageQuotaExceeded;
 
@@ -20,7 +20,7 @@ struct Storage {
 
 #[derive(Debug)]
 struct StorageValue {
-    /// Seconds since the UNIX epoch.
+    // Expiration time in seconds since the first call to `now`.
     expire_at: u64,
     value: Vec<u8>,
 }
@@ -131,10 +131,8 @@ impl LocalCache {
 }
 
 fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("The system time is incorrect")
-        .as_secs()
+    static REF_TIME: Lazy<Instant> = Lazy::new(Instant::now);
+    REF_TIME.elapsed().as_secs()
 }
 
 #[cfg(test)]
