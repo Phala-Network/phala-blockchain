@@ -31,11 +31,9 @@ use codec::Decode;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{ Path, PathBuf};
 use structopt::StructOpt;
-use tokio::select;
-use tokio::signal;
+use tokio::{ select, signal };
 use tokio::time::{sleep, Duration};
 extern crate rand;
 
@@ -386,7 +384,7 @@ pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<
 /// Updates the nonce from the mempool
 pub async fn update_signer_nonce(
     api: &ParachainApi,
-    signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>,
+    signer: &mut subxt::PairSigner<phaxt::KhalaConfig, phaxt::PhalaExtra, sr25519::Pair>,
 ) -> Result<()> {
     let account_id = signer.account_id().clone();
     let nonce = api.client.extra_rpc().account_nonce(&account_id).await?;
@@ -397,11 +395,10 @@ pub async fn update_signer_nonce(
 
 async fn bind_worker_endpoint(
     para_api: &ParachainApi,
-    pubkey: &phaxt::khala::runtime_types::sp_core::sr25519::Public,
-    signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>,
+    pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public,
+    signer: &mut subxt::PairSigner<phaxt::KhalaConfig, phaxt::PhalaExtra, sr25519::Pair>,
     endpoint: &Vec<u8>,
 ) -> Result<()> {
-    let pubkey = phaxt::khala::runtime_types::sp_core::sr25519::Public(pubkey.0);
     let endpoint = endpoint.clone();
     let endpoint_type = phaxt::khala::runtime_types::phala_types::EndpointType::I2P;
 
@@ -428,7 +425,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
         let mut para_api = PARA_API.lock().unwrap();
         let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
             .expect("Bad privkey derive path");
-        let mut signer: subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair> =
+        let mut signer: subxt::PairSigner<phaxt::KhalaConfig, phaxt::PhalaExtra, sr25519::Pair> =
             subxt::PairSigner::new(pair); // Only usable when registering worker
 
         let mut endpoint: Vec<u8> = Default::default();
@@ -546,10 +543,10 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
                 .await?;
             let pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public =
                 Decode::decode(&mut &info.encoded_public_key[..])
-                    .map_err(|_| anyhow!("Decode pruntime info failed"))?;
+                    .map_err(|_| anyhow!("Decode prouter public key failed"))?;
             bind_worker_endpoint(
                 &para_api.as_ref().expect("guaranteed to be initialized"),
-                &pubkey,
+                pubkey,
                 &mut signer,
                 &endpoint,
             )

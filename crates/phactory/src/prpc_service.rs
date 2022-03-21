@@ -770,7 +770,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     }
 
     fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
-        let system = self.phactory.system()?;
+        let mut phactory = self.lock_phactory();
+        let system = phactory.system()?;
         let derive_key = system
             .identity_key
             .derive_sr25519_pair(&[b"PhalaI2PKey"])
