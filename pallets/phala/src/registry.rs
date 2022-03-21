@@ -27,7 +27,8 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo}
+		WorkerRegistrationInfo, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo},
+		EndpointType
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -367,6 +368,7 @@ pub mod pallet {
 					}
 				}
 			});
+		}
 
 		#[pallet::weight(0)]
 		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
