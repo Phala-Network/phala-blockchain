@@ -298,15 +298,13 @@ where
 
     fn cache_set(
         &self,
-        key: Cow<[u8]>,
-        value: Cow<[u8]>,
+        _key: Cow<[u8]>,
+        _value: Cow<[u8]>,
     ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
-        let _ = self.as_in_query.cache_set(key, value);
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
-        let _ = self.as_in_query.cache_set_expire(key, expire);
+    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -314,8 +312,7 @@ where
         Ok(None)
     }
 
-    fn cache_remove(&self, args: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        let _ = self.as_in_query.cache_remove(args);
+    fn cache_remove(&self, _args: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(None)
     }
 }
