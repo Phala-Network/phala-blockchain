@@ -607,16 +607,10 @@ class Cluster {
     async _reservePorts() {
         const [wsPort, ...workerPorts] = await Promise.all([
             portfinder.getPortPromise({ port: 9944 }),
-            ...this.workers.map(() => Promise.all([
-                portfinder.getPortPromise({ port: 8000, stopPort: 9900 }), // port
-                portfinder.getPortPromise({ port: 8000, stopPort: 9900 }), // port (acl)
-            ]))
+            ...this.workers.map(() => portfinder.getPortPromise({ port: 8000, stopPort: 9900 }))
         ]);
         this.wsPort = wsPort;
-        this.workers.forEach((w, i) => {
-            console.log(`${i}-th pRuntime port: ${workerPorts[0]}, ACL port: ${workerPorts[1]}`)
-            w.port = workerPorts[i]
-        });
+        this.workers.forEach((w, i) => w.port = workerPorts[i]);
     }
 
     _createProcesses() {
@@ -658,7 +652,7 @@ class Cluster {
             types, typeAlias
         });
         this.workers.forEach(w => {
-            w.api = new PRuntimeApi(`http://localhost:${w.port[0]}`);
+            w.api = new PRuntimeApi(`http://localhost:${w.port}`);
         })
     }
 
@@ -712,8 +706,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     const args = isGramine ?
         [
             '--cores=0',  // Disable benchmark
-            '--port', teePort[0].toString(),
-            '--port_acl', teePort[1].toString(),
+            '--port', teePort.toString()
         ] :
         [
             '--cores=0',
@@ -723,7 +716,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
             cwd: workDir,
             env: {
                 ...process.env,
-                ROCKET_PORT: teePort[0].toString(),
+                ROCKET_PORT: teePort.toString(),
             }
         }
     ], { logPath: `${tmpPath}/${name}.log` });
@@ -736,7 +729,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relaye
             `--mnemonic=${gasAccountKey}`,
             `--inject-key=${key}`,
             `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-            `--pruntime-endpoint=http://localhost:${teePort[0]}`,
+            `--pruntime-endpoint=http://localhost:${teePort}`,
             '--dev-wait-block-ms=1000',
         ]
     ], { logPath: `${tmpPath}/${name}.log` });
