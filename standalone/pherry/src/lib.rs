@@ -739,17 +739,10 @@ async fn register_worker(
     attestation: prpc::Attestation,
     signer: &mut SrSigner,
 ) -> Result<()> {
-    let payload = attestation
-        .payload
-        .ok_or(anyhow!("Missing attestation payload"))?;
     let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
         .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation =
-        phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
-            ra_report: payload.report.as_bytes().to_vec(),
-            signature: payload.signature,
-            raw_signing_cert: payload.signing_cert,
-        };
+    let attestation = Decode::decode(&mut &attestation.payload[..])
+        .map_err(|_| anyhow!("Decode attestation payload failed"))?;
     chain_client::update_signer_nonce(para_api, signer).await?;
     let ret = para_api
         .tx()

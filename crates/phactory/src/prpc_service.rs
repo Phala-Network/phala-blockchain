@@ -1,4 +1,5 @@
 use std::sync::{Mutex, MutexGuard};
+use parity_scale_codec::Encode;
 
 use crate::system::System;
 
@@ -410,15 +411,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                         }
                     };
 
+                let encoded_payload = Encode::encode(&phala_types::AttestationReport::SgxIas {
+                    ra_report: attn_report.into_bytes(),
+                    signature: base64::decode(sig).map_err(from_display)?,
+                    raw_signing_cert: base64::decode_config(cert, base64::STANDARD)
+                        .map_err(from_display)?
+                });
+
                 cached_resp.attestation = Some(pb::Attestation {
                     version: 1,
                     provider: "SGX".to_string(),
-                    payload: Some(pb::AttestationReport {
-                        report: attn_report,
-                        signature: base64::decode(sig).map_err(from_display)?,
-                        signing_cert: base64::decode_config(cert, base64::STANDARD)
-                            .map_err(from_display)?,
-                    }),
+                    payload: encoded_payload,
                     timestamp: now(),
                 });
             }
