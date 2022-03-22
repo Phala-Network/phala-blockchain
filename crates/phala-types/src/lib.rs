@@ -699,10 +699,10 @@ pub enum EndpointType {
 
 #[derive(Encode, Decode, TypeInfo, Clone, Debug)]
 pub enum VersionedWorkerEndpoint {
-    V1(WorkerEndpointV1::WorkerEndpoint)
+    V1(worker_endpoint_v1::WorkerEndpoint)
 }
 
-pub mod WorkerEndpointV1 {
+pub mod worker_endpoint_v1 {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
     use core::fmt::Debug;

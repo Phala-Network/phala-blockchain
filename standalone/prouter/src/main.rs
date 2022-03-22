@@ -5,14 +5,14 @@
 
 #[macro_use]
 extern crate rocket;
-#[macro_use]
+// #[macro_use]
 extern crate rocket_contrib;
 extern crate rocket_cors;
 #[macro_use]
 extern crate lazy_static;
 extern crate serde;
 extern crate serde_json;
-#[macro_use]
+// #[macro_use]
 extern crate serde_derive;
 
 mod config;
@@ -26,7 +26,7 @@ mod utils;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{anyhow, Context, Result};
 use codec::Decode;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
@@ -39,7 +39,7 @@ extern crate rand;
 
 use phaxt::subxt::Signer;
 use phaxt::{subxt, ParachainApi, RelaychainApi};
-use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
+use sp_core::{crypto::Pair, sr25519};
 
 use chrono::{DateTime, Utc};
 
@@ -188,8 +188,6 @@ lazy_static! {
 
 async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     let client_tunnels_info = i2pd.get_client_tunnels_info()?;
-    let http_proxy_info = i2pd.get_http_proxy_info()?;
-    let socks_proxy_info = i2pd.get_socks_proxy_info()?;
     let server_tunnels_info = i2pd.get_server_tunnels_info()?;
     info!(
         "📦 Client Tunnels Count: {}, Server Tunnels Count: {}",
@@ -198,25 +196,33 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     );
     info!("🚇 Client Tunnels:");
     if let Ok(http_proxy_tun) = i2pd.get_http_proxy_info() {
-        info!("\t✅ {} => {}", http_proxy_tun.0, http_proxy_tun.1);
+        info!("\t✅ {} {} => {}", i, http_proxy_tun.0, http_proxy_tun.1);
     }
     if let Ok(socks_proxy_tun) = i2pd.get_socks_proxy_info() {
-        info!("\t✅ {} => {}", socks_proxy_tun.0, socks_proxy_tun.1);
+        info!("\t✅ {} {} => {}", i, socks_proxy_tun.0, socks_proxy_tun.1);
     }
     for (i, client_tun) in client_tunnels_info.iter().enumerate() {
-        info!("\t✅ {} => {}", client_tun.0, client_tun.1);
+        info!("\t✅ {} {} => {}", i, client_tun.0, client_tun.1);
     }
     info!("🚇 Server Tunnels:");
     for (i, server_tun) in server_tunnels_info.iter().enumerate() {
-        info!("\t✅ {} <= {}", server_tun.0, server_tun.1);
+        info!("\t✅ {} {} <= {}", i, server_tun.0, server_tun.1);
     }
+
+    let mut network_retry = 0;
 
     loop {
         let network_status = i2pd.get_network_status()?;
         info!("💡 Network Status: {}", &network_status);
         if network_status.to_lowercase().contains("error") {
             warn!("Error happened: {}", &network_status);
-            return Err(anyhow!("{}", network_status));
+            network_retry += 1;
+            if network_retry > 3 {
+                return Err(anyhow!("{}", network_status));
+            }
+            i2pd.run_peer_test();
+        } else if !network_status.to_lowercase().contains("testing") {
+            network_retry = 0;
         }
         let tunnel_creation_success_rate = i2pd.get_tunnel_creation_success_rate()?;
         info!(
@@ -427,7 +433,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
         let mut signer: subxt::PairSigner<phaxt::KhalaConfig, phaxt::PhalaExtra, sr25519::Pair> =
             subxt::PairSigner::new(pair); // Only usable when registering worker
 
-        let mut endpoint: Vec<u8> = Default::default();
+        let mut endpoint: Vec<u8>;
         let mut no_bind: bool = false;
 
         // Connect to substrate

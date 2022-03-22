@@ -9,28 +9,27 @@ use std::path::PathBuf;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-#[allow(dead_code)]
-enum PROUTER_SIGNING_KEY_TYPE {
-    SIGNING_KEY_TYPE_DSA_SHA1 = 0,
-    SIGNING_KEY_TYPE_ECDSA_SHA256_P256,
-    SIGNING_KEY_TYPE_ECDSA_SHA384_P384,
-    SIGNING_KEY_TYPE_ECDSA_SHA512_P521,
-    SIGNING_KEY_TYPE_RSA_SHA256_2048,
-    SIGNING_KEY_TYPE_RSA_SHA384_3072,
-    SIGNING_KEY_TYPE_RSA_SHA512_4096,
-    SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519,
-    SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519ph,
-    SIGNING_KEY_TYPE_GOSTR3410_CRYPTO_PRO_A_GOSTR3411_256,
-    SIGNING_KEY_TYPE_GOSTR3410_TC26_A_512_GOSTR3411_512,
-    SIGNING_KEY_TYPE_REDDSA_SHA512_ED25519,
+enum PRouterSigningKeyType {
+    SigningKeyTypeDSASha1 = 0,
+    SigningKeyTypeECDSASha256P256,
+    SigningKeyTypeECDSASha384P384,
+    SigningKeyTypeECDSASha512P521,
+    SigningKeyTypeRSASha2562048,
+    SigningKeyTypeRSASha3843072,
+    SigningKeyTypeRSASha5124096,
+    SigningKeyTypeEDDSASha512Ed25519,
+    SigningKeyTypeEDDSASha512Ed25519ph,
+    SigningKeyTypeGOSTR3410CryptoProAGostr3411256,
+    SigningKeyTypeGOSTR3410Tc26A512Gostr3411512,
+    SigningKeyTypeREDDSASha512Ed25519,
 }
 
-enum PROUTER_CRYPTO_KEY_TYPE {
-    CRYPTO_KEY_TYPE_ELGAMAL = 0,
-    CRYPTO_KEY_TYPE_ECIES_P256_SHA256_AES256CBC = 1,
-    CRYPTO_KEY_TYPE_ECIES_X25519_AEAD = 4,
-    CRYPTO_KEY_TYPE_ECIES_P256_SHA256_AES256CBC_TEST = 65280,
-    CRYPTO_KEY_TYPE_ECIES_GOSTR3410_CRYPTO_PRO_A_SHA256_AES256CBC = 65281,
+enum PRouterCryptoKeyType {
+    CryptoKeyTypeElgamal = 0,
+    CryptoKeyTypeECIESP256Sha256Aes256cbc = 1,
+    CryptoKeyTypeECIESX25519Aead = 4,
+    CryptoKeyTypeECIESP256Sha256Aes256cbcTest = 65280,
+    CryptoKeyTypeECIESGOSTR3410CryptoProASha256Aes256cbc = 65281,
 }
 
 #[derive(Debug)]
@@ -63,8 +62,8 @@ pub fn generate_ident_to_file(
         C_GenerateIdentToFile(
             c_filename,
             c_sk,
-            PROUTER_SIGNING_KEY_TYPE::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519 as u16,
-            PROUTER_CRYPTO_KEY_TYPE::CRYPTO_KEY_TYPE_ELGAMAL as u16,
+            ProuterSigningKeyType::SigningKeyTypeEDDSASha512Ed25519 as u16,
+            ProuterCryptoKeyType::CryptoKeyTypeElgamal as u16,
         )
     };
 
@@ -187,6 +186,13 @@ impl I2PD {
         }
         self.is_running = true;
         unsafe { C_StartI2P() };
+    }
+
+    pub fn run_peer_test(&mut self) {
+        if !self.is_running {
+            return;
+        }
+        unsafe { C_RunPeerTest() };
     }
 
     pub fn close_accepts_tunnels(&self) {

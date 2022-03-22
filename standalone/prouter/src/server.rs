@@ -3,26 +3,17 @@ use anyhow::{anyhow, Context, Error, Result};
 use log::{debug, error, info, warn};
 
 use rocket::config::Limits;
-use rocket::http::hyper::Error::Status;
 use rocket::http::Method;
-use rocket_contrib::json::{Json, JsonValue};
+use rocket_contrib::json::Json;
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
-use serde_json::ser::State;
 use std::env;
-use std::fmt::format;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 
 use crate::translator;
 use crate::types;
 
-use crate::subxt::sp_runtime::biguint::mul_single;
-use crate::types::PRouterRequestMethod;
 use phaxt::{ParachainApi, RelaychainApi};
-
-lazy_static! {
-    static ref ALLOW_CORS: bool = env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != "";
-}
 
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
@@ -135,15 +126,9 @@ pub fn rocket(
         .manage(api)
         .manage(para_api)
         .mount("/", rocket::routes!(json_send_data));
-
-    if *ALLOW_CORS {
-        info!("Allow CORS");
-
-        server
-            .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
-            .attach(cors_options().to_cors().expect("To not fail"))
-            .manage(cors_options().to_cors().expect("To not fail"))
-    } else {
-        server
-    }
+    info!("Allow CORS");
+    server
+        .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+        .attach(cors_options().to_cors().expect("To not fail"))
+        .manage(cors_options().to_cors().expect("To not fail"))
 }

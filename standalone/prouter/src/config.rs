@@ -5,9 +5,7 @@ use crate::Args;
 use anyhow::Result;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
-use std::path::Path;
 use std::path::PathBuf;
-use tokio::join;
 
 use crate::utils::push_str;
 
@@ -21,7 +19,7 @@ pub fn init_prouter_conf(
     let pidfile = push_str(&abs_datadir, "prouter.pid")?;
     let certsdir = push_str(&abs_datadir, "certificates")?;
     let logfile = push_str(&abs_datadir, "prouter.log")?;
-    let su3file = push_str(&abs_datadir, "prouter.su3")?;
+    let _su3file = push_str(&abs_datadir, "prouter.su3")?;
 
     // Construct default config
     let mut conf = Ini::new();
@@ -139,7 +137,7 @@ pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {
     let mut conf = match &args.override_tun {
         Some(path) => match Ini::load_from_file(&path) {
             Ok(ini) => ini,
-            Err(e) => Ini::new(),
+            Err(_e) => Ini::new(),
         },
         _ => Ini::new(),
     };

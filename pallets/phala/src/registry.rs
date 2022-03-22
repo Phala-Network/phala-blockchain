@@ -27,7 +27,7 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo},
+		WorkerRegistrationInfo, VersionedWorkerEndpoint, worker_endpoint_v1::{WorkerEndpoint, PhalaEndpointInfo},
 		EndpointType
 	};
 

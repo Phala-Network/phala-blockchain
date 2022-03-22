@@ -1,11 +1,10 @@
-use anyhow::{anyhow, Result};
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use phaxt::ParachainApi;
 
 use phaxt::khala::runtime_types::phala_types::{
     VersionedWorkerEndpoint,
-    WorkerEndpointV1::{PhalaEndpointInfo, WorkerEndpoint},
+    worker_endpoint_v1::WorkerEndpoint,
 };
 
 pub async fn get_endpoint_by_pubkey(api: &mut &ParachainApi, pubkey: [u8; 32]) -> Option<Vec<u8>> {
