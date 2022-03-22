@@ -72,6 +72,10 @@ struct Args {
     #[clap(long)]
     #[clap(default_value_t = 100)]
     gc_interval: BlockNumber,
+
+    /// Attestation provider, currently support "ias" and "opt_out"
+    #[structopt(long, default_value = "ias")]
+    attestation_provider: String,
 }
 
 #[rocket::main]
@@ -121,6 +125,7 @@ async fn main() -> Result<(), rocket::Error> {
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
             max_checkpoint_files: args.max_checkpoint_files,
             gc_interval: args.gc_interval,
+            attestation_provider: args.attestation_provider,
         }
     };
     info!("init_args: {:#?}", init_args);

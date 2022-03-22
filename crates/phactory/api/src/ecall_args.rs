@@ -37,6 +37,9 @@ pub struct InitArgs {
     /// Run the database garbage collection at given interval in blocks
     #[cfg_attr(feature = "serde", serde(default))]
     pub gc_interval: chain::BlockNumber,
+
+    /// Attestation provider
+    pub attestation_provider: String,
 }
 
 pub fn git_revision() -> String {
