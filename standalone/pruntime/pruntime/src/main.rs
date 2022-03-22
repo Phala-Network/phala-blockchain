@@ -105,6 +105,8 @@ fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
+    let mut servers = vec![];
+
     let rocket = thread::Builder::new()
         .name("rocket".into())
         .spawn(move || {
@@ -112,6 +114,21 @@ fn main() {
             panic!("Launch rocket failed: {}", err);
         })
         .expect("Failed to launch Rocket");
+
+    servers.push(rocket);
+
+    if let Some(port_acl) = &args.port_acl {
+        env::set_var("ROCKET_ACL_PORT", port_acl);
+        let rocket_acl = thread::Builder::new()
+            .name("rocket_acl".into())
+            .spawn(move || {
+                let err = api_server::rocket_acl(args.allow_cors).launch();
+                panic!("Launch rocket (acl) failed: {}", err);
+            })
+            .expect("Failed to launch Rocket (acl)");
+
+        servers.push(rocket_acl);
+    }
 
     let mut v = vec![];
     for i in 0..bench_cores {
@@ -128,20 +145,9 @@ fn main() {
         v.push(child);
     }
 
-    if let Some(port_acl) = &args.port_acl {
-        env::set_var("ROCKET_ACL_PORT", port_acl);
-        let rocket_acl = thread::Builder::new()
-            .name("rocket_acl".into())
-            .spawn(move || {
-                let err = api_server::rocket_acl(args.allow_cors).launch();
-                panic!("Launch rocket (acl) failed: {}", err);
-            })
-            .expect("Failed to launch Rocket (acl)");
-
-        let _ = rocket_acl.join();
+    for server in servers {
+        let _ = server.join();
     }
-
-    let _ = rocket.join();
     for child in v {
         let _ = child.join();
     }
