@@ -21,13 +21,7 @@ pub struct InitRuntimeResp {
 pub struct InitRespAttestation {
     pub version: i32,
     pub provider: String,
-    pub payload: AttestationReport,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AttestationReport {
-    pub report: String,
-    pub signature: String,
-    pub signing_cert: String,
+    pub payload: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
