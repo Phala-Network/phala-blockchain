@@ -45,6 +45,10 @@ struct Args {
     /// Listening port of HTTP
     #[structopt(long)]
     port: Option<String>,
+
+    /// Listening port of HTTP (with access control)
+    #[structopt(long)]
+    port_acl: Option<String>,
 }
 
 fn main() {
@@ -79,6 +83,12 @@ fn main() {
         env::set_var("ROCKET_PORT", port);
     }
 
+    if let Some(port_acl) = &args.port_acl {
+        env::set_var("ROCKET_ACL_PORT", port_acl);
+    } else {
+        env::set_var("ROCKET_ACL_PORT", "8001"); // default to 8001
+    }
+
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
     env_logger::Builder::from_env(env).init();
 
@@ -109,6 +119,14 @@ fn main() {
         })
         .expect("Failed to launch Rocket");
 
+    let rocket_acl = thread::Builder::new()
+        .name("rocket_acl".into())
+        .spawn(move || {
+            let err = api_server::rocket_acl(args.allow_cors).launch();
+            panic!("Launch rocket (acl) failed: {}", err);
+        })
+        .expect("Failed to launch Rocket (acl)");
+
     let mut v = vec![];
     for i in 0..bench_cores {
         let child = thread::Builder::new()
@@ -125,6 +143,7 @@ fn main() {
     }
 
     let _ = rocket.join();
+    let _ = rocket_acl.join();
     for child in v {
         let _ = child.join();
     }

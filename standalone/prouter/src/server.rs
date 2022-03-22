@@ -124,9 +124,9 @@ pub fn rocket(
     api: Arc<Mutex<Option<RelaychainApi>>>,
     para_api: Arc<Mutex<Option<ParachainApi>>>,
 ) -> rocket::Rocket {
-    let cfg = rocket::config::Config::build(rocket::config::Environment::Development)
+    let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
         .address("127.0.0.1")
-        .port(8001)
+        .port(8100)
         .workers(1)
         .limits(Limits::new().limit("json", 104857600))
         .expect("Config should be build with no erros");

@@ -1,6 +1,7 @@
-use std::str;
+use std::{str, env};
 use std::io::BufWriter;
 
+use rocket::config::Limits;
 use rocket::data::Data;
 use rocket::http::Method;
 use rocket::http::Status;
@@ -144,6 +145,31 @@ fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
     }
 }
 
+#[post("/<method>", data = "<data>")]
+fn prpc_proxy_acl(method: String, data: Data) -> Custom<Vec<u8>> {
+    info!("prpc_acl: request {}:", method);
+    let permitted_method: [&str; 1] = ["contract_query"];
+    if !permitted_method.contains(&&method[..]) {
+        error!("prpc_acl: access denied");
+        return Custom(Status::ServiceUnavailable, vec![]);
+    }
+    let path_bytes = method.as_bytes();
+    let data = match read_data(data) {
+        Some(data) => data,
+        None => {
+            return Custom(Status::BadRequest, b"Read body failed".to_vec());
+        }
+    };
+
+    let (status_code, output) = runtime::ecall_prpc_request(path_bytes, &data);
+    if let Some(status) = Status::from_code(status_code) {
+        Custom(status, output)
+    } else {
+        error!("prpc: Invalid status code: {}!", status_code);
+        Custom(Status::ServiceUnavailable, vec![])
+    }
+}
+
 #[get("/dump")]
 fn dump_state() -> anyhow::Result<Stream<PipeReader>> {
     let (r, writer) = os_pipe::pipe()?;
@@ -242,5 +268,41 @@ pub fn rocket(allow_cors: bool, enable_kick_api: bool) -> rocket::Rocket {
             .manage(cors_options().to_cors().expect("To not fail"))
     } else {
         server
+    }
+}
+
+// api endpoint with access control, will be exposed to the public
+pub fn rocket_acl(allow_cors: bool) -> rocket::Rocket {
+    let port = env::var("ROCKET_ACL_PORT")
+        .expect("should get rocket acl port")
+        .parse::<u16>()
+        .expect("port should be smaller than 65536");
+    let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
+        .address("0.0.0.0")
+        .port(port)
+        .workers(1)
+        .limits(Limits::new().limit("json", 104857600))
+        .expect("Config should be build with no erros");
+
+    let mut server_acl = rocket::custom(cfg)
+        .mount(
+            "/",
+            proxy_routes![
+                (get, "/get_info", get_info, actions::ACTION_GET_INFO),
+                (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
+            ],
+        );
+
+    server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
+
+    if allow_cors {
+        info!("Allow CORS");
+
+        server_acl
+            .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+            .attach(cors_options().to_cors().expect("To not fail"))
+            .manage(cors_options().to_cors().expect("To not fail"))
+    } else {
+        server_acl
     }
 }

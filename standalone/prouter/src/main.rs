@@ -159,7 +159,7 @@ pub struct Args {
     phala_exposed_host: String,
 
     #[structopt(
-        default_value = "8000",
+        default_value = "8001",
         long,
         help = "Port for the public API. Required to support http protocol"
     )]
