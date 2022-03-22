@@ -28,13 +28,13 @@ exclude = [
 	"ring",
 	"native-nostd-hasher",
 	"standalone/pruntime",
+	"standalone/prouter",
 	"crates/pink/examples/",
 ]
 
 members = [
 	"standalone/executor",
 	"standalone/rpc",
-	"standalone/prouter",
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
