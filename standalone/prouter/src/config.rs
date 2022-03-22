@@ -32,7 +32,7 @@ pub fn init_prouter_conf(
         .set("certsdir", certsdir)
         .set("log", "file")
         .set("logfile", logfile)
-        .set("loglevel", "warn")
+        .set("loglevel", "debug")
         .set("logclftime", "true")
         .set("daemon", "true")
         .set("nat", "true")

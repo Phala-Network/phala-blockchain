@@ -17,7 +17,7 @@ extern crate serde_derive;
 
 mod config;
 mod i2pd;
-mod reseeder;
+// mod reseeder;
 mod server;
 mod translator;
 mod types;
@@ -37,15 +37,14 @@ use tokio::{ select, signal };
 use tokio::time::{sleep, Duration};
 extern crate rand;
 
+use phaxt::subxt::Signer;
 use phaxt::{subxt, ParachainApi, RelaychainApi};
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 
 use chrono::{DateTime, Utc};
 
-use config::*;
 use i2pd::I2PD;
-use phaxt::subxt::Signer;
-use reseeder::SU3File;
+use config::*;
 use utils::*;
 
 use crate::prpc::phactory_api_client::PhactoryApiClient;

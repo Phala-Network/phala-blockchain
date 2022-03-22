@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
-use phala_types::VersionedWorkerEndpoint;
 use phaxt::ParachainApi;
 
 use phaxt::khala::runtime_types::phala_types::{
