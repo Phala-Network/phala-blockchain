@@ -607,10 +607,10 @@ class Cluster {
     async _reservePorts() {
         const [wsPort, ...workerPorts] = await Promise.all([
             portfinder.getPortPromise({ port: 9944 }),
-            ...this.workers.map(() => [
+            ...this.workers.map(() => Promise.all([
                 portfinder.getPortPromise({ port: 8000, stopPort: 9900 }), // port
                 portfinder.getPortPromise({ port: 8000, stopPort: 9900 }), // port (acl)
-            ])
+            ]))
         ]);
         this.wsPort = wsPort;
         this.workers.forEach((w, i) => {
