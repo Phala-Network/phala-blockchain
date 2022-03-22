@@ -62,8 +62,8 @@ pub fn generate_ident_to_file(
         C_GenerateIdentToFile(
             c_filename,
             c_sk,
-            ProuterSigningKeyType::SigningKeyTypeEDDSASha512Ed25519 as u16,
-            ProuterCryptoKeyType::CryptoKeyTypeElgamal as u16,
+            PRouterSigningKeyType::SigningKeyTypeEDDSASha512Ed25519 as u16,
+            PRouterCryptoKeyType::CryptoKeyTypeElgamal as u16,
         )
     };
 
@@ -188,7 +188,7 @@ impl I2PD {
         unsafe { C_StartI2P() };
     }
 
-    pub fn run_peer_test(&mut self) {
+    pub fn run_peer_test(&self) {
         if !self.is_running {
             return;
         }

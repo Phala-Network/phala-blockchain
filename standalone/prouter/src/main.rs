@@ -196,10 +196,10 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     );
     info!("🚇 Client Tunnels:");
     if let Ok(http_proxy_tun) = i2pd.get_http_proxy_info() {
-        info!("\t✅ {} {} => {}", i, http_proxy_tun.0, http_proxy_tun.1);
+        info!("\t✅ {} => {}", http_proxy_tun.0, http_proxy_tun.1);
     }
     if let Ok(socks_proxy_tun) = i2pd.get_socks_proxy_info() {
-        info!("\t✅ {} {} => {}", i, socks_proxy_tun.0, socks_proxy_tun.1);
+        info!("\t✅ {} => {}", socks_proxy_tun.0, socks_proxy_tun.1);
     }
     for (i, client_tun) in client_tunnels_info.iter().enumerate() {
         info!("\t✅ {} {} => {}", i, client_tun.0, client_tun.1);
