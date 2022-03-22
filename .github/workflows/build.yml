@@ -60,6 +60,31 @@ jobs:
             ./standalone/pruntime/bin/pruntime.manifest
             ./standalone/pruntime/bin/Rocket.toml
 
+  build-prouter:
+    name: Build pRouter
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-02-23
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+      - uses: ./.github/actions/install_toolchain
+      - name: Install pRouter dependencies
+        run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc
+      - name: Build pRouter
+        run: cd ./standalone/prouter/ && cargo build --release
+      - name: Save pRouter binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: prouter-binaries
+          path: |
+            ./standalone/prouter/target/release/prouter
+
   e2e-test:
     name: Run E2E tests
     runs-on: ubuntu-20.04
