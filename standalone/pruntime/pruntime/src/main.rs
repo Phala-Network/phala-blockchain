@@ -45,6 +45,10 @@ struct Args {
     /// Listening port of HTTP
     #[structopt(long)]
     port: Option<String>,
+
+    /// Attestation provider, currently support "ias" and "opt_out"
+    #[structopt(long, default_value = "ias")]
+    attestation_provider: String,
 }
 
 fn main() {
@@ -92,6 +96,7 @@ fn main() {
         enable_checkpoint: false,
         checkpoint_interval: 0,
         skip_corrupted_checkpoint: false,
+        attestation_provider: args.attestation_provider,
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {
