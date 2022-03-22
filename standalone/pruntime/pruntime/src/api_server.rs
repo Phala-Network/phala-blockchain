@@ -153,21 +153,8 @@ fn prpc_proxy_acl(method: String, data: Data) -> Custom<Vec<u8>> {
         error!("prpc_acl: access denied");
         return Custom(Status::ServiceUnavailable, vec![]);
     }
-    let path_bytes = method.as_bytes();
-    let data = match read_data(data) {
-        Some(data) => data,
-        None => {
-            return Custom(Status::BadRequest, b"Read body failed".to_vec());
-        }
-    };
 
-    let (status_code, output) = runtime::ecall_prpc_request(path_bytes, &data);
-    if let Some(status) = Status::from_code(status_code) {
-        Custom(status, output)
-    } else {
-        error!("prpc: Invalid status code: {}!", status_code);
-        Custom(Status::ServiceUnavailable, vec![])
-    }
+    prpc_proxy(method, data)
 }
 
 #[get("/dump")]
