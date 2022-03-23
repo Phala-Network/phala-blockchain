@@ -741,7 +741,7 @@ async fn register_worker(
 ) -> Result<()> {
     let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
         .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation = Decode::decode(&mut &attestation.payload[..])
+    let attestation: phala_types::AttestationReport = Decode::decode(&mut &attestation.payload[..])
         .map_err(|_| anyhow!("Decode attestation payload failed"))?;
     chain_client::update_signer_nonce(para_api, signer).await?;
     let ret = para_api
