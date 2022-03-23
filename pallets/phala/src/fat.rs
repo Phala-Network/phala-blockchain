@@ -10,9 +10,10 @@ pub mod pallet {
 	use sp_std::prelude::*;
 
 	use crate::{mq::MessageOriginInfo, registry};
+	// Re-export
+	pub use crate::attestation::Attestation;
 
 	use phala_types::{
-		AttestationReport,
 		contract::messaging::{ClusterEvent, ContractOperation},
 		contract::{
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
