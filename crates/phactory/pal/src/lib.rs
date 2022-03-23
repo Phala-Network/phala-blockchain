@@ -16,7 +16,7 @@ pub trait Sealing {
 
 pub trait RA {
     type Error: ErrorType;
-    fn create_attestation_report(&self, data: &[u8]) -> Result<Vec<u8>, Self::Error>;
+    fn create_attestation_report(&self, provider: String, data: &[u8]) -> Result<Vec<u8>, Self::Error>;
     fn quote_test(&self) -> Result<(), Self::Error>;
 }
 

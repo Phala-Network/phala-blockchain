@@ -443,7 +443,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
 
                 let encoded_report =
-                    match self.platform.create_attestation_report(&runtime_info_hash) {
+                    match self.platform.create_attestation_report(self.attestation_provider.clone(), &runtime_info_hash) {
                         Ok(r) => r,
                         Err(e) => {
                             let message = format!("Failed to create attestation report: {:?}", e);

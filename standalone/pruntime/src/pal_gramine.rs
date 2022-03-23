@@ -1,6 +1,7 @@
 use log::info;
 use std::alloc::System;
 use parity_scale_codec::Encode;
+use anyhow::anyhow;
 
 use phactory_pal::{
     AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA,
@@ -76,19 +77,30 @@ impl RA for GraminePlatform {
 
     fn create_attestation_report(
         &self,
+        provider: String,
         data: &[u8],
     ) -> Result<Vec<u8>, Self::Error> {
-        // TODO.kevin: move the key out of the binary?
-        const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
+        match provider.as_str() {
+            "ias" => {
+                // TODO.kevin: move the key out of the binary?
+                const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
-        let (attn_report, sig, cert) = ias::create_attestation_report(data, IAS_API_KEY_STR)?;
-        let attestation_report = phala_types::AttestationReport::SgxIas {
-            ra_report: attn_report.as_bytes().to_vec(),
-            signature: sig.as_bytes().to_vec(),
-            raw_signing_cert: cert.as_bytes().to_vec(),
-        };
+                let (attn_report, sig, cert) = ias::create_attestation_report(data, IAS_API_KEY_STR)?;
+                let attestation_report = phala_types::AttestationReport::SgxIas {
+                    ra_report: attn_report.as_bytes().to_vec(),
+                    signature: sig.as_bytes().to_vec(),
+                    raw_signing_cert: cert.as_bytes().to_vec(),
+                };
 
-        Ok(Encode::encode(&attestation_report))
+                Ok(Encode::encode(&attestation_report))
+            },
+            "opt-out" => {
+                Ok(Encode::encode(&phala_types::AttestationReport::OptOut))
+            },
+            _ => {
+                Err(anyhow!("Unknown attestation provider"))
+            }
+        }
     }
 
     fn quote_test(&self) -> Result<(), Self::Error> {
