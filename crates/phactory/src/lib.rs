@@ -205,6 +205,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         self.args = args;
+        self.attestation_provider = self.args.attestation_provider.clone();
     }
 
     pub fn set_args(&mut self, args: InitArgs) {

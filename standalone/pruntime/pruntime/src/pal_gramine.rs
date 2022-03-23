@@ -107,7 +107,7 @@ impl RA for GraminePlatform {
                 Ok(Encode::encode(&phala_types::AttestationReport::OptOut))
             },
             _ => {
-                Err(anyhow!("Unknown attestation provider"))
+                Err(anyhow!("Unknown attestation provider `{}`", provider))
             }
         }
     }

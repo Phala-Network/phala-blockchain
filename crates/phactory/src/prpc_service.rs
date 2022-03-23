@@ -413,7 +413,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
                 cached_resp.attestation = Some(pb::Attestation {
                     version: 1,
-                    provider: "SGX".to_string(),
+                    provider: self.attestation_provider.clone(),
                     payload: encoded_report,
                     timestamp: now(),
                 });
