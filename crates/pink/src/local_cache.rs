@@ -70,6 +70,16 @@ impl LocalCache {
     }
 
     pub fn get(&self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+        let entry = self.storages.get(id)?.kvs.get(key)?;
+        if entry.expire_at <= now() {
+            None
+        } else {
+            Some(entry.value.to_owned())
+        }
+    }
+
+    #[cfg(test)]
+    fn get_include_expired(&self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
         Some(self.storages.get(id)?.kvs.get(key)?.value.to_owned())
     }
 
@@ -109,13 +119,19 @@ impl LocalCache {
     }
 
     pub fn set_expire(&mut self, id: Cow<[u8]>, key: Cow<[u8]>, expire: u64) {
-        self.storages
-            .get_mut(id.as_ref())
-            .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
-            .map(|v| v.expire_at = now().saturating_add(expire));
+        self.maybe_clear_expired();
+        if expire == 0 {
+            let _ = self.remove(id.as_ref(), key.as_ref());
+        } else {
+            self.storages
+                .get_mut(id.as_ref())
+                .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
+                .map(|v| v.expire_at = now().saturating_add(expire));
+        }
     }
 
     pub fn remove(&mut self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+        self.maybe_clear_expired();
         let store = self.storages.get_mut(id)?;
         let v = store.kvs.remove(key).map(|v| v.value);
         if let Some(v) = &v {
@@ -173,9 +189,10 @@ mod test {
         assert_eq!(cache.get(b"id", b"foo"), Some(b"value".to_vec()));
 
         sleep(cache.default_value_lifetime);
-        gc(&mut cache);
-
         assert_eq!(cache.get(b"id", b"foo"), None);
+        assert!(cache.get_include_expired(b"id", b"foo").is_some());
+        gc(&mut cache);
+        assert_eq!(cache.get_include_expired(b"id", b"foo"), None);
         assert_eq!(get_size(&cache, b"id"), 0);
     }
 
@@ -194,7 +211,7 @@ mod test {
         sleep(2);
         gc(&mut cache);
 
-        assert_eq!(cache.get(b"id", b"foo"), None);
+        assert_eq!(cache.get_include_expired(b"id", b"foo"), None);
     }
 
     #[test]
