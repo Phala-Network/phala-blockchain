@@ -120,16 +120,16 @@ describe('A full stack', function () {
         it('can be registered as first gatekeeper', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[0].getInfo();
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.forceRegisterWorker(
-                        hex(info.publicKey),
-                        hex(info.ecdhPublicKey),
-                        null,
-                    )
-                ),
-                alice,
-            );
+            // await assert.txAccepted(
+            //     api.tx.sudo.sudo(
+            //         api.tx.phalaRegistry.forceRegisterWorker(
+            //             hex(info.publicKey),
+            //             hex(info.ecdhPublicKey),
+            //             null,
+            //         )
+            //     ),
+            //     alice,
+            // );
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
@@ -163,16 +163,16 @@ describe('A full stack', function () {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.forceRegisterWorker(
-                        hex(info.publicKey),
-                        hex(info.ecdhPublicKey),
-                        null,
-                    )
-                ),
-                alice,
-            );
+            // await assert.txAccepted(
+            //     api.tx.sudo.sudo(
+            //         api.tx.phalaRegistry.forceRegisterWorker(
+            //             hex(info.publicKey),
+            //             hex(info.ecdhPublicKey),
+            //             null,
+            //         )
+            //     ),
+            //     alice,
+            // );
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
@@ -490,7 +490,7 @@ describe('A full stack', function () {
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
-        const unsub = await txBuilder.signAndSend(signer, (result) => {
+        const unsub = await txBuilder.signAndSend(signer, {nonce: -1}, (result) => {
             if (result.status.isInBlock) {
                 let error;
                 for (const e of result.events) {
@@ -702,7 +702,8 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     }
     const args = [
         '--cores=0',  // Disable benchmark
-        '--port', teePort.toString()
+        '--port', teePort.toString(),
+        '--attestation-provider', 'opt-out',
     ];
     return new Process([
         `${workDir}/${pRuntimeBin}`, args, {
@@ -720,10 +721,11 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relaye
         pathRelayer, [
             '--no-wait',
             `--mnemonic=${gasAccountKey}`,
-            `--inject-key=${key}`,
+            // `--inject-key=${key}`,
             `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
             `--pruntime-endpoint=http://localhost:${teePort}`,
             '--dev-wait-block-ms=1000',
+            '--remote-attestation',
         ]
     ], { logPath: `${tmpPath}/${name}.log` });
 }
