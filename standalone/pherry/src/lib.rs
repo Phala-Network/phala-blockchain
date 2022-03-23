@@ -38,6 +38,7 @@ use clap::{AppSettings, Parser};
 use headers_cache::Client as CacheClient;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
+use phala_types::AttestationReport;
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -903,8 +904,21 @@ async fn register_worker(
 ) -> Result<()> {
     let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
         .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation = Decode::decode(&mut &attestation.payload[..])
+    let attestation: phala_types::AttestationReport = Decode::decode(&mut &attestation.payload[..])
         .map_err(|_| anyhow!("Decode attestation payload failed"))?;
+    let attestation =
+        match attestation {
+            phala_types::AttestationReport::SgxIas { ra_report, signature, raw_signing_cert } => {
+                phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
+                    ra_report,
+                    signature,
+                    raw_signing_cert,
+                }
+            }
+            phala_types::AttestationReport::OptOut => {
+                phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::OptOut
+            }
+        };
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
