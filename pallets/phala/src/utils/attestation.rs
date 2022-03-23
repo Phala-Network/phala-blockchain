@@ -8,17 +8,7 @@ use sp_std::{
 	vec::Vec,
 };
 
-use phala_types::AttestationProvider;
-
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum Attestation {
-	SgxIas {
-		ra_report: Vec<u8>,
-		signature: Vec<u8>,
-		raw_signing_cert: Vec<u8>,
-	},
-	OptOut,
-}
+use phala_types::{AttestationProvider, AttestationReport};
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -34,21 +24,21 @@ pub enum Error {
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub struct AttestationReport {
+pub struct ConfidentialReport {
 	pub confidence_level: u8,
 	pub provider: AttestationProvider,
 }
 
 pub fn validate(
-	attestation: &Attestation,
+	attestation: &AttestationReport,
 	user_data_hash: &[u8; 32],
 	now: u64,
 	verify_pruntime_hash: bool,
 	pruntime_allowlist: Vec<Vec<u8>>,
 	opt_out_enabled: bool
-) -> Result<AttestationReport, Error> {
+) -> Result<ConfidentialReport, Error> {
 	match attestation {
-		Attestation::SgxIas {
+		AttestationReport::SgxIas {
 			ra_report,
 			signature,
 			raw_signing_cert,
@@ -63,9 +53,9 @@ pub fn validate(
 				pruntime_allowlist,
 			)
 		},
-		Attestation::OptOut => {
+		AttestationReport::OptOut => {
 			if opt_out_enabled {
-				Ok(AttestationReport {
+				Ok(ConfidentialReport {
 					provider: AttestationProvider::OptOut,
 					confidence_level: 128u8
 				})
@@ -98,7 +88,7 @@ pub fn validate_ias_report(
 	now: u64,
 	verify_pruntime_hash: bool,
 	pruntime_allowlist: Vec<Vec<u8>>,
-) -> Result<AttestationReport, Error> {
+) -> Result<ConfidentialReport, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
 	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
@@ -185,7 +175,7 @@ pub fn validate_ias_report(
 	}
 
 	// Check the following fields
-	Ok(AttestationReport {
+	Ok(ConfidentialReport {
 		provider: AttestationProvider::Ias,
 		confidence_level,
 	})
