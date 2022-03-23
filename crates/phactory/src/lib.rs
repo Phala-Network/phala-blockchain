@@ -159,6 +159,7 @@ pub struct Phactory<Platform> {
     pub args: InitArgs,
     skip_ra: bool,
     dev_mode: bool,
+    attestation_provider: String,
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
@@ -180,6 +181,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             args: Default::default(),
             skip_ra: false,
             dev_mode: false,
+            attestation_provider: String::default(),
             machine_id,
             runtime_info: None,
             runtime_state: None,
@@ -207,6 +209,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
     pub fn set_args(&mut self, args: InitArgs) {
         self.args = args;
+        self.attestation_provider = self.args.attestation_provider.clone();
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
             system.geoip_city_db = self.args.geoip_city_db.clone();

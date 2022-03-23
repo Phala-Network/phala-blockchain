@@ -153,9 +153,20 @@ impl RA for SgxPlatform {
 
     fn create_attestation_report(
         &self,
+        provider: String,
         data: &[u8],
     ) -> Result<Vec<u8>, Self::Error> {
-        create_attestation_report(data, sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE)
+        match provider.as_str() {
+            "ias" => {
+                create_ias_attestation_report(data, sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE)
+            },
+            "opt-out" => {
+                Ok(Encode::encode(&phala_types::AttestationReport::OptOut))
+            },
+            _ => {
+                Err(anyhow!("Unknown attestation provider"))
+            }
+        }
     }
 
     fn quote_test(&self) -> Result<(), Self::Error> {
@@ -463,7 +474,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 }
 
 #[allow(const_err)]
-fn create_attestation_report(
+fn create_ias_attestation_report(
     data: &[u8],
     sign_type: sgx_quote_sign_type_t,
 ) -> Result<Vec<u8>> {
@@ -477,7 +488,6 @@ fn create_attestation_report(
 
     Ok(Encode::encode(&attestation_report))
 }
-
 fn init_quote() -> Result<(sgx_target_info_t, sgx_epid_group_id_t)> {
     let mut ti: sgx_target_info_t = sgx_target_info_t::default();
     let mut eg: sgx_epid_group_id_t = sgx_epid_group_id_t::default();
