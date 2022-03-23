@@ -121,6 +121,15 @@ jobs:
         run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/pruntime
       - name: Run E2E tests
         run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && PRUNTIME_TYPE=gramine yarn test
+      - name: Pack logs if failed
+        if: failure()
+        run: tar czvf e2e-logs.tar.gz e2e
+      - name: Upload logs if failed
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-logs
+          path: e2e-logs.tar.gz
     needs: [ build-core-blockchain, build-pruntime ]
 
   cargo-tests:
