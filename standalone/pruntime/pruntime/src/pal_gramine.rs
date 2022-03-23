@@ -6,7 +6,7 @@ use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Seali
 use phala_allocator::StatSizeAllocator;
 use std::fs::File;
 
-use crate::ra;
+use crate::ias;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct GraminePlatform;
@@ -90,18 +90,18 @@ impl RA for GraminePlatform {
         // TODO.kevin: move the key out of the binary?
         const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
-        let (attn_report, sig, cert) = ra::create_attestation_report(data, IAS_API_KEY_STR);
+        let (attn_report, sig, cert) = ias::create_attestation_report(data, IAS_API_KEY_STR)?;
         let attestation_report = phala_types::AttestationReport::SgxIas {
-            ra_report: payload.report.as_bytes().to_vec(),
-            signature: payload.signature,
-            raw_signing_cert: payload.signing_cert,
+            ra_report: attn_report.as_bytes().to_vec(),
+            signature: sig.as_bytes().to_vec(),
+            raw_signing_cert: cert.as_bytes().to_vec(),
         };
 
-        Ok(Encode::encode(attestation_report))
+        Ok(Encode::encode(&attestation_report))
     }
 
     fn quote_test(&self) -> Result<(), Self::Error> {
-        ra::create_quote_vec(&[0u8; 64]).map(|_| ())
+        ias::create_quote_vec(&[0u8; 64]).map(|_| ())
     }
 }
 

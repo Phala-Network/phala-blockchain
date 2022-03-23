@@ -2,7 +2,7 @@
 
 mod api_server;
 mod pal_gramine;
-mod ra;
+mod ias;
 mod runtime;
 
 use std::{env, thread};
