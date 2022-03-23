@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use http_req::request::{Method, Request};
 use log::{error, info, warn};
 use rand::RngCore as _;
+use parity_scale_codec::Encode;
 
 use sgx_tcrypto::*;
 use sgx_tse::*;
@@ -153,7 +154,7 @@ impl RA for SgxPlatform {
     fn create_attestation_report(
         &self,
         data: &[u8],
-    ) -> Result<(String, String, String), Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         create_attestation_report(data, sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE)
     }
 
@@ -465,10 +466,16 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 fn create_attestation_report(
     data: &[u8],
     sign_type: sgx_quote_sign_type_t,
-) -> Result<(String, String, String)> {
+) -> Result<Vec<u8>> {
     let quote_vec = create_quote_vec(data, sign_type)?;
     let (attn_report, sig, cert) = get_report_from_intel(quote_vec)?;
-    Ok((attn_report, sig, cert))
+    let attestation_report = phala_types::AttestationReport::SgxIas {
+        ra_report: attn_report.as_bytes().to_vec(),
+        signature: sig.as_bytes().to_vec(),
+        raw_signing_cert: cert.as_bytes().to_vec(),
+    };
+
+    Ok(Encode::encode(&attestation_report))
 }
 
 fn init_quote() -> Result<(sgx_target_info_t, sgx_epid_group_id_t)> {

@@ -401,7 +401,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 info!("Encoded runtime info");
                 info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
 
-                let (attn_report, sig, cert) =
+                let encoded_report =
                     match self.platform.create_attestation_report(&runtime_info_hash) {
                         Ok(r) => r,
                         Err(e) => {
@@ -411,17 +411,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                         }
                     };
 
-                let encoded_payload = Encode::encode(&phala_types::AttestationReport::SgxIas {
-                    ra_report: attn_report.into_bytes(),
-                    signature: base64::decode(sig).map_err(from_display)?,
-                    raw_signing_cert: base64::decode_config(cert, base64::STANDARD)
-                        .map_err(from_display)?
-                });
-
                 cached_resp.attestation = Some(pb::Attestation {
                     version: 1,
                     provider: "SGX".to_string(),
-                    payload: encoded_payload,
+                    payload: encoded_report,
                     timestamp: now(),
                 });
             }
