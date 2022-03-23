@@ -1,5 +1,6 @@
 use log::info;
 use std::alloc::System;
+use parity_scale_codec::Encode;
 
 use phactory_pal::{
     AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA,
@@ -76,10 +77,18 @@ impl RA for GraminePlatform {
     fn create_attestation_report(
         &self,
         data: &[u8],
-    ) -> Result<(String, String, String), Self::Error> {
+    ) -> Result<Vec<u8>, Self::Error> {
         // TODO.kevin: move the key out of the binary?
         const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
-        ra::create_attestation_report(data, IAS_API_KEY_STR)
+
+        let (attn_report, sig, cert) = ra::create_attestation_report(data, IAS_API_KEY_STR);
+        let attestation_report = phala_types::AttestationReport::SgxIas {
+            ra_report: payload.report.as_bytes().to_vec(),
+            signature: payload.signature,
+            raw_signing_cert: payload.signing_cert,
+        };
+
+        Ok(Encode::encode(attestation_report))
     }
 
     fn quote_test(&self) -> Result<(), Self::Error> {
