@@ -1,0 +1,12 @@
+# workaround for https://github.com/rust-lang/cargo/issues/6745
+[workspace]
+
+[package]
+name = "sidevm-timer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]

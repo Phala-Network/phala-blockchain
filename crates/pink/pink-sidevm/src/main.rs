@@ -1,60 +1,59 @@
-use wasmer::{imports, wat2wasm, BaseTunables, Instance, Module, NativeFunc, Pages, Store, Function};
-use wasmer_compiler_singlepass::Singlepass;
-use wasmer_engine_universal::Universal;
-use wasmer_tunables::LimitingTunables;
+use anyhow::Result;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // A Wasm module with one exported memory (min: 7 pages, max: unset)
-    // let wat = br#"(module (memory 7) (export "memory" (memory 0)))"#;
+use pink_sidevm::WasmRun;
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let wat = br#"
     (module
-      (type (;0;) (func (param i32 i32) (result i32)))
-      (import "env" "host_add" (func $host_add (type 0)))
-      (func $add (type 0) (param i32 i32) (result i32)
+      (type (;0;) (func (param i32 i32 i32 i32 i32) (result i32)))
+      (type (;1;) (func (result i32)))
+      (import "env" "sidevm_ocall" (func $sidevm_ocall (type 0)))
+      (func $sidevm_poll (type 1) (result i32)
+        (local i32)
+        block  ;; label = @1
+          i32.const 0
+          i32.load offset=1048576
+          local.tee 0
+          i32.const -1
+          i32.ne
+          br_if 0 (;@1;)
+          i32.const 0
+          i32.const 1
+          i32.const 10000
+          i32.const 0
+          i32.const 0
+          i32.const 0
+          call $sidevm_ocall
+          local.tee 0
+          i32.store offset=1048576
+          local.get 0
+          i32.const -1
+          i32.ne
+          br_if 0 (;@1;)
+          i32.const 2
+          return
+        end
+        i32.const 2
         local.get 0
-        local.get 1
-        call $host_add)
+        i32.const 0
+        i32.const 0
+        i32.const 0
+        call $sidevm_ocall)
       (table (;0;) 1 1 funcref)
-      (memory (;0;) 16)
+      (memory (;0;) 17)
       (global (;0;) (mut i32) (i32.const 1048576))
-      (global (;1;) i32 (i32.const 1048576))
-      (global (;2;) i32 (i32.const 1048576))
+      (global (;1;) i32 (i32.const 1048580))
+      (global (;2;) i32 (i32.const 1048592))
       (export "memory" (memory 0))
-      (export "add" (func $add))
+      (export "sidevm_poll" (func $sidevm_poll))
       (export "__data_end" (global 1))
-      (export "__heap_base" (global 2)))
+      (export "__heap_base" (global 2))
+      (data (;0;) (i32.const 1048576) "\ff\ff\ff\ff"))
     "#;
 
-    let wasm_bytes = wat2wasm(wat)?;
-    let wasm_bytes = include_bytes!("/tmp/gogo.wasm");
-
-    // Any compiler and any engine do the job here
-    let compiler = Singlepass::default();
-    let engine = Universal::new(compiler).engine();
-
-    // Here is where the fun begins
-
-    let base = BaseTunables::for_target(&Default::default());
-    let tunables = LimitingTunables::new(base, Pages(24));
-
-    // Create a store, that holds the engine and our custom tunables
-    let store = Store::new_with_tunables(&engine, tunables);
-
-    println!("Compiling module...");
-    let module = Module::new(&store, wasm_bytes)?;
-
-    println!("Instantiating module...");
-    let import_object = imports! {
-      "env" => {
-        "host_add" => Function::new_native(&store, |a: u32, b: u32| -> u32 { a + b + 1 }),
-      }
-    };
-
-    // Now at this point, our custom tunables are used
-    let instance = Instance::new(&module, &import_object)?;
-
-    let add: NativeFunc<(u32, u32), u32> = instance.exports.get_native_function("add")?;
-    let result = add.call(5, 3)?;
-    println!("result: {}", result);
+    let wasm_bytes = wasmer::wat2wasm(wat)?;
+    let rv = WasmRun::run(wasm_bytes.as_ref(), 20)?.await?;
+    println!("result: {}", rv);
     Ok(())
 }
