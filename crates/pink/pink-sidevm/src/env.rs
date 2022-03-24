@@ -39,7 +39,12 @@ impl Env {
 
 fn sidevm_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> i32 {
     match func_id {
-        // sleep
+        // close
+        0 => {
+            // TODO.
+            0
+        }
+        // create a sleep timer
         1 => {
             let sleep = tokio::time::sleep(Duration::from_millis(p0 as u64));
             let result = env
@@ -55,7 +60,7 @@ fn sidevm_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> 
                 }
             }
         }
-        // poll_sleep
+        // poll given sleep timer
         2 => {
             let id = p0 as usize;
             let mut res = env.resources.lock().unwrap();

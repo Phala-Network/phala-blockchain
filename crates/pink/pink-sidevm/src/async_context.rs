@@ -53,9 +53,7 @@ where
     });
     let _reset_cx = SetOnDrop(cx_ptr);
 
-    let mut cx_ptr = cx_ptr.expect(
-        "TLS task::Context not set. This is a bug.",
-    );
+    let mut cx_ptr = cx_ptr.expect("TLS task::Context not set. This is a bug.");
     unsafe { f(cx_ptr.as_mut()) }
 }
 
