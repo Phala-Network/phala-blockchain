@@ -14,6 +14,10 @@ pub mod test;
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct StorageQuotaExceeded;
+
+#[derive(scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum ErrorCode {}
 
 impl ink_env::chain_extension::FromStatusCode for ErrorCode {
@@ -45,6 +49,37 @@ pub trait PinkExt {
 
     #[ink(extension = 0xff000005, handle_status = false, returns_result = false)]
     fn get_public_key(args: PublicKeyForArgs) -> Vec<u8>;
+
+    /// Set a value in the local cache.
+    ///
+    /// The default expiration time is 7 days. Use `cache_set_expire` to set a custom expiration
+    /// time.
+    /// Values stored in cache can only be read in query functions.
+    ///
+    /// Alwasy returns `Ok(())` if it is called from a command context.
+    #[ink(extension = 0xff000006, handle_status = false, returns_result = false)]
+    fn cache_set(key: &[u8], value: &[u8]) -> Result<(), StorageQuotaExceeded>;
+
+    /// Set the expiration time of a value in the local cache.
+    ///
+    /// Arguments:
+    /// - `key`: The key of the value to set the expiration time for.
+    /// - `expire`: The expiration time from now in seconds.
+    #[ink(extension = 0xff000007, handle_status = false, returns_result = false)]
+    fn cache_set_expire(key: &[u8], expire: u64) -> ();
+
+    /// Get a value from the local cache.
+    ///
+    /// Only for query functions. Always returns `None` if it is called from a command context.
+    #[ink(extension = 0xff000008, handle_status = false, returns_result = false)]
+    fn cache_get(key: &[u8]) -> Option<Vec<u8>>;
+
+    /// Remove a value from the local cache.
+    ///
+    /// Returns the removed value if it existed. Always returns `None` if it is called from a
+    /// command context.
+    #[ink(extension = 0xff000009, handle_status = false, returns_result = false)]
+    fn cache_remove(args: &[u8]) -> Option<Vec<u8>>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

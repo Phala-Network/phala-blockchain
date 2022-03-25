@@ -4,7 +4,8 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
-use syn::{parse_macro_input, spanned::Spanned, Result};
+use syn::{parse_macro_input, spanned::Spanned, Result, Type};
+use unzip3::Unzip3 as _;
 
 use ink_lang_ir::{ChainExtension, HexLiteral as _, ImplItem, Selector};
 
@@ -173,6 +174,22 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         for item in item_trait.items.iter_mut() {
             if let syn::TraitItem::Method(item_method) = item {
                 item_method.attrs.clear();
+
+                // Turn &[u8] into Cow<[u8]>
+                for input in item_method.sig.inputs.iter_mut() {
+                    match input {
+                        syn::FnArg::Receiver(_) => (),
+                        syn::FnArg::Typed(arg) => {
+                            if let Type::Reference(tp) = *arg.ty.clone() {
+                                let inner_type = tp.elem.clone();
+                                arg.ty = syn::parse_quote! {
+                                    Cow<#inner_type>
+                                };
+                            }
+                        }
+                    }
+                }
+
                 item_method.sig.inputs.insert(
                     0,
                     syn::parse_quote! {
@@ -204,7 +221,12 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             .map(|m| {
                 let name = m.ident().to_string();
                 let id = m.id().into_u32();
-                (name, id)
+                let args: Vec<_> = m
+                    .inputs()
+                    .enumerate()
+                    .map(|(i, _)| Ident::new(&format!("arg_{}", i), Span::call_site()))
+                    .collect();
+                (name, id, args)
             })
             .collect()
     };
@@ -214,7 +236,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         let mut mod_item: syn::ItemMod = syn::parse_quote! {
             pub mod func_ids {}
         };
-        for (name, id) in id_pairs.iter() {
+        for (name, id, _) in id_pairs.iter() {
             let name = name.to_uppercase();
             let name = Ident::new(&name, Span::call_site());
             let id = Literal::u32_unsuffixed(*id);
@@ -232,14 +254,14 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
 
     // Generate the dispatcher
     let dispatcher: syn::ItemMacro = {
-        let (names, ids): (Vec<_>, Vec<_>) = id_pairs
+        let (names, ids, args): (Vec<_>, Vec<_>, Vec<_>) = id_pairs
             .into_iter()
-            .map(|(name, id)| {
+            .map(|(name, id, args)| {
                 let name = Ident::new(&name, Span::call_site());
                 let id = Literal::u32_unsuffixed(id);
-                (name, id)
+                (name, id, args)
             })
-            .unzip();
+            .unzip3();
         syn::parse_quote! {
             #[macro_export]
             macro_rules! dispatch_ext_call {
@@ -247,8 +269,8 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                     match $func_id {
                         #(
                             #ids => {
-                                let input = $env.read_as_unbounded($env.in_len())?;
-                                let output = $handler.#names(input)?;
+                                let (#(#args),*) = $env.read_as_unbounded($env.in_len())?;
+                                let output = $handler.#names(#(#args),*)?;
                                 let output = output.encode();
                                 Some(output)
                             }
@@ -273,10 +295,39 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             let fname = "mock_".to_owned() + &name;
             let fname = Ident::new(&fname, Span::call_site());
             let id = Literal::u32_unsuffixed(m.id().into_u32());
-            let input = match m.inputs().next() {
-                Some(p0) => *p0.ty.clone(),
-                None => syn::parse_quote!(),
-            };
+            let input_types: Vec<Type> = m.inputs().map(|arg| (*arg.ty).clone()).collect();
+            let input_types_cow: Vec<Type> = input_types
+                .iter()
+                .map(|arg| match arg.clone() {
+                    Type::Reference(tp) => {
+                        let inner = tp.elem.clone();
+                        syn::parse_quote! { Cow<#inner> }
+                    }
+                    tp => tp,
+                })
+                .collect();
+            let input_args: Vec<_> = input_types
+                .iter()
+                .enumerate()
+                .map(|(i, _)| Ident::new(&format!("arg_{}", i), Span::call_site()))
+                .collect();
+            let input_args_asref: Vec<TokenStream2> = input_types
+                .iter()
+                .enumerate()
+                .map(|(i, tp)| {
+                    let name = Ident::new(&format!("arg_{}", i), Span::call_site());
+                    match tp {
+                        Type::Reference(_) => {
+                            syn::parse_quote! {
+                                #name.as_ref()
+                            }
+                        }
+                        _ => syn::parse_quote! {
+                            #name
+                        },
+                    }
+                })
+                .collect();
             let output = m.sig().output.clone();
             mod_item
                 .content
@@ -284,9 +335,11 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 .unwrap()
                 .1
                 .push(syn::parse_quote! {
-                    pub fn #fname(call: impl FnMut(#input) #output + 'static) {
+                    pub fn #fname(mut call: impl FnMut(#(#input_types),*) #output + 'static) {
                         ink_env::test::register_chain_extension(
-                            MockExtension::<_, _, _, #id>::new(call),
+                            MockExtension::<_, _, _, #id>::new(
+                                move |(#(#input_args),*): (#(#input_types_cow),*)| call(#(#input_args_asref),*)
+                            ),
                         );
                     }
                 });

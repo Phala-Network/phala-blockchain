@@ -3717,6 +3717,7 @@ dependencies = [
  "http_req",
  "impl-serde",
  "log",
+ "once_cell",
  "pallet-balances",
  "pallet-contracts",
  "pallet-contracts-primitives",
@@ -3764,7 +3765,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "ink_lang_ir",
  "ink_lang_macro",
@@ -3772,6 +3773,7 @@ dependencies = [
  "proc-macro2 1.0.36",
  "quote 1.0.15",
  "syn 1.0.86",
+ "unzip3",
 ]
 
 [[package]]
@@ -6021,6 +6023,12 @@ name = "untrusted"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
+
+[[package]]
+name = "unzip3"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "99c0ec316ab08201476c032feb2f94a5c8ece5b209765c1fbc4430dd6e931ad6"
 
 [[package]]
 name = "url"
