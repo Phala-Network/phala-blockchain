@@ -15,7 +15,14 @@ mod env;
 mod resource;
 
 pub struct WasmRun {
+    env: env::Env,
     wasm_poll_entry: NativeFunc<(), i32>,
+}
+
+impl Drop for WasmRun {
+    fn drop(&mut self) {
+        self.env.cleanup()
+    }
 }
 
 impl WasmRun {
@@ -34,6 +41,7 @@ impl WasmRun {
             .context("No memory exported")?;
         env.set_memory(memory.clone());
         Ok(WasmRun {
+            env,
             wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
         })
     }
