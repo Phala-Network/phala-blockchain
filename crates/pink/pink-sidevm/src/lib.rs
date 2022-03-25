@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, Context as _};
 use resource::ResourceKeeper;
 use std::future::Future;
 use std::pin::Pin;
@@ -26,7 +26,13 @@ impl WasmRun {
         let tunables = LimitingTunables::new(base, Pages(max_pages));
         let store = Store::new_with_tunables(&engine, tunables);
         let module = Module::new(&store, code)?;
-        let instance = Instance::new(&module, &env::imports(&store))?;
+        let (env, import_object) = env::create_env(&store);
+        let instance = Instance::new(&module, &import_object)?;
+        let memory = instance
+            .exports
+            .get_memory("memory")
+            .context("No memory exported")?;
+        env.set_memory(memory.clone());
         Ok(WasmRun {
             wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
         })

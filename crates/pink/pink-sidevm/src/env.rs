@@ -7,33 +7,51 @@ use std::{
 };
 
 use log::error;
-use wasmer::{imports, Function, ImportObject, Store, WasmerEnv};
+use wasmer::{imports, Function, ImportObject, Memory, MemoryType, Pages, Store, WasmerEnv};
 
 use crate::async_context::poll_in_task_cx;
 use crate::resource::{Resource, ResourceKeeper};
 
-pub fn imports(store: &Store) -> ImportObject {
-    imports! {
-        "env" => {
-            "sidevm_ocall" => Function::new_native_with_env(
-                store,
-                Env::new(),
-                sidevm_ocall
-            ),
-        }
-    }
+pub fn create_env(store: &Store) -> (Env, ImportObject) {
+    let env = Env::new(store);
+    (
+        env.clone(),
+        imports! {
+            "env" => {
+                "sidevm_ocall" => Function::new_native_with_env(
+                    store,
+                    env,
+                    sidevm_ocall
+                ),
+            }
+        },
+    )
+}
+
+struct EnvInner {
+    resources: ResourceKeeper,
+    memory: Memory,
 }
 
 #[derive(WasmerEnv, Clone)]
-struct Env {
-    resources: Arc<Mutex<ResourceKeeper>>,
+pub struct Env {
+    inner: Arc<Mutex<EnvInner>>,
 }
 
 impl Env {
-    fn new() -> Self {
+    fn new(store: &Store) -> Self {
+        let memory = Memory::new(store, MemoryType::new(Pages(0), Some(Pages(0)), false))
+            .expect("Create memory failed");
         Self {
-            resources: Arc::new(Mutex::new(ResourceKeeper::default())),
+            inner: Arc::new(Mutex::new(EnvInner {
+                resources: ResourceKeeper::default(),
+                memory,
+            })),
         }
+    }
+
+    pub fn set_memory(&self, memory: Memory) {
+        self.inner.lock().unwrap().memory = memory;
     }
 }
 
@@ -48,9 +66,10 @@ fn sidevm_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> 
         1 => {
             let sleep = tokio::time::sleep(Duration::from_millis(p0 as u64));
             let result = env
-                .resources
+                .inner
                 .lock()
                 .unwrap()
+                .resources
                 .push(Resource::Sleep(Box::pin(sleep)));
             match result {
                 Some(id) => id as i32,
@@ -63,8 +82,8 @@ fn sidevm_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> 
         // poll given sleep timer
         2 => {
             let id = p0 as usize;
-            let mut res = env.resources.lock().unwrap();
-            match res.get_mut(id) {
+            let mut res = env.inner.lock().unwrap();
+            match res.resources.get_mut(id) {
                 Some(res) => {
                     if let Resource::Sleep(sleep) = res {
                         match poll_in_task_cx(sleep.as_mut()) {
