@@ -504,7 +504,7 @@ pub mod pallet {
 
 			let event = message.payload;
 			if !event.is_empty() {
-				let emit_ts = event.timestamp_ms;
+				let emit_ts = event.timestamp_ms / 1000;
 				let now = Self::now_sec();
 
 				// worker offline, update bound miner state to unresponsive
@@ -566,6 +566,8 @@ pub mod pallet {
 		///
 		/// We really don't want to crash the interrupt the message processing. So when there's an
 		/// error we return it, and let the caller to handle it gracefully.
+		///
+		/// `now` and `emit_ts` are both in second.
 		fn try_handle_settle(info: &SettleInfo, now: u64, emit_ts: u64) -> DispatchResult {
 			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
 				let mut miner_info = Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
@@ -1081,7 +1083,7 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
-			worker_pubkey, Event as TestEvent, Origin, Test, DOLLARS,
+			worker_pubkey, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{PhalaMining, PhalaRegistry, System};
@@ -1439,6 +1441,49 @@ pub mod pallet {
 					challenge_time_last: 190,
 				}
 			);
+		}
+
+		#[test]
+		fn drop_late_arrived_update() {
+			new_test_ext().execute_with(|| {
+				use phala_types::messaging::Topic;
+
+				set_block_1();
+				setup_workers(1);
+				PhalaRegistry::internal_set_benchmark(&worker_pubkey(1), Some(600));
+				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				elapse_seconds(100);
+				assert_ok!(PhalaMining::start_mining(1, 3000 * DOLLARS));
+				take_events();
+				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
+					MiningInfoUpdateEvent<BlockNumber>,
+				> {
+					sender: MessageOrigin::Gatekeeper,
+					destination: Topic::new(*b"^phala/mining/update"),
+					payload: MiningInfoUpdateEvent::<BlockNumber> {
+						block_number: 1,
+						timestamp_ms: 100_000,
+						offline: vec![],
+						recovered_to_online: vec![],
+						settle: vec![SettleInfo {
+							pubkey: worker_pubkey(1),
+							v: 1,
+							payout: 0,
+							treasury: 0,
+						}],
+					},
+				}));
+
+				let ev = take_events();
+				assert_eq!(
+					ev[0],
+					TestEvent::PhalaMining(Event::MinerSettlementDropped {
+						miner: 1,
+						v: 1,
+						payout: 0,
+					})
+				);
+			});
 		}
 	}
 }
