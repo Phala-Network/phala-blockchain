@@ -1259,6 +1259,9 @@ export namespace pruntime_rpc {
 
         /** InitRuntimeRequest isParachain */
         isParachain?: (boolean|null);
+
+        /** InitRuntimeRequest attestationProvider */
+        attestationProvider?: (string|null);
     }
 
     /** Represents an InitRuntimeRequest. */
@@ -1288,11 +1291,17 @@ export namespace pruntime_rpc {
         /** InitRuntimeRequest isParachain. */
         public isParachain: boolean;
 
+        /** InitRuntimeRequest attestationProvider. */
+        public attestationProvider?: (string|null);
+
         /** InitRuntimeRequest _debugSetKey. */
         public _debugSetKey?: "debugSetKey";
 
         /** InitRuntimeRequest _encodedOperator. */
         public _encodedOperator?: "encodedOperator";
+
+        /** InitRuntimeRequest _attestationProvider. */
+        public _attestationProvider?: "attestationProvider";
 
         /**
          * Creates a new InitRuntimeRequest instance using the specified properties.

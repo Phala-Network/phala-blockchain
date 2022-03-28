@@ -205,12 +205,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         self.args = args;
-        self.attestation_provider = self.args.attestation_provider.clone();
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
         self.args = args;
-        self.attestation_provider = self.args.attestation_provider.clone();
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
             system.geoip_city_db = self.args.geoip_city_db.clone();

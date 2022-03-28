@@ -31,9 +31,6 @@ pub struct InitArgs {
 
     /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
     pub skip_corrupted_checkpoint: bool,
-
-    /// Attestation provider
-    pub attestation_provider: String,
 }
 
 pub fn git_revision() -> String {

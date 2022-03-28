@@ -33,6 +33,7 @@ use phactory_api::pruntime_client;
 
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
+
 use phala_types::AttestationReport;
 
 #[derive(Debug, StructOpt)]
@@ -182,6 +183,11 @@ struct Args {
 
     #[structopt(long, help = "Restart if number of rpc errors reaches the threshold")]
     restart_on_rpc_error_threshold: Option<u64>,
+
+    /// Attestation provider
+    #[structopt(long)]
+    #[structopt(default_value = "ias")]
+    pub attestation_provider: String,
 }
 
 struct RunningFlags {
@@ -686,6 +692,7 @@ async fn init_runtime(
     para_api: &ParachainApi,
     pr: &PrClient,
     skip_ra: bool,
+    attestation_provider: String,
     use_dev_key: bool,
     inject_key: &str,
     operator: Option<AccountId32>,
@@ -729,6 +736,7 @@ async fn init_runtime(
             genesis_state,
             operator,
             is_parachain,
+            Some(attestation_provider),
         ))
         .await?;
     Ok(resp)
@@ -742,26 +750,14 @@ async fn register_worker(
 ) -> Result<()> {
     let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
         .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation: phala_types::AttestationReport = Decode::decode(&mut &attestation.payload[..])
+    // FIXME: incorrect type, require update metadata
+    let attestation = Decode::decode(&mut &attestation.payload[..])
         .map_err(|_| anyhow!("Decode attestation payload failed"))?;
-    let attestation =
-        match attestation {
-            phala_types::AttestationReport::SgxIas { ra_report, signature, raw_signing_cert } => {
-                phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
-                    ra_report,
-                    signature,
-                    raw_signing_cert,
-                }
-            }
-            phala_types::AttestationReport::OptOut => {
-                phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::OptOut
-            }
-        };
     chain_client::update_signer_nonce(para_api, signer).await?;
     let ret = para_api
         .tx()
         .phala_registry()
-        .register_worker(pruntime_info, attestation.into())
+        .register_worker(pruntime_info, attestation)
         .sign_and_submit_then_watch(signer)
         .await;
     if ret.is_err() {
@@ -871,6 +867,7 @@ async fn bridge(
                 &para_api,
                 &pr,
                 !args.ra,
+                args.attestation_provider.clone(),
                 args.use_dev_key,
                 &args.inject_key,
                 operator,

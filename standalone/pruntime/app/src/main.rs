@@ -89,11 +89,6 @@ struct Args {
     /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
     #[structopt(long)]
     skip_corrupted_checkpoint: bool,
-
-    /// Attestation provider
-    #[structopt(long)]
-    #[structopt(default_value = "ias")]
-    pub attestation_provider: String,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -658,7 +653,6 @@ fn main() {
         enable_checkpoint: !args.disable_checkpoint,
         checkpoint_interval: args.checkpoint_interval,
         skip_corrupted_checkpoint: args.skip_corrupted_checkpoint,
-        attestation_provider: args.attestation_provider,
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
