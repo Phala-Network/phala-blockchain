@@ -666,7 +666,6 @@ pub struct WorkerInfo<BlockNumber> {
     pub state: WorkerStateEnum<BlockNumber>,
     // performance
     pub score: Option<Score>,
-    // confidence-level
     pub attestation_provider: AttestationProvider,
     pub confidence_level: u8,
     // version
