@@ -132,18 +132,9 @@ pub mod pallet {
 		where
 			Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
 		{
-			// Calculate remaining stake
-			let v = FixedPoint::from_bits(self.v);
-			let ve = FixedPoint::from_bits(self.ve);
-			let return_rate = (v / ve).min(fp!(1));
-			// If we consider kappa as a panelty of frequent exit:
-			// 	let tokenomic = Self::tokenomic();
-			// 	let returned = return_rate * orig_stake.to_fixed() * tokenomic.kappa();
-			let returned = return_rate * orig_stake.to_fixed();
-			// Convert to Balance
-			let returned = FixedPointConvert::from_fixed(&returned);
-			let slashed = orig_stake - returned;
-			(returned, slashed)
+			// TODO(hangyin): deal with slash later
+			// For simplicity the slash is disabled until StakePool v2 is implemented.
+			(orig_stake, Zero::zero())
 		}
 	}
 
@@ -291,6 +282,12 @@ pub mod pallet {
 		InternalErrorWrongHalvingConfigured,
 		/// Tokenomic parameter changed.
 		TokenomicParametersChanged,
+		/// A miner settlement was dropped because the on-chain version is more up-to-date.
+		MinerSettlementDropped {
+			miner: T::AccountId,
+			v: u128,
+			payout: u128,
+		},
 	}
 
 	#[pallet::error]
@@ -507,6 +504,7 @@ pub mod pallet {
 
 			let event = message.payload;
 			if !event.is_empty() {
+				let emit_ts = event.timestamp_ms / 1000;
 				let now = Self::now_sec();
 
 				// worker offline, update bound miner state to unresponsive
@@ -553,7 +551,7 @@ pub mod pallet {
 
 				for info in &event.settle {
 					// Do not crash here
-					if Self::try_handle_settle(info, now).is_err() {
+					if Self::try_handle_settle(info, now, emit_ts).is_err() {
 						Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(info.pubkey))
 					}
 				}
@@ -568,10 +566,22 @@ pub mod pallet {
 		///
 		/// We really don't want to crash the interrupt the message processing. So when there's an
 		/// error we return it, and let the caller to handle it gracefully.
-		fn try_handle_settle(info: &SettleInfo, now: u64) -> DispatchResult {
+		///
+		/// `now` and `emit_ts` are both in second.
+		fn try_handle_settle(info: &SettleInfo, now: u64, emit_ts: u64) -> DispatchResult {
 			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
 				let mut miner_info = Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
 				debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
+				if miner_info.v_updated_at >= emit_ts {
+					// Received a late update of the settlement. For now we just drop it.
+					Self::deposit_event(Event::<T>::MinerSettlementDropped {
+						miner: account,
+						v: info.v,
+						payout: info.payout,
+					});
+					return Ok(());
+				}
+				// Otherwise it's a normal update. Let's proceed.
 				miner_info.v = info.v; // in bits
 				miner_info.v_updated_at = now;
 				miner_info.stats.on_reward(info.payout);
@@ -585,9 +595,12 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn can_reclaim(miner_info: &MinerInfo) -> bool {
+		fn can_reclaim(miner_info: &MinerInfo, check_cooldown: bool) -> bool {
 			if miner_info.state != MinerState::MiningCoolingDown {
 				return false;
+			}
+			if !check_cooldown {
+				return true;
 			}
 			let now = Self::now_sec();
 			now - miner_info.cool_down_start >= Self::cool_down_period()
@@ -597,9 +610,15 @@ pub mod pallet {
 		///
 		/// Requires:
 		/// 1. The miner is in CoolingDown state and the cool down period has passed
-		pub fn reclaim(miner: T::AccountId) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
+		pub fn reclaim(
+			miner: T::AccountId,
+			check_cooldown: bool,
+		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
+			ensure!(
+				Self::can_reclaim(&miner_info, check_cooldown),
+				Error::<T>::CoolDownNotReady
+			);
 			miner_info.state = MinerState::Ready;
 			miner_info.cool_down_start = 0u64;
 			Miners::<T>::insert(&miner, &miner_info);
@@ -1064,7 +1083,7 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
-			worker_pubkey, Event as TestEvent, Origin, Test, DOLLARS,
+			worker_pubkey, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{PhalaMining, PhalaRegistry, System};
@@ -1422,6 +1441,49 @@ pub mod pallet {
 					challenge_time_last: 190,
 				}
 			);
+		}
+
+		#[test]
+		fn drop_late_arrived_update() {
+			new_test_ext().execute_with(|| {
+				use phala_types::messaging::Topic;
+
+				set_block_1();
+				setup_workers(1);
+				PhalaRegistry::internal_set_benchmark(&worker_pubkey(1), Some(600));
+				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				elapse_seconds(100);
+				assert_ok!(PhalaMining::start_mining(1, 3000 * DOLLARS));
+				take_events();
+				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
+					MiningInfoUpdateEvent<BlockNumber>,
+				> {
+					sender: MessageOrigin::Gatekeeper,
+					destination: Topic::new(*b"^phala/mining/update"),
+					payload: MiningInfoUpdateEvent::<BlockNumber> {
+						block_number: 1,
+						timestamp_ms: 100_000,
+						offline: vec![],
+						recovered_to_online: vec![],
+						settle: vec![SettleInfo {
+							pubkey: worker_pubkey(1),
+							v: 1,
+							payout: 0,
+							treasury: 0,
+						}],
+					},
+				}));
+
+				let ev = take_events();
+				assert_eq!(
+					ev[0],
+					TestEvent::PhalaMining(Event::MinerSettlementDropped {
+						miner: 1,
+						v: 1,
+						payout: 0,
+					})
+				);
+			});
 		}
 	}
 }
