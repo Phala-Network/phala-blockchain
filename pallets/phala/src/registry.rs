@@ -47,7 +47,7 @@ pub mod pallet {
 
 		type UnixTime: UnixTime;
 
-		/// Enable OptOut Attestation, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		/// Enable OptOut Attestation, SHOULD BE SET TO FALSE ON PRODUCTION !!!
 		#[pallet::constant]
 		type OptOutAttestationEnabled: Get<bool>;
 
