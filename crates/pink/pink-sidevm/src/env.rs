@@ -58,6 +58,11 @@ impl Env {
     }
 }
 
+fn sidevm_fast_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> i32 {
+    0
+}
+
+// Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
 fn sidevm_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> i32 {
     match func_id {
         // close
