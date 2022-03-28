@@ -1,4 +1,4 @@
-use anyhow::{Result, Context as _};
+use anyhow::{Context as _, Result};
 use resource::ResourceKeeper;
 use std::future::Future;
 use std::pin::Pin;
@@ -29,7 +29,11 @@ impl WasmRun {
     pub fn run(code: &[u8], max_pages: u32) -> Result<WasmRun> {
         let compiler = Singlepass::default();
         let engine = Universal::new(compiler).engine();
-        let base = BaseTunables::for_target(&Default::default());
+        let base = BaseTunables {
+            static_memory_bound: Pages(0x10),
+            static_memory_offset_guard_size: 0x1000,
+            dynamic_memory_offset_guard_size: 0x1000,
+        };
         let tunables = LimitingTunables::new(base, Pages(max_pages));
         let store = Store::new_with_tunables(&engine, tunables);
         let module = Module::new(&store, code)?;
