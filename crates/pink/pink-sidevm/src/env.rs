@@ -12,12 +12,6 @@ use wasmer::{imports, Function, ImportObject, Memory, MemoryType, Pages, Store, 
 use crate::async_context::poll_in_task_cx;
 use crate::resource::{Resource, ResourceKeeper};
 
-fn no_memory() -> Memory {
-    let store = Store::default();
-    Memory::new(&store, MemoryType::new(Pages(0), Some(Pages(0)), false))
-        .expect("Create memory failed")
-}
-
 pub fn create_env(store: &Store) -> (Env, ImportObject) {
     let env = Env::new(store);
     (
@@ -36,7 +30,7 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
 
 struct EnvInner {
     resources: ResourceKeeper,
-    memory: Memory,
+    memory: Option<Memory>,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -49,18 +43,18 @@ impl Env {
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 resources: ResourceKeeper::default(),
-                memory: no_memory(),
+                memory: None,
             })),
         }
     }
 
     pub fn set_memory(&self, memory: Memory) {
-        self.inner.lock().unwrap().memory = memory;
+        self.inner.lock().unwrap().memory = Some(memory);
     }
 
     pub fn cleanup(&self) {
         // Cut up the reference cycle to avoid leaks.
-        self.set_memory(no_memory());
+        self.inner.lock().unwrap().memory = None;
     }
 }
 
