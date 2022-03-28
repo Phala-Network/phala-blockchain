@@ -2972,6 +2972,7 @@ $root.pruntime_rpc = (function() {
          * @property {Uint8Array|null} [encodedGenesisState] InitRuntimeRequest encodedGenesisState
          * @property {Uint8Array|null} [encodedOperator] InitRuntimeRequest encodedOperator
          * @property {boolean|null} [isParachain] InitRuntimeRequest isParachain
+         * @property {string|null} [attestationProvider] InitRuntimeRequest attestationProvider
          */
 
         /**
@@ -3037,6 +3038,14 @@ $root.pruntime_rpc = (function() {
          */
         InitRuntimeRequest.prototype.isParachain = false;
 
+        /**
+         * InitRuntimeRequest attestationProvider.
+         * @member {string|null|undefined} attestationProvider
+         * @memberof pruntime_rpc.InitRuntimeRequest
+         * @instance
+         */
+        InitRuntimeRequest.prototype.attestationProvider = null;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
@@ -3059,6 +3068,17 @@ $root.pruntime_rpc = (function() {
          */
         Object.defineProperty(InitRuntimeRequest.prototype, "_encodedOperator", {
             get: $util.oneOfGetter($oneOfFields = ["encodedOperator"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * InitRuntimeRequest _attestationProvider.
+         * @member {"attestationProvider"|undefined} _attestationProvider
+         * @memberof pruntime_rpc.InitRuntimeRequest
+         * @instance
+         */
+        Object.defineProperty(InitRuntimeRequest.prototype, "_attestationProvider", {
+            get: $util.oneOfGetter($oneOfFields = ["attestationProvider"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
@@ -3098,6 +3118,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 5, wireType 2 =*/42).bytes(message.encodedOperator);
             if (message.isParachain != null && Object.hasOwnProperty.call(message, "isParachain"))
                 writer.uint32(/* id 6, wireType 0 =*/48).bool(message.isParachain);
+            if (message.attestationProvider != null && Object.hasOwnProperty.call(message, "attestationProvider"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.attestationProvider);
             return writer;
         };
 
@@ -3149,6 +3171,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 6:
                     message.isParachain = reader.bool();
+                    break;
+                case 7:
+                    message.attestationProvider = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -3208,6 +3233,11 @@ $root.pruntime_rpc = (function() {
             if (message.isParachain != null && message.hasOwnProperty("isParachain"))
                 if (typeof message.isParachain !== "boolean")
                     return "isParachain: boolean expected";
+            if (message.attestationProvider != null && message.hasOwnProperty("attestationProvider")) {
+                properties._attestationProvider = 1;
+                if (!$util.isString(message.attestationProvider))
+                    return "attestationProvider: string expected";
+            }
             return null;
         };
 
@@ -3247,6 +3277,8 @@ $root.pruntime_rpc = (function() {
                     message.encodedOperator = object.encodedOperator;
             if (object.isParachain != null)
                 message.isParachain = Boolean(object.isParachain);
+            if (object.attestationProvider != null)
+                message.attestationProvider = String(object.attestationProvider);
             return message;
         };
 
@@ -3299,6 +3331,11 @@ $root.pruntime_rpc = (function() {
             }
             if (message.isParachain != null && message.hasOwnProperty("isParachain"))
                 object.isParachain = message.isParachain;
+            if (message.attestationProvider != null && message.hasOwnProperty("attestationProvider")) {
+                object.attestationProvider = message.attestationProvider;
+                if (options.oneofs)
+                    object._attestationProvider = "attestationProvider";
+            }
             return object;
         };
 
