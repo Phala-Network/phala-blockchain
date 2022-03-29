@@ -11,10 +11,14 @@
 pub mod v4 {
 	use crate::*;
 	use frame_support::{
-		traits::{Get, StorageVersion},
+		traits::{Currency, Get, StorageVersion},
 		weights::Weight,
 	};
 	use log;
+
+	type MiningBalanceOf<T> = <<T as mining::Config>::Currency as Currency<
+		<T as frame_system::Config>::AccountId,
+	>>::Balance;
 
 	type Versions = (
 		StorageVersion,
@@ -68,11 +72,13 @@ pub mod v4 {
 	pub fn migrate<T>() -> Weight
 	where
 		T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config,
+		MiningBalanceOf<T>: balance_convert::FixedPointConvert,
 	{
 		if get_versions::<T>() == EXPECTED_STORAGE_VERSION {
 			let mut weight: Weight = 0;
 			log::info!("Ᵽ migrating phala-pallets to v4");
 			weight += mining::migrations::fix_676::<T>();
+			weight += mining::migrations::enable_phala_tokenomic::<T>();
 			log::info!("Ᵽ pallets migrated to v4");
 
 			StorageVersion::new(4).put::<fat::Pallet<T>>();
