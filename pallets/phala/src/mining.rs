@@ -1052,6 +1052,17 @@ pub mod pallet {
 			Pallet::<T>::queue_message(GatekeeperEvent::Fix676);
 			T::DbWeight::get().writes(1)
 		}
+
+		pub(crate) fn enable_phala_tokenomic<T: Config>() -> Weight
+		where
+			super::BalanceOf<T>: crate::balance_convert::FixedPointConvert,
+		{
+			let encoded_params = hex_literal::hex!["b81e85eb51b81e450000000000000000fd7eb4062f0b000001000000000000000000000000000000640000000000000000000000000000003075000000000000255a8ed66500000000000000000000009d3473f8f34f030000000000000000000000000000000000000000000000000033333333333333330000000000000000140000003b1c318036762473000000000000000000000000000000000000000000000000000000000000008001000000000000000000000000000000320000000000000000000000000000000100000000000000"];
+			let phala_params = TokenomicParams::decode(&mut &encoded_params[..])
+				.expect("Hardcoded TokenomicParams is valid; qed.");
+			super::ScheduledTokenomicUpdate::<T>::put(phala_params);
+			T::DbWeight::get().writes(1)
+		}
 	}
 
 	fn pow_target(num_tx: u32, num_workers: u32, secs_per_block: u32) -> U256 {
@@ -1483,6 +1494,13 @@ pub mod pallet {
 						payout: 0,
 					})
 				);
+			});
+		}
+
+		#[test]
+		fn phala_params_migration_not_crash() {
+			new_test_ext().execute_with(|| {
+				migrations::enable_phala_tokenomic::<Test>();
 			});
 		}
 	}
