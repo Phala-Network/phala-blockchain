@@ -257,7 +257,7 @@ where
             GatekeeperEvent::RepairV => {
                 // Handled by MiningEconomics
             }
-            GatekeeperEvent::Fix676 => {
+            GatekeeperEvent::PhalaLaunched => {
                 // Handled by MiningEconomics
             }
         }
@@ -409,13 +409,16 @@ pub struct MiningEconomics<MsgChan> {
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     tokenomic_params: tokenomic::Params,
-    // See https://github.com/Phala-Network/phala-blockchain/issues/676
+    /// Indicates a set of update is enabled on-chain
+    /// - Remove payout delta V limitation
+    //    (https://github.com/Phala-Network/phala-blockchain/issues/693)
+    /// - Fix issue 676 (https://github.com/Phala-Network/phala-blockchain/issues/676)
     #[serde(default)]
-    fix676: bool,
+    phala_launched: bool,
 }
 
 #[test]
-fn test_restore_fix676() {
+fn test_restore_phala_launched() {
     #[derive(Serialize, Deserialize)]
     struct MiningEconomics0 {
         tokenomic_params: u32,
@@ -425,7 +428,7 @@ fn test_restore_fix676() {
     struct MiningEconomics1 {
         tokenomic_params: u32,
         #[serde(default)]
-        fix676: bool,
+        phala_launched: bool,
     }
 
     let checkpoint = serde_cbor::to_vec(&MiningEconomics0 {
@@ -434,7 +437,7 @@ fn test_restore_fix676() {
     .unwrap();
 
     let state: MiningEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
-    assert!(!state.fix676);
+    assert!(!state.phala_launched);
 }
 
 impl From<&WorkerInfo> for pb::WorkerState {
@@ -475,7 +478,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             gatekeeper_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             tokenomic_params: tokenomic::test_params(),
-            fix676: false,
+            phala_launched: false,
         }
     }
 
@@ -503,7 +506,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             .workers
             .values()
             .filter(|info| {
-                if self.fix676 {
+                if self.phala_launched {
                     !info.unresponsive && info.state.mining_state.is_some()
                 } else {
                     !info.unresponsive
@@ -528,6 +531,20 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             debug!(target: "mining", "Report: {:?}", report);
             self.egress.push_message(&report);
         }
+    }
+
+    pub fn sum_share(&self) -> FixedPoint {
+        self.workers
+            .values()
+            .filter(|info| {
+                if self.phala_launched {
+                    !info.unresponsive && info.state.mining_state.is_some()
+                } else {
+                    !info.unresponsive
+                }
+            })
+            .map(|info| info.tokenomic.share())
+            .sum()
     }
 }
 
@@ -752,6 +769,7 @@ where
                         self.sum_share,
                         self.block.now_ms,
                         self.block.block_number,
+                        self.state.phala_launched,
                     );
 
                     // NOTE: keep the reporting order (vs the one while mining stop).
@@ -824,7 +842,7 @@ where
                             worker.tokenomic = TokenomicInfo {
                                 v,
                                 v_init: v,
-                                payable: fp!(0),
+                                v_deductible: fp!(0),
                                 v_update_at: self.block.now_ms,
                                 v_update_block: self.block.block_number,
                                 iteration_last: 0,
@@ -910,10 +928,12 @@ where
                     }
                 }
             }
-            GatekeeperEvent::Fix676 => {
+            GatekeeperEvent::PhalaLaunched => {
                 if origin.is_pallet() {
-                    // Fixes https://github.com/Phala-Network/phala-blockchain/issues/676
-                    self.state.fix676 = true;
+                    // Fixes:
+                    // - https://github.com/Phala-Network/phala-blockchain/issues/693
+                    // - https://github.com/Phala-Network/phala-blockchain/issues/676
+                    self.state.phala_launched = true;
                 }
             }
         }
@@ -976,7 +996,7 @@ mod tokenomic {
         #[serde(with = "serde_fp")]
         pub v_init: FixedPoint,
         #[serde(with = "serde_fp")]
-        pub payable: FixedPoint,
+        pub v_deductible: FixedPoint,
         pub v_update_at: u64,
         pub v_update_block: u32,
         pub iteration_last: u64,
@@ -1006,7 +1026,8 @@ mod tokenomic {
             Self {
                 v: info.v.to_string(),
                 v_init: info.v_init.to_string(),
-                payable: info.payable.to_string(),
+                v_deductible: info.v_deductible.to_string(),
+                share: info.share().to_string(),
                 v_update_at: info.v_update_at,
                 v_update_block: info.v_update_block,
                 iteration_last: info.iteration_last,
@@ -1091,7 +1112,7 @@ mod tokenomic {
             let delta_v = perf_multiplier * ((params.rho - fp!(1)) * self.v + cost_idle);
             let v = self.v + delta_v;
             self.v = v.min(params.v_max);
-            self.payable += delta_v;
+            self.v_deductible += delta_v;
         }
 
         /// case2: Idle, successful heartbeat
@@ -1102,12 +1123,13 @@ mod tokenomic {
             sum_share: FixedPoint,
             now_ms: u64,
             block_number: u32,
+            full_payout: bool,
         ) -> (FixedPoint, FixedPoint) {
             const NO_UPDATE: (FixedPoint, FixedPoint) = (fp!(0), fp!(0));
             if sum_share == fp!(0) {
                 return NO_UPDATE;
             }
-            if self.payable == fp!(0) {
+            if self.v_deductible == fp!(0) {
                 return NO_UPDATE;
             }
             if block_number <= self.v_update_block {
@@ -1123,11 +1145,24 @@ mod tokenomic {
             let to_payout = budget * params.payout_ration;
             let to_treasury = budget * params.treasury_ration;
 
-            let actual_payout = self.payable.max(fp!(0)).min(to_payout); // w
-            let actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
+            let actual_payout;
+            let actual_treasury;
+            if full_payout {
+                // With `full_payout`, the miner gets paid with its share directly. However, v can
+                // only be deducted up to the v increment since the last payout.
+                actual_payout = to_payout; // w
+                actual_treasury = to_treasury;
+                let actual_v_deduct = self.v_deductible.max(fp!(0)).min(actual_payout);
+                self.v -= actual_v_deduct;
+            } else {
+                // Without `full_payout`, the miner gets paid up to the v increment to ensure v
+                // will not decrease over the time by payout.
+                actual_payout = self.v_deductible.max(fp!(0)).min(to_payout); // w
+                actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
+                self.v -= actual_payout;
+            }
 
-            self.v -= actual_payout;
-            self.payable = fp!(0);
+            self.v_deductible = fp!(0);
             self.v_update_at = now_ms;
             self.v_update_block = block_number;
 
@@ -1143,7 +1178,7 @@ mod tokenomic {
         pub fn update_v_slash(&mut self, params: &Params, block_number: chain::BlockNumber) {
             let slash = self.v * params.slash_rate;
             self.v -= slash;
-            self.payable = fp!(0);
+            self.v_deductible = fp!(0);
 
             // stats
             self.last_slash = slash;
@@ -1971,7 +2006,7 @@ pub mod tests {
         });
         // Check payout
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(29855.38985958385856094607));
-        assert_eq!(r.get_worker(0).tokenomic.payable, fp!(0));
+        assert_eq!(r.get_worker(0).tokenomic.v_deductible, fp!(0));
         let report = r.gk.egress.drain_mining_info_update_event();
         assert_eq!(
             FixedPoint::from_bits(report[0].settle[0].payout),

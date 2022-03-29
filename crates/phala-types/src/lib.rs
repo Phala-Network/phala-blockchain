@@ -522,7 +522,10 @@ pub mod messaging {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
         RepairV,
-        Fix676,
+        /// Trigger a set of changes:
+        /// - https://github.com/Phala-Network/phala-blockchain/issues/693
+        /// - https://github.com/Phala-Network/phala-blockchain/issues/676
+        PhalaLaunched,
     }
 
     impl GatekeeperEvent {

@@ -423,28 +423,6 @@ pub mod pallet {
 				}
 			}
 		}
-
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += migrations::initialize::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			} else if old == 2 {
-				// Triggers GK RepairV event (again) to rescue the slashed miners due to
-				// incorrectly applied tokenomic.
-				w += migrations::repair_v::<T>();
-				// Khala-only halving parameters
-				MiningStartBlock::<T>::put(T::BlockNumber::from(414189u32));
-				MiningHalvingInterval::<T>::put(T::BlockNumber::from(324000u32));
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(3);
-			}
-			w
-		}
 	}
 
 	impl<T: Config> Pallet<T>
@@ -1048,10 +1026,21 @@ pub mod pallet {
 			T::DbWeight::get().writes(2)
 		}
 
-		pub fn repair_v<T: Config>() -> Weight {
+		pub(crate) fn signal_phala_launch<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::RepairV);
+			Pallet::<T>::queue_message(GatekeeperEvent::PhalaLaunched);
+			T::DbWeight::get().writes(1)
+		}
+
+		pub(crate) fn enable_phala_tokenomic<T: Config>() -> Weight
+		where
+			super::BalanceOf<T>: crate::balance_convert::FixedPointConvert,
+		{
+			let encoded_params = hex_literal::hex!["b81e85eb51b81e450000000000000000fd7eb4062f0b000001000000000000000000000000000000640000000000000000000000000000003075000000000000255a8ed66500000000000000000000009d3473f8f34f030000000000000000000000000000000000000000000000000033333333333333330000000000000000140000003b1c318036762473000000000000000000000000000000000000000000000000000000000000008001000000000000000000000000000000320000000000000000000000000000000100000000000000"];
+			let phala_params = TokenomicParams::decode(&mut &encoded_params[..])
+				.expect("Hardcoded TokenomicParams is valid; qed.");
+			super::ScheduledTokenomicUpdate::<T>::put(phala_params);
 			T::DbWeight::get().writes(1)
 		}
 	}

@@ -33,6 +33,7 @@ chrono = { version = "0.4", default-features = false }
 untrusted = { version = "0.7" }
 base64 = { version = "0.11", default-features = false, features = ["alloc"] }
 hex = { version = "0.4", default-features = false }
+hex-literal = "0.3.1"
 serde_json = { version = "1.0.41", default-features = false, features = ["alloc"] }
 fixed = { version = "1.9", default-features = false }
 fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro.git" }
@@ -48,7 +49,6 @@ webpki_wasm = { package = "webpki", path = "../../webpki", default-features = fa
 frame-support-test = { path = "../../substrate/frame/support/test" }
 assert_matches = "1.4.0"
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
-hex-literal = "0.3.1"
 libsecp256k1 = { version = "0.3.2", default-features = false }
 rand = "0.7.3"
 
