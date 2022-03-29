@@ -267,6 +267,7 @@ chain
         const api = await useApi();
         const typedP = tokenomic.humanToTyped(api, p);
         const call = tokenomic.createUpdateCall(api, typedP);
+        console.log('Params:', typedP.toHex());
         console.log('Raw Call:', call.method.toHex());
     }));
 
