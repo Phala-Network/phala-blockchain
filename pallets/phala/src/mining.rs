@@ -1046,10 +1046,10 @@ pub mod pallet {
 			T::DbWeight::get().writes(2)
 		}
 
-		pub(crate) fn fix_676<T: Config>() -> Weight {
+		pub(crate) fn signal_phala_launch<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::Fix676);
+			Pallet::<T>::queue_message(GatekeeperEvent::PhalaLaunched);
 			T::DbWeight::get().writes(1)
 		}
 

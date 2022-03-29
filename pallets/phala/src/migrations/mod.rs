@@ -77,7 +77,7 @@ pub mod v4 {
 		if get_versions::<T>() == EXPECTED_STORAGE_VERSION {
 			let mut weight: Weight = 0;
 			log::info!("Ᵽ migrating phala-pallets to v4");
-			weight += mining::migrations::fix_676::<T>();
+			weight += mining::migrations::signal_phala_launch::<T>();
 			weight += mining::migrations::enable_phala_tokenomic::<T>();
 			log::info!("Ᵽ pallets migrated to v4");
 
