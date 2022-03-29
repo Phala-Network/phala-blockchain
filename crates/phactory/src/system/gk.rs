@@ -502,18 +502,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
         block: &BlockInfo<'_>,
         event_listener: &mut impl FinanceEventListener,
     ) {
-        let sum_share: FixedPoint = self
-            .workers
-            .values()
-            .filter(|info| {
-                if self.phala_launched {
-                    !info.unresponsive && info.state.mining_state.is_some()
-                } else {
-                    !info.unresponsive
-                }
-            })
-            .map(|info| info.tokenomic.share())
-            .sum();
+        let sum_share = self.sum_share();
 
         let mut processor = MiningMessageProcessor {
             state: self,
