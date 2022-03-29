@@ -59,6 +59,7 @@ members = [
 	"crates/pink/pink-sidevm",
 	"crates/pink/pink-sidevm-env",
 	"crates/phala-serde-more",
+	"crates/rustfmt-snippet",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/utility",
