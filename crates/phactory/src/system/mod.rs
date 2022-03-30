@@ -83,8 +83,8 @@ pub enum TransactionError {
     BadChainId,
     TransferringNotAllowed,
     // for contract
-    DuplicatedClusterDeploy,
     CodeNotFound,
+    DuplicatedClusterDeploy,
 }
 
 impl From<BadOrigin> for TransactionError {
