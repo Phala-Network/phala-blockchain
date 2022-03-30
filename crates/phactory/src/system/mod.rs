@@ -82,6 +82,7 @@ pub enum TransactionError {
     // for contract
     CodeNotFound,
     FailedToExecute,
+    DuplicatedClusterDeploy,
 }
 
 impl From<BadOrigin> for TransactionError {
