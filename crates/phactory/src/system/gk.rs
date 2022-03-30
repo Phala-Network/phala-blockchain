@@ -1002,7 +1002,7 @@ mod tokenomic {
         pub v: FixedPoint,
         #[serde(with = "serde_fp")]
         pub v_init: FixedPoint,
-        #[serde(with = "serde_fp")]
+        #[serde(with = "serde_fp", alias = "payable")]
         pub v_deductible: FixedPoint,
         pub v_update_at: u64,
         pub v_update_block: u32,
