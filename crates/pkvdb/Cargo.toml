@@ -1,10 +1,9 @@
 [package]
-name = "rusty-leveldb"
+name = "pkvdb"
 version = "0.3.6"
-authors = ["Lewin Bormann <lbo@spheniscida.de>"]
-description = "A compatible re-implementation of LevelDB in Rust"
-homepage = "https://github.com/dermesser/leveldb-rs"
-repository = "https://github.com/dermesser/leveldb-rs"
+authors = ["Lewin Bormann <lbo@spheniscida.de>", "George Lee <george@phala.network>"]
+description = "A compatible re-implementation of LevelDB in Rust patched for Gramine environment"
+repository = "https://github.com/phala-network/phala-blockchain"
 readme = "README.md"
 keywords = ["LevelDB", "key-value", "database", "SSTable", "Google"]
 license = "MIT"
