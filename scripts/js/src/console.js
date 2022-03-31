@@ -44,13 +44,18 @@ function usePruntimeApi() {
 }
 
 async function useApi() {
-    const { substrateWsEndpoint, substrateNoRetry, at } = program.opts();
+    let { substrateWsEndpoint, substrateNoRetry, at } = program.opts();
     const wsProvider = new WsProvider(substrateWsEndpoint);
     const api = await ApiPromise.create({
         provider: wsProvider,
         throwOnConnect: !substrateNoRetry,
     });
     if (at) {
+        if (!at.startsWith('0x') && !isNaN(at)) {
+            // Get the block hash at some height
+            at = (await api.rpc.chain.getBlockHash(at)).toString();
+        }
+        console.debug('Accessing the data at:', at);
         return await api.at(at);
     }
     return api;
