@@ -1,0 +1,8 @@
+[package]
+edition = "2021"
+name = "pink-sidevm-env"
+version = "0.1.0"
+
+[dependencies]
+scale = {package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"]}
+pink-extension-macro = { path = "../pink-extension/macro" }

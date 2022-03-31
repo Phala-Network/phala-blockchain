@@ -1,0 +1,13 @@
+[package]
+name = "pink-sidevm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmer-tunables = { path = "../../wasmer-tunables" }
+wasmer = "2.2.1"
+wasmer-compiler-singlepass = "2.2.1"
+wasmer-engine = "2.2.1"
+wasmer-engine-universal = "2.2.1"
+anyhow = "1.0"
+loupe = "0.1.3"
