@@ -12,18 +12,20 @@ use sp_core::H256;
 // Messages: Phase Wallet
 
 pub mod messaging {
+    use alloc::collections::btree_map::BTreeMap;
     use alloc::string::String;
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
     use core::fmt::Debug;
     use scale_info::TypeInfo;
-    use sp_core::U256;
+    use sp_core::{H256, U256};
 
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract::ContractInfo;
+    use super::{
+        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+    };
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -464,28 +466,42 @@ pub mod messaging {
         }
     }
 
-    bind_topic!(ContractKeyDistribution<CodeHash, BlockNumber, AccountId>, b"phala/contract/key");
+    // TODO.shelven: merge this into KeyDistribution
+    bind_topic!(ClusterKeyDistribution<BlockNumber>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId>),
+    pub enum ClusterKeyDistribution<BlockNumber> {
+        // TODO.shelven: a better way for real large batch key distribution
+        Batch(BatchDispatchClusterKeyEvent<BlockNumber>),
     }
 
-    impl<CodeHash, BlockNumber, AccountId> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-        pub fn contract_key_distribution(
-            secret_key: Sr25519SecretKey,
-            contract_info: ContractInfo<CodeHash, AccountId>,
+    impl<BlockNumber> ClusterKeyDistribution<BlockNumber> {
+        pub fn batch_distribution(
+            secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+            cluster: ContractClusterId,
             expiration: BlockNumber,
-        ) -> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-            ContractKeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
-                secret_key,
-                contract_info,
+        ) -> ClusterKeyDistribution<BlockNumber> {
+            ClusterKeyDistribution::Batch(BatchDispatchClusterKeyEvent {
+                secret_keys,
+                cluster,
                 expiration,
             })
         }
     }
 
-    type AeadIV = [u8; 12];
-    type Sr25519SecretKey = [u8; 64];
+    pub type AeadIV = [u8; 12];
+
+    /// Secret key encrypted with AES-256-GCM algorithm
+    ///
+    /// The encryption key is generated with sr25519-based ECDH
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct EncryptedKey {
+        /// The ecdh public key of key source
+        pub ecdh_pubkey: EcdhPublicKey,
+        /// Key encrypted with aead key
+        pub encrypted_key: Vec<u8>,
+        /// Aead IV
+        pub iv: AeadIV,
+    }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
@@ -500,9 +516,9 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId> {
-        pub secret_key: Sr25519SecretKey,
-        pub contract_info: ContractInfo<CodeHash, AccountId>,
+    pub struct BatchDispatchClusterKeyEvent<BlockNumber> {
+        pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+        pub cluster: ContractClusterId,
         pub expiration: BlockNumber,
     }
 
@@ -512,7 +528,10 @@ pub mod messaging {
     pub enum GatekeeperEvent {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
+        /// Deprecated after https://github.com/Phala-Network/phala-blockchain/pull/499
         RepairV,
+        /// Trigger the fix to https://github.com/Phala-Network/phala-blockchain/issues/676
+        Fix676,
     }
 
     impl GatekeeperEvent {
@@ -562,14 +581,31 @@ pub mod messaging {
 
     // Pink messages
 
+    bind_topic!(WorkerClusterReport, b"phala/cluster/worker/report");
+    #[derive(Encode, Decode, Debug, TypeInfo)]
+    pub enum WorkerClusterReport {
+        ClusterDeployed {
+            id: ContractClusterId,
+            pubkey: ClusterPublicKey,
+        },
+        ClusterDeploymentFailed {
+            id: ContractClusterId,
+        },
+    }
+
     bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum WorkerContractReport {
+        CodeUploaded {
+            cluster_id: ContractClusterId,
+            uploader: AccountId,
+            hash: H256,
+        },
         ContractInstantiated {
             id: ContractId,
             cluster_id: ContractClusterId,
             deployer: AccountId,
-            pubkey: EcdhPublicKey,
+            pubkey: ContractPublicKey,
         },
         ContractInstantiationFailed {
             id: ContractId,
@@ -634,6 +670,7 @@ pub struct Score {
 type MachineId = Vec<u8>;
 pub use sp_core::sr25519::Public as WorkerPublicKey;
 pub use sp_core::sr25519::Public as ContractPublicKey;
+pub use sp_core::sr25519::Public as ClusterPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
 pub use sp_core::sr25519::Signature as Sr25519Signature;

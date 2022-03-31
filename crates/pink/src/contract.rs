@@ -2,13 +2,12 @@ use pallet_contracts_primitives::StorageDeposit;
 use phala_types::contract::contract_id_preimage;
 use scale::{Decode, Encode};
 use sp_core::hashing;
-use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
 use crate::{
     runtime::{Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hashing, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hash, GAS_LIMIT},
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -49,27 +48,25 @@ impl Contract {
     /// # Parameters
     ///
     /// * `origin`: The owner of the created contract instance.
-    /// * `code`: The contract code to deploy in raw bytes.
+    /// * `code_hash`: The hash of contract code which has been uploaded.
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
     pub fn new(
         storage: &mut Storage,
         origin: AccountId,
-        code: Vec<u8>,
+        code_hash: Hash,
         input_data: Vec<u8>,
         cluster_id: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
     ) -> Result<(Self, ExecSideEffects), ExecError> {
-        if origin == Default::default() {
+        if origin == AccountId::new(Default::default()) {
             return Err(ExecError {
                 source: DispatchError::BadOrigin,
                 message: "Default account is not allowed to create contracts".to_string(),
             });
         }
-
-        let code_hash = Hashing::hash(&code);
 
         let (address, effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
             System::set_block_number(block_number);
@@ -80,11 +77,12 @@ impl Contract {
                 0,
                 GAS_LIMIT,
                 None,
-                pallet_contracts_primitives::Code::Upload(code.into()),
+                pallet_contracts_primitives::Code::Existing(code_hash),
                 input_data,
                 salt.clone(),
                 true,
             );
+            log::info!("Contract instantiation result: {:?}", &result);
             if let Err(err) = result.result {
                 return Err(ExecError {
                     source: err,
@@ -106,7 +104,7 @@ impl Contract {
     pub fn new_with_selector(
         storage: &mut Storage,
         origin: AccountId,
-        code: Vec<u8>,
+        code_hash: Hash,
         selector: [u8; 4],
         args: impl Encode,
         cluster_id: Vec<u8>,
@@ -120,7 +118,7 @@ impl Contract {
         Self::new(
             storage,
             origin,
-            code,
+            code_hash,
             input_data,
             cluster_id,
             salt,
@@ -144,7 +142,7 @@ impl Contract {
         block_number: BlockNumber,
         now: u64,
     ) -> (ContractExecResult, ExecSideEffects) {
-        if origin == Default::default() {
+        if origin == AccountId::new(Default::default()) {
             return (
                 ContractExecResult {
                     gas_consumed: 0,
@@ -216,7 +214,7 @@ impl Contract {
 
             let (result, effects) = self.unchecked_bare_call(
                 storage,
-                Default::default(),
+                AccountId::new(Default::default()),
                 input_data,
                 false,
                 block_number,

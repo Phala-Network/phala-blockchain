@@ -1,26 +1,24 @@
 use super::{TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_fat::ContractRegistryEvent;
+use chain::pallet_fat::ClusterRegistryEvent;
 use phala_crypto::{
     aead, ecdh,
-    sr25519::{Persistence, KDF},
+    sr25519::{Persistence, Sr25519SecretKey, KDF},
 };
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
-    contract::messaging::ContractEvent,
-    contract::ContractInfo,
+    contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        ClusterKeyDistribution, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
         SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use sp_application_crypto::Pair;
-use sp_core::{hashing, sr25519};
+use sp_core::{hashing, sr25519, Pair};
 
-use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
+use crate::types::BlockInfo;
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -57,12 +55,9 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-fn get_contract_key(
-    master_key: &sr25519::Pair,
-    contract_info: &ContractInfo<chain::Hash, chain::AccountId>,
-) -> sr25519::Pair {
+fn get_cluster_key(master_key: &sr25519::Pair, cluster: &ContractClusterId) -> sr25519::Pair {
     master_key
-        .derive_sr25519_pair(&[b"contract_key", contract_info.cluster_id.as_bytes()])
+        .derive_sr25519_pair(&[b"cluster_key", cluster.as_bytes()])
         .expect("should not fail with valid info")
 }
 
@@ -111,7 +106,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    contract_events: TypedReceiver<ContractEvent<chain::Hash, chain::AccountId>>,
+    cluster_events: TypedReceiver<ClusterEvent>,
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
@@ -135,7 +130,7 @@ where
             registered_on_chain: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
-            contract_events: recv_mq.subscribe_bound(),
+            cluster_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
             mining_economics: MiningEconomics::new(recv_mq, egress),
@@ -188,29 +183,19 @@ where
         block_number: chain::BlockNumber,
     ) {
         info!("Gatekeeper: try dispatch master key");
-        let derived_key = self
-            .master_key
-            .derive_sr25519_pair(&[&crate::generate_random_info()])
-            .expect("should not fail with valid info; qed.");
-        let my_ecdh_key = derived_key
-            .derive_ecdh_key()
-            .expect("ecdh key derivation should never failed with valid master key; qed.");
-        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
-            .expect("should never fail with valid ecdh key; qed.");
-        let iv = self.generate_iv(block_number);
-        let mut data = self.master_key.dump_secret_key().to_vec();
-
-        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+        let master_key = self.master_key.dump_secret_key();
+        let encrypted_key = self.encrypt_key_to(
+            &[b"master_key_sharing"],
+            ecdh_pubkey,
+            &master_key,
+            block_number,
+        );
         self.egress
             .push_message(&KeyDistribution::master_key_distribution(
                 *pubkey,
-                my_ecdh_key
-                    .public()
-                    .as_ref()
-                    .try_into()
-                    .expect("should never fail given pubkey with correct length; qed;"),
-                data,
-                iv,
+                encrypted_key.ecdh_pubkey,
+                encrypted_key.encrypted_key,
+                encrypted_key.iv,
             ));
     }
 
@@ -226,10 +211,10 @@ where
                 (event, origin) = self.gatekeeper_events => {
                     self.process_gatekeeper_event(origin, event);
                 },
-                (event, origin) = self.contract_events => {
-                    if let Err(err) = self.process_contract_event(origin, event) {
+                (event, origin) = self.cluster_events => {
+                    if let Err(err) = self.process_cluster_event(block, origin, event) {
                         error!(
-                            "Failed to process contract event: {:?}",
+                            "Failed to process cluster event: {:?}",
                             err
                         );
                     };
@@ -258,53 +243,91 @@ where
             GatekeeperEvent::RepairV => {
                 // Handled by MiningEconomics
             }
+            GatekeeperEvent::Fix676 => {
+                // Handled by MiningEconomics
+            }
         }
     }
 
-    fn process_contract_event(
+    // Manually encrypt the secret key for sharing
+    //
+    // The encrypted key intends to be shared through public channel in a broadcast way,
+    // so it is possible to share one key to multiple parties in one message.
+    // For end-to-end secret sharing, use `SecretMessageChannel`.
+    fn encrypt_key_to(
         &mut self,
+        key_derive_info: &[&[u8]],
+        ecdh_pubkey: &EcdhPublicKey,
+        secret_key: &Sr25519SecretKey,
+        block_number: chain::BlockNumber,
+    ) -> EncryptedKey {
+        let derived_key = self
+            .master_key
+            .derive_sr25519_pair(key_derive_info)
+            .expect("should not fail with valid info; qed.");
+        let my_ecdh_key = derived_key
+            .derive_ecdh_key()
+            .expect("ecdh key derivation should never failed with valid master key; qed.");
+        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
+            .expect("should never fail with valid ecdh key; qed.");
+        let iv = self.generate_iv(block_number);
+        let mut data = secret_key.to_vec();
+        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+
+        EncryptedKey {
+            ecdh_pubkey: sr25519::Public(my_ecdh_key.public()),
+            encrypted_key: data,
+            iv,
+        }
+    }
+
+    fn process_cluster_event(
+        &mut self,
+        block: &BlockInfo<'_>,
         origin: MessageOrigin,
-        event: ContractEvent<chain::Hash, chain::AccountId>,
+        event: ClusterEvent,
     ) -> Result<(), TransactionError> {
-        info!("Incoming contract event: {:?}", event);
+        info!("Incoming cluster event: {:?}", event);
         match event {
-            ContractEvent::InstantiateCode {
-                contract_info,
-                deploy_workers,
-            } => {
+            ClusterEvent::DeployCluster { cluster, workers } => {
                 if !origin.is_pallet() {
-                    error!("Attempt to instantiate pink from bad origin");
+                    error!("Attempt to deploy cluster from bad origin");
                     return Err(TransactionError::BadOrigin);
                 }
 
-                // first, update the on-chain ContractPubkey
-                let contract_id = contract_info.contract_id(Box::new(hashing::blake2_256));
-                let contract_key = get_contract_key(&self.master_key, &contract_info);
+                // first, update the on-chain cluster pubkey
+                let cluster_key = get_cluster_key(&self.master_key, &cluster);
+                let cluster_pubkey = cluster_key.public();
                 self.egress
-                    .push_message(&ContractRegistryEvent::PubkeyAvailable {
-                        contract: contract_id,
-                        pubkey: contract_key.public(),
+                    .push_message(&ClusterRegistryEvent::PubkeyAvailable {
+                        cluster,
+                        pubkey: cluster_pubkey,
                     });
-                // then distribute contract key to each worker
-                // and update the on-chain deployment state
-                let ecdh_key = self
-                    .master_key
-                    .derive_ecdh_key()
-                    .expect("should never fail with valid master key; qed.");
-                let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
+                // then distribute cluster key to all workers in one event
+                // the on-chain deployment state should be updated by assigned workers
                 // TODO.shelven: set up expiration
-                for worker in deploy_workers.iter() {
-                    secret_mq
-                        .bind_remote_key(Some(&worker.ecdh_pubkey.0))
-                        .push_message(&ContractKeyDistribution::contract_key_distribution(
-                            contract_key.dump_secret_key(),
-                            contract_info.clone(),
-                            0,
-                        ));
-                }
+                let secret_key = cluster_key.dump_secret_key();
+                let secret_keys: BTreeMap<_, _> = workers
+                    .into_iter()
+                    .map(|worker| {
+                        let encrypted_key = self.encrypt_key_to(
+                            &[b"cluster_key_sharing"],
+                            &worker.ecdh_pubkey,
+                            &secret_key,
+                            block.block_number,
+                        );
+                        (worker.pubkey, encrypted_key)
+                    })
+                    .collect();
+                self.egress
+                    .push_message(&ClusterKeyDistribution::batch_distribution(
+                        secret_keys,
+                        cluster,
+                        0,
+                    ));
+                Ok(())
             }
         }
-        Ok(())
     }
 
     /// Verify on-chain random number
@@ -404,6 +427,32 @@ pub struct MiningEconomics<MsgChan> {
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     tokenomic_params: tokenomic::Params,
+    // See https://github.com/Phala-Network/phala-blockchain/issues/676
+    #[serde(default)]
+    fix676: bool,
+}
+
+#[test]
+fn test_restore_fix676() {
+    #[derive(Serialize, Deserialize)]
+    struct MiningEconomics0 {
+        tokenomic_params: u32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct MiningEconomics1 {
+        tokenomic_params: u32,
+        #[serde(default)]
+        fix676: bool,
+    }
+
+    let checkpoint = serde_cbor::to_vec(&MiningEconomics0 {
+        tokenomic_params: 1,
+    })
+    .unwrap();
+
+    let state: MiningEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
+    assert!(!state.fix676);
 }
 
 impl From<&WorkerInfo> for pb::WorkerState {
@@ -444,6 +493,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             gatekeeper_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             tokenomic_params: tokenomic::test_params(),
+            fix676: false,
         }
     }
 
@@ -490,7 +540,13 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
     pub fn sum_share(&self) -> FixedPoint {
         self.workers
             .values()
-            .filter(|info| !info.unresponsive)
+            .filter(|info| {
+                if self.fix676 {
+                    !info.unresponsive && info.state.mining_state.is_some()
+                } else {
+                    !info.unresponsive
+                }
+            })
             .map(|info| info.tokenomic.share())
             .sum()
     }
@@ -873,6 +929,12 @@ where
                                 .on_finance_event(FinanceEvent::RecoverV, w)
                         }
                     }
+                }
+            }
+            GatekeeperEvent::Fix676 => {
+                if origin.is_pallet() {
+                    // Fixes https://github.com/Phala-Network/phala-blockchain/issues/676
+                    self.state.fix676 = true;
                 }
             }
         }

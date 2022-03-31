@@ -11,7 +11,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
-	use sp_core::H256;
+	use sp_core::{sr25519, H256};
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -23,10 +23,11 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, ContractId, DecodedMessage, GatekeeperChange, GatekeeperLaunch,
-			MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
+			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -58,7 +59,7 @@ pub mod pallet {
 		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -83,6 +84,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
 
+	#[pallet::storage]
+	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, ClusterPublicKey>;
+
 	/// Pubkey for secret topics.
 	#[pallet::storage]
 	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
@@ -106,7 +110,6 @@ pub mod pallet {
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
 	}
@@ -120,6 +123,7 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
+		UnknownCluster,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
@@ -221,7 +225,7 @@ pub mod pallet {
 
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
-					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
+					Workers::<T>::get(&gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
 				gatekeepers.push(gatekeeper);
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
@@ -414,9 +418,13 @@ pub mod pallet {
 		T: crate::mq::Config,
 	{
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
-			let pubkey_copy: ContractPublicKey;
+			let pubkey_copy: sr25519::Public;
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
+				MessageOrigin::Cluster(id) => {
+					pubkey_copy = ClusterKeys::<T>::get(id).ok_or(Error::<T>::UnknownCluster)?;
+					&pubkey_copy
+				}
 				MessageOrigin::Contract(id) => {
 					pubkey_copy = ContractKeys::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
 					&pubkey_copy
@@ -591,33 +599,6 @@ pub mod pallet {
 					}
 				}
 			}
-		}
-	}
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += migrations::initialize::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			}
-			w
-		}
-	}
-
-	mod migrations {
-		use super::{BenchmarkDuration, Config};
-		use frame_support::pallet_prelude::*;
-
-		pub fn initialize<T: Config>() -> Weight {
-			log::info!("phala_pallet::registry: initialize()");
-			BenchmarkDuration::<T>::put(50);
-			T::DbWeight::get().writes(1)
 		}
 	}
 

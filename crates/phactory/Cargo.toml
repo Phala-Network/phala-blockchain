@@ -12,7 +12,7 @@ num-bigint  = "0.4.0"
 ring        = "0.16.20"
 rust-crypto = "0.2.36"
 rand        = "0.7.3"
-regex       = "1.5.4"
+regex       = "1.5.5"
 yasna       = { git = "https://github.com/Phala-Network/yasna.rs", branch = "phala", features = ["chrono", "bit-vec", "num-bigint"] }
 rustls      = { version = "0.19.1", features = ["dangerous_configuration"] }
 webpki      = { version = "0.21", features = ["std"] }
@@ -44,7 +44,7 @@ sp-io                = { path = "../../substrate/primitives/io", features = ["di
 sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", features = ["disable_target_static_assertions"] }
 sp-runtime           = { path = "../../substrate/primitives/runtime" }
 sp-externalities     = { path = "../../substrate/primitives/externalities" }
-parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full", "chain-error"] }
+parity-scale-codec   = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
 # Phala specific
@@ -60,7 +60,7 @@ csv-core = { version = "0.1.10", default-features = false }
 derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
-finality-grandpa = { version = "0.14", default-features = false, features = ["derive-codec"] }
+finality-grandpa = { version = "0.15", default-features = false, features = ["derive-codec"] }
 trie = { package = "sp-trie", path = "../../substrate/primitives/trie" }
 frame-system = { package = "frame-system", path = "../../substrate/frame/system" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }

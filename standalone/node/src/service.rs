@@ -214,7 +214,7 @@ pub fn new_partial(
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 					*timestamp,
 					slot_duration,
 				);
@@ -428,7 +428,7 @@ pub fn new_full_base(
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
@@ -659,7 +659,10 @@ mod tests {
 						.epoch_changes()
 						.shared_data()
 						.epoch_data(&epoch_descriptor, |slot| {
-							sc_consensus_babe::Epoch::genesis(&babe_link.config(), slot)
+							sc_consensus_babe::Epoch::genesis(
+								babe_link.config().genesis_config(),
+								slot,
+							)
 						})
 						.unwrap();
 

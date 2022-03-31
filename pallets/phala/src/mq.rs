@@ -22,7 +22,7 @@ pub mod pallet {
 		type CallMatcher: CallMatcher<Self>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

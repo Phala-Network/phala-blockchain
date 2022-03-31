@@ -538,7 +538,7 @@ pub(crate) mod tests {
 			"test",
 			ChainType::Development,
 			move || GenesisExt {
-				runtime_genesis_config: local_testnet_genesis(),
+				runtime_genesis_config: testnet_local_config_genesis(),
 				block_milliseconds: Some(MILLISECS_PER_BLOCK)
 			},
 			vec![],
@@ -574,11 +574,6 @@ pub(crate) mod tests {
 
 	#[test]
 	fn test_create_local_testnet_chain_spec() {
-		local_testnet_config().build_storage().unwrap();
-	}
-
-	#[test]
-	fn test_staging_test_net_chain_spec() {
-		staging_testnet_config().build_storage().unwrap();
+		testnet_local_config().build_storage().unwrap();
 	}
 }

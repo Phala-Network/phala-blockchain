@@ -82,7 +82,7 @@ pub enum Error {
 impl GuessNumber {
     pub fn new() -> Self {
         GuessNumber {
-            owner: Default::default(),
+            owner: AccountId::new(Default::default()),
             random_number: Default::default(),
         }
     }

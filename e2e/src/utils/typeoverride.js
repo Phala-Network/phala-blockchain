@@ -57,10 +57,12 @@ const types = {
     "MasterPublicKey": "Sr25519PublicKey",
     "WorkerPublicKey": "Sr25519PublicKey",
     "ContractPublicKey": "Sr25519PublicKey",
+    "ClusterPublicKey": "Sr25519PublicKey",
     "EcdhPublicKey": "[u8; 32]",
     "MessageOrigin": {
         "_enum": {
             "Pallet": "Vec<u8>",
+            "Cluster": "H256",
             "Contract": "H256",
             "Worker": "Sr25519PublicKey",
             "AccountId": "H256",
@@ -232,10 +234,10 @@ const types = {
             "WasmCode": "CodeHash"
         }
     },
-    "DeployTarget": {
+    "ClusterPermission": {
         "_enum": {
-            "Cluster": "ContractClusterId",
-            "NewGroup": "Vec<WorkerPublicKey>"
+            "Public": null,
+            "OnlyOwner": "AccountId"
         }
     }
 };
