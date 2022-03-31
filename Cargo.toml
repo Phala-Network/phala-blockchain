@@ -58,6 +58,7 @@ members = [
 	"crates/pink/pink-extension/macro",
 	"crates/pink/pink-sidevm",
 	"crates/pink/pink-sidevm-env",
+	"crates/pink/pink-sidevm-macro",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"pallets/phala",

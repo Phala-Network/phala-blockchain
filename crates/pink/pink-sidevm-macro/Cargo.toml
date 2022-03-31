@@ -1,0 +1,19 @@
+[package]
+name = "pink-sidevm-macro"
+version = "0.1.0"
+edition = "2021"
+description = "Macros for writing fat contract sidevm program"
+license = "Apache-2.0"
+keywords = ["fat-contract", "pink", "ink", "sidevm"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0", features = ["full", "visit-mut", "extra-traits", "parsing"] }
+proc-macro2 = "1.0"
+proc-macro-crate = "1.0.0"
+
+[dev-dependencies]
+rustfmt-snippet = { version = "0.1.0", path = "../../rustfmt-snippet/" }
+
