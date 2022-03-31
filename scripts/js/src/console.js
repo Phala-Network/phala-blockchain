@@ -267,6 +267,7 @@ chain
         const api = await useApi();
         const typedP = tokenomic.humanToTyped(api, p);
         const call = tokenomic.createUpdateCall(api, typedP);
+        console.log('Params:', typedP.toHex());
         console.log('Raw Call:', call.method.toHex());
     }));
 
@@ -321,6 +322,20 @@ chain
             }
         }
     }));
+
+chain
+    .command('motion')
+    .description('generate a call to propose a motion')
+    .argument('<threshold>', 'the threshold')
+    .argument('<call>', 'the raw call in hex')
+    .action(run(async (thresholdStr, callHex) => {
+        const api = await useApi();
+        const threshold = parseInt(thresholdStr);
+        const lengthBound = ((callHex.length / 2) | 0) + 10;
+        const bareCall = api.createType('Call', callHex);
+        const call = api.tx.council.propose(threshold, bareCall, lengthBound);
+        console.log(call.toHex());
+    }))
 
 // pRuntime operations
 const pruntime = program

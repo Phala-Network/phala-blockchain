@@ -242,22 +242,16 @@ fn test_on_block_end() {
     insta::assert_debug_snapshot!(effects);
 }
 
-#[test]
-fn test_signing() {
+fn test_with_wasm(wasm: &[u8], constructor: [u8; 4], message: [u8; 4]) {
     let mut storage = Contract::new_storage();
     storage.set_key_seed([1u8; 64]);
-    let code_hash = storage
-        .upload_code(
-            ALICE.clone(),
-            include_bytes!("./fixtures/signing/signing.wasm").to_vec(),
-        )
-        .unwrap();
+    let code_hash = storage.upload_code(ALICE.clone(), wasm.to_vec()).unwrap();
 
     let (contract, _) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         code_hash,
-        hex!("ed4b9d1b"),
+        constructor,
         (),
         vec![],
         vec![],
@@ -267,14 +261,24 @@ fn test_signing() {
     .unwrap();
 
     let _: ((), _) = contract
-        .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
-            hex!("928b2036"),
-            (),
-            false,
-            1,
-            0,
-        )
+        .call_with_selector(&mut storage, ALICE.clone(), message, (), true, 1, 0)
         .unwrap();
+}
+
+#[test]
+fn test_signing() {
+    test_with_wasm(
+        include_bytes!("./fixtures/signing/signing.wasm"),
+        hex!("ed4b9d1b"),
+        hex!("928b2036"),
+    );
+}
+
+#[test]
+fn test_use_cache() {
+    test_with_wasm(
+        include_bytes!("./fixtures/use_cache/use_cache.wasm"),
+        hex!("ed4b9d1b"),
+        hex!("928b2036"),
+    );
 }

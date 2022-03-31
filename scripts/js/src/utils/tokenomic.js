@@ -47,7 +47,7 @@ function humanToTyped(api, data) {
         'k': bits(data.k),
         'kappa': bits(data.kappa),
     }
-    return api.createType('TokenomicParams', convertedParams);
+    return api.createType('PhalaTypesMessagingTokenomicParameters', convertedParams);
 }
 
 function createUpdateCall(api, data) {
