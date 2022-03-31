@@ -1,0 +1,39 @@
+[package]
+name = "rusty-leveldb"
+version = "0.3.6"
+authors = ["Lewin Bormann <lbo@spheniscida.de>"]
+description = "A compatible re-implementation of LevelDB in Rust"
+homepage = "https://github.com/dermesser/leveldb-rs"
+repository = "https://github.com/dermesser/leveldb-rs"
+readme = "README.md"
+keywords = ["LevelDB", "key-value", "database", "SSTable", "Google"]
+license = "MIT"
+publish = true
+edition = "2018"
+include = ["src/**/*", "src/*", "Cargo.toml", "LICENSE", "README.md"]
+
+[dependencies]
+crc = "1.8"
+integer-encoding = "3.0"
+rand = "0.7"
+snap = "1.0"
+errno = "0.2"
+fs2 = "0.4.3"
+cfg-if = "1.0.0"
+
+[dev-dependencies]
+time-test = "0.2"
+bencher = "0.1"
+
+[[bench]]
+name = "maps_bench"
+harness = false
+path = "src/benches/maps_bench.rs"
+
+[workspace]
+members = ["examples/gramine", "examples/write-a-lot", "examples/leveldb-tool", "examples/word-analyze", "examples/kvserver"]
+
+[features]
+default = []
+gramine = []
+

@@ -1,0 +1,38 @@
+[libos]
+entrypoint = "gramine"
+
+[loader]
+preload = "file:{{ gramine.libos }}"
+entrypoint = "file:{{ gramine.libos }}"
+log_level = "{{ log_level }}"
+argv0_override = "gramine"
+
+[loader.env]
+LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
+RUST_BACKTRACE = "full"
+
+[fs]
+mounts = [
+    { type = "chroot", path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
+    { type = "chroot", path = "/lib/x86_64-linux-gnu", uri = "file:/lib/x86_64-linux-gnu" },
+    { type = "chroot", path = "/data", uri = "file:data" },
+    { type = "chroot", path = "/allowed", uri = "file:allowed" },
+]
+
+
+[sgx]
+debug = true
+enclave_size = "2G"
+thread_num = 32
+trusted_files = [
+    "file:{{ gramine.libos }}",
+    "file:{{ gramine.runtimedir() }}/",
+    "file:gramine",
+    "file:/lib/x86_64-linux-gnu/",
+]
+allowed_files = [
+    "file:allowed/"
+]
+protected_mrenclave_files = [
+    "file:data/"
+]

@@ -1,0 +1,471 @@
+Parsing TOML manifest file, this may take some time...
+warning: Parsed TOML manifest file successfully
+debug: Token file: gramine.token
+debug: Read dummy DCAP token
+debug: enclave created:
+debug:     base:           0x0000000080000000
+debug:     size:           0x0000000080000000
+debug:     misc_select:    0x00000000
+debug:     attr.flags:     0x0000000000000007
+debug:     attr.xfrm:      0x0000000000000007
+debug:     ssa_frame_size: 4
+debug:     isv_prod_id:    0x00000000
+debug:     isv_svn:        0x00000000
+warning: Adding pages to SGX enclave, this may take some time...
+debug: adding pages to enclave: 0xffef7000-0x100000000 [REG:R--] (manifest) measured
+debug: adding pages to enclave: 0xffdf7000-0xffef7000 [REG:RW-] (ssa) measured
+debug: adding pages to enclave: 0xffdd7000-0xffdf7000 [TCS:---] (tcs) measured
+debug: adding pages to enclave: 0xffdb7000-0xffdd7000 [REG:RW-] (tls) measured
+debug: adding pages to enclave: 0xffd77000-0xffdb7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffd37000-0xffd77000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffcf7000-0xffd37000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffcb7000-0xffcf7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffc77000-0xffcb7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffc37000-0xffc77000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffbf7000-0xffc37000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffbb7000-0xffbf7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffb77000-0xffbb7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffb37000-0xffb77000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffaf7000-0xffb37000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffab7000-0xffaf7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffa77000-0xffab7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xffa37000-0xffa77000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff9f7000-0xffa37000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff9b7000-0xff9f7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff977000-0xff9b7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff937000-0xff977000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff8f7000-0xff937000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff8b7000-0xff8f7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff877000-0xff8b7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff837000-0xff877000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff7f7000-0xff837000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff7b7000-0xff7f7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff777000-0xff7b7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff737000-0xff777000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff6f7000-0xff737000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff6b7000-0xff6f7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff677000-0xff6b7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff637000-0xff677000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff5f7000-0xff637000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff5b7000-0xff5f7000 [REG:RW-] (stack) measured
+debug: adding pages to enclave: 0xff5a7000-0xff5b7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff597000-0xff5a7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff587000-0xff597000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff577000-0xff587000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff567000-0xff577000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff557000-0xff567000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff547000-0xff557000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff537000-0xff547000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff527000-0xff537000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff517000-0xff527000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff507000-0xff517000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff4f7000-0xff507000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff4e7000-0xff4f7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff4d7000-0xff4e7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff4c7000-0xff4d7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff4b7000-0xff4c7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff4a7000-0xff4b7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff497000-0xff4a7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff487000-0xff497000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff477000-0xff487000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff467000-0xff477000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff457000-0xff467000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff447000-0xff457000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff437000-0xff447000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff427000-0xff437000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff417000-0xff427000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff407000-0xff417000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff3f7000-0xff407000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff3e7000-0xff3f7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff3d7000-0xff3e7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff3c7000-0xff3d7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xff3b7000-0xff3c7000 [REG:RW-] (sig_stack) measured
+debug: adding pages to enclave: 0xfef7f000-0xfefdf000 [REG:R-X] (code) measured
+debug: adding pages to enclave: 0xfefdf000-0xfefe3000 [REG:RW-] (data) measured
+debug: adding pages to enclave: 0xfefe3000-0xff3b7000 [REG:RW-] (bss) measured
+debug: adding pages to enclave: 0x80000000-0xfef7f000 [REG:RWX] (free)
+warning: Added all pages to SGX enclave
+debug: enclave initializing:
+debug:     enclave id:   0x00000000fffff000
+debug:     mr_enclave:   7f75a8caeffcf4d3129a2f9768770522f0df8f2fbbc8fe24cb88f1729a404827
+-----------------------------------------------------------------------------------------------------------------------
+Gramine detected the following insecure configurations:
+
+  - sgx.debug = true                           (this is a debug enclave)
+  - loader.log_level = warning|debug|trace|all (verbose log level, may leak information)
+  - sgx.allowed_files = [ ... ]                (some files are passed through from untrusted host without verification)
+
+Gramine will continue application execution, but this configuration must not be used in production!
+-----------------------------------------------------------------------------------------------------------------------
+
+warning: DkVirtualMemoryProtect is unimplemented in Linux-SGX PAL
+[::] debug: Gramine was built from commit: c2548d6ad1e47683606b15a21b90ae6bd24df623
+[::] debug: Host: Linux-SGX
+[::] debug: LibOS xsave_enabled 1, xsave_size 0x340(832), xsave_features 0x7
+[::] debug: Initial VMA region 0xfe654000-0xfe700000 (LibOS) bookkeeped
+[::] debug: Initial VMA region 0xffef7000-0x100000000 (manifest) bookkeeped
+[::] debug: ASLR top address adjusted to 0xaec8c000
+[::] debug: Shim loaded at 0xfe654000, ready to initialize
+[::] debug: mounting "file:." (chroot) under /
+[::] debug: mounting "proc" (pseudo) under /proc
+[::] debug: mounting "dev" (pseudo) under /dev
+[::] debug: mounting "dev:tty" (chroot) under /dev/tty
+[::] debug: Creating pipe: pipe.srv:aaf6ea3c4af5de7083098b3d35b87798dc38e640c5bb58b8f401409db6739911
+[P1:T1:] debug: mounting "file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc" (chroot) under /lib
+[P1:T1:] debug: mounting "file:/lib/x86_64-linux-gnu" (chroot) under /lib/x86_64-linux-gnu
+[P1:T1:] debug: mounting "file:data" (chroot) under /data
+[P1:T1:] debug: mounting "file:allowed" (chroot) under /allowed
+[P1:T1:gramine] debug: Creating pipe: pipe.srv:e2ec3f9c5797f024ba73ec16f9afd652e41c350875aef6c8b00806c1fd0af935
+[P1:T1:gramine] debug: Allocating stack at 0 (size = 262144)
+[P1:T1:gramine] debug: loading "file:./gramine"
+[P1:T1:gramine] debug: append_r_debug: adding file:./gramine at 0xaeb80000
+[P1:T1:gramine] debug: find_interp: searching for interpreter: /lib/ld-linux-x86-64.so.2
+[P1:T1:gramine] debug: loading "file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/ld-linux-x86-64.so.2"
+[P1:T1:gramine] debug: append_r_debug: adding file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/ld-linux-x86-64.so.2 at 0xaeb4c000
+[P1:T1:gramine] debug: Creating pipe: pipe.srv:1
+[P1:T1:gramine] debug: Creating pipe: pipe.srv:cdac13fa012b74da24adcd2b7ecf07c90b99ccefecafea94e4740222d93b6fae
+[P1:T1:gramine] debug: Shim process initialized
+[P1:shim] debug: IPC worker started
+[P1:T1:gramine] debug: append_r_debug: adding file:[vdso_libos] at 0xaeb4b000
+[P1:T1:gramine] trace: ---- shim_brk(0) = 0xb09d4000
+[P1:T1:gramine] warning: Not supported flag (0x3001) passed to arch_prctl
+[P1:T1:gramine] trace: ---- shim_arch_prctl(12289, 0xaec8bd90) = -38
+[P1:T1:gramine] trace: ---- shim_uname(0xaec8b980) = 0x0
+[P1:T1:gramine] trace: ---- shim_access("/etc/ld.so.preload", F_OK|R_OK) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/glibc-hwcaps/x86-64-v3/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/glibc-hwcaps/x86-64-v3", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/glibc-hwcaps/x86-64-v2/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/glibc-hwcaps/x86-64-v2", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/tls/haswell/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/tls/haswell/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/tls/haswell/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/tls/haswell", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/tls/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/tls/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/tls/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/tls", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/haswell/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/haswell/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/haswell/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/haswell", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib", 0xaec8afc0, 0) = 0x0
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/glibc-hwcaps/x86-64-v3/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/glibc-hwcaps/x86-64-v3", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/glibc-hwcaps/x86-64-v2/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/glibc-hwcaps/x86-64-v2", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/haswell/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/haswell/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/haswell/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/haswell", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/tls", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/haswell/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/haswell/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/haswell/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/haswell", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/x86_64/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = -2
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/lib/x86_64-linux-gnu/x86_64", 0xaec8afc0, 0) = -2
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libgcc_s.so.1", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec8b118, 0x340) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x340
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8afc0, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x2000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb49000
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x1a448, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb2e000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb31000, 0x12000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x3000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb31000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb43000, 0x4000, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x15000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb43000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb47000, 0x2000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x18000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb47000
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] debug: glibc register library /lib/x86_64-linux-gnu/libgcc_s.so.1 loaded at 0xaeb2e000
+[P1:T1:gramine] debug: append_r_debug: adding file:/lib/x86_64-linux-gnu/libgcc_s.so.1 at 0xaeb2e000
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/libpthread.so.0", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec8b0f8, 0x340) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x340
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8afa0, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x4028, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb29000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb2a000, 0x1000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb2a000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb2b000, 0x1000, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb2b000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb2c000, 0x2000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb2c000
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] debug: glibc register library /lib/libpthread.so.0 loaded at 0xaeb29000
+[P1:T1:gramine] debug: append_r_debug: adding file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/libpthread.so.0 at 0xaeb29000
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/libm.so.6", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec8b0d8, 0x340) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x340
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8af80, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0xda0f8, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea4e000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaea5d000, 0x6f000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xf000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea5d000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeacc000, 0x5b000, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x7e000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeacc000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaeb27000, 0x2000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0xd8000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaeb27000
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] debug: glibc register library /lib/libm.so.6 loaded at 0xaea4e000
+[P1:T1:gramine] debug: append_r_debug: adding file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/libm.so.6 at 0xaea4e000
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/libdl.so.2", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec8b0b8, 0x340) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x340
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8af60, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x4028, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea49000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaea4a000, 0x1000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea4a000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaea4b000, 0x1000, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea4b000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaea4c000, 0x2000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea4c000
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] debug: glibc register library /lib/libdl.so.2 loaded at 0xaea49000
+[P1:T1:gramine] debug: append_r_debug: adding file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/libdl.so.2 at 0xaea49000
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/lib/libc.so.6", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec8b098, 0x340) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x340
+[P1:T1:gramine] trace: ---- shim_pread64(3, 0xaec8aae0, 0x310, 0x40) ...
+[P1:T1:gramine] trace: ---- return from shim_pread64(...) = 0x310
+[P1:T1:gramine] trace: ---- shim_pread64(3, 0xaec8aaa0, 0x30, 0x350) ...
+[P1:T1:gramine] trace: ---- return from shim_pread64(...) = 0x30
+[P1:T1:gramine] trace: ---- shim_pread64(3, 0xaec8aa50, 0x44, 0x380) ...
+[P1:T1:gramine] trace: ---- return from shim_pread64(...) = 0x44
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8af40, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_pread64(3, 0xaec8ab90, 0x310, 0x40) ...
+[P1:T1:gramine] trace: ---- return from shim_pread64(...) = 0x310
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x1f9a50, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 3, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae84f000
+[P1:T1:gramine] trace: ---- shim_mprotect(0xae87b000, 0x1c0000, PROT_NONE) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mmap(0xae87b000, 0x16a000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x2c000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae87b000
+[P1:T1:gramine] trace: ---- shim_mmap(0xae9e5000, 0x55000, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x196000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae9e5000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaea3b000, 0x6000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 3, 0x1eb000) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea3b000
+[P1:T1:gramine] trace: ---- shim_mmap(0xaea41000, 0x7a50, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, -1, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xaea41000
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] debug: glibc register library /lib/libc.so.6 loaded at 0xae84f000
+[P1:T1:gramine] debug: append_r_debug: adding file:/usr/local/lib/x86_64-linux-gnu/gramine/runtime/glibc/libc.so.6 at 0xae84f000
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x2000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae84d000
+[P1:T1:gramine] trace: ---- shim_arch_prctl(4098, 0xae84e280) = 0x0
+[P1:T1:gramine] trace: ---- shim_set_tid_address(0xae84e550) = 0x1
+[P1:T1:gramine] trace: ---- shim_set_robust_list(0xae84e560, 0x18) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaea3b000, 0x3000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaea4c000, 0x1000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaeb27000, 0x1000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaeb2c000, 0x1000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaeb47000, 0x1000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaec42000, 0x8000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_mprotect(0xaeb7c000, 0x2000, PROT_READ) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_prlimit64(0, 3, 0, 0xaec8bb10) = 0x0
+[P1:T1:gramine] trace: ---- shim_poll(0xaec8bc80, 3, 0) ...
+[P1:T1:gramine] trace: ---- return from shim_poll(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_rt_sigaction([SIGPIPE], 0xaec8b9a0, 0xaec8ba40, 0x8) = 0x0
+[P1:T1:gramine] trace: ---- shim_rt_sigaction([SIGSEGV], 0, 0xaec8bb90, 0x8) = 0x0
+[P1:T1:gramine] trace: ---- shim_rt_sigaction([SIGSEGV], 0xaec8baf0, 0, 0x8) = 0x0
+[P1:T1:gramine] trace: ---- shim_rt_sigaction([SIGBUS], 0, 0xaec8bb90, 0x8) = 0x0
+[P1:T1:gramine] trace: ---- shim_rt_sigaction([SIGBUS], 0xaec8baf0, 0, 0x8) = 0x0
+[P1:T1:gramine] trace: ---- shim_sigaltstack(0, 0xaec8bbd0) = 0x0
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x3000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae84a000
+[P1:T1:gramine] trace: ---- shim_mprotect(0xae84a000, 0x1000, PROT_NONE) ...
+[P1:T1:gramine] trace: ---- return from shim_mprotect(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_sigaltstack(0xaec8bbd0, 0) = 0x0
+[P1:T1:gramine] trace: ---- shim_getrandom(0xaea46178, 0x8, GRND_NONBLOCK) = 0x8
+[P1:T1:gramine] trace: ---- shim_brk(0) = 0xb09d4000
+[P1:T1:gramine] trace: ---- shim_brk(0xb09f5000) = 0xb09f5000
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/proc/self/maps", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_prlimit64(0, 3, 0, 0xaec8bbf0) = 0x0
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8ba20, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_read(3, 0xb09d4500, 0x2000) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0xc77
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] trace: ---- shim_sched_getaffinity(1, 32, 0xb09d4500) = 0x8
+[P1:T1:gramine] trace: ---- shim_getrandom(0xaec8ad50, 0x10, GRND_NONBLOCK) = 0x10
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x3d000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae80d000
+[P1:T1:gramine] trace: ---- shim_readlink("/data", 0xaec89420, 1023) = -22
+[P1:T1:gramine] trace: ---- shim_readlink("/data/simple_db_workds", 0xaec89420, 1023) = -2
+[P1:T1:gramine] trace: ---- shim_mmap(0, 0x95000, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0x0) ...
+[P1:T1:gramine] trace: ---- return from shim_mmap(...) = 0xae778000
+[P1:T1:gramine] trace: ---- shim_mkdir("/data/simple_db_workds", 511) = 0x0
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/CURRENT", O_RDONLY|0x80000, 0000) = -2
+debug: get_pf: registering new PF 'data/simple_db_workds/MANIFEST-000001' in dir 'data'
+debug: register_protected_path: [file] data/simple_db_workds/MANIFEST-000001 = 0xfe8b6a30
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21, size 0, mode 2, create 1, pf 0xfe8b6a30
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21: opening new PF 0xfe8b6a30
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/MANIFEST-000001', real size: 0, mode: 0x2
+debug: ipf_open: OK (data size 0)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/MANIFEST-000001", O_WRONLY|O_CREAT|0x80000, 0666) = 0x3
+[P1:T1:gramine] trace: ---- shim_write(3, 0xb09d5fa0, 0x4) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x4
+[P1:T1:gramine] trace: ---- shim_write(3, 0xaec889d0, 0x2) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x2
+[P1:T1:gramine] trace: ---- shim_write(3, 0xaec88a20, 0x1) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x1
+[P1:T1:gramine] trace: ---- shim_write(3, 0xb09d6020, 0x22) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x22
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+debug: get_pf: registering new PF 'data/simple_db_workds/000001.dbtmp' in dir 'data'
+debug: register_protected_path: [file] data/simple_db_workds/000001.dbtmp = 0xfe8b6ab0
+debug: load_protected_file: data/simple_db_workds/000001.dbtmp, fd 21, size 0, mode 2, create 1, pf 0xfe8b6ab0
+debug: load_protected_file: data/simple_db_workds/000001.dbtmp, fd 21: opening new PF 0xfe8b6ab0
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/000001.dbtmp', real size: 0, mode: 0x2
+debug: ipf_open: OK (data size 0)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/000001.dbtmp", O_WRONLY|O_CREAT|0x80000, 0666) = 0x3
+[P1:T1:gramine] trace: ---- shim_write(3, 0xb09d6170, 0xf) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0xf
+[P1:T1:gramine] trace: ---- shim_write(3, 0xaec187ed, 0x1) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x1
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] warning: Unsupported system call statx
+[P1:T1:gramine] trace: ---- shim_newfstatat(0, (invalid-addr 0), 0xaec88380, 0) = -14
+[P1:T1:gramine] warning: Unsupported system call statx
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/data/simple_db_workds/CURRENT", 0xaec88380, 0) = -2
+debug: get_pf: registering new PF 'data/simple_db_workds/CURRENT' in dir 'data'
+debug: register_protected_path: [file] data/simple_db_workds/CURRENT = 0xfe8b6b30
+debug: load_protected_file: data/simple_db_workds/CURRENT, fd 21, size 0, mode 2, create 1, pf 0xfe8b6b30
+debug: load_protected_file: data/simple_db_workds/CURRENT, fd 21: opening new PF 0xfe8b6b30
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/CURRENT', real size: 0, mode: 0x2
+debug: ipf_open: OK (data size 0)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/CURRENT", O_WRONLY|O_CREAT|0x80000, 0666) = 0x3
+debug: load_protected_file: data/simple_db_workds/000001.dbtmp, fd 22, size 4096, mode 1, create 0, pf 0xfe8b6ab0
+debug: load_protected_file: data/simple_db_workds/000001.dbtmp, fd 22: opening new PF 0xfe8b6ab0
+debug: ipf_open: handle: 22, path: 'data/simple_db_workds/000001.dbtmp', real size: 4096, mode: 0x1
+debug: ipf_init_existing_file: data size 16
+debug: ipf_open: OK (data size 16)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/000001.dbtmp", O_RDONLY|0x80000, 0000) = 0x4
+[P1:T1:gramine] warning: Unsupported system call statx
+[P1:T1:gramine] trace: ---- shim_newfstatat(4, "", 0xaec88380, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_lseek(4, 0x0, SEEK_CUR) = 0x0
+[P1:T1:gramine] trace: ---- shim_read(4, 0xb09d6200, 0x10) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x10
+[P1:T1:gramine] trace: ---- shim_read(4, 0xaec886b0, 0x20) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_write(3, 0xb09d6200, 0x10) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x10
+debug: load_protected_file: data/simple_db_workds/000001.dbtmp, fd 23, size 4096, mode 1, create 0, pf 0xfe8b6ab0
+debug: load_protected_file: data/simple_db_workds/000001.dbtmp, fd 23: returning old PF 0xfe8b6ab0
+[P1:T1:gramine] trace: ---- shim_unlink("/data/simple_db_workds/000001.dbtmp") = 0x0
+debug: ipf_internal_flush: no need to write
+[P1:T1:gramine] trace: ---- shim_close(4) = 0x0
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+debug: load_protected_file: data/simple_db_workds/CURRENT, fd 21, size 4096, mode 1, create 0, pf 0xfe8b6b30
+debug: load_protected_file: data/simple_db_workds/CURRENT, fd 21: opening new PF 0xfe8b6b30
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/CURRENT', real size: 4096, mode: 0x1
+debug: ipf_init_existing_file: data size 16
+debug: ipf_open: OK (data size 16)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/CURRENT", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] warning: Unsupported system call statx
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec879a0, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_lseek(3, 0x0, SEEK_CUR) = 0x0
+[P1:T1:gramine] trace: ---- shim_read(3, 0xb09d5fc0, 0x10) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x10
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec87cd0, 0x20) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x0
+debug: ipf_internal_flush: no need to write
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] trace: ---- shim_write(1, 0xb09d6220, 0x25) ...
+current file name is MANIFEST-000001
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x25
+[P1:T1:gramine] trace: ---- shim_write(1, 0xb09d6220, 0x3c) ...
+current file path is /data/simple_db_workds/MANIFEST-000001
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x3c
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21, size 4096, mode 1, create 0, pf 0xfe8b6a30
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21: opening new PF 0xfe8b6a30
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/MANIFEST-000001', real size: 4096, mode: 0x1
+debug: ipf_init_existing_file: data size 41
+debug: ipf_open: OK (data size 41)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/MANIFEST-000001", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec88a80, 0x7) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x7
+[P1:T1:gramine] trace: ---- shim_read(3, 0xb09d5970, 0x22) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x22
+[P1:T1:gramine] trace: ---- shim_read(3, 0xaec88a80, 0x7) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_write(1, 0xb09d6220, 0x13) ...
+log number Some(0)
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x13
+debug: ipf_internal_flush: no need to write
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] warning: Unsupported system call statx
+[P1:T1:gramine] trace: ---- shim_newfstatat(AT_FDCWD, "/data/simple_db_workds/MANIFEST-000001", 0xaec872f0, 0) = 0x0
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21, size 4096, mode 2, create 1, pf 0xfe8b6a30
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21: opening new PF 0xfe8b6a30
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/MANIFEST-000001', real size: 4096, mode: 0x2
+debug: ipf_open: OK (data size 0)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/MANIFEST-000001", O_WRONLY|O_APPEND|O_CREAT|0x80000, 0666) = 0x3
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds", O_RDONLY|0x90800, 0000) = 0x4
+[P1:T1:gramine] trace: ---- shim_newfstatat(4, "", 0xaec88940, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_getdents64(4, 0xb09d66c0, 0x8000) = 0x88
+[P1:T1:gramine] trace: ---- shim_getdents64(4, 0xb09d66c0, 0x8000) = 0x0
+[P1:T1:gramine] trace: ---- shim_close(4) = 0x0
+debug: get_pf: registering new PF 'data/simple_db_workds/000003.log' in dir 'data'
+debug: register_protected_path: [file] data/simple_db_workds/000003.log = 0xfe8b6bb0
+debug: load_protected_file: data/simple_db_workds/000003.log, fd 22, size 0, mode 2, create 1, pf 0xfe8b6bb0
+debug: load_protected_file: data/simple_db_workds/000003.log, fd 22: opening new PF 0xfe8b6bb0
+debug: ipf_open: handle: 22, path: 'data/simple_db_workds/000003.log', real size: 0, mode: 0x2
+debug: ipf_open: OK (data size 0)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/000003.log", O_WRONLY|O_CREAT|0x80000, 0666) = 0x4
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds", O_RDONLY|0x90800, 0000) = 0x5
+[P1:T1:gramine] trace: ---- shim_newfstatat(5, "", 0xaec89560, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_getdents64(5, 0xb09de770, 0x8000) = 0xb0
+[P1:T1:gramine] trace: ---- shim_getdents64(5, 0xb09de770, 0x8000) = 0x0
+[P1:T1:gramine] trace: ---- shim_close(5) = 0x0
+[P1:T1:gramine] trace: ---- shim_write(4, 0xb09d6690, 0x1a) ...
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0x1a
+[P1:T1:gramine] trace: ---- shim_close(4) = 0x0
+[P1:T1:gramine] trace: ---- shim_munmap(0xae778000, 0x95000) ...
+[P1:T1:gramine] trace: ---- return from shim_munmap(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_munmap(0xae80d000, 0x3d000) ...
+[P1:T1:gramine] trace: ---- return from shim_munmap(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21, size 4096, mode 1, create 0, pf 0xfe8b6a30
+debug: load_protected_file: data/simple_db_workds/MANIFEST-000001, fd 21: opening new PF 0xfe8b6a30
+debug: ipf_open: handle: 21, path: 'data/simple_db_workds/MANIFEST-000001', real size: 4096, mode: 0x1
+debug: ipf_init_existing_file: data size 0
+debug: ipf_open: OK (data size 0)
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/data/simple_db_workds/MANIFEST-000001", O_RDONLY|0x80000, 0000) = 0x3
+[P1:T1:gramine] warning: Unsupported system call statx
+[P1:T1:gramine] trace: ---- shim_newfstatat(3, "", 0xaec8abc0, 4096) = 0x0
+[P1:T1:gramine] trace: ---- shim_lseek(3, 0x0, SEEK_CUR) = 0x0
+[P1:T1:gramine] trace: ---- shim_read(3, 0xb09d6130, 0x29) ...
+[P1:T1:gramine] trace: ---- return from shim_read(...) = 0x0
+[P1:T1:gramine] trace: ---- shim_write(1, 0xb09d6220, 0xa) ...
+result []
+[P1:T1:gramine] trace: ---- return from shim_write(...) = 0xa
+[P1:T1:gramine] trace: ---- shim_openat(AT_FDCWD, "/allowed/MANIFEST", O_WRONLY|O_CREAT|0x80000, 0666) = 0x4
+[P1:T1:gramine] trace: ---- shim_close(4) = 0x0
+debug: ipf_internal_flush: no need to write
+[P1:T1:gramine] trace: ---- shim_close(3) = 0x0
+[P1:T1:gramine] trace: ---- shim_sigaltstack(0xaec8bb60, 0) = 0x0
+[P1:T1:gramine] trace: ---- shim_munmap(0xae84a000, 0x3000) ...
+[P1:T1:gramine] trace: ---- return from shim_munmap(...) = 0x0
+[P1:T1:gramine] debug: ---- shim_exit_group (returning 0)
+[P1:T1:gramine] debug: clearing POSIX locks for pid 1
+[P1:T1:gramine] debug: sync client shutdown: closing handles
+[P1:T1:gramine] debug: sync client shutdown: waiting for confirmation
+[P1:T1:gramine] debug: sync client shutdown: finished
+[P1:shim] debug: IPC worker: exiting worker thread
+[P1:T1:gramine] debug: process 1 exited with status 0
