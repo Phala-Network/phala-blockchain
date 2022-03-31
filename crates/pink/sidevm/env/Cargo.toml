@@ -5,4 +5,4 @@ version = "0.1.0"
 
 [dependencies]
 scale = {package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"]}
-pink-extension-macro = { path = "../pink-extension/macro" }
+pink-sidevm-macro = { path = "../macro" }

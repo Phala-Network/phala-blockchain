@@ -34,7 +34,7 @@ fn ocall<Input: Encode, Output: Decode>(func_id: u32, input: &Input) -> Output {
     Decode::decode(&mut output).expect("Failed to decode ocall output")
 }
 
-#[pink_extension_macro::sidevm_extension]
+#[pink_sidevm_macro::ocall]
 trait SideVMHostFunctions {
     fn echo(&self, input: &[u8]) -> Vec<u8>;
 }
