@@ -35,7 +35,14 @@ impl OcallMethod {
                                     {
                                         "id" => match &name_value.lit {
                                             syn::Lit::Int(value) => {
-                                                id = Some(value.base10_parse::<i32>()?);
+                                                let parsed_id = value.base10_parse::<i32>()?;
+                                                if parsed_id < 100 {
+                                                    return Err(syn::Error::new_spanned(
+                                                        &name_value.lit,
+                                                        "Id must greater than 100",
+                                                    ));
+                                                }
+                                                id = Some(parsed_id);
                                             }
                                             _ => {
                                                 return Err(syn::Error::new_spanned(
@@ -208,9 +215,10 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
     } else {
         parse_quote! {
             let inputs = (#(#args),*);
-            let input_buf = Encode::encode(&inputs).expect("Failed to encode ocall input");
-            let len: i32 = input_buf.len() as i32;
-            let ret = sidevm_ocall(#call_id, input_buf.as_ptr(), len, 0, 0);
+            let mut input_buf = empty_buffer();
+            Encode::encode_to(&inputs, &mut input_buf);
+            let len = input_buf.len() as PtrInt;
+            let ret = sidevm_ocall(#call_id, input_buf.as_ptr() as PtrInt, len, 0, 0);
         }
     };
 
@@ -222,12 +230,12 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
             if len < 0 {
                 panic!("ocall returned an error");
             }
-            let mut buf = new_buf(len);
-            let ret = sidevm_ocall_fast(0, buf.as_ptr(), len, 0, 0);
+            let mut buf = alloc_buffer(len as _);
+            let ret = sidevm_ocall_fast(0, buf.as_mut_ptr() as PtrInt, len, 0, 0);
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
-            Decode::decode(&mut &buf).expect("Failed to decode ocall return value")
+            Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value")
         }
     };
 
@@ -278,17 +286,18 @@ impl AttributeExt for syn::Attribute {
 fn test() {
     let stream = patch(parse_quote! {
         pub trait Ocall {
-            #[ocall(id = 2, fast_input, fast_return)]
-            fn poll_fi_fo(&self, p0: i32, p1: i32) -> i32;
+            #[ocall(id = 101)]
+            fn call_slow(&self, p0: i32, p1: i32) -> i32;
 
-            #[ocall(id = 3, fast_input)]
+            #[ocall(id = 103, fast_input)]
             fn call_fi(&self, p0: i32, p1: i32) -> i32;
 
-            #[ocall(id = 4, fast_return)]
+            #[ocall(id = 104, fast_return)]
             fn call_fo(&self, p0: i32, p1: i32) -> i32;
 
-            #[ocall(id = 5)]
-            fn call_slow(&self, p0: i32, p1: i32) -> i32;
+            #[ocall(id = 102, fast_input, fast_return)]
+            fn poll_fi_fo(&self, p0: i32, p1: i32) -> i32;
+
         }
     });
     println!(
