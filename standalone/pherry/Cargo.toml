@@ -1,6 +1,6 @@
 [package]
 name = "pherry"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["h4x3rotab <h4x3rotab@gmail.com>"]
 edition = "2018"
 
