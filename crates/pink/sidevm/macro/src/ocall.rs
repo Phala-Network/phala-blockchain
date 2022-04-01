@@ -183,19 +183,24 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             }
         } else {
             parse_quote! {
-                let (#(#args),*) = decode_input!(p0, p1);
+                let (#(#args),*) = {
+                    let mut buf = env.slice_from_vm(p0, p1);
+                    match Decode::decode(&mut buf) {
+                        Ok(p) => p,
+                        Err(_) => return -1,
+                    }
+                };
             }
         };
         let calling: TokenStream = parse_quote! {
-            let ret = env.#name(#(#args),*);
+            env.#name(#(#args),*)
         };
 
         if method.fast_return {
             fast_calls.push(parse_quote! {
                 #id => {
                     #parse_inputs
-                    #calling
-                    ret as _
+                    #calling as _
                 }
             });
         };
@@ -203,8 +208,8 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         slow_calls.push(parse_quote! {
             #id => {
                 #parse_inputs
-                #calling
-                encode_result!(env, ret)
+                let ret = #calling;
+                env.encode_put_return(&ret) as _
             }
         });
     }
@@ -215,36 +220,16 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
                 Some(ret) => ret,
                 None => return -1,
             };
-            let ptr = p0 as *mut u8;
             let len = p1 as usize;
             if buffer.len() != len {
                 return -1;
             }
-            let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
-            dst_buf.clone_from_slice(&buffer);
+            env.copy_to_vm(&buffer, p0);
             len as IntPtr
         }
     };
 
     Ok(parse_quote! {
-        macro_rules! decode_input {
-            ($p0: expr, $p1: expr) => {{
-                let ptr = $p0 as *mut u8;
-                let len = $p1 as usize;
-                let mut buf = unsafe { core::slice::from_raw_parts(ptr, len) };
-                match Decode::decode(&mut buf) {
-                    Ok(p) => p,
-                    Err(_) => return -1,
-                }
-            }};
-        }
-
-        macro_rules! encode_result {
-            ($env: path, $rv: expr) => {
-                $env.encode_put_return(&$rv) as _
-            };
-        }
-
         fn dispatch_call_fast<Env: #trait_name + OcallEnv>(
             env: &mut Env,
             id: i32,
@@ -271,7 +256,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             match id {
                 0 => {
                     let ret = #call_get_return;
-                    encode_result!(env, ret)
+                    env.encode_put_return(&ret) as _
                 }
                 #(#slow_calls)*
                 _ => {
@@ -283,6 +268,8 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         pub trait OcallEnv {
             fn encode_put_return(&self, rv: impl Encode) -> usize;
             fn take_return(&self) -> Option<Vec<u8>>;
+            fn copy_to_vm(&self, data: &[u8], ptr: IntPtr);
+            fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8];
         }
     })
 }

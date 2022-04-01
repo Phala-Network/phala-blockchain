@@ -67,8 +67,6 @@ fn alloc_buffer(size: usize) -> Buffer {
 pub trait OCall {
     #[ocall(id = 100)]
     fn echo(&self, input: Vec<u8>) -> Vec<u8>;
-    #[ocall(id = 102, fast_input, fast_return)]
-    fn add_fi_fo(&self, a: u32, b: u32) -> u32;
 }
 
 #[cfg(test)]
@@ -132,6 +130,15 @@ mod test {
 
         fn take_return(&self) -> Option<Vec<u8>> {
             RETURN_VALUE.with(move |value| value.take())
+        }
+
+        fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) {
+            let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
+            dst_buf.clone_from_slice(&data);
+        }
+
+        fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8] {
+            unsafe { core::slice::from_raw_parts(ptr as _, len as _) }
         }
     }
 

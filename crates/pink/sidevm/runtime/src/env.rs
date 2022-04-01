@@ -9,6 +9,8 @@ use std::{
 use log::error;
 use wasmer::{imports, Function, ImportObject, Memory, MemoryType, Pages, Store, WasmerEnv};
 
+use pink_sidevm_env::{OCall, OCallEnv};
+
 use crate::async_context::poll_in_task_cx;
 use crate::resource::{Resource, ResourceKeeper};
 
