@@ -5,6 +5,7 @@ struct OcallMethod {
     id: i32,
     fast_return: bool,
     fast_input: bool,
+    args: Vec<TokenStream>,
     method: syn::TraitItemMethod,
 }
 
@@ -106,6 +107,7 @@ impl OcallMethod {
                 id,
                 fast_return,
                 fast_input,
+                args: parse_args(method)?,
                 method: method.clone(),
             }),
         }
@@ -137,6 +139,8 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     let ocall_methods = ocall_methods?;
     check_redundant_ocall_id(&ocall_methods)?;
 
+    let dispatcher = gen_dispatcher(&ocall_methods, &trait_item.ident)?;
+
     let impl_methods: Result<Vec<TokenStream>> = ocall_methods
         .iter()
         .map(|method| gen_ocall_impl(method))
@@ -149,6 +153,8 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     Ok(parse_quote! {
         #trait_item
 
+        #dispatcher
+
         pub struct #impl_itent;
         impl #impl_itent {
             #(#impl_methods)*
@@ -156,23 +162,134 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     })
 }
 
-fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
-    let sig = &method.method.sig;
+fn args_r(n: usize) -> Vec<Ident> {
+    (0..n)
+        .map(|i| Ident::new(&format!("p{}", i), Span::call_site()))
+        .collect()
+}
 
-    fn pad_args(mut args: Vec<TokenStream>) -> Result<Vec<TokenStream>> {
-        let ocall_nargs = 4;
-        if args.len() > ocall_nargs {
-            return Err(syn::Error::new_spanned(&args[0], "Too many arguments"));
-        }
-        if args.len() < ocall_nargs {
-            for _ in args.len()..ocall_nargs {
-                args.push(parse_quote! { 0 });
+fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenStream> {
+    let mut fast_calls: Vec<TokenStream> = Vec::new();
+    let mut slow_calls: Vec<TokenStream> = Vec::new();
+
+    for method in methods {
+        let id = Literal::i32_unsuffixed(method.id);
+        let name = &method.method.sig.ident;
+        let args = &method.args;
+        let parse_inputs: TokenStream = if method.fast_input {
+            let args_r = args_r(args.len());
+            parse_quote! {
+                let (#(#args),*) = (#(#args_r as _),*);
             }
-        }
-        Ok(args)
+        } else {
+            parse_quote! {
+                let (#(#args),*) = decode_input!(p0, p1);
+            }
+        };
+        let calling: TokenStream = parse_quote! {
+            let ret = env.#name(#(#args),*);
+        };
+
+        if method.fast_return {
+            fast_calls.push(parse_quote! {
+                #id => {
+                    #parse_inputs
+                    #calling
+                    ret as _
+                }
+            });
+        };
+
+        slow_calls.push(parse_quote! {
+            #id => {
+                #parse_inputs
+                #calling
+                encode_result!(env, ret)
+            }
+        });
     }
 
-    let args: Result<Vec<TokenStream>> = sig
+    let call_get_return: TokenStream = parse_quote! {
+        {
+            let buffer = match env.take_return() {
+                Some(ret) => ret,
+                None => return -1,
+            };
+            let ptr = p0 as *mut u8;
+            let len = p1 as usize;
+            if buffer.len() != len {
+                return -1;
+            }
+            let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
+            dst_buf.clone_from_slice(&buffer);
+            len as IntPtr
+        }
+    };
+
+    Ok(parse_quote! {
+        macro_rules! decode_input {
+            ($p0: expr, $p1: expr) => {{
+                let ptr = $p0 as *mut u8;
+                let len = $p1 as usize;
+                let mut buf = unsafe { core::slice::from_raw_parts(ptr, len) };
+                match Decode::decode(&mut buf) {
+                    Ok(p) => p,
+                    Err(_) => return -1,
+                }
+            }};
+        }
+
+        macro_rules! encode_result {
+            ($env: path, $rv: expr) => {
+                $env.encode_put_return(&$rv) as _
+            };
+        }
+
+        fn dispatch_call_fast<Env: #trait_name + OcallEnv>(
+            env: &mut Env,
+            id: i32,
+            p0: IntPtr,
+            p1: IntPtr,
+            p2: IntPtr,
+            p3: IntPtr
+        ) -> IntPtr {
+            match id {
+                0 => #call_get_return,
+                #(#fast_calls)*
+                _ => -1,
+            }
+        }
+
+        fn dispatch_call_slow<Env: #trait_name + OcallEnv>(
+            env: &mut Env,
+            id: i32,
+            p0: IntPtr,
+            p1: IntPtr,
+            p2: IntPtr,
+            p3: IntPtr
+        ) -> IntPtr {
+            match id {
+                0 => {
+                    let ret = #call_get_return;
+                    encode_result!(env, ret)
+                }
+                #(#slow_calls)*
+                _ => {
+                    return -1;
+                }
+            }
+        }
+
+        pub trait OcallEnv {
+            fn encode_put_return(&self, rv: impl Encode) -> usize;
+            fn take_return(&self) -> Option<Vec<u8>>;
+        }
+    })
+}
+
+fn parse_args(method: &syn::TraitItemMethod) -> Result<Vec<TokenStream>> {
+    method
+        .sig
         .inputs
         .iter()
         .filter_map(|arg| {
@@ -189,16 +306,35 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
                 None
             }
         })
-        .collect();
+        .collect()
+}
 
-    let args = args?;
+fn pad_args(args: &[TokenStream]) -> Result<Vec<TokenStream>> {
+    let ocall_nargs = 4;
+    if args.len() > ocall_nargs {
+        return Err(syn::Error::new_spanned(&args[0], "Too many arguments"));
+    }
+    let mut args: Vec<_> = args.iter().cloned().collect();
+    for arg in args.iter_mut() {
+        *arg = parse_quote!( #arg as _ );
+    }
+    if args.len() < ocall_nargs {
+        for _ in args.len()..ocall_nargs {
+            args.push(parse_quote! { 0 });
+        }
+    }
+    Ok(args)
+}
+
+fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
+    let sig = &method.method.sig;
 
     let call_id = Literal::i32_unsuffixed(method.id);
 
     let args = if method.fast_input {
-        pad_args(args)?
+        pad_args(&method.args)?
     } else {
-        args
+        method.args.clone()
     };
 
     let ocall_fn = if method.fast_return {
@@ -218,12 +354,12 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
             let mut input_buf = empty_buffer();
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
-            let ret = sidevm_ocall(#call_id, input_buf.as_ptr() as IntPtr, len, 0, 0);
+            let ret = #ocall_fn(#call_id, input_buf.as_ptr() as IntPtr, len, 0, 0);
         }
     };
 
     let body_bottom: TokenStream = if method.fast_return {
-        parse_quote!(ret)
+        parse_quote!(ret as _)
     } else {
         parse_quote! {
             let len = ret;
@@ -287,21 +423,17 @@ fn test() {
     let stream = patch(parse_quote! {
         pub trait Ocall {
             #[ocall(id = 101)]
-            fn call_slow(&self, p0: i32, p1: i32) -> i32;
+            fn call_slow(&self, a: i32, b: i32) -> i32;
 
             #[ocall(id = 103, fast_input)]
-            fn call_fi(&self, p0: i32, p1: i32) -> i32;
+            fn call_fi(&self, a: i32, b: i32) -> i32;
 
             #[ocall(id = 104, fast_return)]
-            fn call_fo(&self, p0: i32, p1: i32) -> i32;
+            fn call_fo(&self, a: i32, b: i32) -> i32;
 
             #[ocall(id = 102, fast_input, fast_return)]
-            fn poll_fi_fo(&self, p0: i32, p1: i32) -> i32;
-
+            fn poll_fi_fo(&self, a: i32, b: i32) -> i32;
         }
     });
-    println!(
-        "{}",
-        rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()
-    );
+    insta::assert_display_snapshot!(rustfmt_snippet::rustfmt_token_stream(&stream).unwrap())
 }

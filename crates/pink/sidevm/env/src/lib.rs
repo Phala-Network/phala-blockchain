@@ -1,5 +1,4 @@
 #![cfg_attr(not(test), no_std)]
-
 extern crate alloc;
 
 use core::ops::{Deref, DerefMut};
@@ -16,7 +15,13 @@ pub type IntPtr = i64;
 
 extern "C" {
     pub fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
-    pub fn sidevm_ocall_fast(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
+    pub fn sidevm_ocall_fast(
+        func_id: i32,
+        p0: IntPtr,
+        p1: IntPtr,
+        p2: IntPtr,
+        p3: IntPtr,
+    ) -> IntPtr;
 }
 
 #[derive(Default)]
@@ -61,19 +66,35 @@ fn alloc_buffer(size: usize) -> Buffer {
 #[pink_sidevm_macro::ocall]
 pub trait OCall {
     #[ocall(id = 100)]
-    fn echo(&self, input: &[u8]) -> Vec<u8>;
+    fn echo(&self, input: Vec<u8>) -> Vec<u8>;
+    #[ocall(id = 102, fast_input, fast_return)]
+    fn add_fi_fo(&self, a: u32, b: u32) -> u32;
 }
 
 #[cfg(test)]
 mod test {
-    use std::sync::Mutex;
-    use once_cell::sync::Lazy;
+    use core::cell::Cell;
 
     use super::*;
     #[pink_sidevm_macro::ocall]
     pub trait TestOCall {
         #[ocall(id = 100)]
         fn echo(&self, input: Vec<u8>) -> Vec<u8>;
+
+        #[ocall(id = 101)]
+        fn add(&self, a: u32, b: u32) -> u32;
+
+        #[ocall(id = 102, fast_input, fast_return)]
+        fn add_fi_fo(&self, a: u32, b: u32) -> u32;
+
+        #[ocall(id = 103, fast_input)]
+        fn add_fi(&self, a: u32, b: u32) -> u32;
+
+        #[ocall(id = 104, fast_return)]
+        fn add_fo(&self, a: u32, b: u32) -> u32;
+
+        #[ocall(id = 105, fast_input, fast_return)]
+        fn add_fi_fo_64(&self, a: u64, b: u64) -> u64;
     }
 
     struct Backend;
@@ -81,81 +102,65 @@ mod test {
         fn echo(&self, input: Vec<u8>) -> Vec<u8> {
             return input.to_vec();
         }
+        fn add(&self, a: u32, b: u32) -> u32 {
+            a + b
+        }
+        fn add_fi_fo(&self, a: u32, b: u32) -> u32 {
+            a + b
+        }
+        fn add_fi(&self, a: u32, b: u32) -> u32 {
+            a + b
+        }
+        fn add_fo(&self, a: u32, b: u32) -> u32 {
+            a + b
+        }
+
+        fn add_fi_fo_64(&self, a: u64, b: u64) -> u64 {
+            a + b
+        }
     }
 
-    static RETURN_VALUE: Lazy<Mutex<Option<Vec<u8>>>> = Lazy::new(Default::default);
+    impl OcallEnv for Backend {
+        fn encode_put_return(&self, v: impl Encode) -> usize {
+            let encoded = v.encode();
+            let len = encoded.len();
+            RETURN_VALUE.with(move |value| {
+                value.set(Some(encoded));
+            });
+            len
+        }
 
-    macro_rules! decode_input {
-        ($p0: expr, $p1: expr) => {{
-            let ptr = $p0 as *mut u8;
-            let len = $p1 as usize;
-            let mut buf = unsafe { core::slice::from_raw_parts(ptr, len) };
-            match Decode::decode(&mut buf) {
-                Ok(p) => {
-                    p
-                }
-                Err(_) => return -1,
-            }
-        }};
+        fn take_return(&self) -> Option<Vec<u8>> {
+            RETURN_VALUE.with(move |value| value.take())
+        }
     }
 
-    macro_rules! encode_result {
-        ($rv: expr) => {{
-            let ret = Encode::encode(&$rv);
-            let len = ret.len();
-            *RETURN_VALUE.lock().unwrap() = Some(ret);
-            len as IntPtr
-        }};
-    }
-
-    macro_rules! dispatch_call_fast {
-        ($id: ident, $p0: ident, $p1: ident, $p2: ident, $p3: ident) => {{
-            match $id {
-                0 => {
-                    let buffer = RETURN_VALUE.lock().unwrap().take().unwrap_or_default();
-                    let ptr = $p0 as *mut u8;
-                    let len = $p1 as usize;
-                    if buffer.len() != len {
-                        return -1;
-                    }
-                    let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
-                    dst_buf.clone_from_slice(&buffer);
-                    len as IntPtr
-                }
-                _ => -1,
-            }
-        }};
-    }
-
-    macro_rules! dispatch_call_slow {
-        ($id: ident, $p0: ident, $p1: ident, $p2: ident, $p3: ident) => {{
-            match $id {
-                0 => {{
-                    let ret = dispatch_call_fast!($id, $p0, $p1, $p2, $p3);
-                    encode_result!(ret as IntPtr)
-                }}
-                100 => {{
-                    let input = decode_input!($p0, $p1);
-                    let rv = Backend.echo(input);
-                    encode_result!(rv)
-                }}
-                _ => {
-                    return -1;
-                }
-            }
-        }};
+    thread_local! {
+        static RETURN_VALUE: Cell<Option<Vec<u8>>> = Default::default();
     }
 
     #[no_mangle]
-    extern "C" fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, _: IntPtr, _: IntPtr) -> IntPtr {
-        let rv: IntPtr = dispatch_call_slow!(func_id, p0, p1, p2, p3);
+    extern "C" fn sidevm_ocall(
+        func_id: i32,
+        p0: IntPtr,
+        p1: IntPtr,
+        p2: IntPtr,
+        p3: IntPtr,
+    ) -> IntPtr {
+        let rv: IntPtr = dispatch_call_slow(&mut Backend, func_id, p0, p1, p2, p3);
         println!("sidevm_ocall {} rv={}", func_id, rv);
         rv
     }
 
     #[no_mangle]
-    extern "C" fn sidevm_ocall_fast(func_id: i32, p0: IntPtr, p1: IntPtr, _: IntPtr, _: IntPtr) -> IntPtr {
-        let rv: IntPtr = dispatch_call_fast!(func_id, p0, p1, p2, p3);
+    extern "C" fn sidevm_ocall_fast(
+        func_id: i32,
+        p0: IntPtr,
+        p1: IntPtr,
+        p2: IntPtr,
+        p3: IntPtr,
+    ) -> IntPtr {
+        let rv: IntPtr = dispatch_call_fast(&mut Backend, func_id, p0, p1, p2, p3);
         println!("sidevm_ocall_fast {} rv={}", func_id, rv);
         rv
     }
@@ -164,5 +169,24 @@ mod test {
     fn test_echo() {
         let pong = TestOCallImplement.echo(b"Hello".to_vec());
         assert_eq!(&pong, "Hello".as_bytes());
+    }
+
+    #[test]
+    fn test_fi_fo() {
+        let a = u32::MAX / 2;
+        let b = 2;
+        let c = a + b;
+        assert_eq!(TestOCallImplement.add(a, b), c);
+        assert_eq!(TestOCallImplement.add_fi(a, b), c);
+        assert_eq!(TestOCallImplement.add_fo(a, b), c);
+        assert_eq!(TestOCallImplement.add_fi_fo(a, b), c);
+    }
+
+    #[test]
+    fn test_fi_fo_64() {
+        let a = u64::MAX / 2;
+        let b = 2;
+        let c = a + b;
+        assert_eq!(TestOCallImplement.add_fi_fo_64(a, b), c);
     }
 }

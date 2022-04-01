@@ -16,4 +16,5 @@ proc-macro-crate = "1.0.0"
 
 [dev-dependencies]
 rustfmt-snippet = { version = "0.1.0", path = "../../../rustfmt-snippet/" }
+insta = "1.14.0"
 
