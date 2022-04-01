@@ -209,7 +209,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             #id => {
                 #parse_inputs
                 let ret = #calling;
-                env.encode_put_return(&ret) as _
+                env.put_return(ret.encode()) as _
             }
         });
     }
@@ -255,8 +255,8 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         ) -> IntPtr {
             match id {
                 0 => {
-                    let ret = #call_get_return;
-                    env.encode_put_return(&ret) as _
+                    let ret: IntPtr = #call_get_return;
+                    env.put_return(ret.encode()) as _
                 }
                 #(#slow_calls)*
                 _ => {
@@ -266,7 +266,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         }
 
         pub trait OcallEnv {
-            fn encode_put_return(&self, rv: impl Encode) -> usize;
+            fn put_return(&self, rv: Vec<u8>) -> usize;
             fn take_return(&self) -> Option<Vec<u8>>;
             fn copy_to_vm(&self, data: &[u8], ptr: IntPtr);
             fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8];

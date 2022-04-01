@@ -57,7 +57,7 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
 ) -> IntPtr {
     match id {
         0 => {
-            let ret = {
+            let ret: IntPtr = {
                 let buffer = match env.take_return() {
                     Some(ret) => ret,
                     None => return -1,
@@ -69,7 +69,7 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
                 env.copy_to_vm(&buffer, p0);
                 len as IntPtr
             };
-            env.encode_put_return(&ret) as _
+            env.put_return(ret.encode()) as _
         }
         101 => {
             let (a, b) = {
@@ -80,12 +80,12 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
                 }
             };
             let ret = env.call_slow(a, b);
-            env.encode_put_return(&ret) as _
+            env.put_return(ret.encode()) as _
         }
         103 => {
             let (a, b) = (p0 as _, p1 as _);
             let ret = env.call_fi(a, b);
-            env.encode_put_return(&ret) as _
+            env.put_return(ret.encode()) as _
         }
         104 => {
             let (a, b) = {
@@ -96,12 +96,12 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
                 }
             };
             let ret = env.call_fo(a, b);
-            env.encode_put_return(&ret) as _
+            env.put_return(ret.encode()) as _
         }
         102 => {
             let (a, b) = (p0 as _, p1 as _);
             let ret = env.poll_fi_fo(a, b);
-            env.encode_put_return(&ret) as _
+            env.put_return(ret.encode()) as _
         }
         _ => {
             return -1;
@@ -109,7 +109,7 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
     }
 }
 pub trait OcallEnv {
-    fn encode_put_return(&self, rv: impl Encode) -> usize;
+    fn put_return(&self, rv: Vec<u8>) -> usize;
     fn take_return(&self) -> Option<Vec<u8>>;
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr);
     fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8];

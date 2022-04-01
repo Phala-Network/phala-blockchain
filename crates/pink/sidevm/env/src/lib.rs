@@ -64,7 +64,7 @@ fn alloc_buffer(size: usize) -> Buffer {
 }
 
 #[pink_sidevm_macro::ocall]
-pub trait OCall {
+pub trait OcallFuncs {
     #[ocall(id = 100)]
     fn echo(&self, input: Vec<u8>) -> Vec<u8>;
 }
@@ -119,11 +119,10 @@ mod test {
     }
 
     impl OcallEnv for Backend {
-        fn encode_put_return(&self, v: impl Encode) -> usize {
-            let encoded = v.encode();
-            let len = encoded.len();
+        fn put_return(&self, v: Vec<u8>) -> usize {
+            let len = v.len();
             RETURN_VALUE.with(move |value| {
-                value.set(Some(encoded));
+                value.set(Some(v));
             });
             len
         }
