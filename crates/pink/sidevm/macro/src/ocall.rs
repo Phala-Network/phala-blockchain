@@ -230,7 +230,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
     };
 
     Ok(parse_quote! {
-        fn dispatch_call_fast<Env: #trait_name + OcallEnv>(
+        fn dispatch_call_fast_return<Env: #trait_name + OcallEnv>(
             env: &mut Env,
             id: i32,
             p0: IntPtr,
@@ -325,7 +325,7 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
     };
 
     let ocall_fn = if method.fast_return {
-        "sidevm_ocall_fast"
+        "sidevm_ocall_fast_return"
     } else {
         "sidevm_ocall"
     };
@@ -354,7 +354,7 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
                 panic!("ocall returned an error");
             }
             let mut buf = alloc_buffer(len as _);
-            let ret = sidevm_ocall_fast(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
+            let ret = sidevm_ocall_fast_return(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
             if ret != len {
                 panic!("ocall get return length mismatch");
             }

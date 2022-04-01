@@ -15,7 +15,7 @@ pub type IntPtr = i64;
 
 extern "C" {
     pub fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
-    pub fn sidevm_ocall_fast(
+    pub fn sidevm_ocall_fast_return(
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,
@@ -160,15 +160,15 @@ mod test {
     }
 
     #[no_mangle]
-    extern "C" fn sidevm_ocall_fast(
+    extern "C" fn sidevm_ocall_fast_return(
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntPtr {
-        let rv: IntPtr = dispatch_call_fast(&mut Backend, func_id, p0, p1, p2, p3);
-        println!("sidevm_ocall_fast {} rv={}", func_id, rv);
+        let rv: IntPtr = dispatch_call_fast_return(&mut Backend, func_id, p0, p1, p2, p3);
+        println!("sidevm_ocall_fast_return {} rv={}", func_id, rv);
         rv
     }
 

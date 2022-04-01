@@ -9,7 +9,7 @@ pub trait Ocall {
     fn call_fo(&self, a: i32, b: i32) -> i32;
     fn poll_fi_fo(&self, a: i32, b: i32) -> i32;
 }
-fn dispatch_call_fast<Env: Ocall + OcallEnv>(
+fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
     env: &mut Env,
     id: i32,
     p0: IntPtr,
@@ -128,7 +128,7 @@ impl OcallImplement {
                 panic!("ocall returned an error");
             }
             let mut buf = alloc_buffer(len as _);
-            let ret = sidevm_ocall_fast(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
+            let ret = sidevm_ocall_fast_return(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
@@ -143,7 +143,7 @@ impl OcallImplement {
                 panic!("ocall returned an error");
             }
             let mut buf = alloc_buffer(len as _);
-            let ret = sidevm_ocall_fast(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
+            let ret = sidevm_ocall_fast_return(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
@@ -156,13 +156,13 @@ impl OcallImplement {
             let mut input_buf = empty_buffer();
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
-            let ret = sidevm_ocall_fast(104, input_buf.as_ptr() as IntPtr, len, 0, 0);
+            let ret = sidevm_ocall_fast_return(104, input_buf.as_ptr() as IntPtr, len, 0, 0);
             ret as _
         }
     }
     pub fn poll_fi_fo(&self, a: i32, b: i32) -> i32 {
         unsafe {
-            let ret = sidevm_ocall_fast(102, a as _, b as _, 0, 0);
+            let ret = sidevm_ocall_fast_return(102, a as _, b as _, 0, 0);
             ret as _
         }
     }
