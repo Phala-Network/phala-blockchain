@@ -1,21 +1,22 @@
 #![cfg_attr(not(test), no_std)]
+
 extern crate alloc;
 
-use std::ops::{Deref, DerefMut};
+use core::ops::{Deref, DerefMut};
 
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use tinyvec::TinyVec;
 
 #[cfg(target_pointer_width = "32")]
-pub type PtrInt = i32;
+pub type IntPtr = i32;
 
 #[cfg(target_pointer_width = "64")]
-pub type PtrInt = i64;
+pub type IntPtr = i64;
 
 extern "C" {
-    pub fn sidevm_ocall(func_id: i32, p0: PtrInt, p1: PtrInt, p2: PtrInt, p3: PtrInt) -> PtrInt;
-    pub fn sidevm_ocall_fast(func_id: i32, p0: PtrInt, p1: PtrInt, p2: PtrInt, p3: PtrInt) -> PtrInt;
+    pub fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
+    pub fn sidevm_ocall_fast(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
 }
 
 #[derive(Default)]
@@ -103,7 +104,7 @@ mod test {
             let ret = Encode::encode(&$rv);
             let len = ret.len();
             *RETURN_VALUE.lock().unwrap() = Some(ret);
-            len as PtrInt
+            len as IntPtr
         }};
     }
 
@@ -119,7 +120,7 @@ mod test {
                     }
                     let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr, len) };
                     dst_buf.clone_from_slice(&buffer);
-                    len as PtrInt
+                    len as IntPtr
                 }
                 _ => -1,
             }
@@ -131,7 +132,7 @@ mod test {
             match $id {
                 0 => {{
                     let ret = dispatch_call_fast!($id, $p0, $p1, $p2, $p3);
-                    encode_result!(ret as PtrInt)
+                    encode_result!(ret as IntPtr)
                 }}
                 100 => {{
                     let input = decode_input!($p0, $p1);
@@ -146,15 +147,15 @@ mod test {
     }
 
     #[no_mangle]
-    extern "C" fn sidevm_ocall(func_id: i32, p0: PtrInt, p1: PtrInt, _: PtrInt, _: PtrInt) -> PtrInt {
-        let rv: PtrInt = dispatch_call_slow!(func_id, p0, p1, p2, p3);
+    extern "C" fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, _: IntPtr, _: IntPtr) -> IntPtr {
+        let rv: IntPtr = dispatch_call_slow!(func_id, p0, p1, p2, p3);
         println!("sidevm_ocall {} rv={}", func_id, rv);
         rv
     }
 
     #[no_mangle]
-    extern "C" fn sidevm_ocall_fast(func_id: i32, p0: PtrInt, p1: PtrInt, _: PtrInt, _: PtrInt) -> PtrInt {
-        let rv: PtrInt = dispatch_call_fast!(func_id, p0, p1, p2, p3);
+    extern "C" fn sidevm_ocall_fast(func_id: i32, p0: IntPtr, p1: IntPtr, _: IntPtr, _: IntPtr) -> IntPtr {
+        let rv: IntPtr = dispatch_call_fast!(func_id, p0, p1, p2, p3);
         println!("sidevm_ocall_fast {} rv={}", func_id, rv);
         rv
     }

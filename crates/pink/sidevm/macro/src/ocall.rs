@@ -217,8 +217,8 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
             let inputs = (#(#args),*);
             let mut input_buf = empty_buffer();
             Encode::encode_to(&inputs, &mut input_buf);
-            let len = input_buf.len() as PtrInt;
-            let ret = sidevm_ocall(#call_id, input_buf.as_ptr() as PtrInt, len, 0, 0);
+            let len = input_buf.len() as IntPtr;
+            let ret = sidevm_ocall(#call_id, input_buf.as_ptr() as IntPtr, len, 0, 0);
         }
     };
 
@@ -231,7 +231,7 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
                 panic!("ocall returned an error");
             }
             let mut buf = alloc_buffer(len as _);
-            let ret = sidevm_ocall_fast(0, buf.as_mut_ptr() as PtrInt, len, 0, 0);
+            let ret = sidevm_ocall_fast(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
