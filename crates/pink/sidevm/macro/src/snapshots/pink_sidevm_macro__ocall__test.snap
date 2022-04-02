@@ -9,7 +9,7 @@ pub trait Ocall {
     fn call_fo(&self, a: i32, b: i32) -> i32;
     fn poll_fi_fo(&self, a: i32, b: i32) -> i32;
 }
-fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
+pub fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
     env: &Env,
     id: i32,
     p0: IntPtr,
@@ -19,7 +19,7 @@ fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
 ) -> Result<IntPtr> {
     Ok(match id {
         0 => {
-            let buffer = env.take_return()?;
+            let buffer = env.take_return().ok_or(OcallError::NoReturnValue)?;
             let len = p1 as usize;
             if buffer.len() != len {
                 return Err(OcallError::InvalidParameter);
@@ -41,7 +41,7 @@ fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
         _ => return Err(OcallError::UnknownCallNumber),
     })
 }
-fn dispatch_call<Env: Ocall + OcallEnv>(
+pub fn dispatch_call<Env: Ocall + OcallEnv>(
     env: &Env,
     id: i32,
     p0: IntPtr,
@@ -52,7 +52,7 @@ fn dispatch_call<Env: Ocall + OcallEnv>(
     Ok(match id {
         0 => {
             let ret: IntPtr = {
-                let buffer = env.take_return()?;
+                let buffer = env.take_return().ok_or(OcallError::NoReturnValue)?;
                 let len = p1 as usize;
                 if buffer.len() != len {
                     return Err(OcallError::InvalidParameter);
@@ -93,7 +93,7 @@ fn dispatch_call<Env: Ocall + OcallEnv>(
 }
 pub trait OcallEnv {
     fn put_return(&self, rv: Vec<u8>) -> usize;
-    fn take_return(&self) -> Result<Vec<u8>>;
+    fn take_return(&self) -> Option<Vec<u8>>;
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
     fn with_slice_from_vm<T>(
         &self,
