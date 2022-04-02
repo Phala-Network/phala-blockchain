@@ -8,15 +8,17 @@ use pink_sidevm_env::{OcallError as Errno, OcallFuncsImplement as Ocall};
 
 use once_cell::sync::Lazy;
 
-struct Sleep {
-    // Resouce ID. Think of it as a FD.
-    id: i32,
+/// Resource ID. Think of it as a FD.
+pub struct ResourceId(pub i32);
+
+impl Drop for ResourceId {
+    fn drop(&mut self) {
+        let _ = Ocall.close(self.0);
+    }
 }
 
-impl Drop for Sleep {
-    fn drop(&mut self) {
-        let _ = Ocall.close(self.id);
-    }
+struct Sleep {
+    id: ResourceId,
 }
 
 fn sleep(duration: Duration) -> Sleep {
@@ -24,14 +26,14 @@ fn sleep(duration: Duration) -> Sleep {
     if id == -1 {
         panic!("failed to create timer");
     }
-    Sleep { id }
+    Sleep { id: ResourceId(id) }
 }
 
 impl Future for Sleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let rv = Ocall.poll(self.id, 0);
+        let rv = Ocall.poll(self.id.0, 0);
         if rv == Errno::Pending as i32 {
             Poll::Pending
         } else {
