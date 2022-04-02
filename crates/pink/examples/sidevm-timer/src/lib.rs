@@ -4,15 +4,9 @@ use std::sync::Mutex;
 use std::task::{self, Context, Poll, Waker};
 use std::time::Duration;
 
+use pink_sidevm_env::{OcallError as Errno, OcallFuncsImplement as Ocall};
+
 use once_cell::sync::Lazy;
-
-extern "C" {
-    fn sidevm_ocall(func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> i32;
-}
-
-const OCALL_CLOSE: i32 = 0;
-const OCALL_CREATE_TIMER: i32 = 1;
-const OCALL_POLL_TIMER: i32 = 2;
 
 struct Sleep {
     // Resouce ID. Think of it as a FD.
@@ -21,14 +15,12 @@ struct Sleep {
 
 impl Drop for Sleep {
     fn drop(&mut self) {
-        unsafe {
-            sidevm_ocall(OCALL_CLOSE, self.id, 0, 0, 0);
-        }
+        let _ = Ocall.close(self.id);
     }
 }
 
 fn sleep(duration: Duration) -> Sleep {
-    let id = unsafe { sidevm_ocall(OCALL_CREATE_TIMER, duration.as_millis() as i32, 0, 0, 0) };
+    let id = Ocall.create_timer(duration.as_millis() as i32);
     if id == -1 {
         panic!("failed to create timer");
     }
@@ -39,8 +31,8 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let rv = unsafe { sidevm_ocall(OCALL_POLL_TIMER, self.id, 0, 0, 0) };
-        if rv == 0 {
+        let rv = Ocall.poll(self.id, 0);
+        if rv == Errno::Pending as i32 {
             Poll::Pending
         } else {
             Poll::Ready(())

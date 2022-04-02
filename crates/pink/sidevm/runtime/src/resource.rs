@@ -43,7 +43,7 @@ impl ResourceKeeper {
         if self.resources.len() >= RESOURCE_ID_MAX.min(i32::MAX as _) {
             return None;
         }
-        let id = (self.resources.len() - 1).try_into().ok()?;
+        let id = self.resources.len().try_into().ok()?;
         self.resources.push(Some(resource));
         Some(id)
     }
