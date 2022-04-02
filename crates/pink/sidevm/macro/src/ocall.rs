@@ -123,8 +123,6 @@ pub(crate) fn patch(input: TokenStream) -> TokenStream {
 
 fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     let trait_item: syn::ItemTrait = syn::parse2(input)?;
-    let impl_itent = Ident::new(&format!("{}Implement", trait_item.ident), Span::call_site());
-
     let ocall_methods: Result<Vec<OcallMethod>> = trait_item
         .items
         .iter()
@@ -139,26 +137,22 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     let ocall_methods = ocall_methods?;
     check_redundant_ocall_id(&ocall_methods)?;
 
+    let trait_item = remove_ocall_attributes(trait_item);
+
+    let ocall_impl = gen_ocall_impl(&ocall_methods, &trait_item.ident)?;
+
     let dispatcher = gen_dispatcher(&ocall_methods, &trait_item.ident)?;
 
-    let impl_methods: Result<Vec<TokenStream>> = ocall_methods
-        .iter()
-        .map(|method| gen_ocall_impl(method))
-        .collect();
-
-    let impl_methods = impl_methods?;
-
-    let trait_item = remove_ocall_attributes(trait_item);
+    let id2name = gen_id2name(&ocall_methods)?;
 
     Ok(parse_quote! {
         #trait_item
 
+        #ocall_impl
+
         #dispatcher
 
-        pub struct #impl_itent;
-        impl #impl_itent {
-            #(#impl_methods)*
-        }
+        #id2name
     })
 }
 
@@ -273,6 +267,22 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
     })
 }
 
+fn gen_id2name(methods: &[OcallMethod]) -> Result<TokenStream> {
+    let (ids, names): (Vec<_>, Vec<_>) = methods
+        .iter()
+        .map(|m| (m.id, Literal::string(&m.method.sig.ident.to_string())))
+        .unzip();
+    Ok(parse_quote! {
+        pub fn ocall_id2name(id: i32) -> &'static str {
+            match id {
+                0 => "get_return",
+                #(#ids => #names,)*
+                _ => "unknown",
+            }
+        }
+    })
+}
+
 fn parse_args(method: &syn::TraitItemMethod) -> Result<Vec<TokenStream>> {
     method
         .sig
@@ -312,7 +322,23 @@ fn pad_args(args: &[TokenStream]) -> Result<Vec<TokenStream>> {
     Ok(args)
 }
 
-fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
+fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenStream> {
+    let impl_methods: Result<Vec<TokenStream>> = ocall_methods
+        .iter()
+        .map(|method| gen_ocall_impl_method(method))
+        .collect();
+
+    let impl_itent = Ident::new(&format!("{}Implement", trait_name), Span::call_site());
+    let impl_methods = impl_methods?;
+    Ok(parse_quote! {
+        pub struct #impl_itent;
+        impl #impl_itent {
+            #(#impl_methods)*
+        }
+    })
+}
+
+fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     let sig = &method.method.sig;
 
     let call_id = Literal::i32_unsuffixed(method.id);

@@ -6,10 +6,8 @@ use std::{
 use log::error;
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use pink_sidevm_env::{
-    current_task, dispatch_call, dispatch_call_fast_return, set_current_task, IntPtr, OcallEnv,
-    OcallError, OcallFuncs, Result,
-};
+use env::{IntPtr, OcallError, Result};
+use pink_sidevm_env as env;
 
 use crate::resource::{Resource, ResourceKeeper};
 
@@ -38,10 +36,22 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
     )
 }
 
+#[allow(dead_code)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[repr(u8)]
+enum LogLevel {
+    None = 0,
+    Error,
+    Warn,
+    Debug,
+    Trace,
+}
+
 struct EnvInner {
     resources: ResourceKeeper,
     memory: Option<Memory>,
     temp_return_value: Option<Vec<u8>>,
+    log_level: LogLevel,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -56,6 +66,11 @@ impl Env {
                 resources: ResourceKeeper::default(),
                 memory: None,
                 temp_return_value: None,
+                // TODO.kevin.must: Remove the log
+                #[cfg(debug_assertions)]
+                log_level: LogLevel::Trace,
+                #[cfg(not(debug_assertions))]
+                log_level: LogLevel::None,
             })),
         }
     }
@@ -78,7 +93,7 @@ fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usiz
     Ok((offset, end))
 }
 
-impl OcallEnv for Env {
+impl env::OcallEnv for Env {
     fn put_return(&self, rv: Vec<u8>) -> usize {
         let len = rv.len();
         self.inner.lock().unwrap().temp_return_value = Some(rv);
@@ -132,9 +147,13 @@ impl Env {
     fn push_resource(&self, resource: Resource) -> Option<i32> {
         self.inner.lock().unwrap().resources.push(resource)
     }
+
+    fn log_level(&self) -> LogLevel {
+        self.inner.lock().unwrap().log_level
+    }
 }
 
-impl OcallFuncs for Env {
+impl env::OcallFuncs for Env {
     fn echo(&self, input: Vec<u8>) -> Vec<u8> {
         input
     }
@@ -148,7 +167,7 @@ impl OcallFuncs for Env {
 
     fn poll(&self, resource_id: i32) -> i32 {
         self.with_resource(resource_id, |res| {
-            if res.poll(current_task()) {
+            if res.poll(env::current_task()) {
                 OcallError::Ok
             } else {
                 OcallError::Pending
@@ -182,11 +201,16 @@ fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntPtr {
-    set_current_task(task_id);
-    match dispatch_call_fast_return(env, func_id, p0, p1, p2, p3) {
-        Err(err) => err.to_errno().into(),
+    env::set_current_task(task_id);
+    let rv = match env::dispatch_call_fast_return(env, func_id, p0, p1, p2, p3) {
         Ok(rv) => rv,
+        Err(err) => err.to_errno().into(),
+    };
+    if env.log_level() >= LogLevel::Trace {
+        let func_name = env::ocall_id2name(func_id);
+        eprintln!("[{task_id:>3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {rv}");
     }
+    rv
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
@@ -199,9 +223,15 @@ fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntPtr {
-    set_current_task(task_id);
-    match dispatch_call(env, func_id, p0, p1, p2, p3) {
-        Err(err) => err.to_errno().into(),
+    env::set_current_task(task_id);
+    let rv = match env::dispatch_call(env, func_id, p0, p1, p2, p3) {
         Ok(rv) => rv,
+        Err(err) => err.to_errno().into(),
+    };
+
+    if env.log_level() >= LogLevel::Trace {
+        let func_name = env::ocall_id2name(func_id);
+        eprintln!("[{task_id:>3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {rv}");
     }
+    rv
 }
