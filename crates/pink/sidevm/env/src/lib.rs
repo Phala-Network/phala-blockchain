@@ -19,17 +19,20 @@ cfg_if::cfg_if! {
 #[derive(Clone, Copy)]
 #[repr(i32)]
 pub enum OcallError {
-    UnknownCallNumber = 1,
-    InvalidAddress = 2,
-    InvalidParameter = 3,
-    InvalidEncoding = 4,
-    NoMemory = 5,
-    NoReturnValue = 6,
+    Ok = 0,
+    UnknownCallNumber = -1,
+    InvalidAddress = -2,
+    InvalidParameter = -3,
+    InvalidEncoding = -4,
+    NoMemory = -5,
+    NoReturnValue = -6,
+    ResourceNotFound = -7,
+    Pending = -8,
 }
 
 impl OcallError {
     pub fn to_errno(self) -> i32 {
-        -(self as i32)
+        self as i32
     }
 }
 
@@ -89,6 +92,18 @@ fn alloc_buffer(size: usize) -> Buffer {
 pub trait OcallFuncs {
     #[ocall(id = 100)]
     fn echo(&self, input: Vec<u8>) -> Vec<u8>;
+
+    #[ocall(id = 101, fast_input, fast_return)]
+    fn close(&self, resource_id: i32) -> i32;
+
+    #[ocall(id = 102, fast_input, fast_return)]
+    fn poll(&self, resource_id: i32, task_id: i32) -> i32;
+
+    #[ocall(id = 103, fast_input, fast_return)]
+    fn next_ready_task(&self) -> i32;
+
+    #[ocall(id = 201, fast_input, fast_return)]
+    fn create_timer(&self, timeout: i32) -> i32;
 }
 
 #[cfg(test)]

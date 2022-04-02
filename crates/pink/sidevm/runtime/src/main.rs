@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use pink_sidevm::WasmRun;
+use pink_sidevm_runtime::WasmRun;
 
 #[tokio::main]
 async fn main() -> Result<()> {

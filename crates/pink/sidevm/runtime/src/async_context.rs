@@ -58,7 +58,7 @@ where
 }
 
 /// Polls a future in the current thread-local task context.
-pub fn poll_in_task_cx<F>(f: Pin<&mut F>) -> task::Poll<F::Output>
+pub fn poll_in_task_cx<F>(f: Pin<&mut F>, task_id: i32) -> task::Poll<F::Output>
 where
     F: Future,
 {

@@ -1,11 +1,8 @@
 use anyhow::{Context as _, Result};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
-use wasmer::{
-    BaseTunables, Function, Instance, Module, NativeFunc, Pages, RuntimeError, Store, Universal,
-};
+use wasmer::{BaseTunables, Instance, Module, NativeFunc, Pages, RuntimeError, Store, Universal};
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 

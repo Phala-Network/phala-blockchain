@@ -1,21 +1,15 @@
 use std::{
-    future::Future,
-    pin::Pin,
     sync::{Arc, Mutex},
-    task::Poll,
     time::Duration,
 };
 
 use log::error;
-use wasmer::{
-    imports, Function, ImportObject, Memory, MemoryType, Pages, Store, WasmPtr, WasmerEnv,
-};
+use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use pink_sidevm_env::{
     dispatch_call, dispatch_call_fast_return, IntPtr, OcallEnv, OcallError, OcallFuncs, Result,
 };
 
-use crate::async_context::poll_in_task_cx;
 use crate::resource::{Resource, ResourceKeeper};
 
 fn _sizeof_i32_must_eq_to_intptr() {
@@ -23,7 +17,7 @@ fn _sizeof_i32_must_eq_to_intptr() {
 }
 
 pub fn create_env(store: &Store) -> (Env, ImportObject) {
-    let env = Env::new(store);
+    let env = Env::new();
     (
         env.clone(),
         imports! {
@@ -55,7 +49,7 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(store: &Store) -> Self {
+    fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 resources: ResourceKeeper::default(),
@@ -120,9 +114,61 @@ impl OcallEnv for Env {
     }
 }
 
+impl Env {
+    fn take_resource(&self, resource_id: i32) -> Option<Resource> {
+        self.inner.lock().unwrap().resources.take(resource_id)
+    }
+
+    fn with_resource<T>(&self, resource_id: i32, f: impl FnOnce(&mut Resource) -> T) -> Option<T> {
+        self.inner
+            .lock()
+            .unwrap()
+            .resources
+            .get_mut(resource_id)
+            .map(f)
+    }
+
+    fn push_resource(&self, resource: Resource) -> Option<i32> {
+        self.inner.lock().unwrap().resources.push(resource)
+    }
+}
+
 impl OcallFuncs for Env {
     fn echo(&self, input: Vec<u8>) -> Vec<u8> {
         input
+    }
+
+    fn close(&self, resource_id: i32) -> i32 {
+        match self.take_resource(resource_id) {
+            None => OcallError::ResourceNotFound as _,
+            Some(_res) => OcallError::Ok as _,
+        }
+    }
+
+    fn poll(&self, resource_id: i32, task_id: i32) -> i32 {
+        self.with_resource(resource_id, |res| {
+            if res.poll(task_id) {
+                OcallError::Ok
+            } else {
+                OcallError::Pending
+            }
+        })
+        .unwrap_or(OcallError::ResourceNotFound) as _
+    }
+
+    fn next_ready_task(&self) -> i32 {
+        OcallError::ResourceNotFound as _
+    }
+
+    fn create_timer(&self, timeout: i32) -> i32 {
+        let sleep = tokio::time::sleep(Duration::from_millis(timeout as u64));
+        match self.push_resource(Resource::Sleep(Box::pin(sleep))) {
+            Some(id) => id,
+            None => {
+                error!("failed to push sleep resource");
+                OcallError::NoMemory as _
+            }
+        }
     }
 }
 
