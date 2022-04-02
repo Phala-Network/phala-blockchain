@@ -1,9 +1,5 @@
-#![cfg_attr(not(test), no_std)]
-extern crate alloc;
-
 use core::ops::{Deref, DerefMut};
 
-use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use tinyvec::TinyVec;
 
@@ -108,9 +104,8 @@ pub trait OcallFuncs {
 
 #[cfg(test)]
 mod test {
-    use core::cell::Cell;
-
     use super::*;
+    use std::cell::Cell;
     #[pink_sidevm_macro::ocall]
     pub trait TestOCall {
         #[ocall(id = 100)]
