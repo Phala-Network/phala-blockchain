@@ -4,11 +4,11 @@ name = "pink-sidevm-env"
 version = "0.1.0"
 
 [dependencies]
-pink-sidevm-macro = {path = "../macro"}
+pink-sidevm-macro = {path = "../macro", version = "0.1.0"}
 
+cfg-if = "1.0.0"
 scale = {package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"]}
 tinyvec = {version = "1.5.1", features = ["alloc"]}
-cfg-if = "1.0.0"
 
 [features]
 runtime = []

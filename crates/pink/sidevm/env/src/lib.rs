@@ -12,6 +12,15 @@ cfg_if::cfg_if! {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode)]
+pub enum LogLevel {
+    None = 0,
+    Error,
+    Warn,
+    Debug,
+    Trace,
+}
+
 #[derive(Clone, Copy)]
 #[repr(i32)]
 pub enum OcallError {
@@ -120,6 +129,9 @@ pub trait OcallFuncs {
 
     #[ocall(id = 201, fast_input, fast_return)]
     fn create_timer(&self, timeout: i32) -> i32;
+
+    #[ocall(id = 202, fast_return)]
+    fn set_log_level(&self, log_level: LogLevel) -> i32;
 }
 
 #[cfg(test)]

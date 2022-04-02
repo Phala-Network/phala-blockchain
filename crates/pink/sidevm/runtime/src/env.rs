@@ -6,7 +6,7 @@ use std::{
 use log::error;
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, OcallError, Result};
+use env::{IntPtr, LogLevel, OcallError, Result};
 use pink_sidevm_env as env;
 
 use crate::resource::{Resource, ResourceKeeper};
@@ -36,17 +36,6 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
     )
 }
 
-#[allow(dead_code)]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-#[repr(u8)]
-enum LogLevel {
-    None = 0,
-    Error,
-    Warn,
-    Debug,
-    Trace,
-}
-
 struct EnvInner {
     resources: ResourceKeeper,
     memory: Option<Memory>,
@@ -66,10 +55,6 @@ impl Env {
                 resources: ResourceKeeper::default(),
                 memory: None,
                 temp_return_value: None,
-                // TODO.kevin.must: Remove the log
-                #[cfg(debug_assertions)]
-                log_level: LogLevel::Trace,
-                #[cfg(not(debug_assertions))]
                 log_level: LogLevel::None,
             })),
         }
@@ -189,6 +174,11 @@ impl env::OcallFuncs for Env {
                 OcallError::NoMemory as _
             }
         }
+    }
+
+    fn set_log_level(&self, log_level: LogLevel) -> i32 {
+        self.inner.lock().unwrap().log_level = log_level;
+        OcallError::Ok as _
     }
 }
 
