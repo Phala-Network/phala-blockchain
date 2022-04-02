@@ -332,7 +332,7 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
 
     let body_top: TokenStream = if method.fast_input {
         parse_quote! {
-            let ret = #ocall_fn(#call_id, #(#args),*);
+            let ret = #ocall_fn(current_task(), #call_id, #(#args),*);
         }
     } else {
         parse_quote! {
@@ -340,7 +340,14 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
             let mut input_buf = empty_buffer();
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
-            let ret = #ocall_fn(#call_id, input_buf.as_ptr() as IntPtr, len, 0, 0);
+            let ret = #ocall_fn(
+                current_task(),
+                #call_id,
+                input_buf.as_ptr() as IntPtr,
+                len,
+                0,
+                0
+            );
         }
     };
 
@@ -353,7 +360,14 @@ fn gen_ocall_impl(method: &OcallMethod) -> Result<TokenStream> {
                 panic!("ocall returned an error");
             }
             let mut buf = alloc_buffer(len as _);
-            let ret = sidevm_ocall_fast_return(0, buf.as_mut_ptr() as IntPtr, len, 0, 0);
+            let ret = sidevm_ocall_fast_return(
+                current_task(),
+                0, // Get previous ocall's output
+                buf.as_mut_ptr() as IntPtr,
+                len,
+                0,
+                0
+            );
             if ret != len {
                 panic!("ocall get return length mismatch");
             }

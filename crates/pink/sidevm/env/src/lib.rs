@@ -35,8 +35,16 @@ impl OcallError {
 pub type Result<T, E = OcallError> = core::result::Result<T, E>;
 
 extern "C" {
-    pub fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
+    pub fn sidevm_ocall(
+        task_id: i32,
+        func_id: i32,
+        p0: IntPtr,
+        p1: IntPtr,
+        p2: IntPtr,
+        p3: IntPtr,
+    ) -> IntPtr;
     pub fn sidevm_ocall_fast_return(
+        task_id: i32,
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,
@@ -84,6 +92,18 @@ fn alloc_buffer(size: usize) -> Buffer {
     buf
 }
 
+thread_local! {
+    static CURRENT_TASK: std::cell::Cell<i32>  = Default::default();
+}
+
+pub fn current_task() -> i32 {
+    CURRENT_TASK.with(|id| id.get())
+}
+
+pub fn set_current_task(task_id: i32) {
+    CURRENT_TASK.with(|id| id.set(task_id))
+}
+
 #[pink_sidevm_macro::ocall]
 pub trait OcallFuncs {
     #[ocall(id = 100)]
@@ -93,7 +113,7 @@ pub trait OcallFuncs {
     fn close(&self, resource_id: i32) -> i32;
 
     #[ocall(id = 102, fast_input, fast_return)]
-    fn poll(&self, resource_id: i32, task_id: i32) -> i32;
+    fn poll(&self, resource_id: i32) -> i32;
 
     #[ocall(id = 103, fast_input, fast_return)]
     fn next_ready_task(&self) -> i32;
@@ -186,6 +206,7 @@ mod test {
 
     #[no_mangle]
     extern "C" fn sidevm_ocall(
+        task_id: i32,
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,
@@ -202,6 +223,7 @@ mod test {
 
     #[no_mangle]
     extern "C" fn sidevm_ocall_fast_return(
+        task_id: i32,
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,

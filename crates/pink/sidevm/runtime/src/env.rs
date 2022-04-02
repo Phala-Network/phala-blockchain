@@ -7,7 +7,8 @@ use log::error;
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use pink_sidevm_env::{
-    dispatch_call, dispatch_call_fast_return, IntPtr, OcallEnv, OcallError, OcallFuncs, Result,
+    current_task, dispatch_call, dispatch_call_fast_return, set_current_task, IntPtr, OcallEnv,
+    OcallError, OcallFuncs, Result,
 };
 
 use crate::resource::{Resource, ResourceKeeper};
@@ -145,9 +146,9 @@ impl OcallFuncs for Env {
         }
     }
 
-    fn poll(&self, resource_id: i32, task_id: i32) -> i32 {
+    fn poll(&self, resource_id: i32) -> i32 {
         self.with_resource(resource_id, |res| {
-            if res.poll(task_id) {
+            if res.poll(current_task()) {
                 OcallError::Ok
             } else {
                 OcallError::Pending
@@ -174,12 +175,14 @@ impl OcallFuncs for Env {
 
 fn sidevm_ocall_fast_return(
     env: &Env,
+    task_id: i32,
     func_id: i32,
     p0: IntPtr,
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntPtr {
+    set_current_task(task_id);
     match dispatch_call_fast_return(env, func_id, p0, p1, p2, p3) {
         Err(err) => err.to_errno().into(),
         Ok(rv) => rv,
@@ -187,7 +190,16 @@ fn sidevm_ocall_fast_return(
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
-fn sidevm_ocall(env: &Env, func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr {
+fn sidevm_ocall(
+    env: &Env,
+    task_id: i32,
+    func_id: i32,
+    p0: IntPtr,
+    p1: IntPtr,
+    p2: IntPtr,
+    p3: IntPtr,
+) -> IntPtr {
+    set_current_task(task_id);
     match dispatch_call(env, func_id, p0, p1, p2, p3) {
         Err(err) => err.to_errno().into(),
         Ok(rv) => rv,

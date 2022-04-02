@@ -33,7 +33,7 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let rv = Ocall.poll(self.id.0, 0);
+        let rv = Ocall.poll(self.id.0);
         if rv == Errno::Pending as i32 {
             Poll::Pending
         } else {
