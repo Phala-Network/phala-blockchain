@@ -1,6 +1,6 @@
 ---
 source: crates/pink/sidevm/macro/src/ocall.rs
-assertion_line: 425
+assertion_line: 424
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 pub trait Ocall {
@@ -10,33 +10,27 @@ pub trait Ocall {
     fn poll_fi_fo(&self, a: i32, b: i32) -> i32;
 }
 fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
-    env: &mut Env,
+    env: &Env,
     id: i32,
     p0: IntPtr,
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntPtr {
-    match id {
+) -> Result<IntPtr> {
+    Ok(match id {
         0 => {
-            let buffer = match env.take_return() {
-                Some(ret) => ret,
-                None => return -1,
-            };
+            let buffer = env.take_return()?;
             let len = p1 as usize;
             if buffer.len() != len {
-                return -1;
+                return Err(OcallError::InvalidParameter);
             }
-            env.copy_to_vm(&buffer, p0);
+            env.copy_to_vm(&buffer, p0)?;
             len as IntPtr
         }
         104 => {
             let (a, b) = {
-                let mut buf = env.slice_from_vm(p0, p1);
-                match Decode::decode(&mut buf) {
-                    Ok(p) => p,
-                    Err(_) => return -1,
-                }
+                env.with_slice_from_vm(p0, p1, |mut buf| Decode::decode(&mut buf))?
+                    .or(Err(OcallError::InvalidParameter))?
             };
             env.call_fo(a, b) as _
         }
@@ -44,40 +38,34 @@ fn dispatch_call_fast_return<Env: Ocall + OcallEnv>(
             let (a, b) = (p0 as _, p1 as _);
             env.poll_fi_fo(a, b) as _
         }
-        _ => -1,
-    }
+        _ => return Err(OcallError::UnknownCallNumber),
+    })
 }
-fn dispatch_call_slow<Env: Ocall + OcallEnv>(
-    env: &mut Env,
+fn dispatch_call<Env: Ocall + OcallEnv>(
+    env: &Env,
     id: i32,
     p0: IntPtr,
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntPtr {
-    match id {
+) -> Result<IntPtr> {
+    Ok(match id {
         0 => {
             let ret: IntPtr = {
-                let buffer = match env.take_return() {
-                    Some(ret) => ret,
-                    None => return -1,
-                };
+                let buffer = env.take_return()?;
                 let len = p1 as usize;
                 if buffer.len() != len {
-                    return -1;
+                    return Err(OcallError::InvalidParameter);
                 }
-                env.copy_to_vm(&buffer, p0);
+                env.copy_to_vm(&buffer, p0)?;
                 len as IntPtr
             };
             env.put_return(ret.encode()) as _
         }
         101 => {
             let (a, b) = {
-                let mut buf = env.slice_from_vm(p0, p1);
-                match Decode::decode(&mut buf) {
-                    Ok(p) => p,
-                    Err(_) => return -1,
-                }
+                env.with_slice_from_vm(p0, p1, |mut buf| Decode::decode(&mut buf))?
+                    .or(Err(OcallError::InvalidParameter))?
             };
             let ret = env.call_slow(a, b);
             env.put_return(ret.encode()) as _
@@ -89,11 +77,8 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
         }
         104 => {
             let (a, b) = {
-                let mut buf = env.slice_from_vm(p0, p1);
-                match Decode::decode(&mut buf) {
-                    Ok(p) => p,
-                    Err(_) => return -1,
-                }
+                env.with_slice_from_vm(p0, p1, |mut buf| Decode::decode(&mut buf))?
+                    .or(Err(OcallError::InvalidParameter))?
             };
             let ret = env.call_fo(a, b);
             env.put_return(ret.encode()) as _
@@ -103,16 +88,19 @@ fn dispatch_call_slow<Env: Ocall + OcallEnv>(
             let ret = env.poll_fi_fo(a, b);
             env.put_return(ret.encode()) as _
         }
-        _ => {
-            return -1;
-        }
-    }
+        _ => return Err(OcallError::UnknownCallNumber),
+    })
 }
 pub trait OcallEnv {
     fn put_return(&self, rv: Vec<u8>) -> usize;
-    fn take_return(&self) -> Option<Vec<u8>>;
-    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr);
-    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8];
+    fn take_return(&self) -> Result<Vec<u8>>;
+    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
+    fn with_slice_from_vm<T>(
+        &self,
+        ptr: IntPtr,
+        len: IntPtr,
+        f: impl FnOnce(&[u8]) -> T,
+    ) -> Result<T>;
 }
 pub struct OcallImplement;
 impl OcallImplement {

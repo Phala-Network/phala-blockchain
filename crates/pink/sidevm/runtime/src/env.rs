@@ -7,12 +7,20 @@ use std::{
 };
 
 use log::error;
-use wasmer::{imports, Function, ImportObject, Memory, MemoryType, Pages, Store, WasmerEnv};
+use wasmer::{
+    imports, Function, ImportObject, Memory, MemoryType, Pages, Store, WasmPtr, WasmerEnv,
+};
 
-use pink_sidevm_env::{OCall, OCallEnv};
+use pink_sidevm_env::{
+    dispatch_call, dispatch_call_fast_return, IntPtr, OcallEnv, OcallError, OcallFuncs, Result,
+};
 
 use crate::async_context::poll_in_task_cx;
 use crate::resource::{Resource, ResourceKeeper};
+
+fn _sizeof_i32_must_eq_to_intptr() {
+    let _ = core::mem::transmute::<i32, IntPtr>;
+}
 
 pub fn create_env(store: &Store) -> (Env, ImportObject) {
     let env = Env::new(store);
@@ -22,8 +30,13 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
             "env" => {
                 "sidevm_ocall" => Function::new_native_with_env(
                     store,
+                    env.clone(),
+                    sidevm_ocall,
+                ),
+                "sidevm_ocall_fast_return" => Function::new_native_with_env(
+                    store,
                     env,
-                    sidevm_ocall
+                    sidevm_ocall_fast_return,
                 ),
             }
         },
@@ -33,6 +46,7 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
 struct EnvInner {
     resources: ResourceKeeper,
     memory: Option<Memory>,
+    temp_return_value: Option<Vec<u8>>,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -46,6 +60,7 @@ impl Env {
             inner: Arc::new(Mutex::new(EnvInner {
                 resources: ResourceKeeper::default(),
                 memory: None,
+                temp_return_value: None,
             })),
         }
     }
@@ -60,59 +75,75 @@ impl Env {
     }
 }
 
-fn sidevm_fast_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> i32 {
-    0
+fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usize)> {
+    let end = offset.checked_add(len).ok_or(OcallError::InvalidAddress)?;
+    if end > memory.size().bytes().0 {
+        return Err(OcallError::InvalidAddress);
+    }
+    Ok((offset, end))
+}
+
+impl OcallEnv for Env {
+    fn put_return(&self, rv: Vec<u8>) -> usize {
+        let len = rv.len();
+        self.inner.lock().unwrap().temp_return_value = Some(rv);
+        len
+    }
+
+    fn take_return(&self) -> Option<Vec<u8>> {
+        self.inner.lock().unwrap().temp_return_value.take()
+    }
+
+    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
+        if data.len() > u32::MAX as usize {
+            return Err(OcallError::NoMemory);
+        }
+        let inner = self.inner.lock().unwrap();
+        let memory = inner.memory.as_ref().ok_or(OcallError::NoMemory)?;
+        let (offset, end) = check_addr(memory, ptr as _, data.len())?;
+        let mem = unsafe { &mut memory.data_unchecked_mut()[offset..end] };
+        mem.clone_from_slice(data);
+        Ok(())
+    }
+
+    fn with_slice_from_vm<T>(
+        &self,
+        ptr: IntPtr,
+        len: IntPtr,
+        f: impl FnOnce(&[u8]) -> T,
+    ) -> Result<T> {
+        let inner = self.inner.lock().unwrap();
+        let memory = inner.memory.as_ref().ok_or(OcallError::NoMemory)?;
+        let (offset, end) = check_addr(memory, ptr as _, len as _)?;
+        let slice = unsafe { &memory.data_unchecked()[offset..end] };
+        Ok(f(slice))
+    }
+}
+
+impl OcallFuncs for Env {
+    fn echo(&self, input: Vec<u8>) -> Vec<u8> {
+        input
+    }
+}
+
+fn sidevm_ocall_fast_return(
+    env: &Env,
+    func_id: i32,
+    p0: IntPtr,
+    p1: IntPtr,
+    p2: IntPtr,
+    p3: IntPtr,
+) -> IntPtr {
+    match dispatch_call_fast_return(env, func_id, p0, p1, p2, p3) {
+        Err(err) => err.to_errno().into(),
+        Ok(rv) => rv,
+    }
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
-fn sidevm_ocall(env: &Env, func_id: i32, p0: i32, p1: i32, p2: i32, p3: i32) -> i32 {
-    match func_id {
-        // close
-        0 => {
-            // TODO.
-            0
-        }
-        // create a sleep timer
-        1 => {
-            let sleep = tokio::time::sleep(Duration::from_millis(p0 as u64));
-            let result = env
-                .inner
-                .lock()
-                .unwrap()
-                .resources
-                .push(Resource::Sleep(Box::pin(sleep)));
-            match result {
-                Some(id) => id as i32,
-                None => {
-                    error!("failed to push sleep resource");
-                    -1
-                }
-            }
-        }
-        // poll given sleep timer
-        2 => {
-            let id = p0 as usize;
-            let mut res = env.inner.lock().unwrap();
-            match res.resources.get_mut(id) {
-                Some(res) => {
-                    if let Resource::Sleep(sleep) = res {
-                        match poll_in_task_cx(sleep.as_mut()) {
-                            Poll::Ready(()) => 1,
-                            Poll::Pending => 0,
-                        }
-                    } else {
-                        -1
-                    }
-                }
-                None => {
-                    error!("poll_sleep: invalid resource id: {}", id);
-                    -1
-                }
-            }
-        }
-        _ => {
-            error!("unknown ocall function id: {}", func_id);
-            -1
-        }
+fn sidevm_ocall(env: &Env, func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr {
+    match dispatch_call(env, func_id, p0, p1, p2, p3) {
+        Err(err) => err.to_errno().into(),
+        Ok(rv) => rv,
     }
 }

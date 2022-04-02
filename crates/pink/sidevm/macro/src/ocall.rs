@@ -184,11 +184,10 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         } else {
             parse_quote! {
                 let (#(#args),*) = {
-                    let mut buf = env.slice_from_vm(p0, p1);
-                    match Decode::decode(&mut buf) {
-                        Ok(p) => p,
-                        Err(_) => return -1,
-                    }
+                    env.with_slice_from_vm(p0, p1, |mut buf| {
+                        Decode::decode(&mut buf)
+                    })?
+                    .or(Err(OcallError::InvalidParameter))?
                 };
             }
         };
@@ -216,60 +215,60 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
 
     let call_get_return: TokenStream = parse_quote! {
         {
-            let buffer = match env.take_return() {
-                Some(ret) => ret,
-                None => return -1,
-            };
+            let buffer = env.take_return().ok_or(OcallError::NoReturnValue)?;
             let len = p1 as usize;
             if buffer.len() != len {
-                return -1;
+                return Err(OcallError::InvalidParameter);
             }
-            env.copy_to_vm(&buffer, p0);
+            env.copy_to_vm(&buffer, p0)?;
             len as IntPtr
         }
     };
 
     Ok(parse_quote! {
-        fn dispatch_call_fast_return<Env: #trait_name + OcallEnv>(
-            env: &mut Env,
+        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv>(
+            env: &Env,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
             p2: IntPtr,
             p3: IntPtr
-        ) -> IntPtr {
-            match id {
+        ) -> Result<IntPtr> {
+            Ok(match id {
                 0 => #call_get_return,
                 #(#fast_calls)*
-                _ => -1,
-            }
+                _ => return Err(OcallError::UnknownCallNumber),
+            })
         }
 
-        fn dispatch_call_slow<Env: #trait_name + OcallEnv>(
-            env: &mut Env,
+        pub fn dispatch_call<Env: #trait_name + OcallEnv>(
+            env: &Env,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
             p2: IntPtr,
             p3: IntPtr
-        ) -> IntPtr {
-            match id {
+        ) -> Result<IntPtr> {
+            Ok(match id {
                 0 => {
                     let ret: IntPtr = #call_get_return;
                     env.put_return(ret.encode()) as _
                 }
                 #(#slow_calls)*
-                _ => {
-                    return -1;
-                }
-            }
+                _ => return Err(OcallError::UnknownCallNumber),
+            })
         }
 
         pub trait OcallEnv {
             fn put_return(&self, rv: Vec<u8>) -> usize;
             fn take_return(&self) -> Option<Vec<u8>>;
-            fn copy_to_vm(&self, data: &[u8], ptr: IntPtr);
-            fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8];
+            fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
+            fn with_slice_from_vm<T>(
+                &self,
+                ptr: IntPtr,
+                len: IntPtr,
+                f: impl FnOnce(&[u8]) -> T
+            ) -> Result<T>;
         }
     })
 }

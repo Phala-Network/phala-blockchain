@@ -7,11 +7,33 @@ use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use tinyvec::TinyVec;
 
-#[cfg(target_pointer_width = "32")]
-pub type IntPtr = i32;
+cfg_if::cfg_if! {
+    if #[cfg(any(target_pointer_width = "32", feature = "runtime"))] {
+        pub type IntPtr = i32;
+    } else {
+        // For unit test
+        pub type IntPtr = i64;
+    }
+}
 
-#[cfg(target_pointer_width = "64")]
-pub type IntPtr = i64;
+#[derive(Clone, Copy)]
+#[repr(i32)]
+pub enum OcallError {
+    UnknownCallNumber = 1,
+    InvalidAddress = 2,
+    InvalidParameter = 3,
+    InvalidEncoding = 4,
+    NoMemory = 5,
+    NoReturnValue = 6,
+}
+
+impl OcallError {
+    pub fn to_errno(self) -> i32 {
+        -(self as i32)
+    }
+}
+
+pub type Result<T, E = OcallError> = core::result::Result<T, E>;
 
 extern "C" {
     pub fn sidevm_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntPtr;
@@ -131,13 +153,20 @@ mod test {
             RETURN_VALUE.with(move |value| value.take())
         }
 
-        fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) {
+        fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
             let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
             dst_buf.clone_from_slice(&data);
+            Ok(())
         }
 
-        fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> &[u8] {
-            unsafe { core::slice::from_raw_parts(ptr as _, len as _) }
+        fn with_slice_from_vm<T>(
+            &self,
+            ptr: IntPtr,
+            len: IntPtr,
+            f: impl FnOnce(&[u8]) -> T,
+        ) -> Result<T> {
+            let buf = unsafe { core::slice::from_raw_parts(ptr as _, len as _) };
+            Ok(f(buf))
         }
     }
 
@@ -153,7 +182,10 @@ mod test {
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntPtr {
-        let rv: IntPtr = dispatch_call_slow(&mut Backend, func_id, p0, p1, p2, p3);
+        let rv: IntPtr = match dispatch_call(&Backend, func_id, p0, p1, p2, p3) {
+            Ok(rv) => rv,
+            Err(err) => err.to_errno().into(),
+        };
         println!("sidevm_ocall {} rv={}", func_id, rv);
         rv
     }
@@ -166,7 +198,10 @@ mod test {
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntPtr {
-        let rv: IntPtr = dispatch_call_fast_return(&mut Backend, func_id, p0, p1, p2, p3);
+        let rv: IntPtr = match dispatch_call_fast_return(&Backend, func_id, p0, p1, p2, p3) {
+            Ok(rv) => rv,
+            Err(err) => err.to_errno().into(),
+        };
         println!("sidevm_ocall_fast_return {} rv={}", func_id, rv);
         rv
     }
