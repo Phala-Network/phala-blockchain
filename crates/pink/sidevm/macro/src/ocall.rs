@@ -178,10 +178,8 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         } else {
             parse_quote! {
                 let (#(#args),*) = {
-                    env.with_slice_from_vm(p0, p1, |mut buf| {
-                        Decode::decode(&mut buf)
-                    })?
-                    .or(Err(OcallError::InvalidParameter))?
+                    let mut buf = env.slice_from_vm(p0, p1)?;
+                    Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
                 };
             }
         };
@@ -221,7 +219,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
 
     Ok(parse_quote! {
         pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv>(
-            env: &Env,
+            env: &mut Env,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
@@ -236,7 +234,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         }
 
         pub fn dispatch_call<Env: #trait_name + OcallEnv>(
-            env: &Env,
+            env: &mut Env,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
@@ -257,12 +255,8 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             fn put_return(&self, rv: Vec<u8>) -> usize;
             fn take_return(&self) -> Option<Vec<u8>>;
             fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
-            fn with_slice_from_vm<T>(
-                &self,
-                ptr: IntPtr,
-                len: IntPtr,
-                f: impl FnOnce(&[u8]) -> T
-            ) -> Result<T>;
+            fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
+            fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
         }
     })
 }

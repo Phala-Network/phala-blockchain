@@ -119,19 +119,19 @@ pub trait OcallFuncs {
     fn echo(&self, input: Vec<u8>) -> Vec<u8>;
 
     #[ocall(id = 101, fast_input, fast_return)]
-    fn close(&self, resource_id: i32) -> i32;
+    fn close(&mut self, resource_id: i32) -> i32;
 
     #[ocall(id = 102, fast_input, fast_return)]
-    fn poll(&self, resource_id: i32) -> i32;
+    fn poll(&mut self, resource_id: i32) -> i32;
 
     #[ocall(id = 103, fast_input, fast_return)]
-    fn next_ready_task(&self) -> i32;
+    fn next_ready_task(&mut self) -> i32;
 
     #[ocall(id = 201, fast_input, fast_return)]
-    fn create_timer(&self, timeout: i32) -> i32;
+    fn create_timer(&mut self, timeout: i32) -> i32;
 
     #[ocall(id = 202, fast_return)]
-    fn set_log_level(&self, log_level: LogLevel) -> i32;
+    fn set_log_level(&mut self, log_level: LogLevel) -> i32;
 }
 
 #[cfg(test)]
@@ -201,14 +201,14 @@ mod test {
             Ok(())
         }
 
-        fn with_slice_from_vm<T>(
-            &self,
-            ptr: IntPtr,
-            len: IntPtr,
-            f: impl FnOnce(&[u8]) -> T,
-        ) -> Result<T> {
+        fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
             let buf = unsafe { core::slice::from_raw_parts(ptr as _, len as _) };
-            Ok(f(buf))
+            Ok(buf)
+        }
+
+        fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
+            let buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, len as _) };
+            Ok(buf)
         }
     }
 
@@ -218,14 +218,14 @@ mod test {
 
     #[no_mangle]
     extern "C" fn sidevm_ocall(
-        task_id: i32,
+        _task_id: i32,
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntPtr {
-        let rv: IntPtr = match dispatch_call(&Backend, func_id, p0, p1, p2, p3) {
+        let rv: IntPtr = match dispatch_call(&mut Backend, func_id, p0, p1, p2, p3) {
             Ok(rv) => rv,
             Err(err) => err.to_errno().into(),
         };
@@ -235,14 +235,14 @@ mod test {
 
     #[no_mangle]
     extern "C" fn sidevm_ocall_fast_return(
-        task_id: i32,
+        _task_id: i32,
         func_id: i32,
         p0: IntPtr,
         p1: IntPtr,
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntPtr {
-        let rv: IntPtr = match dispatch_call_fast_return(&Backend, func_id, p0, p1, p2, p3) {
+        let rv: IntPtr = match dispatch_call_fast_return(&mut Backend, func_id, p0, p1, p2, p3) {
             Ok(rv) => rv,
             Err(err) => err.to_errno().into(),
         };

@@ -80,106 +80,74 @@ fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usiz
     Ok((offset, end))
 }
 
-impl env::OcallEnv for Env {
+impl env::OcallEnv for EnvInner {
     fn put_return(&self, rv: Vec<u8>) -> usize {
         let len = rv.len();
-        self.inner
-            .lock()
-            .unwrap()
-            .temp_return_value
-            .get_or_default()
-            .set(Some(rv));
+        self.temp_return_value.get_or_default().set(Some(rv));
         len
     }
 
     fn take_return(&self) -> Option<Vec<u8>> {
-        self.inner
-            .lock()
-            .unwrap()
-            .temp_return_value
-            .get_or_default()
-            .take()
+        self.temp_return_value.get_or_default().take()
     }
 
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
         if data.len() > u32::MAX as usize {
             return Err(OcallError::NoMemory);
         }
-        let inner = self.inner.lock().unwrap();
-        let memory = inner.memory.as_ref().ok_or(OcallError::NoMemory)?;
+        let memory = self.memory.as_ref().ok_or(OcallError::NoMemory)?;
         let (offset, end) = check_addr(memory, ptr as _, data.len())?;
         let mem = unsafe { &mut memory.data_unchecked_mut()[offset..end] };
         mem.clone_from_slice(data);
         Ok(())
     }
 
-    fn with_slice_from_vm<T>(
-        &self,
-        ptr: IntPtr,
-        len: IntPtr,
-        f: impl FnOnce(&[u8]) -> T,
-    ) -> Result<T> {
-        let inner = self.inner.lock().unwrap();
-        let memory = inner.memory.as_ref().ok_or(OcallError::NoMemory)?;
+    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
+        let memory = self.memory.as_ref().ok_or(OcallError::NoMemory)?;
         let (offset, end) = check_addr(memory, ptr as _, len as _)?;
         let slice = unsafe { &memory.data_unchecked()[offset..end] };
-        Ok(f(slice))
+        Ok(slice)
+    }
+
+    fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
+        let memory = self.memory.as_ref().ok_or(OcallError::NoMemory)?;
+        let (offset, end) = check_addr(memory, ptr as _, len as _)?;
+        let slice = unsafe { &mut memory.data_unchecked_mut()[offset..end] };
+        Ok(slice)
     }
 }
 
-impl Env {
-    fn take_resource(&self, resource_id: i32) -> Option<Resource> {
-        self.inner.lock().unwrap().resources.take(resource_id)
-    }
-
-    fn with_resource<T>(&self, resource_id: i32, f: impl FnOnce(&mut Resource) -> T) -> Option<T> {
-        self.inner
-            .lock()
-            .unwrap()
-            .resources
-            .get_mut(resource_id)
-            .map(f)
-    }
-
-    fn push_resource(&self, resource: Resource) -> Option<i32> {
-        self.inner.lock().unwrap().resources.push(resource)
-    }
-
-    fn log_level(&self) -> LogLevel {
-        self.inner.lock().unwrap().log_level
-    }
-}
-
-impl env::OcallFuncs for Env {
+impl env::OcallFuncs for EnvInner {
     fn echo(&self, input: Vec<u8>) -> Vec<u8> {
         input
     }
 
-    fn close(&self, resource_id: i32) -> i32 {
-        match self.take_resource(resource_id) {
+    fn close(&mut self, resource_id: i32) -> i32 {
+        match self.resources.take(resource_id) {
             None => OcallError::ResourceNotFound as _,
             Some(_res) => OcallError::Ok as _,
         }
     }
 
-    fn poll(&self, resource_id: i32) -> i32 {
-        self.with_resource(resource_id, |res| {
-            if res.poll(env::current_task()) {
-                OcallError::Ok
-            } else {
-                OcallError::Pending
-            }
-        })
-        .unwrap_or(OcallError::ResourceNotFound) as _
+    fn poll(&mut self, resource_id: i32) -> i32 {
+        let res = match self.resources.get_mut(resource_id) {
+            Some(res) => res,
+            None => return OcallError::ResourceNotFound as _,
+        };
+        if res.poll(env::current_task()) {
+            OcallError::Ok as _
+        } else {
+            OcallError::Pending as _
+        }
     }
 
-    fn next_ready_task(&self) -> i32 {
+    fn next_ready_task(&mut self) -> i32 {
         OcallError::ResourceNotFound as _
     }
 
-    fn create_timer(&self, timeout: i32) -> i32 {
+    fn create_timer(&mut self, timeout: i32) -> i32 {
         let sleep = tokio::time::sleep(Duration::from_millis(timeout as u64));
-        match self.push_resource(Resource::Sleep(Box::pin(sleep))) {
+        match self.resources.push(Resource::Sleep(Box::pin(sleep))) {
             Some(id) => id,
             None => {
                 error!("failed to push sleep resource");
@@ -188,8 +156,8 @@ impl env::OcallFuncs for Env {
         }
     }
 
-    fn set_log_level(&self, log_level: LogLevel) -> i32 {
-        self.inner.lock().unwrap().log_level = log_level;
+    fn set_log_level(&mut self, log_level: LogLevel) -> i32 {
+        self.log_level = log_level;
         OcallError::Ok as _
     }
 }
@@ -204,11 +172,12 @@ fn sidevm_ocall_fast_return(
     p3: IntPtr,
 ) -> IntPtr {
     env::set_current_task(task_id);
-    let rv = match env::dispatch_call_fast_return(env, func_id, p0, p1, p2, p3) {
+    let mut env = env.inner.lock().unwrap();
+    let rv = match env::dispatch_call_fast_return(&mut *env, func_id, p0, p1, p2, p3) {
         Ok(rv) => rv,
         Err(err) => err.to_errno().into(),
     };
-    if env.log_level() >= LogLevel::Trace {
+    if env.log_level >= LogLevel::Trace {
         let func_name = env::ocall_id2name(func_id);
         eprintln!("[{task_id:>3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {rv}");
     }
@@ -226,12 +195,13 @@ fn sidevm_ocall(
     p3: IntPtr,
 ) -> IntPtr {
     env::set_current_task(task_id);
-    let rv = match env::dispatch_call(env, func_id, p0, p1, p2, p3) {
+    let mut env = env.inner.lock().unwrap();
+    let rv = match env::dispatch_call(&mut *env, func_id, p0, p1, p2, p3) {
         Ok(rv) => rv,
         Err(err) => err.to_errno().into(),
     };
 
-    if env.log_level() >= LogLevel::Trace {
+    if env.log_level >= LogLevel::Trace {
         let func_name = env::ocall_id2name(func_id);
         eprintln!("[{task_id:>3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {rv}");
     }
