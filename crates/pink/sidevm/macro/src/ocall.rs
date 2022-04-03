@@ -1,3 +1,4 @@
+use heck::ToSnakeCase;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use syn::{parse_quote, Result};
 
@@ -322,11 +323,13 @@ fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<T
         .map(|method| gen_ocall_impl_method(method))
         .collect();
 
-    let impl_itent = Ident::new(&format!("{}Implement", trait_name), Span::call_site());
+    let name = format!("{}_guest", trait_name.to_string().to_snake_case());
+    let impl_itent = Ident::new(&name, Span::call_site());
     let impl_methods = impl_methods?;
     Ok(parse_quote! {
-        pub struct #impl_itent;
-        impl #impl_itent {
+        pub mod #impl_itent {
+            use super::*;
+
             #(#impl_methods)*
         }
     })

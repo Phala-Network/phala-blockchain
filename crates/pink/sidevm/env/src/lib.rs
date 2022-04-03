@@ -250,9 +250,11 @@ mod test {
         rv
     }
 
+    use test_ocall_guest as ocall;
+
     #[test]
     fn test_echo() {
-        let pong = TestOCallImplement.echo(b"Hello".to_vec());
+        let pong = ocall::echo(b"Hello".to_vec());
         assert_eq!(&pong, "Hello".as_bytes());
     }
 
@@ -261,10 +263,10 @@ mod test {
         let a = u32::MAX / 2;
         let b = 2;
         let c = a + b;
-        assert_eq!(TestOCallImplement.add(a, b), c);
-        assert_eq!(TestOCallImplement.add_fi(a, b), c);
-        assert_eq!(TestOCallImplement.add_fo(a, b), c);
-        assert_eq!(TestOCallImplement.add_fi_fo(a, b), c);
+        assert_eq!(ocall::add(a, b), c);
+        assert_eq!(ocall::add_fi(a, b), c);
+        assert_eq!(ocall::add_fo(a, b), c);
+        assert_eq!(ocall::add_fi_fo(a, b), c);
     }
 
     #[test]
@@ -272,6 +274,6 @@ mod test {
         let a = u64::MAX / 2;
         let b = 2;
         let c = a + b;
-        assert_eq!(TestOCallImplement.add_fi_fo_64(a, b), c);
+        assert_eq!(ocall::add_fi_fo_64(a, b), c);
     }
 }
