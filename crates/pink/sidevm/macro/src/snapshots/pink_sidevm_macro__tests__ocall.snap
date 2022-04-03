@@ -1,6 +1,6 @@
 ---
-source: crates/pink/sidevm/macro/src/ocall.rs
-assertion_line: 466
+source: crates/pink/sidevm/macro/src/tests.rs
+assertion_line: 18
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 pub trait Ocall {
@@ -9,8 +9,8 @@ pub trait Ocall {
     fn call_fo(&mut self, a: i32, b: i32) -> i32;
     fn poll_fi_fo(&mut self, a: i32, b: i32) -> i32;
 }
-pub struct OcallImplement;
-impl OcallImplement {
+pub mod ocall_guest {
+    use super::*;
     pub fn call_slow(a: i32, b: i32) -> i32 {
         unsafe {
             let inputs = (a, b);

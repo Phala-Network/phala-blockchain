@@ -1,5 +1,7 @@
 use proc_macro::TokenStream;
 
+#[cfg(test)]
+mod tests;
 mod ocall;
 
 #[proc_macro_attribute]
