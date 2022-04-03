@@ -137,7 +137,7 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     let ocall_methods = ocall_methods?;
     check_redundant_ocall_id(&ocall_methods)?;
 
-    let trait_item = remove_ocall_attributes(trait_item);
+    let trait_item = patch_ocall_trait(trait_item);
 
     let ocall_impl = gen_ocall_impl(&ocall_methods, &trait_item.ident)?;
 
@@ -252,11 +252,11 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         }
 
         pub trait OcallEnv {
-            fn put_return(&self, rv: Vec<u8>) -> usize;
-            fn take_return(&self) -> Option<Vec<u8>>;
-            fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
-            fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
-            fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
+            fn put_return(&mut self, rv: Vec<u8>) -> usize;
+            fn take_return(&mut self) -> Option<Vec<u8>>;
+            fn copy_to_vm(&mut self, data: &[u8], ptr: IntPtr) -> Result<()>;
+            fn slice_from_vm(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
+            fn slice_from_vm_mut(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
         }
     })
 }
@@ -419,10 +419,18 @@ fn check_redundant_ocall_id(methods: &[OcallMethod]) -> Result<()> {
     Ok(())
 }
 
-fn remove_ocall_attributes(mut input: syn::ItemTrait) -> syn::ItemTrait {
+fn patch_ocall_trait(mut input: syn::ItemTrait) -> syn::ItemTrait {
     for item in input.items.iter_mut() {
         if let syn::TraitItem::Method(method) = item {
+            // Remove the ocall attribute
             method.attrs.retain(|attr| !attr.is_ocall());
+            // Add &mut self as receiver
+            method.sig.inputs.insert(
+                0,
+                parse_quote! {
+                    &mut self
+                },
+            );
         }
     }
     input
@@ -443,16 +451,16 @@ fn test() {
     let stream = patch(parse_quote! {
         pub trait Ocall {
             #[ocall(id = 101)]
-            fn call_slow(&self, a: i32, b: i32) -> i32;
+            fn call_slow(a: i32, b: i32) -> i32;
 
             #[ocall(id = 103, fast_input)]
-            fn call_fi(&self, a: i32, b: i32) -> i32;
+            fn call_fi(a: i32, b: i32) -> i32;
 
             #[ocall(id = 104, fast_return)]
-            fn call_fo(&self, a: i32, b: i32) -> i32;
+            fn call_fo(a: i32, b: i32) -> i32;
 
             #[ocall(id = 102, fast_input, fast_return)]
-            fn poll_fi_fo(&self, a: i32, b: i32) -> i32;
+            fn poll_fi_fo(a: i32, b: i32) -> i32;
         }
     });
     insta::assert_display_snapshot!(rustfmt_snippet::rustfmt_token_stream(&stream).unwrap())

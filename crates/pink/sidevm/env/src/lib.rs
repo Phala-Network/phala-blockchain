@@ -116,22 +116,22 @@ pub fn set_current_task(task_id: i32) {
 #[pink_sidevm_macro::ocall]
 pub trait OcallFuncs {
     #[ocall(id = 100)]
-    fn echo(&self, input: Vec<u8>) -> Vec<u8>;
+    fn echo(input: Vec<u8>) -> Vec<u8>;
 
     #[ocall(id = 101, fast_input, fast_return)]
-    fn close(&mut self, resource_id: i32) -> i32;
+    fn close(resource_id: i32) -> i32;
 
     #[ocall(id = 102, fast_input, fast_return)]
-    fn poll(&mut self, resource_id: i32) -> i32;
+    fn poll(resource_id: i32) -> i32;
 
     #[ocall(id = 103, fast_input, fast_return)]
-    fn next_ready_task(&mut self) -> i32;
+    fn next_ready_task() -> i32;
 
     #[ocall(id = 201, fast_input, fast_return)]
-    fn create_timer(&mut self, timeout: i32) -> i32;
+    fn create_timer(timeout: i32) -> i32;
 
     #[ocall(id = 202, fast_return)]
-    fn set_log_level(&mut self, log_level: LogLevel) -> i32;
+    fn set_log_level(log_level: LogLevel) -> i32;
 }
 
 #[cfg(test)]
@@ -139,51 +139,51 @@ mod test {
     use super::*;
     use std::cell::Cell;
     #[pink_sidevm_macro::ocall]
-    pub trait TestOCall {
+    pub trait TestOcall {
         #[ocall(id = 100)]
-        fn echo(&self, input: Vec<u8>) -> Vec<u8>;
+        fn echo(input: Vec<u8>) -> Vec<u8>;
 
         #[ocall(id = 101)]
-        fn add(&self, a: u32, b: u32) -> u32;
+        fn add(a: u32, b: u32) -> u32;
 
         #[ocall(id = 102, fast_input, fast_return)]
-        fn add_fi_fo(&self, a: u32, b: u32) -> u32;
+        fn add_fi_fo(a: u32, b: u32) -> u32;
 
         #[ocall(id = 103, fast_input)]
-        fn add_fi(&self, a: u32, b: u32) -> u32;
+        fn add_fi(a: u32, b: u32) -> u32;
 
         #[ocall(id = 104, fast_return)]
-        fn add_fo(&self, a: u32, b: u32) -> u32;
+        fn add_fo(a: u32, b: u32) -> u32;
 
         #[ocall(id = 105, fast_input, fast_return)]
-        fn add_fi_fo_64(&self, a: u64, b: u64) -> u64;
+        fn add_fi_fo_64(a: u64, b: u64) -> u64;
     }
 
     struct Backend;
-    impl TestOCall for Backend {
-        fn echo(&self, input: Vec<u8>) -> Vec<u8> {
+    impl TestOcall for Backend {
+        fn echo(&mut self, input: Vec<u8>) -> Vec<u8> {
             return input.to_vec();
         }
-        fn add(&self, a: u32, b: u32) -> u32 {
+        fn add(&mut self, a: u32, b: u32) -> u32 {
             a + b
         }
-        fn add_fi_fo(&self, a: u32, b: u32) -> u32 {
+        fn add_fi_fo(&mut self, a: u32, b: u32) -> u32 {
             a + b
         }
-        fn add_fi(&self, a: u32, b: u32) -> u32 {
+        fn add_fi(&mut self, a: u32, b: u32) -> u32 {
             a + b
         }
-        fn add_fo(&self, a: u32, b: u32) -> u32 {
+        fn add_fo(&mut self, a: u32, b: u32) -> u32 {
             a + b
         }
 
-        fn add_fi_fo_64(&self, a: u64, b: u64) -> u64 {
+        fn add_fi_fo_64(&mut self, a: u64, b: u64) -> u64 {
             a + b
         }
     }
 
     impl OcallEnv for Backend {
-        fn put_return(&self, v: Vec<u8>) -> usize {
+        fn put_return(&mut self, v: Vec<u8>) -> usize {
             let len = v.len();
             RETURN_VALUE.with(move |value| {
                 value.set(Some(v));
@@ -191,22 +191,22 @@ mod test {
             len
         }
 
-        fn take_return(&self) -> Option<Vec<u8>> {
+        fn take_return(&mut self) -> Option<Vec<u8>> {
             RETURN_VALUE.with(move |value| value.take())
         }
 
-        fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
+        fn copy_to_vm(&mut self, data: &[u8], ptr: IntPtr) -> Result<()> {
             let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
             dst_buf.clone_from_slice(&data);
             Ok(())
         }
 
-        fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
+        fn slice_from_vm(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
             let buf = unsafe { core::slice::from_raw_parts(ptr as _, len as _) };
             Ok(buf)
         }
 
-        fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
+        fn slice_from_vm_mut(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
             let buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, len as _) };
             Ok(buf)
         }

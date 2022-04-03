@@ -1,17 +1,17 @@
 ---
 source: crates/pink/sidevm/macro/src/ocall.rs
-assertion_line: 458
+assertion_line: 466
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 pub trait Ocall {
-    fn call_slow(&self, a: i32, b: i32) -> i32;
-    fn call_fi(&self, a: i32, b: i32) -> i32;
-    fn call_fo(&self, a: i32, b: i32) -> i32;
-    fn poll_fi_fo(&self, a: i32, b: i32) -> i32;
+    fn call_slow(&mut self, a: i32, b: i32) -> i32;
+    fn call_fi(&mut self, a: i32, b: i32) -> i32;
+    fn call_fo(&mut self, a: i32, b: i32) -> i32;
+    fn poll_fi_fo(&mut self, a: i32, b: i32) -> i32;
 }
 pub struct OcallImplement;
 impl OcallImplement {
-    pub fn call_slow(&self, a: i32, b: i32) -> i32 {
+    pub fn call_slow(a: i32, b: i32) -> i32 {
         unsafe {
             let inputs = (a, b);
             let mut input_buf = empty_buffer();
@@ -31,7 +31,7 @@ impl OcallImplement {
             Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value")
         }
     }
-    pub fn call_fi(&self, a: i32, b: i32) -> i32 {
+    pub fn call_fi(a: i32, b: i32) -> i32 {
         unsafe {
             let ret = sidevm_ocall(current_task(), 103, a as _, b as _, 0, 0);
             let len = ret;
@@ -47,7 +47,7 @@ impl OcallImplement {
             Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value")
         }
     }
-    pub fn call_fo(&self, a: i32, b: i32) -> i32 {
+    pub fn call_fo(a: i32, b: i32) -> i32 {
         unsafe {
             let inputs = (a, b);
             let mut input_buf = empty_buffer();
@@ -64,7 +64,7 @@ impl OcallImplement {
             ret as _
         }
     }
-    pub fn poll_fi_fo(&self, a: i32, b: i32) -> i32 {
+    pub fn poll_fi_fo(a: i32, b: i32) -> i32 {
         unsafe {
             let ret = sidevm_ocall_fast_return(current_task(), 102, a as _, b as _, 0, 0);
             ret as _
@@ -154,11 +154,11 @@ pub fn dispatch_call<Env: Ocall + OcallEnv>(
     })
 }
 pub trait OcallEnv {
-    fn put_return(&self, rv: Vec<u8>) -> usize;
-    fn take_return(&self) -> Option<Vec<u8>>;
-    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
-    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
-    fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
+    fn put_return(&mut self, rv: Vec<u8>) -> usize;
+    fn take_return(&mut self) -> Option<Vec<u8>>;
+    fn copy_to_vm(&mut self, data: &[u8], ptr: IntPtr) -> Result<()>;
+    fn slice_from_vm(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
+    fn slice_from_vm_mut(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
 }
 pub fn ocall_id2name(id: i32) -> &'static str {
     match id {

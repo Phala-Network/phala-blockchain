@@ -81,17 +81,17 @@ fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usiz
 }
 
 impl env::OcallEnv for EnvInner {
-    fn put_return(&self, rv: Vec<u8>) -> usize {
+    fn put_return(&mut self, rv: Vec<u8>) -> usize {
         let len = rv.len();
         self.temp_return_value.get_or_default().set(Some(rv));
         len
     }
 
-    fn take_return(&self) -> Option<Vec<u8>> {
+    fn take_return(&mut self) -> Option<Vec<u8>> {
         self.temp_return_value.get_or_default().take()
     }
 
-    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
+    fn copy_to_vm(&mut self, data: &[u8], ptr: IntPtr) -> Result<()> {
         if data.len() > u32::MAX as usize {
             return Err(OcallError::NoMemory);
         }
@@ -102,14 +102,14 @@ impl env::OcallEnv for EnvInner {
         Ok(())
     }
 
-    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
+    fn slice_from_vm(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
         let memory = self.memory.as_ref().ok_or(OcallError::NoMemory)?;
         let (offset, end) = check_addr(memory, ptr as _, len as _)?;
         let slice = unsafe { &memory.data_unchecked()[offset..end] };
         Ok(slice)
     }
 
-    fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
+    fn slice_from_vm_mut(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
         let memory = self.memory.as_ref().ok_or(OcallError::NoMemory)?;
         let (offset, end) = check_addr(memory, ptr as _, len as _)?;
         let slice = unsafe { &mut memory.data_unchecked_mut()[offset..end] };
@@ -118,7 +118,7 @@ impl env::OcallEnv for EnvInner {
 }
 
 impl env::OcallFuncs for EnvInner {
-    fn echo(&self, input: Vec<u8>) -> Vec<u8> {
+    fn echo(&mut self, input: Vec<u8>) -> Vec<u8> {
         input
     }
 
