@@ -44,6 +44,7 @@ impl Future for Sleep {
 
 async fn main() {
     Ocall.set_log_level(env::LogLevel::Trace);
+    assert_eq!(Ocall.echo(vec![4, 2]), vec![4, 2]);
     sleep(Duration::from_secs(3)).await
 }
 

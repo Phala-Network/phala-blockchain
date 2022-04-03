@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -8,6 +9,7 @@ use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use env::{IntPtr, LogLevel, OcallError, Result};
 use pink_sidevm_env as env;
+use thread_local::ThreadLocal;
 
 use crate::resource::{Resource, ResourceKeeper};
 
@@ -39,7 +41,7 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
 struct EnvInner {
     resources: ResourceKeeper,
     memory: Option<Memory>,
-    temp_return_value: Option<Vec<u8>>,
+    temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     log_level: LogLevel,
 }
 
@@ -54,7 +56,7 @@ impl Env {
             inner: Arc::new(Mutex::new(EnvInner {
                 resources: ResourceKeeper::default(),
                 memory: None,
-                temp_return_value: None,
+                temp_return_value: Default::default(),
                 log_level: LogLevel::None,
             })),
         }
@@ -81,12 +83,22 @@ fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usiz
 impl env::OcallEnv for Env {
     fn put_return(&self, rv: Vec<u8>) -> usize {
         let len = rv.len();
-        self.inner.lock().unwrap().temp_return_value = Some(rv);
+        self.inner
+            .lock()
+            .unwrap()
+            .temp_return_value
+            .get_or_default()
+            .set(Some(rv));
         len
     }
 
     fn take_return(&self) -> Option<Vec<u8>> {
-        self.inner.lock().unwrap().temp_return_value.take()
+        self.inner
+            .lock()
+            .unwrap()
+            .temp_return_value
+            .get_or_default()
+            .take()
     }
 
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {

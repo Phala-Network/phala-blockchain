@@ -14,3 +14,4 @@ wasmer-compiler-singlepass = "2.2.1"
 wasmer-engine = "2.2.1"
 wasmer-engine-universal = "2.2.1"
 wasmer-tunables = {path = "../../../wasmer-tunables"}
+thread_local = "1.1"
