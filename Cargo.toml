@@ -56,7 +56,7 @@ members = [
 	"crates/pink/pink-extension",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
-	"crates/pink/sidevm/runtime",
+	"crates/pink/sidevm/host-runtime",
 	"crates/pink/sidevm/env",
 	"crates/pink/sidevm/macro",
 	"crates/phala-serde-more",

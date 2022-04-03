@@ -1,13 +1,13 @@
 [package]
 edition = "2021"
-name = "pink-sidevm-runtime"
+name = "pink-sidevm-host-runtime"
 version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0"
 log = "0.4.16"
 loupe = "0.1.3"
-pink-sidevm-env = {path = "../env", features = ["runtime"]}
+pink-sidevm-env = {path = "../env", features = ["host"]}
 tokio = {version = "1.17.0", features = ["full"]}
 wasmer = "2.2.1"
 wasmer-compiler-singlepass = "2.2.1"

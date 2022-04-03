@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use pink_sidevm_runtime::WasmRun;
+use pink_sidevm_host_runtime::WasmRun;
 
 #[tokio::test]
 async fn test_timer() -> Result<()> {

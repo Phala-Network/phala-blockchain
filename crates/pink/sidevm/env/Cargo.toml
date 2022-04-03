@@ -11,4 +11,4 @@ scale = {package = "parity-scale-codec", version = "3", default-features = false
 tinyvec = {version = "1.5.1", features = ["alloc"]}
 
 [features]
-runtime = []
+host = []
