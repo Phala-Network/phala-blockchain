@@ -251,14 +251,6 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
                 _ => return Err(OcallError::UnknownCallNumber),
             })
         }
-
-        pub trait OcallEnv {
-            fn put_return(&mut self, rv: Vec<u8>) -> usize;
-            fn take_return(&mut self) -> Option<Vec<u8>>;
-            fn copy_to_vm(&mut self, data: &[u8], ptr: IntPtr) -> Result<()>;
-            fn slice_from_vm(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
-            fn slice_from_vm_mut(&mut self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
-        }
     })
 }
 

@@ -6,6 +6,7 @@ use tinyvec::TinyVec;
 pub use ocall_def::*;
 
 mod ocall_def;
+mod args_stack;
 
 cfg_if::cfg_if! {
     if #[cfg(any(target_pointer_width = "32", feature = "host"))] {
@@ -25,7 +26,7 @@ pub enum LogLevel {
     Trace,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(i32)]
 pub enum OcallError {
     Ok = 0,
@@ -46,6 +47,13 @@ impl OcallError {
 }
 
 pub type Result<T, E = OcallError> = core::result::Result<T, E>;
+pub trait OcallEnv {
+    fn put_return(&mut self, rv: Vec<u8>) -> usize;
+    fn take_return(&mut self) -> Option<Vec<u8>>;
+    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()>;
+    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]>;
+    fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]>;
+}
 
 extern "C" {
     pub fn sidevm_ocall(
