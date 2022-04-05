@@ -94,8 +94,8 @@ where
     fn dump(self) -> [IntPtr; OCALL_N_ARGS] {
         let (a, b) = self;
         let mut buf = [IntPtr::default(); OCALL_N_ARGS];
-        buf[0..A::N_ARGS].copy_from_slice(&a.dump());
-        buf[A::N_ARGS..Self::N_ARGS].copy_from_slice(&b.dump());
+        buf[0..A::N_ARGS].copy_from_slice(&a.dump()[0..A::N_ARGS]);
+        buf[A::N_ARGS..Self::N_ARGS].copy_from_slice(&b.dump()[..B::N_ARGS]);
         buf
     }
 }

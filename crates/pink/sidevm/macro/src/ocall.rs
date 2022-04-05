@@ -292,23 +292,6 @@ fn parse_args(method: &syn::TraitItemMethod) -> Result<Vec<TokenStream>> {
         .collect()
 }
 
-fn pad_args(args: &[TokenStream]) -> Result<Vec<TokenStream>> {
-    let ocall_nargs = 4;
-    if args.len() > ocall_nargs {
-        return Err(syn::Error::new_spanned(&args[0], "Too many arguments"));
-    }
-    let mut args: Vec<_> = args.iter().cloned().collect();
-    for arg in args.iter_mut() {
-        *arg = parse_quote!( #arg as _ );
-    }
-    if args.len() < ocall_nargs {
-        for _ in args.len()..ocall_nargs {
-            args.push(parse_quote! { 0 });
-        }
-    }
-    Ok(args)
-}
-
 fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenStream> {
     let impl_methods: Result<Vec<TokenStream>> = ocall_methods
         .iter()
@@ -332,11 +315,8 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
 
     let call_id = Literal::i32_unsuffixed(method.id);
 
-    let args = if method.fast_input {
-        pad_args(&method.args)?
-    } else {
-        method.args.clone()
-    };
+    let args = &method.args;
+    let args_reversed = args.iter().rev();
 
     let ocall_fn = if method.fast_return {
         "sidevm_ocall_fast_return"
@@ -347,7 +327,10 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
 
     let body_top: TokenStream = if method.fast_input {
         parse_quote! {
-            let ret = #ocall_fn(current_task(), #call_id, #(#args),*);
+            let stack = StackedArgs::<()>::empty();
+            #(let stack = stack.push_arg(#args);)*
+            let args = stack.dump();
+            let ret = #ocall_fn(current_task(), #call_id, args[0], args[1], args[2], args[3]);
         }
     } else {
         parse_quote! {

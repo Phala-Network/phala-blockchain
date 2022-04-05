@@ -1,5 +1,5 @@
 use super::*;
-use crate::args_stack::{I32Convertible, RetDecode};
+use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
 
 #[pink_sidevm_macro::ocall]
 pub trait OcallFuncs {
