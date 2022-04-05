@@ -1,4 +1,4 @@
-use crate::args_stack::{I32Convertible, Nargs, RetDecode, RetEncode, StackedArgs};
+use crate::args_stack::{I32Convertible, RetDecode, RetEncode, StackedArgs};
 
 use super::*;
 use std::cell::Cell;
@@ -18,6 +18,9 @@ pub trait TestOcall {
 
     #[ocall(id = 104, fast_return)]
     fn add_fo(a: u32, b: u32) -> Result<u32>;
+
+    #[ocall(id = 105, fast_input)]
+    fn sub_fi(a: i32, b: i32) -> Result<i32>;
 }
 
 struct Backend;
@@ -36,6 +39,9 @@ impl TestOcall for Backend {
     }
     fn add_fo(&mut self, a: u32, b: u32) -> Result<u32> {
         Ok(a.wrapping_add(b))
+    }
+    fn sub_fi(&mut self, a: i32, b: i32) -> Result<i32> {
+        Ok(a.wrapping_sub(b))
     }
 }
 
@@ -118,6 +124,8 @@ fn test_fi_fo() {
     assert_eq!(ocall::add_fi(a, b).unwrap(), c);
     assert_eq!(ocall::add_fo(a, b).unwrap(), c);
     assert_eq!(ocall::add_fi_fo(a, b).unwrap(), c);
+    assert_eq!(ocall::sub_fi(4, 1).unwrap(), 3);
+    assert_eq!(ocall::sub_fi(1, 4).unwrap(), -3);
 }
 
 #[test]
@@ -135,17 +143,18 @@ fn test_fi_fo_overflow() {
 fn test_nargs_encode() {
     let stack = StackedArgs::empty();
     let stack = stack.push_arg(1u8);
-    let stack = stack.push_arg(1u32);
-    let stack = stack.push_arg(1u64);
+    let stack = stack.push_arg(2u64);
+    let stack = stack.push_arg(3u32);
+    assert_eq!(stack.dump(), [1, 0, 2, 3]);
 }
 
 #[test]
 fn test_nargs_decode() {
-    let mut args: &[IntPtr] = &[1, 2, 3, 4, 5];
+    let args: &[IntPtr] = &[1, 2, 3, 4, 5];
     let stack = StackedArgs::load(args).unwrap();
 
-    let (a, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
-    let (b, stack): (i64, _) = stack.pop_arg(&Backend).unwrap();
+    let (_, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
+    let (_, stack): (i64, _) = stack.pop_arg(&Backend).unwrap();
     let (c, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
     let _: StackedArgs<()> = stack;
     assert_eq!(c, 1);

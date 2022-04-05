@@ -157,12 +157,6 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
     })
 }
 
-fn args_r(n: usize) -> Vec<Ident> {
-    (0..n)
-        .map(|i| Ident::new(&format!("p{}", i), Span::call_site()))
-        .collect()
-}
-
 fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenStream> {
     let mut fast_calls: Vec<TokenStream> = Vec::new();
     let mut slow_calls: Vec<TokenStream> = Vec::new();
@@ -171,10 +165,12 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         let id = Literal::i32_unsuffixed(method.id);
         let name = &method.method.sig.ident;
         let args = &method.args;
+        let args_reversed = args.iter().rev();
         let parse_inputs: TokenStream = if method.fast_input {
-            let args_r = args_r(args.len());
             parse_quote! {
-                let (#(#args),*) = (#(#args_r as _),*);
+                let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
+                #(let (#args_reversed, stack) = stack.pop_arg(env)?;)*
+                let _: StackedArgs<()> = stack;
             }
         } else {
             parse_quote! {
@@ -316,7 +312,6 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     let call_id = Literal::i32_unsuffixed(method.id);
 
     let args = &method.args;
-    let args_reversed = args.iter().rev();
 
     let ocall_fn = if method.fast_return {
         "sidevm_ocall_fast_return"
@@ -327,7 +322,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
 
     let body_top: TokenStream = if method.fast_input {
         parse_quote! {
-            let stack = StackedArgs::<()>::empty();
+            let stack = StackedArgs::empty();
             #(let stack = stack.push_arg(#args);)*
             let args = stack.dump();
             let ret = #ocall_fn(current_task(), #call_id, args[0], args[1], args[2], args[3]);
