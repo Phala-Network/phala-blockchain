@@ -1,5 +1,7 @@
 use crate::{IntPtr, IntRet, OcallEnv, OcallError, Result};
 
+const OCALL_N_ARGS: usize = 4;
+
 pub(crate) struct StackedArgs<Args> {
     args: Args,
 }
@@ -15,6 +17,13 @@ impl<A: Nargs> StackedArgs<A> {
         Some(check_args_length(StackedArgs {
             args: Nargs::load(&mut raw)?,
         }))
+    }
+
+    pub(crate) fn dump(self) -> [IntPtr; OCALL_N_ARGS] {
+        let mut ret = [Default::default(); OCALL_N_ARGS];
+        let data = check_args_length(self).args.dump();
+        ret[..data.len()].copy_from_slice(&data);
+        ret
     }
 }
 
@@ -38,12 +47,19 @@ pub(crate) trait Nargs {
     fn load(buf: &mut &[IntPtr]) -> Option<Self>
     where
         Self: Sized;
+
+    // Since #![feature(generic_const_exprs)] is not yet stable, we use OCALL_N_ARGS instead of
+    // Self::N_ARGS
+    fn dump(self) -> [IntPtr; OCALL_N_ARGS];
 }
 
 impl Nargs for () {
     const N_ARGS: usize = 0;
     fn load(buf: &mut &[IntPtr]) -> Option<Self> {
         Some(())
+    }
+    fn dump(self) -> [IntPtr; OCALL_N_ARGS] {
+        Default::default()
     }
 }
 
@@ -53,6 +69,12 @@ impl Nargs for IntPtr {
         let me = *buf.get(0)?;
         *buf = &buf[1..];
         Some(me)
+    }
+
+    fn dump(self) -> [IntPtr; OCALL_N_ARGS] {
+        let mut ret = [0; OCALL_N_ARGS];
+        ret[0] = self;
+        ret
     }
 }
 
@@ -68,13 +90,21 @@ where
         let a = A::load(buf)?;
         Some((a, b))
     }
+
+    fn dump(self) -> [IntPtr; OCALL_N_ARGS] {
+        let (a, b) = self;
+        let mut buf = [IntPtr::default(); OCALL_N_ARGS];
+        buf[0..A::N_ARGS].copy_from_slice(&a.dump());
+        buf[A::N_ARGS..Self::N_ARGS].copy_from_slice(&b.dump());
+        buf
+    }
 }
 
 pub(crate) trait NotTooManyArgs {
     const TOO_MANY_ARGUMENTS: ();
 }
 impl<T: Nargs> NotTooManyArgs for T {
-    const TOO_MANY_ARGUMENTS: () = [()][(Self::N_ARGS > 4) as usize];
+    const TOO_MANY_ARGUMENTS: () = [()][(Self::N_ARGS > OCALL_N_ARGS) as usize];
 }
 
 pub(crate) fn check_args_length<T: Nargs + NotTooManyArgs>(v: StackedArgs<T>) -> StackedArgs<T> {
