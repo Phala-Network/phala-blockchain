@@ -1,4 +1,4 @@
-use crate::{IntPtr, OcallEnv, Result};
+use crate::{IntPtr, IntRet, OcallEnv, OcallError, Result};
 
 pub(crate) struct StackedArgs<Args> {
     args: Args,
@@ -82,6 +82,11 @@ pub(crate) fn check_args_length<T: Nargs + NotTooManyArgs>(v: StackedArgs<T>) ->
     v
 }
 
+pub(crate) trait I32Convertible {
+    fn to_i32(self) -> i32;
+    fn from_i32(i: i32) -> Self;
+}
+
 pub(crate) trait ArgEncode<A> {
     type Encoded;
 
@@ -94,6 +99,16 @@ pub(crate) trait ArgDecode<'a, A> {
         stack: StackedArgs<(Self::Encoded, A)>,
         env: &'a impl OcallEnv,
     ) -> Result<(Self, StackedArgs<A>)>
+    where
+        Self: Sized;
+}
+
+pub trait RetEncode {
+    fn encode_ret(self) -> IntRet;
+}
+
+pub(crate) trait RetDecode {
+    fn decode_ret(encoded: IntRet) -> Self
     where
         Self: Sized;
 }
@@ -165,23 +180,12 @@ impl<A, B> StackedArgs<(A, B)> {
 
 macro_rules! impl_codec {
     ($typ: ty) => {
-        impl<R> ArgEncode<R> for $typ {
-            type Encoded = IntPtr;
-
-            fn encode(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
-                stack.push(self as _)
+        impl I32Convertible for $typ {
+            fn to_i32(self) -> i32 {
+                self as i32
             }
-        }
-
-        impl<'a, R> ArgDecode<'a, R> for $typ {
-            type Encoded = IntPtr;
-
-            fn decode(stack: StackedArgs<(Self::Encoded, R)>, _env: &'a impl OcallEnv) -> Result<(Self, StackedArgs<R>)>
-            where
-                Self: Sized,
-            {
-                let (v, stack) = stack.pop();
-                Ok((v as _, stack))
+            fn from_i32(i: i32) -> Self {
+                i as Self
             }
         }
     };
@@ -226,3 +230,83 @@ macro_rules! impl_codec64 {
 
 impl_codec64!(i64);
 impl_codec64!(u64);
+
+impl<R, I: I32Convertible> ArgEncode<R> for I {
+    type Encoded = IntPtr;
+
+    fn encode(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
+        stack.push(self.to_i32() as _)
+    }
+}
+
+impl<'a, R, I: I32Convertible> ArgDecode<'a, R> for I {
+    type Encoded = IntPtr;
+
+    fn decode(
+        stack: StackedArgs<(Self::Encoded, R)>,
+        _env: &'a impl OcallEnv,
+    ) -> Result<(Self, StackedArgs<R>)>
+    where
+        Self: Sized,
+    {
+        let (v, stack) = stack.pop();
+        Ok((I::from_i32(v as _), stack))
+    }
+}
+
+impl I32Convertible for bool {
+    fn to_i32(self) -> i32 {
+        self as i32
+    }
+    fn from_i32(i: i32) -> Self {
+        i != 0
+    }
+}
+
+impl I32Convertible for OcallError {
+    fn to_i32(self) -> i32 {
+        self as u8 as i32
+    }
+    fn from_i32(i: i32) -> Self {
+        OcallError::try_from(i as u8).expect("Should never fail")
+    }
+}
+
+impl I32Convertible for () {
+    fn to_i32(self) -> i32 {
+        0
+    }
+    fn from_i32(i: i32) -> Self {
+        ()
+    }
+}
+
+impl<A, B> RetEncode for Result<A, B>
+where
+    A: I32Convertible,
+    B: I32Convertible,
+{
+    fn encode_ret(self) -> IntRet {
+        let (tp, val) = match self {
+            Ok(v) => (0, v.to_i32()),
+            Err(err) => (1, err.to_i32()),
+        };
+        ((tp as u32 as i64) << 32) | (val as u32 as i64)
+    }
+}
+
+impl<A, B> RetDecode for Result<A, B>
+where
+    A: I32Convertible,
+    B: I32Convertible,
+{
+    fn decode_ret(encoded: IntRet) -> Self {
+        let tp = ((encoded >> 32) & 0xffffffff) as i32;
+        let val = (encoded & 0xffffffff) as i32;
+        if tp == 0 {
+            Ok(A::from_i32(val))
+        } else {
+            Err(B::from_i32(val))
+        }
+    }
+}

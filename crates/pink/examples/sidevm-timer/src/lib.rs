@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::task::{self, Context, Poll, Waker};
 use std::time::Duration;
 
-use pink_sidevm_env::{self as env, OcallError as Errno, ocall_funcs_guest as ocall};
+use pink_sidevm_env::{self as env, ocall_funcs_guest as ocall, OcallError as Errno};
 
 use once_cell::sync::Lazy;
 
@@ -22,10 +22,7 @@ struct Sleep {
 }
 
 fn sleep(duration: Duration) -> Sleep {
-    let id = ocall::create_timer(duration.as_millis() as i32);
-    if id == -1 {
-        panic!("failed to create timer");
-    }
+    let id = ocall::create_timer(duration.as_millis() as i32).expect("failed to create timer");
     Sleep { id: ResourceId(id) }
 }
 
@@ -34,17 +31,16 @@ impl Future for Sleep {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let rv = ocall::poll(self.id.0);
-        if rv == Errno::Pending as i32 {
-            Poll::Pending
-        } else {
-            Poll::Ready(())
+        match rv {
+            Err(Errno::Pending) => Poll::Pending,
+            _ => Poll::Ready(()),
         }
     }
 }
 
 async fn main() {
-    ocall::set_log_level(env::LogLevel::Trace);
-    assert_eq!(ocall::echo(vec![4, 2]), vec![4, 2]);
+    ocall::set_log_level(env::LogLevel::Trace).unwrap();
+    assert_eq!(ocall::echo(vec![4, 2]).unwrap(), vec![4, 2]);
     sleep(Duration::from_secs(3)).await
 }
 

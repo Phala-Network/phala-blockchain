@@ -1,48 +1,41 @@
-use crate::args_stack::{Nargs, StackedArgs};
+use crate::args_stack::{I32Convertible, Nargs, RetDecode, RetEncode, StackedArgs};
 
 use super::*;
 use std::cell::Cell;
 #[pink_sidevm_macro::ocall]
 pub trait TestOcall {
     #[ocall(id = 100)]
-    fn echo(input: Vec<u8>) -> Vec<u8>;
+    fn echo(input: Vec<u8>) -> Result<Vec<u8>>;
 
     #[ocall(id = 101)]
-    fn add(a: u32, b: u32) -> u32;
+    fn add(a: u32, b: u32) -> Result<u32>;
 
     #[ocall(id = 102, fast_input, fast_return)]
-    fn add_fi_fo(a: u32, b: u32) -> u32;
+    fn add_fi_fo(a: u32, b: u32) -> Result<u32>;
 
     #[ocall(id = 103, fast_input)]
-    fn add_fi(a: u32, b: u32) -> u32;
+    fn add_fi(a: u32, b: u32) -> Result<u32>;
 
     #[ocall(id = 104, fast_return)]
-    fn add_fo(a: u32, b: u32) -> u32;
-
-    #[ocall(id = 105, fast_input, fast_return)]
-    fn add_fi_fo_64(a: u64, b: u64) -> u64;
+    fn add_fo(a: u32, b: u32) -> Result<u32>;
 }
 
 struct Backend;
 impl TestOcall for Backend {
-    fn echo(&mut self, input: Vec<u8>) -> Vec<u8> {
-        return input.to_vec();
+    fn echo(&mut self, input: Vec<u8>) -> Result<Vec<u8>> {
+        Ok(input.to_vec())
     }
-    fn add(&mut self, a: u32, b: u32) -> u32 {
-        a + b
+    fn add(&mut self, a: u32, b: u32) -> Result<u32> {
+        Ok(a.wrapping_add(b))
     }
-    fn add_fi_fo(&mut self, a: u32, b: u32) -> u32 {
-        a + b
+    fn add_fi_fo(&mut self, a: u32, b: u32) -> Result<u32> {
+        Ok(a.wrapping_add(b))
     }
-    fn add_fi(&mut self, a: u32, b: u32) -> u32 {
-        a + b
+    fn add_fi(&mut self, a: u32, b: u32) -> Result<u32> {
+        Ok(a.wrapping_add(b))
     }
-    fn add_fo(&mut self, a: u32, b: u32) -> u32 {
-        a + b
-    }
-
-    fn add_fi_fo_64(&mut self, a: u64, b: u64) -> u64 {
-        a + b
+    fn add_fo(&mut self, a: u32, b: u32) -> Result<u32> {
+        Ok(a.wrapping_add(b))
     }
 }
 
@@ -88,13 +81,10 @@ extern "C" fn sidevm_ocall(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntPtr {
-    let rv: IntPtr = match dispatch_call(&mut Backend, func_id, p0, p1, p2, p3) {
-        Ok(rv) => rv,
-        Err(err) => err.to_errno().into(),
-    };
-    println!("sidevm_ocall {} rv={}", func_id, rv);
-    rv
+) -> IntRet {
+    let result = dispatch_call(&mut Backend, func_id, p0, p1, p2, p3);
+    println!("sidevm_ocall {} result={:?}", func_id, result);
+    result.encode_ret()
 }
 
 #[no_mangle]
@@ -105,20 +95,17 @@ extern "C" fn sidevm_ocall_fast_return(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntPtr {
-    let rv: IntPtr = match dispatch_call_fast_return(&mut Backend, func_id, p0, p1, p2, p3) {
-        Ok(rv) => rv,
-        Err(err) => err.to_errno().into(),
-    };
-    println!("sidevm_ocall_fast_return {} rv={}", func_id, rv);
-    rv
+) -> IntRet {
+    let result = dispatch_call_fast_return(&mut Backend, func_id, p0, p1, p2, p3);
+    println!("sidevm_ocall_fast_return {} result={:?}", func_id, result);
+    result.encode_ret()
 }
 
 use test_ocall_guest as ocall;
 
 #[test]
 fn test_echo() {
-    let pong = ocall::echo(b"Hello".to_vec());
+    let pong = ocall::echo(b"Hello".to_vec()).unwrap();
     assert_eq!(&pong, "Hello".as_bytes());
 }
 
@@ -126,19 +113,22 @@ fn test_echo() {
 fn test_fi_fo() {
     let a = u32::MAX / 2;
     let b = 2;
-    let c = a + b;
-    assert_eq!(ocall::add(a, b), c);
-    assert_eq!(ocall::add_fi(a, b), c);
-    assert_eq!(ocall::add_fo(a, b), c);
-    assert_eq!(ocall::add_fi_fo(a, b), c);
+    let c = a.wrapping_add(b);
+    assert_eq!(ocall::add(a, b).unwrap(), c);
+    assert_eq!(ocall::add_fi(a, b).unwrap(), c);
+    assert_eq!(ocall::add_fo(a, b).unwrap(), c);
+    assert_eq!(ocall::add_fi_fo(a, b).unwrap(), c);
 }
 
 #[test]
-fn test_fi_fo_64() {
-    let a = u64::MAX / 2;
-    let b = 2;
-    let c = a + b;
-    assert_eq!(ocall::add_fi_fo_64(a, b), c);
+fn test_fi_fo_overflow() {
+    let a = u32::MAX;
+    let b = 1;
+    let c = a.wrapping_add(b);
+    assert_eq!(ocall::add(a, b).unwrap(), c);
+    assert_eq!(ocall::add_fi(a, b).unwrap(), c);
+    assert_eq!(ocall::add_fo(a, b).unwrap(), c);
+    assert_eq!(ocall::add_fi_fo(a, b).unwrap(), c);
 }
 
 #[test]

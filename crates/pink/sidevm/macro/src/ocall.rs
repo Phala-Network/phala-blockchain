@@ -192,7 +192,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             fast_calls.push(parse_quote! {
                 #id => {
                     #parse_inputs
-                    #calling as _
+                    #calling.map(I32Convertible::to_i32)
                 }
             });
         };
@@ -201,7 +201,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             #id => {
                 #parse_inputs
                 let ret = #calling;
-                env.put_return(ret.encode()) as _
+                env.put_return(ret?.encode()) as _
             }
         });
     }
@@ -214,7 +214,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
                 return Err(OcallError::InvalidParameter);
             }
             env.copy_to_vm(&buffer, p0)?;
-            len as IntPtr
+            Ok(len as i32)
         }
     };
 
@@ -226,12 +226,12 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             p1: IntPtr,
             p2: IntPtr,
             p3: IntPtr
-        ) -> Result<IntPtr> {
-            Ok(match id {
+        ) -> Result<i32> {
+            match id {
                 0 => #call_get_return,
                 #(#fast_calls)*
-                _ => return Err(OcallError::UnknownCallNumber),
-            })
+                _ => Err(OcallError::UnknownCallNumber),
+            }
         }
 
         pub fn dispatch_call<Env: #trait_name + OcallEnv>(
@@ -241,11 +241,11 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             p1: IntPtr,
             p2: IntPtr,
             p3: IntPtr
-        ) -> Result<IntPtr> {
+        ) -> Result<i32> {
             Ok(match id {
                 0 => {
-                    let ret: IntPtr = #call_get_return;
-                    env.put_return(ret.encode()) as _
+                    let ret = #call_get_return;
+                    env.put_return(ret?.encode()) as _
                 }
                 #(#slow_calls)*
                 _ => return Err(OcallError::UnknownCallNumber),
@@ -367,10 +367,10 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     };
 
     let body_bottom: TokenStream = if method.fast_return {
-        parse_quote!(ret as _)
+        parse_quote!(<Result<i32> as RetDecode>::decode_ret(ret).map(I32Convertible::from_i32))
     } else {
         parse_quote! {
-            let len = ret;
+            let len = <Result<i32> as RetDecode>::decode_ret(ret)?;
             if len < 0 {
                 panic!("ocall returned an error");
             }
@@ -379,14 +379,15 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
                 current_task(),
                 0, // Get previous ocall's output
                 buf.as_mut_ptr() as IntPtr,
-                len,
+                len as IntPtr,
                 0,
                 0
             );
+            let ret = <Result<i32> as RetDecode>::decode_ret(ret)?;
             if ret != len {
                 panic!("ocall get return length mismatch");
             }
-            Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value")
+            Ok(Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value"))
         }
     };
 
