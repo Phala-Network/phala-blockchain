@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::task::{self, Context, Poll, Waker};
 use std::time::Duration;
 
-use pink_sidevm_env::{self as env, ocall_funcs_guest as ocall, OcallError as Errno};
+use pink_sidevm_env::{ocall_funcs_guest as ocall, OcallError as Errno};
 
 use once_cell::sync::Lazy;
 
@@ -39,7 +39,7 @@ impl Future for Sleep {
 }
 
 async fn main() {
-    ocall::set_log_level(env::LogLevel::Trace).unwrap();
+    ocall::enable_ocall_trace(true).unwrap();
     assert_eq!(ocall::echo(vec![4, 2]).unwrap(), vec![4, 2]);
     sleep(Duration::from_secs(3)).await
 }

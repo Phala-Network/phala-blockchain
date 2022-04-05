@@ -43,6 +43,7 @@ struct EnvInner {
     memory: Option<Memory>,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     log_level: LogLevel,
+    ocall_trace_enabled: bool,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -58,6 +59,7 @@ impl Env {
                 memory: None,
                 temp_return_value: Default::default(),
                 log_level: LogLevel::None,
+                ocall_trace_enabled: false,
             })),
         }
     }
@@ -156,6 +158,11 @@ impl env::OcallFuncs for EnvInner {
         self.log_level = log_level;
         Ok(())
     }
+
+    fn enable_ocall_trace(&mut self, enable: bool) -> Result<()> {
+        self.ocall_trace_enabled = enable;
+        Ok(())
+    }
 }
 
 fn sidevm_ocall_fast_return(
@@ -170,7 +177,7 @@ fn sidevm_ocall_fast_return(
     env::set_current_task(task_id);
     let mut env = env.inner.lock().unwrap();
     let result = env::dispatch_call_fast_return(&mut *env, func_id, p0, p1, p2, p3);
-    if env.log_level >= LogLevel::Trace {
+    if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
         eprintln!("[{task_id:>3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
     }
@@ -190,7 +197,7 @@ fn sidevm_ocall(
     env::set_current_task(task_id);
     let mut env = env.inner.lock().unwrap();
     let result = env::dispatch_call(&mut *env, func_id, p0, p1, p2, p3);
-    if env.log_level >= LogLevel::Trace {
+    if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
         eprintln!("[{task_id:>3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
     }

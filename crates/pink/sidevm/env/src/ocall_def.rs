@@ -20,4 +20,7 @@ pub trait OcallFuncs {
 
     #[ocall(id = 202, fast_return)]
     fn set_log_level(log_level: LogLevel) -> Result<()>;
+
+    #[ocall(id = 203, fast_return)]
+    fn enable_ocall_trace(enable: bool) -> Result<()>;
 }
