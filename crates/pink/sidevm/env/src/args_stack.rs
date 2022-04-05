@@ -1,4 +1,4 @@
-use crate::{IntPtr, IntRet, OcallEnv, OcallError, Result};
+use crate::{IntPtr, IntRet, OcallError, Result, VmMemory};
 
 const OCALL_N_ARGS: usize = 4;
 
@@ -127,7 +127,7 @@ pub(crate) trait ArgDecode<'a, A> {
     type Encoded;
     fn decode_arg(
         stack: StackedArgs<(Self::Encoded, A)>,
-        env: &'a impl OcallEnv,
+        vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<A>)>
     where
         Self: Sized;
@@ -158,13 +158,13 @@ impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
 
     fn decode_arg(
         stack: StackedArgs<(Self::Encoded, A)>,
-        env: &'a impl OcallEnv,
+        vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<A>)>
     where
         Self: Sized,
     {
         let ((ptr, len), stack) = stack.pop();
-        Ok((env.slice_from_vm(ptr, len)?, stack))
+        Ok((vm.slice_from_vm(ptr, len)?, stack))
     }
 }
 
@@ -183,13 +183,13 @@ impl<'a, A> ArgDecode<'a, A> for &'a mut [u8] {
 
     fn decode_arg(
         stack: StackedArgs<(Self::Encoded, A)>,
-        env: &'a impl OcallEnv,
+        vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<A>)>
     where
         Self: Sized,
     {
         let ((ptr, len), stack) = stack.pop();
-        Ok((env.slice_from_vm_mut(ptr, len)?, stack))
+        Ok((vm.slice_from_vm_mut(ptr, len)?, stack))
     }
 }
 
@@ -202,9 +202,9 @@ impl<B> StackedArgs<B> {
 impl<A, B> StackedArgs<(A, B)> {
     pub(crate) fn pop_arg<'a, Arg: ArgDecode<'a, B, Encoded = A>>(
         self,
-        env: &'a impl OcallEnv,
+        vm: &'a impl VmMemory,
     ) -> Result<(Arg, StackedArgs<B>)> {
-        Arg::decode_arg(self, env)
+        Arg::decode_arg(self, vm)
     }
 }
 
@@ -244,7 +244,7 @@ macro_rules! impl_codec64 {
 
             fn decode_arg(
                 stack: StackedArgs<(Self::Encoded, R)>,
-                _env: &'a impl OcallEnv,
+                _vm: &'a impl VmMemory,
             ) -> Result<(Self, StackedArgs<R>)>
             where
                 Self: Sized,
@@ -274,7 +274,7 @@ impl<'a, R, I: I32Convertible> ArgDecode<'a, R> for I {
 
     fn decode_arg(
         stack: StackedArgs<(Self::Encoded, R)>,
-        _env: &'a impl OcallEnv,
+        _vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<R>)>
     where
         Self: Sized,

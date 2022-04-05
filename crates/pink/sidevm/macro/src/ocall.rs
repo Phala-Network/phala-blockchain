@@ -169,13 +169,13 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         let parse_inputs: TokenStream = if method.fast_input {
             parse_quote! {
                 let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
-                #(let (#args_reversed, stack) = stack.pop_arg(env)?;)*
+                #(let (#args_reversed, stack) = stack.pop_arg(vm)?;)*
                 let _: StackedArgs<()> = stack;
             }
         } else {
             parse_quote! {
                 let (#(#args),*) = {
-                    let mut buf = env.slice_from_vm(p0, p1)?;
+                    let mut buf = vm.slice_from_vm(p0, p1)?;
                     Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
                 };
             }
@@ -209,14 +209,15 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             if buffer.len() != len {
                 return Err(OcallError::InvalidParameter);
             }
-            env.copy_to_vm(&buffer, p0)?;
+            vm.copy_to_vm(&buffer, p0)?;
             Ok(len as i32)
         }
     };
 
     Ok(parse_quote! {
-        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv>(
+        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv, Vm: VmMemory>(
             env: &mut Env,
+            vm: &Vm,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
@@ -230,8 +231,9 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             }
         }
 
-        pub fn dispatch_call<Env: #trait_name + OcallEnv>(
+        pub fn dispatch_call<Env: #trait_name + OcallEnv, Vm: VmMemory>(
             env: &mut Env,
+            vm: &Vm,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
@@ -307,7 +309,27 @@ fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<T
 }
 
 fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
-    let sig = &method.method.sig;
+    let mut sig = method.method.sig.clone();
+
+    if matches!(
+        method.method.sig.inputs.first(),
+        Some(syn::FnArg::Receiver(_))
+    ) {
+        let mut inputs = sig.inputs.clone();
+        sig.inputs.clear();
+        loop {
+            match inputs.pop() {
+                Some(arg) => {
+                    let arg = arg.into_value();
+                    if let syn::FnArg::Receiver(_) = arg {
+                        break;
+                    }
+                    sig.inputs.insert(0, arg)
+                }
+                None => break,
+            }
+        }
+    };
 
     let call_id = Literal::i32_unsuffixed(method.id);
 
@@ -399,12 +421,14 @@ fn patch_ocall_trait(mut input: syn::ItemTrait) -> syn::ItemTrait {
             // Remove the ocall attribute
             method.attrs.retain(|attr| !attr.is_ocall());
             // Add &mut self as receiver
-            method.sig.inputs.insert(
-                0,
-                parse_quote! {
-                    &mut self
-                },
-            );
+            if !matches!(&method.sig.inputs.first(), Some(syn::FnArg::Receiver(_))) {
+                method.sig.inputs.insert(
+                    0,
+                    parse_quote! {
+                        &mut self
+                    },
+                );
+            }
         }
     }
     input

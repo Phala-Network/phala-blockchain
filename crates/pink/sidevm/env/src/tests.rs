@@ -21,6 +21,9 @@ pub trait TestOcall {
 
     #[ocall(id = 105, fast_input)]
     fn sub_fi(a: i32, b: i32) -> Result<i32>;
+
+    #[ocall(id = 106, fast_input, fast_return)]
+    fn copy(dst: &mut [u8], src: &[u8]) -> Result<()>;
 }
 
 struct Backend;
@@ -43,6 +46,10 @@ impl TestOcall for Backend {
     fn sub_fi(&mut self, a: i32, b: i32) -> Result<i32> {
         Ok(a.wrapping_sub(b))
     }
+    fn copy(&mut self, dst: &mut [u8], src: &[u8]) -> Result<()> {
+        dst.copy_from_slice(src);
+        Ok(())
+    }
 }
 
 impl OcallEnv for Backend {
@@ -57,7 +64,9 @@ impl OcallEnv for Backend {
     fn take_return(&mut self) -> Option<Vec<u8>> {
         RETURN_VALUE.with(move |value| value.take())
     }
+}
 
+impl VmMemory for Backend {
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
         let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
         dst_buf.clone_from_slice(&data);
@@ -88,7 +97,7 @@ extern "C" fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call(&mut Backend, func_id, p0, p1, p2, p3);
+    let result = dispatch_call(&mut Backend, &Backend, func_id, p0, p1, p2, p3);
     println!("sidevm_ocall {} result={:?}", func_id, result);
     result.encode_ret()
 }
@@ -102,7 +111,7 @@ extern "C" fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call_fast_return(&mut Backend, func_id, p0, p1, p2, p3);
+    let result = dispatch_call_fast_return(&mut Backend, &Backend, func_id, p0, p1, p2, p3);
     println!("sidevm_ocall_fast_return {} result={:?}", func_id, result);
     result.encode_ret()
 }
@@ -126,6 +135,14 @@ fn test_fi_fo() {
     assert_eq!(ocall::add_fi_fo(a, b).unwrap(), c);
     assert_eq!(ocall::sub_fi(4, 1).unwrap(), 3);
     assert_eq!(ocall::sub_fi(1, 4).unwrap(), -3);
+}
+
+#[test]
+fn test_fi_fo_buf() {
+    let mut a = [0u8; 4];
+    let b = [1u8, 2, 3, 4];
+    ocall::copy(&mut a[..], &b[..]).unwrap();
+    assert_eq!(a, b);
 }
 
 #[test]
