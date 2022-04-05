@@ -276,7 +276,7 @@ impl I32Convertible for () {
     fn to_i32(self) -> i32 {
         0
     }
-    fn from_i32(i: i32) -> Self {
+    fn from_i32(_i: i32) -> Self {
         ()
     }
 }

@@ -4,7 +4,6 @@ use std::{
     time::Duration,
 };
 
-use log::error;
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use env::{IntPtr, IntRet, LogLevel, OcallError, Result, RetEncode};

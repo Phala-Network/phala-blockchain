@@ -291,12 +291,6 @@ pub enum OcallError {
     Reserved255 = 255,
 }
 
-impl OcallError {
-    pub fn to_errno(self) -> i32 {
-        self as i32
-    }
-}
-
 pub type Result<T, E = OcallError> = core::result::Result<T, E>;
 pub trait OcallEnv {
     fn put_return(&mut self, rv: Vec<u8>) -> usize;
