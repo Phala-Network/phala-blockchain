@@ -26,8 +26,8 @@ pub trait TestOcall {
     fn copy(dst: &mut [u8], src: &[u8]) -> Result<()>;
 }
 
-struct Backend;
-impl TestOcall for Backend {
+struct TestHost;
+impl TestOcall for TestHost {
     fn echo(&mut self, input: Vec<u8>) -> Result<Vec<u8>> {
         Ok(input.to_vec())
     }
@@ -52,7 +52,7 @@ impl TestOcall for Backend {
     }
 }
 
-impl OcallEnv for Backend {
+impl OcallEnv for TestHost {
     fn put_return(&mut self, v: Vec<u8>) -> usize {
         let len = v.len();
         RETURN_VALUE.with(move |value| {
@@ -66,7 +66,7 @@ impl OcallEnv for Backend {
     }
 }
 
-impl VmMemory for Backend {
+impl VmMemory for TestHost {
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
         let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
         dst_buf.clone_from_slice(&data);
@@ -97,7 +97,7 @@ extern "C" fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call(&mut Backend, &Backend, func_id, p0, p1, p2, p3);
+    let result = dispatch_call(&mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
     println!("sidevm_ocall {} result={:?}", func_id, result);
     result.encode_ret()
 }
@@ -111,7 +111,7 @@ extern "C" fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call_fast_return(&mut Backend, &Backend, func_id, p0, p1, p2, p3);
+    let result = dispatch_call_fast_return(&mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
     println!("sidevm_ocall_fast_return {} result={:?}", func_id, result);
     result.encode_ret()
 }
@@ -170,9 +170,9 @@ fn test_nargs_decode() {
     let args: &[IntPtr] = &[1, 2, 3, 4, 5];
     let stack = StackedArgs::load(args).unwrap();
 
-    let (_, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
-    let (_, stack): (i64, _) = stack.pop_arg(&Backend).unwrap();
-    let (c, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
+    let (_, stack): (i32, _) = stack.pop_arg(&TestHost).unwrap();
+    let (_, stack): (i64, _) = stack.pop_arg(&TestHost).unwrap();
+    let (c, stack): (i32, _) = stack.pop_arg(&TestHost).unwrap();
     let _: StackedArgs<()> = stack;
     assert_eq!(c, 1);
 }
