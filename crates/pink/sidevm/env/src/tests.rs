@@ -134,9 +134,9 @@ fn test_fi_fo_overflow() {
 #[test]
 fn test_nargs_encode() {
     let stack = StackedArgs::empty();
-    let stack = stack.encode(1u8);
-    let stack = stack.encode(1u32);
-    let stack = stack.encode(1u64);
+    let stack = stack.push_arg(1u8);
+    let stack = stack.push_arg(1u32);
+    let stack = stack.push_arg(1u64);
 }
 
 #[test]
@@ -144,9 +144,9 @@ fn test_nargs_decode() {
     let mut args: &[IntPtr] = &[1, 2, 3, 4, 5];
     let stack = StackedArgs::load(args).unwrap();
 
-    let (a, stack): (i32, _) = stack.decode(&Backend).unwrap();
-    let (b, stack): (i64, _) = stack.decode(&Backend).unwrap();
-    let (c, stack): (i32, _) = stack.decode(&Backend).unwrap();
+    let (a, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
+    let (b, stack): (i64, _) = stack.pop_arg(&Backend).unwrap();
+    let (c, stack): (i32, _) = stack.pop_arg(&Backend).unwrap();
     let _: StackedArgs<()> = stack;
     assert_eq!(c, 1);
 }

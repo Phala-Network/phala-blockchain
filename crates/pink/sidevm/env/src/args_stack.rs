@@ -120,12 +120,12 @@ pub(crate) trait I32Convertible {
 pub(crate) trait ArgEncode<A> {
     type Encoded;
 
-    fn encode(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)>;
+    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)>;
 }
 
 pub(crate) trait ArgDecode<'a, A> {
     type Encoded;
-    fn decode(
+    fn decode_arg(
         stack: StackedArgs<(Self::Encoded, A)>,
         env: &'a impl OcallEnv,
     ) -> Result<(Self, StackedArgs<A>)>
@@ -146,7 +146,7 @@ pub(crate) trait RetDecode {
 impl<A> ArgEncode<A> for &[u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn encode(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
+    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let ptr = self.as_ptr() as IntPtr;
         let len = self.len() as IntPtr;
         stack.push((ptr, len))
@@ -156,7 +156,7 @@ impl<A> ArgEncode<A> for &[u8] {
 impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn decode(
+    fn decode_arg(
         stack: StackedArgs<(Self::Encoded, A)>,
         env: &'a impl OcallEnv,
     ) -> Result<(Self, StackedArgs<A>)>
@@ -171,7 +171,7 @@ impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
 impl<A> ArgEncode<A> for &mut [u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn encode(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
+    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let ptr = self.as_mut_ptr() as IntPtr;
         let len = self.len() as IntPtr;
         stack.push((ptr, len))
@@ -181,7 +181,7 @@ impl<A> ArgEncode<A> for &mut [u8] {
 impl<'a, A> ArgDecode<'a, A> for &'a mut [u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn decode(
+    fn decode_arg(
         stack: StackedArgs<(Self::Encoded, A)>,
         env: &'a impl OcallEnv,
     ) -> Result<(Self, StackedArgs<A>)>
@@ -194,17 +194,17 @@ impl<'a, A> ArgDecode<'a, A> for &'a mut [u8] {
 }
 
 impl<B> StackedArgs<B> {
-    pub(crate) fn encode<Arg: ArgEncode<B>>(self, v: Arg) -> StackedArgs<(Arg::Encoded, B)> {
-        v.encode(self)
+    pub(crate) fn push_arg<Arg: ArgEncode<B>>(self, v: Arg) -> StackedArgs<(Arg::Encoded, B)> {
+        v.encode_arg(self)
     }
 }
 
 impl<A, B> StackedArgs<(A, B)> {
-    pub(crate) fn decode<'a, Arg: ArgDecode<'a, B, Encoded = A>>(
+    pub(crate) fn pop_arg<'a, Arg: ArgDecode<'a, B, Encoded = A>>(
         self,
         env: &'a impl OcallEnv,
     ) -> Result<(Arg, StackedArgs<B>)> {
-        Arg::decode(self, env)
+        Arg::decode_arg(self, env)
     }
 }
 
@@ -232,7 +232,7 @@ macro_rules! impl_codec64 {
         impl<R> ArgEncode<R> for $typ {
             type Encoded = (IntPtr, IntPtr);
 
-            fn encode(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
+            fn encode_arg(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
                 let low = (self & 0xffffffff) as IntPtr;
                 let high = ((self >> 32) & 0xffffffff) as IntPtr;
                 stack.push((low, high))
@@ -242,7 +242,7 @@ macro_rules! impl_codec64 {
         impl<'a, R> ArgDecode<'a, R> for $typ {
             type Encoded = (IntPtr, IntPtr);
 
-            fn decode(
+            fn decode_arg(
                 stack: StackedArgs<(Self::Encoded, R)>,
                 _env: &'a impl OcallEnv,
             ) -> Result<(Self, StackedArgs<R>)>
@@ -264,7 +264,7 @@ impl_codec64!(u64);
 impl<R, I: I32Convertible> ArgEncode<R> for I {
     type Encoded = IntPtr;
 
-    fn encode(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
+    fn encode_arg(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
         stack.push(self.to_i32() as _)
     }
 }
@@ -272,7 +272,7 @@ impl<R, I: I32Convertible> ArgEncode<R> for I {
 impl<'a, R, I: I32Convertible> ArgDecode<'a, R> for I {
     type Encoded = IntPtr;
 
-    fn decode(
+    fn decode_arg(
         stack: StackedArgs<(Self::Encoded, R)>,
         _env: &'a impl OcallEnv,
     ) -> Result<(Self, StackedArgs<R>)>
