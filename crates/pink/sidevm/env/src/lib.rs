@@ -34,7 +34,7 @@ pub type IntRet = i64;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode)]
 pub enum LogLevel {
-    None = 0,
+    None,
     Error,
     Warn,
     Debug,
@@ -637,7 +637,7 @@ where
 {
     fn raw_waker() -> task::RawWaker {
         task::RawWaker::new(
-            &mut (),
+            &(),
             &task::RawWakerVTable::new(
                 |_| raw_waker(),
                 // We never really use the Context

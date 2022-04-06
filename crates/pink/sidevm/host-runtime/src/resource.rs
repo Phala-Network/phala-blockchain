@@ -32,13 +32,13 @@ impl Resource {
                 Poll::Ready(_) => Poll::Ready(0),
             }),
             _ => {
-                return Err(OcallError::UnsupportedOperation);
+                Err(OcallError::UnsupportedOperation)
             }
         }
     }
 
     pub(crate) fn poll_write(&mut self, _task_id: i32, _buf: &[u8]) -> Result<Poll<u32>> {
-        return Err(OcallError::UnsupportedOperation);
+        Err(OcallError::UnsupportedOperation)
     }
 }
 

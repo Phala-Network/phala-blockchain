@@ -98,12 +98,10 @@ impl OcallMethod {
         }
 
         match id {
-            None => {
-                return Err(syn::Error::new_spanned(
-                    &method.sig,
-                    "Missing ocall id attribute",
-                ))
-            }
+            None => Err(syn::Error::new_spanned(
+                &method.sig,
+                "Missing ocall id attribute",
+            )),
             Some(id) => Ok(OcallMethod {
                 id,
                 fast_return,
@@ -287,10 +285,8 @@ fn parse_args(method: &syn::TraitItemMethod) -> Result<Vec<TokenStream>> {
 }
 
 fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenStream> {
-    let impl_methods: Result<Vec<TokenStream>> = ocall_methods
-        .iter()
-        .map(|method| gen_ocall_impl_method(method))
-        .collect();
+    let impl_methods: Result<Vec<TokenStream>> =
+        ocall_methods.iter().map(gen_ocall_impl_method).collect();
 
     let name = format!("{}_guest", trait_name.to_string().to_snake_case());
     let impl_itent = Ident::new(&name, Span::call_site());
@@ -313,17 +309,12 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     ) {
         let mut inputs = sig.inputs.clone();
         sig.inputs.clear();
-        loop {
-            match inputs.pop() {
-                Some(arg) => {
-                    let arg = arg.into_value();
-                    if let syn::FnArg::Receiver(_) = arg {
-                        break;
-                    }
-                    sig.inputs.insert(0, arg)
-                }
-                None => break,
+        while let Some(arg) = inputs.pop() {
+            let arg = arg.into_value();
+            if let syn::FnArg::Receiver(_) = arg {
+                break;
             }
+            sig.inputs.insert(0, arg)
         }
     };
 
