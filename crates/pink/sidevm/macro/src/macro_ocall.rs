@@ -188,7 +188,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             fast_calls.push(parse_quote! {
                 #id => {
                     #parse_inputs
-                    #calling.map(I32Convertible::to_i32)
+                    #calling.map(|x| x.to_i32())
                 }
             });
         } else {

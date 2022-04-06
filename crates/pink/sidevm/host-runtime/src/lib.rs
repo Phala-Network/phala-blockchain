@@ -22,7 +22,7 @@ impl Drop for WasmRun {
 }
 
 impl WasmRun {
-    pub fn run(code: &[u8], max_pages: u32) -> Result<WasmRun> {
+    pub fn run(code: &[u8], max_pages: u32) -> Result<(WasmRun, env::Env)> {
         let compiler = Singlepass::default();
         let engine = Universal::new(compiler).engine();
         let base = BaseTunables {
@@ -40,10 +40,13 @@ impl WasmRun {
             .get_memory("memory")
             .context("No memory exported")?;
         env.set_memory(memory.clone());
-        Ok(WasmRun {
+        Ok((
+            WasmRun {
+                env: env.clone(),
+                wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
+            },
             env,
-            wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
-        })
+        ))
     }
 }
 

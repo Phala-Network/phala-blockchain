@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use tokio::sync::mpsc::{error::SendError, Sender};
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use env::{IntPtr, IntRet, LogLevel, OcallError, Poll, Result, RetEncode};
@@ -42,6 +43,7 @@ struct State {
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     log_level: LogLevel,
     ocall_trace_enabled: bool,
+    message_tx: Sender<Vec<u8>>,
 }
 
 struct VmMemory(Option<Memory>);
@@ -58,14 +60,18 @@ pub struct Env {
 
 impl Env {
     fn new() -> Self {
+        let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
+        let mut resources = ResourceKeeper::default();
+        resources.push(Resource::ChannelRx(message_rx));
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
                 state: State {
-                    resources: ResourceKeeper::default(),
+                    resources,
                     temp_return_value: Default::default(),
                     log_level: LogLevel::None,
                     ocall_trace_enabled: false,
+                    message_tx,
                 },
             })),
         }
@@ -78,6 +84,15 @@ impl Env {
     pub fn cleanup(&self) {
         // Cut up the reference cycle to avoid leaks.
         self.inner.lock().unwrap().memory.0 = None;
+    }
+
+    pub fn push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+        self.inner
+            .lock()
+            .unwrap()
+            .state
+            .message_tx
+            .blocking_send(message)
     }
 }
 
@@ -136,7 +151,7 @@ impl env::OcallFuncs for State {
         }
     }
 
-    fn poll(&mut self, resource_id: i32) -> Result<Poll<Vec<u8>>> {
+    fn poll(&mut self, resource_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
         let res = self
             .resources
             .get_mut(resource_id)

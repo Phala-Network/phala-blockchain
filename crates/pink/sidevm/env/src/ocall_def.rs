@@ -10,13 +10,31 @@ pub enum Poll<T> {
     Ready(T),
 }
 
+impl<T> From<std::task::Poll<T>> for Poll<T> {
+    fn from(poll: std::task::Poll<T>) -> Self {
+        match poll {
+            std::task::Poll::Ready(t) => Poll::Ready(t),
+            std::task::Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl<T> From<Poll<T>> for std::task::Poll<T> {
+    fn from(poll: Poll<T>) -> Self {
+        match poll {
+            Poll::Pending => std::task::Poll::Pending,
+            Poll::Ready(t) => std::task::Poll::Ready(t),
+        }
+    }
+}
+
 // Poll state for poll_read/poll_write.
 impl I32Convertible for Poll<u32> {
-    fn to_i32(self) -> i32 {
+    fn to_i32(&self) -> i32 {
         match self {
             // In theory, the n could be u32::MAX which is the same binary representation as -1.
             // But in practice, no buffer in wasm32 can have a size of u32::MAX or greater.
-            Self::Ready(n) => n as i32,
+            Self::Ready(n) => *n as i32,
             Self::Pending => -1,
         }
     }
@@ -38,7 +56,7 @@ pub trait OcallFuncs {
 
     /// Poll given resource by id and return a dynamic sized data.
     #[ocall(id = 102, fast_input)]
-    fn poll(resource_id: i32) -> Result<Poll<Vec<u8>>>;
+    fn poll(resource_id: i32) -> Result<Poll<Option<Vec<u8>>>>;
 
     /// Poll given resource to read data. Low level support for AsyncRead.
     #[ocall(id = 103, fast_input, fast_return)]

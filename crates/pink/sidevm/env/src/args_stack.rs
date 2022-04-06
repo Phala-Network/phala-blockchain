@@ -113,7 +113,7 @@ pub(crate) fn check_args_length<T: Nargs + NotTooManyArgs>(v: StackedArgs<T>) ->
 }
 
 pub(crate) trait I32Convertible {
-    fn to_i32(self) -> i32;
+    fn to_i32(&self) -> i32;
     fn from_i32(i: i32) -> Self;
 }
 
@@ -213,8 +213,8 @@ impl<A, B> StackedArgs<(A, B)> {
 macro_rules! impl_codec {
     ($typ: ty) => {
         impl I32Convertible for $typ {
-            fn to_i32(self) -> i32 {
-                self as i32
+            fn to_i32(&self) -> i32 {
+                *self as i32
             }
             fn from_i32(i: i32) -> Self {
                 i as Self
@@ -287,8 +287,8 @@ impl<'a, R, I: I32Convertible> ArgDecode<'a, R> for I {
 }
 
 impl I32Convertible for bool {
-    fn to_i32(self) -> i32 {
-        self as i32
+    fn to_i32(&self) -> i32 {
+        *self as i32
     }
     fn from_i32(i: i32) -> Self {
         i != 0
@@ -296,8 +296,8 @@ impl I32Convertible for bool {
 }
 
 impl I32Convertible for OcallError {
-    fn to_i32(self) -> i32 {
-        self as u8 as i32
+    fn to_i32(&self) -> i32 {
+        *self as u8 as i32
     }
     fn from_i32(i: i32) -> Self {
         OcallError::try_from(i as u8).expect("Should never fail")
@@ -305,7 +305,7 @@ impl I32Convertible for OcallError {
 }
 
 impl I32Convertible for () {
-    fn to_i32(self) -> i32 {
+    fn to_i32(&self) -> i32 {
         0
     }
     fn from_i32(_i: i32) -> Self {

@@ -1,30 +1,39 @@
 use pink_sidevm_env::{OcallError, Poll, Result};
-use std::pin::Pin;
-use tokio::time::Sleep;
+use std::{pin::Pin, task::Poll::*};
+use tokio::{sync::mpsc::Receiver, time::Sleep};
+use Resource::*;
 
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
+    ChannelRx(Receiver<Vec<u8>>),
 }
 
 impl Resource {
-    pub(crate) fn poll(&mut self, task_id: i32) -> Result<Poll<Vec<u8>>> {
+    pub(crate) fn poll(&mut self, task_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
         use crate::async_context::poll_in_task_cx;
-        use std::task;
 
         match self {
-            Resource::Sleep(handle) => match poll_in_task_cx(handle.as_mut(), task_id) {
-                task::Poll::Ready(_) => Ok(Poll::Ready(Vec::new())),
-                task::Poll::Pending => Ok(Poll::Pending),
+            Sleep(handle) => match poll_in_task_cx(handle.as_mut(), task_id) {
+                Ready(_) => Ok(Poll::Ready(None)),
+                Pending => Ok(Poll::Pending),
             },
+            ChannelRx(rx) => {
+                let fut = rx.recv();
+                futures::pin_mut!(fut);
+                Ok(poll_in_task_cx(fut, task_id).into())
+            }
         }
     }
 
     pub(crate) fn poll_read(&mut self, task_id: i32, _buf: &mut [u8]) -> Result<Poll<u32>> {
         match self {
-            Resource::Sleep(_) => self.poll(task_id).map(|state| match state {
+            Sleep(_) => self.poll(task_id).map(|state| match state {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(_) => Poll::Ready(0),
             }),
+            _ => {
+                return Err(OcallError::UnsupportedOperation);
+            }
         }
     }
 
