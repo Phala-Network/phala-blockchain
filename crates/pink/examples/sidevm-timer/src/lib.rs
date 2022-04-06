@@ -1,4 +1,4 @@
-use pink_sidevm_env::{self as env, ocall_funcs_guest as ocall};
+use pink_sidevm_env::{self as env, main, ocall_funcs_guest as ocall};
 
 /// Resource ID. Think of it as a FD.
 pub struct ResourceId(pub i32);
@@ -95,15 +95,17 @@ fn message_rx() -> &'static channel::ChannelRx {
     &MSG_RX
 }
 
-#[pink_sidevm_env::main]
+#[main]
 async fn main() {
     use pink_sidevm_env::ocall_funcs_guest as ocall;
     use std::time::Duration;
 
     ocall::enable_ocall_trace(true).unwrap();
     let msg_rx = message_rx();
-    let _ = msg_rx.next().await;
-    let message = msg_rx.next().await;
-    assert_eq!(message, Some(b"foo".to_vec()));
-    sleep::sleep(Duration::from_secs(3)).await
+    tokio::select! {
+        msg = msg_rx.next() => {
+            assert_eq!(msg, Some(b"foo".to_vec()));
+        }
+        _ = sleep::sleep(Duration::from_secs(3)) => (),
+    }
 }

@@ -12,3 +12,4 @@ crate-type = ["cdylib"]
 [dependencies]
 once_cell = "1.10.0"
 pink-sidevm-env = {path = "../../sidevm/env"}
+tokio = {version = "1", features = ["macros"]}
