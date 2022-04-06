@@ -6,7 +6,7 @@ use std::{
 
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, IntRet, LogLevel, OcallError, PollState, Result, RetEncode};
+use env::{IntPtr, IntRet, LogLevel, OcallError, Poll, PollState, Result, RetEncode};
 use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
@@ -138,6 +138,14 @@ impl env::OcallFuncs for State {
             None => Err(OcallError::ResourceNotFound),
             Some(_res) => Ok(()),
         }
+    }
+
+    fn poll(&mut self, resource_id: i32) -> Result<Poll<Vec<u8>>> {
+        let res = self
+            .resources
+            .get_mut(resource_id)
+            .ok_or(OcallError::ResourceNotFound)?;
+        res.poll(env::current_task())
     }
 
     fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<PollState> {

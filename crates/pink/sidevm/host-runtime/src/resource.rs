@@ -1,4 +1,4 @@
-use pink_sidevm_env::{OcallError, PollState, Result};
+use pink_sidevm_env::{OcallError, Poll, PollState, Result};
 use std::pin::Pin;
 use tokio::time::Sleep;
 
@@ -7,6 +7,13 @@ pub enum Resource {
 }
 
 impl Resource {
+    pub(crate) fn poll(&mut self, task_id: i32) -> Result<Poll<Vec<u8>>> {
+        self.poll_read(task_id, &mut []).map(|state| match state {
+            PollState::Pending => Poll::Pending,
+            PollState::Ready => Poll::Ready(Vec::new()),
+        })
+    }
+
     pub(crate) fn poll_read(&mut self, task_id: i32, _buf: &mut [u8]) -> Result<PollState> {
         use crate::async_context::poll_in_task_cx;
         use std::task::Poll;

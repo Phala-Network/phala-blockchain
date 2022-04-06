@@ -1,7 +1,13 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Encode, Decode)]
+pub enum Poll<T> {
+    Pending,
+    Ready(T),
+}
+
+#[derive(Clone, Copy)]
 pub enum PollState {
     Pending,
     Ready,
@@ -32,19 +38,22 @@ pub trait OcallFuncs {
     #[ocall(id = 101, fast_input, fast_return)]
     fn close(resource_id: i32) -> Result<()>;
 
-    #[ocall(id = 102, fast_input, fast_return)]
-    fn poll_read(resource_id: i32, data: &mut [u8]) -> Result<PollState>;
+    #[ocall(id = 102, fast_input)]
+    fn poll(resource_id: i32) -> Result<Poll<Vec<u8>>>;
 
     #[ocall(id = 103, fast_input, fast_return)]
-    fn poll_write(resource_id: i32, data: &[u8]) -> Result<PollState>;
+    fn poll_read(resource_id: i32, data: &mut [u8]) -> Result<PollState>;
 
     #[ocall(id = 104, fast_input, fast_return)]
+    fn poll_write(resource_id: i32, data: &[u8]) -> Result<PollState>;
+
+    #[ocall(id = 110, fast_input, fast_return)]
     fn next_ready_task() -> Result<i32>;
 
-    #[ocall(id = 105, fast_return)]
+    #[ocall(id = 111, fast_return)]
     fn enable_ocall_trace(enable: bool) -> Result<()>;
 
-    #[ocall(id = 106, fast_return)]
+    #[ocall(id = 112, fast_return)]
     fn set_log_level(log_level: LogLevel) -> Result<()>;
 
     #[ocall(id = 201, fast_input, fast_return)]
