@@ -41,7 +41,7 @@ pub enum OcallError {
     NoMemory = 5,
     NoReturnValue = 6,
     ResourceNotFound = 7,
-    Pending = 8,
+    UnsupportedOperation = 8,
     Reserved9 = 9,
     Reserved10 = 10,
     Reserved11 = 11,

@@ -1,3 +1,4 @@
+use pink_sidevm_env::{OcallError, PollState, Result};
 use std::pin::Pin;
 use tokio::time::Sleep;
 
@@ -6,17 +7,21 @@ pub enum Resource {
 }
 
 impl Resource {
-    pub(crate) fn poll(&mut self, task_id: i32) -> bool {
+    pub(crate) fn poll_read(&mut self, task_id: i32, _buf: &mut [u8]) -> Result<PollState> {
         use crate::async_context::poll_in_task_cx;
         use std::task::Poll;
         use Resource::*;
 
         match self {
             Sleep(handle) => match poll_in_task_cx(handle.as_mut(), task_id) {
-                Poll::Ready(_) => true,
-                Poll::Pending => false,
+                Poll::Ready(_) => Ok(PollState::Ready),
+                Poll::Pending => Ok(PollState::Pending),
             },
         }
+    }
+
+    pub(crate) fn poll_write(&mut self, task_id: i32, _buf: &[u8]) -> Result<PollState> {
+        return Err(OcallError::UnsupportedOperation);
     }
 }
 

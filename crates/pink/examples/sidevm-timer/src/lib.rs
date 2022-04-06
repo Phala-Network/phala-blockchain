@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::task::{self, Context, Poll, Waker};
 use std::time::Duration;
 
-use pink_sidevm_env::{ocall_funcs_guest as ocall, OcallError as Errno};
+use pink_sidevm_env::{ocall_funcs_guest as ocall, PollState};
 
 use once_cell::sync::Lazy;
 
@@ -30,10 +30,10 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let rv = ocall::poll(self.id.0);
+        let rv = ocall::poll_read(self.id.0, &mut []).expect("Poll timer failed");
         match rv {
-            Err(Errno::Pending) => Poll::Pending,
-            _ => Poll::Ready(()),
+            PollState::Ready => Poll::Ready(()),
+            PollState::Pending => Poll::Pending,
         }
     }
 }

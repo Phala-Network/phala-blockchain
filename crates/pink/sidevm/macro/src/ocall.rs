@@ -191,15 +191,15 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
                     #calling.map(I32Convertible::to_i32)
                 }
             });
-        };
-
-        slow_calls.push(parse_quote! {
-            #id => {
-                #parse_inputs
-                let ret = #calling;
-                env.put_return(ret?.encode()) as _
-            }
-        });
+        } else {
+            slow_calls.push(parse_quote! {
+                #id => {
+                    #parse_inputs
+                    let ret = #calling;
+                    env.put_return(ret?.encode()) as _
+                }
+            });
+        }
     }
 
     let call_get_return: TokenStream = parse_quote! {
@@ -241,10 +241,6 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             p3: IntPtr
         ) -> Result<i32> {
             Ok(match id {
-                0 => {
-                    let ret = #call_get_return;
-                    env.put_return(ret?.encode()) as _
-                }
                 #(#slow_calls)*
                 _ => return Err(OcallError::UnknownCallNumber),
             })
