@@ -1184,6 +1184,9 @@ pub fn apply_pink_side_effects(
             PinkEvent::OnBlockEndSelector(selector) => {
                 contract.set_on_block_end_selector(selector);
             }
+            PinkEvent::StartSideVM(_) => {
+                todo!("TODO.kevin.must: implement it")
+            }
         }
     }
 }
