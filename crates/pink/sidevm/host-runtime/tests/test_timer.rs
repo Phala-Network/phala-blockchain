@@ -10,7 +10,7 @@ async fn test_timer() -> Result<()> {
         loop {
             std::thread::sleep(Duration::from_secs(2));
             println!("push message...");
-            env.push_message(b"foo".to_vec())
+            env.blocking_push_message(b"foo".to_vec())
                 .expect("push message failed");
         }
     });

@@ -86,7 +86,14 @@ impl Env {
         self.inner.lock().unwrap().memory.0 = None;
     }
 
-    pub fn push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+    /// Push a pink message into the SideVM instance.
+    pub async fn push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+        let tx = self.inner.lock().unwrap().state.message_tx.clone();
+        tx.send(message).await
+    }
+
+    /// The blocking version of `push_message`.
+    pub fn blocking_push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
         self.inner
             .lock()
             .unwrap()
