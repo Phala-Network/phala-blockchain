@@ -129,10 +129,6 @@ impl env::VmMemory for VmMemory {
 }
 
 impl env::OcallFuncs for State {
-    fn echo(&mut self, input: Vec<u8>) -> Result<Vec<u8>> {
-        Ok(input)
-    }
-
     fn close(&mut self, resource_id: i32) -> Result<()> {
         match self.resources.take(resource_id) {
             None => Err(OcallError::ResourceNotFound),

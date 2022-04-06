@@ -8,26 +8,22 @@ pub enum Resource {
 
 impl Resource {
     pub(crate) fn poll(&mut self, task_id: i32) -> Result<Poll<Vec<u8>>> {
-        self.poll_read(task_id, &mut []).map(|state| match state {
-            PollState::Pending => Poll::Pending,
-            PollState::Ready => Poll::Ready(Vec::new()),
-        })
-    }
-
-    pub(crate) fn poll_read(&mut self, task_id: i32, _buf: &mut [u8]) -> Result<PollState> {
         use crate::async_context::poll_in_task_cx;
-        use std::task::Poll;
-        use Resource::*;
+        use std::task;
 
         match self {
-            Sleep(handle) => match poll_in_task_cx(handle.as_mut(), task_id) {
-                Poll::Ready(_) => Ok(PollState::Ready),
-                Poll::Pending => Ok(PollState::Pending),
+            Resource::Sleep(handle) => match poll_in_task_cx(handle.as_mut(), task_id) {
+                task::Poll::Ready(_) => Ok(Poll::Ready(Vec::new())),
+                task::Poll::Pending => Ok(Poll::Pending),
             },
         }
     }
 
-    pub(crate) fn poll_write(&mut self, task_id: i32, _buf: &[u8]) -> Result<PollState> {
+    pub(crate) fn poll_read(&mut self, _task_id: i32, _buf: &mut [u8]) -> Result<PollState> {
+        return Err(OcallError::UnsupportedOperation);
+    }
+
+    pub(crate) fn poll_write(&mut self, _task_id: i32, _buf: &[u8]) -> Result<PollState> {
         return Err(OcallError::UnsupportedOperation);
     }
 }

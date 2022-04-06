@@ -42,6 +42,5 @@ async fn main() {
     use std::time::Duration;
 
     ocall::enable_ocall_trace(true).unwrap();
-    assert_eq!(ocall::echo(vec![4, 2]).unwrap(), vec![4, 2]);
     sleep::sleep(Duration::from_secs(3)).await
 }
