@@ -133,7 +133,9 @@ pub(crate) trait ArgDecode<'a, A> {
         Self: Sized;
 }
 
+/// Trait for types that can be encoded to a return value of a ocall.
 pub trait RetEncode {
+    /// Encode the ocall return value into a IntRet
     fn encode_ret(self) -> IntRet;
 }
 
