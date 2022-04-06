@@ -1,4 +1,9 @@
-use core::ops::{Deref, DerefMut};
+use core::{
+    future::Future,
+    ops::{Deref, DerefMut},
+    pin::Pin,
+    task,
+};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use scale::{Decode, Encode};
@@ -6,7 +11,9 @@ use tinyvec::TinyVec;
 
 pub use args_stack::RetEncode;
 pub use ocall_def::*;
+pub use pink_sidevm_macro::main;
 
+pub mod reexports;
 mod args_stack;
 mod ocall_def;
 
@@ -372,6 +379,27 @@ pub fn current_task() -> i32 {
 pub fn set_current_task(task_id: i32) {
     CURRENT_TASK.with(|id| id.set(task_id))
 }
+
+pub fn poll_with_dummy_context<F>(f: Pin<&mut F>) -> task::Poll<F::Output>
+where
+    F: Future + ?Sized,
+{
+    fn raw_waker() -> task::RawWaker {
+        task::RawWaker::new(
+            &mut (),
+            &task::RawWakerVTable::new(
+                |_| raw_waker(),
+                // We never really use the Context
+                |_| panic!("Dummy waker should never be called"),
+                |_| panic!("Dummy waker should never be called"),
+                |_| (),
+            ),
+        )
+    }
+    let waker = unsafe { task::Waker::from_raw(raw_waker()) };
+    let mut context = task::Context::from_waker(&waker);
+    f.poll(&mut context)
+}
+
 #[cfg(test)]
 mod tests;
-

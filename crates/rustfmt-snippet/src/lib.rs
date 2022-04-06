@@ -17,7 +17,7 @@ pub fn rustfmt(source: &str) -> std::io::Result<String> {
         process::{Command, Stdio},
     };
     let proc = Command::new("rustfmt")
-        .args(["/dev/fd/0", "--emit", "stdout"])
+        .args(["/dev/fd/0", "--emit", "stdout", "--edition", "2018"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;

@@ -1,0 +1,20 @@
+---
+source: crates/pink/sidevm/macro/src/tests.rs
+assertion_line: 28
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+#[no_mangle]
+extern "C" fn sidevm_poll() -> i32 {
+    use pink_sidevm_env::{poll_with_dummy_context, reexports::once_cell::sync::Lazy};
+    use std::{future::Future, pin::Pin, sync::Mutex, task::Poll};
+    async fn the_main() {
+        sleep(1).await
+    }
+    static MAIN_FUTURE: Lazy<Mutex<Pin<Box<dyn Future<Output = ()> + Sync + Send>>>> =
+        Lazy::new(|| Mutex::new(Box::pin(the_main())));
+    match poll_with_dummy_context(MAIN_FUTURE.lock().unwrap().as_mut()) {
+        Poll::Ready(()) => 1,
+        Poll::Pending => 0,
+    }
+}
+
