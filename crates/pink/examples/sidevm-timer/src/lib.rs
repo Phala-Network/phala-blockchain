@@ -27,7 +27,7 @@ mod sleep {
         type Output = ();
 
         fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-            let rv = ocall::poll(self.id.0).expect("Poll timer failed");
+            let rv = ocall::poll_read(self.id.0, &mut []).expect("Poll timer failed");
             match rv {
                 env::Poll::Ready(_) => Poll::Ready(()),
                 env::Poll::Pending => Poll::Pending,

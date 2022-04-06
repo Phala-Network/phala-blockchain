@@ -1,4 +1,4 @@
-use pink_sidevm_env::{OcallError, Poll, PollState, Result};
+use pink_sidevm_env::{OcallError, Poll, Result};
 use std::pin::Pin;
 use tokio::time::Sleep;
 
@@ -19,11 +19,16 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_read(&mut self, _task_id: i32, _buf: &mut [u8]) -> Result<PollState> {
-        return Err(OcallError::UnsupportedOperation);
+    pub(crate) fn poll_read(&mut self, task_id: i32, _buf: &mut [u8]) -> Result<Poll<u32>> {
+        match self {
+            Resource::Sleep(_) => self.poll(task_id).map(|state| match state {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(_) => Poll::Ready(0),
+            }),
+        }
     }
 
-    pub(crate) fn poll_write(&mut self, _task_id: i32, _buf: &[u8]) -> Result<PollState> {
+    pub(crate) fn poll_write(&mut self, _task_id: i32, _buf: &[u8]) -> Result<Poll<u32>> {
         return Err(OcallError::UnsupportedOperation);
     }
 }

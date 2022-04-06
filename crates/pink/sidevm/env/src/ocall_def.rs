@@ -10,27 +10,21 @@ pub enum Poll<T> {
     Ready(T),
 }
 
-/// Poll state for poll_read/poll_write.
-#[derive(Clone, Copy)]
-pub enum PollState {
-    /// Represents that a value is not ready yet.
-    Pending,
-    /// Represents that a value is immediately ready.
-    Ready(i32),
-}
-
-impl I32Convertible for PollState {
+// Poll state for poll_read/poll_write.
+impl I32Convertible for Poll<u32> {
     fn to_i32(self) -> i32 {
         match self {
-            PollState::Ready(n) => n,
-            PollState::Pending => 0,
+            // In theory, the n could be u32::MAX which is the same binary representation as -1.
+            // But in practice, no buffer in wasm32 can have a size of u32::MAX or greater.
+            Self::Ready(n) => n as i32,
+            Self::Pending => -1,
         }
     }
 
     fn from_i32(i: i32) -> Self {
         match i {
-            0 => PollState::Pending,
-            n => PollState::Ready(n),
+            -1 => Self::Pending,
+            n => Self::Ready(n as u32),
         }
     }
 }
@@ -46,13 +40,13 @@ pub trait OcallFuncs {
     #[ocall(id = 102, fast_input)]
     fn poll(resource_id: i32) -> Result<Poll<Vec<u8>>>;
 
-    /// Poll given resource by id and return limited size of data.
+    /// Poll given resource to read data. Low level support for AsyncRead.
     #[ocall(id = 103, fast_input, fast_return)]
-    fn poll_read(resource_id: i32, data: &mut [u8]) -> Result<PollState>;
+    fn poll_read(resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>>;
 
-    /// Poll given resource to write data.
+    /// Poll given resource to write data. Low level support for AsyncWrite.
     #[ocall(id = 104, fast_input, fast_return)]
-    fn poll_write(resource_id: i32, data: &[u8]) -> Result<PollState>;
+    fn poll_write(resource_id: i32, data: &[u8]) -> Result<Poll<u32>>;
 
     /// Get the next waken up task id.
     #[ocall(id = 110, fast_input, fast_return)]

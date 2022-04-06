@@ -6,7 +6,7 @@ use std::{
 
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, IntRet, LogLevel, OcallError, Poll, PollState, Result, RetEncode};
+use env::{IntPtr, IntRet, LogLevel, OcallError, Poll, Result, RetEncode};
 use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
@@ -144,7 +144,7 @@ impl env::OcallFuncs for State {
         res.poll(env::current_task())
     }
 
-    fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<PollState> {
+    fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>> {
         let res = self
             .resources
             .get_mut(resource_id)
@@ -152,7 +152,7 @@ impl env::OcallFuncs for State {
         res.poll_read(env::current_task(), data)
     }
 
-    fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<PollState> {
+    fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<Poll<u32>> {
         let res = self
             .resources
             .get_mut(resource_id)
