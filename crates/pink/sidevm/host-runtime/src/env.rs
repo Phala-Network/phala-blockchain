@@ -229,6 +229,13 @@ impl env::OcallFuncs for State {
         });
         result.map(|res_id| Poll::Ready(res_id))
     }
+
+    fn log(&mut self, message: Cow<str>) -> Result<()> {
+        // TODO.kevin.must: use log crate
+        let vm_id = "vm_id";
+        println!("[{:>8}]{}", vm_id, &*message);
+        Ok(())
+    }
 }
 
 fn sidevm_ocall_fast_return(
@@ -246,6 +253,7 @@ fn sidevm_ocall_fast_return(
     let result =
         env::dispatch_call_fast_return(&mut env.state, &env.memory, func_id, p0, p1, p2, p3);
     if env.state.ocall_trace_enabled {
+        // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
         eprintln!("[{task_id:>3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
     }
@@ -267,6 +275,7 @@ fn sidevm_ocall(
     let env = &mut *env;
     let result = env::dispatch_call(&mut env.state, &env.memory, func_id, p0, p1, p2, p3);
     if env.state.ocall_trace_enabled {
+        // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
         eprintln!("[{task_id:>3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
     }
