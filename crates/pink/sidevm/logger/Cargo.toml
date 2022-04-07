@@ -1,0 +1,8 @@
+[package]
+edition = "2021"
+name = "pink-sidevm-logger"
+version = "0.1.0"
+
+[dependencies]
+log = "0.4.16"
+pink-sidevm-env = {version = "0.1.0", path = "../env"}
