@@ -12,6 +12,5 @@ crate-type = ["cdylib"]
 [dependencies]
 log = "0.4.16"
 once_cell = "1.10.0"
-pink-sidevm-env = {path = "../../sidevm/env"}
-pink-sidevm-logger = {path = "../../sidevm/logger"}
+pink-sidevm = {path = "../../sidevm/sidevm"}
 tokio = {version = "1", features = ["macros"]}
