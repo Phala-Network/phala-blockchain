@@ -61,8 +61,7 @@ impl ResourceKeeper {
     pub fn get_mut(&mut self, id: i32) -> Result<&mut Resource> {
         self.resources
             .get_mut(id as usize)
-            .map(Option::as_mut)
-            .flatten()
+            .and_then(Option::as_mut)
             .ok_or(OcallError::ResourceNotFound)
     }
 

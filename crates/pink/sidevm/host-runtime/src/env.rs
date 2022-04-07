@@ -223,11 +223,12 @@ impl env::OcallFuncs for State {
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
         };
-        let result = self.resources.push(Resource::TcpStream {
-            stream,
-            remote_addr,
-        });
-        result.map(|res_id| Poll::Ready(res_id))
+        self.resources
+            .push(Resource::TcpStream {
+                stream,
+                remote_addr,
+            })
+            .map(Poll::Ready)
     }
 
     fn log(&mut self, message: Cow<str>) -> Result<()> {
