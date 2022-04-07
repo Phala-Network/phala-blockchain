@@ -354,7 +354,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     };
 
     let body_bottom: TokenStream = if method.fast_return {
-        parse_quote!(<Result<i32> as RetDecode>::decode_ret(ret).map(I32Convertible::from_i32))
+        parse_quote!(<Result<i32> as RetDecode>::decode_ret(ret).and_then(I32Convertible::from_i32))
     } else {
         parse_quote! {
             let len = <Result<i32> as RetDecode>::decode_ret(ret)?;

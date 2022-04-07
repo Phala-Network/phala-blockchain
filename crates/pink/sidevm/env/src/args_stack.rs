@@ -114,7 +114,9 @@ pub(crate) fn check_args_length<T: Nargs + NotTooManyArgs>(v: StackedArgs<T>) ->
 
 pub(crate) trait I32Convertible {
     fn to_i32(&self) -> i32;
-    fn from_i32(i: i32) -> Self;
+    fn from_i32(i: i32) -> Result<Self>
+    where
+        Self: Sized;
 }
 
 pub(crate) trait ArgEncode<A> {
@@ -210,24 +212,58 @@ impl<A, B> StackedArgs<(A, B)> {
     }
 }
 
+macro_rules! impl_codec_i {
+    ($typ: ty) => {
+        impl I32Convertible for $typ {
+            fn to_i32(&self) -> i32 {
+                *self as i32
+            }
+            fn from_i32(i: i32) -> Result<Self> {
+                if i > <$typ>::MAX as i32 || i < (-<$typ>::MAX - 1) as i32 {
+                    Err(OcallError::InvalidEncoding)
+                } else {
+                    Ok(i as Self)
+                }
+            }
+        }
+    };
+}
+impl_codec_i!(i8);
+impl_codec_i!(i16);
+
+macro_rules! impl_codec_u {
+    ($typ: ty) => {
+        impl I32Convertible for $typ {
+            fn to_i32(&self) -> i32 {
+                *self as i32
+            }
+            fn from_i32(i: i32) -> Result<Self> {
+                if i as u32 > <$typ>::MAX as u32 {
+                    Err(OcallError::InvalidEncoding)
+                } else {
+                    Ok(i as Self)
+                }
+            }
+        }
+    };
+}
+impl_codec_u!(u8);
+impl_codec_u!(u16);
+
 macro_rules! impl_codec {
     ($typ: ty) => {
         impl I32Convertible for $typ {
             fn to_i32(&self) -> i32 {
                 *self as i32
             }
-            fn from_i32(i: i32) -> Self {
-                i as Self
+            fn from_i32(i: i32) -> Result<Self> {
+                Ok(i as Self)
             }
         }
     };
-    ($typ: ty, $($other: ty),*) => {
-        impl_codec!($typ);
-        impl_codec!($($other),*);
-    }
 }
-
-impl_codec!(i8, u8, i16, u16, i32, u32);
+impl_codec!(i32);
+impl_codec!(u32);
 
 macro_rules! impl_codec64 {
     ($typ: ty) => {
@@ -282,7 +318,7 @@ impl<'a, R, I: I32Convertible> ArgDecode<'a, R> for I {
         Self: Sized,
     {
         let (v, stack) = stack.pop();
-        Ok((I::from_i32(v as _), stack))
+        Ok((I::from_i32(v as _)?, stack))
     }
 }
 
@@ -290,8 +326,12 @@ impl I32Convertible for bool {
     fn to_i32(&self) -> i32 {
         *self as i32
     }
-    fn from_i32(i: i32) -> Self {
-        i != 0
+    fn from_i32(i: i32) -> Result<Self> {
+        match i {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(OcallError::InvalidEncoding),
+        }
     }
 }
 
@@ -299,8 +339,9 @@ impl I32Convertible for OcallError {
     fn to_i32(&self) -> i32 {
         *self as u8 as i32
     }
-    fn from_i32(i: i32) -> Self {
-        OcallError::try_from(i as u8).expect("Should never fail")
+    fn from_i32(i: i32) -> Result<Self> {
+        let code = u8::from_i32(i)?;
+        OcallError::try_from(code).or(Err(OcallError::InvalidEncoding))
     }
 }
 
@@ -308,7 +349,13 @@ impl I32Convertible for () {
     fn to_i32(&self) -> i32 {
         0
     }
-    fn from_i32(_i: i32) {}
+    fn from_i32(i: i32) -> Result<()> {
+        if i == 0 {
+            Ok(())
+        } else {
+            Err(OcallError::InvalidEncoding)
+        }
+    }
 }
 
 impl<A, B> RetEncode for Result<A, B>
@@ -334,9 +381,9 @@ where
         let tp = ((encoded >> 32) & 0xffffffff) as i32;
         let val = (encoded & 0xffffffff) as i32;
         if tp == 0 {
-            Ok(A::from_i32(val))
+            Ok(A::from_i32(val).expect("Invalid ocall return"))
         } else {
-            Err(B::from_i32(val))
+            Err(B::from_i32(val).expect("Invalid ocall return"))
         }
     }
 }

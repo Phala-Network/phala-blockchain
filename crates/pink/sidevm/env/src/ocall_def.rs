@@ -39,11 +39,11 @@ impl I32Convertible for Poll<u32> {
         }
     }
 
-    fn from_i32(i: i32) -> Self {
-        match i {
+    fn from_i32(i: i32) -> Result<Self> {
+        Ok(match i {
             -1 => Self::Pending,
             n => Self::Ready(n as u32),
-        }
+        })
     }
 }
 
