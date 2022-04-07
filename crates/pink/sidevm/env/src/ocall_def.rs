@@ -1,5 +1,6 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
+use std::borrow::Cow;
 
 /// Poll state for a dynamic returned buffer (for the ocall `fn poll`).
 #[derive(Encode, Decode)]
@@ -8,6 +9,19 @@ pub enum Poll<T> {
     Pending,
     /// Represents that a value is immediately ready.
     Ready(T),
+}
+
+impl<T> Poll<T> {
+    /// Maps a `Poll<T>` to `Poll<U>` by applying a function to a contained value.
+    pub fn map<U, F>(self, f: F) -> Poll<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Poll::Ready(t) => Poll::Ready(f(t)),
+            Poll::Pending => Poll::Pending,
+        }
+    }
 }
 
 impl<T> From<std::task::Poll<T>> for Poll<T> {
@@ -81,4 +95,17 @@ pub trait OcallFuncs {
     /// Create a timer given a duration of time in milliseconds.
     #[ocall(id = 201, fast_input, fast_return)]
     fn create_timer(timeout: i32) -> Result<i32>;
+
+    /// Create a TCP socket, bind to given address and listen to incoming connections.
+    ///
+    /// The backlog argument defines the maximum length to which the queue of pending connections
+    /// for sockfd may grow.
+    ///
+    /// Invoke tcp_accept on the returned resource_id to accept incoming connections.
+    #[ocall(id = 210, fast_return)]
+    fn tcp_listen(addr: Cow<str>, backlog: i32) -> Result<i32>;
+
+    /// Accept incoming TCP connections.
+    #[ocall(id = 211, fast_input)]
+    fn tcp_accept(resource_id: i32) -> Result<Poll<i32>>;
 }

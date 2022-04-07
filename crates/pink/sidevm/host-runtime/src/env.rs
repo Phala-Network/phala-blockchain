@@ -1,17 +1,25 @@
 use std::{
+    borrow::Cow,
     cell::Cell,
     sync::{Arc, Mutex},
+    task::Poll::{Pending, Ready},
     time::Duration,
 };
 
-use tokio::sync::mpsc::{error::SendError, Sender};
+use tokio::{
+    net::TcpListener,
+    sync::mpsc::{error::SendError, Sender},
+};
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, IntRet, LogLevel, OcallError, Poll, Result, RetEncode};
+use env::{current_task, IntPtr, IntRet, LogLevel, OcallError, Poll, Result, RetEncode};
 use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
-use crate::resource::{Resource, ResourceKeeper};
+use crate::{
+    async_context::poll_in_task_cx,
+    resource::{Resource, ResourceKeeper},
+};
 
 fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
@@ -62,7 +70,7 @@ impl Env {
     fn new() -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
         let mut resources = ResourceKeeper::default();
-        resources.push(Resource::ChannelRx(message_rx));
+        let _ = resources.push(Resource::ChannelRx(message_rx));
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
@@ -159,26 +167,17 @@ impl env::OcallFuncs for State {
     }
 
     fn poll(&mut self, resource_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
-        let res = self
-            .resources
-            .get_mut(resource_id)
-            .ok_or(OcallError::ResourceNotFound)?;
+        let res = self.resources.get_mut(resource_id)?;
         res.poll(env::current_task())
     }
 
     fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>> {
-        let res = self
-            .resources
-            .get_mut(resource_id)
-            .ok_or(OcallError::ResourceNotFound)?;
+        let res = self.resources.get_mut(resource_id)?;
         res.poll_read(env::current_task(), data)
     }
 
     fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<Poll<u32>> {
-        let res = self
-            .resources
-            .get_mut(resource_id)
-            .ok_or(OcallError::ResourceNotFound)?;
+        let res = self.resources.get_mut(resource_id)?;
         res.poll_write(env::current_task(), data)
     }
 
@@ -188,9 +187,7 @@ impl env::OcallFuncs for State {
 
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
         let sleep = tokio::time::sleep(Duration::from_millis(timeout as u64));
-        self.resources
-            .push(Resource::Sleep(Box::pin(sleep)))
-            .ok_or(OcallError::NoMemory)
+        self.resources.push(Resource::Sleep(Box::pin(sleep)))
     }
 
     fn set_log_level(&mut self, log_level: LogLevel) -> Result<()> {
@@ -201,6 +198,36 @@ impl env::OcallFuncs for State {
     fn enable_ocall_trace(&mut self, enable: bool) -> Result<()> {
         self.ocall_trace_enabled = enable;
         Ok(())
+    }
+
+    fn tcp_listen(&mut self, addr: Cow<str>, _backlog: i32) -> Result<i32> {
+        let std_listener = std::net::TcpListener::bind(&*addr).or(Err(OcallError::IoError))?;
+        std_listener
+            .set_nonblocking(true)
+            .or(Err(OcallError::IoError))?;
+        let listener = TcpListener::from_std(std_listener).or(Err(OcallError::IoError))?;
+        self.resources.push(Resource::TcpListener(listener))
+    }
+
+    fn tcp_accept(&mut self, tcp_res_id: i32) -> Result<Poll<i32>> {
+        let (stream, remote_addr) = {
+            let res = self.resources.get_mut(tcp_res_id)?;
+            let listener = match res {
+                Resource::TcpListener(listener) => listener,
+                _ => return Err(OcallError::UnsupportedOperation),
+            };
+            let accept = listener.accept();
+            futures::pin_mut!(accept);
+            match poll_in_task_cx(accept, current_task()) {
+                Pending => return Ok(Poll::Pending),
+                Ready(result) => result.or(Err(OcallError::IoError))?,
+            }
+        };
+        let result = self.resources.push(Resource::TcpStream {
+            stream,
+            remote_addr,
+        });
+        result.map(|res_id| Poll::Ready(res_id))
     }
 }
 

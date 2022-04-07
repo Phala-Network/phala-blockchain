@@ -53,10 +53,8 @@ pub enum OcallError {
     NoReturnValue = 6,
     ResourceNotFound = 7,
     UnsupportedOperation = 8,
-    /// Reserved for future use
-    Reserved9 = 9,
-    /// Reserved for future use
-    Reserved10 = 10,
+    IoError = 9,
+    ResourceLimited = 10,
     /// Reserved for future use
     Reserved11 = 11,
     /// Reserved for future use
