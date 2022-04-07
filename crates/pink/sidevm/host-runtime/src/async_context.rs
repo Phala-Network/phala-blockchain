@@ -42,7 +42,7 @@ where
 ///
 /// Panics if no task has been set or if the task context has already been
 /// retrived by a surrounding call to get_task_cx.
-pub fn get_task_cx<F, R>(f: F) -> R
+pub fn get_task_cx<F, R>(task_id: i32, f: F) -> R
 where
     F: FnOnce(&mut task::Context) -> R,
 {
@@ -62,5 +62,5 @@ pub fn poll_in_task_cx<F>(f: Pin<&mut F>, task_id: i32) -> task::Poll<F::Output>
 where
     F: Future,
 {
-    get_task_cx(|cx| f.poll(cx))
+    get_task_cx(task_id, |cx| f.poll(cx))
 }

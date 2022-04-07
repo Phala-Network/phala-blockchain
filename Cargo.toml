@@ -62,6 +62,8 @@ members = [
 	"crates/pink/sidevm/logger",
 	"crates/pink/sidevm/sidevm",
 	"crates/pink/sidevm/examples/timer",
+	"crates/pink/sidevm/examples/httpserver",
+	"crates/pink/sidevm/examples/host",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"pallets/phala",

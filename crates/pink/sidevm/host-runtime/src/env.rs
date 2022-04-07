@@ -17,7 +17,7 @@ use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
 use crate::{
-    async_context::poll_in_task_cx,
+    async_context::get_task_cx,
     resource::{Resource, ResourceKeeper},
 };
 
@@ -209,9 +209,7 @@ impl env::OcallFuncs for State {
                 Resource::TcpListener(listener) => listener,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            let accept = listener.accept();
-            futures::pin_mut!(accept);
-            match poll_in_task_cx(accept, current_task()) {
+            match get_task_cx(current_task(), |ct| listener.poll_accept(ct)) {
                 Pending => return Ok(Poll::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
