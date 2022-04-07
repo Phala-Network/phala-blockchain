@@ -1,0 +1,8 @@
+[package]
+edition = "2021"
+name = "pink-sidevm"
+version = "0.1.0"
+
+[dependencies]
+pink-sidevm-env = {version = "0.1.0", path = "../env"}
+pink-sidevm-macro = {version = "0.1.0", path = "../macro"}
