@@ -61,6 +61,26 @@ impl I32Convertible for Poll<u32> {
     }
 }
 
+impl I32Convertible for Poll<()> {
+    fn to_i32(&self) -> i32 {
+        match self {
+            Poll::Pending => -1,
+            Poll::Ready(_) => 0,
+        }
+    }
+
+    fn from_i32(i: i32) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        match i {
+            -1 => Ok(Self::Pending),
+            0 => Ok(Self::Ready(())),
+            _ => Err(OcallError::InvalidEncoding),
+        }
+    }
+}
+
 /// All ocall definitions for pink SideVM.
 #[pink_sidevm_macro::ocall]
 pub trait OcallFuncs {
@@ -79,6 +99,10 @@ pub trait OcallFuncs {
     /// Poll given resource to write data. Low level support for AsyncWrite.
     #[ocall(id = 104, fast_input, fast_return)]
     fn poll_write(resource_id: i32, data: &[u8]) -> Result<Poll<u32>>;
+
+    /// Shutdown a socket
+    #[ocall(id = 105, fast_input, fast_return)]
+    fn poll_shutdown(resource_id: i32) -> Result<Poll<()>>;
 
     /// Get the next waken up task id.
     #[ocall(id = 110, fast_input, fast_return)]

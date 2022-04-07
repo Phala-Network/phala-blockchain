@@ -1,9 +1,7 @@
-use std::time::Duration;
-
 use log::info;
 
 use pink_sidevm as sidevm;
-use sidevm::{logger::Logger, net, ocall};
+use sidevm::{logger::Logger, net};
 
 #[sidevm::main]
 async fn main() {

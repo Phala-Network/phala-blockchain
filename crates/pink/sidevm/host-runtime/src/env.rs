@@ -165,18 +165,27 @@ impl env::OcallFuncs for State {
     }
 
     fn poll(&mut self, resource_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
-        let res = self.resources.get_mut(resource_id)?;
-        res.poll(env::current_task())
+        self.resources
+            .get_mut(resource_id)?
+            .poll(env::current_task())
     }
 
     fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>> {
-        let res = self.resources.get_mut(resource_id)?;
-        res.poll_read(env::current_task(), data)
+        self.resources
+            .get_mut(resource_id)?
+            .poll_read(env::current_task(), data)
     }
 
     fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<Poll<u32>> {
-        let res = self.resources.get_mut(resource_id)?;
-        res.poll_write(env::current_task(), data)
+        self.resources
+            .get_mut(resource_id)?
+            .poll_write(env::current_task(), data)
+    }
+
+    fn poll_shutdown(&mut self, resource_id: i32) -> Result<Poll<()>> {
+        self.resources
+            .get_mut(resource_id)?
+            .poll_shutdown(env::current_task())
     }
 
     fn next_ready_task(&mut self) -> Result<i32> {

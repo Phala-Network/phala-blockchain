@@ -1,18 +1,16 @@
 use pink_sidevm_env::{OcallError, Poll, Result};
-use std::{net::SocketAddr, pin::Pin, task::Poll::*};
-use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::mpsc::Receiver,
-    time::Sleep,
-};
+use std::{io::ErrorKind, net::SocketAddr, pin::Pin, task::Poll::*};
+use tokio::{io::AsyncWrite as _, net, sync::mpsc::Receiver, time::Sleep};
 use Resource::*;
+
+use crate::async_context::get_task_cx;
 
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
-    TcpListener(TcpListener),
+    TcpListener(net::TcpListener),
     TcpStream {
-        stream: TcpStream,
+        stream: net::TcpStream,
         remote_addr: SocketAddr,
     },
 }
@@ -35,18 +33,58 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_read(&mut self, task_id: i32, _buf: &mut [u8]) -> Result<Poll<u32>> {
+    pub(crate) fn poll_read(&mut self, task_id: i32, buf: &mut [u8]) -> Result<Poll<u32>> {
         match self {
             Sleep(_) => self.poll(task_id).map(|state| match state {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(_) => Poll::Ready(0),
             }),
+            TcpStream { stream, .. } => {
+                match get_task_cx(task_id, |cx| stream.poll_read_ready(cx)) {
+                    Pending => return Ok(Poll::Pending),
+                    Ready(Err(_err)) => return Err(OcallError::IoError),
+                    Ready(Ok(())) => (),
+                }
+                match stream.try_read(buf) {
+                    Ok(sz) => Ok(Poll::Ready(sz as _)),
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => Ok(Poll::Pending),
+                    Err(_err) => Err(OcallError::IoError),
+                }
+            }
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
 
-    pub(crate) fn poll_write(&mut self, _task_id: i32, _buf: &[u8]) -> Result<Poll<u32>> {
-        Err(OcallError::UnsupportedOperation)
+    pub(crate) fn poll_write(&mut self, task_id: i32, buf: &[u8]) -> Result<Poll<u32>> {
+        match self {
+            TcpStream { stream, .. } => {
+                match get_task_cx(task_id, |cx| stream.poll_write_ready(cx)) {
+                    Pending => return Ok(Poll::Pending),
+                    Ready(Err(_err)) => return Err(OcallError::IoError),
+                    Ready(Ok(())) => (),
+                }
+                match stream.try_write(buf) {
+                    Ok(sz) => Ok(Poll::Ready(sz as _)),
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => Ok(Poll::Pending),
+                    Err(_err) => Err(OcallError::IoError),
+                }
+            }
+            _ => Err(OcallError::UnsupportedOperation),
+        }
+    }
+
+    pub(crate) fn poll_shutdown(&mut self, task_id: i32) -> Result<Poll<()>> {
+        match self {
+            TcpStream { stream, .. } => {
+                let stream = Pin::new(stream);
+                match get_task_cx(task_id, |cx| stream.poll_shutdown(cx)) {
+                    Pending => Ok(Poll::Pending),
+                    Ready(Err(_err)) => Err(OcallError::IoError),
+                    Ready(Ok(())) => Ok(Poll::Ready(())),
+                }
+            }
+            _ => Err(OcallError::UnsupportedOperation),
+        }
     }
 }
 
