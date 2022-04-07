@@ -60,6 +60,8 @@ members = [
 	"crates/pink/sidevm/env",
 	"crates/pink/sidevm/macro",
 	"crates/pink/sidevm/logger",
+	"crates/pink/sidevm/sidevm",
+	"crates/pink/sidevm/examples/timer",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"pallets/phala",

@@ -1,3 +1,5 @@
+//! Logger for sidevm programs.
+
 use log::{Level, Log, Metadata, Record};
 use pink_sidevm_env::ocall_funcs_guest as ocall;
 
