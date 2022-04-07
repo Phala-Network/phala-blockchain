@@ -88,10 +88,6 @@ pub trait OcallFuncs {
     #[ocall(id = 111, fast_return)]
     fn enable_ocall_trace(enable: bool) -> Result<()>;
 
-    /// Set log level
-    #[ocall(id = 112, fast_return)]
-    fn set_log_level(log_level: LogLevel) -> Result<()>;
-
     /// Create a timer given a duration of time in milliseconds.
     #[ocall(id = 201, fast_input, fast_return)]
     fn create_timer(timeout: i32) -> Result<i32>;

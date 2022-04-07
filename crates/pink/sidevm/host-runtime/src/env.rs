@@ -12,7 +12,7 @@ use tokio::{
 };
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{current_task, IntPtr, IntRet, LogLevel, OcallError, Poll, Result, RetEncode};
+use env::{current_task, IntPtr, IntRet, OcallError, Poll, Result, RetEncode};
 use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
@@ -49,7 +49,6 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
 struct State {
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
-    log_level: LogLevel,
     ocall_trace_enabled: bool,
     message_tx: Sender<Vec<u8>>,
 }
@@ -77,7 +76,6 @@ impl Env {
                 state: State {
                     resources,
                     temp_return_value: Default::default(),
-                    log_level: LogLevel::None,
                     ocall_trace_enabled: false,
                     message_tx,
                 },
@@ -188,11 +186,6 @@ impl env::OcallFuncs for State {
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
         let sleep = tokio::time::sleep(Duration::from_millis(timeout as u64));
         self.resources.push(Resource::Sleep(Box::pin(sleep)))
-    }
-
-    fn set_log_level(&mut self, log_level: LogLevel) -> Result<()> {
-        self.log_level = log_level;
-        Ok(())
     }
 
     fn enable_ocall_trace(&mut self, enable: bool) -> Result<()> {

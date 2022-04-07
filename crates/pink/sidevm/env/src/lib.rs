@@ -32,15 +32,6 @@ cfg_if::cfg_if! {
 
 pub type IntRet = i64;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode)]
-pub enum LogLevel {
-    None,
-    Error,
-    Warn,
-    Debug,
-    Trace,
-}
-
 #[derive(Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum OcallError {
