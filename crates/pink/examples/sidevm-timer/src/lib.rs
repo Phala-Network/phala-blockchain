@@ -97,15 +97,25 @@ fn message_rx() -> &'static channel::ChannelRx {
 
 #[main]
 async fn main() {
+    use log::info;
     use pink_sidevm_env::ocall_funcs_guest as ocall;
+    use pink_sidevm_logger::Logger;
     use std::time::Duration;
 
+    Logger::with_max_level(log::Level::Trace).init();
+
     ocall::enable_ocall_trace(true).unwrap();
+
+    info!("starting...");
+
     let msg_rx = message_rx();
     tokio::select! {
         msg = msg_rx.next() => {
+            info!("received msg: {:?}", msg);
             assert_eq!(msg, Some(b"foo".to_vec()));
         }
-        _ = sleep::sleep(Duration::from_secs(3)) => (),
+        _ = sleep::sleep(Duration::from_secs(3)) => {
+            info!("slept for 3 seconds");
+        },
     }
 }

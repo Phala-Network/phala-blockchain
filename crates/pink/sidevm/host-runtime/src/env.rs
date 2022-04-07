@@ -232,8 +232,9 @@ impl env::OcallFuncs for State {
 
     fn log(&mut self, message: Cow<str>) -> Result<()> {
         // TODO.kevin.must: use log crate
-        let vm_id = "vm_id";
-        println!("[{:>8}]{}", vm_id, &*message);
+        let vm_id = "VMID";
+        let task = current_task();
+        println!("[vm:{vm_id:<8}][{task:<3}] {message}");
         Ok(())
     }
 }
@@ -255,7 +256,10 @@ fn sidevm_ocall_fast_return(
     if env.state.ocall_trace_enabled {
         // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
-        eprintln!("[{task_id:>3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
+        let vm_id = "VMID";
+        eprintln!(
+            "[vm:{vm_id:<8}][{task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+        );
     }
     result.encode_ret()
 }
@@ -277,7 +281,10 @@ fn sidevm_ocall(
     if env.state.ocall_trace_enabled {
         // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
-        eprintln!("[{task_id:>3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
+        let vm_id = "VMID";
+        eprintln!(
+            "[vm:{vm_id:<8}][{task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+        );
     }
     result.encode_ret()
 }

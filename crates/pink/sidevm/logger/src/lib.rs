@@ -1,4 +1,5 @@
-use log::{Level, Metadata};
+use log::{Level, Log, Metadata, Record};
+use pink_sidevm_env::ocall_funcs_guest as ocall;
 
 /// A logger working inside a SideVM.
 pub struct Logger {
@@ -13,8 +14,8 @@ impl Logger {
 
     /// Install the logger as the global logger.
     pub fn init(self) {
+        log::set_max_level(self.max_level.to_level_filter());
         log::set_boxed_logger(Box::new(self)).unwrap();
-        log::set_max_level(self.max_level);
     }
 }
 
@@ -26,6 +27,7 @@ impl Log for Logger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             let message = format!("{}", record.args());
+            let _ = ocall::log(message.into());
         }
     }
 
