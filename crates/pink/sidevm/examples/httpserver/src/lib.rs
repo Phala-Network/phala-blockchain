@@ -25,7 +25,7 @@ async fn main() {
             let _nbytes = stream.read_line(&mut line).await.unwrap();
             let line = line.trim_end();
             info!("> {}", &line);
-            if line.len() == 0 {
+            if line.is_empty() {
                 info!("---------------------");
                 stream
                     .write_all(b"HTTP/1.0 200 OK\r\n\r\nHello, world!\n")
