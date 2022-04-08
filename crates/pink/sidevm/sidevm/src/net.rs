@@ -5,6 +5,7 @@ use std::io::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use hyper::server::accept::Accept;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::env::{self, Result};
@@ -19,6 +20,26 @@ pub struct TcpListener {
 pub struct TcpStream {
     res_id: ResourceId,
 }
+struct Acceptor<'a> {
+    listener: &'a TcpListener,
+}
+
+impl Future for Acceptor<'_> {
+    type Output = Result<TcpStream>;
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let rv = match ocall::tcp_accept(self.listener.res_id.0) {
+            Ok(rv) => rv,
+            Err(err) => return Poll::Ready(Err(err)),
+        };
+        match rv {
+            env::Poll::Ready(res_id) => Poll::Ready(Ok(TcpStream {
+                res_id: ResourceId(res_id),
+            })),
+            env::Poll::Pending => Poll::Pending,
+        }
+    }
+}
 
 impl TcpListener {
     /// Listen on the specified address for incoming TCP connections.
@@ -29,28 +50,23 @@ impl TcpListener {
 
     /// Accept a new incoming connection.
     pub async fn accept(&self) -> Result<TcpStream> {
-        struct Acceptor<'a> {
-            listener: &'a TcpListener,
-        }
-
-        impl Future for Acceptor<'_> {
-            type Output = Result<TcpStream>;
-
-            fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-                let rv = match ocall::tcp_accept(self.listener.res_id.0) {
-                    Ok(rv) => rv,
-                    Err(err) => return Poll::Ready(Err(err)),
-                };
-                match rv {
-                    env::Poll::Ready(res_id) => Poll::Ready(Ok(TcpStream {
-                        res_id: ResourceId(res_id),
-                    })),
-                    env::Poll::Pending => Poll::Pending,
-                }
-            }
-        }
-
         Acceptor { listener: self }.await
+    }
+}
+
+impl Accept for TcpListener {
+    type Conn = TcpStream;
+
+    type Error = env::OcallError;
+
+    fn poll_accept(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+        let mut accept = Acceptor {
+            listener: self.get_mut(),
+        };
+        Pin::new(&mut accept).poll(cx).map(Some)
     }
 }
 

@@ -17,9 +17,9 @@ pub use args_stack::RetEncode;
 pub use ocall_def::*;
 pub use pink_sidevm_macro::main;
 
-pub mod reexports;
 mod args_stack;
 mod ocall_def;
+pub mod reexports;
 
 cfg_if::cfg_if! {
     if #[cfg(any(target_pointer_width = "32", feature = "host"))] {
@@ -32,7 +32,7 @@ cfg_if::cfg_if! {
 
 pub type IntRet = i64;
 
-#[derive(Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, derive_more::Display, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum OcallError {
     Ok = 0,
@@ -537,6 +537,8 @@ pub enum OcallError {
     /// Reserved for future use
     Reserved255 = 255,
 }
+
+impl std::error::Error for OcallError {}
 
 pub type Result<T, E = OcallError> = core::result::Result<T, E>;
 pub trait OcallEnv {
