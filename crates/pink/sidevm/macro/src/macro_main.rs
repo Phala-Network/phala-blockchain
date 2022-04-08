@@ -15,17 +15,21 @@ fn patch_or_err(input: TokenStream) -> syn::Result<TokenStream> {
         #[no_mangle]
         extern "C" fn sidevm_poll() -> i32 {
             use #sidevm_crate::env::{poll_with_dummy_context, reexports::once_cell::sync::Lazy};
-            use std::{future::Future, pin::Pin, sync::Mutex, task::Poll};
+            use std::{future::Future, pin::Pin, sync::Mutex, task::Poll, cell::RefCell};
 
             #input
 
-            static MAIN_FUTURE: Lazy<Mutex<Pin<Box<dyn Future<Output = ()> + Sync + Send>>>> =
-                Lazy::new(|| Mutex::new(Box::pin(#main_ident())));
-
-            match poll_with_dummy_context(MAIN_FUTURE.lock().unwrap().as_mut()) {
-                Poll::Ready(()) => 1,
-                Poll::Pending => 0,
+            thread_local! {
+                static MAIN_FUTURE: Lazy<RefCell<Pin<Box<dyn Future<Output = ()>>>>> =
+                    Lazy::new(|| RefCell::new(Box::pin(#main_ident())));
             }
+
+            MAIN_FUTURE.with(|cell| {
+                match poll_with_dummy_context(cell.borrow_mut().as_mut()) {
+                    Poll::Ready(()) => 1,
+                    Poll::Pending => 0,
+                }
+            })
         }
     })
 }
