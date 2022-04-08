@@ -1,4 +1,5 @@
 /// Resource ID. Think of it as a FD.
+#[derive(Debug)]
 pub struct ResourceId(pub i32);
 
 impl From<i32> for ResourceId {

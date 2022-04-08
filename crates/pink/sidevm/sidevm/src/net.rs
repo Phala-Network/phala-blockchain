@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use hyper::server::accept::Accept;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncBufRead, AsyncRead, AsyncWrite};
 
 use crate::env::{self, Result};
 use crate::{ocall, ResourceId};
@@ -17,8 +17,12 @@ pub struct TcpListener {
 }
 
 /// A connected TCP socket.
+#[derive(Debug)]
 pub struct TcpStream {
     res_id: ResourceId,
+    buf: [u8; 32],
+    filled: usize,
+    start: usize,
 }
 struct Acceptor<'a> {
     listener: &'a TcpListener,
@@ -35,6 +39,9 @@ impl Future for Acceptor<'_> {
         match rv {
             env::Poll::Ready(res_id) => Poll::Ready(Ok(TcpStream {
                 res_id: ResourceId(res_id),
+                buf: Default::default(),
+                start: 0,
+                filled: 0,
             })),
             env::Poll::Pending => Poll::Pending,
         }
@@ -66,7 +73,9 @@ impl Accept for TcpListener {
         let mut accept = Acceptor {
             listener: self.get_mut(),
         };
-        Pin::new(&mut accept).poll(cx).map(Some)
+        let x = Pin::new(&mut accept).poll(cx).map(Some);
+        log::info!("Poll accept = {:?}", x);
+        x
     }
 }
 
@@ -95,6 +104,34 @@ impl AsyncRead for TcpStream {
                 }
             }
             Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
+        }
+    }
+}
+
+impl AsyncBufRead for TcpStream {
+    fn poll_fill_buf(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::io::Result<&[u8]>> {
+        log::info!("poll_fill_buf: filled={} start={}", self.filled, self.start);
+        if self.filled == self.start {
+            match ocall::poll_read(self.res_id.0, &mut self.buf[..]) {
+                Ok(env::Poll::Pending) => return Poll::Pending,
+                Err(err) => return Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
+                Ok(env::Poll::Ready(sz)) => {
+                    self.filled = sz as _;
+                }
+            }
+        }
+        let me = self.get_mut();
+        Poll::Ready(Ok(&me.buf[me.start..me.filled]))
+    }
+
+    fn consume(mut self: Pin<&mut Self>, amt: usize) {
+        self.start += amt;
+        if self.start >= self.filled {
+            self.start = 0;
+            self.filled = 0;
         }
     }
 }

@@ -1,14 +1,7 @@
-use core::convert::Infallible;
-
-use log::{error, info};
+use log::info;
 use pink_sidevm as sidevm;
 
-use hyper::{Body, Request, Response};
-
-async fn handle(request: Request<Body>) -> Result<Response<Body>, Infallible> {
-    info!("Incoming request: {}", request.uri().path());
-    Ok(Response::new("Hello, World!".into()))
-}
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 #[sidevm::main]
 async fn main() {
@@ -21,12 +14,25 @@ async fn main() {
 
     let listener = sidevm::net::TcpListener::listen(address).await.unwrap();
 
-    let make_svc = hyper::service::make_service_fn(|_conn| async {
-        Ok::<_, Infallible>(hyper::service::service_fn(handle))
-    });
+    loop {
+        info!("Waiting for imcomming connection...");
+        let mut stream = listener.accept().await.unwrap();
 
-    let server = hyper::Server::builder(listener).serve(make_svc);
-    if let Err(e) = server.await {
-        error!("server error: {}", e);
+        info!("New imcomming connection:");
+        info!("=====================");
+        loop {
+            let mut line = String::new();
+            let _nbytes = stream.read_line(&mut line).await.unwrap();
+            let line = line.trim_end();
+            info!("> {}", &line);
+            if line.len() == 0 {
+                info!("---------------------");
+                stream
+                    .write_all(b"HTTP/1.0 200 OK\r\n\r\nHello, world!\n")
+                    .await
+                    .unwrap();
+                break;
+            }
+        }
     }
 }
