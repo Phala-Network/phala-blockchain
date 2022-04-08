@@ -153,7 +153,7 @@ impl<A> ArgEncode<A> for &[u8] {
     fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let ptr = self.as_ptr() as IntPtr;
         let len = self.len() as IntPtr;
-        stack.push((ptr, len))
+        stack.push((len, ptr))
     }
 }
 
@@ -167,7 +167,7 @@ impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
     where
         Self: Sized,
     {
-        let ((ptr, len), stack) = stack.pop();
+        let ((len, ptr), stack) = stack.pop();
         Ok((vm.slice_from_vm(ptr, len)?, stack))
     }
 }
@@ -178,7 +178,7 @@ impl<A> ArgEncode<A> for &mut [u8] {
     fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let ptr = self.as_mut_ptr() as IntPtr;
         let len = self.len() as IntPtr;
-        stack.push((ptr, len))
+        stack.push((len, ptr))
     }
 }
 
@@ -192,7 +192,7 @@ impl<'a, A> ArgDecode<'a, A> for &'a mut [u8] {
     where
         Self: Sized,
     {
-        let ((ptr, len), stack) = stack.pop();
+        let ((len, ptr), stack) = stack.pop();
         Ok((vm.slice_from_vm_mut(ptr, len)?, stack))
     }
 }
