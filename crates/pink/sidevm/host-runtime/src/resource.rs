@@ -39,36 +39,44 @@ impl Resource {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(_) => Poll::Ready(0),
             }),
-            TcpStream { stream, .. } => {
-                match get_task_cx(task_id, |cx| stream.poll_read_ready(cx)) {
-                    Pending => return Ok(Poll::Pending),
-                    Ready(Err(_err)) => return Err(OcallError::IoError),
-                    Ready(Ok(())) => (),
-                }
+            TcpStream { stream, .. } => loop {
                 match stream.try_read(buf) {
-                    Ok(sz) => Ok(Poll::Ready(sz as _)),
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => Ok(Poll::Pending),
-                    Err(_err) => Err(OcallError::IoError),
+                    Ok(sz) => break Ok(Poll::Ready(sz as _)),
+                    Err(err) => {
+                        if err.kind() == ErrorKind::WouldBlock {
+                            match get_task_cx(task_id, |cx| stream.poll_read_ready(cx)) {
+                                Pending => break Ok(Poll::Pending),
+                                Ready(Err(_err)) => break Err(OcallError::IoError),
+                                Ready(Ok(())) => continue,
+                            }
+                        } else {
+                            break Err(OcallError::IoError);
+                        }
+                    }
                 }
-            }
+            },
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
 
     pub(crate) fn poll_write(&mut self, task_id: i32, buf: &[u8]) -> Result<Poll<u32>> {
         match self {
-            TcpStream { stream, .. } => {
-                match get_task_cx(task_id, |cx| stream.poll_write_ready(cx)) {
-                    Pending => return Ok(Poll::Pending),
-                    Ready(Err(_err)) => return Err(OcallError::IoError),
-                    Ready(Ok(())) => (),
-                }
+            TcpStream { stream, .. } => loop {
                 match stream.try_write(buf) {
-                    Ok(sz) => Ok(Poll::Ready(sz as _)),
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => Ok(Poll::Pending),
-                    Err(_err) => Err(OcallError::IoError),
+                    Ok(sz) => break Ok(Poll::Ready(sz as _)),
+                    Err(err) => {
+                        if err.kind() == ErrorKind::WouldBlock {
+                            match get_task_cx(task_id, |cx| stream.poll_write_ready(cx)) {
+                                Pending => break Ok(Poll::Pending),
+                                Ready(Err(_err)) => break Err(OcallError::IoError),
+                                Ready(Ok(())) => continue,
+                            }
+                        } else {
+                            break Err(OcallError::IoError);
+                        }
+                    }
                 }
-            }
+            },
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
