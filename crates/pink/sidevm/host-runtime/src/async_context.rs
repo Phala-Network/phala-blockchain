@@ -1,11 +1,102 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::pin::Pin;
 use std::ptr::NonNull;
-use std::task;
+use std::sync::{Arc, Weak};
+use std::task::{self, RawWaker, RawWakerVTable, Waker};
+
+use crate::env::TaskSet;
+
+thread_local! {
+    static TLS_TASK_ENV: RefCell<Option<TaskEnv>> = RefCell::new(None);
+}
+
+#[derive(Clone)]
+struct TaskEnv {
+    awake_tasks: Weak<TaskSet>,
+    this_task: i32,
+}
+
+#[derive(Clone)]
+struct WakerData {
+    env: TaskEnv,
+    parent: Waker,
+}
+
+impl WakerData {
+    fn wake_by_ref(&self) {
+        if let Some(tasks) = self.env.awake_tasks.upgrade() {
+            tasks.push(self.env.this_task);
+        }
+        self.parent.wake_by_ref();
+    }
+}
+
+fn relay_waker(env: &TaskEnv, parent: &Waker) -> Waker {
+    fn raw_waker_from_data(data: Arc<WakerData>) -> RawWaker {
+        let vtable = &RawWakerVTable::new(clone_waker, wake_waker, wake_by_ref_waker, drop_waker);
+        RawWaker::new(Arc::into_raw(data) as *const (), vtable)
+    }
+
+    fn clone_waker(data: *const ()) -> RawWaker {
+        let data = unsafe { Arc::from_raw(data as *const WakerData) };
+        let cloned = data.clone();
+        let _ = Arc::into_raw(data);
+        raw_waker_from_data(cloned)
+    }
+
+    fn wake_waker(data: *const ()) {
+        let data = unsafe { Arc::from_raw(data as *const WakerData) };
+        data.wake_by_ref();
+        drop(data);
+    }
+
+    fn wake_by_ref_waker(data: *const ()) {
+        let data = unsafe { Arc::from_raw(data as *const WakerData) };
+        data.wake_by_ref();
+        let _ = Arc::into_raw(data);
+    }
+
+    fn drop_waker(data: *const ()) {
+        unsafe {
+            drop(Arc::from_raw(data as *const WakerData));
+        }
+    }
+
+    let data = Arc::new(WakerData {
+        env: env.clone(),
+        parent: parent.clone(),
+    });
+
+    unsafe { Waker::from_raw(raw_waker_from_data(data)) }
+}
+
+struct ClearEnvOnDrop;
+impl Drop for ClearEnvOnDrop {
+    fn drop(&mut self) {
+        TLS_TASK_ENV.with(|tls_task_env| {
+            tls_task_env.borrow_mut().take();
+        });
+    }
+}
+
+/// Sets the thread-local task context used by async/await futures.
+pub(crate) fn set_task_env<F, R>(awake_tasks: Arc<TaskSet>, task_id: i32, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    TLS_TASK_ENV.with(|tls_task_env| {
+        *tls_task_env.borrow_mut() = Some(TaskEnv {
+            awake_tasks: Arc::downgrade(&awake_tasks),
+            this_task: task_id,
+        });
+    });
+    let _clear_env = ClearEnvOnDrop;
+    f()
+}
 
 // It is impossible to pass the task context into the VM. So we store it in a thead local storage.
-// Just as the initial version of Rust's async/await did. Codes are taken from
+// Just as the initial version of Rust's async/await did. The following codes are taken from
 // https://github.com/rust-lang/rust/pull/51580/files#diff-2437bade3937fa15310072df88db95aa1d2cd047069275cdddaccf2e4b1dc431R53-R116
 
 thread_local! {
@@ -23,7 +114,7 @@ impl Drop for SetOnDrop {
 }
 
 /// Sets the thread-local task context used by async/await futures.
-pub fn set_task_cx<F, R>(cx: &mut task::Context, f: F) -> R
+pub(crate) fn set_task_cx<F, R>(cx: &mut task::Context, f: F) -> R
 where
     F: FnOnce() -> R,
 {
@@ -42,7 +133,7 @@ where
 ///
 /// Panics if no task has been set or if the task context has already been
 /// retrived by a surrounding call to get_task_cx.
-pub fn get_task_cx<F, R>(task_id: i32, f: F) -> R
+pub(crate) fn get_task_cx<F, R>(f: F) -> R
 where
     F: FnOnce(&mut task::Context) -> R,
 {
@@ -54,13 +145,23 @@ where
     let _reset_cx = SetOnDrop(cx_ptr);
 
     let mut cx_ptr = cx_ptr.expect("TLS task::Context not set. This is a bug.");
-    unsafe { f(cx_ptr.as_mut()) }
+
+    TLS_TASK_ENV.with(move |tls_task_env| unsafe {
+        let borrow = tls_task_env.borrow();
+        let env = borrow
+            .as_ref()
+            .expect("TLS TaskEnv not set. This is a bug.");
+        let parent = cx_ptr.as_mut().waker();
+        let waker = relay_waker(env, parent);
+        let mut cx = task::Context::from_waker(&waker);
+        f(&mut cx)
+    })
 }
 
 /// Polls a future in the current thread-local task context.
-pub fn poll_in_task_cx<F>(f: Pin<&mut F>, task_id: i32) -> task::Poll<F::Output>
+pub(crate) fn poll_in_task_cx<F>(f: Pin<&mut F>) -> task::Poll<F::Output>
 where
     F: Future,
 {
-    get_task_cx(task_id, |cx| f.poll(cx))
+    get_task_cx(|cx| f.poll(cx))
 }

@@ -16,26 +16,26 @@ pub enum Resource {
 }
 
 impl Resource {
-    pub(crate) fn poll(&mut self, task_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
+    pub(crate) fn poll(&mut self) -> Result<Poll<Option<Vec<u8>>>> {
         use crate::async_context::poll_in_task_cx;
 
         match self {
-            Sleep(handle) => match poll_in_task_cx(handle.as_mut(), task_id) {
+            Sleep(handle) => match poll_in_task_cx(handle.as_mut()) {
                 Ready(_) => Ok(Poll::Ready(None)),
                 Pending => Ok(Poll::Pending),
             },
             ChannelRx(rx) => {
                 let fut = rx.recv();
                 futures::pin_mut!(fut);
-                Ok(poll_in_task_cx(fut, task_id).into())
+                Ok(poll_in_task_cx(fut).into())
             }
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
 
-    pub(crate) fn poll_read(&mut self, task_id: i32, buf: &mut [u8]) -> Result<Poll<u32>> {
+    pub(crate) fn poll_read(&mut self, buf: &mut [u8]) -> Result<Poll<u32>> {
         match self {
-            Sleep(_) => self.poll(task_id).map(|state| match state {
+            Sleep(_) => self.poll().map(|state| match state {
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(_) => Poll::Ready(0),
             }),
@@ -44,7 +44,7 @@ impl Resource {
                     Ok(sz) => break Ok(Poll::Ready(sz as _)),
                     Err(err) => {
                         if err.kind() == ErrorKind::WouldBlock {
-                            match get_task_cx(task_id, |cx| stream.poll_read_ready(cx)) {
+                            match get_task_cx(|cx| stream.poll_read_ready(cx)) {
                                 Pending => break Ok(Poll::Pending),
                                 Ready(Err(_err)) => break Err(OcallError::IoError),
                                 Ready(Ok(())) => continue,
@@ -59,14 +59,14 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_write(&mut self, task_id: i32, buf: &[u8]) -> Result<Poll<u32>> {
+    pub(crate) fn poll_write(&mut self, buf: &[u8]) -> Result<Poll<u32>> {
         match self {
             TcpStream { stream, .. } => loop {
                 match stream.try_write(buf) {
                     Ok(sz) => break Ok(Poll::Ready(sz as _)),
                     Err(err) => {
                         if err.kind() == ErrorKind::WouldBlock {
-                            match get_task_cx(task_id, |cx| stream.poll_write_ready(cx)) {
+                            match get_task_cx(|cx| stream.poll_write_ready(cx)) {
                                 Pending => break Ok(Poll::Pending),
                                 Ready(Err(_err)) => break Err(OcallError::IoError),
                                 Ready(Ok(())) => continue,
@@ -81,11 +81,11 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_shutdown(&mut self, task_id: i32) -> Result<Poll<()>> {
+    pub(crate) fn poll_shutdown(&mut self) -> Result<Poll<()>> {
         match self {
             TcpStream { stream, .. } => {
                 let stream = Pin::new(stream);
-                match get_task_cx(task_id, |cx| stream.poll_shutdown(cx)) {
+                match get_task_cx(|cx| stream.poll_shutdown(cx)) {
                     Pending => Ok(Poll::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
                     Ready(Ok(())) => Ok(Poll::Ready(())),

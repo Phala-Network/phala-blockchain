@@ -24,12 +24,14 @@ fn patch_or_err(input: TokenStream) -> syn::Result<TokenStream> {
                     Lazy::new(|| RefCell::new(Box::pin(#main_ident())));
             }
 
-            MAIN_FUTURE.with(|cell| {
-                match poll_with_dummy_context(cell.borrow_mut().as_mut()) {
-                    Poll::Ready(()) => 1,
-                    Poll::Pending => 0,
-                }
-            })
+
+            let poll = MAIN_FUTURE.with(|cell| {
+                poll_with_dummy_context(cell.borrow_mut().as_mut())
+            });
+            match poll {
+                Poll::Ready(()) => 1,
+                Poll::Pending => 0,
+            }
         }
     })
 }

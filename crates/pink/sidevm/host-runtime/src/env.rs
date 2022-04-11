@@ -17,7 +17,7 @@ use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
 use crate::{
-    async_context::get_task_cx,
+    async_context::{get_task_cx, set_task_env},
     resource::{Resource, ResourceKeeper},
 };
 
@@ -46,23 +46,51 @@ pub fn create_env(store: &Store) -> (Env, ImportObject) {
     )
 }
 
+pub(crate) struct TaskSet {
+    tasks: dashmap::DashSet<i32>,
+}
+
+impl TaskSet {
+    fn with_task0() -> Self {
+        let tasks = dashmap::DashSet::new();
+        tasks.insert(0);
+        Self { tasks }
+    }
+
+    pub(crate) fn push(&self, task_id: i32) {
+        self.tasks.insert(task_id);
+    }
+
+    pub(crate) fn pop(&self) -> Option<i32> {
+        let item = self.tasks.iter().next().map(|task_id| *task_id);
+        match item {
+            Some(task_id) => {
+                self.tasks.remove(&task_id);
+                Some(task_id)
+            }
+            None => None,
+        }
+    }
+}
+
 struct State {
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
     message_tx: Sender<Vec<u8>>,
+    awake_tasks: Arc<TaskSet>,
 }
 
 struct VmMemory(Option<Memory>);
 
-struct EnvInner {
+pub(crate) struct EnvInner {
     memory: VmMemory,
     state: State,
 }
 
 #[derive(WasmerEnv, Clone)]
 pub struct Env {
-    inner: Arc<Mutex<EnvInner>>,
+    pub(crate) inner: Arc<Mutex<EnvInner>>,
 }
 
 impl Env {
@@ -78,6 +106,7 @@ impl Env {
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
                     message_tx,
+                    awake_tasks: Arc::new(TaskSet::with_task0()),
                 },
             })),
         }
@@ -165,31 +194,23 @@ impl env::OcallFuncs for State {
     }
 
     fn poll(&mut self, resource_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
-        self.resources
-            .get_mut(resource_id)?
-            .poll(env::current_task())
+        self.resources.get_mut(resource_id)?.poll()
     }
 
     fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>> {
-        self.resources
-            .get_mut(resource_id)?
-            .poll_read(env::current_task(), data)
+        self.resources.get_mut(resource_id)?.poll_read(data)
     }
 
     fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<Poll<u32>> {
-        self.resources
-            .get_mut(resource_id)?
-            .poll_write(env::current_task(), data)
+        self.resources.get_mut(resource_id)?.poll_write(data)
     }
 
     fn poll_shutdown(&mut self, resource_id: i32) -> Result<Poll<()>> {
-        self.resources
-            .get_mut(resource_id)?
-            .poll_shutdown(env::current_task())
+        self.resources.get_mut(resource_id)?.poll_shutdown()
     }
 
     fn next_ready_task(&mut self) -> Result<i32> {
-        Err(OcallError::ResourceNotFound)
+        self.awake_tasks.pop().ok_or(OcallError::ResourceNotFound)
     }
 
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
@@ -218,7 +239,7 @@ impl env::OcallFuncs for State {
                 Resource::TcpListener(listener) => listener,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            match get_task_cx(current_task(), |ct| listener.poll_accept(ct)) {
+            match get_task_cx(|ct| listener.poll_accept(ct)) {
                 Pending => return Ok(Poll::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
@@ -252,8 +273,9 @@ fn sidevm_ocall_fast_return(
     env::set_current_task(task_id);
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
-    let result =
-        env::dispatch_call_fast_return(&mut env.state, &env.memory, func_id, p0, p1, p2, p3);
+    let result = set_task_env(env.state.awake_tasks.clone(), task_id, || {
+        env::dispatch_call_fast_return(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
+    });
     if env.state.ocall_trace_enabled {
         // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
@@ -278,7 +300,9 @@ fn sidevm_ocall(
     env::set_current_task(task_id);
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
-    let result = env::dispatch_call(&mut env.state, &env.memory, func_id, p0, p1, p2, p3);
+    let result = set_task_env(env.state.awake_tasks.clone(), task_id, || {
+        env::dispatch_call(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
+    });
     if env.state.ocall_trace_enabled {
         // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
