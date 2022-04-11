@@ -1,15 +1,18 @@
+use core::panic;
+
 use super::*;
 
 extern "Rust" {
     fn sidevm_main_future() -> Pin<Box<dyn Future<Output = ()>>>;
 }
 
-type Tasks = Vec<Option<Pin<Box<dyn Future<Output = ()>>>>>;
+type TaskFuture = Pin<Box<dyn Future<Output = ()>>>;
+type Tasks = Vec<Option<TaskFuture>>;
 
 thread_local! {
     static CURRENT_TASK: std::cell::Cell<i32>  = Default::default();
     static TASKS: RefCell<Tasks> = RefCell::new(vec![Some(unsafe { sidevm_main_future() })]);
-    static SPAWNED_TASKS: RefCell<Vec<Pin<Box<dyn Future<Output = ()>>>>> = RefCell::new(vec![]);
+    static SPAWNED_TASKS: RefCell<Vec<TaskFuture>> = RefCell::new(vec![]);
 }
 
 // TODO.kevin: Support task joining
@@ -20,33 +23,31 @@ pub fn spawn(fut: impl Future<Output = ()> + 'static) -> TaskHandle {
     TaskHandle
 }
 
-fn start_spawned_tasks(tasks: &mut Tasks) {
+fn start_task(tasks: &mut Tasks, task: TaskFuture) {
     const MAX_N_TASKS: usize = (i32::MAX / 2) as _;
-    static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(1);
 
+    for (task_id, task_ref) in tasks.iter_mut().enumerate().skip(1) {
+        if task_ref.is_none() {
+            *task_ref = Some(task);
+            ocall::mark_task_ready(task_id as _).expect("Mark task ready failed");
+            return;
+        }
+    }
+
+    if tasks.len() < MAX_N_TASKS {
+        let task_id = tasks.len();
+        tasks.push(Some(task));
+        ocall::mark_task_ready(task_id as _).expect("Mark task ready failed");
+        return;
+    }
+
+    panic!("Spawn task failed, Max number of tasks reached");
+}
+
+fn start_spawned_tasks(tasks: &mut Tasks) {
     SPAWNED_TASKS.with(|spowned_tasks| {
-        for boxed_task in spowned_tasks.borrow_mut().drain(..) {
-            for _ in 0..MAX_N_TASKS {
-                let task_id = NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed);
-                let task_id = if task_id < MAX_N_TASKS {
-                    task_id
-                } else {
-                    NEXT_TASK_ID.store(2, Ordering::Relaxed);
-                    1
-                };
-                if task_id >= tasks.len() {
-                    let task_id = tasks.len() as i32;
-                    tasks.push(Some(boxed_task));
-                    ocall::mark_task_ready(task_id).expect("Mark task ready failed");
-                    break;
-                }
-                if tasks[task_id].is_some() {
-                    continue;
-                }
-                tasks[task_id] = Some(boxed_task);
-                ocall::mark_task_ready(task_id as _).expect("Mark task ready failed");
-                break;
-            }
+        for task in spowned_tasks.borrow_mut().drain(..) {
+            start_task(tasks, task);
         }
     })
 }

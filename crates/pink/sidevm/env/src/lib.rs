@@ -8,10 +8,7 @@ use core::{
     pin::Pin,
     task,
 };
-use std::{
-    cell::RefCell,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::cell::RefCell;
 
 use crate::ocall_funcs_guest as ocall;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
