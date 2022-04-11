@@ -12,7 +12,7 @@ use tokio::{
 };
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{current_task, IntPtr, IntRet, OcallError, Poll, Result, RetEncode};
+use env::{IntPtr, IntRet, OcallError, Poll, Result, RetEncode};
 use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
@@ -79,6 +79,7 @@ struct State {
     ocall_trace_enabled: bool,
     message_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
+    current_task: i32,
 }
 
 struct VmMemory(Option<Memory>);
@@ -107,6 +108,7 @@ impl Env {
                     ocall_trace_enabled: false,
                     message_tx,
                     awake_tasks: Arc::new(TaskSet::with_task0()),
+                    current_task: 0,
                 },
             })),
         }
@@ -260,7 +262,7 @@ impl env::OcallFuncs for State {
     fn log(&mut self, message: Cow<str>) -> Result<()> {
         // TODO.kevin.must: use log crate
         let vm_id = "VMID";
-        let task = current_task();
+        let task = self.current_task;
         println!("[vm:{vm_id:<8}][{task:<3}] {message}");
         Ok(())
     }
@@ -275,9 +277,10 @@ fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    env::set_current_task(task_id);
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
+
+    env.state.current_task = task_id;
     let result = set_task_env(env.state.awake_tasks.clone(), task_id, || {
         env::dispatch_call_fast_return(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
     });
@@ -302,9 +305,10 @@ fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    env::set_current_task(task_id);
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
+
+    env.state.current_task = task_id;
     let result = set_task_env(env.state.awake_tasks.clone(), task_id, || {
         env::dispatch_call(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
     });

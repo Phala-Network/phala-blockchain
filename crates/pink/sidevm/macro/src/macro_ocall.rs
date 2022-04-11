@@ -291,6 +291,7 @@ fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<T
     let name = format!("{}_guest", trait_name.to_string().to_snake_case());
     let impl_itent = Ident::new(&name, Span::call_site());
     let impl_methods = impl_methods?;
+
     Ok(parse_quote! {
         pub mod #impl_itent {
             use super::*;
@@ -323,9 +324,9 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     let args = &method.args;
 
     let ocall_fn = if method.fast_return {
-        "sidevm_ocall_fast_return"
+        "do_ocall_fast_return"
     } else {
-        "sidevm_ocall"
+        "do_ocall"
     };
     let ocall_fn = Ident::new(ocall_fn, Span::call_site());
 
@@ -334,7 +335,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
             let stack = StackedArgs::empty();
             #(let stack = stack.push_arg(#args);)*
             let args = stack.dump();
-            let ret = #ocall_fn(current_task(), #call_id, args[0], args[1], args[2], args[3]);
+            let ret = #ocall_fn(#call_id, args[0], args[1], args[2], args[3]);
         }
     } else {
         parse_quote! {
@@ -343,7 +344,6 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
             let ret = #ocall_fn(
-                current_task(),
                 #call_id,
                 input_buf.as_ptr() as IntPtr,
                 len,
@@ -362,8 +362,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
                 panic!("ocall returned an error");
             }
             let mut buf = alloc_buffer(len as _);
-            let ret = sidevm_ocall_fast_return(
-                current_task(),
+            let ret = do_ocall_fast_return(
                 0, // Get previous ocall's output
                 buf.as_mut_ptr() as IntPtr,
                 len as IntPtr,

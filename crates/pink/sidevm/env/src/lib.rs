@@ -21,9 +21,11 @@ use tinyvec::TinyVec;
 pub use args_stack::RetEncode;
 pub use ocall_def::*;
 pub use pink_sidevm_macro::main;
+pub use tasks::{spawn, TaskHandle};
 
 mod args_stack;
 mod ocall_def;
+mod tasks;
 
 cfg_if::cfg_if! {
     if #[cfg(any(target_pointer_width = "32", feature = "host"))] {
@@ -557,7 +559,7 @@ pub trait VmMemory {
 }
 
 extern "C" {
-    pub fn sidevm_ocall(
+    fn sidevm_ocall(
         task_id: i32,
         func_id: i32,
         p0: IntPtr,
@@ -565,7 +567,7 @@ extern "C" {
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntRet;
-    pub fn sidevm_ocall_fast_return(
+    fn sidevm_ocall_fast_return(
         task_id: i32,
         func_id: i32,
         p0: IntPtr,
@@ -573,6 +575,20 @@ extern "C" {
         p2: IntPtr,
         p3: IntPtr,
     ) -> IntRet;
+}
+
+unsafe fn do_ocall(func_id: i32, p0: IntPtr, p1: IntPtr, p2: IntPtr, p3: IntPtr) -> IntRet {
+    sidevm_ocall(tasks::current_task(), func_id, p0, p1, p2, p3)
+}
+
+unsafe fn do_ocall_fast_return(
+    func_id: i32,
+    p0: IntPtr,
+    p1: IntPtr,
+    p2: IntPtr,
+    p3: IntPtr,
+) -> IntRet {
+    sidevm_ocall_fast_return(tasks::current_task(), func_id, p0, p1, p2, p3)
 }
 
 #[derive(Default)]
@@ -612,119 +628,6 @@ fn alloc_buffer(size: usize) -> Buffer {
     let mut buf = Buffer::default();
     buf.0.resize(size, 0_u8);
     buf
-}
-
-extern "Rust" {
-    fn sidevm_main_future() -> Pin<Box<dyn Future<Output = ()>>>;
-}
-
-thread_local! {
-    static CURRENT_TASK: std::cell::Cell<i32>  = Default::default();
-    static TASKS: RefCell<Vec<Option<Pin<Box<dyn Future<Output = ()>>>>>> =
-        RefCell::new(vec![Some(unsafe { sidevm_main_future() })]);
-    static SPAWNED_TASKS: RefCell<Vec<Pin<Box<dyn Future<Output = ()>>>>> = RefCell::new(vec![]);
-}
-
-// TODO.kevin: Support task joining
-pub struct TaskHandle;
-
-pub fn spawn(fut: impl Future<Output = ()> + 'static) -> TaskHandle {
-    SPAWNED_TASKS.with(move |tasks| (*tasks).borrow_mut().push(Box::pin(fut)));
-    TaskHandle
-}
-
-fn install_spawned_tasks(tasks: &mut Vec<Option<Pin<Box<dyn Future<Output = ()>>>>>) {
-    const MAX_N_TASKS: usize = (i32::MAX / 2) as _;
-    static NEXT_TASK_ID: AtomicUsize = AtomicUsize::new(1);
-
-    SPAWNED_TASKS.with(|spowned_tasks| {
-        for boxed_task in spowned_tasks.borrow_mut().drain(..) {
-            for _ in 0..MAX_N_TASKS {
-                let task_id = NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed);
-                let task_id = if task_id < MAX_N_TASKS {
-                    task_id
-                } else {
-                    NEXT_TASK_ID.store(2, Ordering::Relaxed);
-                    1
-                };
-                if task_id >= tasks.len() {
-                    let task_id = tasks.len() as i32;
-                    tasks.push(Some(boxed_task));
-                    ocall::mark_task_ready(task_id).expect("Mark task ready failed");
-                    break;
-                }
-                if tasks[task_id].is_some() {
-                    continue;
-                }
-                tasks[task_id] = Some(boxed_task);
-                ocall::mark_task_ready(task_id as _).expect("Mark task ready failed");
-                break;
-            }
-        }
-    })
-}
-
-pub fn current_task() -> i32 {
-    CURRENT_TASK.with(|id| id.get())
-}
-
-pub fn set_current_task(task_id: i32) {
-    CURRENT_TASK.with(|id| id.set(task_id))
-}
-
-fn poll_with_dummy_context<F>(f: Pin<&mut F>) -> task::Poll<F::Output>
-where
-    F: Future + ?Sized,
-{
-    fn raw_waker() -> task::RawWaker {
-        task::RawWaker::new(
-            &(),
-            &task::RawWakerVTable::new(
-                |_| raw_waker(),
-                // Let's forbid to use the Context in wasm.
-                |_| panic!("Dummy waker should never be called"),
-                |_| panic!("Dummy waker should never be called"),
-                |_| (),
-            ),
-        )
-    }
-    let waker = unsafe { task::Waker::from_raw(raw_waker()) };
-    let mut context = task::Context::from_waker(&waker);
-    f.poll(&mut context)
-}
-
-#[no_mangle]
-extern "C" fn sidevm_poll() -> i32 {
-    use task::Poll::*;
-
-    fn poll() -> task::Poll<()> {
-        loop {
-            let task_id = match ocall::next_ready_task() {
-                Ok(id) => id as usize,
-                Err(OcallError::NotFound) => return task::Poll::Pending,
-                Err(err) => panic!("Error occured: {:?}", err),
-            };
-            TASKS.with(|tasks| -> Option<()> {
-                {
-                    let mut tasks = tasks.borrow_mut();
-                    let task = tasks.get_mut(task_id)?.as_mut()?;
-                    set_current_task(task_id as _);
-                    match poll_with_dummy_context(task.as_mut()) {
-                        Pending => (),
-                        Ready(()) => {
-                            tasks[task_id] = None;
-                        }
-                    }
-                }
-                install_spawned_tasks(&mut *tasks.borrow_mut());
-                Some(())
-            });
-        }
-    }
-    match poll() {
-        Ready(()) => 1,
-        Pending => 0,
-    }
 }
 
 #[cfg(test)]

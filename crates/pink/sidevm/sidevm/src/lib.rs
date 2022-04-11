@@ -9,6 +9,8 @@ pub use pink_sidevm_logger as logger;
 pub use pink_sidevm_macro::main;
 pub use res_id::ResourceId;
 
+pub use env::spawn;
+
 pub mod channel;
 pub mod time;
 pub mod net;

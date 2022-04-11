@@ -11,9 +11,17 @@ async fn main() {
 
     info!("starting...");
 
+    let _ = sidevm::env::spawn(async {
+        for _ in 0..10 {
+            info!("Task 1 sleeping...");
+            sidevm::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+        info!("Task 1 done");
+    });
+
     for _ in 0..10 {
-        info!("sleeping...");
-        sidevm::time::sleep(Duration::from_millis(100)).await;
+        info!("Timer 0 sleeping...");
+        sidevm::time::sleep(Duration::from_millis(500)).await;
     }
-    info!("done");
+    info!("Task 0 done");
 }
