@@ -91,8 +91,8 @@ extern "C" fn sidevm_poll() -> i32 {
                 Err(OcallError::NotFound) => return task::Poll::Pending,
                 Err(err) => panic!("Error occured: {:?}", err),
             };
-            TASKS.with(|tasks| -> Option<()> {
-                {
+            let exited = TASKS.with(|tasks| -> Option<bool> {
+                let exited = {
                     let mut tasks = tasks.borrow_mut();
                     let task = tasks.get_mut(task_id)?.as_mut()?;
                     set_current_task(task_id as _);
@@ -102,10 +102,16 @@ extern "C" fn sidevm_poll() -> i32 {
                             tasks[task_id] = None;
                         }
                     }
+                    tasks[0].is_none()
+                };
+                if !exited {
+                    start_spawned_tasks(&mut *tasks.borrow_mut());
                 }
-                start_spawned_tasks(&mut *tasks.borrow_mut());
-                Some(())
+                Some(exited)
             });
+            if let Some(true) = exited {
+                return task::Poll::Ready(());
+            }
         }
     }
     match poll() {
