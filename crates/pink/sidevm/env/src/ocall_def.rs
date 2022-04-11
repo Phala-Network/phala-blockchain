@@ -104,6 +104,10 @@ pub trait OcallFuncs {
     #[ocall(id = 105, fast_input, fast_return)]
     fn poll_shutdown(resource_id: i32) -> Result<Poll<()>>;
 
+    /// Mark a task as ready for next polling
+    #[ocall(id = 109, fast_input, fast_return)]
+    fn mark_task_ready(task_id: i32) -> Result<()>;
+
     /// Get the next waken up task id.
     #[ocall(id = 110, fast_input, fast_return)]
     fn next_ready_task() -> Result<i32>;

@@ -188,7 +188,7 @@ impl env::VmMemory for VmMemory {
 impl env::OcallFuncs for State {
     fn close(&mut self, resource_id: i32) -> Result<()> {
         match self.resources.take(resource_id) {
-            None => Err(OcallError::ResourceNotFound),
+            None => Err(OcallError::NotFound),
             Some(_res) => Ok(()),
         }
     }
@@ -209,8 +209,13 @@ impl env::OcallFuncs for State {
         self.resources.get_mut(resource_id)?.poll_shutdown()
     }
 
+    fn mark_task_ready(&mut self, task_id: i32) -> Result<()> {
+        self.awake_tasks.push(task_id);
+        Ok(())
+    }
+
     fn next_ready_task(&mut self) -> Result<i32> {
-        self.awake_tasks.pop().ok_or(OcallError::ResourceNotFound)
+        self.awake_tasks.pop().ok_or(OcallError::NotFound)
     }
 
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {

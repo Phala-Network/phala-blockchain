@@ -108,7 +108,7 @@ impl ResourceKeeper {
         self.resources
             .get_mut(id as usize)
             .and_then(Option::as_mut)
-            .ok_or(OcallError::ResourceNotFound)
+            .ok_or(OcallError::NotFound)
     }
 
     pub fn push(&mut self, resource: Resource) -> Result<i32> {

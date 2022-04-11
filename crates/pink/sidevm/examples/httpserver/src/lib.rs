@@ -14,6 +14,13 @@ async fn main() {
 
     let listener = sidevm::net::TcpListener::listen(address).await.unwrap();
 
+    let _ = sidevm::env::spawn(async {
+        loop {
+            info!("Sleeping...");
+            sidevm::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+
     loop {
         info!("Waiting for imcomming connection...");
         let mut stream = listener.accept().await.unwrap();
