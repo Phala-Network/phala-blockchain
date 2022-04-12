@@ -769,8 +769,11 @@ async fn try_register_worker(
     pr: &PrClient,
     paraclient: &ParachainApi,
     signer: &mut SrSigner,
+    operator: Option<AccountId32>,
 ) -> Result<()> {
-    let info = pr.get_runtime_info(()).await?;
+    let info = pr
+        .get_runtime_info(prpc::GetRuntimeInfoRequest::new(false, operator))
+        .await?;
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
         register_worker(&paraclient, info.encoded_runtime_info, attestation, signer).await?;
@@ -845,17 +848,17 @@ async fn bridge(
 
     // Try to initialize pRuntime and register on-chain
     let info = pr.get_info(()).await?;
+    let operator = match args.operator.clone() {
+        None => None,
+        Some(operator) => {
+            let parsed_operator = AccountId32::from_str(&operator)
+                .map_err(|e| anyhow!("Failed to parse operator address: {}", e))?;
+            Some(parsed_operator)
+        }
+    };
     if !args.no_init {
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
-            let operator = match args.operator.clone() {
-                None => None,
-                Some(operator) => {
-                    let parsed_operator = AccountId32::from_str(&operator)
-                        .map_err(|e| anyhow!("Failed to parse operator address: {}", e))?;
-                    Some(parsed_operator)
-                }
-            };
             let start_header =
                 resolve_start_header(&para_api, args.parachain, args.start_header).await?;
             info!("Resolved start header at {}", start_header);
@@ -866,7 +869,7 @@ async fn bridge(
                 !args.ra,
                 args.use_dev_key,
                 &args.inject_key,
-                operator,
+                operator.clone(),
                 args.parachain,
                 start_header,
             )
@@ -905,7 +908,7 @@ async fn bridge(
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &para_api, &mut signer).await?;
+            try_register_worker(&pr, &para_api, &mut signer, operator).await?;
             flags.worker_registered = true;
         }
         warn!("Block sync disabled.");
@@ -1017,7 +1020,7 @@ async fn bridge(
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 if !flags.worker_registered {
-                    try_register_worker(&pr, &para_api, &mut signer).await?;
+                    try_register_worker(&pr, &para_api, &mut signer, operator.clone()).await?;
                     flags.worker_registered = true;
                 }
             }
