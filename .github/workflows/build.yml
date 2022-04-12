@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ master ]
+    branches: [ pruntime-6a5114 ]
   pull_request:
-    branches: [ master ]
+    branches: [ pruntime-6a5114 ]
 
 env:
   CARGO_TERM_COLOR: always
