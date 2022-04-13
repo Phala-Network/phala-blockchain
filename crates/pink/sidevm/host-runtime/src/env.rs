@@ -130,6 +130,7 @@ impl Env {
     }
 
     /// The blocking version of `push_message`.
+    #[allow(dead_code)]
     pub fn blocking_push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
         self.inner
             .lock()

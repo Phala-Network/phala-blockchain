@@ -113,6 +113,7 @@ pub struct FatContract {
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
     contract_id: phala_mq::ContractId,
+    sidevm_handle: Option<u64>,
 }
 
 impl FatContract {
@@ -131,6 +132,7 @@ impl FatContract {
             ecdh_key,
             cluster_id,
             contract_id,
+            sidevm_handle: None,
         }
     }
 }
@@ -210,6 +212,10 @@ impl FatContract {
         secret_mq
             .bind_remote_key(remote_pubkey)
             .push_data(payload, topic)
+    }
+
+    pub(crate) fn start_sidevm(&mut self, code: &[u8], memory_pages: u32) {
+        todo!("TODO.kevin.start_sidevm");
     }
 }
 
