@@ -83,15 +83,23 @@ impl Decode for RawData {
     fn decode<I: parity_scale_codec::Input>(
         input: &mut I,
     ) -> Result<Self, parity_scale_codec::Error> {
-        let capacity = input.remaining_len()?.unwrap_or_default();
-        let mut buf = Vec::with_capacity(capacity);
+        // The remaining_len is not guaranteed to be correct by the trait Input definition. We only
+        // decode the RawData with <&[u8] as Input>, which obviously impl the correct remaining_len.
+        let mut remaining_len = input
+            .remaining_len()?
+            .ok_or("Can not decode RawData without length")?;
+        let mut decoded = Vec::with_capacity(remaining_len);
+        let mut buf = [0u8; 256];
         loop {
-            match input.read_byte() {
-                Ok(byte) => buf.push(byte),
-                Err(_) => break,
+            let chunk = remaining_len.min(buf.len());
+            input.read(&mut buf[..chunk])?;
+            decoded.extend_from_slice(&buf[..chunk]);
+            remaining_len -= chunk;
+            if remaining_len == 0 {
+                break;
             }
         }
-        Ok(RawData(buf))
+        Ok(RawData(decoded))
     }
 }
 
