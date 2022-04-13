@@ -19,14 +19,15 @@ use thread_local::ThreadLocal;
 use crate::{
     async_context::{get_task_cx, set_task_env},
     resource::{Resource, ResourceKeeper},
+    VmId,
 };
 
 fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(store: &Store) -> (Env, ImportObject) {
-    let env = Env::new();
+pub fn create_env(id: VmId, store: &Store) -> (Env, ImportObject) {
+    let env = Env::new(id);
     (
         env.clone(),
         imports! {
@@ -74,12 +75,19 @@ impl TaskSet {
 }
 
 struct State {
+    id: VmId,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
     message_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
+}
+
+impl State {
+    fn short_id(&self) -> hex_fmt::HexFmt<&[u8]> {
+        hex_fmt::HexFmt(&self.id[..4])
+    }
 }
 
 struct VmMemory(Option<Memory>);
@@ -95,7 +103,7 @@ pub struct Env {
 }
 
 impl Env {
-    fn new() -> Self {
+    fn new(id: VmId) -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
         let mut resources = ResourceKeeper::default();
         let _ = resources.push(Resource::ChannelRx(message_rx));
@@ -103,6 +111,7 @@ impl Env {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
                 state: State {
+                    id,
                     resources,
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
@@ -123,7 +132,7 @@ impl Env {
         self.inner.lock().unwrap().memory.0 = None;
     }
 
-    /// Push a pink message into the SideVM instance.
+    /// Push a pink message into the Sidevm instance.
     pub async fn push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
         let tx = self.inner.lock().unwrap().state.message_tx.clone();
         tx.send(message).await
@@ -261,9 +270,9 @@ impl env::OcallFuncs for State {
     }
 
     fn log(&mut self, message: Cow<str>) -> Result<()> {
-        // TODO.kevin.must: use log crate
-        let vm_id = "VMID";
         let task = self.current_task;
+        let vm_id = self.short_id();
+        type todo_use_log_crate = ();
         println!("[vm:{vm_id:<8}][{task:<3}] {message}");
         Ok(())
     }
@@ -286,9 +295,9 @@ fn sidevm_ocall_fast_return(
         env::dispatch_call_fast_return(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
     });
     if env.state.ocall_trace_enabled {
-        // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = "VMID";
+        let vm_id = env.state.short_id();
+        type todo_use_log_crate = ();
         eprintln!(
             "[vm:{vm_id:<8}][{task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
@@ -314,9 +323,9 @@ fn sidevm_ocall(
         env::dispatch_call(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
     });
     if env.state.ocall_trace_enabled {
-        // TODO.kevin.must: use log crate
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = "VMID";
+        let vm_id = env.state.short_id();
+        type todo_use_log_crate = ();
         eprintln!(
             "[vm:{vm_id:<8}][{task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );

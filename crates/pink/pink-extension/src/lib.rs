@@ -43,7 +43,7 @@ pub enum PinkEvent {
     /// Contract has an on_block_end ink message and will emit this event on instantiation.
     OnBlockEndSelector(u32),
     /// Start the side VM.
-    StartSideVM {
+    StartSidevm {
         wasm_code: Cow<'static, [u8]>,
         /// Number of memory wasm pages (64KB per page) to allocate for the side VM.
         memory_pages: u32,
@@ -103,7 +103,7 @@ pub fn set_on_block_end_selector(selector: u32) {
 
 /// Start a side VM instance
 pub fn start_sidevm(wasm_code: Cow<'static, [u8]>, memory_pages: u32) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSideVM {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm {
         wasm_code,
         memory_pages,
     })

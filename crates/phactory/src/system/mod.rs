@@ -42,6 +42,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
+use sidevm::service::Spawner;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -416,10 +417,19 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_clusters: ClusterKeeper,
+    #[serde(skip)]
+    #[serde(default = "create_sidevm_service")]
+    sidevm_spawner: Spawner,
 
     // Cached for query
     block_number: BlockNumber,
     now_ms: u64,
+}
+
+fn create_sidevm_service() -> Spawner {
+    let (run, spawner) = sidevm::service::service();
+    std::thread::spawn(move || run.blocking_run(|_| {}));
+    spawner
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -460,6 +470,7 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_clusters: Default::default(),
             block_number: 0,
             now_ms: 0,
+            sidevm_spawner: create_sidevm_service(),
         }
     }
 
@@ -583,6 +594,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     &mut self.contract_clusters,
                     block,
                     &self.egress,
+                    &self.sidevm_spawner,
                 );
             }
             let mut env = ExecuteEnv {
@@ -602,6 +614,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &mut self.contract_clusters,
                 block,
                 &self.egress,
+                &self.sidevm_spawner,
             );
         }
     }
@@ -969,6 +982,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             cluster,
                             block,
                             &self.egress,
+                            &self.sidevm_spawner,
                         );
                     }
                 }
@@ -1090,6 +1104,7 @@ pub fn handle_contract_command_result(
     clusters: &mut ClusterKeeper,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
+    spawner: &Spawner,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1108,7 +1123,9 @@ pub fn handle_contract_command_result(
         }
         Some(cluster) => cluster,
     };
-    apply_pink_side_effects(effects, cluster_id, contracts, cluster, block, egress);
+    apply_pink_side_effects(
+        effects, cluster_id, contracts, cluster, block, egress, spawner,
+    );
 }
 
 pub fn apply_pink_side_effects(
@@ -1118,6 +1135,7 @@ pub fn apply_pink_side_effects(
     cluster: &mut Cluster,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
+    spawner: &Spawner,
 ) {
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1184,10 +1202,13 @@ pub fn apply_pink_side_effects(
             PinkEvent::OnBlockEndSelector(selector) => {
                 contract.set_on_block_end_selector(selector);
             }
-            PinkEvent::StartSideVM {
+            PinkEvent::StartSidevm {
                 wasm_code,
                 memory_pages,
-            } => contract.start_sidevm(&wasm_code, memory_pages),
+            } => match contract.start_sidevm(&spawner, wasm_code.into_owned(), memory_pages) {
+                Ok(()) => (),
+                Err(err) => error!("Start sidevm failed: {:?}", err),
+            },
         }
     }
 }
@@ -1299,6 +1320,7 @@ mod tests {
             .send_mq
             .channel(MessageOrigin::Gatekeeper, signer.into());
         let mut block_info = builder.build();
+        let spawner = create_sidevm_service();
 
         apply_pink_side_effects(
             effects,
@@ -1307,6 +1329,7 @@ mod tests {
             cluster,
             &mut block_info,
             &egress,
+            &spawner,
         );
 
         insta::assert_display_snapshot!(contracts.len());

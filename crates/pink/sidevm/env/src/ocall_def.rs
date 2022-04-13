@@ -81,7 +81,7 @@ impl I32Convertible for Poll<()> {
     }
 }
 
-/// All ocall definitions for pink SideVM.
+/// All ocall definitions for pink Sidevm.
 #[pink_sidevm_macro::ocall]
 pub trait OcallFuncs {
     /// Close given resource by id.

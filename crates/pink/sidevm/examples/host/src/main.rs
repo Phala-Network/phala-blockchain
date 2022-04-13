@@ -16,9 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     let wasm_bytes = std::fs::read(args().nth(1).unwrap()).unwrap();
     println!("VM running...");
-    let (_sender, handle) = spawner
-        .start(&wasm_bytes, 100, "vm id 01".to_owned())
-        .unwrap();
+    let (_sender, handle) = spawner.start(&wasm_bytes, 100, Default::default()).unwrap();
     handle.await?;
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     println!("done");

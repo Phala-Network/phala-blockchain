@@ -1,4 +1,4 @@
-//! Tools for writing SideVM programs.
+//! Tools for writing Sidevm programs.
 
 // #![warn(missing_docs)]
 

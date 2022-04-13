@@ -1,5 +1,5 @@
 //! This crate provides some instrumentation to write sidevm programs. It is built on top of the
-//! SideVM ocalls.
+//! Sidevm ocalls.
 
 #![warn(missing_docs)]
 

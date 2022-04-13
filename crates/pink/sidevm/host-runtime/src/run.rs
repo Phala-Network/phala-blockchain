@@ -20,7 +20,7 @@ impl Drop for WasmRun {
 }
 
 impl WasmRun {
-    pub fn run(code: &[u8], max_pages: u32) -> Result<(WasmRun, env::Env)> {
+    pub fn run(code: &[u8], max_pages: u32, id: crate::VmId) -> Result<(WasmRun, env::Env)> {
         let compiler = Singlepass::default();
         let engine = Universal::new(compiler).engine();
         let base = BaseTunables {
@@ -31,7 +31,7 @@ impl WasmRun {
         let tunables = LimitingTunables::new(base, Pages(max_pages));
         let store = Store::new_with_tunables(&engine, tunables);
         let module = Module::new(&store, code)?;
-        let (env, import_object) = env::create_env(&store);
+        let (env, import_object) = env::create_env(id, &store);
         let instance = Instance::new(&module, &import_object)?;
         let memory = instance
             .exports

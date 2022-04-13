@@ -1,12 +1,16 @@
+use std::sync::Arc;
+
 use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
 use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
+use anyhow::anyhow;
 use phala_serde_more as more;
 
 pub struct ExecuteEnv<'a, 'b> {
@@ -103,6 +107,25 @@ impl Decode for RawData {
     }
 }
 
+pub enum SidevmHandle {
+    Running(sidevm::service::CommandSender),
+    Terminated,
+}
+
+impl Default for SidevmHandle {
+    fn default() -> Self {
+        SidevmHandle::Terminated
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct SidevmInfo {
+    code: Vec<u8>,
+    memory_pages: u32,
+    #[serde(skip, default)]
+    handle: Arc<Mutex<SidevmHandle>>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct FatContract {
     #[serde(with = "more::scale_bytes")]
@@ -113,7 +136,7 @@ pub struct FatContract {
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
     contract_id: phala_mq::ContractId,
-    sidevm_handle: Option<u64>,
+    sidevm_info: Option<SidevmInfo>,
 }
 
 impl FatContract {
@@ -132,12 +155,10 @@ impl FatContract {
             ecdh_key,
             cluster_id,
             contract_id,
-            sidevm_handle: None,
+            sidevm_info: None,
         }
     }
-}
 
-impl FatContract {
     pub(crate) fn id(&self) -> ContractId {
         self.contract_id
     }
@@ -214,8 +235,51 @@ impl FatContract {
             .push_data(payload, topic)
     }
 
-    pub(crate) fn start_sidevm(&mut self, code: &[u8], memory_pages: u32) {
-        todo!("TODO.kevin.start_sidevm");
+    pub(crate) fn start_sidevm(
+        &mut self,
+        spawner: &sidevm::service::Spawner,
+        code: Vec<u8>,
+        memory_pages: u32,
+    ) -> Result<()> {
+        let (sender, join_handle) = spawner.start(&code, memory_pages, self.contract_id.0)?;
+        let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
+        let cloned_handle = handle.clone();
+        spawner.spawn(async move {
+            if let Err(err) = join_handle.await {
+                log::error!("Sidevm process terminated with error: {:?}", err);
+            }
+            *cloned_handle.lock().await = SidevmHandle::Terminated;
+        });
+        self.sidevm_info = Some(SidevmInfo {
+            code,
+            memory_pages,
+            handle,
+        });
+        Ok(())
+    }
+
+    pub(crate) async fn push_message_to_sidevm(&self, message: Vec<u8>) -> Result<()> {
+        let handle = self
+            .sidevm_info
+            .as_ref()
+            .ok_or_else(|| anyhow!("Push message to sidevm failed, no sidevm instance"))?
+            .handle
+            .lock()
+            .await;
+
+        match &*handle {
+            SidevmHandle::Terminated => {
+                return Err(anyhow!(
+                    "Push message to sidevm failed, instance terminated"
+                ));
+            }
+            SidevmHandle::Running(tx) => {
+                tx.send(sidevm::service::Command::PushMessage(message))
+                    .await
+                    .or(Err(anyhow!("Send message to sidevm failed")))?;
+            }
+        }
+        Ok(())
     }
 }
 

@@ -3,7 +3,7 @@
 use log::{Level, Log, Metadata, Record};
 use pink_sidevm_env::ocall_funcs_guest as ocall;
 
-/// A logger working inside a SideVM.
+/// A logger working inside a Sidevm.
 pub struct Logger {
     max_level: Level,
 }

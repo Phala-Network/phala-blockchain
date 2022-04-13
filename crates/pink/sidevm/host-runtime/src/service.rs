@@ -1,21 +1,25 @@
 use crate::run::WasmRun;
+use crate::VmId;
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
+use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     task::JoinHandle,
 };
 
+pub type CommandSender = Sender<Command>;
+
 #[derive(Debug)]
 pub enum Report {
-    VmTerminated { id: String },
+    VmTerminated { id: VmId },
 }
 
 pub enum Command {
     // Stop the side VM instance.
     Stop,
     // Send a sidevm message to the instance.
-    Message(Vec<u8>),
+    PushMessage(Vec<u8>),
 }
 
 pub struct ServiceRun {
@@ -67,11 +71,11 @@ impl Spawner {
         &self,
         wasm_bytes: &[u8],
         memory_pages: u32,
-        id: String,
-    ) -> Result<(Sender<Command>, JoinHandle<()>)> {
+        id: VmId,
+    ) -> Result<(CommandSender, JoinHandle<()>)> {
         let (cmd_tx, mut cmd_rx) = channel(100);
-        let (mut wasm_run, env) =
-            WasmRun::run(wasm_bytes, memory_pages).context("Failed to create sidevm instance")?;
+        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id)
+            .context("Failed to create sidevm instance")?;
         let handle = self.runtime_handle.spawn(async move {
             loop {
                 tokio::select! {
@@ -85,7 +89,7 @@ impl Spawner {
                                 info!("Received stop command. Exiting...");
                                 break;
                             }
-                            Some(Command::Message(msg)) => {
+                            Some(Command::PushMessage(msg)) => {
                                 debug!("Sending message to sidevm.");
                                 match env.push_message(msg).await {
                                     Ok(_) => {}
@@ -123,5 +127,9 @@ impl Spawner {
             }
         });
         Ok((cmd_tx, handle))
+    }
+
+    pub fn spawn(&self, fut: impl Future<Output = ()> + Send + 'static) -> JoinHandle<()> {
+        self.runtime_handle.spawn(fut)
     }
 }
