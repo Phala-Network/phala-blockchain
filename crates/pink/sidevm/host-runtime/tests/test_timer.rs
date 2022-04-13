@@ -5,7 +5,7 @@ use std::time::Duration;
 #[tokio::test]
 async fn test_timer() -> Result<()> {
     let wasm_bytes = include_bytes!("res/sidevm_timer.wasm");
-    let (run, env) = WasmRun::run(wasm_bytes, 100)?;
+    let (run, env) = WasmRun::run(wasm_bytes, 100, Default::default())?;
     std::thread::spawn(move || loop {
         loop {
             std::thread::sleep(Duration::from_secs(2));

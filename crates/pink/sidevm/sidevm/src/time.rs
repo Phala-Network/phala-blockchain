@@ -17,7 +17,7 @@ pub struct Sleep {
 /// Sleep for the specified duration.
 ///
 /// # Example
-/// ```
+/// ```ignore
 /// use pink_sidevm::time;
 /// time::sleep(Duration::from_millis(100)).await;
 /// ```
