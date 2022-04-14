@@ -10,7 +10,7 @@ use super::pink::cluster::ClusterKeeper;
 use super::*;
 use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use phala_serde_more as more;
 
 pub struct ExecuteEnv<'a, 'b> {
@@ -241,6 +241,9 @@ impl FatContract {
         code: Vec<u8>,
         memory_pages: u32,
     ) -> Result<()> {
+        if self.sidevm_info.is_some() {
+            bail!("Sidevm can only be started once");
+        }
         let (sender, join_handle) = spawner.start(&code, memory_pages, self.contract_id.0)?;
         let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
         let cloned_handle = handle.clone();
