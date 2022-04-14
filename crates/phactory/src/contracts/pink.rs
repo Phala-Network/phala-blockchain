@@ -2,11 +2,11 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractClusterId, MessageOrigin};
+use phala_mq::{ContractClusterId, MessageOrigin, ContractId};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber, Hash};
 
-use super::{contract_address_to_id, NativeContractMore};
+use super::contract_address_to_id;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -72,6 +72,14 @@ impl Pink {
             instance,
             cluster_id,
         }
+    }
+
+    pub fn id(&self) -> ContractId {
+        contract_address_to_id(&self.instance.address)
+    }
+
+    pub fn set_on_block_end_selector(&mut self, selector: u32) {
+        self.instance.set_on_block_end_selector(selector)
     }
 }
 
@@ -161,16 +169,6 @@ impl contracts::NativeContract for Pink {
 
     fn snapshot(&self) -> Self {
         self.clone()
-    }
-}
-
-impl NativeContractMore for Pink {
-    fn id(&self) -> phala_mq::ContractId {
-        contract_address_to_id(&self.instance.address)
-    }
-
-    fn set_on_block_end_selector(&mut self, selector: u32) {
-        self.instance.set_on_block_end_selector(selector)
     }
 }
 
