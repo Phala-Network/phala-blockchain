@@ -27,10 +27,6 @@ pub enum MessageOrigin {
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
     #[serde(with = "more::scale_bytes")]
     Pallet(Vec<u8>),
-    /// A contract cluster
-    #[display(fmt = "Cluster({})", "hex::encode(_0)")]
-    #[serde(with = "more::scale_bytes")]
-    Cluster(ContractClusterId),
     /// A confidential contract
     #[display(fmt = "Contract({})", "hex::encode(_0)")]
     #[serde(with = "more::scale_bytes")]
@@ -49,6 +45,10 @@ pub enum MessageOrigin {
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,
+    /// A contract cluster
+    #[display(fmt = "Cluster({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_bytes")]
+    Cluster(ContractClusterId),
 }
 
 impl Hash for MessageOrigin {

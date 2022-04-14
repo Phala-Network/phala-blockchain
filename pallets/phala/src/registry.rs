@@ -129,7 +129,6 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
-		UnknownCluster,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
@@ -156,6 +155,8 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
+		// Additional
+		UnknownCluster,
 	}
 
 	#[pallet::call]

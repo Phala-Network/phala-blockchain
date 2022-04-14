@@ -4,9 +4,7 @@ mod side_tasks;
 
 use crate::{
     benchmark,
-    contracts::{
-        pink::cluster::Cluster, ContractsKeeper, ExecuteEnv, NativeContract, NativeContractMore,
-    },
+    contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv},
     pink::{cluster::ClusterKeeper, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
@@ -83,8 +81,8 @@ pub enum TransactionError {
     BadChainId,
     TransferringNotAllowed,
     // for contract
-    DuplicatedClusterDeploy,
     CodeNotFound,
+    DuplicatedClusterDeploy,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -877,7 +875,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     block.send_mq.channel(sender, cluster.key().clone().into());
 
                 match contract_info.code_index {
-                    CodeIndex::NativeCode(contract_id) => {
+                    CodeIndex::NativeCode(code_id) => {
                         use contracts::*;
                         let deployer = phala_types::messaging::AccountId(
                             contract_info.clone().deployer.into(),
@@ -885,27 +883,26 @@ impl<Platform: pal::Platform> System<Platform> {
 
                         macro_rules! match_and_install_contract {
                             ($(($id: path => $contract: expr)),*) => {{
-                                match contract_id {
+                                match code_id {
                                     $(
                                         $id => {
-                                            let contract = NativeContractWrapper::new(
-                                                $contract,
-                                                &contract_info
-                                            );
+                                            let id = contract_info.contract_id(blake2_256);
                                             install_contract(
                                                 &mut self.contracts,
-                                                contract,
+                                                id,
+                                                $contract,
                                                 contract_key.clone(),
                                                 ecdh_key,
                                                 block,
                                                 cluster_id,
-                                            )?
+                                            )?;
+                                            id
                                         }
                                     )*
                                     _ => {
                                         anyhow::bail!(
-                                            "Invalid contract id: {:?}",
-                                            contract_id
+                                            "Invalid contract code id: {:?}",
+                                            code_id
                                         );
                                     }
                                 }
@@ -1129,8 +1126,10 @@ pub fn apply_pink_side_effects(
         let ecdh_key = contract_key
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
-        let id = install_contract(
+        let id = pink.id();
+        let result = install_contract(
             contracts,
+            id,
             pink,
             contract_key.clone(),
             ecdh_key.clone(),
@@ -1138,15 +1137,12 @@ pub fn apply_pink_side_effects(
             cluster_id,
         );
 
-        let id = match id {
-            Ok(id) => id,
-            Err(err) => {
-                error!("BUG: Install contract failed: {:?}", err);
-                error!(" address: {:?}", address);
-                error!(" cluster_id: {:?}", cluster_id);
-                error!(" deployer: {:?}", deployer);
-                continue;
-            }
+        if let Err(err) = result {
+            error!("BUG: Install contract failed: {:?}", err);
+            error!(" address: {:?}", address);
+            error!(" cluster_id: {:?}", cluster_id);
+            error!(" deployer: {:?}", deployer);
+            continue;
         };
 
         cluster.add_contract(id);
@@ -1193,20 +1189,15 @@ pub fn apply_pink_side_effects(
 }
 
 #[must_use]
-pub fn install_contract<Contract>(
+pub fn install_contract(
     contracts: &mut ContractsKeeper,
-    contract: Contract,
+    contract_id: phala_mq::ContractId,
+    contract: impl Into<AnyContract>,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
     block: &mut BlockInfo,
     cluster_id: phala_mq::ContractClusterId,
-) -> anyhow::Result<contracts::ContractId>
-where
-    Contract: NativeContract + NativeContractMore + Send + 'static,
-    <Contract as NativeContract>::Cmd: Send,
-    contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>,
-{
-    let contract_id = contract.id();
+) -> anyhow::Result<()> {
     if contracts.get(&contract_id).is_some() {
         return Err(anyhow::anyhow!("Contract already exists"));
     }
@@ -1219,7 +1210,7 @@ where
             .into(),
         ecdh_key.clone(),
     );
-    let wrapped = contracts::NativeCompatContract::new(
+    let wrapped = contracts::FatContract::new(
         contract,
         mq,
         cmd_mq,
@@ -1228,7 +1219,7 @@ where
         contract_id,
     );
     contracts.insert(wrapped);
-    Ok(contract_id)
+    Ok(())
 }
 
 #[derive(Encode, Decode, Debug)]

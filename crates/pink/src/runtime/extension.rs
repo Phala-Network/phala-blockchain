@@ -8,7 +8,8 @@ use pallet_contracts::chain_extension::{
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
     chain_extension::{
-        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs, VerifyArgs,
+        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
+        StorageQuotaExceeded, VerifyArgs,
     },
     dispatch_ext_call, PinkEvent,
 };
@@ -20,6 +21,8 @@ use crate::{
     runtime::{get_call_elapsed, get_call_mode, CallMode},
     types::AccountId,
 };
+
+use crate::local_cache::GLOBAL_CACHE;
 
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
@@ -72,10 +75,18 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
     {
         let mut env = env.buf_in_buf_out();
-        let call = Call {
+        let call_in_query = CallInQuery {
             address: env.ext().address().clone(),
         };
-        let output = match dispatch_ext_call!(func_id, call, env) {
+        let result = if matches!(get_call_mode(), Some(CallMode::Command)) {
+            let call = CallInCommand {
+                as_in_query: call_in_query,
+            };
+            dispatch_ext_call!(func_id, call, env)
+        } else {
+            dispatch_ext_call!(func_id, call_in_query, env)
+        };
+        let output = match result {
             Some(output) => output,
             None => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
@@ -92,22 +103,16 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     }
 }
 
-struct Call<AccountId> {
+struct CallInQuery<AccountId> {
     address: AccountId,
 }
 
-impl<AccountId> PinkExtBackend for Call<AccountId>
+impl<AccountId> PinkExtBackend for CallInQuery<AccountId>
 where
     AccountId: AsRef<[u8]>,
 {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        if !matches!(get_call_mode(), Some(CallMode::Query)) {
-            return Err(DispatchError::Other(
-                "http_request can only be called in query mode",
-            ));
-        }
-
         let uri = http_req::uri::Uri::try_from(request.url.as_str())
             .or(Err(DispatchError::Other("Invalid URL")))?;
 
@@ -217,6 +222,98 @@ where
             SigType::Ecdsa => public_key_with!(ecdsa),
         };
         Ok(pubkey)
+    }
+
+    fn cache_set(
+        &self,
+        key: Cow<[u8]>,
+        value: Cow<[u8]>,
+    ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
+        let result = GLOBAL_CACHE
+            .write()
+            .unwrap()
+            .set(self.address.as_ref().into(), key, value);
+        Ok(result)
+    }
+
+    fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
+        GLOBAL_CACHE
+            .write()
+            .unwrap()
+            .set_expire(self.address.as_ref().into(), key, expire);
+        Ok(())
+    }
+
+    fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let value = GLOBAL_CACHE
+            .read()
+            .unwrap()
+            .get(self.address.as_ref(), key.as_ref());
+        Ok(value)
+    }
+
+    fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let value = GLOBAL_CACHE
+            .write()
+            .unwrap()
+            .remove(self.address.as_ref(), key.as_ref());
+        Ok(value)
+    }
+}
+
+struct CallInCommand<AccountId> {
+    as_in_query: CallInQuery<AccountId>,
+}
+
+/// This implementation is used when calling the extension in a command.
+/// # NOTE FOR IMPLEMENTORS
+/// Make sure the return values are deterministic.
+impl<AccountId> PinkExtBackend for CallInCommand<AccountId>
+where
+    AccountId: AsRef<[u8]>,
+{
+    type Error = DispatchError;
+
+    fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
+        return Err(DispatchError::Other(
+            "http_request can only be called in query mode",
+        ));
+    }
+
+    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.sign(args)
+    }
+
+    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
+        self.as_in_query.verify(args)
+    }
+
+    fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.derive_sr25519_key(salt)
+    }
+
+    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.get_public_key(args)
+    }
+
+    fn cache_set(
+        &self,
+        _key: Cow<[u8]>,
+        _value: Cow<[u8]>,
+    ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
+        Ok(Ok(()))
+    }
+
+    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn cache_get(&self, _key: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(None)
+    }
+
+    fn cache_remove(&self, _args: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(None)
     }
 }
 

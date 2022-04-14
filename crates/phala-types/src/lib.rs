@@ -530,8 +530,10 @@ pub mod messaging {
         TokenomicParametersChanged(TokenomicParameters),
         /// Deprecated after https://github.com/Phala-Network/phala-blockchain/pull/499
         RepairV,
-        /// Trigger the fix to https://github.com/Phala-Network/phala-blockchain/issues/676
-        Fix676,
+        /// Trigger a set of changes:
+        /// - https://github.com/Phala-Network/phala-blockchain/issues/693
+        /// - https://github.com/Phala-Network/phala-blockchain/issues/676
+        PhalaLaunched,
     }
 
     impl GatekeeperEvent {

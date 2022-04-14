@@ -378,7 +378,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(resp)
     }
 
-    fn get_runtime_info(&mut self) -> RpcResult<pb::InitRuntimeResponse> {
+    fn get_runtime_info(
+        &mut self,
+        refresh_ra: bool,
+        operator: Option<chain::AccountId>,
+    ) -> RpcResult<pb::InitRuntimeResponse> {
         let skip_ra = self.skip_ra;
 
         let mut cached_resp = self
@@ -386,10 +390,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .as_mut()
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
 
+        let reset_operator = operator.is_some();
+        if reset_operator {
+            let mut runtime_info = cached_resp
+                .decode_runtime_info()
+                .expect("Decode runtime_info failed");
+            runtime_info.operator = operator;
+            cached_resp.encoded_runtime_info = runtime_info.encode();
+        }
+
         if !skip_ra {
             if let Some(cached_attestation) = &cached_resp.attestation {
                 const MAX_ATTESTATION_AGE: u64 = 60 * 60;
-                if now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE {
+                if refresh_ra
+                    || reset_operator
+                    || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
+                {
                     cached_resp.attestation = None;
                 }
             }
@@ -722,8 +738,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         )
     }
 
-    fn get_runtime_info(&mut self, _: ()) -> RpcResult<pb::InitRuntimeResponse> {
-        self.lock_phactory().get_runtime_info()
+    fn get_runtime_info(
+        &mut self,
+        req: pb::GetRuntimeInfoRequest,
+    ) -> RpcResult<pb::InitRuntimeResponse> {
+        self.lock_phactory()
+            .get_runtime_info(req.force_refresh_ra, req.decode_operator()?)
     }
 
     fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
