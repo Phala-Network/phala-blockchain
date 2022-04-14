@@ -18,21 +18,24 @@ async fn main() {
         info!("Waiting for imcomming connection...");
         let mut stream = listener.accept().await.unwrap();
 
-        info!("New imcomming connection:");
-        info!("=====================");
-        loop {
-            let mut line = String::new();
-            let _nbytes = stream.read_line(&mut line).await.unwrap();
-            let line = line.trim_end();
-            info!("> {}", &line);
-            if line.is_empty() {
-                info!("---------------------");
-                stream
-                    .write_all(b"HTTP/1.0 200 OK\r\n\r\nHello, world!\n")
-                    .await
-                    .unwrap();
-                break;
+        info!("New imcomming connection");
+        // Spawn a new task to handle the new connection concurrently
+        sidevm::spawn(async move {
+            info!("=====================");
+            loop {
+                let mut line = String::new();
+                let _nbytes = stream.read_line(&mut line).await.unwrap();
+                let line = line.trim_end();
+                info!("> {}", &line);
+                if line.is_empty() {
+                    info!("---------------------");
+                    stream
+                        .write_all(b"HTTP/1.0 200 OK\r\n\r\nHello, world!\n")
+                        .await
+                        .unwrap();
+                    break;
+                }
             }
-        }
+        });
     }
 }
