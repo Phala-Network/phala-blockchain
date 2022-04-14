@@ -1176,6 +1176,9 @@ pub fn apply_pink_side_effects(
         egress.push_message(&message);
     }
 
+    const MAX_SIDEVM_CODE_SIZE: usize = 1024 * 1024 * 2;
+    let mut wasm_code = Vec::new();
+
     for (address, event) in effects.pink_events {
         let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
@@ -1202,13 +1205,25 @@ pub fn apply_pink_side_effects(
             PinkEvent::OnBlockEndSelector(selector) => {
                 contract.set_on_block_end_selector(selector);
             }
-            PinkEvent::StartSidevm {
-                wasm_code,
-                memory_pages,
-            } => match contract.start_sidevm(&spawner, wasm_code.into_owned(), memory_pages) {
-                Ok(()) => (),
-                Err(err) => error!("Start sidevm failed: {:?}", err),
-            },
+            PinkEvent::StartToTransferSidevmCode => {
+                wasm_code.clear();
+            }
+            PinkEvent::SidevmCodeChunk(chunk) => {
+                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
+                    wasm_code.extend_from_slice(&chunk);
+                }
+            }
+            PinkEvent::StartSidevm { memory_pages } => {
+                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
+                    let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
+                    match contract.start_sidevm(&spawner, wasm_code, memory_pages) {
+                        Ok(()) => (),
+                        Err(err) => error!("Start sidevm failed: {:?}", err),
+                    }
+                } else {
+                    error!("Start sidevm failed: Code too large");
+                }
+            }
         }
     }
 }

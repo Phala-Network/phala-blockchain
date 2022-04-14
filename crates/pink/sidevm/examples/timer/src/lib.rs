@@ -19,9 +19,8 @@ async fn main() {
         info!("Task 1 done");
     });
 
-    for _ in 0..2 {
+    loop {
         info!("Timer 0 sleeping...");
         sidevm::time::sleep(Duration::from_millis(500)).await;
     }
-    info!("Task 0 done");
 }

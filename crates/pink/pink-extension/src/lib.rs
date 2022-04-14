@@ -2,8 +2,7 @@
 
 extern crate alloc;
 
-use std::borrow::Cow;
-
+use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
@@ -42,9 +41,12 @@ pub enum PinkEvent {
     OspMessage(OspMessage),
     /// Contract has an on_block_end ink message and will emit this event on instantiation.
     OnBlockEndSelector(u32),
+    /// Start to transfer sidevm code
+    StartToTransferSidevmCode,
+    /// One chunk of sidevm code
+    SidevmCodeChunk(Cow<'static, [u8]>),
     /// Start the side VM.
     StartSidevm {
-        wasm_code: Cow<'static, [u8]>,
         /// Number of memory wasm pages (64KB per page) to allocate for the side VM.
         memory_pages: u32,
     },
@@ -102,11 +104,12 @@ pub fn set_on_block_end_selector(selector: u32) {
 }
 
 /// Start a side VM instance
-pub fn start_sidevm(wasm_code: Cow<'static, [u8]>, memory_pages: u32) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm {
-        wasm_code,
-        memory_pages,
-    })
+pub fn start_sidevm(wasm_code: &'static [u8], memory_pages: u32) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartToTransferSidevmCode);
+    for chunk in wasm_code.chunks(1024 * 15) {
+        emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
+    }
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { memory_pages })
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.

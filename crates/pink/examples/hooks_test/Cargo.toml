@@ -23,7 +23,7 @@ pink-extension = { version = "0.1.0", default-features = false, features = ["ink
 name = "hooks_test"
 path = "lib.rs"
 crate-type = [
-    "cdylib", "lib",
+    "cdylib",
 ]
 
 [features]
