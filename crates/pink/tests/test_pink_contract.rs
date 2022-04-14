@@ -282,3 +282,13 @@ fn test_use_cache() {
         hex!("928b2036"),
     );
 }
+
+
+#[test]
+fn test_start_sidevm() {
+    test_with_wasm(
+        include_bytes!("./fixtures/start_sidevm.wasm"),
+        hex!("ed4b9d1b"),
+        hex!("928b2036"),
+    );
+}
