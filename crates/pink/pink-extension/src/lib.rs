@@ -105,6 +105,7 @@ pub fn set_on_block_end_selector(selector: u32) {
 
 /// Start a side VM instance
 pub fn start_sidevm(wasm_code: &'static [u8], memory_pages: u32) {
+    // `ink!` limit a single event size to 16KB. As a workaround, we chop the code in to 15KB chunks.
     emit_event::<PinkEnvironment, _>(PinkEvent::StartToTransferSidevmCode);
     for chunk in wasm_code.chunks(1024 * 15) {
         emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
