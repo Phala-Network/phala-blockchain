@@ -263,27 +263,34 @@ impl FatContract {
         Ok(())
     }
 
-    pub(crate) async fn push_message_to_sidevm(&self, message: Vec<u8>) -> Result<()> {
+    pub(crate) fn push_message_to_sidevm(
+        &self,
+        spawner: &sidevm::service::Spawner,
+        message: Vec<u8>,
+    ) -> Result<()> {
         let handle = self
             .sidevm_info
             .as_ref()
             .ok_or_else(|| anyhow!("Push message to sidevm failed, no sidevm instance"))?
             .handle
-            .lock()
-            .await;
+            .clone();
 
-        match &*handle {
-            SidevmHandle::Terminated => {
-                return Err(anyhow!(
-                    "Push message to sidevm failed, instance terminated"
-                ));
+        spawner.spawn(async move {
+            let handle = handle.lock().await;
+            match &*handle {
+                SidevmHandle::Terminated => {
+                    error!(target: "sidevm", "Push message to sidevm failed, instance terminated");
+                }
+                SidevmHandle::Running(tx) => {
+                    let result = tx
+                        .send(sidevm::service::Command::PushMessage(message))
+                        .await;
+                    if let Err(_) = result {
+                        error!(target: "sidevm", "Push message to sidevm failed, the vm might be already stopped");
+                    }
+                }
             }
-            SidevmHandle::Running(tx) => {
-                tx.send(sidevm::service::Command::PushMessage(message))
-                    .await
-                    .or(Err(anyhow!("Send message to sidevm failed")))?;
-            }
-        }
+        });
         Ok(())
     }
 }

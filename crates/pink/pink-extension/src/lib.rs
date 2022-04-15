@@ -50,6 +50,8 @@ pub enum PinkEvent {
         /// Number of memory wasm pages (64KB per page) to allocate for the side VM.
         memory_pages: u32,
     },
+    /// Push a message to the associated sidevm instance.
+    SidevmMessage(Vec<u8>),
 }
 
 impl Topics for PinkEvent {
@@ -111,6 +113,11 @@ pub fn start_sidevm(wasm_code: &'static [u8], memory_pages: u32) {
         emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
     }
     emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { memory_pages })
+}
+
+/// Push a message to the associated sidevm instance.
+pub fn push_sidevm_message(message: Vec<u8>) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SidevmMessage(message))
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.
