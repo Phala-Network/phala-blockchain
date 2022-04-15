@@ -9,10 +9,8 @@ pub fn push(path: &PathBuf, filename: &str) -> PathBuf {
 }
 
 pub fn pathbuf_to_string(path: PathBuf) -> Result<String> {
-    let ret = match path.into_os_string().into_string() {
-        Ok(d) => d,
-        Err(e) => return Err(anyhow!("{:?}", e)),
-    };
+    let ret = path.into_os_string().into_string()
+        .map_err(|e| anyhow!("failed path conversion: {:?}", e))?;
 
     Ok(ret)
 }

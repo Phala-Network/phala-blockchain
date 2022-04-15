@@ -1,19 +1,21 @@
-use anyhow::{anyhow, Context, Error, Result};
-#[allow(unused_imports)]
-use log::{debug, error, info, warn};
+use anyhow::{anyhow, Result};
+use log::{debug, error, info};
 
 use rocket::config::Limits;
 use rocket::http::Method;
 use rocket_contrib::json::Json;
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
-use std::env;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 
-use crate::translator;
+use phala_types::EndpointType;
+
+use crate::{Args, translator};
 use crate::types;
 
-use phaxt::{ParachainApi, RelaychainApi};
+use rocket::post;
+
+use phaxt::ParachainApi;
 
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
@@ -33,29 +35,30 @@ fn cors_options() -> CorsOptions {
 }
 
 fn send_data(
+    target_endpoint_type: EndpointType,
     target_endpoint: &Vec<u8>,
     path: &String,
     method: &types::PRouterRequestMethod,
     data: &Vec<u8>,
+    local_proxy: &String,
 ) -> Result<Vec<u8>> {
     let mut endpoint_str = String::from_utf8_lossy(target_endpoint).into_owned();
 
     let mut client_builder = reqwest::blocking::Client::builder();
-    if endpoint_str.contains("b32.i2p") {
-        // a i2pd address, http is enough since i2p will encrypt msg anyway
-        endpoint_str = format!("http://{}", endpoint_str);
-        client_builder = client_builder.proxy(reqwest::Proxy::http("http://localhost:4444/")?)
+    if matches!(EndpointType::I2P, target_endpoint_type) {
+        client_builder = client_builder.proxy(reqwest::Proxy::http(local_proxy)?);
     }
     let client = client_builder.build()?;
+    let target_endpoint_url = format!("{}{}", endpoint_str, path);
 
-    let target_url = format!("{}{}", endpoint_str, path);
     debug!(
         "PRouter send data to {}, method: {:?}",
-        &target_url, &method
+        &target_endpoint_url, &method
     );
+
     let mut res = match method {
-        types::PRouterRequestMethod::GET => client.get(target_url).send()?,
-        types::PRouterRequestMethod::POST => client.post(target_url).body(data.clone()).send()?,
+        types::PRouterRequestMethod::GET => client.get(target_endpoint_url).send()?,
+        types::PRouterRequestMethod::POST => client.post(target_endpoint_url).body(data.clone()).send()?,
     };
 
     if res.status().is_success() {
@@ -67,8 +70,10 @@ fn send_data(
     }
 }
 
+// by posting to this endpoint, data will be routed to the target endpoint
 #[post("/json/send_data", format = "json", data = "<prouter_send_json>")]
 fn json_send_data(
+    local_proxy: rocket::State<String>,
     para_api_arc: rocket::State<Arc<Mutex<Option<ParachainApi>>>>,
     prouter_send_json: Json<types::PRouterSendJsonRequest>,
 ) -> Json<types::PRouterSendJsonResponse> {
@@ -80,18 +85,20 @@ fn json_send_data(
     };
 
     let para_api = para_api_arc.lock().unwrap();
-    match translator::block_get_endpoint_by_pubkey(
+    match translator::block_get_endpoint_info_by_pubkey(
         &mut para_api.as_ref().expect("guaranteed to be initialized"),
         prouter_send_data.target_pubkey,
     )
     .ok_or(anyhow!("Failed to fetch on-chain storage"))
     {
-        Ok(endpoint) => {
+        Ok((endpoint_type, endpoint)) => {
             match send_data(
+                endpoint_type,
                 &endpoint,
                 &prouter_send_data.path,
                 &prouter_send_data.method,
                 &prouter_send_data.data,
+                &local_proxy,
             ) {
                 Ok(msg) => {
                     response.msg = msg;
@@ -112,18 +119,20 @@ fn json_send_data(
 }
 
 pub fn rocket(
-    api: Arc<Mutex<Option<RelaychainApi>>>,
+    local_proxy: String,
     para_api: Arc<Mutex<Option<ParachainApi>>>,
+    server_address: String,
+    server_port: u16,
 ) -> rocket::Rocket {
     let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
-        .address("127.0.0.1")
-        .port(8100)
+        .address(server_address)
+        .port(server_port.clone())
         .workers(1)
         .limits(Limits::new().limit("json", 104857600))
         .expect("Config should be build with no erros");
 
-    let mut server = rocket::custom(cfg)
-        .manage(api)
+    let server = rocket::custom(cfg)
+        .manage(local_proxy)
         .manage(para_api)
         .mount("/", rocket::routes!(json_send_data));
     info!("Allow CORS");

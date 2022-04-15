@@ -1,4 +1,4 @@
-use std::{str, env};
+use std::str;
 use std::io::BufWriter;
 
 use rocket::config::Limits;
@@ -259,11 +259,7 @@ pub fn rocket(allow_cors: bool, enable_kick_api: bool) -> rocket::Rocket {
 }
 
 // api endpoint with access control, will be exposed to the public
-pub fn rocket_acl(allow_cors: bool) -> rocket::Rocket {
-    let port = env::var("ROCKET_ACL_PORT")
-        .expect("should get rocket acl port")
-        .parse::<u16>()
-        .expect("port should be smaller than 65536");
+pub fn rocket_acl(allow_cors: bool, port: u16) -> rocket::Rocket {
     let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
         .address("0.0.0.0")
         .port(port)

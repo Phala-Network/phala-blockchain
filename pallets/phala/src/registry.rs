@@ -27,8 +27,8 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo, VersionedWorkerEndpoint, worker_endpoint_v1::{WorkerEndpoint, PhalaEndpointInfo},
-		EndpointType
+		WorkerRegistrationInfo, VersionedWorkerEndpoint,
+		worker_endpoint_v1::{ WorkerEndpoint }
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -112,7 +112,7 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to Phala Network identity
 	#[pallet::storage]
-	pub type PhalaEndpoints<T: Config> =
+	pub type Endpoints<T: Config> =
 	StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
 
 	#[pallet::event]
@@ -341,33 +341,38 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// (called by a prouter on behalf of a worker)
 		#[pallet::weight(0)]
 		pub fn bind_worker_endpoint(
 			origin: OriginFor<T>,
-			pubkey: WorkerPublicKey,
-			endpoint: Vec<u8>,
-			endpoint_type: EndpointType,
+			versioned_endpoint: VersionedWorkerEndpoint,
+			signature: Vec<u8>,
 		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			let worker = Workers::<T>::get(&pubkey).ok_or(Error::<T>::InvalidPubKey)?;
-			ensure!(worker.operator == Some(who), Error::<T>::InvalidSender);
+			ensure_signed(origin)?;
 
-			PhalaEndpoints::<T>::mutate(pubkey, |v| {
-				match endpoint_type {
-					EndpointType::I2P => {
-						*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(PhalaEndpointInfo {
-							pubkey,
-							endpoint
-						})))
+			// validate the signature
+			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
+			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
+				.or(Err(Error::<T>::MalformedSignature))?;
+			let encoded_data = versioned_endpoint.clone().encode();
+
+			let pubkey = match versioned_endpoint.clone() {
+				VersionedWorkerEndpoint::V1(endpoint) => match endpoint {
+					WorkerEndpoint::I2P(i2p_endpoint) => {
+						i2p_endpoint.pubkey
 					}
-					EndpointType::Http => {
-						*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(PhalaEndpointInfo {
-							pubkey,
-							endpoint
-						})))
+					WorkerEndpoint::Http(http_endpoint) => {
+						http_endpoint.pubkey
 					}
-				}
+				},
+			};
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &pubkey),
+				Error::<T>::InvalidSignature
+			);
+
+			Endpoints::<T>::mutate(pubkey, |v| {
+				*v = Some(versioned_endpoint);
 			});
 
 			Ok(())

@@ -8,11 +8,6 @@ use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// match SystemTime::now().duration_since(UNIX_EPOCH) {
-//     Ok(n) => println!("1970-01-01 00:00:00 UTC was {} seconds ago!", n.as_secs()),
-//     Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-// }
-
 #[derive(Debug, Clone)]
 pub struct SU3File {
     pub signer_id: String,

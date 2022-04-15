@@ -21,20 +21,20 @@ fn main() -> std::io::Result<()> {
     println!("cargo:rustc-link-search=native=/usr/lib/");
     println!("cargo:rustc-link-search=native={}/", &i2pd_directory.display());
 
-    println!("cargo:rustc-link-lib=static=stdc++");
+    println!("cargo:rustc-link-lib=static=i2pdwrapper");
+    println!("cargo:rustc-link-lib=static=i2pd");
+    println!("cargo:rustc-link-lib=static=i2pdclient");
+    println!("cargo:rustc-link-lib=static=i2pdlang");
+
     println!("cargo:rustc-link-lib=static=atomic");
+    println!("cargo:rustc-link-lib=static=crypto");
+    println!("cargo:rustc-link-lib=static=ssl");
+    println!("cargo:rustc-link-lib=static=z");
     println!("cargo:rustc-link-lib=static=boost_system");
     println!("cargo:rustc-link-lib=static=boost_date_time");
     println!("cargo:rustc-link-lib=static=boost_filesystem");
     println!("cargo:rustc-link-lib=static=boost_program_options");
-    println!("cargo:rustc-link-lib=static=ssl");
-    println!("cargo:rustc-link-lib=static=crypto");
-    println!("cargo:rustc-link-lib=static=z");
-
-    println!("cargo:rustc-link-lib=static=i2pd");
-    println!("cargo:rustc-link-lib=static=i2pdclient");
-    println!("cargo:rustc-link-lib=static=i2pdlang");
-    println!("cargo:rustc-link-lib=static=i2pdwrapper");
+    println!("cargo:rustc-link-lib=static=stdc++");
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");

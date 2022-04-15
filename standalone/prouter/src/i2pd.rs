@@ -1,12 +1,14 @@
 use anyhow::{anyhow, Result};
-#[allow(unused_imports)]
-use log::{debug, error, info, warn};
+use log::{error, info};
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::path::PathBuf;
 
+#[allow(non_upper_case_globals)]
+#[allow(non_camel_case_types)]
+#[allow(non_snake_case)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 enum PRouterSigningKeyType {
@@ -36,13 +38,15 @@ enum PRouterCryptoKeyType {
 pub struct TunnelInfo(pub String, pub String);
 
 #[derive(Debug, Clone)]
-pub struct I2PD {
+pub struct I2pd {
     argc: i32,
     argv: HashMap<String, String>,
     app_name: String,
     is_running: bool,
 }
 
+// Here `phala_i2p_key` is the private key derived from the pRuntime private key with `PhalaI2PKey` info.
+// check `derive_phala_i2p_key()` method in `prpc_service.rs`
 pub fn generate_ident_to_file(
     abs_datadir: &PathBuf,
     filename: String,
@@ -50,8 +54,6 @@ pub fn generate_ident_to_file(
 ) -> Result<String> {
     let mut keyfile_path = abs_datadir.clone();
     keyfile_path.push(filename);
-
-    // let c_str_sk = CString::new(sk).expect("sk should be able to be converted into CString");
 
     let c_sk: *const c_char = phala_i2p_key.as_ptr() as *const c_char;
 
@@ -131,9 +133,9 @@ fn get_server_tunnel_ident_by_id(index: i32) -> Result<String> {
     Ok(ident)
 }
 
-impl I2PD {
-    pub fn new(app_name: String) -> I2PD {
-        I2PD {
+impl I2pd {
+    pub fn new(app_name: String) -> I2pd {
+        I2pd {
             argc: 1,
             argv: HashMap::new(),
             app_name,
@@ -162,7 +164,7 @@ impl I2PD {
         self.argc += 1;
     }
 
-    // Basic control API for I2PD
+    // Basic control API for I2pd
     pub fn init(&self) {
         if self.is_running {
             return;
@@ -210,10 +212,10 @@ impl I2PD {
         unsafe { C_StopI2P() };
     }
 
-    //Fetch status
+    // Fetch status
     pub fn get_network_status(&self) -> Result<String> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let ptr_status: *const c_char = unsafe { C_GetNetworkStatus() };
@@ -230,7 +232,7 @@ impl I2PD {
 
     pub fn get_tunnel_creation_success_rate(&self) -> Result<i32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let rate: i32 = unsafe { C_GetTunnelCreationSuccessRate() };
@@ -240,7 +242,7 @@ impl I2PD {
 
     pub fn get_received_byte(&self) -> Result<u64> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let byte: u64 = unsafe { C_GetReceivedByte() };
@@ -250,7 +252,7 @@ impl I2PD {
 
     pub fn get_in_bandwidth(&self) -> Result<u32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let bandwidth: u32 = unsafe { C_GetInBandwidth() };
@@ -260,7 +262,7 @@ impl I2PD {
 
     pub fn get_sent_byte(&self) -> Result<u64> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let byte: u64 = unsafe { C_GetSentByte() };
@@ -270,7 +272,7 @@ impl I2PD {
 
     pub fn get_out_bandwidth(&self) -> Result<u32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let bandwidth: u32 = unsafe { C_GetOutBandwidth() };
@@ -280,7 +282,7 @@ impl I2PD {
 
     pub fn get_transit_byte(&self) -> Result<u64> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let byte: u64 = unsafe { C_GetTransitByte() };
@@ -290,7 +292,7 @@ impl I2PD {
 
     pub fn get_transit_bandwidth(&self) -> Result<u32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let bandwidth: u32 = unsafe { C_GetTransitBandwidth() };
@@ -300,7 +302,7 @@ impl I2PD {
 
     pub fn is_httpproxy_enabled(&self) -> Result<bool> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let enabled: i32 = unsafe { C_IsHTTPProxyEnabled() };
@@ -310,7 +312,7 @@ impl I2PD {
 
     pub fn is_socksproxy_enabled(&self) -> Result<bool> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let enabled: i32 = unsafe { C_IsSOCKSProxyEnabled() };
@@ -320,7 +322,7 @@ impl I2PD {
 
     pub fn is_bob_enabled(&self) -> Result<bool> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let enabled: i32 = unsafe { C_IsBOBEnabled() };
@@ -330,7 +332,7 @@ impl I2PD {
 
     pub fn is_sam_enabled(&self) -> Result<bool> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let enabled: i32 = unsafe { C_IsSAMEnabled() };
@@ -340,7 +342,7 @@ impl I2PD {
 
     pub fn is_i2cp_enabled(&self) -> Result<bool> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
 
         let enabled: i32 = unsafe { C_IsI2CPEnabled() };
@@ -351,7 +353,7 @@ impl I2PD {
     // Fetch tunnels info
     pub fn get_client_tunnels_count(&self) -> Result<i32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let count: i32 = unsafe { C_GetClientTunnelsCount() };
 
@@ -360,7 +362,7 @@ impl I2PD {
 
     pub fn get_server_tunnels_count(&self) -> Result<i32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let count: i32 = unsafe { C_GetServerTunnelsCount() };
 
@@ -369,7 +371,7 @@ impl I2PD {
 
     pub fn get_client_tunnels_info(&self) -> Result<Vec<TunnelInfo>> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let mut client_tunnels_info = Vec::<TunnelInfo>::new();
         let client_tunnels_count = self.get_client_tunnels_count()?;
@@ -384,7 +386,7 @@ impl I2PD {
 
     pub fn get_http_proxy_info(&self) -> Result<TunnelInfo> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let ptr_ident: *const c_char = unsafe { C_GetHTTPProxyIdent() };
         if ptr_ident.is_null() {
@@ -400,7 +402,7 @@ impl I2PD {
 
     pub fn get_socks_proxy_info(&self) -> Result<TunnelInfo> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let ptr_ident: *const c_char = unsafe { C_GetSOCKSProxyIdent() };
         if ptr_ident.is_null() {
@@ -416,7 +418,7 @@ impl I2PD {
 
     pub fn get_server_tunnels_info(&self) -> Result<Vec<TunnelInfo>> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let mut server_tunnels_info = Vec::<TunnelInfo>::new();
         let server_tunnels_count = self.get_server_tunnels_count()?;
@@ -431,7 +433,7 @@ impl I2PD {
 
     pub fn get_inbound_tunnels_count(&self) -> Result<i32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let count: i32 = unsafe { C_GetInboundTunnelsCount() };
 
@@ -440,7 +442,7 @@ impl I2PD {
 
     pub fn get_outbound_tunnels_count(&self) -> Result<i32> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let count: i32 = unsafe { C_GetOutboundTunnelsCount() };
 
@@ -449,7 +451,7 @@ impl I2PD {
 
     pub fn get_inbound_tunnel_formatted_info(&self, index: i32) -> Result<String> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let ptr_info: *const c_char = unsafe { C_GetInboundTunnelsFormattedInfo(index) };
         if ptr_info.is_null() {
@@ -465,7 +467,7 @@ impl I2PD {
 
     pub fn get_outbound_tunnel_formatted_info(&self, index: i32) -> Result<String> {
         if !self.is_running {
-            return Err(anyhow!("I2PD is not running"));
+            return Err(anyhow!("I2pd is not running"));
         }
         let ptr_info: *const c_char = unsafe { C_GetOutboundTunnelsFormattedInfo(index) };
         if ptr_info.is_null() {

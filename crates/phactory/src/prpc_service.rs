@@ -8,7 +8,8 @@ use pb::{
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
-use phala_types::{contract, WorkerPublicKey};
+use phala_types::{contract, WorkerPublicKey, VersionedWorkerEndpoint, EndpointType};
+use phala_types::worker_endpoint_v1::{PhalaEndpointInfo, WorkerEndpoint};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -626,6 +627,77 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.side_task_man.poll(&context);
         Ok(())
     }
+
+    fn init_endpoint(
+        &mut self,
+        endpoint_type: EndpointType,
+        endpoint: Vec<u8>,
+    ) -> RpcResult<pb::InitEndpointResponse> {
+        let pubkey = self.system
+            .as_ref()
+            .expect("Runtime should be initialized")
+            .identity_key
+            .public();
+
+        let phala_endpoint_info = PhalaEndpointInfo{
+            pubkey,
+            endpoint: endpoint,
+        };
+
+        let wrapped_endpoint = match endpoint_type {
+            EndpointType::I2P => WorkerEndpoint::I2P(phala_endpoint_info),
+            EndpointType::Http => WorkerEndpoint::Http(phala_endpoint_info),
+        };
+
+        let versioned_endpoint = VersionedWorkerEndpoint::V1(wrapped_endpoint);
+
+        let resp = pb::InitEndpointResponse::new(
+            versioned_endpoint.clone(),
+            None,
+        );
+
+        self.endpoint_info = Some(EndpointInfo{
+            versioned_endpoint,
+            signature: None,
+        });
+        Ok(resp)
+    }
+
+    fn get_endpoint_info(&mut self) -> RpcResult<pb::InitEndpointResponse> {
+        if self.system.is_none() {
+            return Err(from_display("Runtime not initialized"));
+        }
+
+        if self.endpoint_info.is_none() {
+            return Err(from_display("Endpoint not initialized"));
+        }
+
+        let endpoint_info = self.endpoint_info.clone().expect("EndpointInfo shoud be initialized");
+
+        let signature = if endpoint_info.signature.is_none() {
+            let signature = self.system
+                .as_ref()
+                .expect("Runtime should be initialized")
+                .identity_key
+                .clone()
+                .sign(&endpoint_info.versioned_endpoint.encode())
+                .encode();
+            self.endpoint_info = Some(EndpointInfo{
+                versioned_endpoint: endpoint_info.versioned_endpoint.clone(),
+                signature: Some(signature.clone()),
+            });
+            signature
+        } else {
+            endpoint_info.signature.as_ref().expect("Signature shoud be existed").clone()
+        };
+
+        let resp = pb::InitEndpointResponse::new(
+            endpoint_info.versioned_endpoint.clone(),
+            Some(signature),
+        );
+
+        Ok(resp)
+    }
 }
 
 pub fn dispatch_prpc_request<Platform>(
@@ -784,9 +856,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         Ok(state)
     }
 
-    fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
-        let echo_msg = request.echo_msg;
-        Ok(pb::EchoMessage { echo_msg })
+    fn init_endpoint(
+        &mut self,
+        request: pb::InitEndpointRequest,
+    ) -> RpcResult<pb::InitEndpointResponse> {
+        self.lock_phactory().init_endpoint(
+            request.decode_endpoint_type()?,
+            request.endpoint,
+        )
+    }
+
+    fn get_endpoint_info(
+        &mut self, _: ()
+    ) -> RpcResult<pb::InitEndpointResponse> {
+        self.lock_phactory()
+            .get_endpoint_info()
     }
 
     fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
@@ -797,5 +881,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .derive_sr25519_pair(&[b"PhalaI2PKey"])
             .expect("should not fail with valid key");
         Ok(pb::DerivePhalaI2pKeyResponse { phala_i2p_key: derive_key.dump_secret_key().to_vec() })
+    }
+
+    fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
+        let echo_msg = request.echo_msg;
+        Ok(pb::EchoMessage { echo_msg })
     }
 }

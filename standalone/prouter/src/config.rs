@@ -1,11 +1,10 @@
-extern crate ini;
 use ini::Ini;
 
 use crate::Args;
 use anyhow::Result;
-#[allow(unused_imports)]
-use log::{debug, error, info, warn};
 use std::path::PathBuf;
+
+use phala_types::EndpointType;
 
 use crate::utils::push_str;
 
@@ -13,7 +12,7 @@ pub fn init_prouter_conf(
     abs_datadir: &PathBuf,
     tunconf_path: String,
     args: &Args,
-) -> Result<String> {
+) -> Result<(String, String)> {
     let conf_path = push_str(&abs_datadir, "i2pd.conf")?;
     let tundir = push_str(&abs_datadir, "tunnels.d")?;
     let pidfile = push_str(&abs_datadir, "prouter.pid")?;
@@ -126,9 +125,13 @@ pub fn init_prouter_conf(
         }
     }
 
+    let address = conf.section(Some("httpproxy")).expect("httpproxy should exist")
+        .get("address").expect("httpproxy.address should exist");
+    let port = conf.section(Some("httpproxy")).expect("httpproxy should exist")
+        .get("port").expect("httpproxy.port should exist");
     conf.write_to_file(conf_path.clone())?;
 
-    Ok(conf_path)
+    Ok((conf_path, format!("http://{}:{}", address, port)))
 }
 
 pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {
@@ -142,12 +145,12 @@ pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {
         _ => Ini::new(),
     };
 
-    if args.custom_endpoint.is_none() {
+    if matches!(args.endpoint_type, EndpointType::I2P) {
         // need to use i2p to proxy local API
         conf.with_section(Some("Phala Network"))
             .set("type", "http")
-            .set("host", args.phala_exposed_host.clone())
-            .set("port", args.phala_exposed_port.clone())
+            .set("host", args.exposed_address.clone())
+            .set("port", args.exposed_port.clone().to_string())
             .set("keys", "phala.key")
             .set("inbound.length", "3")
             .set("inbound.quantity", "5")

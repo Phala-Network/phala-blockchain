@@ -48,7 +48,7 @@ struct Args {
 
     /// Listening port of HTTP (with access control)
     #[structopt(long)]
-    port_acl: Option<String>,
+    port_acl: Option<u16>,
 }
 
 fn main() {
@@ -117,12 +117,13 @@ fn main() {
 
     servers.push(rocket);
 
-    if let Some(port_acl) = &args.port_acl {
-        env::set_var("ROCKET_ACL_PORT", port_acl);
+    let mut port_acl: u16 = Default::default();
+    if args.port_acl.is_some() {
+        port_acl = args.port_acl.expect("port_acl should be set").clone();
         let rocket_acl = thread::Builder::new()
             .name("rocket_acl".into())
             .spawn(move || {
-                let err = api_server::rocket_acl(args.allow_cors).launch();
+                let err = api_server::rocket_acl(args.allow_cors, port_acl).launch();
                 panic!("Launch rocket (acl) failed: {}", err);
             })
             .expect("Failed to launch Rocket (acl)");

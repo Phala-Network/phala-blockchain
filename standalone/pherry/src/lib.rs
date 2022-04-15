@@ -58,6 +58,9 @@ struct Args {
     #[structopt(long, help = "Skip registering the worker.")]
     no_register: bool,
 
+    #[structopt(long, help = "Skip binding the worker endpoint.")]
+    no_bind: bool,
+
     #[structopt(
         long,
         help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled."
@@ -185,6 +188,7 @@ struct Args {
 
 struct RunningFlags {
     worker_registered: bool,
+    endpoint_registered: bool,
     restart_failure_count: u32,
 }
 
@@ -733,6 +737,46 @@ async fn init_runtime(
     Ok(resp)
 }
 
+async fn bind_worker_endpoint(
+    para_api: &ParachainApi,
+    encoded_versioned_endpoint: Vec<u8>,
+    signature: Vec<u8>,
+    signer: &mut SrSigner,
+) -> Result<()> {
+    chain_client::update_signer_nonce(para_api, signer).await?;
+    let versioned_endpoint = Decode::decode(&mut &encoded_versioned_endpoint[..])
+        .map_err(|_| anyhow!("Decode versioned endpoint failed"))?;
+    let ret = para_api
+        .tx()
+        .phala_registry()
+        .bind_worker_endpoint(versioned_endpoint, signature)
+        .sign_and_submit_then_watch(signer)
+        .await;
+    if ret.is_err() {
+        error!("FailedToCallBindWorkerEndpoint: {:?}", ret);
+        return Err(anyhow!("failed to call bind_worker_endpoint"));
+    }
+    signer.increment_nonce();
+    Ok(())
+}
+
+async fn try_bind_worker_endpoint(
+    pr: &PrClient,
+    para_api: &ParachainApi,
+    signer: &mut SrSigner,
+) -> Result<()> {
+    let info = pr
+        .get_endpoint_info(())
+        .await?;
+    if let Some(signature) = info.signature {
+        info!("Binding worker's endpoint...");
+        bind_worker_endpoint(&para_api, info.encoded_versioned_endpoint, signature, signer).await?;
+        return Ok(());
+    };
+
+    Err(anyhow!("No endpoint signature"))
+}
+
 async fn register_worker(
     para_api: &ParachainApi,
     encoded_runtime_info: Vec<u8>,
@@ -911,6 +955,12 @@ async fn bridge(
             try_register_worker(&pr, &para_api, &mut signer, operator).await?;
             flags.worker_registered = true;
         }
+        // try bind worker endpoint
+        if !args.no_bind {
+            if try_bind_worker_endpoint(&pr, &para_api, &mut signer).await.is_ok() {
+                flags.endpoint_registered = true;
+            };
+        }
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -1024,6 +1074,15 @@ async fn bridge(
                     flags.worker_registered = true;
                 }
             }
+
+            if !args.no_bind {
+                if !flags.endpoint_registered {
+                    if try_bind_worker_endpoint(&pr, &para_api, &mut signer).await.is_ok() {
+                        flags.endpoint_registered = true;
+                    };
+                }
+            }
+
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -1114,6 +1173,7 @@ pub async fn pherry_main() {
 
     let mut flags = RunningFlags {
         worker_registered: false,
+        endpoint_registered: false,
         restart_failure_count: 0,
     };
 
