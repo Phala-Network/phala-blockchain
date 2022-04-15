@@ -39,7 +39,7 @@ impl Future for RxNext<'_> {
 }
 
 /// The Pink standard input messages channel. Think of it as a stdin of a normal process.
-pub fn pink_messages() -> &'static Receiver {
+pub fn input_messages() -> &'static Receiver {
     static MSG_RX: Receiver = Receiver::new(ResourceId(0));
     &MSG_RX
 }
