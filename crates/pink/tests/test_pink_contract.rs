@@ -292,3 +292,4 @@ fn test_start_sidevm() {
         hex!("928b2036"),
     );
 }
+
