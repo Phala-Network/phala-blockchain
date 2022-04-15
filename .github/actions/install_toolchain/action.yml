@@ -11,3 +11,5 @@ runs:
       shell: bash
     - run: sudo pip install rust_demangler meson ninja
       shell: bash
+    - run: rustc -V
+      shell: bash
