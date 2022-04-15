@@ -67,7 +67,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-02-23
+          toolchain: nightly-2022-04-01
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
