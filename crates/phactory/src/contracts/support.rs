@@ -247,9 +247,11 @@ impl FatContract {
         let (sender, join_handle) = spawner.start(&code, memory_pages, self.contract_id.0)?;
         let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
         let cloned_handle = handle.clone();
+
+        debug!(target: "sidevm", "Starting sidevm...");
         spawner.spawn(async move {
             if let Err(err) = join_handle.await {
-                log::error!("Sidevm process terminated with error: {:?}", err);
+                error!(target: "sidevm", "Sidevm process terminated with error: {:?}", err);
             }
             *cloned_handle.lock().await = SidevmHandle::Terminated;
         });

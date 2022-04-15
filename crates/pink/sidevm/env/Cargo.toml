@@ -11,6 +11,7 @@ derive_more = "0.99.17"
 num_enum = "0.5.7"
 scale = {package = "parity-scale-codec", version = "3", default-features = false, features = ["derive", "std"]}
 tinyvec = {version = "1.5.1", features = ["alloc"]}
+log = "0.4.16"
 
 [features]
 host = []

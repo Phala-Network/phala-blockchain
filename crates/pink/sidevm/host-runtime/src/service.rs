@@ -54,7 +54,7 @@ impl ServiceRun {
             loop {
                 match self.report_rx.recv().await {
                     None => {
-                        info!("The report channel is closed. Exiting service thread.");
+                        info!(target: "sidevm", "The report channel is closed. Exiting service thread.");
                         break;
                     }
                     Some(report) => {
@@ -82,19 +82,19 @@ impl Spawner {
                     cmd = cmd_rx.recv() => {
                         match cmd {
                             None => {
-                                info!("The command channel is closed. Exiting...");
+                                info!(target: "sidevm", "The command channel is closed. Exiting...");
                                 break;
                             }
                             Some(Command::Stop) => {
-                                info!("Received stop command. Exiting...");
+                                info!(target: "sidevm", "Received stop command. Exiting...");
                                 break;
                             }
                             Some(Command::PushMessage(msg)) => {
-                                debug!("Sending message to sidevm.");
+                                debug!(target: "sidevm", "Sending message to sidevm.");
                                 match env.push_message(msg).await {
                                     Ok(_) => {}
                                     Err(e) => {
-                                        error!("Failed to send message to sidevm: {}", e);
+                                        error!(target: "sidevm", "Failed to send message to sidevm: {}", e);
                                         break;
                                     }
                                 }
@@ -104,11 +104,11 @@ impl Spawner {
                     rv = &mut wasm_run => {
                         match rv {
                             Ok(ret) => {
-                                info!("The sidevm instance exited with {} normally.", ret);
+                                info!(target: "sidevm", "The sidevm instance exited with {} normally.", ret);
                                 break;
                             }
                             Err(err) => {
-                                info!("The sidevm instance exited with error: {}", err);
+                                info!(target: "sidevm", "The sidevm instance exited with error: {}", err);
                                 // TODO.kevin: Restart the instance?
                                 break;
                             }
@@ -120,10 +120,10 @@ impl Spawner {
         let report_tx = self.report_tx.clone();
         let handle = self.runtime_handle.spawn(async move {
             if let Err(err) = handle.await {
-                warn!("The sidevm instance exited with error: {}", err);
+                warn!(target: "sidevm", "The sidevm instance exited with error: {}", err);
             }
             if let Err(err) = report_tx.send(Report::VmTerminated { id }).await {
-                warn!("Failed to send report to sidevm service: {}", err);
+                warn!(target: "sidevm", "Failed to send report to sidevm service: {}", err);
             }
         });
         Ok((cmd_tx, handle))

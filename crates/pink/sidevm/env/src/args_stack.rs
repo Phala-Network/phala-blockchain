@@ -1,4 +1,5 @@
 use crate::{IntPtr, IntRet, OcallError, Result, VmMemory};
+use log::Level;
 
 const OCALL_N_ARGS: usize = 4;
 
@@ -169,6 +170,33 @@ impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
     {
         let ((len, ptr), stack) = stack.pop();
         Ok((vm.slice_from_vm(ptr, len)?, stack))
+    }
+}
+
+impl<A> ArgEncode<A> for &str {
+    type Encoded = (IntPtr, IntPtr);
+
+    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
+        let bytes = self.as_bytes();
+        bytes.encode_arg(stack)
+    }
+}
+
+impl<'a, A> ArgDecode<'a, A> for &'a str {
+    type Encoded = (IntPtr, IntPtr);
+
+    fn decode_arg(
+        stack: StackedArgs<(Self::Encoded, A)>,
+        vm: &'a impl VmMemory,
+    ) -> Result<(Self, StackedArgs<A>)>
+    where
+        Self: Sized,
+    {
+        let (bytes, stack): (&[u8], _) = ArgDecode::decode_arg(stack, vm)?;
+        Ok((
+            core::str::from_utf8(bytes).or(Err(OcallError::InvalidEncoding))?,
+            stack,
+        ))
     }
 }
 
@@ -354,6 +382,29 @@ impl I32Convertible for () {
             Ok(())
         } else {
             Err(OcallError::InvalidEncoding)
+        }
+    }
+}
+
+impl I32Convertible for Level {
+    fn to_i32(&self) -> i32 {
+        match self {
+            Level::Error => 1,
+            Level::Warn => 2,
+            Level::Info => 3,
+            Level::Debug => 4,
+            Level::Trace => 5,
+        }
+    }
+
+    fn from_i32(i: i32) -> Result<Self> {
+        match i {
+            1 => Ok(Level::Error),
+            2 => Ok(Level::Warn),
+            3 => Ok(Level::Info),
+            4 => Ok(Level::Debug),
+            5 => Ok(Level::Trace),
+            _ => Err(OcallError::InvalidEncoding),
         }
     }
 }

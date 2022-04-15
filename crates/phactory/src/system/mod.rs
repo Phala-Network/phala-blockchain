@@ -1216,12 +1216,16 @@ pub fn apply_pink_side_effects(
             PinkEvent::StartSidevm { memory_pages } => {
                 if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
                     let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
-                    match contract.start_sidevm(&spawner, wasm_code, memory_pages) {
-                        Ok(()) => (),
-                        Err(err) => error!("Start sidevm failed: {:?}", err),
+                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, memory_pages) {
+                        error!(target: "sidevm", "Start sidevm failed: {:?}", err);
                     }
                 } else {
-                    error!("Start sidevm failed: Code too large");
+                    error!(target: "sidevm", "Start sidevm failed: Code too large");
+                }
+            }
+            PinkEvent::SidevmMessage(payload) => {
+                if let Err(err) = contract.push_message_to_sidevm(spawner, payload) {
+                    error!(target: "sidevm", "Push message to sidevm failed: {:?}", err);
                 }
             }
         }

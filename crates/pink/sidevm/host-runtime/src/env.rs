@@ -269,11 +269,10 @@ impl env::OcallFuncs for State {
             .map(Poll::Ready)
     }
 
-    fn log(&mut self, message: Cow<str>) -> Result<()> {
+    fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
         let task = self.current_task;
         let vm_id = self.short_id();
-        type todo_use_log_crate = ();
-        println!("[vm:{vm_id:<8}][{task:<3}] {message}");
+        log::log!(target: "sidevm", level, "[vm:{vm_id:<8}][{task:<3}] {message}");
         Ok(())
     }
 }
@@ -297,8 +296,8 @@ fn sidevm_ocall_fast_return(
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
         let vm_id = env.state.short_id();
-        type todo_use_log_crate = ();
-        eprintln!(
+        log::trace!(
+            target: "sidevm",
             "[vm:{vm_id:<8}][{task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
@@ -325,8 +324,8 @@ fn sidevm_ocall(
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
         let vm_id = env.state.short_id();
-        type todo_use_log_crate = ();
-        eprintln!(
+        log::trace!(
+            target: "sidevm",
             "[vm:{vm_id:<8}][{task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }

@@ -134,6 +134,6 @@ pub trait OcallFuncs {
     fn tcp_accept(resource_id: i32) -> Result<Poll<i32>>;
 
     /// Print log message.
-    #[ocall(id = 220, fast_return)]
-    fn log(message: Cow<str>) -> Result<()>;
+    #[ocall(id = 220, fast_input, fast_return)]
+    fn log(level: log::Level, message: &str) -> Result<()>;
 }
