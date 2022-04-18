@@ -430,8 +430,8 @@ fn create_sidevm_service() -> Spawner {
     let (run, spawner) = sidevm::service::service();
     std::thread::spawn(move || {
         run.blocking_run(|report| {
-            let todo = "restart sidevm instance if it crashes";
-            let todo = "remove the log since it leak vm info";
+            let todo = "kevin: restart sidevm instance if it crashes";
+            let todo = "kevin: remove the log since it leak vm info";
             info!("Sidevm report: {:?}", report);
         })
     });
