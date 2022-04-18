@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
+use sidevm::VmId;
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
@@ -110,6 +110,15 @@ impl Decode for RawData {
 pub enum SidevmHandle {
     Running(sidevm::service::CommandSender),
     Terminated,
+}
+
+impl SidevmHandle {
+    fn is_terminated(&self) -> bool {
+        match self {
+            SidevmHandle::Running(_) => false,
+            SidevmHandle::Terminated => true,
+        }
+    }
 }
 
 impl Default for SidevmHandle {
@@ -244,22 +253,30 @@ impl FatContract {
         if self.sidevm_info.is_some() {
             bail!("Sidevm can only be started once");
         }
-        let (sender, join_handle) = spawner.start(&code, memory_pages, self.contract_id.0)?;
-        let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
-        let cloned_handle = handle.clone();
-
-        debug!(target: "sidevm", "Starting sidevm...");
-        spawner.spawn(async move {
-            if let Err(err) = join_handle.await {
-                error!(target: "sidevm", "Sidevm process terminated with error: {:?}", err);
-            }
-            *cloned_handle.lock().await = SidevmHandle::Terminated;
-        });
+        let handle = do_start_sidevm(spawner, &code, memory_pages, self.contract_id.0)?;
         self.sidevm_info = Some(SidevmInfo {
             code,
             memory_pages,
             handle,
         });
+        Ok(())
+    }
+
+    pub(crate) fn restart_sidevm_if_terminated(
+        &mut self,
+        spawner: &sidevm::service::Spawner,
+    ) -> Result<()> {
+        if let Some(sidevm_info) = &mut self.sidevm_info {
+            if sidevm_info.handle.lock().unwrap().is_terminated() {
+                let handle = do_start_sidevm(
+                    spawner,
+                    &sidevm_info.code,
+                    sidevm_info.memory_pages,
+                    self.cluster_id.0,
+                )?;
+                sidevm_info.handle = handle;
+            }
+        }
         Ok(())
     }
 
@@ -275,24 +292,45 @@ impl FatContract {
             .handle
             .clone();
 
+        let tx = match &*handle.lock().unwrap() {
+            SidevmHandle::Terminated => {
+                error!(target: "sidevm", "Push message to sidevm failed, instance terminated");
+                return Err(anyhow!(
+                    "Push message to sidevm failed, instance terminated"
+                ));
+            }
+            SidevmHandle::Running(tx) => tx.clone(),
+        };
         spawner.spawn(async move {
-            let handle = handle.lock().await;
-            match &*handle {
-                SidevmHandle::Terminated => {
-                    error!(target: "sidevm", "Push message to sidevm failed, instance terminated");
-                }
-                SidevmHandle::Running(tx) => {
-                    let result = tx
-                        .send(sidevm::service::Command::PushMessage(message))
-                        .await;
-                    if let Err(_) = result {
-                        error!(target: "sidevm", "Push message to sidevm failed, the vm might be already stopped");
-                    }
-                }
+            let result = tx
+                .send(sidevm::service::Command::PushMessage(message))
+                .await;
+            if let Err(_) = result {
+                error!(target: "sidevm", "Push message to sidevm failed, the vm might be already stopped");
             }
         });
         Ok(())
     }
+}
+
+fn do_start_sidevm(
+    spawner: &sidevm::service::Spawner,
+    code: &[u8],
+    memory_pages: u32,
+    id: VmId,
+) -> Result<Arc<Mutex<SidevmHandle>>> {
+    let (sender, join_handle) = spawner.start(code, memory_pages, id)?;
+    let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
+    let cloned_handle = handle.clone();
+
+    debug!(target: "sidevm", "Starting sidevm...");
+    spawner.spawn(async move {
+        if let Err(err) = join_handle.await {
+            error!(target: "sidevm", "Sidevm process terminated with error: {:?}", err);
+        }
+        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated;
+    });
+    Ok(handle)
 }
 
 pub use keeper::*;

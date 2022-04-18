@@ -347,6 +347,15 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 }
 
+impl<P> Phactory<P> {
+    pub fn on_restored(&mut self) -> Result<()> {
+        if let Some(system) = &mut self.system {
+            system.on_restored()?;
+        }
+        Ok(())
+    }
+}
+
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     pub fn take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
         let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
@@ -541,7 +550,10 @@ impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Pl
 struct PhactoryLoader<Platform>(Phactory<Platform>);
 impl<'de, Platform: Serialize + DeserializeOwned> Deserialize<'de> for PhactoryLoader<Platform> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let factory = Phactory::load_state(deserializer)?;
+        let mut factory = Phactory::load_state(deserializer)?;
+        factory
+            .on_restored()
+            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {:?}", err)))?;
         Ok(Self(factory))
     }
 }

@@ -428,7 +428,13 @@ pub struct System<Platform> {
 
 fn create_sidevm_service() -> Spawner {
     let (run, spawner) = sidevm::service::service();
-    std::thread::spawn(move || run.blocking_run(|_| {}));
+    std::thread::spawn(move || {
+        run.blocking_run(|report| {
+            let todo = "restart sidevm instance if it crashes";
+            let todo = "remove the log since it leak vm info";
+            info!("Sidevm report: {:?}", report);
+        })
+    });
     spawner
 }
 
@@ -1094,6 +1100,12 @@ impl<Platform: pal::Platform> System<Platform> {
             role: role.into(),
             master_public_key,
         }
+    }
+}
+
+impl<P> System<P> {
+    pub fn on_restored(&mut self) -> Result<()> {
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner)
     }
 }
 

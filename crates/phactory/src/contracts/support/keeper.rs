@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sidevm::service::Spawner;
 use std::collections::BTreeMap;
 
 use crate::{
@@ -91,7 +92,6 @@ define_any_native_contract!(
     }
 );
 
-
 #[derive(Default, Serialize, Deserialize)]
 pub struct ContractsKeeper(ContractMap);
 
@@ -120,5 +120,12 @@ impl ContractsKeeper {
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn try_restart_sidevms(&mut self, spawner: &Spawner) -> anyhow::Result<()> {
+        for contract in self.0.values_mut() {
+            contract.restart_sidevm_if_terminated(spawner)?;
+        }
+        Ok(())
     }
 }
