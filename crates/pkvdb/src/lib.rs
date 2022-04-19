@@ -3,6 +3,7 @@ use rusty_leveldb::WriteBatch;
 use rusty_leveldb::DB;
 use std::cell::RefCell;
 use std::primitives::i32;
+use sp_state_machine::backend::Consolidate;
 
 // TODO: George should use the macro to reduce some template
 
@@ -12,6 +13,18 @@ pub struct Kvdb<H, T> {
     null_node_data: T,
     hashed_null_node: H::Out,
 }
+
+// this is just an empty implementation for the TrieBackendEssence bound
+impl<H, T> Consolidate for Kvdb<H, T> 
+where
+    H: Hasher,
+    T: Default + PartialEq<T> + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send,
+{
+    fn consolidate(&mut self, other: Self) {
+        unimplemented!()
+    }
+}
+
 
 impl<H, T> Kvdb<H, T> 
 where
