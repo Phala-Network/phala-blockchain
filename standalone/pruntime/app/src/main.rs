@@ -470,10 +470,6 @@ macro_rules! proxy_bin_routes {
 
 #[post("/kick")]
 fn kick() {
-    // TODO: we should improve this
-    info!("Kick API received, destroying enclave...");
-    destroy_enclave();
-
     std::process::exit(0);
 }
 
