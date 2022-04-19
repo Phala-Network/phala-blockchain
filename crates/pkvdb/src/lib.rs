@@ -4,12 +4,44 @@ use rusty_leveldb::DB;
 use std::cell::RefCell;
 use std::primitives::i32;
 
+// TODO: George should use the macro to reduce some template
+
 // TODO: George for more effective performance maybe we could use the single snapshot for queries
 pub struct Kvdb<H, T> {
     leveldb: RefCell<DB>,
+    null_node_data: T,
+    hashed_null_node: H::Out,
+}
+
+impl<H, T> Kvdb<H, T> 
+where
+    H: Hasher,
+    T: Default + PartialEq<T> + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send,
+{
+
+    // FIXME: should add a path to leveldb 
+    pub fn with_null_node(null_key: &[u8], null_node_data: T) -> Self {
+        unimplemented!()
+    }
+
+    pub fn new(path: Path) -> Self {
+        // use the zero vector as the default null key and data ?
+        unimplemented!()
+    }
+
+    pub fn purge(&mut self) {
+        // TODO: because of the inner represention so the leveldb should use the prefix scan to 
+        // handle the delete which prefix is [  0x00 0x00 0x00 ]
+    }
+
+    // TODO: if we really need the consolidate function same as the MemoryDB ? 
+    // in substrate state-machine the data is from the block backend and we could belive the 
+    // contract is stored in block as externics stable but we just support the same semantics for 
+    // phala runtime 
 }
 
 // inner kv represention
+// first 4 bytes is the reference count and left data vector is the data self
 struct Inner<T>(T, i32);
 
 impl<T> From<Vec<u8>> for Inner<T>
@@ -43,7 +75,12 @@ where
     fn get(&self, key: &H::Out) -> Option<T> {
         let db_mut = self.leveldb.borrow_mut();
         match DB::get(db_mut.deref_mut(), key.as_ref()) {
-            Ok(v) => v.map(Inner::<T>::from),
+            Ok(v) => {
+                match v.map(Inner::<T>::from){
+                    Some((value, rc)) if rc > 0 => Some(value),
+                    _ => None,
+                } 
+            },
             _ => None,
         }
     }
@@ -114,29 +151,102 @@ where
     }
 }
 
+// for phala we don't need the key function as generic 
+// and we just use the simple deref key function in memory db
 impl<H, T> HashDB<H, T> for Kvdb<H, T>
 where
     H: Hasher,
     T: Default + PartialEq + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send,
 {
     fn get(&self, key: &H::Out, _prefix: Prefix) -> Option<T> {
-        unimplemented!()
+        if key == &self.hashed_null_node {
+            return Some(self.null_node_data.clone())
+        }
+
+        let db_mut = self.leveldb.borrow_mut();
+        match DB::get(db_mut.deref_mut(), key.as_ref()) {
+            Ok(v) => {
+                match v.map(Inner::<T>::from){
+                    Some((value, rc)) if rc > 0 => Some(value),
+                    _ => None,
+                } 
+            },
+            _ => None,
+        }
+ 
     }
 
     fn contains(&self, key: &H::Out, _prefix: Prefix) -> bool {
-        unimplemented!()
+        if key == &self.hashed_null_node {
+            return true
+        }
+
+        let db_mut = self.leveldb.borrow_mut();
+        match DB::get(db_mut.deref_mut(), &snapshot, k.as_ref()) {
+            Ok(opt) => opt.is_some(),
+            Err(_) => false,
+        }
+ 
     }
 
     fn emplace(&mut self, key: &H::Out, _prefix: Prefix, value: T) {
-        unimplemented!()
+        if value == self.null_node_data {
+            return 
+        }
+         let db_mut = self.leveldb.borrow_mut();
+        match DB::get(db_mut.deref_mut(), key.as_ref()) {
+            Ok(opt) => {
+                let mut writebatch = WriteBatch::new();
+                if let Some(mut inner) = opt.map(Inner::<T>::from) {
+                    inner.1 += 1;
+                    writebatch.put(key.as_ref(), inner.into::<Vec<u8>>().as_ref());
+                    let _ = DB::write(db_mut.deref_mut(), writebatch, true);
+                } else {
+                    let inner = Inner::<T>(value, 1);
+                    writebatch.put(key.as_ref(), inner.into::<Vec<u8>>().as_ref());
+                    let _ = DB::write(db_mut.deref_mut(), writebatch, true);
+                }
+            }
+            _ => {
+                // FIXME: how to resolve the IO error over the leveldb directly panic ?
+            }
+        }
+        
     }
 
-    fn insert(&mut self, key: &H::Out, _prefix: Prefix, value: &[u8]) {
-        unimplemented!()
+    fn insert(&mut self,  prefix: Prefix, value: &[u8]) -> H::Out {
+        if T::from(value) == self.null_node_data {
+            return self.hashed_null_node
+        }
+        let key = H::hash(value) ;
+        HashDB::emplace(self, key, prefix, value.into());
+        key
     }
 
     fn remove(&mut self, key: &H::Out, _prefix: Prefix) {
-        unimplemented!()
+        if key == &self.hashed_null_node {
+            return 
+        }
+
+        let db_mut = self.leveldb.borrow_mut();
+        match DB::get(db_mut.deref_mut(), key.as_ref()) {
+            Ok(opt) => {
+                if let Some(mut inner) = opt.map(Inner::<T>::from){
+                    if inner.1 > 1 {
+                        inner.1 -= 1;
+                        let writebatch = WriteBatch::new();
+                        writebatch.put(key.as_ref(), inner.into::<Vec<u8>>().as_ref());
+                        let _ = DB::write(db_mut.deref_mut(), writebatch, true);
+                    } else {
+                        let _ = DB::delte(db_mut.deref_mut(), key.as_ref());
+                    }
+                }
+
+            },
+            _ => {
+                // FIXME: panic too ?
+            }
+        }
     }
 }
 
