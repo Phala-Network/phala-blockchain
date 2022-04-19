@@ -472,6 +472,7 @@ pub mod pallet {
 		/// 1. The pool exists
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let a = amount; // Alias to reduce confusion in the code below
@@ -485,13 +486,6 @@ pub mod pallet {
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
-			if let Some(cap) = pool_info.cap {
-				ensure!(
-					cap.saturating_sub(pool_info.total_stake) >= a,
-					Error::<T>::StakeExceedsCapacity
-				);
-			}
-
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
@@ -527,6 +521,14 @@ pub mod pallet {
 
 			// We have new free stake now, try to handle the waiting withdraw queue
 			Self::try_process_withdraw_queue(&mut pool_info);
+
+			// Post-check to ensure the total stake doesn't exceed the cap
+			if let Some(cap) = pool_info.cap {
+				ensure!(
+					pool_info.total_stake <= cap,
+					Error::<T>::StakeExceedsCapacity
+				);
+			}
 
 			// Persist
 			StakePools::<T>::insert(&pid, &pool_info);
