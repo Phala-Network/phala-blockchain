@@ -111,7 +111,6 @@ impl RuntimeState {
 
 const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 const CHECKPOINT_FILE: &str = "checkpoint.seal";
-const CHECKPOINT_KEEP_COUNT: usize = 5;
 const CHECKPOINT_VERSION: u32 = 2;
 
 fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
@@ -162,14 +161,18 @@ fn maybe_remove_checkpoints(basedir: &str) {
     }
 }
 
-fn remove_outdated_checkpoints(basedir: &str, current_block: chain::BlockNumber) -> Result<()> {
-    let mut kept = 0;
+fn remove_outdated_checkpoints(
+    basedir: &str,
+    max_kept: u32,
+    current_block: chain::BlockNumber,
+) -> Result<()> {
+    let mut kept = 0_u32;
     for (block, filename) in glob_checkpoint_files_sorted(basedir)? {
         if block > current_block {
             continue;
         }
         kept += 1;
-        if kept > CHECKPOINT_KEEP_COUNT {
+        if kept > max_kept {
             match std::fs::remove_file(&filename) {
                 Err(e) => error!("Failed to remove {}: {}", filename.display(), e),
                 Ok(_) => {
@@ -367,7 +370,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         info!("Checkpoint saved to {}", checkpoint_file);
         self.last_checkpoint = Instant::now();
-        remove_outdated_checkpoints(&self.args.sealing_path, current_block)?;
+        remove_outdated_checkpoints(
+            &self.args.sealing_path,
+            self.args.max_checkpoint_files,
+            current_block,
+        )?;
         Ok(())
     }
 

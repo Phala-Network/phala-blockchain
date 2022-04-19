@@ -31,6 +31,9 @@ pub struct InitArgs {
 
     /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
     pub remove_corrupted_checkpoint: bool,
+
+    /// Max number of checkpoint files kept
+    pub max_checkpoint_files: u32,
 }
 
 pub fn git_revision() -> String {
