@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sp-state-machine = { path = "../../substrate/primitives/state-machine", default-features = false }
 rusty-leveldb = {git = "https://github.com/dermesser/leveldb-rs.git" }
 hash-db = { version = "0.15.2", default-features = false }

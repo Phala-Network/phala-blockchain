@@ -165,6 +165,8 @@ where
 
     /// Apply storage changes calculated from `calc_root_if_changes`.
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
+        // TODO: george. maybe the specific method for the storage is useful not the consolidate 
+        // bound
         let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate(transaction);
         storage.purge();
