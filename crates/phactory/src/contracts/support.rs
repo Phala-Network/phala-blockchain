@@ -2,7 +2,6 @@ use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
-use sp_core::hashing::blake2_256;
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
@@ -35,36 +34,6 @@ impl NativeContext<'_, '_> {
     }
 }
 
-pub trait Queryable {
-    fn handle_query(
-        &self,
-        origin: Option<&chain::AccountId>,
-        req: OpaqueQuery,
-        context: &mut QueryContext,
-    ) -> Result<OpaqueReply, OpaqueError>;
-}
-
-pub trait Contract {
-    fn id(&self) -> ContractId;
-    fn snapshot_for_query(&self) -> Box<dyn Queryable>;
-    fn cluster_id(&self) -> phala_mq::ContractClusterId;
-    fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult>;
-    fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult;
-    fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>);
-    fn push_osp_message(
-        &self,
-        payload: Vec<u8>,
-        topic: Vec<u8>,
-        remote_pubkey: Option<&EcdhPublicKey>,
-    );
-    fn set_on_block_end_selector(&mut self, selector: u32);
-}
-
-pub trait NativeContractMore {
-    fn id(&self) -> phala_mq::ContractId;
-    fn set_on_block_end_selector(&mut self, _selector: u32) {}
-}
-
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;
@@ -93,105 +62,70 @@ pub trait NativeContract {
         Self: Sized;
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode)]
-pub struct NativeContractWrapper<Con> {
-    inner: Con,
-    id: sp_core::H256,
+pub(crate) struct Query {
+    contract: AnyContract,
 }
 
-impl<Con> NativeContractWrapper<Con> {
-    pub fn new(inner: Con, contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> Self {
-        let id = contract_info.contract_id(blake2_256);
-        NativeContractWrapper { inner, id }
-    }
-}
-
-impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
-    type Cmd = Con::Cmd;
-    type QReq = Con::QReq;
-    type QResp = Con::QResp;
-
-    fn handle_command(
-        &mut self,
-        origin: MessageOrigin,
-        cmd: Self::Cmd,
-        context: &mut NativeContext,
-    ) -> TransactionResult {
-        self.inner.handle_command(origin, cmd, context)
-    }
-
-    fn handle_query(
-        &self,
-        origin: Option<&runtime::AccountId>,
-        req: Self::QReq,
-        context: &mut QueryContext,
-    ) -> Self::QResp {
-        self.inner.handle_query(origin, req, context)
-    }
-
-    fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
-        self.inner.on_block_end(context)
-    }
-
-    fn snapshot(&self) -> Self {
-        Self {
-            inner: self.inner.snapshot(),
-            id: self.id,
-        }
-    }
-}
-
-impl<Con: NativeContract> NativeContractMore for NativeContractWrapper<Con> {
-    fn id(&self) -> phala_mq::ContractId {
-        self.id
-    }
-}
-
-struct Query<Con> {
-    contract: Con,
-}
-
-impl<Con> Queryable for Query<Con>
-where
-    Con: NativeContract,
-{
-    fn handle_query(
+impl Query {
+    pub fn handle_query(
         &self,
         origin: Option<&runtime::AccountId>,
         req: OpaqueQuery,
         context: &mut QueryContext,
     ) -> Result<OpaqueReply, OpaqueError> {
-        let response = self
-            .contract
-            .handle_query(origin, deopaque_query(req)?, context);
-        Ok(response.encode())
+        self.contract.handle_query(origin, req, context)
+    }
+}
+
+pub(crate) struct RawData(Vec<u8>);
+
+impl Decode for RawData {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        // The remaining_len is not guaranteed to be correct by the trait Input definition. We only
+        // decode the RawData with <&[u8] as Input>, which obviously impl the correct remaining_len.
+        let mut remaining_len = input
+            .remaining_len()?
+            .ok_or("Can not decode RawData without length")?;
+        let mut decoded = Vec::with_capacity(remaining_len);
+        let mut buf = [0u8; 256];
+        loop {
+            let chunk = remaining_len.min(buf.len());
+            input.read(&mut buf[..chunk])?;
+            decoded.extend_from_slice(&buf[..chunk]);
+            remaining_len -= chunk;
+            if remaining_len == 0 {
+                break;
+            }
+        }
+        Ok(RawData(decoded))
     }
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct NativeCompatContract<Con: NativeContract> {
-    #[serde(bound(serialize = "Con: Encode", deserialize = "Con: Decode"))]
+pub struct FatContract {
     #[serde(with = "more::scale_bytes")]
-    contract: Con,
+    contract: AnyContract,
     send_mq: SignedMessageChannel,
-    cmd_rcv_mq: SecretReceiver<Con::Cmd>,
+    cmd_rcv_mq: SecretReceiver<RawData>,
     #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
     contract_id: phala_mq::ContractId,
 }
 
-impl<Con: NativeContract> NativeCompatContract<Con> {
-    pub fn new(
-        contract: Con,
+impl FatContract {
+    pub(crate) fn new(
+        contract: impl Into<AnyContract>,
         send_mq: SignedMessageChannel,
-        cmd_rcv_mq: SecretReceiver<Con::Cmd>,
+        cmd_rcv_mq: SecretReceiver<RawData>,
         ecdh_key: KeyPair,
         cluster_id: phala_mq::ContractClusterId,
         contract_id: phala_mq::ContractId,
     ) -> Self {
-        NativeCompatContract {
-            contract,
+        FatContract {
+            contract: contract.into(),
             send_mq,
             cmd_rcv_mq,
             ecdh_key,
@@ -201,22 +135,25 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
     }
 }
 
-impl<Con: NativeContract + NativeContractMore + 'static> Contract for NativeCompatContract<Con> {
-    fn id(&self) -> ContractId {
+impl FatContract {
+    pub(crate) fn id(&self) -> ContractId {
         self.contract_id
     }
 
-    fn cluster_id(&self) -> phala_mq::ContractClusterId {
+    pub(crate) fn cluster_id(&self) -> phala_mq::ContractClusterId {
         self.cluster_id
     }
 
-    fn snapshot_for_query(&self) -> Box<dyn Queryable> {
-        Box::new(Query {
+    pub(crate) fn snapshot_for_query(&self) -> Query {
+        Query {
             contract: self.contract.snapshot(),
-        })
+        }
     }
 
-    fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult> {
+    pub(crate) fn process_next_message(
+        &mut self,
+        env: &mut ExecuteEnv,
+    ) -> Option<TransactionResult> {
         let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
         let mut context = NativeContext {
             block: env.block,
@@ -230,7 +167,7 @@ impl<Con: NativeContract + NativeContractMore + 'static> Contract for NativeComp
             next_cmd = self.cmd_rcv_mq => match next_cmd {
                 Ok((_, cmd, origin)) => {
                     info!(target: "contract", "Contract {:?} handling command", self.id());
-                    self.contract.handle_command(origin, cmd, &mut context)
+                    self.contract.handle_command(origin, cmd.0, &mut context)
                 }
                 Err(_e) => {
                     Err(TransactionError::ChannelError)
@@ -239,7 +176,7 @@ impl<Con: NativeContract + NativeContractMore + 'static> Contract for NativeComp
         }
     }
 
-    fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
+    pub(crate) fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
         let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
         let mut context = NativeContext {
             block: env.block,
@@ -251,15 +188,19 @@ impl<Con: NativeContract + NativeContractMore + 'static> Contract for NativeComp
         self.contract.on_block_end(&mut context)
     }
 
-    fn set_on_block_end_selector(&mut self, selector: u32) {
-        self.contract.set_on_block_end_selector(selector)
+    pub(crate) fn set_on_block_end_selector(&mut self, selector: u32) {
+        if let AnyContract::Pink(pink) = &mut self.contract {
+            pink.set_on_block_end_selector(selector)
+        } else {
+            log::error!("Can not set block_end_selector for native contract");
+        }
     }
 
-    fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
+    pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
         self.send_mq.push_data(payload, topic)
     }
 
-    fn push_osp_message(
+    pub(crate) fn push_osp_message(
         &self,
         payload: Vec<u8>,
         topic: Vec<u8>,

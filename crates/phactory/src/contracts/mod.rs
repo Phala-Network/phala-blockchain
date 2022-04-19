@@ -3,7 +3,7 @@ use std::convert::TryFrom as _;
 use std::fmt::Debug;
 
 use crate::system::{TransactionError, TransactionResult};
-use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
+use crate::types::{OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
 use chain::AccountId;
 use parity_scale_codec::{Decode, Encode};

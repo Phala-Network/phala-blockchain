@@ -102,6 +102,7 @@ pub mod v4 {
 			get_versions::<T>() == FINAL_STORAGE_VERSION,
 			"incorrect pallet versions postmigrate"
 		);
+		log::info!("Ᵽ phala mining start time is reset to {}", mining::MiningStartBlock::<T>::get());
 		log::info!("Ᵽ phala pallet migration passes POST migrate checks ✅",);
 		Ok(())
 	}
