@@ -41,7 +41,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
             }
         }
     } else {
-        info!("No checkpoint file specified.");
+        info!("Checkpoint disabled.");
     }
 
     APPLICATION.lock().unwrap().init(args);

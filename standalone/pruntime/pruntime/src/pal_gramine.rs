@@ -4,6 +4,7 @@ use std::alloc::System;
 use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
 use std::fs::File;
+use std::io::ErrorKind;
 
 use crate::ra;
 
@@ -11,8 +12,8 @@ use crate::ra;
 pub(crate) struct GraminePlatform;
 
 impl Sealing for GraminePlatform {
-    type SealError = anyhow::Error;
-    type UnsealError = anyhow::Error;
+    type SealError = std::io::Error;
+    type UnsealError = std::io::Error;
 
     fn seal_data(
         &self,
@@ -28,11 +29,8 @@ impl Sealing for GraminePlatform {
         path: impl AsRef<std::path::Path>,
     ) -> Result<Option<Vec<u8>>, Self::UnsealError> {
         match std::fs::read(path) {
-            Ok(data) => Ok(Some(data)),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(None),
-                _ => Err(err.into()),
-            },
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
+            other => other.map(Some),
         }
     }
 }
@@ -55,14 +53,8 @@ impl ProtectedFileSystem for GraminePlatform {
         // once gramine finish the feature.
 
         match std::fs::File::open(path) {
-            Ok(file) => Ok(Some(file)),
-            Err(err) => {
-                if matches!(err.kind(), std::io::ErrorKind::NotFound) {
-                    Ok(None)
-                } else {
-                    Err(err)
-                }
-            }
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
+            other => other.map(Some),
         }
     }
 

@@ -397,13 +397,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         remove_corrupted_checkpoint: bool,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
-            Ok(data) => data,
-            Err(err) => match err {
-                Error::PersistentRuntimeNotFound => return Ok(None),
-                _ => return Err(err.into()),
-            },
+            Err(Error::PersistentRuntimeNotFound) => return Ok(None),
+            other => other.context("Failed to load persistent data")?,
         };
-        let files = glob_checkpoint_files_sorted(sealing_path)?;
+        let files = glob_checkpoint_files_sorted(sealing_path).context("Glob files")?;
         if files.is_empty() {
             return Ok(None);
         }
@@ -421,6 +418,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     ckpt_filename, err
                 );
                 if remove_corrupted_checkpoint {
+                    error!("Removing {:?}", ckpt_filename);
                     std::fs::remove_file(&ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
@@ -437,6 +435,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             Err(_err /*Don't leak it into the log*/) => {
                 error!("Failed to load checkpoint file {:?}", ckpt_filename);
                 if remove_corrupted_checkpoint {
+                    error!("Removing {:?}", ckpt_filename);
                     std::fs::remove_file(&ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
