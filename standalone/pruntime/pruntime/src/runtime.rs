@@ -22,7 +22,11 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     }
 
     if args.enable_checkpoint {
-        match Phactory::restore_from_checkpoint(&GraminePlatform, &args.sealing_path) {
+        match Phactory::restore_from_checkpoint(
+            &GraminePlatform,
+            &args.sealing_path,
+            args.skip_corrupted_checkpoint,
+        ) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");
                 factory.set_args(args.clone());
