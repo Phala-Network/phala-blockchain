@@ -400,7 +400,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
             other => other.context("Failed to load persistent data")?,
         };
-        let files = glob_checkpoint_files_sorted(sealing_path).context("Glob files")?;
+        let files =
+            glob_checkpoint_files_sorted(sealing_path).context("Glob checkpoint files failed")?;
         if files.is_empty() {
             return Ok(None);
         }
