@@ -62,22 +62,3 @@ pub fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
 }
-
-pub fn ecall_dump_state<W: std::io::Write>(writer: W) -> Result<()> {
-    APPLICATION
-        .lock()
-        .unwrap()
-        .take_checkpoint_to_writer(writer)?;
-    Ok(())
-}
-
-pub fn ecall_load_state<R: std::io::Read>(reader: R) -> Result<()> {
-    let sealing_path = {
-        let app = APPLICATION.lock().unwrap();
-        app.args.sealing_path.clone()
-    };
-    let phactory =
-        Phactory::restore_from_checkpoint_reader(&GraminePlatform, &sealing_path, reader)?;
-    *APPLICATION.lock().unwrap() = phactory;
-    Ok(())
-}
