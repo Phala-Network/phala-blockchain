@@ -29,8 +29,8 @@ pub struct InitArgs {
     /// Checkpoint interval in seconds
     pub checkpoint_interval: u64,
 
-    /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
-    pub skip_corrupted_checkpoint: bool,
+    /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
+    pub remove_corrupted_checkpoint: bool,
 }
 
 pub fn git_revision() -> String {

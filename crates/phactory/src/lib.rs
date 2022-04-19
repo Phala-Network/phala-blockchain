@@ -394,7 +394,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
-        skip_corrupted_checkpoint: bool,
+        remove_corrupted_checkpoint: bool,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Ok(data) => data,
@@ -403,64 +403,48 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 _ => return Err(err.into()),
             },
         };
-        let mut error_occured = 0;
-        for (_block, ckpt_filename) in glob_checkpoint_files_sorted(sealing_path)? {
-            let file = match platform.open_protected_file(&ckpt_filename, &runtime_data.sk) {
-                Ok(Some(file)) => file,
-                Ok(None) => {
-                    // This should never happen unless it was remove just after the glob.
-                    error!("Checkpoint file {:?} is not found", ckpt_filename);
-                    continue;
-                }
-                Err(err) => {
-                    if skip_corrupted_checkpoint {
-                        error_occured += 1;
-                        error!(
-                            "Failed to open checkpoint file {:?}: {:?}",
-                            ckpt_filename, err
-                        );
-                        continue;
-                    } else {
-                        anyhow::bail!(
-                            "Failed to open checkpoint file {:?}: {:?}",
-                            ckpt_filename,
-                            err
-                        );
-                    }
-                }
-            };
+        let files = glob_checkpoint_files_sorted(sealing_path)?;
+        if files.is_empty() {
+            return Ok(None);
+        }
+        let (_block, ckpt_filename) = &files[0];
 
-            let loader: PhactoryLoader<_> = match serde_cbor::de::from_reader(file) {
-                Ok(loader) => loader,
-                Err(err) => {
-                    if skip_corrupted_checkpoint {
-                        error_occured += 1;
-                        error!(
-                            "Failed to load checkpoint file {:?}: {:?}",
-                            ckpt_filename, err
-                        );
-                        continue;
-                    } else {
-                        anyhow::bail!(
-                            "Failed to load checkpoint file {:?}: {:?}",
-                            ckpt_filename,
-                            err
-                        );
-                    }
+        let file = match platform.open_protected_file(&ckpt_filename, &runtime_data.sk) {
+            Ok(Some(file)) => file,
+            Ok(None) => {
+                // This should never happen unless it was removed just after the glob.
+                anyhow::bail!("Checkpoint file {:?} is not found", ckpt_filename);
+            }
+            Err(err) => {
+                error!(
+                    "Failed to open checkpoint file {:?}: {:?}",
+                    ckpt_filename, err
+                );
+                if remove_corrupted_checkpoint {
+                    std::fs::remove_file(&ckpt_filename)
+                        .context("Failed to remove corrupted checkpoint file")?;
                 }
-            };
-            info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
-            return Ok(Some(loader.0));
-        }
-        if error_occured > 0 {
-            Err(anyhow!(
-                "Failed to restore from any checkpoint, {} tries failed",
-                error_occured
-            ))
-        } else {
-            // No checkpoint found.
-            Ok(None)
-        }
+                anyhow::bail!(
+                    "Failed to open checkpoint file {:?}: {:?}",
+                    ckpt_filename,
+                    err
+                );
+            }
+        };
+
+        let loader: PhactoryLoader<_> = match serde_cbor::de::from_reader(file) {
+            Ok(loader) => loader,
+            Err(_err /*Don't leak it into the log*/) => {
+                error!("Failed to load checkpoint file {:?}", ckpt_filename);
+                if remove_corrupted_checkpoint {
+                    std::fs::remove_file(&ckpt_filename)
+                        .context("Failed to remove corrupted checkpoint file")?;
+                }
+                anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
+            }
+        };
+        info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
+        return Ok(Some(loader.0));
     }
 
     pub fn restore_from_checkpoint_reader<R: std::io::Read>(
