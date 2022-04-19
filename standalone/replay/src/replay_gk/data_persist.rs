@@ -116,11 +116,13 @@ async fn insert_records(pool: &sqlx::Pool<sqlx::Postgres>, records: &[EventRecor
         INSERT INTO worker_finance_events
             (sequence, pubkey, block, time, event, v, p, payout)
         SELECT *
-        FROM UNNEST($1, $2, $3, $4, $5, $6, $7, $8) u
+        FROM UNNEST($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (time, sequence)
         DO UPDATE
-        SET (pubkey, block, event, v, p, payout)
-            = (excluded.pubkey, excluded.block, excluded.event, excluded.v, excluded.p, excluded.payout)
+        SET (pubkey, block, event, v, p, payout) = (
+            EXCLUDED.pubkey, EXCLUDED.block, EXCLUDED.event, EXCLUDED.v, EXCLUDED.p,
+            EXCLUDED.payout
+        )
         "#,
     )
     .bind(&sequences)
