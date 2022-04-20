@@ -12,14 +12,14 @@ type Tasks = Vec<Option<TaskFuture>>;
 thread_local! {
     static CURRENT_TASK: std::cell::Cell<i32>  = Default::default();
     static TASKS: RefCell<Tasks> = RefCell::new(vec![Some(unsafe { sidevm_main_future() })]);
-    static SPAWNED_TASKS: RefCell<Vec<TaskFuture>> = RefCell::new(vec![]);
+    static SPAWNING_TASKS: RefCell<Vec<TaskFuture>> = RefCell::new(vec![]);
 }
 
 // TODO.kevin: Support task joining
 pub struct TaskHandle;
 
 pub fn spawn(fut: impl Future<Output = ()> + 'static) -> TaskHandle {
-    SPAWNED_TASKS.with(move |tasks| (*tasks).borrow_mut().push(Box::pin(fut)));
+    SPAWNING_TASKS.with(move |tasks| (*tasks).borrow_mut().push(Box::pin(fut)));
     TaskHandle
 }
 
@@ -45,7 +45,7 @@ fn start_task(tasks: &mut Tasks, task: TaskFuture) {
 }
 
 fn start_spawned_tasks(tasks: &mut Tasks) {
-    SPAWNED_TASKS.with(|spowned_tasks| {
+    SPAWNING_TASKS.with(|spowned_tasks| {
         for task in spowned_tasks.borrow_mut().drain(..) {
             start_task(tasks, task);
         }
