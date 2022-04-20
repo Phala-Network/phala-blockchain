@@ -225,10 +225,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.handle_inbound_messages(block.block_header.number)?;
             self.poll_side_tasks(block.block_header.number)?;
             last_block = block.block_header.number;
-        }
 
-        if let Err(e) = self.maybe_take_checkpoint(last_block) {
-            error!("Failed to take checkpoint: {:?}", e);
+            if let Err(e) = self.maybe_take_checkpoint(last_block) {
+                error!("Failed to take checkpoint: {:?}", e);
+            }
         }
 
         Ok(pb::SyncedTo {
