@@ -2,7 +2,7 @@
 name = "phala-node-runtime"
 version = "2.0.0"
 authors = ["Phala Network"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 license = "Apache-2.0"
 homepage = "https://phala.network/"
