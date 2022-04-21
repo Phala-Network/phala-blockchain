@@ -105,7 +105,7 @@ pub mod v4 {
 			"incorrect pallet versions postmigrate"
 		);
 		log::info!(
-			"Ᵽ phala mining start time is reset to {}",
+			"Ᵽ phala mining start time is reset to {:?}",
 			mining::MiningStartBlock::<T>::get()
 		);
 		log::info!("Ᵽ phala pallet migration passes POST migrate checks ✅",);
