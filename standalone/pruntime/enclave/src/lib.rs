@@ -71,7 +71,9 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
         .init();
 
     if args.enable_checkpoint {
-        match Phactory::restore_from_checkpoint(&SgxPlatform, &args.sealing_path) {
+        match Phactory::restore_from_checkpoint(
+            &SgxPlatform, &args.sealing_path, args.remove_corrupted_checkpoint
+        ) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");
                 factory.set_args(args.clone());
@@ -80,7 +82,7 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
             }
             Err(err) => {
                 error!("Failed to load checkpoint: {:?}", err);
-                if !args.skip_corrupted_checkpoint {
+                if !args.remove_corrupted_checkpoint {
                     return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                 }
                 info!("Skipped corrupted checkpoint");
