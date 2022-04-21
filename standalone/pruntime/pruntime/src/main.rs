@@ -7,61 +7,62 @@ mod runtime;
 
 use std::{env, thread};
 
+use clap::{AppSettings, Parser};
 use log::{error, info};
-use structopt::StructOpt;
 
 use phactory_api::ecall_args::{git_revision, InitArgs};
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "pruntime", about = "The Phala TEE worker app.")]
+#[derive(Parser, Debug)]
+#[clap(about = "The Phala TEE worker app.", version, author)]
+#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 struct Args {
     /// Number of CPU cores to be used for mining.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     cores: Option<u32>,
 
     /// Run benchmark at startup.
-    #[structopt(long)]
+    #[clap(long)]
     init_bench: bool,
 
-    #[structopt(long, default_value = "./GeoLite2-City.mmdb")]
+    #[clap(long, default_value = "./GeoLite2-City.mmdb")]
     geoip_city_db: String,
 
     /// Allow CORS for HTTP
-    #[structopt(long)]
+    #[clap(long)]
     allow_cors: bool,
 
     /// Turn on /kick API
-    #[structopt(long)]
+    #[clap(long)]
     enable_kick_api: bool,
 
     /// Log filter passed to env_logger
-    #[structopt(long, default_value = "INFO")]
+    #[clap(long, default_value = "INFO")]
     log_filter: String,
 
     /// Listening IP address of HTTP
-    #[structopt(long)]
+    #[clap(long)]
     address: Option<String>,
 
     /// Listening port of HTTP
-    #[structopt(long)]
+    #[clap(long)]
     port: Option<String>,
 
     /// Disable checkpoint
-    #[structopt(long)]
+    #[clap(long)]
     disable_checkpoint: bool,
 
     /// Checkpoint interval in seconds, default to 5 minutes
-    #[structopt(long)]
-    #[structopt(default_value = "300")]
+    #[clap(long)]
+    #[clap(default_value_t = 300)]
     checkpoint_interval: u64,
 
     /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
-    #[structopt(long)]
+    #[clap(long)]
     remove_corrupted_checkpoint: bool,
 
     /// Max number of checkpoint files kept
-    #[structopt(long)]
-    #[structopt(default_value = "5")]
+    #[clap(long)]
+    #[clap(default_value_t = 5)]
     max_checkpoint_files: u32,
 }
 
@@ -84,7 +85,7 @@ fn main() {
     }
     .into();
 
-    let args = Args::from_args();
+    let args = Args::parse();
 
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");

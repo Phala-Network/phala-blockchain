@@ -4,7 +4,6 @@ use sp_core::crypto::AccountId32;
 use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
-use structopt::StructOpt;
 use tokio::time::sleep;
 
 use codec::Decode;
@@ -33,153 +32,155 @@ use phactory_api::pruntime_client;
 
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
+use clap::{Parser, AppSettings};
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "pherry")]
+
+#[derive(Parser, Debug)]
+#[clap(about = "Sync messages between Phala TEE and the blockchain.", version, author)]
+#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
     )]
     dev: bool,
 
-    #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
+    #[clap(short = 'n', long = "no-init", help = "Should init pRuntime?")]
     no_init: bool,
 
-    #[structopt(
+    #[clap(
         long = "no-sync",
         help = "Don't sync pRuntime. Quit right after initialization."
     )]
     no_sync: bool,
 
-    #[structopt(long, help = "Don't write pRuntime egress data back to Substarte.")]
+    #[clap(long, help = "Don't write pRuntime egress data back to Substarte.")]
     no_msg_submit: bool,
 
-    #[structopt(long, help = "Skip registering the worker.")]
+    #[clap(long, help = "Skip registering the worker.")]
     no_register: bool,
 
-    #[structopt(
+    #[clap(
         long,
         help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled."
     )]
     use_dev_key: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "",
         long = "inject-key",
         help = "Inject key to pRuntime."
     )]
     inject_key: String,
 
-    #[structopt(
-        short = "r",
+    #[clap(
+        short = 'r',
         long = "remote-attestation",
         help = "Should enable Remote Attestation"
     )]
     ra: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "ws://localhost:9944",
         long,
         help = "Substrate rpc websocket endpoint"
     )]
     substrate_ws_endpoint: String,
 
-    #[structopt(
+    #[clap(
         default_value = "ws://localhost:9977",
         long,
         help = "Parachain collator rpc websocket endpoint"
     )]
     collator_ws_endpoint: String,
 
-    #[structopt(
+    #[clap(
         default_value = "http://localhost:8000",
         long,
         help = "pRuntime http endpoint"
     )]
     pruntime_endpoint: String,
 
-    #[structopt(default_value = "", long, help = "notify endpoint")]
+    #[clap(default_value = "", long, help = "notify endpoint")]
     notify_endpoint: String,
 
-    #[structopt(
-        required = true,
+    #[clap(
         default_value = "//Alice",
-        short = "m",
+        short = 'm',
         long = "mnemonic",
         help = "Controller SR25519 private key mnemonic, private key seed, or derive path"
     )]
     mnemonic: String,
 
-    #[structopt(
+    #[clap(
         default_value = "1000",
         long = "fetch-blocks",
         help = "The batch size to fetch blocks from Substrate."
     )]
     fetch_blocks: u32,
 
-    #[structopt(
+    #[clap(
         default_value = "100",
         long = "sync-blocks",
         help = "The batch size to sync blocks to pRuntime."
     )]
     sync_blocks: usize,
 
-    #[structopt(
+    #[clap(
         long = "operator",
         help = "The operator account to set the miner for the worker."
     )]
     operator: Option<String>,
 
-    #[structopt(long = "parachain", help = "Parachain mode")]
+    #[clap(long = "parachain", help = "Parachain mode")]
     parachain: bool,
 
-    #[structopt(
+    #[clap(
         long,
         help = "The first parent header to be synced, default to auto-determine"
     )]
     start_header: Option<BlockNumber>,
 
-    #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
+    #[clap(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "5000",
         long,
         help = "(Debug only) Set the wait block duration in ms"
     )]
     dev_wait_block_ms: u64,
 
-    #[structopt(
+    #[clap(
         default_value = "0",
         long,
         help = "The charge transaction payment, unit: balance"
     )]
     tip: u64,
-    #[structopt(
+    #[clap(
         default_value = "4",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
     longevity: u64,
-    #[structopt(
+    #[clap(
         default_value = "200",
         long,
         help = "Max number of messages to be submitted per-round"
     )]
     max_sync_msgs_per_round: u64,
 
-    #[structopt(long, help = "Auto restart self after an error occurred")]
+    #[clap(long, help = "Auto restart self after an error occurred")]
     auto_restart: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "10",
         long,
         help = "Max auto restart retries if it continiously failing. Only used with --auto-restart"
     )]
     max_restart_retries: u32,
 
-    #[structopt(long, help = "Restart if number of rpc errors reaches the threshold")]
+    #[clap(long, help = "Restart if number of rpc errors reaches the threshold")]
     restart_on_rpc_error_threshold: Option<u64>,
 }
 
@@ -1109,7 +1110,7 @@ pub async fn pherry_main() {
         .parse_default_env()
         .init();
 
-    let mut args = Args::from_args();
+    let mut args = Args::parse();
     preprocess_args(&mut args);
 
     let mut flags = RunningFlags {

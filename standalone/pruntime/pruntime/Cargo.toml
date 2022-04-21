@@ -8,6 +8,7 @@ panic = "abort"
 
 [dependencies]
 anyhow = "1.0"
+clap = {version = "3", features = ["derive"]}
 colored = "2"
 http_req = {version = "0.8.1", default-features = false, features = ["rust-tls"]}
 libc = "0.2"
@@ -18,7 +19,6 @@ rocket = "0.4.7"
 rocket_codegen = "0.4.5"
 rocket_cors = "0.5.2"
 serde_json = "1.0"
-structopt = "0.3.21"
 
 base64 = "0.13.0"
 
