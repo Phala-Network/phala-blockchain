@@ -22,6 +22,7 @@ use crate::{
     VmId,
 };
 
+// Let the compiler check IntPtr is 32bit sized.
 fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }

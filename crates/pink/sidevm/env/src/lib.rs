@@ -617,10 +617,6 @@ impl AsRef<[u8]> for Buffer {
     }
 }
 
-fn empty_buffer() -> Buffer {
-    Default::default()
-}
-
 fn alloc_buffer(size: usize) -> Buffer {
     let mut buf = Buffer::default();
     buf.0.resize(size, 0_u8);

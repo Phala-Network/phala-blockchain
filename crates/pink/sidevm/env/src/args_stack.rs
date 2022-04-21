@@ -101,6 +101,8 @@ where
     }
 }
 
+// Since the const evaluation of Rust is not powerful enough yet, we use this trick to statically
+// check the argument types encode output do not exceed the maximum number of arguments.
 pub(crate) trait NotTooManyArgs {
     const TOO_MANY_ARGUMENTS: ();
 }

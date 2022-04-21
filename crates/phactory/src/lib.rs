@@ -348,6 +348,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 }
 
 impl<P> Phactory<P> {
+    // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
         if let Some(system) = &mut self.system {
             system.on_restored()?;
