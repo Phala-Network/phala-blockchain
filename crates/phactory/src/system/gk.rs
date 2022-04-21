@@ -260,6 +260,9 @@ where
             GatekeeperEvent::PhalaLaunched => {
                 // Handled by MiningEconomics
             }
+            GatekeeperEvent::UnrespFix => {
+                // Handled by MiningEconomics
+            }
         }
     }
 
@@ -411,10 +414,13 @@ pub struct MiningEconomics<MsgChan> {
     tokenomic_params: tokenomic::Params,
     /// Indicates a set of update is enabled on-chain
     /// - Remove payout delta V limitation
-    //    (https://github.com/Phala-Network/phala-blockchain/issues/693)
+    ///   (https://github.com/Phala-Network/phala-blockchain/issues/693)
     /// - Fix issue 676 (https://github.com/Phala-Network/phala-blockchain/issues/676)
     #[serde(default)]
     phala_launched: bool,
+    /// Indicates if the payout duration problem in unresponsive state if fixed
+    #[serde(default)]
+    unresp_fix: bool,
 }
 
 #[test]
@@ -479,6 +485,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             workers: Default::default(),
             tokenomic_params: tokenomic::test_params(),
             phala_launched: false,
+            unresp_fix: false,
         }
     }
 
@@ -746,6 +753,11 @@ where
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
+                    if self.state.unresp_fix {
+                        worker_info
+                            .tokenomic
+                            .update_v_recover(self.block.now_ms, self.block.block_number);
+                    }
                     fp!(0)
                 } else {
                     trace!(
@@ -923,6 +935,11 @@ where
                     // - https://github.com/Phala-Network/phala-blockchain/issues/693
                     // - https://github.com/Phala-Network/phala-blockchain/issues/676
                     self.state.phala_launched = true;
+                }
+            }
+            GatekeeperEvent::UnrespFix => {
+                if origin.is_pallet() {
+                    self.state.unresp_fix = true;
                 }
             }
         }
@@ -1139,6 +1156,7 @@ mod tokenomic {
             if full_payout {
                 // With `full_payout`, the miner gets paid with its share directly. However, v can
                 // only be deducted up to the v increment since the last payout.
+                // (Current behavior)
                 actual_payout = to_payout; // w
                 actual_treasury = to_treasury;
                 let actual_v_deduct = self.v_deductible.max(fp!(0)).min(actual_payout);
@@ -1146,6 +1164,7 @@ mod tokenomic {
             } else {
                 // Without `full_payout`, the miner gets paid up to the v increment to ensure v
                 // will not decrease over the time by payout.
+                // (Legacy behavior)
                 actual_payout = self.v_deductible.max(fp!(0)).min(to_payout); // w
                 actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
                 self.v -= actual_payout;
@@ -1162,6 +1181,16 @@ mod tokenomic {
             self.total_payout_count += 1;
 
             (actual_payout, actual_treasury)
+        }
+
+        pub fn update_v_recover(&mut self, now_ms: u64, block_number: chain::BlockNumber) {
+            self.v_deductible = fp!(0);
+            self.v_update_at = now_ms;
+            self.v_update_block = block_number;
+
+            // stats
+            self.last_payout = fp!(0);
+            self.last_payout_at_block = block_number;
         }
 
         pub fn update_v_slash(&mut self, params: &Params, block_number: chain::BlockNumber) {
