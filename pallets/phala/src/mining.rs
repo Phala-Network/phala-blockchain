@@ -1053,6 +1053,13 @@ pub mod pallet {
 			T::DbWeight::get().writes(1)
 		}
 
+		pub(crate) fn trigger_unresp_fix<T: Config>() -> Weight {
+			use crate::mq::pallet::MessageOriginInfo;
+			use phala_types::messaging::GatekeeperEvent;
+			Pallet::<T>::queue_message(GatekeeperEvent::UnrespFix);
+			T::DbWeight::get().writes(1)
+		}
+
 		pub(crate) fn enable_phala_tokenomic<T: Config>() -> Weight
 		where
 			super::BalanceOf<T>: crate::balance_convert::FixedPointConvert,
