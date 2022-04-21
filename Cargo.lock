@@ -2035,6 +2035,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.11.0",
+ "clap 3.1.6",
  "frame-support",
  "hex",
  "parity-scale-codec",
@@ -2046,7 +2047,6 @@ dependencies = [
  "sc-finality-grandpa",
  "sp-core",
  "sp-runtime",
- "structopt",
  "tokio 1.17.0",
 ]
 
@@ -4071,7 +4071,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05fd8cd6c6b1bbd06881d2cf88f1fc83cc36c98f2219090f839115fb4a956cb9"
 dependencies = [
  "jsonrpsee-client-transport",
- "jsonrpsee-core 0.8.0",
+ "jsonrpsee-core",
  "jsonrpsee-proc-macros",
  "jsonrpsee-types 0.8.0",
  "jsonrpsee-ws-client 0.8.0",
@@ -4085,7 +4085,7 @@ checksum = "3303cdf246e6ab76e2866fb3d9acb6c76a068b1b28bd923a1b7a8122257ad7b5"
 dependencies = [
  "futures 0.3.21",
  "http",
- "jsonrpsee-core 0.8.0",
+ "jsonrpsee-core",
  "jsonrpsee-types 0.8.0",
  "pin-project 1.0.10",
  "rustls-native-certs 0.6.1",
@@ -4096,25 +4096,6 @@ dependencies = [
  "tokio-util 0.6.9",
  "tracing",
  "webpki-roots 0.22.2",
-]
-
-[[package]]
-name = "jsonrpsee-core"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b863e5e86a11bfaf46bb3ab5aba184671bd62058e8e3ab741c3395904c7afbf3"
-dependencies = [
- "anyhow",
- "arrayvec 0.7.2",
- "async-trait",
- "beef",
- "futures-channel",
- "hyper",
- "jsonrpsee-types 0.7.0",
- "serde",
- "serde_json",
- "soketto 0.7.1",
- "thiserror",
 ]
 
 [[package]]
@@ -4173,20 +4154,6 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-types"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e169725e476234f3f96079fb9d8a6d00226db602d3fa056f044994239a490d78"
-dependencies = [
- "anyhow",
- "beef",
- "serde",
- "serde_json",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "jsonrpsee-types"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1b3f601bbbe45cd63f5407b6f7d7950e08a7d4f82aa699ff41a4a5e9e54df58"
@@ -4241,7 +4208,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aff425cee7c779e33920913bc695447416078ee6d119f443f3060feffa4e86b5"
 dependencies = [
  "jsonrpsee-client-transport",
- "jsonrpsee-core 0.8.0",
+ "jsonrpsee-core",
  "jsonrpsee-types 0.8.0",
 ]
 
@@ -6814,6 +6781,7 @@ dependencies = [
  "fixed-sqrt",
  "frame-system",
  "futures 0.3.21",
+ "glob",
  "hash-db",
  "hex",
  "hex-literal",
@@ -7251,11 +7219,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.13.0",
+ "clap 3.1.6",
  "env_logger",
  "frame-system",
  "futures 0.3.21",
  "hex",
- "jsonrpsee-core 0.7.0",
  "log",
  "pallet-balances",
  "pallet-grandpa",
@@ -7281,7 +7249,6 @@ dependencies = [
  "sp-keyring",
  "sp-rpc",
  "sp-runtime",
- "structopt",
  "tokio 1.17.0",
 ]
 
@@ -8185,6 +8152,7 @@ dependencies = [
  "anyhow",
  "bytes 1.1.0",
  "chrono",
+ "clap 3.1.6",
  "env_logger",
  "hex",
  "log",
@@ -8200,7 +8168,6 @@ dependencies = [
  "serde_json",
  "sp-core",
  "sqlx",
- "structopt",
  "tokio 1.17.0",
 ]
 
