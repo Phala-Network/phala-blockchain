@@ -45,6 +45,24 @@ struct Args {
     /// Listening port of HTTP
     #[structopt(long)]
     port: Option<String>,
+
+    /// Disable checkpoint
+    #[structopt(long)]
+    disable_checkpoint: bool,
+
+    /// Checkpoint interval in seconds, default to 5 minutes
+    #[structopt(long)]
+    #[structopt(default_value = "300")]
+    checkpoint_interval: u64,
+
+    /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
+    #[structopt(long)]
+    remove_corrupted_checkpoint: bool,
+
+    /// Max number of checkpoint files kept
+    #[structopt(long)]
+    #[structopt(default_value = "5")]
+    max_checkpoint_files: u32,
 }
 
 fn main() {
@@ -89,9 +107,10 @@ fn main() {
         version: env!("CARGO_PKG_VERSION").into(),
         git_revision: git_revision(),
         geoip_city_db: args.geoip_city_db,
-        enable_checkpoint: false,
-        checkpoint_interval: 0,
-        skip_corrupted_checkpoint: false,
+        enable_checkpoint: !args.disable_checkpoint,
+        checkpoint_interval: args.checkpoint_interval,
+        remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
+        max_checkpoint_files: args.max_checkpoint_files,
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {

@@ -4,6 +4,7 @@ use std::alloc::System;
 use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
 use std::fs::File;
+use std::io::ErrorKind;
 
 use crate::ra;
 
@@ -11,8 +12,8 @@ use crate::ra;
 pub(crate) struct GraminePlatform;
 
 impl Sealing for GraminePlatform {
-    type SealError = anyhow::Error;
-    type UnsealError = anyhow::Error;
+    type SealError = std::io::Error;
+    type UnsealError = std::io::Error;
 
     fn seal_data(
         &self,
@@ -28,54 +29,41 @@ impl Sealing for GraminePlatform {
         path: impl AsRef<std::path::Path>,
     ) -> Result<Option<Vec<u8>>, Self::UnsealError> {
         match std::fs::read(path) {
-            Ok(data) => Ok(Some(data)),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(None),
-                _ => Err(err.into()),
-            },
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
+            other => other.map(Some),
         }
-    }
-}
-
-pub struct ProtectedFile(File);
-
-impl std::io::Read for ProtectedFile {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.0.read(buf)
-    }
-}
-
-impl std::io::Write for ProtectedFile {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.flush()
     }
 }
 
 impl ProtectedFileSystem for GraminePlatform {
     type IoError = std::io::Error;
 
-    type ReadFile = ProtectedFile;
+    type ReadFile = File;
 
-    type WriteFile = ProtectedFile;
+    type WriteFile = File;
 
     fn open_protected_file(
         &self,
-        _path: impl AsRef<std::path::Path>,
+        path: impl AsRef<std::path::Path>,
         _key: &[u8],
     ) -> Result<Option<Self::ReadFile>, Self::IoError> {
-        unimplemented!()
+        let todo = "Kevin: Use the key to encrypt the file";
+        // We currently use the mrenclave protected fs to store the data, so no need to encrypt twice.
+        // Gramine has a plan to support set key for individual files. We can turn back to use the key
+        // once gramine finish the feature.
+
+        match std::fs::File::open(path) {
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
+            other => other.map(Some),
+        }
     }
 
     fn create_protected_file(
         &self,
-        _path: impl AsRef<std::path::Path>,
+        path: impl AsRef<std::path::Path>,
         _key: &[u8],
     ) -> Result<Self::WriteFile, Self::IoError> {
-        unimplemented!()
+        std::fs::File::create(path)
     }
 }
 

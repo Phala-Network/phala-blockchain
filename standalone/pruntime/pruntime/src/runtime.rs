@@ -22,7 +22,11 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     }
 
     if args.enable_checkpoint {
-        match Phactory::restore_from_checkpoint(&GraminePlatform, &args.sealing_path) {
+        match Phactory::restore_from_checkpoint(
+            &GraminePlatform,
+            &args.sealing_path,
+            args.remove_corrupted_checkpoint,
+        ) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");
                 factory.set_args(args.clone());
@@ -37,7 +41,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
             }
         }
     } else {
-        info!("No checkpoint file specified.");
+        info!("Checkpoint disabled.");
     }
 
     APPLICATION.lock().unwrap().init(args);
@@ -57,23 +61,4 @@ pub fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
     let (code, data) = phactory::dispatch_prpc_request(path, data, usize::MAX, &APPLICATION);
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
-}
-
-pub fn ecall_dump_state<W: std::io::Write>(writer: W) -> Result<()> {
-    APPLICATION
-        .lock()
-        .unwrap()
-        .take_checkpoint_to_writer(writer)?;
-    Ok(())
-}
-
-pub fn ecall_load_state<R: std::io::Read>(reader: R) -> Result<()> {
-    let sealing_path = {
-        let app = APPLICATION.lock().unwrap();
-        app.args.sealing_path.clone()
-    };
-    let phactory =
-        Phactory::restore_from_checkpoint_reader(&GraminePlatform, &sealing_path, reader)?;
-    *APPLICATION.lock().unwrap() = phactory;
-    Ok(())
 }
