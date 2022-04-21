@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::Cell,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
@@ -241,8 +240,8 @@ impl env::OcallFuncs for State {
         Ok(())
     }
 
-    fn tcp_listen(&mut self, addr: Cow<str>, _backlog: i32) -> Result<i32> {
-        let std_listener = std::net::TcpListener::bind(&*addr).or(Err(OcallError::IoError))?;
+    fn tcp_listen(&mut self, addr: &str, _backlog: i32) -> Result<i32> {
+        let std_listener = std::net::TcpListener::bind(addr).or(Err(OcallError::IoError))?;
         std_listener
             .set_nonblocking(true)
             .or(Err(OcallError::IoError))?;

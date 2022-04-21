@@ -1,6 +1,5 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
-use std::borrow::Cow;
 
 /// Poll state for a dynamic returned buffer (for the ocall `fn poll`).
 #[derive(Encode, Decode)]
@@ -113,7 +112,7 @@ pub trait OcallFuncs {
     fn next_ready_task() -> Result<i32>;
 
     /// Enable logging for ocalls
-    #[ocall(id = 111, fast_return)]
+    #[ocall(id = 111, fast_input, fast_return)]
     fn enable_ocall_trace(enable: bool) -> Result<()>;
 
     /// Create a timer given a duration of time in milliseconds.
@@ -126,8 +125,8 @@ pub trait OcallFuncs {
     /// for sockfd may grow.
     ///
     /// Invoke tcp_accept on the returned resource_id to accept incoming connections.
-    #[ocall(id = 210, fast_return)]
-    fn tcp_listen(addr: Cow<str>, backlog: i32) -> Result<i32>;
+    #[ocall(id = 210, fast_input, fast_return)]
+    fn tcp_listen(addr: &str, backlog: i32) -> Result<i32>;
 
     /// Accept incoming TCP connections.
     #[ocall(id = 211, fast_input)]
