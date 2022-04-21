@@ -1722,15 +1722,9 @@ pub mod pallet {
 		fn test_pool_cap() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
-				let worker1 = worker_pubkey(1);
-				assert_ok!(PhalaRegistry::force_register_worker(
-					Origin::root(),
-					worker1.clone(),
-					ecdh_pubkey(1),
-					Some(1)
-				));
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
 
-				assert_ok!(PhalaStakePool::create(Origin::signed(1))); // pid = 0
 				assert_eq!(PhalaStakePool::stake_pools(0).unwrap().cap, None);
 				// Pool existence
 				assert_noop!(
@@ -1773,6 +1767,29 @@ pub mod pallet {
 					PhalaStakePool::contribute(Origin::signed(2), 0, 900 * DOLLARS),
 					Error::<Test>::StakeExceedsCapacity,
 				);
+
+				// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
+				// can be maintained after the contribution
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(1),
+					0,
+					1000 * DOLLARS
+				));
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(2), 0, 1001 * DOLLARS),
+					Error::<Test>::StakeExceedsCapacity
+				);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1000 * DOLLARS
+				));
 			});
 		}
 
