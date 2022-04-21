@@ -653,6 +653,7 @@ fn main() {
         enable_checkpoint: !args.disable_checkpoint,
         checkpoint_interval: args.checkpoint_interval,
         remove_corrupted_checkpoint: args.skip_corrupted_checkpoint,
+        max_checkpoint_files: 5
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
