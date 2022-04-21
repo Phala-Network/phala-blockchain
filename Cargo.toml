@@ -22,7 +22,6 @@ exclude = [
 	"native-nostd-hasher",
 	"standalone/pruntime",
 	"crates/pink/examples/",
-	"standalone/replay",
 ]
 
 members = [
@@ -31,6 +30,7 @@ members = [
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
+	"standalone/replay",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",
