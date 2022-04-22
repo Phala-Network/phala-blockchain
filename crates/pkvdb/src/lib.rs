@@ -2,22 +2,44 @@ use hash_db::{AsHashDB, AsPlainDB, HashDB, HashDBRef, Hasher, PlainDB, PlainDBRe
 use rusty_leveldb::LdbIterator;
 use rusty_leveldb::WriteBatch;
 use rusty_leveldb::DB;
+use rusty_leveldb::Options as LevelDBOptions;
+use rusty_leveldb::gramine_env::GramineEnv;
 use sp_state_machine::backend::Consolidate;
+pub use sp_trie::MemoryDB as Transcation;
 use std::borrow::BorrowMut;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::sync::Mutex;
+use std::rc::Rc;
+use std::sync::Arc;
+
+pub type LevelDB<H> = Kvdb<H, sp_trie::DBValue>;
 
 pub struct Kvdb<H, T>
 where
     H: Hasher,
 {
-    leveldb: Mutex<DB>,
+    leveldb: Arc<Mutex<DB>>,
     null_node_data: T,
     hashed_null_node: H::Out,
 }
 
+impl<H, T> Clone for Kvdb<H, T> 
+where
+    H: Hasher,
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self{
+            leveldb: self.leveldb.clone(),
+            null_node_data: self.null_node_data.clone(),
+            hashed_null_node: self.hashed_null_node,
+        }
+    }
+}
+
 // this is just an empty implementation for the TrieBackendEssence bound
+// FIXME: could remove it 
 impl<H, T> Consolidate for Kvdb<H, T>
 where
     H: Hasher,
@@ -33,14 +55,19 @@ where
     H: Hasher,
     T: Default + PartialEq<T> + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
 {
-    // FIXME: should add a path to leveldb
-    pub fn with_null_node(_null_key: &[u8], _null_node_data: T) -> Self {
-        unimplemented!()
+    pub fn with_null_node<P: AsRef<Path>>(path: P, null_key: &[u8], null_node_data: T) -> Self {
+        let mut options = LevelDBOptions::default();
+        options.env = Rc::new(Box::new(GramineEnv::new()));
+        let db = DB::open(path, options).unwrap();
+        Kvdb { 
+            leveldb: Arc::new(Mutex::new(db)),
+            hashed_null_node: H::hash(null_key),
+            null_node_data,
+        }
     }
 
-    pub fn new(_path: impl AsRef<Path>) -> Self {
-        // use the zero vector as the default null key and data ?
-        unimplemented!()
+    pub fn new<P: AsRef<Path>>(path: P) -> Self {
+        Self::with_null_node(path, &[0u8][..], [0u8][..].into())
     }
 
     pub fn purge(&mut self) {
@@ -49,7 +76,8 @@ where
             let mut writebatch = WriteBatch::new();
             if let Ok(mut iter) = DB::new_iter(db_mut.borrow_mut()) {
                 while let Some((key, val)) = iter.next() {
-                    if i32::from_be_bytes(val[0..4].try_into().unwrap()) <= 0 {
+                    // FIXME: if we should keep the negative reference count 
+                    if i32::from_be_bytes(val[0..4].try_into().unwrap()) == 0 {
                         writebatch.delete(&key);
                     }
                 }
@@ -58,10 +86,59 @@ where
         }
     }
 
-    // TODO: if we really need the consolidate function same as the MemoryDB ?
-    // in substrate state-machine the data is from the block backend and we could belive the
-    // contract is stored in block as externics stable but we just support the same semantics for
-    // phala runtime
+    // only for test 
+    pub fn clear(&mut self) {
+        if let Ok(mut db_mut) = self.leveldb.lock() {
+            let mut writebatch = WriteBatch::new();
+            if let Ok(mut iter) = DB::new_iter(db_mut.borrow_mut()){
+                while let Some((key, _)) = iter.next() {
+                    writebatch.delete(&key);
+                }
+                let _ = DB::write(db_mut.borrow_mut(), writebatch, true);
+            }
+        }
+    }
+
+    pub fn raw(&self, key: &H::Out, _prefix: Prefix) -> Option<(T, i32)> {
+        if key == &self.hashed_null_node {
+            return Some((self.null_node_data.clone(), 1));
+        }
+        let mut db_mut = self.leveldb.lock().unwrap();
+        match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
+            Some(Inner(value, rc)) => {
+                Some((value, rc))
+            },
+            _ => None,
+        }
+    }
+}
+
+impl<H> Kvdb<H, sp_trie::DBValue> 
+where 
+    H: Hasher,
+{
+
+    pub fn consolidate(&mut self, mut transaction: Transcation<H>) {
+        if let Ok(mut db_mut) = self.leveldb.lock(){ 
+            let mut writebatch = WriteBatch::new();
+            
+            for (key, (value, rc)) in transaction.drain(){
+                match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<sp_trie::DBValue>::from){
+                    Some(mut inner) => {
+                       inner.1 += rc;
+                       writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref()); 
+                    },
+                    None => {
+                        let inner = Inner::<sp_trie::DBValue>(value, rc);
+                        writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
+                    }
+                }
+            }
+            if writebatch.count() > 0 {
+                let _ = DB::write(db_mut.borrow_mut(), writebatch, true);
+            }
+        } 
+    }   
 }
 
 // inner kv represention
@@ -137,16 +214,15 @@ where
         let mut writebatch = WriteBatch::new();
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(mut inner) => {
-                if inner.1 > 1 {
-                    inner.1 -= 1;
-                    writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
-                    let _ = DB::write(db_mut.borrow_mut(), writebatch, true);
-                } else {
-                    let _ = DB::delete(db_mut.borrow_mut(), key.as_ref());
-                }
+                inner.1 -= 1;
+                writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
             }
-            _ => {}
+            _ => {
+                let inner = Inner::<T>(T::default(), -1);
+                writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
+            }
         }
+        let _ = DB::write(db_mut.borrow_mut(), writebatch, true);
     }
 }
 
@@ -215,19 +291,18 @@ where
         }
 
         let mut db_mut = self.leveldb.lock().unwrap();
+        let mut writebatch = WriteBatch::new();
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(mut inner) => {
-                if inner.1 > 1 {
                     inner.1 -= 1;
-                    let mut writebatch = WriteBatch::new();
                     writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
-                    let _ = DB::write(db_mut.deref_mut(), writebatch, true);
-                } else {
-                    let _ = DB::delete(db_mut.deref_mut(), key.as_ref());
-                }
             }
-            _ => {}
+            _ => {
+                let inner = Inner::<T>(T::default(), -1);
+                writebatch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
+            }
         }
+        let _ = DB::write(db_mut.deref_mut(), writebatch, true);
     }
 }
 
@@ -290,12 +365,82 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hash_db::Hasher;
     use sp_core::KeccakHasher; 
+
+
+    static TMP_DB_PATH: &str = "/tmp/test_kv";
+
+
+    #[test]
+    fn purge() {
+        let value_bytes = b"purge_value";
+        let key = KeccakHasher::hash(value_bytes);
+        let mut kv = LevelDB::<KeccakHasher>::new(TMP_DB_PATH);
+        
+        let return_key = kv.insert(hash_db::EMPTY_PREFIX, value_bytes);
+        assert_eq!(key, return_key);
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert!(raw.is_some());
+        assert_eq!(raw.unwrap().1, 1);
+        let _ = kv.insert(hash_db::EMPTY_PREFIX, value_bytes); 
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 2);
+        kv.as_hash_db_mut().remove(&key, hash_db::EMPTY_PREFIX);
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 1);
+        kv.as_hash_db_mut().remove(&key, hash_db::EMPTY_PREFIX);
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 0);
+        kv.purge();
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert!(raw.is_none());
+
+        let _ = kv.insert(hash_db::EMPTY_PREFIX, value_bytes);
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 1);
+        kv.as_hash_db_mut().remove(&key, hash_db::EMPTY_PREFIX);
+        let raw = kv.raw(&key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 0);
+    }
+
+    #[test]
+    fn consolidate() {
+        let origin_bytes = b"before_consolidate";
+        let delta_bytes = b"after_consolidate";
+        let delta_remove_bytes = b"remove_with_consolidate";
+        let origin_key = KeccakHasher::hash(origin_bytes);
+        let delta_key = KeccakHasher::hash(delta_bytes);
+        let delta_remove_key = KeccakHasher::hash(delta_remove_bytes);
+        
+        let mut transaction = Transcation::<KeccakHasher>::default();
+        let return_key = transaction.as_hash_db_mut().insert(hash_db::EMPTY_PREFIX, delta_bytes);
+        let _  = transaction.as_hash_db_mut().remove(&delta_remove_key, hash_db::EMPTY_PREFIX);
+        assert_eq!(return_key, delta_key);
+        
+        let mut kv = LevelDB::<KeccakHasher>::new(TMP_DB_PATH);
+        kv.clear(); // make sure cleaning env 
+
+        let return_key = kv.as_hash_db_mut().insert(hash_db::EMPTY_PREFIX, origin_bytes);
+        assert_eq!(return_key, origin_key);
+        let _ = kv.as_hash_db_mut().insert(hash_db::EMPTY_PREFIX, delta_remove_bytes);
+        kv.consolidate(transaction);
+
+        let raw = kv.raw(&origin_key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 1);
+        let raw = kv.raw(&delta_key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 1);
+        let raw = kv.raw(&delta_remove_key, hash_db::EMPTY_PREFIX);
+        assert_eq!(raw.unwrap().1, 0);
+    }
 
     #[test]
     fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+        let value = b"works_default_value";
+        let mut kv = LevelDB::<KeccakHasher>::new(TMP_DB_PATH);
+        let hash = kv.as_hash_db_mut();
+        let key = hash.insert(hash_db::EMPTY_PREFIX, value);
+        let result = hash.get(&key, hash_db::EMPTY_PREFIX);
+        assert!(result.is_some());
+        assert_eq!(&result.unwrap(), value);
     }
 }

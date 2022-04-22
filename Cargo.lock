@@ -7677,6 +7677,7 @@ dependencies = [
  "rusty-leveldb",
  "sp-core",
  "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]
@@ -8734,8 +8735,9 @@ checksum = "f2cc38e8fa666e2de3c4aba7edeb5ffc5246c1c2ed0e3d17e560aeeba736b23f"
 [[package]]
 name = "rusty-leveldb"
 version = "0.3.6"
-source = "git+https://github.com/dermesser/leveldb-rs.git#d9014f86fa861e442d791836b22f77d7d679c414"
+source = "git+https://github.com/g302ge/leveldb-rs.git#2e2733d0562ca326620fc7ccbcc5fa25e7df357d"
 dependencies = [
+ "cfg-if 1.0.0",
  "crc 1.8.1",
  "errno",
  "fs2",

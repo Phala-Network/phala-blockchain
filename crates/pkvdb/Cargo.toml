@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 sp-state-machine = { path = "../../substrate/primitives/state-machine" }
-rusty-leveldb = {git = "https://github.com/dermesser/leveldb-rs.git" }
+sp-trie = { path = "../../substrate/primitives/trie"}
+rusty-leveldb = {git = "https://github.com/g302ge/leveldb-rs.git" }
 hash-db = { version = "0.15.2", default-features = false }
 
 [dev-dependencies]
