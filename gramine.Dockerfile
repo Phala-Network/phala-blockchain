@@ -28,7 +28,7 @@ ADD . phala-blockchain
 
 RUN mkdir prebuilt
 
-RUN cd phala-blockchain/standalone/pruntime/pruntime/gramine-build && \
+RUN cd phala-blockchain/standalone/pruntime/gramine-build && \
     PATH=$PATH:/root/.cargo/bin make dist PREFIX=/root/prebuilt && \
     make clean && \
     rm -rf /root/.cargo/registry && \

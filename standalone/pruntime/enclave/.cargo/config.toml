@@ -1,5 +1,0 @@
-[unstable]
-configurable-env = true
-
-[env]
-SKIP_WASM_BUILD = "1"

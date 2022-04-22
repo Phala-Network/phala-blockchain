@@ -1,4 +1,4 @@
-SGX_SIGNER_KEY ?= ../../enclave/Enclave_private.dev.pem
+SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
 
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
@@ -23,7 +23,7 @@ ifeq ($(V),1)
 CARGO_ARGS += -vv
 endif
 
-PREFIX ?= ../../bin
+PREFIX ?= ../bin
 PRUNTIME_SEAL_DIR ?= data
 
 .PHONY: all
