@@ -76,7 +76,7 @@ the _current_ rustc.
 
 2. Compile & launch pRuntime (Simulation mode)
     ```bash
-    cd standalone/pruntime/pruntime
+    cd standalone/pruntime
     mkdir -p data
     cargo run
     ```
@@ -93,7 +93,7 @@ the _current_ rustc.
     export SGX_SIGNER_KEY=path/to/your/key.pem
     export IAS_SPID=your_spid
     export IAS_API_KEY=your_api_key_in_hex
-    cd standalone/pruntime/pruntime/gramine-build
+    cd standalone/pruntime/gramine-build
     make
     gramine-sgx pruntime
     ```

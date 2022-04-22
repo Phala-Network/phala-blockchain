@@ -23,7 +23,7 @@ ifeq ($(V),1)
 CARGO_ARGS += -vv
 endif
 
-PREFIX ?= ../../bin
+PREFIX ?= ../bin
 PRUNTIME_SEAL_DIR ?= data
 
 .PHONY: all
