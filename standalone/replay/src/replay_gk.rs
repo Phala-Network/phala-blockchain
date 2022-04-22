@@ -265,7 +265,7 @@ pub async fn replay(args: Args) -> Result<()> {
     let _http_task = std::thread::spawn({
         let factory = factory.clone();
         move || {
-            let mut system = actix_rt::System::new("api-server");
+            let system = actix_rt::System::new();
             system.block_on(httpserver::serve(bind_addr, factory))
         }
     });
