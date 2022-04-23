@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 sp-state-machine = { path = "../../substrate/primitives/state-machine" }
 sp-trie = { path = "../../substrate/primitives/trie"}
+sp-std = { path = "../../substrate/primitives/std"}
 rusty-leveldb = {git = "https://github.com/g302ge/leveldb-rs.git" }
 hash-db = { version = "0.15.2", default-features = false }
 
