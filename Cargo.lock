@@ -7635,6 +7635,7 @@ dependencies = [
  "rusty-leveldb",
  "sp-core",
  "sp-state-machine",
+ "sp-std",
  "sp-trie",
 ]
 
