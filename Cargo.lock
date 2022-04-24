@@ -7629,8 +7629,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1df8c4ec4b0627e53bdf214615ad287367e482558cf84b109250b37464dc03ae"
 
 [[package]]
-<<<<<<< HEAD
-=======
 name = "pkvdb"
 version = "0.1.0"
 dependencies = [
@@ -7643,7 +7641,6 @@ dependencies = [
 ]
 
 [[package]]
->>>>>>> optimize the logic waiting for unit test
 name = "platforms"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
