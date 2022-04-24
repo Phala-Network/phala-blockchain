@@ -7365,10 +7365,12 @@ dependencies = [
 name = "phala-trie-storage"
 version = "0.1.0"
 dependencies = [
+ "hash-db",
  "hash256-std-hasher",
  "hex",
  "impl-serde",
  "parity-scale-codec 3.1.2",
+ "pkvdb",
  "scale-info 2.1.1",
  "serde",
  "serde_json",
@@ -7377,6 +7379,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-state-machine",
+ "sp-std",
  "sp-trie",
 ]
 

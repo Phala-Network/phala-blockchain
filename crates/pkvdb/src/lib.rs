@@ -1,7 +1,6 @@
 use hash_db::{AsHashDB, AsPlainDB, HashDB, HashDBRef, Hasher, PlainDB, PlainDBRef, Prefix};
 use rusty_leveldb::gramine_env::GramineEnv;
 use rusty_leveldb::{LdbIterator, Options as LevelDBOptions, WriteBatch, DB};
-use sp_state_machine::backend::Consolidate;
 pub use sp_trie::MemoryDB as Transaction;
 use std::borrow::BorrowMut;
 use std::ops::DerefMut;
@@ -70,7 +69,7 @@ where
         Self::with_null_node(path, &[0u8][..], [0u8][..].into())
     }
 
-    pub fn purge(&mut self) {
+    pub fn purge(&self) {
         // TODO:george this approach is not sound for performance
         if let Ok(mut db_mut) = self.leveldb.lock() {
             let mut writebatch = WriteBatch::new();
@@ -87,7 +86,7 @@ where
     }
 
     // only for test
-    pub fn clear(&mut self) {
+    pub fn clear(&self) {
         if let Ok(mut db_mut) = self.leveldb.lock() {
             let mut writebatch = WriteBatch::new();
             if let Ok(mut iter) = DB::new_iter(db_mut.borrow_mut()) {
@@ -109,13 +108,18 @@ where
             _ => None,
         }
     }
+
+    pub fn flush(&self) {
+        let mut db = self.leveldb.lock().expect("should always get the leveldb reference");
+        let _ = DB::flush(db.borrow_mut());
+    }
 }
 
 impl<H> Kvdb<H, sp_trie::DBValue>
 where
     H: Hasher,
 {
-    pub fn consolidate(&mut self, mut transaction: Transaction<H>) {
+    pub fn consolidate(&self, mut transaction: Transaction<H>) {
         if let Ok(mut db_mut) = self.leveldb.lock() {
             let mut writebatch = WriteBatch::new();
 

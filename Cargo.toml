@@ -52,7 +52,7 @@ members = [
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
 	"crates/pink",
-        "crates/pkvdb",
+    "crates/pkvdb",
 	"crates/pink/pink-extension",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
