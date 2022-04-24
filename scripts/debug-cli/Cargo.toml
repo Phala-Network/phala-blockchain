@@ -8,7 +8,7 @@ edition = "2018"
 base64 = "0.11"
 codec = { package = "parity-scale-codec", version = "3.0" }
 hex = "0.4"
-structopt = "0.3"
+clap = { version = "3", features = ["derive"] }
 anyhow = "1.0.43"
 
 sp-runtime = { path = "../../substrate/primitives/runtime" }

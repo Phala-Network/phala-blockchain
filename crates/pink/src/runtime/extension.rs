@@ -128,6 +128,7 @@ where
             "POST" => {
                 req.method(http_req::request::Method::POST)
                     .body(request.body.as_slice());
+                req.header("Content-Length", &request.body.len());
             }
             _ => {
                 return Err(DispatchError::Other("Unsupported method"));

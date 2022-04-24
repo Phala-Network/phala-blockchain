@@ -83,11 +83,21 @@ impl Contract {
                 true,
             );
             log::info!("Contract instantiation result: {:?}", &result);
-            if let Err(err) = result.result {
-                return Err(ExecError {
-                    source: err,
-                    message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                });
+            match result.result {
+                Err(err) => {
+                    return Err(ExecError {
+                        source: err,
+                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                    });
+                }
+                Ok(rv) => {
+                    if rv.result.did_revert() {
+                        return Err(ExecError {
+                            source: DispatchError::Other("Contract reverted"),
+                            message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                        });
+                    }
+                }
             }
             let preimage = contract_id_preimage(
                 origin.as_ref(),

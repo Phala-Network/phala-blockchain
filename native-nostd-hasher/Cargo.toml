@@ -1,6 +1,6 @@
 [package]
 authors = ['Phala.network']
-edition = '2018'
+edition = '2021'
 name = 'native-nostd-hasher'
 version = "3.0.0"
 license = "Apache 2.0"

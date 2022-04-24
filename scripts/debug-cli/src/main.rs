@@ -4,40 +4,41 @@ use codec::{Encode, Decode};
 use phala_types::contract::ContractId;
 use std::convert::TryInto;
 use std::fmt::Debug;
-use structopt::StructOpt;
+use clap::{AppSettings, Parser, Subcommand};
 
 // use phala_types;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "Phala Debug Utility CLI")]
+#[derive(Debug, Parser)]
+#[clap(name = "Phala Debug Utility CLI")]
+#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 enum Cli {
     DecodeWorkerRegistrationInfo {
-        #[structopt(short)]
+        #[clap(short)]
         hex_data: String,
-        #[structopt(long)]
+        #[clap(long)]
         print_field: Option<String>,
     },
     DecodeRaQuote {
-        #[structopt(short)]
+        #[clap(short)]
         b64_data: String,
     },
     DecodeHeader {
-        #[structopt(short)]
+        #[clap(short)]
         hex_data: String,
     },
     DecodeBhwe {
-        #[structopt(short)]
+        #[clap(short)]
         b64_data: String,
     },
     DecodeEgressMessages {
         b64_data: String,
     },
     DecodeSignedMessage {
-        #[structopt(short)]
+        #[clap(short)]
         hex_data: String,
     },
     DecodeBridgeLotteryMessage {
-        #[structopt(short)]
+        #[clap(short)]
         hex_data: String,
     },
     DecodeMqPayload {
@@ -57,28 +58,28 @@ enum Cli {
         pallet_id: String,
     },
     Rpc {
-        #[structopt(long, default_value = "http://localhost:8000")]
+        #[clap(long, default_value = "http://localhost:8000")]
         url: String,
 
-        #[structopt(subcommand)]
+        #[clap(subcommand)]
         command: RpcCommand,
     },
     Pink {
-        #[structopt(subcommand)]
+        #[clap(subcommand)]
         command: PinkCommand,
     },
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum RpcCommand {
     GetWorkerState { pubkey: String },
     GetInfo,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum PinkCommand {
     Query {
-        #[structopt(long, default_value = "http://localhost:8000")]
+        #[clap(long, default_value = "http://localhost:8000")]
         url: String,
         id: String,
         message: String,
@@ -91,7 +92,7 @@ enum PinkCommand {
 
 #[tokio::main]
 async fn main() {
-    let cli = Cli::from_args();
+    let cli = Cli::parse();
     match cli {
         Cli::DecodeWorkerRegistrationInfo {
             hex_data,

@@ -1,6 +1,6 @@
 [package]
 authors = ["Phala Network"]
-edition = "2018"
+edition = "2021"
 name = "phala-pallets"
 version = "4.0.0"
 license = "Apache 2.0"

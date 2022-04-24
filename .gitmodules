@@ -1,9 +1,6 @@
 [submodule "substrate"]
 	path = substrate
 	url = https://github.com/paritytech/substrate.git
-[submodule "teaclave-sgx-sdk"]
-	path = teaclave-sgx-sdk
-	url = https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git
 [submodule "crates/phactory/api/proto"]
 	path = crates/phactory/api/proto
 	url = https://github.com/Phala-Network/prpc-protos.git
