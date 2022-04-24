@@ -1,24 +1,19 @@
-#![no_std]
-
-extern crate alloc;
-
 #[cfg(feature = "serde")]
 pub mod ser;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
+use sp_std::vec::Vec;
 use core::iter::FromIterator;
-
-use alloc::vec::Vec;
-
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
 use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
-
+use pkvdb::LevelDB;
+use std::path::Path;
 #[cfg(feature = "serde")]
 use sp_trie::HashDBT as _;
+
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -32,7 +27,75 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
+pub type Transaction<H> = MemoryDB<H>;
+
+// the base abstraction of an underlying storage with transactional semantic
+pub trait TransactionalDB<'a, H: Hasher> {
+    fn calc_root_if_changes(
+        &self,
+        delta: &'a StorageCollection,
+        child_deltas: &'a ChildStorageCollection,
+    ) -> (H::Out, Transaction<H>);
+
+    fn apply_changes(&mut self, root: H::Out, transaction: Transaction<H>);
+
+    fn root(&self) -> &H::Out;
+
+    fn get(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;
+
+    // close the underlying database
+    fn close(&self);
+}
+
+pub struct TrieStorageLevelDB<H: Hasher>(TrieBackend<LevelDB<H>, H>);
+
+// TrieStorage with underlying leveldb backend
+impl<H: Hasher> TrieStorageLevelDB<H> 
+where
+    H::Out: Codec,
+{
+    // create a new storage with specific path
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        TrieStorageLevelDB(TrieBackend::new(LevelDB::new(path), Default::default()))
+    }
+
+}
+
+impl<'a, H: Hasher> TransactionalDB<'a, H> for TrieStorageLevelDB<H> 
+where 
+    H::Out: Codec,
+{
+    fn calc_root_if_changes(
+        &self,
+        delta: &'a StorageCollection,
+        child_deltas: &'a ChildStorageCollection,
+    ) -> (H::Out, Transaction<H>) {
+
+        unimplemented!()
+    }
+
+    fn apply_changes(&mut self, _root: H::Out, transaction: Transaction<H>) {
+        self.0.backend_storage().consolidate(transaction)
+    }
+
+    fn root(&self) -> &H::Out {
+        self.0.root()
+    }
+
+    fn get(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
+        unimplemented!()
+    }
+
+    // close the underlying database
+    fn close(&self) {
+        self.0.backend_storage().flush();
+    }
+}
+
+
 pub struct TrieStorage<H: Hasher>(TrieBackend<MemoryDB<H>, H>);
+
+
 
 impl<H: Hasher> Default for TrieStorage<H>
 where
@@ -165,7 +228,7 @@ where
 
     /// Apply storage changes calculated from `calc_root_if_changes`.
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
-        // TODO: george. maybe the specific method for the storage is useful not the consolidate 
+        // TODO: george. maybe the specific method for the storage is useful not the consolidate
         // bound
         let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate(transaction);

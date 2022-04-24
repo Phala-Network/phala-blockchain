@@ -1,7 +1,7 @@
-use alloc::vec::Vec;
-use serde::{Deserialize, Serialize};
-use parity_scale_codec::{Encode, Decode};
+use sp_std::vec::Vec;
+use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
 
 use super::{ChildStorageCollection, StorageCollection};
 
