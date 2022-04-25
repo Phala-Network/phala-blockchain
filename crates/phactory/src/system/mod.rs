@@ -778,6 +778,12 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     /// Generate the master key if this is the first gatekeeper
+    ///
+    /// ATTENTION: the first gk cannot resume if its original master_key.seal is lost,
+    /// since there is no tx recorded on-chain that shares the key to itself
+    ///
+    /// Solution: always unregister the first gk after the second gk receives the key,
+    /// thank god we only need to do this once for each blockchain
     fn process_first_gatekeeper_event(
         &mut self,
         block: &mut BlockInfo,
