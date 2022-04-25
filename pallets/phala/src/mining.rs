@@ -186,7 +186,7 @@ pub mod pallet {
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -1050,6 +1050,13 @@ pub mod pallet {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
 			Pallet::<T>::queue_message(GatekeeperEvent::PhalaLaunched);
+			T::DbWeight::get().writes(1)
+		}
+
+		pub(crate) fn trigger_unresp_fix<T: Config>() -> Weight {
+			use crate::mq::pallet::MessageOriginInfo;
+			use phala_types::messaging::GatekeeperEvent;
+			Pallet::<T>::queue_message(GatekeeperEvent::UnrespFix);
 			T::DbWeight::get().writes(1)
 		}
 

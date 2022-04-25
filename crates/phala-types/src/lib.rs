@@ -534,6 +534,8 @@ pub mod messaging {
         /// - https://github.com/Phala-Network/phala-blockchain/issues/693
         /// - https://github.com/Phala-Network/phala-blockchain/issues/676
         PhalaLaunched,
+        /// Fix the payout duration problem in unresponsive state
+        UnrespFix,
     }
 
     impl GatekeeperEvent {
