@@ -1,19 +1,18 @@
 #[cfg(feature = "serde")]
 pub mod ser;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sp_std::vec::Vec;
 use core::iter::FromIterator;
 use parity_scale_codec::Codec;
+use pkvdb::LevelDB;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
-use pkvdb::LevelDB;
-use std::path::Path;
+use sp_std::vec::Vec;
 #[cfg(feature = "serde")]
 use sp_trie::HashDBT as _;
-
+use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
+use std::path::Path;
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -50,7 +49,7 @@ pub trait TransactionalDB<'a, H: Hasher> {
 pub struct TrieStorageLevelDB<H: Hasher>(TrieBackend<LevelDB<H>, H>);
 
 // TrieStorage with underlying leveldb backend
-impl<H: Hasher> TrieStorageLevelDB<H> 
+impl<H: Hasher> TrieStorageLevelDB<H>
 where
     H::Out: Codec,
 {
@@ -59,19 +58,40 @@ where
         TrieStorageLevelDB(TrieBackend::new(LevelDB::new(path), Default::default()))
     }
 
+    pub fn with_backend(backend: TrieBackend<LevelDB<H>, H>) -> Self {
+        Self(backend)
+    }
 }
 
-impl<'a, H: Hasher> TransactionalDB<'a, H> for TrieStorageLevelDB<H> 
-where 
-    H::Out: Codec,
+impl<'a, H: Hasher> TransactionalDB<'a, H> for TrieStorageLevelDB<H>
+where
+    H::Out: Codec + Ord,
 {
     fn calc_root_if_changes(
         &self,
         delta: &'a StorageCollection,
         child_deltas: &'a ChildStorageCollection,
     ) -> (H::Out, Transaction<H>) {
-
-        unimplemented!()
+        let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
+            .iter()
+            .map(|(k, v)| {
+                let chinfo = ChildInfo::new_default(k);
+                (chinfo, v)
+            })
+            .collect();
+        self.0.full_storage_root(
+            delta
+                .iter()
+                .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
+            child_deltas.iter().map(|(k, v)| {
+                (
+                    k,
+                    v.iter()
+                        .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
+                )
+            }),
+            sp_core::storage::StateVersion::V0,
+        )
     }
 
     fn apply_changes(&mut self, _root: H::Out, transaction: Transaction<H>) {
@@ -83,7 +103,7 @@ where
     }
 
     fn get(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-        unimplemented!()
+        self.0.storage(key.as_ref()).ok().flatten()
     }
 
     // close the underlying database
@@ -92,10 +112,7 @@ where
     }
 }
 
-
 pub struct TrieStorage<H: Hasher>(TrieBackend<MemoryDB<H>, H>);
-
-
 
 impl<H: Hasher> Default for TrieStorage<H>
 where

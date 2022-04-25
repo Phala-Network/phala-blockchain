@@ -110,7 +110,10 @@ where
     }
 
     pub fn flush(&self) {
-        let mut db = self.leveldb.lock().expect("should always get the leveldb reference");
+        let mut db = self
+            .leveldb
+            .lock()
+            .expect("should always get the leveldb reference");
         let _ = DB::flush(db.borrow_mut());
     }
 }
