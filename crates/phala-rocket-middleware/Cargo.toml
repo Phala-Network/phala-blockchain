@@ -1,0 +1,8 @@
+[package]
+name = "phala-rocket-middleware"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = "0.4.7"
+log = "0.4.16"

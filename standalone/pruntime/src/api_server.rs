@@ -164,7 +164,7 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     }
 }
 
-pub fn rocket(allow_cors: bool, enable_kick_api: bool) -> rocket::Rocket {
+pub(super) fn rocket(args: &super::Args) -> rocket::Rocket {
     let mut server = rocket::ignite()
         .mount(
             "/",
@@ -195,7 +195,7 @@ pub fn rocket(allow_cors: bool, enable_kick_api: bool) -> rocket::Rocket {
             ],
         );
 
-    if enable_kick_api {
+    if args.enable_kick_api {
         info!("ENABLE `kick` API");
 
         server = server.mount("/", routes![kick]);
@@ -204,14 +204,19 @@ pub fn rocket(allow_cors: bool, enable_kick_api: bool) -> rocket::Rocket {
     server = server.mount("/prpc", routes![prpc_proxy]);
     print_rpc_methods("/prpc", prpc::phactory_api_server::supported_methods());
 
-    if allow_cors {
+    if args.allow_cors {
         info!("Allow CORS");
 
-        server
+        server = server
             .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
             .attach(cors_options().to_cors().expect("To not fail"))
-            .manage(cors_options().to_cors().expect("To not fail"))
-    } else {
-        server
+            .manage(cors_options().to_cors().expect("To not fail"));
     }
+
+    if args.measure_rpc_time {
+        info!("Attaching time meter");
+        server = server.attach(phala_rocket_middleware::TimeMeter);
+    }
+
+    server
 }
