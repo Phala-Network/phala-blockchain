@@ -89,6 +89,10 @@ struct Args {
     /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
     #[structopt(long)]
     skip_corrupted_checkpoint: bool,
+
+    /// Measuring the time it takes to process each RPC call.
+    #[structopt(long)]
+    measure_rpc_time: bool,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -105,8 +109,7 @@ lazy_static! {
                 .into_boxed_str(),
         )
     };
-    static ref ALLOW_CORS: bool =
-        env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != "";
+    static ref ALLOW_CORS: bool = env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != "";
     static ref ENABLE_KICK_API: bool =
         env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != "";
 }
@@ -557,7 +560,7 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     }
 }
 
-fn rocket() -> rocket::Rocket {
+fn rocket(measure_rpc_time: bool) -> rocket::Rocket {
     let mut server = rocket::ignite()
         .mount(
             "/",
@@ -596,6 +599,10 @@ fn rocket() -> rocket::Rocket {
 
     server = server.mount("/prpc", routes![prpc_proxy]);
     print_rpc_methods("/prpc", prpc::phactory_api_server::supported_methods());
+
+    if measure_rpc_time {
+        server = server.attach(phala_rocket_middleware::TimeMeter);
+    }
 
     if *ALLOW_CORS {
         info!("Allow CORS");
@@ -681,10 +688,11 @@ fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
+    let measure_rpc_time = args.measure_rpc_time;
     let rocket = thread::Builder::new()
         .name("rocket".into())
         .spawn(move || {
-            rocket().launch();
+            rocket(measure_rpc_time).launch();
         })
         .expect("Failed to launch Rocket");
 
