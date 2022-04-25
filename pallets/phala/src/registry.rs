@@ -27,8 +27,8 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerEndpointPayload,
-		VersionedWorkerEndpoints, WorkerPublicKey, WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
+		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -180,6 +180,7 @@ pub mod pallet {
 		// Additional
 		UnknownCluster,
 		NotImplemented,
+		LastGatekeeper,
 		// PRouter related
 		InvalidEndpointSigningTime,
 	}
@@ -288,15 +289,30 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Deprecated
-		#[allow(unused_variables)]
-		#[pallet::weight(0)]
+		/// Unregister a gatekeeper
+		///
+		/// At least one gatekeeper should be available
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
-			sig: [u8; 64],
 		) -> DispatchResult {
-			Err(Error::<T>::NotImplemented.into())
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let gatekeepers = Gatekeeper::<T>::get();
+			ensure!(
+				gatekeepers.contains(&gatekeeper),
+				Error::<T>::InvalidGatekeeper
+			);
+			ensure!(gatekeepers.len() > 1, Error::<T>::LastGatekeeper);
+
+			let filtered: Vec<_> = gatekeepers
+				.into_iter()
+				.filter(|g| *g != gatekeeper)
+				.collect();
+			Gatekeeper::<T>::put(filtered);
+			Self::push_message(GatekeeperChange::gatekeeper_unregistered(gatekeeper));
+			Ok(())
 		}
 
 		/// Registers a worker on the blockchain
@@ -393,10 +409,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Validate the signature
-			ensure!(
-				signature.len() == 64,
-				Error::<T>::InvalidSignatureLength
-			);
+			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
@@ -410,14 +423,21 @@ pub mod pallet {
 			let expiration = 4 * 60 * 60 * 1000; // 4 hours
 			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
 			ensure!(
-				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
+				endpoint_payload.signing_time < now
+					&& now <= endpoint_payload.signing_time + expiration,
 				Error::<T>::InvalidEndpointSigningTime
 			);
 
 			// Validate the public key
-			ensure!(Workers::<T>::contains_key(&endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
+			ensure!(
+				Workers::<T>::contains_key(&endpoint_payload.pubkey),
+				Error::<T>::InvalidPubKey
+			);
 
-			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint_payload.versioned_endpoints);
+			Endpoints::<T>::insert(
+				endpoint_payload.pubkey,
+				endpoint_payload.versioned_endpoints,
+			);
 
 			Ok(())
 		}
