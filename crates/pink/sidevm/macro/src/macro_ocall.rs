@@ -17,82 +17,83 @@ impl OcallMethod {
         let mut fast_input = false;
 
         for attr in method.attrs.iter() {
-            if attr.is_ocall() {
-                match attr.parse_meta()? {
-                    syn::Meta::List(list) => {
-                        for nested in list.nested.iter() {
-                            match nested {
-                                syn::NestedMeta::Meta(syn::Meta::NameValue(name_value)) => {
-                                    match name_value
-                                        .path
-                                        .get_ident()
-                                        .ok_or_else(|| {
-                                            syn::Error::new_spanned(
-                                                &name_value.path,
-                                                "Expected an identifier",
-                                            )
-                                        })?
-                                        .to_string()
-                                        .as_str()
-                                    {
-                                        "id" => match &name_value.lit {
-                                            syn::Lit::Int(value) => {
-                                                let parsed_id = value.base10_parse::<i32>()?;
-                                                if parsed_id < 100 {
-                                                    return Err(syn::Error::new_spanned(
-                                                        &name_value.lit,
-                                                        "Id must greater than 100",
-                                                    ));
-                                                }
-                                                id = Some(parsed_id);
-                                            }
-                                            _ => {
+            if !attr.is_ocall() {
+                continue;
+            }
+            match attr.parse_meta()? {
+                syn::Meta::List(list) => {
+                    for nested in list.nested.iter() {
+                        match nested {
+                            syn::NestedMeta::Meta(syn::Meta::NameValue(name_value)) => {
+                                match name_value
+                                    .path
+                                    .get_ident()
+                                    .ok_or_else(|| {
+                                        syn::Error::new_spanned(
+                                            &name_value.path,
+                                            "Expected an identifier",
+                                        )
+                                    })?
+                                    .to_string()
+                                    .as_str()
+                                {
+                                    "id" => match &name_value.lit {
+                                        syn::Lit::Int(value) => {
+                                            let parsed_id = value.base10_parse::<i32>()?;
+                                            if parsed_id < 100 {
                                                 return Err(syn::Error::new_spanned(
                                                     &name_value.lit,
-                                                    "Expected an integer",
+                                                    "Id must greater than 100",
                                                 ));
                                             }
-                                        },
-                                        attr => {
+                                            id = Some(parsed_id);
+                                        }
+                                        _ => {
                                             return Err(syn::Error::new_spanned(
-                                                name_value,
-                                                format!("Unknown attribute: {}", attr),
+                                                &name_value.lit,
+                                                "Expected an integer",
                                             ));
                                         }
+                                    },
+                                    attr => {
+                                        return Err(syn::Error::new_spanned(
+                                            name_value,
+                                            format!("Unknown attribute: {}", attr),
+                                        ));
                                     }
                                 }
-                                syn::NestedMeta::Meta(syn::Meta::Path(path)) => {
-                                    match path
-                                        .get_ident()
-                                        .ok_or_else(|| {
-                                            syn::Error::new_spanned(path, "Expected an identifier")
-                                        })?
-                                        .to_string()
-                                        .as_str()
-                                    {
-                                        "fast_return" => fast_return = true,
-                                        "fast_input" => fast_input = true,
-                                        attr => {
-                                            return Err(syn::Error::new_spanned(
-                                                path,
-                                                format!("Unknown attribute: {}", attr),
-                                            ));
-                                        }
+                            }
+                            syn::NestedMeta::Meta(syn::Meta::Path(path)) => {
+                                match path
+                                    .get_ident()
+                                    .ok_or_else(|| {
+                                        syn::Error::new_spanned(path, "Expected an identifier")
+                                    })?
+                                    .to_string()
+                                    .as_str()
+                                {
+                                    "fast_return" => fast_return = true,
+                                    "fast_input" => fast_input = true,
+                                    attr => {
+                                        return Err(syn::Error::new_spanned(
+                                            path,
+                                            format!("Unknown attribute: {}", attr),
+                                        ));
                                     }
                                 }
-                                _ => {
-                                    return Err(syn::Error::new_spanned(
-                                        nested,
-                                        "Invalid attribute",
-                                    ));
-                                }
+                            }
+                            _ => {
+                                return Err(syn::Error::new_spanned(
+                                    nested,
+                                    "Invalid attribute",
+                                ));
                             }
                         }
                     }
-                    _ => {
-                        let err = syn::Error::new_spanned(attr, "ocall attribute must be a list");
-                        return Err(err);
-                    }
+                }
+                _ => {
+                    let err = syn::Error::new_spanned(attr, "ocall attribute must be a list");
+                    return Err(err);
                 }
             }
         }
@@ -289,11 +290,11 @@ fn gen_ocall_impl(ocall_methods: &[OcallMethod], trait_name: &Ident) -> Result<T
         ocall_methods.iter().map(gen_ocall_impl_method).collect();
 
     let name = format!("{}_guest", trait_name.to_string().to_snake_case());
-    let impl_itent = Ident::new(&name, Span::call_site());
+    let impl_ident = Ident::new(&name, Span::call_site());
     let impl_methods = impl_methods?;
 
     Ok(parse_quote! {
-        pub mod #impl_itent {
+        pub mod #impl_ident {
             use super::*;
 
             #(#impl_methods)*

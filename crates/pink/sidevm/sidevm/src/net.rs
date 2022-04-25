@@ -16,6 +16,7 @@ pub struct TcpListener {
     res_id: ResourceId,
 }
 
+const TODO: &str = "Split the buf out and define a wrapper BufferedTcpStrem";
 /// A connected TCP socket.
 #[derive(Debug)]
 pub struct TcpStream {
@@ -24,6 +25,7 @@ pub struct TcpStream {
     filled: usize,
     start: usize,
 }
+
 struct Acceptor<'a> {
     listener: &'a TcpListener,
 }
@@ -51,6 +53,9 @@ impl Future for Acceptor<'_> {
 impl TcpListener {
     /// Listen on the specified address for incoming TCP connections.
     pub async fn listen(addr: &str) -> Result<Self> {
+        // Side notes: could be used to probe enabled interfaces and occupied ports. We may
+        // consider to introduce some manifest file to further limit the capability in the future
+        let todo = "prevent local interface probing and port occupation";
         let res_id = ResourceId(ocall::tcp_listen(addr.into(), 10)?);
         Ok(Self { res_id })
     }
