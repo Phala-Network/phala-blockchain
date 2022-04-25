@@ -101,8 +101,6 @@ parameter_types! {
     pub DefaultSchedule: Schedule<PinkRuntime> = {
         let mut schedule = <Schedule<PinkRuntime>>::default();
         schedule.limits.code_len = MaxCodeSize::get();
-        schedule.limits.payload_len = 1024 * 1024 * 2;
-        schedule.limits.memory_pages = 128;
         schedule
     };
     pub const TransactionByteFee: u64 = 0;

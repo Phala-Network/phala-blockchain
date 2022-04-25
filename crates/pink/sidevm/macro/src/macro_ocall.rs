@@ -341,7 +341,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
     } else {
         parse_quote! {
             let inputs = (#(#args),*);
-            let mut input_buf = empty_buffer();
+            let mut input_buf = Buffer::default();
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
             let ret = #ocall_fn(
