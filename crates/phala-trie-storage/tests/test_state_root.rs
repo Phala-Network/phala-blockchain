@@ -1,9 +1,13 @@
 use phala_trie_storage::*;
+use pkvdb::LevelDB;
 use serde::{Deserialize, Serialize};
 use sp_core::Hasher;
 use sp_runtime::{traits::Hash, StateVersion};
+use sp_state_machine::TrieBackend;
+use sp_trie::trie_types::TrieDBMutV0;
 use sp_trie::LayoutV0 as Layout;
 use sp_trie::TrieConfiguration as _;
+use sp_trie::TrieMut;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -46,6 +50,8 @@ type TestStorageCollection = Vec<(TestStorageKey, Option<TestStorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 type TestChildStorageCollection = Vec<(TestStorageKey, TestStorageCollection)>;
 
+static KVDB_TMP_PATH: &str = "/tmp/kvdb_trie_test";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(crate = "serde")]
 struct RpcResponse {
@@ -77,18 +83,37 @@ fn load_changes() -> Vec<Changes> {
     changes
 }
 
-fn load_genesis_trie() -> TrieStorage<NativeBlakeTwo256> {
-    let mut trie: TrieStorage<NativeBlakeTwo256> = Default::default();
-
+fn load_genesis_pair() -> impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)> {
     let json_str = std::fs::read_to_string(data_dir().join("db-0.json")).unwrap();
     let json_value: serde_json::Value = serde_json::from_str(&json_str).unwrap();
     let kvs: HashMap<String, String> =
         serde_json::from_value(json_value["genesis"]["raw"]["top"].clone()).unwrap();
     let decoded = kvs
-        .iter()
+        .into_iter()
         .map(|(k, v)| (hex::decode(&k[2..]).unwrap(), hex::decode(&v[2..]).unwrap()));
+    decoded
+}
+
+fn load_genesis_trie() -> TrieStorage<NativeBlakeTwo256> {
+    let mut trie: TrieStorage<NativeBlakeTwo256> = Default::default();
+    let decoded = load_genesis_pair();
     trie.load(decoded);
     trie
+}
+
+fn load_genesis_kvdb_backend() -> TrieBackend<LevelDB<NativeBlakeTwo256>, NativeBlakeTwo256> {
+    let mut root = Default::default();
+    let mut db = LevelDB::<NativeBlakeTwo256>::new(KVDB_TMP_PATH);
+    let pairs = load_genesis_pair();
+    {
+        let mut trie_db = TrieDBMutV0::<NativeBlakeTwo256>::new(&mut db, &mut root);
+        for (key, value) in pairs {
+            if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
+                panic!("Insert item into trie DB should not fail");
+            }
+        }
+    }
+    TrieBackend::new(db, root)
 }
 
 fn map_storage_collection(collection: TestStorageCollection) -> StorageCollection {
@@ -108,6 +133,27 @@ fn test_genesis_root() {
 #[test]
 fn test_apply_main_changes() {
     let mut trie = load_genesis_trie();
+    let changes = load_changes();
+    let roots = load_roots();
+
+    for (number, change) in changes.into_iter().skip(1).take(30).enumerate() {
+        let main_storage_changes = map_storage_collection(change.main_storage_changes);
+        let child_storage_changes: Vec<_> = change
+            .child_storage_changes
+            .into_iter()
+            .map(|(k, v)| (k.0, map_storage_collection(v)))
+            .collect();
+
+        let (root, trans) =
+            trie.calc_root_if_changes(&main_storage_changes, &child_storage_changes);
+        trie.apply_changes(root, trans);
+        assert_eq!(format!("{:?}", trie.root()), roots[number + 1]);
+    }
+}
+
+#[test]
+fn test_apply_main_changes_on_pkvdb() {
+    let mut trie = TrieStorageLevelDB::with_backend(load_genesis_kvdb_backend());
     let changes = load_changes();
     let roots = load_roots();
 
