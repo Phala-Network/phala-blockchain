@@ -1915,9 +1915,13 @@ pub mod pallet {
 				assert_matches!(
 					ev.as_slice(),
 					[
-						TestEvent::PhalaMining(mining::Event::MinerSettled{miner:_, v_bits:v, payout_bits:0}),
-						TestEvent::PhalaMining(mining::Event::MinerStopped{miner:_}),
-						TestEvent::PhalaMining(mining::Event::MinerReclaimed{..}),
+						TestEvent::PhalaMining(mining::Event::MinerSettled {
+							miner: _,
+							v_bits: v,
+							payout_bits:0
+						}),
+						TestEvent::PhalaMining(mining::Event::MinerStopped { miner: _ }),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed { .. }),
 						TestEvent::PhalaStakePool(Event::PoolSlashed(0, slashed)),
 					]
 					if FixedPoint::from_bits(*v) == ve / 2
