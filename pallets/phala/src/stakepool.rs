@@ -1915,9 +1915,9 @@ pub mod pallet {
 				assert_matches!(
 					ev.as_slice(),
 					[
-						TestEvent::PhalaMining(mining::Event::MinerSettled(_, v, 0)),
-						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
-						TestEvent::PhalaMining(mining::Event::MinerReclaimed(_, _, _)),
+						TestEvent::PhalaMining(mining::Event::MinerSettled{miner:_, v_bits:v, payout_bits:0}),
+						TestEvent::PhalaMining(mining::Event::MinerStopped{miner:_}),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed{..}),
 						TestEvent::PhalaStakePool(Event::PoolSlashed(0, slashed)),
 					]
 					if FixedPoint::from_bits(*v) == ve / 2
@@ -1990,13 +1990,17 @@ pub mod pallet {
 				assert_matches!(
 					ev.as_slice(),
 					[
-						TestEvent::PhalaMining(mining::Event::MinerSettled(_, _, 0)),
-						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
-						TestEvent::PhalaMining(mining::Event::MinerReclaimed(
-							_,
-							500000000000000,
-							250000000000000
-						)),
+						TestEvent::PhalaMining(mining::Event::MinerSettled {
+							miner: _,
+							v_bits: _,
+							payout_bits: 0
+						}),
+						TestEvent::PhalaMining(mining::Event::MinerStopped { miner: _ }),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed {
+							miner: _,
+							original_stake: 500000000000000,
+							slashed: 250000000000000
+						}),
 						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000000)),
 					]
 				);
