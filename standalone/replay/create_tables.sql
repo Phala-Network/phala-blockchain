@@ -4,6 +4,8 @@
 -- 2. Create a database in TimescaleDB.
 -- 3. Create table in the database with this SQL scripts.
 
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
 DROP TABLE IF EXISTS "worker_finance_events";
 CREATE TABLE "worker_finance_events" (
     "sequence" bigint NOT NULL UNIQUE,
