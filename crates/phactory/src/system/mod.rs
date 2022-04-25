@@ -36,7 +36,8 @@ use phala_types::{
     messaging::{
         AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
+        NewGatekeeperEvent, RemoveGatekeeperEvent, SystemEvent, WorkerClusterReport,
+        WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -766,6 +767,9 @@ impl<Platform: pal::Platform> System<Platform> {
             GatekeeperChange::GatekeeperRegistered(new_gatekeeper_event) => {
                 self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
             }
+            GatekeeperChange::GatekeeperUnregistered(remove_gatekeeper_event) => {
+                self.process_remove_gatekeeper_event(block, origin, remove_gatekeeper_event)
+            }
         }
     }
 
@@ -798,6 +802,26 @@ impl<Platform: pal::Platform> System<Platform> {
             if my_pubkey == event.pubkey {
                 gatekeeper.register_on_chain();
             }
+        }
+    }
+
+    /// Remove self.gatekeeper and self.master_key
+    /// There is no meaning to remove the master_key.seal file
+    fn process_remove_gatekeeper_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: RemoveGatekeeperEvent,
+    ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if my_pubkey == event.pubkey {
+            self.gatekeeper = None;
+            self.master_key = None;
         }
     }
 
