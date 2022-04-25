@@ -36,8 +36,8 @@ use phala_types::{
     messaging::{
         AeadIV, BatchDispatchClusterKeyEvent, ClusterOperation, Condition, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, PRuntimeManagementEvent, SystemEvent, WorkerClusterReport,
-        WorkerContractReport, WorkerEvent,
+        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, SystemEvent,
+        WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -490,10 +490,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn get_system_message_handler(
-        &mut self,
-        cluster_id: &ContractId,
-    ) -> Option<CommandSender> {
+    pub fn get_system_message_handler(&mut self, cluster_id: &ContractId) -> Option<CommandSender> {
         let handler_contract_id = self
             .contract_clusters
             .get_cluster_mut(cluster_id)
@@ -852,6 +849,9 @@ impl<Platform: pal::Platform> System<Platform> {
             GatekeeperChange::GatekeeperRegistered(new_gatekeeper_event) => {
                 self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
             }
+            GatekeeperChange::GatekeeperUnregistered(remove_gatekeeper_event) => {
+                self.process_remove_gatekeeper_event(block, origin, remove_gatekeeper_event)
+            }
         }
     }
 
@@ -884,6 +884,26 @@ impl<Platform: pal::Platform> System<Platform> {
             if my_pubkey == event.pubkey {
                 gatekeeper.register_on_chain();
             }
+        }
+    }
+
+    /// Remove self.gatekeeper and self.master_key
+    /// There is no meaning to remove the master_key.seal file
+    fn process_remove_gatekeeper_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: RemoveGatekeeperEvent,
+    ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if my_pubkey == event.pubkey {
+            self.gatekeeper = None;
+            self.master_key = None;
         }
     }
 
@@ -1252,7 +1272,14 @@ pub fn handle_contract_command_result(
         Some(cluster) => cluster,
     };
     apply_pink_side_effects(
-        effects, cluster_id, contracts, cluster, block, egress, spawner, log_handler,
+        effects,
+        cluster_id,
+        contracts,
+        cluster,
+        block,
+        egress,
+        spawner,
+        log_handler,
     );
 }
 
