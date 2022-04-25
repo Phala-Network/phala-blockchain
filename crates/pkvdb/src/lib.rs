@@ -38,6 +38,8 @@ impl<H> sp_state_machine::TrieBackendStorage<H> for LevelDB<H>
 where
     H: Hasher,
 {
+    // FIXME: if we should use the generic bound 
+    // type Transaction: Consolidate + Default + Send; for this situation not the specific type ?
     type Overlay = Transaction<H>;
 
     fn get(
@@ -57,7 +59,7 @@ where
     pub fn with_null_node<P: AsRef<Path>>(path: P, null_key: &[u8], null_node_data: T) -> Self {
         let mut options = LevelDBOptions::default();
         options.env = Rc::new(Box::new(GramineEnv::new()));
-        let db = DB::open(path, options).unwrap();
+        let db = DB::open(path, options).expect("underlying database must open");
         Kvdb {
             leveldb: Arc::new(Mutex::new(db)),
             hashed_null_node: H::hash(null_key),
@@ -75,8 +77,7 @@ where
             let mut writebatch = WriteBatch::new();
             if let Ok(mut iter) = DB::new_iter(db_mut.borrow_mut()) {
                 while let Some((key, val)) = iter.next() {
-                    // FIXME: if we should keep the negative reference count
-                    if i32::from_be_bytes(val[0..4].try_into().unwrap()) == 0 {
+                    if i32::from_be_bytes(val[0..4].try_into().expect("reference must in the Value")) == 0 {
                         writebatch.delete(&key);
                     }
                 }
@@ -102,7 +103,7 @@ where
         if key == &self.hashed_null_node {
             return Some((self.null_node_data.clone(), 1));
         }
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(Inner(value, rc)) => Some((value, rc)),
             _ => None,
@@ -158,7 +159,7 @@ where
     fn from(v: Vec<u8>) -> Self {
         let (rc, val) = v.split_at(4);
         let value = T::from(val);
-        Inner(value, i32::from_be_bytes(rc.try_into().unwrap()))
+        Inner(value, i32::from_be_bytes(rc.try_into().expect("reference must in Value")))
     }
 }
 
@@ -192,7 +193,7 @@ where
     }
 
     fn contains(&self, key: &H::Out) -> bool {
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(Inner(_, rc)) if rc > 0 => true,
             _ => false,
@@ -200,7 +201,7 @@ where
     }
 
     fn emplace(&mut self, key: H::Out, value: T) {
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         let mut writebatch = WriteBatch::new();
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(mut inner) => {
@@ -216,7 +217,7 @@ where
     }
 
     fn remove(&mut self, key: &H::Out) {
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         let mut writebatch = WriteBatch::new();
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(mut inner) => {
@@ -244,7 +245,7 @@ where
             return Some(self.null_node_data.clone());
         }
 
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(Inner(value, rc)) if rc > 0 => Some(value),
             _ => None,
@@ -256,7 +257,7 @@ where
             return true;
         }
 
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(Inner(_, rc)) if rc > 0 => true,
             _ => false,
@@ -267,7 +268,7 @@ where
         if value == self.null_node_data {
             return;
         }
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         let mut writebatch = WriteBatch::new();
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(mut inner) => {
@@ -296,7 +297,7 @@ where
             return;
         }
 
-        let mut db_mut = self.leveldb.lock().unwrap();
+        let mut db_mut = self.leveldb.lock().expect("database lock must hold");
         let mut writebatch = WriteBatch::new();
         match DB::get(db_mut.borrow_mut(), key.as_ref()).map(Inner::<T>::from) {
             Some(mut inner) => {

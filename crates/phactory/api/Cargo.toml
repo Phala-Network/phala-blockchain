@@ -44,7 +44,9 @@ tempdir = { version = "0.3.7" }
 
 [features]
 default = ["std"]
-
+memorydb = [
+    "phala-trie-storage/memorydb",
+]
 std = [
     "derive_serde",
     "sp-core/full_crypto",

@@ -9,8 +9,8 @@ use chain::Hash;
 use derive_more::Display;
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
-
-type Storage = phala_trie_storage::TrieStorage<RuntimeHasher>;
+use phala_trie_storage::TransactionalDB;
+use phala_trie_storage::TrieStorage as Storage;
 
 pub type Result<T> = core::result::Result<T, Error>;
 

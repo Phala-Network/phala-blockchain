@@ -7,7 +7,7 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use phactory_api::{blocks, crypto, prpc as pb};
+use phactory_api::{blocks, crypto, prpc as pb, Storage as PhalaTrieStorage};
 use phala_types::{contract, WorkerPublicKey};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -340,12 +340,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             send_mq,
             recv_mq,
             storage_synchronizer,
-            chain_storage: Default::default(),
+            chain_storage: if cfg!(feature = "memorydb") {
+                Default::default()
+            } else {
+                // TODO:george should specific the storage path over the pkvdb
+                PhalaTrieStorage::new("/tmp/demo") 
+            },
             genesis_block_hash,
         };
 
-        // Initialize other states
-        runtime_state.chain_storage.load(genesis_state.into_iter());
+        if cfg!(feature = "memorydb") {
+            // Initialize other states
+            runtime_state.chain_storage.load(genesis_state.into_iter());
+        }
+        
 
         info!(
             "Genesis state loaded: {:?}",
