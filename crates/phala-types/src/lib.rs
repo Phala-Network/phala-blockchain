@@ -420,6 +420,12 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct RemoveGatekeeperEvent {
+        /// The public key of registered gatekeeper
+        pub pubkey: WorkerPublicKey,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct MasterPubkeyEvent {
         pub master_pubkey: MasterPublicKey,
     }
@@ -429,6 +435,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum GatekeeperChange {
         GatekeeperRegistered(NewGatekeeperEvent),
+        GatekeeperUnregistered(RemoveGatekeeperEvent),
     }
 
     impl GatekeeperChange {
@@ -439,6 +446,14 @@ pub mod messaging {
             GatekeeperChange::GatekeeperRegistered(NewGatekeeperEvent {
                 pubkey,
                 ecdh_pubkey,
+            })
+        }
+
+        pub fn gatekeeper_unregistered(
+            pubkey: WorkerPublicKey,
+        ) -> GatekeeperChange {
+            GatekeeperChange::GatekeeperUnregistered(RemoveGatekeeperEvent {
+                pubkey,
             })
         }
     }

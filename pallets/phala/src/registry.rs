@@ -163,6 +163,7 @@ pub mod pallet {
 		// Additional
 		UnknownCluster,
 		NotImplemented,
+		LastGatekeeper,
 	}
 
 	#[pallet::call]
@@ -265,15 +266,30 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Deprecated
-		#[allow(unused_variables)]
-		#[pallet::weight(0)]
+		/// Unregister a gatekeeper
+		///
+		/// At least one gatekeeper should be available
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
-			sig: [u8; 64],
 		) -> DispatchResult {
-			Err(Error::<T>::NotImplemented.into())
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let gatekeepers = Gatekeeper::<T>::get();
+			ensure!(
+				gatekeepers.contains(&gatekeeper),
+				Error::<T>::InvalidGatekeeper
+			);
+			ensure!(gatekeepers.len() > 1, Error::<T>::LastGatekeeper);
+
+			let filtered: Vec<_> = gatekeepers
+				.into_iter()
+				.filter(|g| *g != gatekeeper)
+				.collect();
+			Gatekeeper::<T>::put(filtered);
+			Self::push_message(GatekeeperChange::gatekeeper_unregistered(gatekeeper));
+			Ok(())
 		}
 
 		/// Registers a worker on the blockchain
