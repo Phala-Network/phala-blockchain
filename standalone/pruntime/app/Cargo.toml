@@ -27,6 +27,7 @@ hex = "0.4.2"
 colored = "2"
 phactory-api = { path = "../../../crates/phactory/api" }
 parity-scale-codec = { version = "2.2", features = ["full"] }
+phala-rocket-middleware = { path = "../../../crates/phala-rocket-middleware" }
 
 [dev-dependencies]
 ring-compat = "0.0.1"
