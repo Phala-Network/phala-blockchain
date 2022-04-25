@@ -50,6 +50,7 @@ type TestStorageCollection = Vec<(TestStorageKey, Option<TestStorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 type TestChildStorageCollection = Vec<(TestStorageKey, TestStorageCollection)>;
 
+// Note: every time the test should remove this dir and reopen
 static KVDB_TMP_PATH: &str = "/tmp/kvdb_trie_test";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -94,8 +95,8 @@ fn load_genesis_pair() -> impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8
     decoded
 }
 
-fn load_genesis_trie() -> TrieStorage<NativeBlakeTwo256> {
-    let mut trie: TrieStorage<NativeBlakeTwo256> = Default::default();
+fn load_genesis_trie() -> MemoryTrieStorage<NativeBlakeTwo256> {
+    let mut trie: MemoryTrieStorage<NativeBlakeTwo256> = Default::default();
     let decoded = load_genesis_pair();
     trie.load(decoded);
     trie
@@ -153,7 +154,7 @@ fn test_apply_main_changes() {
 
 #[test]
 fn test_apply_main_changes_on_pkvdb() {
-    let mut trie = TrieStorageLevelDB::with_backend(load_genesis_kvdb_backend());
+    let mut trie = PkvdbTrieStorage::with_trie_backend(load_genesis_kvdb_backend());
     let changes = load_changes();
     let roots = load_roots();
 

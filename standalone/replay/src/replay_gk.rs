@@ -14,7 +14,8 @@ use anyhow::Result;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
 use phala_mq::Path as MqPath;
-use phala_trie_storage::TrieStorage;
+use phactory_api::Storage as TrieStorage;
+use phala_trie_storage::TransactionalDB;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
 use pherry::types::{
@@ -51,6 +52,7 @@ pub struct ReplayFactory {
 impl ReplayFactory {
     fn new(genesis_state: Vec<(Vec<u8>, Vec<u8>)>) -> Self {
         let mut recv_mq = MessageDispatcher::new();
+        // directly using the MemoryTrieStorage
         let mut storage = TrieStorage::default();
         storage.load(genesis_state.into_iter());
         let gk = gk::MiningEconomics::new(&mut recv_mq, ReplayMsgChannel);

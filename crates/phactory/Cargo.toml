@@ -106,3 +106,6 @@ default = [
     "sp-io/disable_allocator",
 ]
 shadow-gk = []
+memorydb = [
+    "phactory-api/memorydb",
+]

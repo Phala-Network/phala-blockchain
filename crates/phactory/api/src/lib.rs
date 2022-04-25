@@ -6,6 +6,7 @@ pub mod prpc;
 pub mod actions;
 pub mod blocks;
 pub mod storage_sync;
+pub use storage_sync::Storage;
 #[cfg(feature = "pruntime-client")]
 pub mod pruntime_client;
 pub mod ecall_args;

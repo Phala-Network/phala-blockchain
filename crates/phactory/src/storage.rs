@@ -41,9 +41,7 @@ mod storage_ext {
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::Message;
-    use phala_trie_storage::TrieStorage;
-
-    pub type Storage = TrieStorage<crate::RuntimeHasher>;
+    use phactory_api::Storage;
 
     pub trait StorageExt {
         fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;
