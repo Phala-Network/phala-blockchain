@@ -12,7 +12,7 @@ use log::{error, info};
 
 use phactory_api::ecall_args::{git_revision, InitArgs};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 struct Args {
@@ -64,6 +64,10 @@ struct Args {
     #[clap(long)]
     #[clap(default_value_t = 5)]
     max_checkpoint_files: u32,
+
+    /// Measuring the time it takes to process each RPC call.
+    #[clap(long)]
+    measure_rpc_time: bool,
 }
 
 fn main() {
@@ -101,17 +105,20 @@ fn main() {
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
     env_logger::Builder::from_env(env).init();
 
-    let init_args = InitArgs {
-        sealing_path,
-        log_filter: Default::default(),
-        init_bench: args.init_bench,
-        version: env!("CARGO_PKG_VERSION").into(),
-        git_revision: git_revision(),
-        geoip_city_db: args.geoip_city_db,
-        enable_checkpoint: !args.disable_checkpoint,
-        checkpoint_interval: args.checkpoint_interval,
-        remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
-        max_checkpoint_files: args.max_checkpoint_files,
+    let init_args = {
+        let args = args.clone();
+        InitArgs {
+            sealing_path,
+            log_filter: Default::default(),
+            init_bench: args.init_bench,
+            version: env!("CARGO_PKG_VERSION").into(),
+            git_revision: git_revision(),
+            geoip_city_db: args.geoip_city_db,
+            enable_checkpoint: !args.disable_checkpoint,
+            checkpoint_interval: args.checkpoint_interval,
+            remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
+            max_checkpoint_files: args.max_checkpoint_files,
+        }
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {
@@ -124,7 +131,7 @@ fn main() {
     let rocket = thread::Builder::new()
         .name("rocket".into())
         .spawn(move || {
-            let err = api_server::rocket(args.allow_cors, args.enable_kick_api).launch();
+            let err = api_server::rocket(&args).launch();
             panic!("Launch rocket failed: {}", err);
         })
         .expect("Failed to launch Rocket");
