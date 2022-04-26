@@ -472,6 +472,7 @@ pub mod pallet {
 		/// 1. The pool exists
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let a = amount; // Alias to reduce confusion in the code below
@@ -485,13 +486,6 @@ pub mod pallet {
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
-			if let Some(cap) = pool_info.cap {
-				ensure!(
-					cap.saturating_sub(pool_info.total_stake) >= a,
-					Error::<T>::StakeExceedsCapacity
-				);
-			}
-
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
@@ -527,6 +521,14 @@ pub mod pallet {
 
 			// We have new free stake now, try to handle the waiting withdraw queue
 			Self::try_process_withdraw_queue(&mut pool_info);
+
+			// Post-check to ensure the total stake doesn't exceed the cap
+			if let Some(cap) = pool_info.cap {
+				ensure!(
+					pool_info.total_stake <= cap,
+					Error::<T>::StakeExceedsCapacity
+				);
+			}
 
 			// Persist
 			StakePools::<T>::insert(&pid, &pool_info);
@@ -1720,15 +1722,9 @@ pub mod pallet {
 		fn test_pool_cap() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
-				let worker1 = worker_pubkey(1);
-				assert_ok!(PhalaRegistry::force_register_worker(
-					Origin::root(),
-					worker1.clone(),
-					ecdh_pubkey(1),
-					Some(1)
-				));
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
 
-				assert_ok!(PhalaStakePool::create(Origin::signed(1))); // pid = 0
 				assert_eq!(PhalaStakePool::stake_pools(0).unwrap().cap, None);
 				// Pool existence
 				assert_noop!(
@@ -1771,6 +1767,29 @@ pub mod pallet {
 					PhalaStakePool::contribute(Origin::signed(2), 0, 900 * DOLLARS),
 					Error::<Test>::StakeExceedsCapacity,
 				);
+
+				// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
+				// can be maintained after the contribution
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(1),
+					0,
+					1000 * DOLLARS
+				));
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(2), 0, 1001 * DOLLARS),
+					Error::<Test>::StakeExceedsCapacity
+				);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1000 * DOLLARS
+				));
 			});
 		}
 
