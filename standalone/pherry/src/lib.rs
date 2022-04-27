@@ -19,6 +19,7 @@ mod notify_client;
 
 pub mod chain_client;
 pub mod types;
+pub mod headers_cache;
 
 use crate::error::Error;
 use crate::types::{
@@ -227,6 +228,20 @@ async fn get_block_at<T: subxt::Config>(
         .ok_or(Error::BlockNotFound)?;
 
     Ok((block, hash))
+}
+
+async fn get_header_at<T: subxt::Config>(
+    client: &subxt::Client<T>,
+    h: Option<u32>,
+) -> Result<(T::Header, T::Hash)> {
+    let hash = get_header_hash(client, h).await?;
+    let header = client
+        .rpc()
+        .header(Some(hash.clone()))
+        .await?
+        .ok_or(Error::BlockNotFound)?;
+
+    Ok((header, hash))
 }
 
 async fn get_block_without_storage_changes(
