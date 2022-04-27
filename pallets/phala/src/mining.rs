@@ -323,8 +323,8 @@ pub mod pallet {
 		InternalErrorMinerSettleFailed { worker: WorkerPublicKey },
 		/// Block subsidy halved by 25%.
 		///
-		/// This event will be followed by a [`TokenomicParametersChanged`] event indicating the
-		/// change of the block subsidy budget in the parameter.
+		/// This event will be followed by a [`TokenomicParametersChanged`](#variant.TokenomicParametersChanged)
+		/// event indicating the change of the block subsidy budget in the parameter.
 		SubsidyBudgetHalved,
 		/// Some internal error happened when trying to halve the subsidy
 		InternalErrorWrongHalvingConfigured,

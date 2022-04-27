@@ -181,10 +181,10 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the `worker` is added to the vector `workers` in [`StakePools`]
-		/// - the worker in the [`WorkerAssignment`] is pointed to `pid`
-		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`],
-		///   [`MinerBindings`])
-		PoolWorkerAdded(u64, WorkerPublicKey),
+		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
+		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
+		///   [`MinerBindings`](mining::pallet::MinerBindings))
+		PoolWorkerAdded { pid: u64, worker: WorkerPublicKey },
 		/// Someone contributed to a pool
 		///
 		/// Affected states:
@@ -192,7 +192,7 @@ pub mod pallet {
 		/// - the user staking account at [`PoolStakers`]
 		/// - the locking ledger of the contributor at [`StakeLedger`]
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
-		///   ([`Withdrawal`] event)
+		///   ([`Withdrawal`](#variant.Withdrawal) event)
 		Contribution {
 			pid: u64,
 			user: T::AccountId,
@@ -200,7 +200,8 @@ pub mod pallet {
 		},
 		/// Some stake was withdrawn from a pool
 		///
-		/// The lock in [`Balances`] is updated to release the locked stake.
+		/// The lock in [`Balances`](pallet_balances::pallet::Pallet) is updated to release the
+		/// locked stake.
 		///
 		/// Affected states:
 		/// - the stake related fields in [`StakePools`]
@@ -434,7 +435,7 @@ pub mod pallet {
 			workers.push(pubkey);
 			StakePools::<T>::insert(&pid, &pool_info);
 			WorkerAssignments::<T>::insert(&pubkey, pid);
-			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
+			Self::deposit_event(Event::<T>::PoolWorkerAdded { pid, worker: pubkey } );
 
 			Ok(())
 		}
@@ -1578,7 +1579,7 @@ pub mod pallet {
 		/// The share in the pool. Cannot be dust.
 		///
 		/// Invariant must hold:
-		///   StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)
+		///   `StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)`
 		pub shares: Balance,
 		/// Claimable rewards
 		pub available_rewards: Balance,

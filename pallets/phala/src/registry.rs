@@ -528,9 +528,9 @@ pub mod pallet {
 	/// Genesis config to add some genesis worker or gatekeeper for testing purpose.
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
-		/// [(identity, ecdh, operator)]
+		/// List of `(identity, ecdh, operator)` tuple
 		pub workers: Vec<(WorkerPublicKey, Vec<u8>, Option<T::AccountId>)>,
-		/// [identity]
+		/// List of Gatekeeper identities
 		pub gatekeepers: Vec<WorkerPublicKey>,
 		pub benchmark_duration: u32,
 	}
