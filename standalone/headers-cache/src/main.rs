@@ -1,3 +1,5 @@
+#![feature(decl_macro)] // for rocket
+
 use scale::Encode;
 use std::fs::File;
 use std::io::Write;
@@ -6,6 +8,7 @@ use clap::{AppSettings, Parser, Subcommand};
 use pherry::headers_cache as cache;
 
 mod db;
+mod web_api;
 
 #[derive(Parser)]
 #[clap(about = "Cache server for relaychain headers", version, author)]
@@ -59,6 +62,8 @@ enum Action {
         #[clap(default_value = "genesis.bin")]
         input: String,
     },
+    /// Run the cache server
+    Serve,
 }
 
 #[tokio::main]
@@ -99,8 +104,11 @@ async fn main() -> anyhow::Result<()> {
         }
         Action::ImportGenesis { input } => {
             let mut cache = db::CacheDB::open(&args.db)?;
-            cache.0.put(b"genesis", &std::fs::read(input)?)?;
+            cache.put_genesis(&std::fs::read(input)?)?;
             println!("done");
+        }
+        Action::Serve => {
+            web_api::serve(&args.db)?;
         }
     }
     Ok(())
