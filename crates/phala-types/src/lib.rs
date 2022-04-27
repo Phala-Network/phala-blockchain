@@ -245,8 +245,8 @@ pub mod messaging {
     pub enum BtcPriceBotCommand {
         /// Set the contract owner
         SetOwner { owner: AccountId },
-        /// Set the authentication token of telegram bot (https://core.telegram.org/bots/api#authorizing-your-bot) and
-        /// the identifier to target chat (https://core.telegram.org/bots/api#sendmessage)
+        /// Set the [authentication token of telegram bot](https://core.telegram.org/bots/api#authorizing-your-bot)
+        /// and the identifier to target chat <https://core.telegram.org/bots/api#sendmessage>
         SetupBot { token: String, chat_id: String },
         /// Let the Tg bot to report the current BTC price
         ReportBtcPrice,
@@ -528,11 +528,11 @@ pub mod messaging {
     pub enum GatekeeperEvent {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
-        /// Deprecated after https://github.com/Phala-Network/phala-blockchain/pull/499
+        /// Deprecated after <https://github.com/Phala-Network/phala-blockchain/pull/499>
         RepairV,
         /// Trigger a set of changes:
-        /// - https://github.com/Phala-Network/phala-blockchain/issues/693
-        /// - https://github.com/Phala-Network/phala-blockchain/issues/676
+        /// - <https://github.com/Phala-Network/phala-blockchain/issues/693>
+        /// - <https://github.com/Phala-Network/phala-blockchain/issues/676>
         PhalaLaunched,
         /// Fix the payout duration problem in unresponsive state
         UnrespFix,
