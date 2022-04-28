@@ -156,7 +156,7 @@ struct Args {
         long,
         help = "The charge transaction payment, unit: balance"
     )]
-    tip: u64,
+    tip: u128,
     #[clap(
         default_value = "4",
         long,
@@ -756,7 +756,7 @@ async fn register_worker(
         .tx()
         .phala_registry()
         .register_worker(pruntime_info, attestation)
-        .sign_and_submit_then_watch(signer)
+        .sign_and_submit_then_watch(signer, Default::default())
         .await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);

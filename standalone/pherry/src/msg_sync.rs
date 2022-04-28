@@ -1,13 +1,13 @@
 use anyhow::{anyhow, Result};
 use log::{error, info};
+use phaxt::subxt::extrinsic::Signer;
 use sp_runtime::generic::Era;
 use std::time::Duration;
 
 use crate::{
     chain_client::{mq_next_sequence, update_signer_nonce},
-    types::{Hash, ParachainApi, PrClient, Signer, SrSigner},
+    types::{Hash, ParachainApi, PrClient, SrSigner},
 };
-use phaxt::extra::{EraInfo, ExtraConfig};
 pub use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 pub enum Error {
@@ -23,7 +23,7 @@ pub async fn maybe_sync_mq_egress(
     api: &ParachainApi,
     pr: &PrClient,
     signer: &mut SrSigner,
-    tip: u64,
+    tip: u128,
     longevity: u64,
     max_sync_msgs_per_round: u64,
     err_report: Sender<Error>,
@@ -57,11 +57,7 @@ pub async fn maybe_sync_mq_egress(
             era.birth(number),
             era.death(number)
         );
-        Some(EraInfo {
-            period,
-            phase,
-            birth_hash: header.hash(),
-        })
+        Some((era, header.hash()))
     } else {
         None
     };
@@ -89,17 +85,19 @@ pub async fn maybe_sync_mq_egress(
                 signer.nonce()
             );
             info!("Submitting message: {}", msg_info);
+
+            let params = if let Some((era, checkpoint)) = era {
+                phaxt::ExtrinsicParamsBuilder::new()
+                    .tip(tip)
+                    .era(era, checkpoint)
+            } else {
+                phaxt::ExtrinsicParamsBuilder::new().tip(tip)
+            };
             let extrinsic = api
                 .tx()
                 .phala_mq()
                 .sync_offchain_message(message)
-                .create_signed(
-                    signer,
-                    ExtraConfig {
-                        tip,
-                        era: era.clone(),
-                    },
-                )
+                .create_signed(signer, params)
                 .await;
             signer.increment_nonce();
             match extrinsic {

@@ -4171,12 +4171,12 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05fd8cd6c6b1bbd06881d2cf88f1fc83cc36c98f2219090f839115fb4a956cb9"
+checksum = "f0d0b8cc1959f8c05256ace093b2317482da9127f1d9227564f47e7e6bf9bda8"
 dependencies = [
- "jsonrpsee-client-transport 0.8.0",
- "jsonrpsee-core 0.8.0",
+ "jsonrpsee-client-transport 0.9.0",
+ "jsonrpsee-core 0.9.0",
 ]
 
 [[package]]
@@ -4193,14 +4193,14 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-client-transport"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3303cdf246e6ab76e2866fb3d9acb6c76a068b1b28bd923a1b7a8122257ad7b5"
+checksum = "fa370c2c717d798c3c0a315ae3f0a707a388c6963c11f9da7dbbe1d3f7392f5f"
 dependencies = [
  "futures 0.3.21",
  "http",
- "jsonrpsee-core 0.8.0",
- "jsonrpsee-types 0.8.0",
+ "jsonrpsee-core 0.9.0",
+ "jsonrpsee-types 0.9.0",
  "pin-project 1.0.10",
  "rustls-native-certs 0.6.2",
  "soketto 0.7.1",
@@ -4235,9 +4235,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-core"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f220b5a238dc7992b90f1144fbf6eaa585872c9376afe6fe6863ffead6191bf3"
+checksum = "22abc3274b265dcefe2e26c4beecf9fda4fffa48cf94930443a6c73678f020d5"
 dependencies = [
  "anyhow",
  "arrayvec 0.7.2",
@@ -4246,7 +4246,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "hyper 0.14.18",
- "jsonrpsee-types 0.8.0",
+ "jsonrpsee-types 0.9.0",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -4293,9 +4293,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-types"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1b3f601bbbe45cd63f5407b6f7d7950e08a7d4f82aa699ff41a4a5e9e54df58"
+checksum = "9f4c45d2e2aa1db4c7d7d7dbaabc10a5b5258d99cd9d42fbfd5260b76f80c324"
 dependencies = [
  "anyhow",
  "beef",
@@ -11489,7 +11489,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "subxt"
-version = "0.18.1"
+version = "0.20.0"
 dependencies = [
  "async-trait",
  "bitvec",
@@ -11498,9 +11498,8 @@ dependencies = [
  "frame-metadata",
  "futures 0.3.21",
  "hex",
- "jsonrpsee 0.8.0",
+ "jsonrpsee 0.9.0",
  "log 0.4.16",
- "num-traits",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -11513,7 +11512,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-codegen"
-version = "0.18.1"
+version = "0.20.0"
 dependencies = [
  "async-trait",
  "darling",
@@ -11530,7 +11529,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-macro"
-version = "0.18.1"
+version = "0.20.0"
 dependencies = [
  "async-trait",
  "darling",
