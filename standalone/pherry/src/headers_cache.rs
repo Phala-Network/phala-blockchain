@@ -17,7 +17,15 @@ pub use phactory_api::blocks::GenesisBlockInfo;
 pub struct BlockInfo {
     pub header: Header,
     pub justification: Option<Vec<u8>>,
+    pub para_header: Option<ParaHeader>,
     pub authority_set_change: Option<AuthoritySetChange>,
+}
+
+#[derive(Decode, Encode)]
+pub struct ParaHeader {
+    /// Finalized parachain header number
+    pub fin_header_num: BlockNumber,
+    pub proof: Vec<Vec<u8>>,
 }
 
 pub trait DB {
@@ -198,4 +206,32 @@ pub async fn fetch_genesis_info(
         authority_set: set_proof.authority_set,
         proof: set_proof.authority_proof,
     })
+}
+
+#[derive(Clone)]
+pub(crate) struct Client {
+    base_uri: String,
+}
+
+impl Client {
+    pub fn new(uri: &str) -> Self {
+        Self {
+            base_uri: uri.to_string(),
+        }
+    }
+
+    async fn request<T: Decode>(&self, url: &str) -> Result<T> {
+        let body = reqwest::get(url).await?.bytes().await?;
+        Ok(T::decode(&mut &body[..])?)
+    }
+
+    pub async fn get_header(&self, block_number: BlockNumber) -> Result<BlockInfo> {
+        let url = format!("{}/header/{}", self.base_uri, block_number);
+        self.request(&url).await
+    }
+
+    pub async fn get_genesis(&self, block_number: BlockNumber) -> Result<GenesisBlockInfo> {
+        let url = format!("{}/genesis/{}", self.base_uri, block_number);
+        self.request(&url).await
+    }
 }
