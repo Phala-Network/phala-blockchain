@@ -1,7 +1,7 @@
 use crate::GRANDPA_ENGINE_ID;
 use anyhow::{anyhow, Result};
 use codec::{Decode, Encode};
-use phactory_api::blocks::{AuthoritySetChange, GenesisBlockInfo};
+use phactory_api::blocks::AuthoritySetChange;
 use phaxt::{
     subxt::{self, rpc::NumberOrHex},
     BlockNumber, Header, RelaychainApi,
@@ -10,6 +10,8 @@ use std::{
     io::{Read, Write},
     mem::replace,
 };
+
+pub use phactory_api::blocks::GenesisBlockInfo;
 
 #[derive(Decode, Encode)]
 pub struct BlockInfo {
@@ -53,6 +55,9 @@ pub async fn grap_headers_to_file(
     mut output: impl Write,
 ) -> Result<BlockNumber> {
     grab_headers(api, start_at, count, justification_interval, |info| {
+        if info.header.number % 1024 == 0 {
+            log::info!("Grabbed to {}", info.header.number);
+        }
         let encoded = info.encode();
         let length = encoded.len() as u32;
         output.write_all(length.to_be_bytes().as_ref())?;
