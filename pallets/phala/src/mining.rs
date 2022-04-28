@@ -1,3 +1,5 @@
+//! Manages mining lifecycle, reward and slashes
+
 pub use self::pallet::*;
 
 #[allow(unused_variables)]
@@ -76,12 +78,20 @@ pub mod pallet {
 		}
 	}
 
+	/// The benchmark information of a worker
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
+		/// The initial performance score copied from the registry pallet
 		p_init: u32,
+		/// The instant performance score
 		p_instant: u32,
+		/// The latest benchmark iterations
+		///
+		/// Used to calculate `p_instant`.
 		iterations: u64,
+		/// The unix timestamp of the mining start time
 		mining_start_time: u64,
+		/// The unix timestamp of block that triggers the last heartbeat challenge
 		challenge_time_last: u64,
 	}
 
@@ -113,16 +123,25 @@ pub mod pallet {
 		}
 	}
 
+	/// The state of a miner
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
+		/// The current state of the miner
 		pub state: MinerState,
-		/// The intiial V, in U64F64 bits
+		/// The intiial V, in `U64F64` bits
 		pub ve: u128,
-		/// The last updated V, in U64F64 bits
+		/// The last updated V, in `U64F64` bits
 		pub v: u128,
+		/// The unix timestamp of the last V update time
 		v_updated_at: u64,
+		/// Benchmark info
 		benchmark: Benchmark,
+		/// The unix timestamp of the cool down starting time
+		///
+		/// The value is meaningless if the state is not in
+		/// [`MiningCoolingDown`](MinerState::MiningCoolingDown) state.
 		cool_down_start: u64,
+		/// The statistics of the current mining session
 		stats: MinerStats,
 	}
 
@@ -156,8 +175,10 @@ pub mod pallet {
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
 	}
 
+	/// The stats of a mining session
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct MinerStats {
+		/// The total received reward in this mining session, in `U32F32` bits
 		total_reward: u128,
 	}
 

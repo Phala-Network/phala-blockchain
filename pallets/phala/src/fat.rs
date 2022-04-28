@@ -1,4 +1,5 @@
-/// Public key registry for workers and contracts.
+//! The Fat Contract registry
+
 pub use self::pallet::*;
 
 #[frame_support::pallet]

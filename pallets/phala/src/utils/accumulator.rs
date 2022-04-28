@@ -1,3 +1,5 @@
+//! Implements accumulator algorithm for passive reward distribution.
+
 use fixed::types::U64F64 as FixedPoint;
 
 use crate::balance_convert::{mul, FixedPointConvert};

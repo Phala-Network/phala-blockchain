@@ -1,3 +1,5 @@
+//! Pool for collaboratively mining staking
+
 pub use self::pallet::*;
 
 use frame_support::traits::Currency;
@@ -45,6 +47,7 @@ pub mod pallet {
 
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
+	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
 		///
@@ -435,7 +438,10 @@ pub mod pallet {
 			workers.push(pubkey);
 			StakePools::<T>::insert(&pid, &pool_info);
 			WorkerAssignments::<T>::insert(&pubkey, pid);
-			Self::deposit_event(Event::<T>::PoolWorkerAdded { pid, worker: pubkey } );
+			Self::deposit_event(Event::<T>::PoolWorkerAdded {
+				pid,
+				worker: pubkey,
+			});
 
 			Ok(())
 		}
@@ -1297,6 +1303,7 @@ pub mod pallet {
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
+	/// The state of a pool
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId, Balance> {
 		/// Pool ID
@@ -1304,20 +1311,42 @@ pub mod pallet {
 		/// The owner of the pool
 		pub owner: AccountId,
 		/// The commission the pool owner takes
+		///
+		/// For example, 10% commission means 10% of the miner reward goes to the pool owner, and
+		/// the remaining 90% is distributed to the contributors. Setting to `None` means a
+		/// commission of 0%.
 		pub payout_commission: Option<Permill>,
 		/// Claimable owner reward
+		///
+		/// Whenver a miner gets some reward, the commission the pool taken goes to here. The owner
+		/// can claim their reward at any time.
 		pub owner_reward: Balance,
-		/// The hard cap of the pool
+		/// The hard capacity of the pool
+		///
+		/// When it's set, the totals stake a pool can receive will not exceed this capacity.
 		pub cap: Option<Balance>,
-		/// The reward accumulator
+		/// The reward [accumulator](crate::utils::accumulator)
+		///
+		/// An individual user's reward is tracked by [`reward_acc`](PoolInfo::reward_acc), their
+		/// [`shares`](UserStakeInfo::shares) and the [`reward_debt`](UserStakeInfo::reward_debt).
 		pub reward_acc: CodecFixedPoint,
-		/// Total shares. Cannot be dust.
+		/// Total shares
+		///
+		/// It tracks the total number of shared of all the contributors. Guaranteed to be
+		/// non-dust.
 		pub total_shares: Balance,
-		/// Total stake. Cannot be dust.
+		/// Total stake
+		///
+		/// It tracks the total number of the stake the pool received. Guaranteed to be non-dust.
 		pub total_stake: Balance,
-		/// Total free stake. Can be dust.
+		/// Total free stake
+		///
+		/// It tracks the total free stake (not used by any miner) in the pool. Can be dust.
 		pub free_stake: Balance,
-		/// Releasing stake (will be unlocked after worker reclaiming)
+		/// Releasing stake
+		///
+		/// It tracks the stake that will be unlocked in the future. It's the sum of all the
+		/// cooling down miners' remaining stake.
 		pub releasing_stake: Balance,
 		/// Bound workers
 		pub workers: Vec<WorkerPublicKey>,
@@ -1472,6 +1501,8 @@ pub mod pallet {
 
 		/// Settles the pending slash for a pool user.
 		///
+		/// The slash is
+		///
 		/// Returns the slashed amount if succeeded, otherwise None.
 		fn settle_slash(&self, user: &mut UserStakeInfo<AccountId, Balance>) -> Option<Balance> {
 			let price = self.share_price()?;
@@ -1570,23 +1601,30 @@ pub mod pallet {
 		}
 	}
 
+	/// A user's staking info
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct UserStakeInfo<AccountId, Balance> {
-		/// User account
+		/// User's address
 		pub user: AccountId,
-		/// The actual locked stake
+		/// The actual locked stake in the pool
 		pub locked: Balance,
-		/// The share in the pool. Cannot be dust.
+		/// The share in the pool
 		///
-		/// Invariant must hold:
-		///   `StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)`
+		/// Guaranteed to be non-dust. Invariant must hold:
+		/// - `StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)`
 		pub shares: Balance,
-		/// Claimable rewards
+		/// Resolved claimable rewards
+		///
+		/// It's accumulated by resolving "pending stake" from the reward
+		/// [accumulator](crate::utils::accumulator).
 		pub available_rewards: Balance,
-		/// The debt of a user's stake subject to the pool reward accumulator
+		/// The debt of a user's stake
+		///
+		/// It's subject to the pool reward [accumulator](crate::utils::accumulator).
 		pub reward_debt: Balance,
 	}
 
+	/// A withdraw request, usually stored in the withdrawal queue
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WithdrawInfo<AccountId, Balance> {
 		/// The withdrawal requester

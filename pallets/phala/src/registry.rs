@@ -1,4 +1,5 @@
-/// Public key registry for workers and contracts.
+//! Manages the public key of offchain components (i.e. workers and contracts)
+
 pub use self::pallet::*;
 
 #[frame_support::pallet]
@@ -47,15 +48,19 @@ pub mod pallet {
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;
 
-		/// Verify attestation, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		/// Verify attestation
+		///
+		/// SHOULD NOT SET TO FALSE ON PRODUCTION!!!
 		#[pallet::constant]
 		type VerifyPRuntime: Get<bool>;
 
-		/// Verify relaychain genesis, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		/// Verify relaychain genesis
+		///
+		/// SHOULD NOT SET TO FALSE ON PRODUCTION!!!
 		#[pallet::constant]
 		type VerifyRelaychainGenesisBlockHash: Get<bool>;
 
-		/// Origin used to administer the pallet
+		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
@@ -91,6 +96,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
 
+	/// The number of blocks to run the benchmark
 	#[pallet::storage]
 	pub type BenchmarkDuration<T: Config> = StorageValue<_, u32>;
 
@@ -111,6 +117,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	pub enum Event<T: Config> {
+		/// A new Gatekeeper is enabled on the blockchain
 		GatekeeperAdded(WorkerPublicKey),
 	}
 
@@ -151,6 +158,7 @@ pub mod pallet {
 		PRuntimeNotFound,
 		// Additional
 		UnknownCluster,
+		NotImplemented,
 	}
 
 	#[pallet::call]
@@ -158,14 +166,19 @@ pub mod pallet {
 	where
 		T: crate::mq::Config,
 	{
+		/// Sets [`BenchmarkDuration`]
+		///
+		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn force_set_benchmark_duration(origin: OriginFor<T>, value: u32) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 			BenchmarkDuration::<T>::put(value);
 			Ok(())
 		}
 
 		/// Force register a worker with the given pubkey with sudo permission
+		///
+		/// For test only.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
@@ -195,6 +208,8 @@ pub mod pallet {
 		}
 
 		/// Force register a topic pubkey
+		///
+		/// For test only.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn force_register_topic_pubkey(
 			origin: OriginFor<T>,
@@ -208,7 +223,7 @@ pub mod pallet {
 
 		/// Register a gatekeeper.
 		///
-		/// Must be called by the Root origin.
+		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn register_gatekeeper(
 			origin: OriginFor<T>,
@@ -246,10 +261,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Unregister a gatekeeper, must be called by gatekeeper himself
-		///
-		/// Requirements:
-		//  1. `sig` is the valid signature of specific unregister message
+		/// Deprecated
 		#[allow(unused_variables)]
 		#[pallet::weight(0)]
 		pub fn unregister_gatekeeper(
@@ -257,11 +269,13 @@ pub mod pallet {
 			gatekeeper: WorkerPublicKey,
 			sig: [u8; 64],
 		) -> DispatchResult {
-			// TODO.shelven
-			panic!("unimpleneted");
+			Err(Error::<T>::NotImplemented.into())
 		}
 
-		/// (called by anyone on behalf of a worker)
+		/// Registers a worker on the blockchain
+		///
+		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
+		/// anyone on behalf of a worker.
 		#[pallet::weight(0)]
 		pub fn register_worker(
 			origin: OriginFor<T>,
@@ -335,7 +349,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Registers a pRuntime image as the canonical runtime with its digest.
+		/// Registers a pruntime binary to [`PRuntimeAllowList`]
+		///
+		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -352,6 +368,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Removes a pruntime binary from [`PRuntimeAllowList`]
+		///
+		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -371,6 +390,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Adds an entry in [`RelaychainGenesisBlockHashAllowList`]
+		///
+		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
 		pub fn add_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
@@ -390,6 +412,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Deletes an entry in [`RelaychainGenesisBlockHashAllowList`]
+		///
+		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
 		pub fn remove_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
@@ -607,19 +632,36 @@ pub mod pallet {
 		type Config = T;
 	}
 
+	/// The basic information of a registered worker
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
-		// identity
+		/// The identity public key of the worker
 		pub pubkey: WorkerPublicKey,
+		/// The public key for ECDH communication
 		pub ecdh_pubkey: EcdhPublicKey,
-		// system
+		/// The pruntime version of the worker upon registering
 		pub runtime_version: u32,
+		/// The unix timestamp of the last updated time
 		pub last_updated: u64,
+		/// The stake pool owner that can control this worker
+		///
+		/// When initializing pruntime, the user can specify an _operator account_. Then this field
+		/// will be updated when the worker is being registered on the blockchain. Once it's set,
+		/// the worker can only be added to a stake pool if the pool owner is the same as the
+		/// operator. It ensures only the trusted person can control the worker.
 		pub operator: Option<AccountId>,
-		// platform
+		/// The [confidence level](https://wiki.phala.network/en-us/mine/solo/1-2-confidential-level-evaluation/#confidence-level-of-a-miner)
+		/// of the worker
 		pub confidence_level: u8,
-		// scoring
+		/// The performance score by benchmark
+		///
+		/// When a worker is registered, this field is set to `None`, indicating the worker is
+		/// requested to run a benchmark. The benchmark lasts [`BenchmarkDuration`] blocks, and
+		/// this field will be updated with the score once it finishes.
+		///
+		/// The `initial_score` is used as the baseline for mining performance test.
 		pub initial_score: Option<u32>,
+		/// Deprecated
 		pub features: Vec<u32>,
 	}
 
