@@ -42,6 +42,12 @@ enum Import {
 enum Grab {
     /// Grap headers from the chain and dump them to a file
     Headers {
+        /// The relaychain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9945")]
+        node_uri: String,
+        /// The block number to start at
+        #[clap(long, default_value = "ws://localhost:9944")]
+        para_node_uri: String,
         /// The block number to start at
         #[clap(long, default_value_t = 1)]
         from_block: BlockNumber,
@@ -49,13 +55,16 @@ enum Grab {
         #[clap(long, default_value_t = BlockNumber::MAX)]
         count: BlockNumber,
         /// Minimum number of blocks between justification
-        #[clap(default_value_t = 1000)]
+        #[clap(long, default_value_t = 1000)]
         justification_interval: BlockNumber,
         /// The file to write the headers to
         #[clap(default_value = "headers.bin")]
         output: String,
     },
     Genesis {
+        /// The relaychain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9945")]
+        node_uri: String,
         /// The block number to be treated as genesis
         #[clap(long, default_value_t = 0)]
         block: BlockNumber,
@@ -69,10 +78,6 @@ enum Grab {
 enum Action {
     /// Grab genesis or headers from the blockchain and dump it to a file
     Grab {
-        /// The relaychain RPC endpoint
-        #[clap(long, default_value = "ws://localhost:9945")]
-        node_uri: String,
-
         /// What to grab
         #[clap(subcommand)]
         what: Grab,
@@ -100,18 +105,22 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
     match args.action {
-        Action::Grab { node_uri, what } => {
-            let api = pherry::subxt_connect(&node_uri).await?.into();
+        Action::Grab { what } => {
             match what {
                 Grab::Headers {
+                    node_uri,
+                    para_node_uri,
                     from_block,
                     count,
                     justification_interval,
                     output,
                 } => {
+                    let api = pherry::subxt_connect(&node_uri).await?.into();
+                    let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
                     let output = File::create(output)?;
                     let count = cache::grap_headers_to_file(
                         &api,
+                        &para_api,
                         from_block,
                         count,
                         justification_interval,
@@ -120,7 +129,8 @@ async fn main() -> anyhow::Result<()> {
                     .await?;
                     println!("{} headers written", count);
                 }
-                Grab::Genesis { block, output } => {
+                Grab::Genesis { node_uri, block, output } => {
+                    let api = pherry::subxt_connect(&node_uri).await?.into();
                     let mut output = File::create(output)?;
                     let info = cache::fetch_genesis_info(&api, block).await?;
                     output.write_all(info.encode().as_ref())?;

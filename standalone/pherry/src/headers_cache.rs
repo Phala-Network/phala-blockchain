@@ -4,12 +4,14 @@ use codec::{Decode, Encode};
 use phactory_api::blocks::AuthoritySetChange;
 use phaxt::{
     subxt::{self, rpc::NumberOrHex},
-    BlockNumber, Header, RelaychainApi,
+    BlockNumber, Header, ParachainApi, RelaychainApi,
 };
 use std::{
     io::{Read, Write},
     mem::replace,
 };
+
+use log::{debug, info};
 
 pub use phactory_api::blocks::GenesisBlockInfo;
 
@@ -57,26 +59,37 @@ pub async fn import_headers(mut input: impl Read, to_db: &mut impl DB) -> Result
 /// Dump headers from the chain to a log file.
 pub async fn grap_headers_to_file(
     api: &RelaychainApi,
+    para_api: &ParachainApi,
     start_at: BlockNumber,
     count: BlockNumber,
     justification_interval: BlockNumber,
     mut output: impl Write,
 ) -> Result<BlockNumber> {
-    grab_headers(api, start_at, count, justification_interval, |info| {
-        if info.header.number % 1024 == 0 {
-            log::info!("Grabbed to {}", info.header.number);
-        }
-        let encoded = info.encode();
-        let length = encoded.len() as u32;
-        output.write_all(length.to_be_bytes().as_ref())?;
-        output.write_all(&encoded)?;
-        Ok(())
-    })
+    grab_headers(
+        api,
+        para_api,
+        start_at,
+        count,
+        justification_interval,
+        |info| {
+            if info.header.number % 102400 == 0 {
+                info!("Grabbed to {}", info.header.number);
+            } else {
+                debug!("Grabbed to {}", info.header.number);
+            }
+            let encoded = info.encode();
+            let length = encoded.len() as u32;
+            output.write_all(length.to_be_bytes().as_ref())?;
+            output.write_all(&encoded)?;
+            Ok(())
+        },
+    )
     .await
 }
 
 async fn grab_headers(
     api: &RelaychainApi,
+    para_api: &ParachainApi,
     start_at: BlockNumber,
     count: BlockNumber,
     justification_interval: u32,
@@ -98,6 +111,9 @@ async fn grab_headers(
         .await?;
     let mut skip_justitication = justification_interval;
     let mut grabbed = 0;
+
+    let para_id = crate::get_paraid(para_api, None).await?;
+    info!("para_id: {}", para_id);
 
     for block_number in start_at + 1.. {
         let header;
@@ -142,6 +158,10 @@ async fn grab_headers(
         }
         let set_id = api.storage().grandpa().current_set_id(Some(hash)).await?;
         let authority_set_change = if last_set != set_id {
+            info!(
+                "Authority set changed at block {} from {} to {}",
+                header.number, last_set, set_id,
+            );
             if last_justifications.is_none() {
                 last_justifications = api
                     .client
@@ -160,20 +180,29 @@ async fn grab_headers(
 
         let last_header = replace(&mut last_header, header);
         let last_justifications = replace(&mut last_justifications, justifications);
+        let last_header_hash = replace(&mut last_header_hash, hash);
         last_set = set_id;
-        last_header_hash = hash;
 
         let justification = last_justifications
             .map(|v| v.into_justification(GRANDPA_ENGINE_ID))
             .flatten();
 
-        if justification.is_some() {
+        let para_header = if justification.is_none() {
+            None
+        } else {
             skip_justitication = justification_interval;
-        }
+            crate::get_finalized_header_with_paraid(api, para_id, last_header_hash).await?
+        };
+
+        let para_header = para_header.map(|(header, proof)| ParaHeader {
+            fin_header_num: header.number,
+            proof: proof,
+        });
 
         f(BlockInfo {
             header: last_header,
             justification,
+            para_header,
             authority_set_change,
         })?;
         grabbed += 1;

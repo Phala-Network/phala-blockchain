@@ -635,6 +635,14 @@ async fn get_finalized_header(
     last_header_hash: Hash,
 ) -> Result<Option<(Header, Vec<Vec<u8>> /*proof*/)>> {
     let para_id = get_paraid(para_api, None).await?;
+    get_finalized_header_with_paraid(api, para_id, last_header_hash).await
+}
+
+async fn get_finalized_header_with_paraid(
+    api: &RelaychainApi,
+    para_id: u32,
+    last_header_hash: Hash,
+) -> Result<Option<(Header, Vec<Vec<u8>> /*proof*/)>> {
     let para_head_storage_key = chain_client::paras_heads_key(para_id);
 
     let raw_header = api
