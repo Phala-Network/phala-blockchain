@@ -1,13 +1,13 @@
-
 use super::Balance;
-use frame_support::{traits::{self, BalanceStatus}, dispatch::DispatchResult};
+use frame_support::{
+    dispatch::DispatchResult,
+    traits::{self, BalanceStatus},
+};
 
 use call_trace::{trace_with, CallContext, Trace};
 use sp_runtime::DispatchError;
 
-
 const ENOUGH: Balance = Balance::MAX / 2;
-
 
 struct Null;
 
@@ -20,7 +20,6 @@ impl Trace for Null {
         // println!("Exit {:?}", ctx);
     }
 }
-
 
 #[derive(Default)]
 pub struct NoImbalance;
@@ -67,7 +66,6 @@ impl traits::Imbalance<Balance> for NoImbalance {
         0
     }
 }
-
 
 pub struct NoCurrency;
 
@@ -133,10 +131,7 @@ impl<AccountId> traits::Currency<AccountId> for NoCurrency {
     }
 
     #[trace_with(Null)]
-    fn slash(
-        _who: &AccountId,
-        _value: Self::Balance,
-    ) -> (Self::NegativeImbalance, Self::Balance) {
+    fn slash(_who: &AccountId, _value: Self::Balance) -> (Self::NegativeImbalance, Self::Balance) {
         (traits::Imbalance::zero(), 0)
     }
 
@@ -173,35 +168,36 @@ impl<AccountId> traits::Currency<AccountId> for NoCurrency {
 }
 
 impl<AccountId> traits::ReservableCurrency<AccountId> for NoCurrency {
-	fn can_reserve(_: &AccountId, _: Self::Balance) -> bool {
-		true
-	}
-	fn slash_reserved(_: &AccountId, _: Self::Balance) -> (Self::NegativeImbalance, Self::Balance) {
-		(Default::default(), 0)
-	}
-	fn reserved_balance(_: &AccountId) -> Self::Balance {
-		0
-	}
-	fn reserve(_: &AccountId, _: Self::Balance) -> DispatchResult {
-		Ok(())
-	}
-	fn unreserve(_: &AccountId, _: Self::Balance) -> Self::Balance {
-		0
-	}
-	fn repatriate_reserved(
-		_: &AccountId,
-		_: &AccountId,
-		_: Self::Balance,
-		_: BalanceStatus,
-	) -> Result<Self::Balance, DispatchError> {
-		Ok(0)
-	}
+    fn can_reserve(_: &AccountId, _: Self::Balance) -> bool {
+        true
+    }
+    fn slash_reserved(_: &AccountId, _: Self::Balance) -> (Self::NegativeImbalance, Self::Balance) {
+        (Default::default(), 0)
+    }
+    fn reserved_balance(_: &AccountId) -> Self::Balance {
+        0
+    }
+    fn reserve(_: &AccountId, _: Self::Balance) -> DispatchResult {
+        Ok(())
+    }
+    fn unreserve(_: &AccountId, _: Self::Balance) -> Self::Balance {
+        0
+    }
+    fn repatriate_reserved(
+        _: &AccountId,
+        _: &AccountId,
+        _: Self::Balance,
+        _: BalanceStatus,
+    ) -> Result<Self::Balance, DispatchError> {
+        Ok(0)
+    }
 }
-
 
 pub struct NoAccountStore;
 
-impl<AccountId> traits::StoredMap<AccountId, pallet_balances::AccountData<Balance>> for NoAccountStore {
+impl<AccountId> traits::StoredMap<AccountId, pallet_balances::AccountData<Balance>>
+    for NoAccountStore
+{
     fn get(_: &AccountId) -> pallet_balances::AccountData<Balance> {
         pallet_balances::AccountData {
             free: ENOUGH,

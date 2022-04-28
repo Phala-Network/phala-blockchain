@@ -202,6 +202,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         })
     }
 
+    fn before_dispatch_block(&mut self, block: &blocks::BlockHeaderWithChanges){
+        // do something before dispatching block into system 
+    }
+    
+    fn after_dispatch_block(){
+
+    }
+
     pub(crate) fn dispatch_block(
         &mut self,
         blocks: Vec<blocks::BlockHeaderWithChanges>,
@@ -211,6 +219,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             blocks.first().map(|h| h.block_header.number),
             blocks.last().map(|h| h.block_header.number)
         );
+
+        // Currently take a snpshot storage waiting for use 
 
         let mut last_block = 0;
         for block in blocks.into_iter() {
@@ -231,6 +241,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         }
 
+        // also take checkpoint over this method 
+       //  self.chain_storage.commit();
+
         Ok(pb::SyncedTo {
             synced_to: last_block,
         })
@@ -243,6 +256,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
+        // TODO: modify the take_checkpoint logic to commit the checkpoint 
         self.take_checkpoint(current_block)
     }
 
@@ -340,11 +354,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             send_mq,
             recv_mq,
             storage_synchronizer,
+            // TODO: move out from the RuntimeState 
             chain_storage: if cfg!(feature = "memorydb") {
                 Default::default()
             } else {
-                // TODO:george should specific the storage path over the pkvdb
-                PhalaTrieStorage::new("/tmp/demo") 
+                // TODO:george should specific the storage path over the pkvd when pkvdb is stable in gramine
+                PhalaTrieStorage::new(self.args.storage_path) 
             },
             genesis_block_hash,
         };
@@ -614,7 +629,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let mut block = BlockInfo {
             block_number,
             now_ms,
-            storage,
+            storage, // storage is from the RuntimeState and we just replace this to total one 
             send_mq: &state.send_mq,
             recv_mq,
             side_task_man,

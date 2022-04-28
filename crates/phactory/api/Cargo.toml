@@ -17,6 +17,7 @@ phala-types = { path = "../../../crates/phala-types", default-features = false }
 prpc = { path = "../../../crates/prpc" }
 phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
+pkvdb = { path = "../../../crates/pkvdb" }
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
 
 sp-finality-grandpa = { path = "../../../substrate/primitives/finality-grandpa", package = "sp-finality-grandpa", default-features = false }
@@ -44,9 +45,6 @@ tempdir = { version = "0.3.7" }
 
 [features]
 default = ["std"]
-memorydb = [
-    "phala-trie-storage/memorydb",
-]
 std = [
     "derive_serde",
     "sp-core/full_crypto",

@@ -248,7 +248,7 @@ pub mod cluster {
         ) -> &mut Cluster {
             self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
                 let mut cluster = Cluster {
-                    storage: Default::default(),
+                    storage: Default::default(), // get a copy from global logic 
                     contracts: Default::default(),
                     key: cluster_key.clone(),
                 };
@@ -260,10 +260,22 @@ pub mod cluster {
                 cluster
             })
         }
+
+        pub fn create_cluster_with_storage(
+            &mut self,
+            cluster_id: &ContractClusterId,
+            cluster_key: &sr25519::Pair,
+            //TODO: type storage 
+        ) -> &mut Cluster {
+            unimplemented!()
+        }
     }
 
     #[derive(Serialize, Deserialize)]
     pub struct Cluster {
+
+        // skip the storage because the undelying is not volatile due to LevelDB 
+        #[serde(skip)]
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
         #[serde(with = "more::key_bytes")]

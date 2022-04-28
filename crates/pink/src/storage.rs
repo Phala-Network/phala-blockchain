@@ -3,32 +3,21 @@ use crate::{
     types::{AccountId, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
-use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
-use serde::{Deserialize, Serialize};
+use pkvdb::leveldb::Kvdb;
+use pkvdb::snapshot::SnapshotDB;
+use pkvdb::trie::CommitTransaction as TrieCommitTransaction;
+use pkvdb::trie::DBValue;
 use sp_runtime::DispatchError;
-use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
+use sp_state_machine::TrieBackend;
+use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
 
-mod backend;
+// used in pink to driven the contract running
+// FIXME: should use the phala trie storage type for this usage
+pub type PinkTrieBackend = TrieBackend<Kvdb<Hashing, DBValue>, Hashing>;
+pub type PinkSnapshotBackend = TrieBackend<SnapshotDB<Hashing, DBValue>, Hashing>;
 
-pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
-
-pub trait CommitTransaction: StorageBackend<Hashing> {
-    fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction);
-}
-
-impl CommitTransaction for InMemoryBackend {
-    fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction) {
-        self.apply_transaction(root, transaction);
-    }
-}
-
-pub trait Snapshot {
-    fn snapshot(&self) -> Self;
-}
-
-#[derive(Default)]
 pub struct Storage<Backend> {
-    backend: Backend,
+    pub(crate) backend: Backend,
 }
 
 impl<Backend> Storage<Backend> {
@@ -39,26 +28,16 @@ impl<Backend> Storage<Backend> {
 
 impl<Backend> Storage<Backend>
 where
-    Backend: Snapshot,
+    Backend: TrieCommitTransaction<Hashing>,
 {
-    pub fn snapshot(&self) -> Self {
-        Self {
-            backend: self.backend.snapshot(),
-        }
-    }
-}
-
-impl<Backend> Storage<Backend>
-where
-    Backend: StorageBackend<Hashing> + CommitTransaction,
-{
+    // execute the contract over current storage object
+    // if rollback is true no changes will be submit to the storage
     pub fn execute_with<R>(
         &mut self,
         rollback: bool,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
         let backend = self.backend.as_trie_backend().expect("No trie backend?");
-
         let mut overlay = OverlayedChanges::default();
         overlay.start_transaction();
         let mut cache = StorageTransactionCache::default();
@@ -66,8 +45,10 @@ where
         let r = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             crate::runtime::System::reset_events();
             let mode = if rollback {
+                // Note: makesure the ext carried the PinkSnapshotBackend
                 crate::runtime::CallMode::Query
             } else {
+                // Note: makesure the ext carried the PinkTrieBackend
                 crate::runtime::CallMode::Command
             };
             let r = crate::runtime::using_mode(mode, f);
@@ -77,29 +58,27 @@ where
             .commit_transaction()
             .expect("BUG: mis-paired transaction");
         if !rollback {
-            self.commit_changes(overlay);
+            // just directly commit overlay changes 
+            self.commit(overlay);
         }
         r
     }
 
-    pub fn changes_transaction(&self, changes: OverlayedChanges) -> (Hash, Backend::Transaction) {
+    // FIXME: should make the method as private?
+    pub fn commit(&mut self, changes: OverlayedChanges) {
         let delta = changes
             .changes()
             .map(|(k, v)| (&k[..], v.value().map(|v| &v[..])));
-        let child_delta = changes.children().map(|(changes, info)| {
+        let child_deltas = changes.children().map(|(changes, info)| {
             (
                 info,
                 changes.map(|(k, v)| (&k[..], v.value().map(|v| &v[..]))),
             )
         });
-
-        self.backend
-            .full_storage_root(delta, child_delta, sp_core::storage::StateVersion::V0)
-    }
-
-    pub fn commit_changes(&mut self, changes: OverlayedChanges) {
-        let (root, transaction) = self.changes_transaction(changes);
-        self.backend.commit_transaction(root, transaction)
+        let (root, transaction) =
+            self.backend
+                .full_storage_root(delta, child_deltas, sp_core::storage::StateVersion::V0);
+        self.backend.commit_transaction(root, transaction);
     }
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
@@ -127,21 +106,13 @@ where
     }
 }
 
-impl Serialize for Storage<InMemoryBackend> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let trie = self.backend.as_trie_backend().unwrap();
-        serialize_trie_backend(trie, serializer)
-    }
-}
+pub mod helper {
+    use super::*;
+    use crate::types::Hashing;
+    use sp_state_machine::InMemoryBackend;
 
-impl<'de> Deserialize<'de> for Storage<InMemoryBackend> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Self::new(deserialize_trie_backend(deserializer)?))
+    // only useful in test
+    pub fn new_in_memory() -> Storage<InMemoryBackend<Hashing>> {
+        Storage::new(Default::default())
     }
 }

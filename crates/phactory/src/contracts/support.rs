@@ -34,6 +34,8 @@ impl NativeContext<'_, '_> {
     }
 }
 
+// The Phala FatContract abstraction 
+// TODO: if we need on_block_begin lifecycle hook ?
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;

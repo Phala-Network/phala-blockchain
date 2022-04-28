@@ -481,7 +481,8 @@ impl<Platform: pal::Platform> System<Platform> {
             .get_cluster_mut(&contract.cluster_id())
             .expect("BUG: contract cluster should always exists")
             .storage
-            .snapshot();
+            .snapshot(); // TODO: here add snapshot for the pink storage 
+            // and we need to inital the storage from the a global variable storage 
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
@@ -1044,7 +1045,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &event.cluster);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
+            // TODO: should use the global storage to inject into it 
             // register cluster
+
+            // Phactory should know that if the 
             self.contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
             let message = WorkerClusterReport::ClusterDeployed {

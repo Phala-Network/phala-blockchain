@@ -34,6 +34,9 @@ pub struct InitArgs {
 
     /// Max number of checkpoint files kept
     pub max_checkpoint_files: u32,
+
+    // Phactory storage path 
+    pub storage_path: String,
 }
 
 pub fn git_revision() -> String {

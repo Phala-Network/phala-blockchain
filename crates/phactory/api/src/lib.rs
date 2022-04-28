@@ -10,5 +10,4 @@ pub use storage_sync::Storage;
 #[cfg(feature = "pruntime-client")]
 pub mod pruntime_client;
 pub mod ecall_args;
-
 mod proto_generated;

@@ -9,5 +9,6 @@ pub mod storage;
 
 pub mod types;
 
-pub use contract::{Contract, ContractFile, Storage, transpose_contract_result};
+pub use contract::{transpose_contract_result, Contract, ContractFile};
 pub use export_fixtures::load_test_wasm;
+pub use storage::Storage;

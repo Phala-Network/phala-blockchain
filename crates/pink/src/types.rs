@@ -1,4 +1,4 @@
-use sp_runtime::{AccountId32, traits::BlakeTwo256};
+use sp_runtime::{traits::BlakeTwo256, AccountId32};
 
 pub use frame_support::weights::Weight;
 

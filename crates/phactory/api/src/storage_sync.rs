@@ -9,10 +9,10 @@ use chain::Hash;
 use derive_more::Display;
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
-use phala_trie_storage::TransactionalDB;
-use phala_trie_storage::TrieStorage;
+use pkvdb::trie::PhalaTrieStorage;
 
-pub type Storage = TrieStorage<RuntimeHasher>;
+// TrieBackend<TrieBackendStorage<RuntimeHasher>, RuntimeHasher> 
+pub type Storage = PhalaTrieStorage<RuntimeHasher>;
 
 pub type Result<T> = core::result::Result<T, Error>;
 

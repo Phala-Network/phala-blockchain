@@ -29,4 +29,3 @@ impl-serde = "0.3"
 
 [features]
 default = ["serde"]
-memorydb = []

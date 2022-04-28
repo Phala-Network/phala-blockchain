@@ -1,5 +1,5 @@
 use phala_trie_storage::*;
-use pkvdb::LevelDB;
+use pkvdb::leveldb::LevelDB;
 use serde::{Deserialize, Serialize};
 use sp_core::Hasher;
 use sp_runtime::{traits::Hash, StateVersion};
@@ -50,9 +50,6 @@ type TestStorageCollection = Vec<(TestStorageKey, Option<TestStorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 type TestChildStorageCollection = Vec<(TestStorageKey, TestStorageCollection)>;
 
-// Note: every time the test should remove this dir and reopen
-static KVDB_TMP_PATH: &str = "/tmp/kvdb_trie_test";
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(crate = "serde")]
 struct RpcResponse {
@@ -102,21 +99,6 @@ fn load_genesis_trie() -> MemoryTrieStorage<NativeBlakeTwo256> {
     trie
 }
 
-fn load_genesis_kvdb_backend() -> TrieBackend<LevelDB<NativeBlakeTwo256>, NativeBlakeTwo256> {
-    let mut root = Default::default();
-    let mut db = LevelDB::<NativeBlakeTwo256>::new(KVDB_TMP_PATH);
-    let pairs = load_genesis_pair();
-    {
-        let mut trie_db = TrieDBMutV0::<NativeBlakeTwo256>::new(&mut db, &mut root);
-        for (key, value) in pairs {
-            if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
-                panic!("Insert item into trie DB should not fail");
-            }
-        }
-    }
-    TrieBackend::new(db, root)
-}
-
 fn map_storage_collection(collection: TestStorageCollection) -> StorageCollection {
     collection
         .into_iter()
@@ -152,23 +134,4 @@ fn test_apply_main_changes() {
     }
 }
 
-#[test]
-fn test_apply_main_changes_on_pkvdb() {
-    let mut trie = PkvdbTrieStorage::with_trie_backend(load_genesis_kvdb_backend());
-    let changes = load_changes();
-    let roots = load_roots();
 
-    for (number, change) in changes.into_iter().skip(1).take(30).enumerate() {
-        let main_storage_changes = map_storage_collection(change.main_storage_changes);
-        let child_storage_changes: Vec<_> = change
-            .child_storage_changes
-            .into_iter()
-            .map(|(k, v)| (k.0, map_storage_collection(v)))
-            .collect();
-
-        let (root, trans) =
-            trie.calc_root_if_changes(&main_storage_changes, &child_storage_changes);
-        trie.apply_changes(root, trans);
-        assert_eq!(format!("{:?}", trie.root()), roots[number + 1]);
-    }
-}

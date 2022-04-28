@@ -102,7 +102,7 @@ fn main() {
     env_logger::Builder::from_env(env).init();
 
     let init_args = InitArgs {
-        sealing_path,
+        sealing_path, // use this path to keep storage save 
         log_filter: Default::default(),
         init_bench: args.init_bench,
         version: env!("CARGO_PKG_VERSION").into(),
@@ -112,6 +112,8 @@ fn main() {
         checkpoint_interval: args.checkpoint_interval,
         remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
         max_checkpoint_files: args.max_checkpoint_files,
+        //TODO:george should use the path under gramine when pkvdb is stable
+        // storage_path: String::from("/tmp/pruntime_storage"),
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {

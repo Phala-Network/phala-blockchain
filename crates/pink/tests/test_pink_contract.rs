@@ -1,5 +1,6 @@
 use frame_support::assert_ok;
 use hex_literal::hex;
+use pink::storage::helper::new_in_memory;
 use pink::Contract;
 use pink_extension::PinkEvent;
 use sp_runtime::AccountId32;
@@ -8,7 +9,7 @@ pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
 #[test]
 fn test_ink_flip() {
-    let mut storage = Contract::new_storage();
+    let mut storage = new_in_memory();
     let code_hash = storage
         .upload_code(
             ALICE.clone(),
@@ -96,7 +97,7 @@ fn test_load_contract_file() {
 
 #[test]
 fn test_ink_cross_contract_instanciate() {
-    let mut storage = Contract::new_storage();
+    let mut storage = new_in_memory();
     let code_hash = storage
         .upload_code(
             ALICE.clone(),
@@ -154,7 +155,7 @@ fn test_ink_cross_contract_instanciate() {
 
 #[test]
 fn test_mq_egress() {
-    let mut storage = Contract::new_storage();
+    let mut storage = new_in_memory();
     let code_hash = storage
         .upload_code(
             ALICE.clone(),
@@ -205,7 +206,7 @@ fn test_mq_egress() {
 
 #[test]
 fn test_on_block_end() {
-    let mut storage = Contract::new_storage();
+    let mut storage = new_in_memory();
     let code_hash = storage
         .upload_code(
             ALICE.clone(),
@@ -243,7 +244,7 @@ fn test_on_block_end() {
 }
 
 fn test_with_wasm(wasm: &[u8], constructor: [u8; 4], message: [u8; 4]) {
-    let mut storage = Contract::new_storage();
+    let mut storage = new_in_memory();
     storage.set_key_seed([1u8; 64]);
     let code_hash = storage.upload_code(ALICE.clone(), wasm.to_vec()).unwrap();
 

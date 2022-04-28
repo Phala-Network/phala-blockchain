@@ -7,7 +7,7 @@ edition = "2018"
 phala-mq = { path = "../../crates/phala-mq" }
 phala-types = { path = "../../crates/phala-types" }
 phala-trie-storage = { path = "../../crates/phala-trie-storage" }
-phactory = { path = "../../crates/phactory", features = ["memorydb"] }
+phactory = { path = "../../crates/phactory"}
 phactory-api = { path = "../../crates/phactory/api" }
 pherry = { path = "../pherry" }
 sp-core = { path = "../../substrate/primitives/core", default-features = false }

@@ -131,7 +131,6 @@ impl Config for PinkRuntime {
     type AddressGenerator = Pink;
 }
 
-
 #[derive(Clone, Copy)]
 pub enum CallMode {
     Query,

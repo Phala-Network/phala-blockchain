@@ -2,7 +2,6 @@
 pub mod ser;
 use core::iter::FromIterator;
 use parity_scale_codec::Codec;
-use pkvdb::LevelDB;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sp_core::storage::ChildInfo;
@@ -12,7 +11,6 @@ use sp_std::vec::Vec;
 #[cfg(feature = "serde")]
 use sp_trie::HashDBT as _;
 use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
-use std::path::Path;
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -31,15 +29,9 @@ pub type Transaction<H> = MemoryDB<H>;
 
 pub type MemoryTrieBackend<H> = TrieStorageBackend<MemoryDB<H>, H>;
 
-pub type PkvdbTrieBackend<H> = TrieStorageBackend<LevelDB<H>, H>;
-
-#[cfg(feature = "memorydb")]
 pub type TrieBackend<H> = MemoryTrieBackend<H>;
-
-#[cfg(feature = "memorydb")]
 pub type TrieStorage<H> = MemoryTrieStorage<H>;
 
-#[cfg(feature = "memorydb")]
 pub fn snapshot<H: Hasher>(backend: &TrieBackend<H>) -> TrieBackend<H>
 where
     H::Out: Codec,
@@ -59,22 +51,6 @@ where
         }
     }
     MemoryTrieBackend::<H>::new(mdb, *root)
-}
-
-#[cfg(not(feature = "memorydb"))]
-pub type TrieBackend<H> = PkvdbTrieBackend<H>;
-
-#[cfg(not(feature = "memorydb"))]
-pub type TrieStorage<H> = PkvdbTrieStorage<H>;
-
-#[cfg(not(feature = "memorydb"))]
-pub fn snapshot<H: Hasher>(backend: &TrieBackend<H>) -> TrieBackend<H>
-where
-    H::Out: Codec,
-{
-    let root = backend.root().clone();
-    let underlying = backend.backend_storage().clone();
-    PkvdbTrieBackend::<H>::new(underlying, root)
 }
 
 #[cfg(feature = "serde")]
@@ -118,6 +94,7 @@ where
 
 // Transactional Database trait
 pub trait TransactionalDB<H: Hasher> {
+
     /// calculate if the deltas changes the merkle root
     fn calc_root_if_changes<'a>(
         &self,
@@ -133,73 +110,6 @@ pub trait TransactionalDB<H: Hasher> {
 
     /// get value from the db over the key
     fn get(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;
-}
-
-// TrieStorage with pkvdb on gramine protected filesystem
-pub struct PkvdbTrieStorage<H: Hasher>(PkvdbTrieBackend<H>);
-
-impl<H: Hasher> PkvdbTrieStorage<H>
-where
-    H::Out: Codec,
-{
-    pub fn with_trie_backend(backend: PkvdbTrieBackend<H>) -> Self {
-        Self(backend)
-    }
-
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self::with_trie_backend(PkvdbTrieBackend::<H>::new(
-            LevelDB::new(path),
-            Default::default(),
-        ))
-    }
-
-    pub fn flush(&self) {
-        self.0.backend_storage().flush();
-    }
-}
-
-impl<H: Hasher> TransactionalDB<H> for PkvdbTrieStorage<H>
-where
-    H::Out: Codec + Ord,
-{
-    fn calc_root_if_changes<'a>(
-        &self,
-        delta: &'a StorageCollection,
-        child_deltas: &'a ChildStorageCollection,
-    ) -> (H::Out, Transaction<H>) {
-        let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
-            .iter()
-            .map(|(k, v)| {
-                let chinfo = ChildInfo::new_default(k);
-                (chinfo, v)
-            })
-            .collect();
-        self.0.full_storage_root(
-            delta
-                .iter()
-                .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
-            child_deltas.iter().map(|(k, v)| {
-                (
-                    k,
-                    v.iter()
-                        .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
-                )
-            }),
-            sp_core::storage::StateVersion::V0,
-        )
-    }
-
-    fn apply_changes(&mut self, _root: H::Out, transaction: Transaction<H>) {
-        self.0.backend_storage().consolidate(transaction)
-    }
-
-    fn root(&self) -> &H::Out {
-        self.0.root()
-    }
-
-    fn get(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-        self.0.storage(key.as_ref()).ok().flatten()
-    }
 }
 
 // In memory TrieStorage with MemoryDB

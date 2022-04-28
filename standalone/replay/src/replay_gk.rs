@@ -15,7 +15,6 @@ use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
 use phala_mq::Path as MqPath;
 use phactory_api::Storage as TrieStorage;
-use phala_trie_storage::TransactionalDB;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
 use pherry::types::{
