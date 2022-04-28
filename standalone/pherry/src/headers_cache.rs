@@ -6,16 +6,13 @@ use phaxt::{
     subxt::{self, rpc::NumberOrHex},
     BlockNumber, Header, ParachainApi, RelaychainApi,
 };
-use std::{
-    io::{Read, Write},
-    mem::replace,
-};
+use std::io::{Read, Write};
 
 use log::{debug, info};
 
 pub use phactory_api::blocks::GenesisBlockInfo;
 
-#[derive(Decode, Encode)]
+#[derive(Decode, Encode, Debug)]
 pub struct BlockInfo {
     pub header: Header,
     pub justification: Option<Vec<u8>>,
@@ -23,7 +20,7 @@ pub struct BlockInfo {
     pub authority_set_change: Option<AuthoritySetChange>,
 }
 
-#[derive(Decode, Encode)]
+#[derive(Decode, Encode, Debug)]
 pub struct ParaHeader {
     /// Finalized parachain header number
     pub fin_header_num: BlockNumber,
@@ -72,10 +69,8 @@ pub async fn grap_headers_to_file(
         count,
         justification_interval,
         |info| {
-            if info.header.number % 102400 == 0 {
-                info!("Grabbed to {}", info.header.number);
-            } else {
-                debug!("Grabbed to {}", info.header.number);
+            if info.justification.is_some() {
+                info!("Got justification at {}", info.header.number);
             }
             let encoded = info.encode();
             let length = encoded.len() as u32;
@@ -85,6 +80,12 @@ pub async fn grap_headers_to_file(
         },
     )
     .await
+}
+
+pub async fn get_set_id(api: &RelaychainApi, block: BlockNumber) -> Result<(u64, bool)> {
+    let (block, hash) = crate::get_block_at(&api.client, Some(block)).await?;
+    let set_id = api.storage().grandpa().current_set_id(Some(hash)).await?;
+    Ok((set_id, block.justifications.is_some()))
 }
 
 async fn grab_headers(
@@ -101,13 +102,12 @@ async fn grab_headers(
     if count == 0 {
         return Ok(0);
     }
-    let (mut last_header, mut last_header_hash) =
-        crate::get_header_at(&api.client, Some(start_at)).await?;
-    let mut last_justifications = None;
+
+    let header_hash = crate::get_header_hash(&api.client, Some(start_at - 1)).await?;
     let mut last_set = api
         .storage()
         .grandpa()
-        .current_set_id(Some(last_header_hash))
+        .current_set_id(Some(header_hash))
         .await?;
     let mut skip_justitication = justification_interval;
     let mut grabbed = 0;
@@ -115,7 +115,7 @@ async fn grab_headers(
     let para_id = crate::get_paraid(para_api, None).await?;
     info!("para_id: {}", para_id);
 
-    for block_number in start_at + 1.. {
+    for block_number in start_at.. {
         let header;
         let justifications;
         let hash;
@@ -148,50 +148,41 @@ async fn grab_headers(
             hash = hdr_hash;
             justifications = None;
         };
-        if header.parent_hash != last_header_hash {
-            anyhow::bail!(
-                "parent hash mismatch, block={}, parent={}, last={}",
-                header.number,
-                header.parent_hash,
-                last_header_hash
-            );
-        }
         let set_id = api.storage().grandpa().current_set_id(Some(hash)).await?;
+        let mut justifications = justifications;
         let authority_set_change = if last_set != set_id {
             info!(
                 "Authority set changed at block {} from {} to {}",
                 header.number, last_set, set_id,
             );
-            if last_justifications.is_none() {
-                last_justifications = api
-                    .client
-                    .rpc()
-                    .block(Some(last_header_hash.clone()))
-                    .await?
-                    .ok_or(anyhow!("No justification for block changing set_id"))?
-                    .justifications;
+            if justifications.is_none() {
+                justifications = Some(
+                    api.client
+                        .rpc()
+                        .block(Some(hash))
+                        .await?
+                        .ok_or(anyhow!("Failed to fetch block"))?
+                        .justifications
+                        .ok_or(anyhow!("No justification for block changing set_id"))?,
+                );
             }
-            Some(crate::get_authority_with_proof_at(&api, last_header_hash).await?)
+            Some(crate::get_authority_with_proof_at(&api, hash).await?)
         } else {
             None
         };
 
-        skip_justitication = skip_justitication.saturating_sub(1);
-
-        let last_header = replace(&mut last_header, header);
-        let last_justifications = replace(&mut last_justifications, justifications);
-        let last_header_hash = replace(&mut last_header_hash, hash);
-        last_set = set_id;
-
-        let justification = last_justifications
+        let justification = justifications
             .map(|v| v.into_justification(GRANDPA_ENGINE_ID))
             .flatten();
+
+        skip_justitication = skip_justitication.saturating_sub(1);
+        last_set = set_id;
 
         let para_header = if justification.is_none() {
             None
         } else {
             skip_justitication = justification_interval;
-            crate::get_finalized_header_with_paraid(api, para_id, last_header_hash).await?
+            crate::get_finalized_header_with_paraid(api, para_id, hash).await?
         };
 
         let para_header = para_header.map(|(header, proof)| ParaHeader {
@@ -200,7 +191,7 @@ async fn grab_headers(
         });
 
         f(BlockInfo {
-            header: last_header,
+            header,
             justification,
             para_header,
             authority_set_change,

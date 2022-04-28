@@ -97,6 +97,12 @@ enum Action {
         #[clap(long, default_value = "cache.db")]
         db: String,
     },
+    /// For debug. Show the authority set id for a given block
+    ShowSetId {
+        #[clap(long)]
+        uri: String,
+        block: BlockNumber,
+    },
 }
 
 #[tokio::main]
@@ -105,38 +111,40 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
     match args.action {
-        Action::Grab { what } => {
-            match what {
-                Grab::Headers {
-                    node_uri,
-                    para_node_uri,
+        Action::Grab { what } => match what {
+            Grab::Headers {
+                node_uri,
+                para_node_uri,
+                from_block,
+                count,
+                justification_interval,
+                output,
+            } => {
+                let api = pherry::subxt_connect(&node_uri).await?.into();
+                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let output = File::create(output)?;
+                let count = cache::grap_headers_to_file(
+                    &api,
+                    &para_api,
                     from_block,
                     count,
                     justification_interval,
                     output,
-                } => {
-                    let api = pherry::subxt_connect(&node_uri).await?.into();
-                    let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
-                    let output = File::create(output)?;
-                    let count = cache::grap_headers_to_file(
-                        &api,
-                        &para_api,
-                        from_block,
-                        count,
-                        justification_interval,
-                        output,
-                    )
-                    .await?;
-                    println!("{} headers written", count);
-                }
-                Grab::Genesis { node_uri, block, output } => {
-                    let api = pherry::subxt_connect(&node_uri).await?.into();
-                    let mut output = File::create(output)?;
-                    let info = cache::fetch_genesis_info(&api, block).await?;
-                    output.write_all(info.encode().as_ref())?;
-                }
+                )
+                .await?;
+                println!("{} headers written", count);
             }
-        }
+            Grab::Genesis {
+                node_uri,
+                block,
+                output,
+            } => {
+                let api = pherry::subxt_connect(&node_uri).await?.into();
+                let mut output = File::create(output)?;
+                let info = cache::fetch_genesis_info(&api, block).await?;
+                output.write_all(info.encode().as_ref())?;
+            }
+        },
         Action::Import { db, what } => {
             let mut cache = db::CacheDB::open(&db)?;
             match what {
@@ -156,6 +164,11 @@ async fn main() -> anyhow::Result<()> {
         }
         Action::Serve { db } => {
             web_api::serve(&db)?;
+        }
+        Action::ShowSetId { uri, block } => {
+            let api = pherry::subxt_connect(&uri).await?.into();
+            let id = cache::get_set_id(&api, block).await?;
+            println!("{:?}", id);
         }
     }
     Ok(())

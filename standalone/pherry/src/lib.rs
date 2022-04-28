@@ -1035,13 +1035,18 @@ async fn bridge(
                     None => {
                         // No jusfication found. So don't send it to the pruntime.
                         cached_headers.clear();
-                        // Also Drop the cache_client?
                         break;
                     }
                 };
-                let has_justification = info.justification.is_some();
+                info!(
+                    "Got header {} from cache server, has justification: {}",
+                    info.header.number,
+                    info.justification.is_some()
+                );
+                let end = info.justification.is_some() || info.authority_set_change.is_some();
+
                 cached_headers.push(info);
-                if has_justification {
+                if end {
                     break;
                 }
             }
@@ -1057,6 +1062,8 @@ async fn bridge(
                 )
                 .await?;
                 continue;
+            } else {
+                info!("Header cache missing");
             }
         }
 
@@ -1101,24 +1108,22 @@ async fn bridge(
             }
         };
 
-        if !args.parachain {
-            // TODO.kevin: batch request blocks and changes.
-            for b in next_block..=batch_end {
-                let block = if args.parachain {
-                    get_block_without_storage_changes(&api, Some(b)).await?
-                } else {
-                    // api and para_api are connected to the same node in solochain mode
-                    get_block_with_storage_changes(&para_api, Some(b)).await?
-                };
+        // TODO.kevin: batch request blocks and changes.
+        for b in next_block..=batch_end {
+            let block = if args.parachain {
+                get_block_without_storage_changes(&api, Some(b)).await?
+            } else {
+                // api and para_api are connected to the same node in solochain mode
+                get_block_with_storage_changes(&para_api, Some(b)).await?
+            };
 
-                if block.block.justifications.is_some() {
-                    debug!(
-                        "block with justification at: {}",
-                        block.block.block.header.number
-                    );
-                }
-                sync_state.blocks.push(block.clone());
+            if block.block.justifications.is_some() {
+                debug!(
+                    "block with justification at: {}",
+                    block.block.block.header.number
+                );
             }
+            sync_state.blocks.push(block.clone());
         }
 
         let next_headernum = info.para_headernum;
@@ -1317,10 +1322,7 @@ async fn sync_with_cached_headers(
         None => return Ok(()),
     };
     let authority_set_change = last_header.authority_set_change.take();
-    let para_header = last_header
-        .para_header
-        .take()
-        .ok_or(anyhow!("attachment is missing in the last header"))?;
+    let para_header = last_header.para_header.take();
 
     let headers = headers
         .into_iter()
@@ -1332,21 +1334,23 @@ async fn sync_with_cached_headers(
     let r = req_sync_header(pr, headers, authority_set_change).await?;
     info!("  ..sync_header: {:?}", r);
 
-    let hdr_synced_to = sync_parachain_header(
-        pr,
-        para_api,
-        para_header.fin_header_num,
-        next_para_headernum,
-        para_header.proof,
-    )
-    .await?;
-    let mut para_blocks = Vec::new();
-    if next_blocknum <= hdr_synced_to {
-        for b in next_blocknum..=hdr_synced_to {
-            let block = get_block_with_storage_changes(&para_api, Some(b)).await?;
-            para_blocks.push(block.clone());
+    if let Some(para_header) = para_header {
+        let hdr_synced_to = sync_parachain_header(
+            pr,
+            para_api,
+            para_header.fin_header_num,
+            next_para_headernum,
+            para_header.proof,
+        )
+        .await?;
+        let mut para_blocks = Vec::new();
+        if next_blocknum <= hdr_synced_to {
+            for b in next_blocknum..=hdr_synced_to {
+                let block = get_block_with_storage_changes(&para_api, Some(b)).await?;
+                para_blocks.push(block.clone());
+            }
         }
+        let _ = dispatch_blocks(pr, batch_window, &mut para_blocks, 0).await?;
     }
-    let _ = dispatch_blocks(pr, batch_window, &mut para_blocks, 0).await?;
     Ok(())
 }
