@@ -94,7 +94,6 @@ where
 
 // Transactional Database trait
 pub trait TransactionalDB<H: Hasher> {
-
     /// calculate if the deltas changes the merkle root
     fn calc_root_if_changes<'a>(
         &self,

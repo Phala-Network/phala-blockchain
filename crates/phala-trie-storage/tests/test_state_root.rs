@@ -50,6 +50,9 @@ type TestStorageCollection = Vec<(TestStorageKey, Option<TestStorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 type TestChildStorageCollection = Vec<(TestStorageKey, TestStorageCollection)>;
 
+// Note: every time the test should remove this dir and reopen
+static KVDB_TMP_PATH: &str = "/tmp/kvdb_trie_test";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(crate = "serde")]
 struct RpcResponse {
@@ -99,6 +102,21 @@ fn load_genesis_trie() -> MemoryTrieStorage<NativeBlakeTwo256> {
     trie
 }
 
+fn load_genesis_kvdb_backend() -> TrieBackend<LevelDB<NativeBlakeTwo256>, NativeBlakeTwo256> {
+    let mut root = Default::default();
+    let mut db = LevelDB::<NativeBlakeTwo256>::new(KVDB_TMP_PATH);
+    let pairs = load_genesis_pair();
+    {
+        let mut trie_db = TrieDBMutV0::<NativeBlakeTwo256>::new(&mut db, &mut root);
+        for (key, value) in pairs {
+            if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
+                panic!("Insert item into trie DB should not fail");
+            }
+        }
+    }
+    TrieBackend::new(db, root)
+}
+
 fn map_storage_collection(collection: TestStorageCollection) -> StorageCollection {
     collection
         .into_iter()
@@ -133,5 +151,4 @@ fn test_apply_main_changes() {
         assert_eq!(format!("{:?}", trie.root()), roots[number + 1]);
     }
 }
-
 
