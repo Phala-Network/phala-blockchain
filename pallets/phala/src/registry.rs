@@ -158,7 +158,7 @@ pub mod pallet {
 		PRuntimeNotFound,
 		// Additional
 		UnknownCluster,
-		Unsupported,
+		NotImplemented,
 	}
 
 	#[pallet::call]
@@ -269,7 +269,7 @@ pub mod pallet {
 			gatekeeper: WorkerPublicKey,
 			sig: [u8; 64],
 		) -> DispatchResult {
-			Err(Error::<T>::Unsupported.into())
+			Err(Error::<T>::NotImplemented.into())
 		}
 
 		/// Registers a worker on the blockchain
