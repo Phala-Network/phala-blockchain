@@ -213,7 +213,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let counters = self.runtime_state()?.storage_synchronizer.counters();
         blocks.retain(|b| b.block_header.number >= counters.next_block_number);
 
-        let mut last_block = 0;
+        let mut last_block = counters.next_block_number - 1;
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
             let state = self.runtime_state()?;
