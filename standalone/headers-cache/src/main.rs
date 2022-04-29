@@ -45,7 +45,7 @@ enum Grab {
         /// The relaychain RPC endpoint
         #[clap(long, default_value = "ws://localhost:9945")]
         node_uri: String,
-        /// The block number to start at
+        /// The parachain RPC endpoint
         #[clap(long, default_value = "ws://localhost:9944")]
         para_node_uri: String,
         /// The block number to start at
@@ -54,7 +54,7 @@ enum Grab {
         /// Number of headers to grab
         #[clap(long, default_value_t = BlockNumber::MAX)]
         count: BlockNumber,
-        /// Minimum number of blocks between justification
+        /// Prefered minimum number of blocks between justification
         #[clap(long, default_value_t = 1000)]
         justification_interval: BlockNumber,
         /// The file to write the headers to
