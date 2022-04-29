@@ -1195,6 +1195,11 @@ pub mod pallet {
 			}
 			WithdrawalTimestamps::<T>::put(&t);
 		}
+
+		pub(crate) fn migration_remove_assignments() -> Weight {
+			let writes = WorkerAssignments::<T>::drain().count();
+			T::DbWeight::get().writes(writes as _)
+		}
 	}
 
 	impl<T: Config> mining::OnReward for Pallet<T>
