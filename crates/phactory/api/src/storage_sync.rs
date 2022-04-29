@@ -325,7 +325,10 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         let last_header =
             self.sync_state
                 .sync_header(headers, authority_set_change, &mut state_roots)?;
-        self.last_relaychain_state_root = state_roots.pop_back();
+        // Don't overwrite the last state_root if given headers is empty
+        if let Some(last_root) = state_roots.pop_back() {
+            self.last_relaychain_state_root = Some(last_root);
+        }
         Ok(last_header)
     }
 
