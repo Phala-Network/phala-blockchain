@@ -118,6 +118,7 @@ impl AsyncBufRead for TcpStream {
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
     ) -> Poll<std::io::Result<&[u8]>> {
+        // When the `start` reaches `filled`, both are reset to zero.
         if self.filled == self.start {
             match ocall::poll_read(self.res_id.0, &mut self.buf[..]) {
                 Ok(env::Poll::Pending) => return Poll::Pending,
