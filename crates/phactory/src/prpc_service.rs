@@ -203,13 +203,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub(crate) fn dispatch_block(
         &mut self,
-        blocks: Vec<blocks::BlockHeaderWithChanges>,
+        mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
             "dispatch_block from={:?} to={:?}",
             blocks.first().map(|h| h.block_header.number),
             blocks.last().map(|h| h.block_header.number)
         );
+        let counters = self.runtime_state()?.storage_synchronizer.counters();
+        blocks.retain(|b| b.block_header.number >= counters.next_block_number);
 
         let mut last_block = 0;
         for block in blocks.into_iter() {
