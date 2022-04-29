@@ -8,7 +8,7 @@ use phaxt::{
 };
 use std::io::{Read, Write};
 
-use log::{debug, info};
+use log::info;
 
 pub use phactory_api::blocks::GenesisBlockInfo;
 
@@ -245,8 +245,8 @@ impl Client {
         Ok(T::decode(&mut &body[..])?)
     }
 
-    pub async fn get_header(&self, block_number: BlockNumber) -> Result<BlockInfo> {
-        let url = format!("{}/header/{}", self.base_uri, block_number);
+    pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {
+        let url = format!("{}/headers/{}", self.base_uri, block_number);
         self.request(&url).await
     }
 

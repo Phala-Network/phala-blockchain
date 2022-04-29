@@ -1028,30 +1028,16 @@ async fn bridge(
         .ok();
 
         if let (true, Some(cache)) = (args.parachain, &cache_client) {
-            let mut cached_headers = vec![];
-            for block in info.headernum.. {
-                let info = match cache.get_header(block).await.ok() {
-                    Some(info) => info,
-                    None => {
-                        // No jusfication found. So don't send it to the pruntime.
-                        cached_headers.clear();
-                        break;
-                    }
-                };
+            info!("Fetching headers at {} from cache...", info.headernum);
+            let cached_headers = cache.get_headers(info.headernum).await.unwrap_or_default();
+            if cached_headers.is_empty() {
+                info!("Header cache missing at {}", info.headernum);
+            } else {
                 info!(
-                    "Got header {} from cache server, has justification: {}",
-                    info.header.number,
-                    info.justification.is_some()
+                    "Syncing {} cached headers start from {}",
+                    cached_headers.len(),
+                    cached_headers[0].header.number
                 );
-                let end = info.justification.is_some() || info.authority_set_change.is_some();
-
-                cached_headers.push(info);
-                if end {
-                    break;
-                }
-            }
-            if !cached_headers.is_empty() {
-                info!("Syncing {} cached headers", cached_headers.len());
                 sync_with_cached_headers(
                     &pr,
                     &para_api,
@@ -1062,8 +1048,6 @@ async fn bridge(
                 )
                 .await?;
                 continue;
-            } else {
-                info!("Header cache missing");
             }
         }
 
