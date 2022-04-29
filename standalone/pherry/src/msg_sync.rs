@@ -1,12 +1,11 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use log::{error, info};
 use phaxt::subxt::extrinsic::Signer;
-use sp_runtime::generic::Era;
 use std::time::Duration;
 
 use crate::{
     chain_client::{mq_next_sequence, update_signer_nonce},
-    types::{Hash, ParachainApi, PrClient, SrSigner},
+    types::{ParachainApi, PrClient, SrSigner},
 };
 pub use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -38,30 +37,6 @@ pub async fn maybe_sync_mq_egress(
 
     update_signer_nonce(api, signer).await?;
 
-    let era = if longevity > 0 {
-        let header = api
-            .client
-            .rpc()
-            .header(<Option<Hash>>::None)
-            .await?
-            .ok_or_else(|| anyhow!("No header"))?;
-        let number = header.number as u64;
-        let period = longevity;
-        let phase = number % period;
-        let era = Era::Mortal(period, phase);
-        info!(
-            "update era: block={}, period={}, phase={}, birth={}, death={}",
-            number,
-            period,
-            phase,
-            era.birth(number),
-            era.death(number)
-        );
-        Some((era, header.hash()))
-    } else {
-        None
-    };
-
     let mut sync_msgs_count = 0;
 
     'sync_outer: for (sender, messages) in messages {
@@ -86,13 +61,7 @@ pub async fn maybe_sync_mq_egress(
             );
             info!("Submitting message: {}", msg_info);
 
-            let params = if let Some((era, checkpoint)) = era {
-                phaxt::ExtrinsicParamsBuilder::new()
-                    .tip(tip)
-                    .era(era, checkpoint)
-            } else {
-                phaxt::ExtrinsicParamsBuilder::new().tip(tip)
-            };
+            let params = crate::mk_params(api, longevity, tip).await?;
             let extrinsic = api
                 .tx()
                 .phala_mq()

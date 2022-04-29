@@ -14,7 +14,7 @@ pub use sp_runtime::generic::Block;
 pub use subxt::rpc::NumberOrHex;
 
 pub type PrClient = pruntime_client::PRuntimeClient;
-pub type SrSigner = subxt::PairSigner<phaxt::DefaultConfig, sr25519::Pair>;
+pub type SrSigner = subxt::PairSigner<phaxt::Config, sr25519::Pair>;
 
 pub type SignedBlock<Hdr, Ext> = SpSignedBlock<Block<Hdr, Ext>>;
 

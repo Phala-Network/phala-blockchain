@@ -20,14 +20,16 @@ pub mod rpc;
 pub type ParachainApi = khala::RuntimeApi<DefaultConfig, ExtrinsicParams>;
 pub type RelaychainApi = kusama::RuntimeApi<DefaultConfig, ExtrinsicParams>;
 pub type ExtrinsicParams = DefaultExtrinsicParams<DefaultConfig>;
+pub type ExtrinsicParamsBuilder = DefaultExtrinsicParamsBuilder<DefaultConfig>;
+pub use subxt::DefaultConfig as Config;
 
 pub use subxt;
 pub use subxt::sp_core::storage::{StorageData, StorageKey};
 
-pub use subxt::{
+use subxt::{
     extrinsic::{
         PolkadotExtrinsicParams as DefaultExtrinsicParams,
-        PolkadotExtrinsicParamsBuilder as ExtrinsicParamsBuilder,
+        PolkadotExtrinsicParamsBuilder as DefaultExtrinsicParamsBuilder,
     },
     DefaultConfig,
 };
