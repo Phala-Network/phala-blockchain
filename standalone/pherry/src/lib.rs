@@ -37,7 +37,7 @@ use notify_client::NotifyClient;
 
 #[derive(Parser, Debug)]
 #[clap(
-    about = "Sync messages between Phala TEE and the blockchain.",
+    about = "Sync messages between pruntime and the blockchain.",
     version,
     author
 )]
