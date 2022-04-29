@@ -67,7 +67,7 @@ enum Grab {
         node_uri: String,
         /// The block number to be treated as genesis
         #[clap(long, default_value_t = 0)]
-        block: BlockNumber,
+        from_block: BlockNumber,
         /// The file to write the result to
         #[clap(default_value = "genesis.bin")]
         output: String,
@@ -155,12 +155,12 @@ async fn main() -> anyhow::Result<()> {
             }
             Grab::Genesis {
                 node_uri,
-                block,
+                from_block,
                 output,
             } => {
                 let api = pherry::subxt_connect(&node_uri).await?.into();
                 let mut output = File::create(output)?;
-                let info = cache::fetch_genesis_info(&api, block).await?;
+                let info = cache::fetch_genesis_info(&api, from_block).await?;
                 output.write_all(info.encode().as_ref())?;
             }
         },
