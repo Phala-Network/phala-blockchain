@@ -26,9 +26,9 @@ pub struct Args {
 enum Import {
     /// Import headers from given file to database.
     Headers {
-        /// The grabbed headers file to read from
+        /// The grabbed headers files to read from
         #[clap(default_value = "headers.bin")]
-        input: String,
+        input_files: Vec<String>,
     },
     /// Import genesis from given file to database.
     Genesis {
@@ -148,10 +148,13 @@ async fn main() -> anyhow::Result<()> {
         Action::Import { db, what } => {
             let mut cache = db::CacheDB::open(&db)?;
             match what {
-                Import::Headers { input } => {
-                    let input = File::open(&input)?;
-                    let count = cache::import_headers(input, &mut cache).await?;
-                    println!("{} headers imported", count);
+                Import::Headers { input_files } => {
+                    for filename in input_files {
+                        println!("Importing headers from {}", filename);
+                        let input = File::open(&filename)?;
+                        let count = cache::import_headers(input, &mut cache).await?;
+                        println!("{} headers imported", count);
+                    }
                 }
                 Import::Genesis { input } => {
                     let data = std::fs::read(input)?;
