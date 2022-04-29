@@ -97,6 +97,25 @@ enum Action {
         #[clap(long, default_value = "cache.db")]
         db: String,
     },
+    /// Split given grabbed headers file into chunks
+    Split {
+        /// Size in MB of each chunk
+        #[clap(long, default_value_t = 200)]
+        size: usize,
+
+        /// The headers file to split
+        file: String,
+    },
+    /// Merge given chunks into a single file
+    Merge {
+        /// Appending to existing file
+        #[clap(long, short = 'a')]
+        append: bool,
+        /// The destination file to write to
+        dest_file: String,
+        /// The header chunk files to merge.
+        files: Vec<String>,
+    },
     /// For debug. Show the authority set id for a given block
     ShowSetId {
         #[clap(long)]
@@ -152,7 +171,7 @@ async fn main() -> anyhow::Result<()> {
                     for filename in input_files {
                         println!("Importing headers from {}", filename);
                         let input = File::open(&filename)?;
-                        let count = cache::import_headers(input, &mut cache).await?;
+                        let count = cache::import_headers(input, &mut cache)?;
                         println!("{} headers imported", count);
                     }
                 }
@@ -172,6 +191,50 @@ async fn main() -> anyhow::Result<()> {
             let api = pherry::subxt_connect(&uri).await?.into();
             let id = cache::get_set_id(&api, block).await?;
             println!("{:?}", id);
+        }
+        Action::Split { size, file } => {
+            let mut input = File::open(&file)?;
+            let tmpfile = format!("{file}.output.tmp");
+            let limit = size * 1024 * 1024;
+            loop {
+                let mut outfile = File::create(&tmpfile)?;
+                let mut file_size = 0;
+                let mut first = 0;
+                let mut last = 0;
+                let count = cache::read_items(&mut input, |hdr, data| {
+                    outfile.write_all(data)?;
+                    if first == 0 {
+                        first = hdr.number;
+                    }
+                    last = hdr.number;
+                    file_size += data.len();
+                    Ok(file_size >= limit)
+                })?;
+                drop(outfile);
+                if count == 0 {
+                    std::fs::remove_file(&tmpfile)?;
+                    break;
+                } else {
+                    let filename = format!("{file}_{first:0>9}-{last:0>9}");
+                    std::fs::rename(&tmpfile, &filename)?;
+                    println!("Saved {}", filename);
+                }
+            }
+        }
+        Action::Merge {
+            append,
+            dest_file,
+            files,
+        } => {
+            let mut output = if append {
+                std::fs::OpenOptions::new().append(true).open(dest_file)?
+            } else {
+                File::create(dest_file)?
+            };
+            for filename in files {
+                println!("Merging {}", filename);
+                std::io::copy(&mut File::open(filename)?, &mut output)?;
+            }
         }
     }
     Ok(())

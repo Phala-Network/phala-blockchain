@@ -31,8 +31,11 @@ pub trait DB {
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()>;
 }
 
-/// Import header logs into database.
-pub async fn import_headers(mut input: impl Read, to_db: &mut impl DB) -> Result<u32> {
+/// Read headers from grabbed file
+pub fn read_items(
+    mut input: impl Read,
+    mut f: impl FnMut(&Header, &[u8]) -> Result<bool>,
+) -> Result<u32> {
     let mut count = 0_u32;
     let mut buffer = vec![0u8; 1024 * 100];
     loop {
@@ -40,17 +43,28 @@ pub async fn import_headers(mut input: impl Read, to_db: &mut impl DB) -> Result
         if input.read(&mut length_buf)? != 4 {
             break;
         }
+        buffer[..4].copy_from_slice(&length_buf);
         let length = u32::from_be_bytes(length_buf) as usize;
-        if length > buffer.len() {
-            buffer.resize(length, 0);
+        if length + 4 > buffer.len() {
+            buffer.resize(length + 4, 0);
         }
-        let buf = &mut buffer[..length];
+        let buf = &mut buffer[4..4 + length];
         input.read_exact(buf)?;
         let header: Header = Decode::decode(&mut &buf[..])?;
-        to_db.put(&header.number.to_be_bytes(), buf)?;
         count += 1;
+        if f(&header, &buffer[..4 + length])? {
+            break;
+        }
     }
     Ok(count)
+}
+
+/// Import header logs into database.
+pub fn import_headers(input: impl Read, to_db: &mut impl DB) -> Result<u32> {
+    read_items(input, |header, buffer| {
+        to_db.put(&header.number.to_be_bytes(), &buffer[4..])?;
+        Ok(false)
+    })
 }
 
 /// Dump headers from the chain to a log file.
