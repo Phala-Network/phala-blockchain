@@ -1,3 +1,5 @@
+//! The message queue to connect components in the network
+
 pub use self::pallet::*;
 pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
