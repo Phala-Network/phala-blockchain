@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
+use sp_runtime::generic::Era;
 use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
@@ -30,13 +31,16 @@ use phactory_api::blocks::{
 use phactory_api::prpc::{self, InitRuntimeResponse};
 use phactory_api::pruntime_client;
 
+use clap::{AppSettings, Parser};
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
-use clap::{Parser, AppSettings};
-
 
 #[derive(Parser, Debug)]
-#[clap(about = "Sync messages between Phala TEE and the blockchain.", version, author)]
+#[clap(
+    about = "Sync messages between pruntime and the blockchain.",
+    version,
+    author
+)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 struct Args {
     #[clap(
@@ -156,7 +160,7 @@ struct Args {
         long,
         help = "The charge transaction payment, unit: balance"
     )]
-    tip: u64,
+    tip: u128,
     #[clap(
         default_value = "4",
         long,
@@ -739,6 +743,7 @@ async fn register_worker(
     encoded_runtime_info: Vec<u8>,
     attestation: prpc::Attestation,
     signer: &mut SrSigner,
+    args: &Args,
 ) -> Result<()> {
     let payload = attestation
         .payload
@@ -752,11 +757,12 @@ async fn register_worker(
             raw_signing_cert: payload.signing_cert,
         };
     chain_client::update_signer_nonce(para_api, signer).await?;
+    let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
         .tx()
         .phala_registry()
         .register_worker(pruntime_info, attestation)
-        .sign_and_submit_then_watch(signer)
+        .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
@@ -771,13 +777,21 @@ async fn try_register_worker(
     paraclient: &ParachainApi,
     signer: &mut SrSigner,
     operator: Option<AccountId32>,
+    args: &Args,
 ) -> Result<()> {
     let info = pr
         .get_runtime_info(prpc::GetRuntimeInfoRequest::new(false, operator))
         .await?;
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
-        register_worker(&paraclient, info.encoded_runtime_info, attestation, signer).await?;
+        register_worker(
+            &paraclient,
+            info.encoded_runtime_info,
+            attestation,
+            signer,
+            args,
+        )
+        .await?;
     }
     Ok(())
 }
@@ -909,7 +923,7 @@ async fn bridge(
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &para_api, &mut signer, operator).await?;
+            try_register_worker(&pr, &para_api, &mut signer, operator, &args).await?;
             flags.worker_registered = true;
         }
         warn!("Block sync disabled.");
@@ -1021,7 +1035,8 @@ async fn bridge(
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 if !flags.worker_registered {
-                    try_register_worker(&pr, &para_api, &mut signer, operator.clone()).await?;
+                    try_register_worker(&pr, &para_api, &mut signer, operator.clone(), &args)
+                        .await?;
                     flags.worker_registered = true;
                 }
             }
@@ -1102,6 +1117,46 @@ async fn collect_async_errors(
             }
         }
     }
+}
+
+async fn mk_params(
+    api: &ParachainApi,
+    longevity: u64,
+    tip: u128,
+) -> Result<phaxt::ExtrinsicParamsBuilder> {
+    let era = if longevity > 0 {
+        let header = api
+            .client
+            .rpc()
+            .header(<Option<Hash>>::None)
+            .await?
+            .ok_or_else(|| anyhow!("No header"))?;
+        let number = header.number as u64;
+        let period = longevity;
+        let phase = number % period;
+        let era = Era::Mortal(period, phase);
+        info!(
+            "update era: block={}, period={}, phase={}, birth={}, death={}",
+            number,
+            period,
+            phase,
+            era.birth(number),
+            era.death(number)
+        );
+        Some((era, header.hash()))
+    } else {
+        None
+    };
+
+    let params = if let Some((era, checkpoint)) = era {
+        phaxt::ExtrinsicParamsBuilder::new()
+            .tip(tip)
+            .era(era, checkpoint)
+    } else {
+        phaxt::ExtrinsicParamsBuilder::new().tip(tip)
+    };
+
+    Ok(params)
 }
 
 pub async fn pherry_main() {

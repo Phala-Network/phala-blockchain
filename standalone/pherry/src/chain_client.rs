@@ -11,10 +11,7 @@ use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
 use phaxt::{rpc::ExtraRpcExt as _, subxt};
 use serde_json::to_value;
-use subxt::{
-    rpc::{rpc_params, ClientT},
-    Signer,
-};
+use subxt::rpc::{rpc_params, ClientT};
 
 pub use sp_core::{twox_128, twox_64};
 

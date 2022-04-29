@@ -689,7 +689,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     if (!fs.existsSync(workDir)) {
         fs.mkdirSync(workDir);
         fs.mkdirSync(sealDir);
-        const filesMustCopy = ['Rocket.toml', pRuntimeBin, 'pruntime.manifest'];
+        const filesMustCopy = ['Rocket.toml', pRuntimeBin];
         const filesShouldCopy = ['GeoLite2-City.mmdb']
         filesMustCopy.forEach(f =>
             fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
