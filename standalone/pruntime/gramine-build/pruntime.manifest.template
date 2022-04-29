@@ -8,6 +8,9 @@ log_level = "{{ log_level }}"
 argv0_override = "pruntime"
 insecure__use_cmdline_argv = true
 
+[sys]
+insecure__allow_eventfd = true
+
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 M_ARENA_MAX = "1"

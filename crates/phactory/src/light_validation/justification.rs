@@ -181,7 +181,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
             }
         }
 
-        let ancestry_hashes = self
+        let ancestry_hashes: HashSet<H256> = self
             .votes_ancestries
             .iter()
             .map(|h: &Block::Header| h.hash())

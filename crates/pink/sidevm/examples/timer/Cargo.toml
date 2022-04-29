@@ -1,0 +1,13 @@
+[package]
+edition = "2021"
+name = "sidevm-timer"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+log = "0.4.16"
+once_cell = "1.10.0"
+pink-sidevm = {path = "../../sidevm"}
+tokio = {version = "1", features = ["macros"]}
