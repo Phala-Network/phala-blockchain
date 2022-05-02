@@ -38,7 +38,6 @@ members = [
 	"standalone/runtime",
 	"standalone/pherry",
 	"standalone/replay",
-	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",
 	"crates/phala-node-rpc-ext",

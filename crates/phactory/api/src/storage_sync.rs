@@ -9,10 +9,10 @@ use chain::Hash;
 use derive_more::Display;
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
-use pkvdb::trie::PhalaTrieStorage;
+use pkvdb::PhalaTrieBackend;
+use pkvdb::TransactionalBackend;
 
-// TrieBackend<TrieBackendStorage<RuntimeHasher>, RuntimeHasher> 
-pub type Storage = PhalaTrieStorage<RuntimeHasher>;
+pub type Storage = PhalaTrieBackend<RuntimeHasher>;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -201,6 +201,8 @@ where
 
         let changes = &block.storage_changes;
 
+        // submit to memorydb and then do next 
+
         let (state_root, transaction) = storage.calc_root_if_changes(
             &changes.main_storage_changes,
             &changes.child_storage_changes,
@@ -214,7 +216,7 @@ where
             });
         }
 
-        storage.apply_changes(state_root, transaction);
+        storage.commit_transaction(state_root, transaction);
 
         self.block_number_next += 1;
         state_roots.pop_front();

@@ -12,7 +12,6 @@ scale-info = { version = "2.0", default-features = false, features = ["derive"] 
 sp-core = { path = "../../substrate/primitives/core", default-features = false }
 sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false, optional = true }
 
-phala-trie-storage = { path = "../../crates/phala-trie-storage", default-features = false, optional = true }
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
 prpc = { path = "../../crates/prpc", default-features = false }
 
@@ -33,7 +32,6 @@ enable_serde = [
 ]
 pruntime = [
 	"sp-runtime",
-	"phala-trie-storage",
 ]
 sgx = [
 	"full_crypto",

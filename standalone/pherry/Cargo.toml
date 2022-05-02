@@ -38,7 +38,6 @@ sp-keyring = { package = "sp-keyring", path = "../../substrate/primitives/keyrin
 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }
-phala-trie-storage = { path = "../../crates/phala-trie-storage" }
 phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 phala-mq = { path = "../../crates/phala-mq" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }

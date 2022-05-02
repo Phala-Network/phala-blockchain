@@ -12,7 +12,6 @@ base64 = { version = "0.13" }
 derive_more = "0.99.16"
 prost = { version = "0.8.0", default-features = false }
 
-phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
 phala-types = { path = "../../../crates/phala-types", default-features = false }
 prpc = { path = "../../../crates/prpc" }
 phala-crypto = { path = "../../../crates/phala-crypto" }
@@ -64,6 +63,5 @@ pruntime-client = [
 
 derive_serde = [
     "serde",
-    "phala-trie-storage/serde",
     "primitive-types/serde",
 ]

@@ -3,32 +3,26 @@ use crate::{
     types::{AccountId, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
-use pkvdb::leveldb::Kvdb;
-use pkvdb::snapshot::SnapshotDB;
-use pkvdb::trie::CommitTransaction as TrieCommitTransaction;
-use pkvdb::trie::DBValue;
+use pkvdb::PhalaTrieBackend;
+use pkvdb::TransactionalBackend;
+use sp_state_machine::Backend;
 use sp_runtime::DispatchError;
-use sp_state_machine::TrieBackend;
 use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
 
-// used in pink to driven the contract running
-// FIXME: should use the phala trie storage type for this usage
-pub type PinkTrieBackend = TrieBackend<Kvdb<Hashing, DBValue>, Hashing>;
-pub type PinkSnapshotBackend = TrieBackend<SnapshotDB<Hashing, DBValue>, Hashing>;
+pub type PinkTrieBackend = PhalaTrieBackend<Hashing>;
 
-pub struct Storage<Backend> {
-    pub(crate) backend: Backend,
+pub struct Storage{
+    // should use the ref instead the instance 
+    pub(crate) backend: PinkTrieBackend,
 }
 
-impl<Backend> Storage<Backend> {
-    pub fn new(backend: Backend) -> Self {
+impl Storage{
+    pub fn new(backend: PinkTrieBackend) -> Self {
         Self { backend }
     }
 }
 
-impl<Backend> Storage<Backend>
-where
-    Backend: TrieCommitTransaction<Hashing>,
+impl Storage
 {
     // execute the contract over current storage object
     // if rollback is true no changes will be submit to the storage
@@ -37,7 +31,7 @@ where
         rollback: bool,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
-        let backend = self.backend.as_trie_backend().expect("No trie backend?");
+        let backend = self.backend.0.as_trie_backend().expect("No trie backend?");
         let mut overlay = OverlayedChanges::default();
         overlay.start_transaction();
         let mut cache = StorageTransactionCache::default();
@@ -64,7 +58,6 @@ where
         r
     }
 
-    // FIXME: should make the method as private?
     pub fn commit(&mut self, changes: OverlayedChanges) {
         let delta = changes
             .changes()
@@ -76,7 +69,7 @@ where
             )
         });
         let (root, transaction) =
-            self.backend
+            self.backend.0
                 .full_storage_root(delta, child_deltas, sp_core::storage::StateVersion::V0);
         self.backend.commit_transaction(root, transaction);
     }
@@ -109,10 +102,10 @@ where
 pub mod helper {
     use super::*;
     use crate::types::Hashing;
-    use sp_state_machine::InMemoryBackend;
+    use pkvdb::new_memory_backend;
 
     // only useful in test
-    pub fn new_in_memory() -> Storage<InMemoryBackend<Hashing>> {
-        Storage::new(Default::default())
+    pub fn new_in_memory() -> Storage {
+        Storage::new(new_memory_backend::<Hashing>())
     }
 }

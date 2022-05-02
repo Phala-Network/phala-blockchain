@@ -7,9 +7,8 @@ use sp_runtime::DispatchError;
 use crate::{
     runtime::{Contracts, ExecSideEffects, System, Timestamp},
     storage::Storage,
-    types::{AccountId, BlockNumber, Hash, Hashing, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hash, GAS_LIMIT},
 };
-use pkvdb::trie::CommitTransaction;
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
 
@@ -47,8 +46,8 @@ impl Contract {
     /// * `code_hash`: The hash of contract code which has been uploaded.
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
-    pub fn new<Backend: CommitTransaction<Hashing>>(
-        storage: &mut Storage<Backend>,
+    pub fn new(
+        storage: &mut Storage,
         origin: AccountId,
         code_hash: Hash,
         input_data: Vec<u8>,
@@ -107,8 +106,8 @@ impl Contract {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_with_selector<Backend: CommitTransaction<Hashing>>(
-        storage: &mut Storage<Backend>,
+    pub fn new_with_selector(
+        storage: &mut Storage,
         origin: AccountId,
         code_hash: Hash,
         selector: [u8; 4],
@@ -139,9 +138,9 @@ impl Contract {
     /// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
     /// # Return
     /// Returns the SCALE encoded method return value.
-    pub fn bare_call<Backend: CommitTransaction<Hashing>>(
+    pub fn bare_call(
         &self,
-        storage: &mut Storage<Backend>,
+        storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
         rollback: bool,
@@ -163,9 +162,9 @@ impl Contract {
         self.unchecked_bare_call(storage, origin, input_data, rollback, block_number, now)
     }
 
-    fn unchecked_bare_call<Backend: CommitTransaction<Hashing>>(
+    fn unchecked_bare_call(
         &self,
-        storage: &mut Storage<Backend>,
+        storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
         rollback: bool,
@@ -182,9 +181,9 @@ impl Contract {
 
     /// Call a contract method given it's selector
     #[allow(clippy::too_many_arguments)]
-    pub fn call_with_selector<RV: Decode, Backend: CommitTransaction<Hashing>>(
+    pub fn call_with_selector<RV: Decode>(
         &self,
-        storage: &mut Storage<Backend>,
+        storage: &mut Storage,
         origin: AccountId,
         selector: [u8; 4],
         args: impl Encode,
@@ -208,9 +207,9 @@ impl Contract {
     }
 
     /// Called by on each block end by the runtime
-    pub fn on_block_end<Backend: CommitTransaction<Hashing>>(
+    pub fn on_block_end(
         &self,
-        storage: &mut Storage<Backend>,
+        storage: &mut Storage,
         block_number: BlockNumber,
         now: u64,
     ) -> Result<ExecSideEffects, ExecError> {

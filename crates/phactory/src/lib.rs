@@ -57,6 +57,7 @@ pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
+use sp_std::sync::Mutex;
 
 pub mod benchmark;
 
@@ -112,6 +113,7 @@ impl RuntimeState {
 const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 const CHECKPOINT_FILE: &str = "checkpoint.seal";
 const CHECKPOINT_VERSION: u32 = 2;
+const CHECKPOINT_STORAGE_KEY: &str = "phala_runtime_storage_seal_key";
 
 fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
     format!("{}/{}-{:0>9}", basedir, CHECKPOINT_FILE, block_number)
@@ -277,6 +279,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         genesis_block_hash: H256,
         predefined_identity_key: Option<sr25519::Pair>,
     ) -> Result<PersistentRuntimeData> {
+        let transaction = self.chain_storage.begin_transaction();
         let data = if let Some(identity_sk) = predefined_identity_key {
             self.save_runtime_data(genesis_block_hash, identity_sk, true)?
         } else {

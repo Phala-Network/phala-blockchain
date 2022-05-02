@@ -3,6 +3,7 @@ use core::convert::TryFrom;
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use scale_info::TypeInfo;
 pub use sp_finality_grandpa::{AuthorityList, SetId};
+use pkvdb::ser::StorageChanges;
 
 use sp_core::U256;
 use sp_runtime::{generic::Header, traits::Hash as HashT};

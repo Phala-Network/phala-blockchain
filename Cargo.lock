@@ -6879,6 +6879,7 @@ dependencies = [
  "ciborium",
  "csv-core",
  "derive_more",
+ "environmental",
  "finality-grandpa",
  "fixed",
  "fixed-macro",
@@ -6905,7 +6906,6 @@ dependencies = [
  "phala-node-runtime",
  "phala-pallets",
  "phala-serde-more",
- "phala-trie-storage",
  "phala-types",
  "pink",
  "pkvdb",
@@ -6952,7 +6952,6 @@ dependencies = [
  "phala-crypto",
  "phala-mq",
  "phala-node-runtime",
- "phala-trie-storage",
  "phala-types",
  "pkvdb",
  "primitive-types",
@@ -7271,35 +7270,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "phala-trie-storage"
-version = "0.1.0"
-dependencies = [
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "parity-scale-codec",
- "pkvdb",
- "scale-info",
- "serde",
- "serde_json",
- "sp-application-crypto",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-trie",
-]
-
-[[package]]
 name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
- "phala-trie-storage",
  "prpc",
  "scale-info",
  "serde",
@@ -7342,7 +7318,6 @@ dependencies = [
  "phala-mq",
  "phala-node-rpc-ext",
  "phala-pallets",
- "phala-trie-storage",
  "phala-types",
  "phaxt",
  "rand 0.8.5",
@@ -7541,15 +7516,16 @@ checksum = "1df8c4ec4b0627e53bdf214615ad287367e482558cf84b109250b37464dc03ae"
 name = "pkvdb"
 version = "0.1.0"
 dependencies = [
- "environmental",
  "hash-db",
  "parity-scale-codec",
  "rusty-leveldb",
  "scale-info",
  "serde",
  "sp-core",
+ "sp-database",
  "sp-state-machine",
  "sp-std",
+ "sp-storage",
  "sp-trie",
 ]
 
@@ -8324,7 +8300,6 @@ dependencies = [
  "phactory",
  "phactory-api",
  "phala-mq",
- "phala-trie-storage",
  "phala-types",
  "pherry",
  "serde",

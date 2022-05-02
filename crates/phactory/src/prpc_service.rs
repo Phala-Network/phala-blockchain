@@ -256,7 +256,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
-        // TODO: modify the take_checkpoint logic to commit the checkpoint 
         self.take_checkpoint(current_block)
     }
 
@@ -479,6 +478,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<impl FnOnce() -> RpcResult<pb::ContractQueryResponse>> {
+        // lock and take snapshot from current storage 
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
