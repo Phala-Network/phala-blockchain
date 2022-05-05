@@ -14,7 +14,7 @@ pub struct BlockInfo<'a> {
     /// The timestamp of this block.
     pub now_ms: u64,
     /// The storage snapshot after this block executed.
-    pub storage: &'a crate::Storage,
+    pub storage: &'a mut crate::Storage,
     /// The message queue
     pub send_mq: &'a phala_mq::MessageSendQueue,
     pub recv_mq: &'a mut phala_mq::MessageDispatcher,
@@ -62,7 +62,7 @@ impl BlockInfoBuilder {
         BlockInfo {
             block_number: self.block_number,
             now_ms: self.now_ms,
-            storage: &self.storage,
+            storage: &mut self.storage,
             send_mq: &self.send_mq,
             recv_mq: &mut self.recv_mq,
             side_task_man: &mut self.side_task_man,

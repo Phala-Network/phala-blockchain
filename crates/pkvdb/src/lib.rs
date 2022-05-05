@@ -1,78 +1,24 @@
-mod phaladb;
+mod backend;
 pub mod ser;
+mod snapshot;
+mod transactional;
+mod trie;
 
-use parity_scale_codec::Codec;
-pub use phaladb::PhalaDB;
-pub use phaladb::Transaction;
-
-use hash_db::Hasher;
-use phaladb::PhalaTrieStorage;
-use sp_state_machine::Backend;
-use sp_state_machine::MemoryDB;
+use rusty_leveldb::Options as LevelDBOptions;
+use rusty_leveldb::WriteBatch;
+use rusty_leveldb::DB;
 use sp_state_machine::TrieBackend;
-use sp_storage::ChildInfo;
-use sp_trie::empty_trie_root;
-use sp_trie::LayoutV1;
+use sp_trie::MemoryDB;
+use std::borrow::BorrowMut;
+use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use parity_scale_codec::Codec;
 
-pub struct PhalaTrieBackend<H: Hasher>(pub TrieBackend<PhalaTrieStorage<H>, H>);
-
-impl<H: Hasher> Default for PhalaTrieBackend<H>
-where
-    H::Out: Codec + Ord,
-{
-    fn default() -> Self {
-        Self(TrieBackend::new(
-            PhalaTrieStorage::Empty,
-            empty_trie_root::<LayoutV1<H>>(),
-        ))
-    }
-}
-
-pub trait TransactionalBackend<H: Hasher> {
-    // NOTE: is not thread-safe so keep this method run with lock
-    fn commit_transaction(&mut self, root: H::Out, transaction: MemoryDB<H>);
-}
-
-impl<H: Hasher> TransactionalBackend<H> for PhalaTrieBackend<H>
-where
-    H::Out: Codec + Ord,
-{
-    fn commit_transaction(&mut self, root: H::Out, transaction: MemoryDB<H>) {
-        let storage = std::mem::take(self).0.into_storage();
-        match &storage {
-            PhalaTrieStorage::Mutual(db) => {
-                db.commit_in_memory_transaction(transaction);
-            }
-            _ => unimplemented!("snapshot database is not supported commit transaction from pink"),
-        }
-        let backend = TrieBackend::new(storage, root);
-        let _ = std::mem::replace(&mut self.0, backend);
-    }
-}
-
-pub fn new_memory_backend<H: Hasher>() -> PhalaTrieBackend<H>
-where
-    H::Out: Codec + Ord,
-{
-    let storage = PhalaTrieStorage::Mutual(PhalaDB::<H>::new_in_memory());
-    PhalaTrieBackend(TrieBackend::new(storage, empty_trie_root::<LayoutV1<H>>()))
-}
-
-pub fn new_disk_backend<H: Hasher, F: Fn(&PhalaDB<H>) -> H::Out>
-(
-    path: impl AsRef<Path>,
-    retrieve_root: F,
-) -> PhalaTrieBackend<H> 
-where
-    H::Out: Codec + Ord,
-{
-    let db = PhalaDB::<H>::new_with_disk(path);
-    let root = retrieve_root(&db);
-    PhalaTrieBackend(TrieBackend::new(PhalaTrieStorage::Mutual(db), root))
-}
-
-// used in phactory
+pub use backend::{PhalaTrieBackend, PhalaTrieStorage};
+pub use snapshot::TrieSnapshot;
+pub use transactional::TransactionalBackend;
+pub use trie::TrieEssenceStorage;
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -86,56 +32,181 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
-impl<H: Hasher> PhalaTrieBackend<H>
+pub(crate) const TRIE_MEMORY_MUST_HOLD_LOCK: &str = "memory MUST hold the lock now";
+pub(crate) const TRIE_UNDERLYING_DB_MUST_HOLD_LOCK: &str = "disk db MUST hold the lock now";
+
+pub(crate) struct Inner<T>(pub(crate) T, pub(crate) i32);
+
+impl<T> From<Vec<u8>> for Inner<T>
+where
+    T: for<'a> From<&'a [u8]>,
+{
+    fn from(v: Vec<u8>) -> Self {
+        let (rc, val) = v.split_at(4);
+        let value = T::from(val);
+        Inner(
+            value,
+            i32::from_be_bytes(rc.try_into().expect("reference must in Value")),
+        )
+    }
+}
+
+impl<T> Into<Vec<u8>> for Inner<T>
+where
+    T: AsRef<[u8]>,
+{
+    fn into(self) -> Vec<u8> {
+        let mut underlying = Vec::with_capacity(self.0.as_ref().len() + 4);
+        underlying.extend_from_slice(&self.1.to_be_bytes());
+        underlying.extend_from_slice(self.0.as_ref());
+        underlying
+    }
+}
+
+
+// PhalaDB used for keep tract root and other memory 
+// NOTE: you have to change the root at every checkpoint and save to transaction to 
+// make the DB work correctly 
+pub struct PhalaDB<H: hash_db::Hasher> {
+    db: Arc<Mutex<DB>>,
+    pink_overlay: Arc<Mutex<MemoryDB<H>>>,
+    sync_overlay: Arc<Mutex<MemoryDB<H>>>,
+    raw_map: BTreeMap<Vec<u8>, Vec<u8>>,
+    pub pink_root: Option<H::Out>,
+    pub sync_root: Option<H::Out>,
+}
+
+impl<H: hash_db::Hasher> PhalaDB<H>
 where
     H::Out: Codec + Ord,
 {
-    pub fn calc_root_if_changes<'a>(
-        &self,
-        delta: &'a StorageCollection,
-        child_deltas: &'a ChildStorageCollection,
-    ) -> (H::Out, MemoryDB<H>) {
-        let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
-            .iter()
-            .map(|(k, v)| {
-                let chinfo = ChildInfo::new_default(k);
-                (chinfo, v)
-            })
-            .collect();
-        self.0.full_storage_root(
-            delta
-                .iter()
-                .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
-            child_deltas.iter().map(|(k, v)| {
-                (
-                    k,
-                    v.iter()
-                        .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
-                )
+    pub fn open(path: impl AsRef<Path>) -> Self {
+        let options = LevelDBOptions::default();
+        let db = DB::open(path, options).expect("open underlying leveldb failed");
+        Self {
+            db: Arc::new(Mutex::new(db)),
+            pink_overlay: Default::default(),
+            sync_overlay: Default::default(),
+            raw_map: Default::default(),
+            pink_root: None,
+            sync_root: None,
+        }
+    }
+
+    pub fn get_pink_root(&self) -> H::Out {
+        self.pink_root
+            .expect("pink root should not be None please init it in PRuntime")
+    }
+
+    pub fn get_sync_root(&self) -> H::Out {
+        self.sync_root
+            .expect("sync root should not be None please init it in PRuntime")
+    }
+
+    pub fn derive_pink_backend(&self) -> PhalaTrieBackend<H> {
+        PhalaTrieBackend(TrieBackend::new(
+            PhalaTrieStorage::Essence(TrieEssenceStorage::Disk {
+                disk: self.db.clone(),
+                memory: self.pink_overlay.clone(),
             }),
-            sp_core::storage::StateVersion::V0,
-        )
+            self.get_pink_root(),
+        ))
     }
 
-    // TODO:george should use more specificed methods to access the system state
+    pub fn derive_pink_snapshot(&self) -> PhalaTrieBackend<H> {
+        let mut db = self.db.lock().expect("take snapshot have to hold lock");
+        let snapshot = db.get_snapshot();
+        PhalaTrieBackend(TrieBackend::new(
+            PhalaTrieStorage::Snapshot(TrieSnapshot::Disk {
+                db: self.db.clone(),
+                snapshot: snapshot.take(),
+            }),
+            self.get_pink_root(),
+        ))
+    }
+
+    pub fn derive_sync_backend(&self) -> PhalaTrieBackend<H> {
+        PhalaTrieBackend(TrieBackend::new(
+            PhalaTrieStorage::Essence(TrieEssenceStorage::Disk {
+                disk: self.db.clone(),
+                memory: self.sync_overlay.clone(),
+            }),
+            self.get_sync_root(),
+        ))
+    }
+
+    pub fn commit_at_checkpoint(&mut self) -> anyhow::Result<()> {
+        let mut db = self.db.lock().expect("checkpoint should hold lock on db");
+        let mut batch = WriteBatch::new();
+        let mut pink = self
+            .pink_overlay
+            .lock()
+            .expect("commit should hold the pink overlay lock");
+        let mut sync = self
+            .sync_overlay
+            .lock()
+            .expect("commit should hold the sync overlay lock");
+
+        // consolidate all changes
+        pink.consolidate(sync.to_owned());
+
+        // prepare the overlay changes
+        for (key, (value, rc)) in pink.borrow_mut().drain() {
+            match DB::get(db.borrow_mut(), key.as_ref()).map(Inner::<sp_trie::DBValue>::from) {
+                Some(mut inner) => {
+                    inner.1 += rc;
+                    batch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
+                }
+                _ => {
+                    let inner = Inner::<sp_trie::DBValue>(value, rc);
+                    batch.put(key.as_ref(), Into::<Vec<u8>>::into(inner).as_ref());
+                }
+            }
+        }
+
+        // prepare the raw
+        for (key, value) in self.raw_map.iter() {
+            batch.put(key, value)
+        }
+
+        if batch.count() > 0 {
+            DB::write(db.borrow_mut(), batch, true)?;
+        }
+
+        self.raw_map.clear();
+
+        Ok(())
+    }
+
+    // force clear temporary
+    // NOTE: in phactory have to keep the root available
+    pub fn clear_temporary(&mut self) {
+        self.pink_overlay = Default::default();
+        self.sync_overlay = Default::default();
+        self.raw_map = Default::default();
+    }
+
     pub fn get_raw(&self, key: &[u8]) -> Option<Vec<u8>> {
-        let storage = self.0.backend_storage();
-        match storage {
-            PhalaTrieStorage::Mutual(db) => db.get_raw(key),
-            _ => None,
-        }
+        let mut db = self.db.lock().expect("get raw key have to hold the lock");
+        DB::get(db.borrow_mut(), key)
     }
+}
 
-    pub fn begin_transaction(&self) -> Transaction<H::Out> {
-        Default::default()
+pub mod helper {
+    use super::*;
+    use hash_db::Hasher;
+    use parity_scale_codec::Codec;
+    use sp_state_machine::TrieBackend;
+    use sp_trie::empty_trie_root;
+    use sp_trie::LayoutV1;
+
+    pub fn new_in_memory_backend<H: Hasher>() -> PhalaTrieBackend<H>
+    where
+        H::Out: Codec + Ord,
+    {
+        PhalaTrieBackend(TrieBackend::new(
+            PhalaTrieStorage::Essence(TrieEssenceStorage::Memory(Default::default())),
+            empty_trie_root::<LayoutV1<H>>(),
+        ))
     }
-
-    pub fn finalized_block_with_outer_transaction(&self, transaction: Transaction<H>) {
-        let storage = self.0.backend_storage();
-        match storage {
-            PhalaTrieStorage::Mutual(db) => db.finalized(transaction),
-            _ => unimplemented!("only the main storage could finalized after dispatching block")
-        }
-    }
-
 }

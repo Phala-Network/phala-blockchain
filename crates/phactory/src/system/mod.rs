@@ -14,7 +14,9 @@ use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
-
+use pkvdb::PhalaTrieBackend;
+use std::sync::Arc;
+use std::sync::Mutex;
 use crate::contracts;
 use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
@@ -45,6 +47,8 @@ use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
+
+type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
 #[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
 #[error("TransactionError: {:?}", self)]
@@ -463,26 +467,22 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
+    // NOTE: keep the storage is the correct snapshot db type 
+    // please take snapshot in prpc
     pub fn make_query(
         &mut self,
+        storage: PhalaTrieBackend<RuntimeHasher>, 
         contract_id: &ContractId,
     ) -> Result<
         impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
         OpaqueError,
     > {
-        use pink::storage::Snapshot as _;
 
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        let storage = self
-            .contract_clusters
-            .get_cluster_mut(&contract.cluster_id())
-            .expect("BUG: contract cluster should always exists")
-            .storage
-            .snapshot(); // TODO: here add snapshot for the pink storage 
-            // and we need to inital the storage from the a global variable storage 
+        let storage = pink::Storage::new(Arc::new(Mutex::new(storage)));
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,

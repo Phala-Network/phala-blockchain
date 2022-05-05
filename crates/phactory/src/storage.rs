@@ -79,7 +79,7 @@ mod storage_ext {
 
     impl StorageExt for Storage {
         fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-            self.get(key)
+            self.get_raw(key.as_ref())
         }
     }
 }

@@ -130,11 +130,10 @@ impl contracts::NativeContract for Pink {
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
-                let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
-                    .expect("Pink cluster should always exists!");
+                let storage = pink::Storage::new_with_mut(context.block.storage);
 
                 let (result, effects) = self.instance.bare_call(
-                    storage,
+                    &mut storage,
                     origin.clone(),
                     message,
                     false,
@@ -172,14 +171,6 @@ impl contracts::NativeContract for Pink {
     }
 }
 
-fn cluster_storage<'a>(
-    clusters: &'a mut cluster::ClusterKeeper,
-    cluster_id: &ContractClusterId,
-) -> Result<&'a mut pink::Storage> {
-    clusters
-        .get_cluster_storage_mut(cluster_id)
-        .ok_or(anyhow!("Contract cluster {:?} not found! qed!", cluster_id))
-}
 
 pub mod cluster {
     use super::Pink;
@@ -230,13 +221,6 @@ pub mod cluster {
             Ok(effects)
         }
 
-        pub fn get_cluster_storage_mut(
-            &mut self,
-            cluster_id: &ContractClusterId,
-        ) -> Option<&mut pink::Storage> {
-            Some(&mut self.clusters.get_mut(cluster_id)?.storage)
-        }
-
         pub fn get_cluster_mut(&mut self, cluster_id: &ContractClusterId) -> Option<&mut Cluster> {
             self.clusters.get_mut(cluster_id)
         }
@@ -245,38 +229,25 @@ pub mod cluster {
             &mut self,
             cluster_id: &ContractClusterId,
             cluster_key: &sr25519::Pair,
+            storage: &mut pink::Storage,
         ) -> &mut Cluster {
             self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
                 let mut cluster = Cluster {
-                    storage: Default::default(), // get a copy from global logic 
                     contracts: Default::default(),
                     key: cluster_key.clone(),
                 };
                 let seed_key = cluster_key
                     .derive_sr25519_pair(&[b"ink key derivation seed"])
                     .expect("Derive key seed should always success!");
-                cluster.set_id(cluster_id);
-                cluster.set_key_seed(seed_key.dump_secret_key());
+                cluster.set_id(storage, cluster_id);
+                cluster.set_key_seed(storage, seed_key.dump_secret_key());
                 cluster
             })
-        }
-
-        pub fn create_cluster_with_storage(
-            &mut self,
-            cluster_id: &ContractClusterId,
-            cluster_key: &sr25519::Pair,
-            //TODO: type storage 
-        ) -> &mut Cluster {
-            unimplemented!()
         }
     }
 
     #[derive(Serialize, Deserialize)]
     pub struct Cluster {
-
-        // skip the storage because the undelying is not volatile due to LevelDB 
-        #[serde(skip)]
-        pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
         #[serde(with = "more::key_bytes")]
         key: sr25519::Pair,
@@ -292,20 +263,21 @@ pub mod cluster {
             &self.key
         }
 
-        pub fn set_id(&mut self, id: &ContractClusterId) {
-            self.storage.set_cluster_id(id.as_bytes());
+        pub fn set_id(&mut self, storage: &mut pink::Storage, id: &ContractClusterId) {
+            storage.set_cluster_id(id.as_bytes());
         }
 
-        pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
-            self.storage.set_key_seed(seed);
+        pub fn set_key_seed(&mut self, storage: &mut pink::Storage, seed: Sr25519SecretKey) {
+            storage.set_key_seed(seed);
         }
 
         pub fn upload_code(
             &mut self,
+            storage: &mut pink::Storage, 
             origin: AccountId,
             code: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
-            self.storage.upload_code(origin, code)
+            storage.upload_code(origin, code)
         }
     }
 }

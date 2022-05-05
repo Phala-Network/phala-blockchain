@@ -352,27 +352,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let mut runtime_state = RuntimeState {
             send_mq,
             recv_mq,
-            storage_synchronizer,
-            // TODO: move out from the RuntimeState 
-            chain_storage: if cfg!(feature = "memorydb") {
-                Default::default()
-            } else {
-                // TODO:george should specific the storage path over the pkvd when pkvdb is stable in gramine
-                PhalaTrieStorage::new(self.args.storage_path) 
-            },
+            storage_synchronizer, 
             genesis_block_hash,
         };
-
-        if cfg!(feature = "memorydb") {
-            // Initialize other states
-            runtime_state.chain_storage.load(genesis_state.into_iter());
-        }
-        
-
-        info!(
-            "Genesis state loaded: {:?}",
-            runtime_state.chain_storage.root()
-        );
 
         let system = system::System::new(
             self.platform.clone(),
