@@ -1,5 +1,6 @@
 use super::*;
 pub use ext_types::*;
+use rayon::prelude::*;
 
 /// State RPC errors.
 #[derive(Debug, thiserror::Error)]
@@ -86,63 +87,68 @@ where
         return Err(Error::ResourceLimited("Too large number of blocks".into()));
     }
 
-    let api = client.runtime_api();
-    let mut changes = vec![];
+    let mut headers = std::collections::VecDeque::new();
+
     let mut this_block = to;
 
     loop {
         let id = BlockId::Hash(this_block);
-        let mut header = header(client, id)?;
-        let extrinsics = client
-            .block_body(&id)
-            .map_err(|e| Error::invalid_block(id, e))?
-            .ok_or_else(|| Error::invalid_block(id, "block body not found"))?;
-        let parent_hash = *header.parent_hash();
-        let parent_id = BlockId::Hash(parent_hash);
-
-        if (*header.number()).into() == 0u64 {
-            let state = backend
-                .state_at(id)
-                .map_err(|e| Error::invalid_block(parent_id, e))?;
-            changes.push(StorageChanges {
-                main_storage_changes: state
-                    .pairs()
-                    .into_iter()
-                    .map(|(k, v)| (StorageKey(k), Some(StorageKey(v))))
-                    .collect(),
-                child_storage_changes: vec![],
-            });
-            break;
-        }
-
-        // Remove all `Seal`s as they are added by the consensus engines after building the block.
-        // On import they are normally removed by the consensus engine.
-        header.digest_mut().logs.retain(|d| d.as_seal().is_none());
-
-        let block = Block::new(header, extrinsics);
-        api.execute_block(&parent_id, block)
-            .map_err(|e| Error::invalid_block(id, e))?;
-
-        let state = backend
-            .state_at(parent_id)
-            .map_err(|e| Error::invalid_block(parent_id, e))?;
-
-        let storage_changes = api
-            .into_storage_changes(&state, parent_hash)
-            .map_err(|e| Error::invalid_block(parent_id, e))?;
-
-        changes.push(StorageChanges {
-            main_storage_changes: storage_changes.main_storage_changes.into_(),
-            child_storage_changes: storage_changes.child_storage_changes.into_(),
-        });
+        let header = header(client, id)?;
+        let parent = *header.parent_hash();
+        headers.push_front((id, header));
         if this_block == from {
             break;
-        } else {
-            this_block = parent_hash;
         }
+        this_block = parent;
     }
-    changes.reverse();
-    Ok(changes)
+
+    headers
+        .into_par_iter()
+        .map(|(id, mut header)| -> Result<_, Error> {
+            let api = client.runtime_api();
+            if (*header.number()).into() == 0u64 {
+                let state = backend
+                    .state_at(id)
+                    .map_err(|e| Error::invalid_block(id, e))?;
+                return Ok(StorageChanges {
+                    main_storage_changes: state
+                        .pairs()
+                        .into_iter()
+                        .map(|(k, v)| (StorageKey(k), Some(StorageKey(v))))
+                        .collect(),
+                    child_storage_changes: vec![],
+                });
+            }
+
+            let extrinsics = client
+                .block_body(&id)
+                .map_err(|e| Error::invalid_block(id, e))?
+                .ok_or_else(|| Error::invalid_block(id, "block body not found"))?;
+            let parent_hash = *header.parent_hash();
+            let parent_id = BlockId::Hash(parent_hash);
+
+            // Remove all `Seal`s as they are added by the consensus engines after building the block.
+            // On import they are normally removed by the consensus engine.
+            header.digest_mut().logs.retain(|d| d.as_seal().is_none());
+
+            let block = Block::new(header, extrinsics);
+            api.execute_block(&parent_id, block)
+                .map_err(|e| Error::invalid_block(id, e))?;
+
+            let state = backend
+                .state_at(parent_id)
+                .map_err(|e| Error::invalid_block(parent_id, e))?;
+
+            let storage_changes = api
+                .into_storage_changes(&state, parent_hash)
+                .map_err(|e| Error::invalid_block(parent_id, e))?;
+
+            Ok(StorageChanges {
+                main_storage_changes: storage_changes.main_storage_changes.into_(),
+                child_storage_changes: storage_changes.child_storage_changes.into_(),
+            })
+        })
+        .collect()
 }
 
 // Stuffs to convert ChildStorageCollection and StorageCollection types,

@@ -35,3 +35,5 @@ phala-pallets = { path = "../../pallets/phala" }
 pallet-mq-runtime-api = { path = "../../pallets/phala/mq-runtime-api" }
 ext-types = { path = "./types", package = "phala-node-rpc-ext-types" }
 
+rayon = "1"
+

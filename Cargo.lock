@@ -7386,6 +7386,7 @@ dependencies = [
  "phala-mq",
  "phala-node-rpc-ext-types",
  "phala-pallets",
+ "rayon",
  "sc-client-api",
  "sc-rpc",
  "sc-transaction-pool-api",
