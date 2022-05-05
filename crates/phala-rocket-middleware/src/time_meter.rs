@@ -8,6 +8,7 @@ pub struct TimeMeter;
 
 struct StartTime(Instant);
 
+#[rocket::async_trait]
 impl Fairing for TimeMeter {
     fn info(&self) -> Info {
         Info {
@@ -16,11 +17,11 @@ impl Fairing for TimeMeter {
         }
     }
 
-    fn on_request(&self, request: &mut Request, _data: &Data) {
+    async fn on_request(&self, request: &mut Request<'_>, _data: &mut Data<'_>) {
         let _t = request.local_cache(move || StartTime(Instant::now()));
     }
 
-    fn on_response(&self, request: &Request, response: &mut Response) {
+    async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
         let start_time = request.local_cache(|| StartTime(Instant::now()));
         let cost = start_time.0.elapsed().as_micros().to_string();
         log::info!(target: "measuring", "{} {} cost {} microseconds", request.method(), request.uri(), cost);
