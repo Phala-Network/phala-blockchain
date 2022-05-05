@@ -10608,47 +10608,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
-name = "sidevm-host"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "pink-sidevm-host-runtime",
- "tokio",
-]
-
-[[package]]
-name = "sidevm-httpserver"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.21",
- "log 0.4.16",
- "once_cell",
- "pink-sidevm",
- "tokio",
-]
-
-[[package]]
-name = "sidevm-recv-messages"
-version = "0.1.0"
-dependencies = [
- "log 0.4.16",
- "once_cell",
- "pink-sidevm",
- "tokio",
-]
-
-[[package]]
-name = "sidevm-timer"
-version = "0.1.0"
-dependencies = [
- "log 0.4.16",
- "once_cell",
- "pink-sidevm",
- "tokio",
-]
-
-[[package]]
 name = "signal-hook-registry"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
