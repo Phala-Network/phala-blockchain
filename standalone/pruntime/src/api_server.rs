@@ -1,12 +1,13 @@
 use std::str;
 
 use rocket::data::Data;
+use rocket::data::ToByteUnit;
 use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
+use rocket::serde::json::{json, Json, Value as JsonValue};
+use rocket::Phase;
 use rocket::{get, post, routes};
-use rocket_contrib::json;
-use rocket_contrib::json::{Json, JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 
 use colored::Colorize as _;
@@ -76,19 +77,17 @@ macro_rules! proxy {
     };
 }
 
-fn read_data(data: Data) -> Option<Vec<u8>> {
-    use std::io::Read;
-    let mut stream = data.open();
-    let mut data = Vec::new();
-    stream.read_to_end(&mut data).ok()?;
-    Some(data)
+async fn read_data(data: Data<'_>) -> Option<Vec<u8>> {
+    let stream = data.open(100.mebibytes());
+    let data = stream.into_bytes().await.ok()?;
+    Some(data.into_inner())
 }
 
 macro_rules! proxy_bin {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, data = "<data>")]
-        fn $name(data: Data) -> JsonValue {
-            let data = match read_data(data) {
+        async fn $name(data: Data<'_>) -> JsonValue {
+            let data = match read_data(data).await {
                 Some(data) => data,
                 None => {
                     return json!({
@@ -122,9 +121,9 @@ fn kick() {
 }
 
 #[post("/<method>", data = "<data>")]
-fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
+async fn prpc_proxy(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
     let path_bytes = method.as_bytes();
-    let data = match read_data(data) {
+    let data = match read_data(data).await {
         Some(data) => data,
         None => {
             return Custom(Status::BadRequest, b"Read body failed".to_vec());
@@ -164,8 +163,8 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     }
 }
 
-pub(super) fn rocket(args: &super::Args) -> rocket::Rocket {
-    let mut server = rocket::ignite()
+pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
+    let mut server = rocket::build()
         .mount(
             "/",
             proxy_routes![
