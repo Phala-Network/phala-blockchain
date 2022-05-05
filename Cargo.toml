@@ -29,6 +29,7 @@ exclude = [
 	"native-nostd-hasher",
 	"standalone/pruntime",
 	"crates/pink/examples",
+	"crates/pink/sidevm/examples",
 ]
 
 members = [
@@ -62,10 +63,6 @@ members = [
 	"crates/pink/sidevm/macro",
 	"crates/pink/sidevm/logger",
 	"crates/pink/sidevm/sidevm",
-	"crates/pink/sidevm/examples/timer",
-	"crates/pink/sidevm/examples/httpserver",
-	"crates/pink/sidevm/examples/host",
-	"crates/pink/sidevm/examples/recv_messages",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"pallets/phala",
