@@ -185,7 +185,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Action::Serve { db } => {
-            web_api::serve(&db)?;
+            web_api::serve(&db).await?;
         }
         Action::ShowSetId { uri, block } => {
             let api = pherry::subxt_connect(&uri).await?.into();

@@ -14,7 +14,7 @@ struct App {
 }
 
 #[get("/genesis/<block_number>")]
-fn get_genesis(app: State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
+fn get_genesis(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     app.db
         .lock()
         .unwrap()
@@ -23,7 +23,7 @@ fn get_genesis(app: State<App>, block_number: BlockNumber) -> Result<Vec<u8>, No
 }
 
 #[get("/header/<block_number>")]
-fn get_header(app: State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
+fn get_header(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     let key = block_number.to_be_bytes();
     app.db
         .lock()
@@ -33,7 +33,7 @@ fn get_header(app: State<App>, block_number: BlockNumber) -> Result<Vec<u8>, Not
 }
 
 #[get("/headers/<start>")]
-fn get_headers(app: State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
+fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     let mut headers = vec![];
     let mut db = app.db.lock().unwrap();
     for block in start..start + 10000 {
@@ -58,12 +58,13 @@ fn get_headers(app: State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound<
     Ok(headers.encode())
 }
 
-pub(crate) fn serve(db: &str) -> anyhow::Result<()> {
-    rocket::ignite()
+pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
+    rocket::build()
         .manage(App {
             db: Mutex::new(CacheDB::open(db)?),
         })
         .mount("/", routes![get_genesis, get_header, get_headers])
-        .launch();
+        .launch()
+        .await?;
     Ok(())
 }
