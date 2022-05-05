@@ -103,8 +103,18 @@ impl RA for GraminePlatform {
         }
     }
 
-    fn quote_test(&self) -> Result<(), Self::Error> {
-        ias::create_quote_vec(&[0u8; 64]).map(|_| ())
+    fn quote_test(&self, provider: String) -> Result<(), Self::Error> {
+        match provider.as_str() {
+            "ias" => {
+                ias::create_quote_vec(&[0u8; 64]).map(|_| ())
+            },
+            "opt-out" => {
+                Ok(())
+            },
+            _ => {
+                Err(anyhow!("Unknown attestation provider `{}`", provider))
+            }
+        }
     }
 }
 

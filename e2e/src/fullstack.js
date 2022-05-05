@@ -703,7 +703,6 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     const args = [
         '--cores=0',  // Disable benchmark
         '--port', teePort.toString(),
-        '--attestation-provider', 'opt-out',
     ];
     return new Process([
         `${workDir}/${pRuntimeBin}`, args, {
@@ -725,7 +724,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relaye
             `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
             `--pruntime-endpoint=http://localhost:${teePort}`,
             '--dev-wait-block-ms=1000',
-            '--remote-attestation',
+            '--attestation-provider', 'opt-out',
         ]
     ], { logPath: `${tmpPath}/${name}.log` });
 }

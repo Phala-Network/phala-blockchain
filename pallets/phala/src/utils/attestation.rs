@@ -10,8 +10,6 @@ use sp_std::{
 
 use phala_types::{AttestationProvider, AttestationReport};
 
-pub type Attestation = AttestationReport;
-
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
 	PRuntimeRejected,

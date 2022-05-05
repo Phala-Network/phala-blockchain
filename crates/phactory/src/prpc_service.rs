@@ -274,7 +274,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     fn init_runtime(
         &mut self,
-        skip_ra: bool,
         is_parachain: bool,
         genesis: blocks::GenesisBlockInfo,
         genesis_state: blocks::StorageState,
@@ -291,11 +290,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // load identity
         let rt_data = if let Some(raw_key) = debug_set_key {
-            if !skip_ra {
-                return Err(from_display(
-                    "RA is disallowed when debug_set_key is enabled",
-                ));
-            }
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
             self.init_runtime_data(genesis_block_hash, Some(priv_key))
                 .map_err(from_debug)?
@@ -304,17 +298,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .map_err(from_debug)?
         };
         self.dev_mode = rt_data.dev_mode;
-        self.skip_ra = skip_ra;
-        self.attestation_provider = attestation_provider.unwrap_or("ias".to_owned());
 
-        if !skip_ra && self.dev_mode {
-            return Err(from_display(
-                "RA is disallowed when debug_set_key is enabled",
-            ));
-        }
-        if !skip_ra {
-            self.platform.quote_test().map_err(from_debug)?;
-        }
+        self.attestation_provider = attestation_provider.unwrap_or("ias".to_owned());
+        info!("attestation_provider: {}", self.attestation_provider);
+
+        self.platform.quote_test(self.attestation_provider.clone()).map_err(from_debug)?;
 
         let (identity_key, ecdh_key) = rt_data.decode_keys();
 
@@ -399,7 +387,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ecdh_pubkey,
             None,
         );
-        self.skip_ra = skip_ra;
         self.runtime_info = Some(resp.clone());
         self.runtime_state = Some(runtime_state);
         self.system = Some(system);
@@ -411,8 +398,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         refresh_ra: bool,
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        let skip_ra = self.skip_ra;
-
         let mut cached_resp = self
             .runtime_info
             .as_mut()
@@ -427,41 +412,40 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             cached_resp.encoded_runtime_info = runtime_info.encode();
         }
 
-        if !skip_ra {
-            if let Some(cached_attestation) = &cached_resp.attestation {
-                const MAX_ATTESTATION_AGE: u64 = 60 * 60;
-                if refresh_ra
-                    || reset_operator
-                    || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
-                {
-                    cached_resp.attestation = None;
-                }
-            }
-            if cached_resp.attestation.is_none() {
-                // We hash the encoded bytes directly
-                let runtime_info_hash =
-                    sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
-                info!("Encoded runtime info");
-                info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
-
-                let encoded_report =
-                    match self.platform.create_attestation_report(self.attestation_provider.clone(), &runtime_info_hash) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            let message = format!("Failed to create attestation report: {:?}", e);
-                            error!("{}", message);
-                            return Err(from_display(message));
-                        }
-                    };
-
-                cached_resp.attestation = Some(pb::Attestation {
-                    version: 1,
-                    provider: self.attestation_provider.clone(),
-                    payload: encoded_report,
-                    timestamp: now(),
-                });
+        if let Some(cached_attestation) = &cached_resp.attestation {
+            const MAX_ATTESTATION_AGE: u64 = 60 * 60;
+            if refresh_ra
+                || reset_operator
+                || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
+            {
+                cached_resp.attestation = None;
             }
         }
+        if cached_resp.attestation.is_none() {
+            // We hash the encoded bytes directly
+            let runtime_info_hash =
+                sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
+            info!("Encoded runtime info");
+            info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
+
+            let encoded_report =
+                match self.platform.create_attestation_report(self.attestation_provider.clone(), &runtime_info_hash) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        let message = format!("Failed to create attestation report: {:?}", e);
+                        error!("{}", message);
+                        return Err(from_display(message));
+                    }
+                };
+
+            cached_resp.attestation = Some(pb::Attestation {
+                version: 1,
+                provider: self.attestation_provider.clone(),
+                payload: encoded_report,
+                timestamp: now(),
+            });
+        }
+
         Ok(cached_resp.clone())
     }
 
@@ -755,7 +739,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         request: pb::InitRuntimeRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         self.lock_phactory().init_runtime(
-            request.skip_ra,
             request.is_parachain,
             request.decode_genesis_info()?,
             request.decode_genesis_state()?,
