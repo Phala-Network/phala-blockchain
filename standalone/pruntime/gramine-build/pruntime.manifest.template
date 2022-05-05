@@ -14,6 +14,7 @@ insecure__allow_eventfd = true
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 M_ARENA_MAX = "1"
+ROCKET_WORKERS = "8"
 
 [[fs.mounts]]
 type = "chroot"
