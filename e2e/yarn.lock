@@ -19,7 +19,7 @@
   resolved "https://registry.yarnpkg.com/@noble/secp256k1/-/secp256k1-1.3.4.tgz#158ded712d09237c0d3428be60dc01ce8ebab9fb"
   integrity sha512-ZVRouDO5mbdCiDg4zCd3ZZABduRtpy4tCnB33Gh9upHe9tRzpiqbRSN1VTjrj/2g8u2c6MBi0YLNnNQpBYOiWg==
 
-"@phala/typedefs@^0.2.29":
+"@phala/typedefs@^0.2.30":
   version "0.2.30"
   resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.30.tgz#7b46f6e7bbfa3dcb379b7815ab99766731718323"
   integrity sha512-9OOPm0oWGoJ216EbziqMU3SCybNuOhYrSnthMFiYdaWigabwQBXFkDDNIT8RFPnVe4Jnf225vWGgvDjypF/Ayg==

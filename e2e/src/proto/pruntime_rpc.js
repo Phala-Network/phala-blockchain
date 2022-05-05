@@ -262,13 +262,13 @@ $root.pruntime_rpc = (function() {
          * @function getRuntimeInfo
          * @memberof pruntime_rpc.PhactoryAPI
          * @instance
-         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} request GetRuntimeInfoRequest message or plain object
          * @param {pruntime_rpc.PhactoryAPI.GetRuntimeInfoCallback} callback Node-style callback called with the error, if any, and InitRuntimeResponse
          * @returns {undefined}
          * @variation 1
          */
         Object.defineProperty(PhactoryAPI.prototype.getRuntimeInfo = function getRuntimeInfo(request, callback) {
-            return this.rpcCall(getRuntimeInfo, $root.google.protobuf.Empty, $root.pruntime_rpc.InitRuntimeResponse, request, callback);
+            return this.rpcCall(getRuntimeInfo, $root.pruntime_rpc.GetRuntimeInfoRequest, $root.pruntime_rpc.InitRuntimeResponse, request, callback);
         }, "name", { value: "GetRuntimeInfo" });
 
         /**
@@ -276,7 +276,7 @@ $root.pruntime_rpc = (function() {
          * @function getRuntimeInfo
          * @memberof pruntime_rpc.PhactoryAPI
          * @instance
-         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} request GetRuntimeInfoRequest message or plain object
          * @returns {Promise<pruntime_rpc.InitRuntimeResponse>} Promise
          * @variation 2
          */
@@ -3351,6 +3351,237 @@ $root.pruntime_rpc = (function() {
         };
 
         return InitRuntimeRequest;
+    })();
+
+    pruntime_rpc.GetRuntimeInfoRequest = (function() {
+
+        /**
+         * Properties of a GetRuntimeInfoRequest.
+         * @memberof pruntime_rpc
+         * @interface IGetRuntimeInfoRequest
+         * @property {boolean|null} [forceRefreshRa] GetRuntimeInfoRequest forceRefreshRa
+         * @property {Uint8Array|null} [encodedOperator] GetRuntimeInfoRequest encodedOperator
+         */
+
+        /**
+         * Constructs a new GetRuntimeInfoRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetRuntimeInfoRequest.
+         * @implements IGetRuntimeInfoRequest
+         * @constructor
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest=} [properties] Properties to set
+         */
+        function GetRuntimeInfoRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetRuntimeInfoRequest forceRefreshRa.
+         * @member {boolean} forceRefreshRa
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         */
+        GetRuntimeInfoRequest.prototype.forceRefreshRa = false;
+
+        /**
+         * GetRuntimeInfoRequest encodedOperator.
+         * @member {Uint8Array|null|undefined} encodedOperator
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         */
+        GetRuntimeInfoRequest.prototype.encodedOperator = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        /**
+         * GetRuntimeInfoRequest _encodedOperator.
+         * @member {"encodedOperator"|undefined} _encodedOperator
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         */
+        Object.defineProperty(GetRuntimeInfoRequest.prototype, "_encodedOperator", {
+            get: $util.oneOfGetter($oneOfFields = ["encodedOperator"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * Creates a new GetRuntimeInfoRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest instance
+         */
+        GetRuntimeInfoRequest.create = function create(properties) {
+            return new GetRuntimeInfoRequest(properties);
+        };
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} message GetRuntimeInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetRuntimeInfoRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.forceRefreshRa != null && Object.hasOwnProperty.call(message, "forceRefreshRa"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.forceRefreshRa);
+            if (message.encodedOperator != null && Object.hasOwnProperty.call(message, "encodedOperator"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedOperator);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} message GetRuntimeInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetRuntimeInfoRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetRuntimeInfoRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.forceRefreshRa = reader.bool();
+                    break;
+                case 2:
+                    message.encodedOperator = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetRuntimeInfoRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetRuntimeInfoRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetRuntimeInfoRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            var properties = {};
+            if (message.forceRefreshRa != null && message.hasOwnProperty("forceRefreshRa"))
+                if (typeof message.forceRefreshRa !== "boolean")
+                    return "forceRefreshRa: boolean expected";
+            if (message.encodedOperator != null && message.hasOwnProperty("encodedOperator")) {
+                properties._encodedOperator = 1;
+                if (!(message.encodedOperator && typeof message.encodedOperator.length === "number" || $util.isString(message.encodedOperator)))
+                    return "encodedOperator: buffer expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetRuntimeInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest
+         */
+        GetRuntimeInfoRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetRuntimeInfoRequest)
+                return object;
+            var message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
+            if (object.forceRefreshRa != null)
+                message.forceRefreshRa = Boolean(object.forceRefreshRa);
+            if (object.encodedOperator != null)
+                if (typeof object.encodedOperator === "string")
+                    $util.base64.decode(object.encodedOperator, message.encodedOperator = $util.newBuffer($util.base64.length(object.encodedOperator)), 0);
+                else if (object.encodedOperator.length)
+                    message.encodedOperator = object.encodedOperator;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetRuntimeInfoRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.GetRuntimeInfoRequest} message GetRuntimeInfoRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetRuntimeInfoRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.forceRefreshRa = false;
+            if (message.forceRefreshRa != null && message.hasOwnProperty("forceRefreshRa"))
+                object.forceRefreshRa = message.forceRefreshRa;
+            if (message.encodedOperator != null && message.hasOwnProperty("encodedOperator")) {
+                object.encodedOperator = options.bytes === String ? $util.base64.encode(message.encodedOperator, 0, message.encodedOperator.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedOperator) : message.encodedOperator;
+                if (options.oneofs)
+                    object._encodedOperator = "encodedOperator";
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetRuntimeInfoRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetRuntimeInfoRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetRuntimeInfoRequest;
     })();
 
     pruntime_rpc.InitRuntimeResponse = (function() {
@@ -6460,7 +6691,7 @@ $root.pruntime_rpc = (function() {
          * @interface ITokenomicInfo
          * @property {string|null} [v] TokenomicInfo v
          * @property {string|null} [vInit] TokenomicInfo vInit
-         * @property {string|null} [payable] TokenomicInfo payable
+         * @property {string|null} [vDeductible] TokenomicInfo vDeductible
          * @property {string|null} [share] TokenomicInfo share
          * @property {number|Long|null} [vUpdateAt] TokenomicInfo vUpdateAt
          * @property {number|null} [vUpdateBlock] TokenomicInfo vUpdateBlock
@@ -6511,12 +6742,12 @@ $root.pruntime_rpc = (function() {
         TokenomicInfo.prototype.vInit = "";
 
         /**
-         * TokenomicInfo payable.
-         * @member {string} payable
+         * TokenomicInfo vDeductible.
+         * @member {string} vDeductible
          * @memberof pruntime_rpc.TokenomicInfo
          * @instance
          */
-        TokenomicInfo.prototype.payable = "";
+        TokenomicInfo.prototype.vDeductible = "";
 
         /**
          * TokenomicInfo share.
@@ -6704,8 +6935,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 17, wireType 2 =*/138).string(message.totalSlash);
             if (message.totalSlashCount != null && Object.hasOwnProperty.call(message, "totalSlashCount"))
                 writer.uint32(/* id 18, wireType 0 =*/144).uint32(message.totalSlashCount);
-            if (message.payable != null && Object.hasOwnProperty.call(message, "payable"))
-                writer.uint32(/* id 19, wireType 2 =*/154).string(message.payable);
+            if (message.vDeductible != null && Object.hasOwnProperty.call(message, "vDeductible"))
+                writer.uint32(/* id 19, wireType 2 =*/154).string(message.vDeductible);
             if (message.share != null && Object.hasOwnProperty.call(message, "share"))
                 writer.uint32(/* id 20, wireType 2 =*/162).string(message.share);
             return writer;
@@ -6749,7 +6980,7 @@ $root.pruntime_rpc = (function() {
                     message.vInit = reader.string();
                     break;
                 case 19:
-                    message.payable = reader.string();
+                    message.vDeductible = reader.string();
                     break;
                 case 20:
                     message.share = reader.string();
@@ -6840,9 +7071,9 @@ $root.pruntime_rpc = (function() {
             if (message.vInit != null && message.hasOwnProperty("vInit"))
                 if (!$util.isString(message.vInit))
                     return "vInit: string expected";
-            if (message.payable != null && message.hasOwnProperty("payable"))
-                if (!$util.isString(message.payable))
-                    return "payable: string expected";
+            if (message.vDeductible != null && message.hasOwnProperty("vDeductible"))
+                if (!$util.isString(message.vDeductible))
+                    return "vDeductible: string expected";
             if (message.share != null && message.hasOwnProperty("share"))
                 if (!$util.isString(message.share))
                     return "share: string expected";
@@ -6910,8 +7141,8 @@ $root.pruntime_rpc = (function() {
                 message.v = String(object.v);
             if (object.vInit != null)
                 message.vInit = String(object.vInit);
-            if (object.payable != null)
-                message.payable = String(object.payable);
+            if (object.vDeductible != null)
+                message.vDeductible = String(object.vDeductible);
             if (object.share != null)
                 message.share = String(object.share);
             if (object.vUpdateAt != null)
@@ -7011,7 +7242,7 @@ $root.pruntime_rpc = (function() {
                 object.lastSlashAtBlock = 0;
                 object.totalSlash = "";
                 object.totalSlashCount = 0;
-                object.payable = "";
+                object.vDeductible = "";
                 object.share = "";
             }
             if (message.v != null && message.hasOwnProperty("v"))
@@ -7057,8 +7288,8 @@ $root.pruntime_rpc = (function() {
                 object.totalSlash = message.totalSlash;
             if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
                 object.totalSlashCount = message.totalSlashCount;
-            if (message.payable != null && message.hasOwnProperty("payable"))
-                object.payable = message.payable;
+            if (message.vDeductible != null && message.hasOwnProperty("vDeductible"))
+                object.vDeductible = message.vDeductible;
             if (message.share != null && message.hasOwnProperty("share"))
                 object.share = message.share;
             return object;
