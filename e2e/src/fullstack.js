@@ -554,7 +554,7 @@ class Cluster {
 }
 
 function waitPRuntimeOutput(p) {
-    return p.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/);
+    return p.startAndWaitForOutput(/Rocket has launched from/);
 }
 function waitRelayerOutput(p) {
     return p.startAndWaitForOutput(/runtime_info: InitRuntimeResp/);

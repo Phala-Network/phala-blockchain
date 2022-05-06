@@ -13,8 +13,6 @@ extern crate log;
 
 #[macro_use]
 extern crate rocket;
-#[macro_use]
-extern crate rocket_contrib;
 extern crate rocket_cors;
 
 extern crate serde;
@@ -48,10 +46,12 @@ use std::str;
 use std::sync::RwLock;
 
 use rocket::data::Data;
+use rocket::data::ToByteUnit;
 use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
-use rocket_contrib::json::{Json, JsonValue};
+use rocket::serde::json::{json, Json, Value as JsonValue};
+use rocket::Phase;
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use structopt::StructOpt;
 
@@ -431,19 +431,17 @@ macro_rules! proxy {
     };
 }
 
-fn read_data(data: Data) -> Option<Vec<u8>> {
-    use std::io::Read;
-    let mut stream = data.open();
-    let mut data = Vec::new();
-    stream.read_to_end(&mut data).ok()?;
-    Some(data)
+async fn read_data(data: Data<'_>) -> Option<Vec<u8>> {
+    let stream = data.open(100.mebibytes());
+    let data = stream.into_bytes().await.ok()?;
+    Some(data.into_inner())
 }
 
 macro_rules! proxy_bin {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, data = "<data>")]
-        fn $name(data: Data) -> JsonValue {
-            let data = match read_data(data) {
+        async fn $name(data: Data<'_>) -> JsonValue {
+            let data = match read_data(data).await {
                 Some(data) => data,
                 None => {
                     return json!({
@@ -477,19 +475,19 @@ fn kick() {
 }
 
 #[post("/<method>", data = "<data>")]
-fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
-    let eid = crate::get_eid();
-
-    let path_bytes = method.as_bytes();
-    let path_len = path_bytes.len();
-    let path_ptr = path_bytes.as_ptr();
-
-    let data = match crate::read_data(data) {
+async fn prpc_proxy(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
+    let data = match crate::read_data(data).await {
         Some(data) => data,
         None => {
             return Custom(Status::BadRequest, b"Read body failed".to_vec());
         }
     };
+
+    let eid = crate::get_eid();
+
+    let path_bytes = method.as_bytes();
+    let path_len = path_bytes.len();
+    let path_ptr = path_bytes.as_ptr();
     let data_len = data.len();
     let data_ptr = data.as_ptr();
 
@@ -560,8 +558,8 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     }
 }
 
-fn rocket(measure_rpc_time: bool) -> rocket::Rocket {
-    let mut server = rocket::ignite()
+fn rocket(measure_rpc_time: bool) -> rocket::Rocket<impl Phase> {
+    let mut server = rocket::build()
         .mount(
             "/",
             proxy_routes![
@@ -616,11 +614,12 @@ fn rocket(measure_rpc_time: bool) -> rocket::Rocket {
     }
 }
 
-fn main() {
+#[rocket::main]
+async fn main() {
     let args = Args::from_args();
 
     env::set_var("RUST_BACKTRACE", "1");
-    env::set_var("ROCKET_ENV", "dev");
+    env::set_var("ROCKET_PROFILE", "debug");
 
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -689,12 +688,6 @@ fn main() {
     info!("Bench cores: {}", bench_cores);
 
     let measure_rpc_time = args.measure_rpc_time;
-    let rocket = thread::Builder::new()
-        .name("rocket".into())
-        .spawn(move || {
-            rocket(measure_rpc_time).launch();
-        })
-        .expect("Failed to launch Rocket");
 
     let mut v = vec![];
     for i in 0..bench_cores {
@@ -714,7 +707,11 @@ fn main() {
         v.push(child);
     }
 
-    let _ = rocket.join();
+    rocket(measure_rpc_time)
+        .launch()
+        .await
+        .expect("Failed to launch Rocket");
+
     for child in v {
         let _ = child.join();
     }
