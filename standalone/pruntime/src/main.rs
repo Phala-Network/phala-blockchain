@@ -1,5 +1,3 @@
-#![feature(decl_macro)]
-
 mod api_server;
 mod pal_gramine;
 mod ra;

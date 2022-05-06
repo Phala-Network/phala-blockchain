@@ -1,5 +1,3 @@
-#![feature(decl_macro)] // for rocket
-
 use std::fs::File;
 use std::io::Write;
 
