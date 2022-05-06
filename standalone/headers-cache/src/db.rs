@@ -6,7 +6,7 @@ use rusty_leveldb::DB;
 
 pub struct CacheDB(pub DB);
 
-fn genesis_key(block_number: BlockNumber) -> [u8; 11] {
+fn genesis_key(block_number: BlockNumber) -> [u8; 7 + std::mem::size_of::<BlockNumber>()] {
     let mut key = *b"genesis****";
     key[7..].copy_from_slice(&block_number.to_be_bytes());
     key
