@@ -1251,6 +1251,7 @@ async fn mk_params(
 pub async fn pherry_main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
+        .format_timestamp_micros()
         .parse_default_env()
         .init();
 
