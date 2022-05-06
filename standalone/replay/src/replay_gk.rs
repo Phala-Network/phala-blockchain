@@ -12,13 +12,14 @@ use std::{
 use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
+use phactory_api::blocks::BlockHeaderWithChanges;
 use phala_mq::MessageDispatcher;
 use phala_mq::Path as MqPath;
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
 use pherry::types::{
-    phaxt, subxt, BlockNumber, BlockWithChanges, Hashing, NumberOrHex, ParachainApi, StorageKey,
+    phaxt, subxt, BlockNumber, Hashing, NumberOrHex, ParachainApi, StorageKey,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex};
@@ -65,14 +66,14 @@ impl ReplayFactory {
 
     async fn dispatch_block(
         &mut self,
-        block: BlockWithChanges,
+        block: BlockHeaderWithChanges,
         event_tx: &Option<RecordSender>,
     ) -> Result<(), &'static str> {
         let (state_root, transaction) = self.storage.calc_root_if_changes(
             &block.storage_changes.main_storage_changes,
             &block.storage_changes.child_storage_changes,
         );
-        let header = &block.block.block.header;
+        let header = &block.block_header;
 
         if header.state_root != state_root {
             return Err("State root mismatch");
@@ -81,7 +82,7 @@ impl ReplayFactory {
         self.storage.apply_changes(state_root, transaction);
         self.handle_inbound_messages(header.number, event_tx)
             .await?;
-        self.current_block = block.block.block.header.number;
+        self.current_block = header.number;
         Ok(())
     }
 
@@ -285,8 +286,11 @@ pub async fn replay(args: Args) -> Result<()> {
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::get_block_with_storage_changes(&api, Some(block_number)).await {
-                Ok(block) => {
+            match pherry::batch_get_storage_changes(&api, block_number, block_number, 1).await {
+                Ok(mut blocks) => {
+                    let mut block = blocks.pop().expect("Expected one block");
+                    let (header, _hash) = pherry::get_header_at(&api.client, Some(block_number)).await?;
+                    block.block_header = header;
                     log::info!("Replaying block {}", block_number);
                     let mut factory = factory.lock().await;
                     factory

@@ -23,11 +23,12 @@ pub mod types;
 
 use crate::error::Error;
 use crate::types::{
-    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, NumberOrHex, ParachainApi, PrClient,
+    Block, BlockNumber, Hash, Header, NotifyReq, NumberOrHex, ParachainApi, PrClient,
     RelaychainApi, SignedBlock, SrSigner,
 };
 use phactory_api::blocks::{
-    self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
+    self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
+    StorageProof,
 };
 use phactory_api::prpc::{self, InitRuntimeResponse};
 use phactory_api::pruntime_client;
@@ -192,6 +193,13 @@ struct Args {
     #[clap(long, help = "URI to fetch cached headers from")]
     #[clap(default_value = "")]
     headers_cache_uri: String,
+
+    #[clap(
+        default_value = "20",
+        long,
+        help = "The batch size to get storage changes from the chain."
+    )]
+    get_changes_batch_size: usize,
 }
 
 struct RunningFlags {
@@ -200,7 +208,7 @@ struct RunningFlags {
 }
 
 struct BlockSyncState {
-    blocks: Vec<BlockWithChanges>,
+    blocks: Vec<Block>,
     /// Tracks the latest known authority set id at a certain block.
     authory_set_state: Option<(BlockNumber, SetId)>,
 }
@@ -235,7 +243,7 @@ async fn get_block_at<T: subxt::Config>(
     Ok((block, hash))
 }
 
-async fn get_header_at<T: subxt::Config>(
+pub async fn get_header_at<T: subxt::Config>(
     client: &subxt::Client<T>,
     h: Option<u32>,
 ) -> Result<(T::Header, T::Hash)> {
@@ -249,34 +257,49 @@ async fn get_header_at<T: subxt::Config>(
     Ok((header, hash))
 }
 
-async fn get_block_without_storage_changes(
-    api: &RelaychainApi,
-    h: Option<u32>,
-) -> Result<BlockWithChanges> {
+async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) -> Result<Block> {
     let (block, hash) = get_block_at(&api.client, h).await?;
     info!("get_block: Got block {:?} hash {}", h, hash.to_string());
-    return Ok(BlockWithChanges {
-        block,
-        storage_changes: Default::default(),
-    });
+    return Ok(block);
 }
 
-pub async fn get_block_with_storage_changes(
+pub async fn batch_get_storage_changes(
     api: &ParachainApi,
-    h: Option<u32>,
-) -> Result<BlockWithChanges> {
-    let (block, hash) = get_block_at(&api.client, h).await?;
-    info!(
-        "get_block (w/changes): Got block {:?} hash {}",
-        h,
-        hash.to_string()
-    );
-    let hash = block.block.header.hash();
-    let storage_changes = chain_client::fetch_storage_changes(api, &hash).await?;
-    return Ok(BlockWithChanges {
-        block,
-        storage_changes,
-    });
+    from: BlockNumber,
+    to: BlockNumber,
+    batch_size: BlockNumber,
+) -> Result<Vec<BlockHeaderWithChanges>> {
+    info!("batch_get_changes from {from} to {to} ({} blocks)", to as i64 - from as i64 + 1);
+
+    let mut changes = vec![];
+
+    for from in (from..=to).step_by(batch_size as _) {
+        let to = to.min(from + batch_size - 1);
+        let from_hash = get_header_hash(&api.client, Some(from)).await?;
+        let to_hash = get_header_hash(&api.client, Some(to)).await?;
+        info!("batch_get_changes one batch from {from:?} to {to:?}");
+        let storage_changes =
+            chain_client::fetch_storage_changes(api, &from_hash, &to_hash).await?;
+        changes.extend(
+            storage_changes
+                .into_iter()
+                .enumerate()
+                .map(|(offset, storage_changes)| {
+                    BlockHeaderWithChanges {
+                        // Only the block number is used in pRuntime.
+                        block_header: BlockHeader {
+                            number: from + offset as BlockNumber,
+                            parent_hash: Default::default(),
+                            state_root: Default::default(),
+                            extrinsics_root: Default::default(),
+                            digest: Default::default(),
+                        },
+                        storage_changes,
+                    }
+                }),
+        );
+    }
+    Ok(changes)
 }
 
 async fn get_authority_with_proof_at(
@@ -330,7 +353,7 @@ async fn get_paraid(api: &ParachainApi, hash: Option<Hash>) -> Result<u32, Error
 async fn bisec_setid_change(
     api: &RelaychainApi,
     last_set: (BlockNumber, SetId),
-    known_blocks: &Vec<BlockWithChanges>,
+    known_blocks: &Vec<Block>,
 ) -> Result<Option<BlockNumber>> {
     debug!("bisec_setid_change(last_set: {:?})", last_set);
     if known_blocks.is_empty() {
@@ -340,8 +363,8 @@ async fn bisec_setid_change(
     // Run binary search only on blocks with justification
     let headers: Vec<&Header> = known_blocks
         .iter()
-        .filter(|b| b.block.block.header.number > last_block && b.block.justifications.is_some())
-        .map(|b| &b.block.block.header)
+        .filter(|b| b.block.header.number > last_block && b.justifications.is_some())
+        .map(|b| &b.block.header)
         .collect();
     let mut l = 0i64;
     let mut r = (headers.len() as i64) - 1;
@@ -401,37 +424,6 @@ async fn req_dispatch_block(
     Ok(resp)
 }
 
-/// Syncs only the events to pRuntime till `sync_to`
-async fn sync_events_only(
-    pr: &PrClient,
-    sync_state: &mut BlockSyncState,
-    sync_to: BlockNumber,
-    batch_window: usize,
-) -> Result<()> {
-    let block_buf = &mut sync_state.blocks;
-    // Count the blocks to sync
-    let mut n = 0usize;
-    for bwe in block_buf.iter() {
-        if bwe.block.block.header.number <= sync_to {
-            n += 1;
-        } else {
-            break;
-        }
-    }
-    let blocks: Vec<BlockHeaderWithChanges> = block_buf
-        .drain(..n)
-        .map(|bwe| BlockHeaderWithChanges {
-            block_header: bwe.block.block.header,
-            storage_changes: bwe.storage_changes,
-        })
-        .collect();
-    for chunk in blocks.chunks(batch_window) {
-        let r = req_dispatch_block(pr, chunk.to_vec()).await?;
-        debug!("  ..dispatch_block: {:?}", r);
-    }
-    Ok(())
-}
-
 const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 
 async fn batch_sync_block(
@@ -442,6 +434,7 @@ async fn batch_sync_block(
     batch_window: usize,
     info: &prpc::PhactoryInfo,
     parachain: bool,
+    get_chagnes_batch_size: usize,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
@@ -452,13 +445,39 @@ async fn batch_sync_block(
     let mut next_para_headernum = info.para_headernum;
 
     let mut synced_blocks: usize = 0;
+
+    let hdr_synced_to = if parachain {
+        next_para_headernum - 1
+    } else {
+        next_headernum - 1
+    };
+    macro_rules! sync_blocks_to {
+        ($to: expr) => {
+            if next_blocknum <= $to {
+                let headers_with_changes = batch_get_storage_changes(
+                    &paraclient,
+                    next_blocknum,
+                    $to,
+                    get_chagnes_batch_size as _,
+                )
+                .await?;
+
+                let (count, next) =
+                    dispatch_blocks(pr, batch_window, headers_with_changes, next_blocknum).await?;
+                next_blocknum = next;
+                synced_blocks += count;
+            };
+        };
+    }
+    sync_blocks_to!(hdr_synced_to);
+
     while !block_buf.is_empty() {
         // Current authority set id
         let last_set = if let Some(set) = sync_state.authory_set_state {
             set
         } else {
             // Construct the authority set from the last block we have synced (the genesis)
-            let number = &block_buf.first().unwrap().block.block.header.number - 1;
+            let number = &block_buf.first().unwrap().block.header.number - 1;
             let hash = api.client.rpc().block_hash(Some(number.into())).await?;
             let set_id = api
                 .storage()
@@ -472,10 +491,10 @@ async fn batch_sync_block(
         };
         // Find the next set id change
         let set_id_change_at = bisec_setid_change(api, last_set, block_buf).await?;
-        let last_number_in_buff = block_buf.last().unwrap().block.block.header.number;
+        let last_number_in_buff = block_buf.last().unwrap().block.header.number;
         // Search
         // Find the longest batch within the window
-        let first_block_number = block_buf.first().unwrap().block.block.header.number;
+        let first_block_number = block_buf.first().unwrap().block.header.number;
         // TODO: fix the potential overflow here
         let end_buffer = block_buf.len() as isize - 1;
         let end_set_id_change = match set_id_change_at {
@@ -486,7 +505,6 @@ async fn batch_sync_block(
         let mut header_idx = header_end;
         while header_idx >= 0 {
             if block_buf[header_idx as usize]
-                .block
                 .justifications
                 .as_ref()
                 .map(|v| v.get(GRANDPA_ENGINE_ID))
@@ -501,19 +519,17 @@ async fn batch_sync_block(
             warn!(
                 "Cannot find justification within window (from: {}, to: {})",
                 first_block_number,
-                block_buf.last().unwrap().block.block.header.number,
+                block_buf.last().unwrap().block.header.number,
             );
             break;
         }
         // send out the longest batch and remove it from the input buffer
-        let mut block_batch: Vec<BlockWithChanges> =
-            block_buf.drain(..=(header_idx as usize)).collect();
+        let block_batch: Vec<Block> = block_buf.drain(..=(header_idx as usize)).collect();
         let header_batch: Vec<HeaderToSync> = block_batch
             .iter()
             .map(|b| HeaderToSync {
-                header: b.block.block.header.clone(),
+                header: b.block.header.clone(),
                 justification: b
-                    .block
                     .justifications
                     .clone()
                     .map(|v| v.into_justification(GRANDPA_ENGINE_ID))
@@ -559,7 +575,7 @@ async fn batch_sync_block(
         info!("  ..sync_header: {:?}", r);
         next_headernum = r.synced_to + 1;
 
-        if parachain {
+        let hdr_synced_to = if parachain {
             let hdr_synced_to =
                 match get_finalized_header(api, paraclient, last_header_hash).await? {
                     Some((fin_header, proof)) => {
@@ -575,20 +591,12 @@ async fn batch_sync_block(
                     None => 0,
                 };
             next_para_headernum = hdr_synced_to + 1;
-            let mut para_blocks = Vec::new();
-            if next_blocknum <= hdr_synced_to {
-                for b in next_blocknum..=hdr_synced_to {
-                    let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
-                    para_blocks.push(block.clone());
-                }
-            }
-            block_batch = para_blocks;
-        }
+            hdr_synced_to
+        } else {
+            r.synced_to
+        };
 
-        let (count, next) =
-            dispatch_blocks(pr, batch_window, &mut block_batch, next_blocknum).await?;
-        next_blocknum = next;
-        synced_blocks += count;
+        sync_blocks_to!(hdr_synced_to);
 
         sync_state.authory_set_state = Some(match set_id_change_at {
             // set_id changed at next block
@@ -603,7 +611,7 @@ async fn batch_sync_block(
 async fn dispatch_blocks(
     pr: &PrClient,
     batch_window: usize,
-    block_batch: &mut Vec<BlockWithChanges>,
+    mut block_batch: Vec<BlockHeaderWithChanges>,
     mut next_blocknum: BlockNumber,
 ) -> Result<(usize, BlockNumber)> {
     let mut count = 0;
@@ -612,13 +620,8 @@ async fn dispatch_blocks(
         let end_batch = block_batch.len() as isize - 1;
         let batch_end = cmp::min(dispatch_window as isize, end_batch);
         if batch_end >= 0 {
-            let dispatch_batch: Vec<BlockHeaderWithChanges> = block_batch
-                .drain(..=(batch_end as usize))
-                .map(|bwe| BlockHeaderWithChanges {
-                    block_header: bwe.block.block.header,
-                    storage_changes: bwe.storage_changes,
-                })
-                .collect();
+            let dispatch_batch: Vec<BlockHeaderWithChanges> =
+                block_batch.drain(..=(batch_end as usize)).collect();
             let blocks_count = dispatch_batch.len();
             let r = req_dispatch_block(pr, dispatch_batch).await?;
             debug!("  ..dispatch_block: {:?}", r);
@@ -1046,6 +1049,7 @@ async fn bridge(
                     info.para_headernum,
                     cached_headers,
                     args.sync_blocks,
+                    args.get_changes_batch_size,
                 )
                 .await?;
                 continue;
@@ -1055,7 +1059,7 @@ async fn bridge(
         let latest_block = get_block_at(&api.client, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(ref b) = sync_state.blocks.first() {
-            if b.block.block.header.number >= info.blocknum {
+            if b.block.header.number >= info.blocknum {
                 break;
             }
             sync_state.blocks.remove(0);
@@ -1073,7 +1077,7 @@ async fn bridge(
 
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
-            Some(b) => b.block.block.header.number + 1,
+            Some(b) => b.block.header.number + 1,
             None => {
                 if args.parachain {
                     info.headernum
@@ -1095,27 +1099,12 @@ async fn bridge(
 
         // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
-            let block = if args.parachain {
-                get_block_without_storage_changes(&api, Some(b)).await?
-            } else {
-                // api and para_api are connected to the same node in solochain mode
-                get_block_with_storage_changes(&para_api, Some(b)).await?
-            };
+            let block = get_block_without_storage_changes(&api, Some(b)).await?;
 
-            if block.block.justifications.is_some() {
-                debug!(
-                    "block with justification at: {}",
-                    block.block.block.header.number
-                );
+            if block.justifications.is_some() {
+                debug!("block with justification at: {}", block.block.header.number);
             }
             sync_state.blocks.push(block.clone());
-        }
-
-        let next_headernum = info.para_headernum;
-
-        // if the header syncs faster than the event, let the events to catch up
-        if next_headernum > info.blocknum {
-            sync_events_only(&pr, &mut sync_state, next_headernum - 1, args.sync_blocks).await?;
         }
 
         // send the blocks to pRuntime in batch
@@ -1127,6 +1116,7 @@ async fn bridge(
             args.sync_blocks,
             &info,
             args.parachain,
+            args.get_changes_batch_size,
         )
         .await?;
 
@@ -1301,6 +1291,7 @@ async fn sync_with_cached_headers(
     next_para_headernum: BlockNumber,
     mut headers: Vec<headers_cache::BlockInfo>,
     batch_window: usize,
+    get_chagnes_batch_size: usize,
 ) -> Result<()> {
     let last_header = match headers.last_mut() {
         Some(header) => header,
@@ -1328,14 +1319,16 @@ async fn sync_with_cached_headers(
             para_header.proof,
         )
         .await?;
-        let mut para_blocks = Vec::new();
         if next_blocknum <= hdr_synced_to {
-            for b in next_blocknum..=hdr_synced_to {
-                let block = get_block_with_storage_changes(&para_api, Some(b)).await?;
-                para_blocks.push(block.clone());
-            }
+            let blocks = batch_get_storage_changes(
+                &para_api,
+                next_blocknum,
+                hdr_synced_to,
+                get_chagnes_batch_size as _,
+            )
+            .await?;
+            let _ = dispatch_blocks(pr, batch_window, blocks, 0).await?;
         }
-        let _ = dispatch_blocks(pr, batch_window, &mut para_blocks, 0).await?;
     }
     Ok(())
 }
