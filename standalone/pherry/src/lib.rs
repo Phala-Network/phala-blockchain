@@ -199,7 +199,7 @@ struct Args {
         long,
         help = "The batch size to get storage changes from the chain."
     )]
-    get_changes_batch_size: usize,
+    get_changes_batch_size: BlockNumber,
 }
 
 struct RunningFlags {
@@ -434,7 +434,7 @@ async fn batch_sync_block(
     batch_window: usize,
     info: &prpc::PhactoryInfo,
     parachain: bool,
-    get_chagnes_batch_size: usize,
+    get_changes_batch_size: BlockNumber,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
@@ -458,7 +458,7 @@ async fn batch_sync_block(
                     &paraclient,
                     next_blocknum,
                     $to,
-                    get_chagnes_batch_size as _,
+                    get_changes_batch_size,
                 )
                 .await?;
 
@@ -1292,7 +1292,7 @@ async fn sync_with_cached_headers(
     next_para_headernum: BlockNumber,
     mut headers: Vec<headers_cache::BlockInfo>,
     batch_window: usize,
-    get_chagnes_batch_size: usize,
+    get_changes_batch_size: BlockNumber,
 ) -> Result<()> {
     let last_header = match headers.last_mut() {
         Some(header) => header,
@@ -1325,7 +1325,7 @@ async fn sync_with_cached_headers(
                 &para_api,
                 next_blocknum,
                 hdr_synced_to,
-                get_chagnes_batch_size as _,
+                get_changes_batch_size,
             )
             .await?;
             let _ = dispatch_blocks(pr, batch_window, blocks, 0).await?;
