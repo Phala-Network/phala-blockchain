@@ -70,7 +70,8 @@ struct Args {
     measure_rpc_time: bool,
 }
 
-fn main() {
+#[rocket::main]
+async fn main() {
     // Disable the thread local arena(memory pool) for glibc.
     // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
     #[cfg(target_env = "gnu")]
@@ -90,9 +91,6 @@ fn main() {
     .into();
 
     let args = Args::parse();
-
-    env::set_var("RUST_BACKTRACE", "1");
-    env::set_var("ROCKET_ENV", "dev");
 
     if let Some(address) = &args.address {
         env::set_var("ROCKET_ADDRESS", address);
@@ -128,14 +126,6 @@ fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
-    let rocket = thread::Builder::new()
-        .name("rocket".into())
-        .spawn(move || {
-            let err = api_server::rocket(&args).launch();
-            panic!("Launch rocket failed: {}", err);
-        })
-        .expect("Failed to launch Rocket");
-
     let mut v = vec![];
     for i in 0..bench_cores {
         let child = thread::Builder::new()
@@ -151,7 +141,11 @@ fn main() {
         v.push(child);
     }
 
-    let _ = rocket.join();
+    api_server::rocket(&args)
+        .launch()
+        .await
+        .expect("Failed to launch API server");
+
     for child in v {
         let _ = child.join();
     }
