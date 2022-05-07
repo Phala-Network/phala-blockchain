@@ -31,29 +31,67 @@ pub trait DB {
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()>;
 }
 
+#[derive(Clone)]
+pub struct Record<'a> {
+    payload: &'a [u8],
+}
+
+impl<'a> Record<'a> {
+    pub fn new(payload: &'a [u8]) -> Self {
+        Self { payload }
+    }
+
+    pub fn read<'buf>(mut input: impl Read, buffer: &'a mut Vec<u8>) -> Result<Option<Self>> {
+        let mut len_buf = [0u8; 4];
+
+        if input.read(&mut len_buf)? != 4 {
+            // EOF
+            return Ok(None);
+        }
+
+        let length = u32::from_be_bytes(len_buf) as usize;
+
+        if length > buffer.len() {
+            buffer.resize(length, 0);
+        }
+
+        input.read_exact(&mut buffer[..length])?;
+
+        Ok(Some(Self::new(&buffer[..length])))
+    }
+
+    pub fn write(&self, mut writer: impl Write) -> Result<usize> {
+        let length = self.payload.len() as u32;
+        writer.write_all(&length.to_be_bytes())?;
+        writer.write_all(self.payload)?;
+        Ok(self.payload.len() + 4)
+    }
+
+    pub fn payload(&self) -> &'a [u8] {
+        self.payload
+    }
+
+    pub fn header(&self) -> Result<Header> {
+        Ok(Decode::decode(&mut &self.payload[..])?)
+    }
+}
+
 /// Read headers from grabbed file
 pub fn read_items(
     mut input: impl Read,
-    mut f: impl FnMut(&Header, &[u8]) -> Result<bool>,
+    mut f: impl FnMut(Record<'_>) -> Result<bool>,
 ) -> Result<u32> {
     let mut count = 0_u32;
     let mut buffer = vec![0u8; 1024 * 100];
     loop {
-        let mut length_buf = [0u8; 4];
-        if input.read(&mut length_buf)? != 4 {
-            break;
-        }
-        buffer[..4].copy_from_slice(&length_buf);
-        let length = u32::from_be_bytes(length_buf) as usize;
-        if length + 4 > buffer.len() {
-            buffer.resize(length + 4, 0);
-        }
-        let buf = &mut buffer[4..4 + length];
-        input.read_exact(buf)?;
-        let header: Header = Decode::decode(&mut &buf[..])?;
-        count += 1;
-        if f(&header, &buffer[..4 + length])? {
-            break;
+        match Record::read(&mut input, &mut buffer)? {
+            None => break,
+            Some(record) => {
+                count += 1;
+                if f(record)? {
+                    break;
+                }
+            }
         }
     }
     Ok(count)
@@ -61,8 +99,9 @@ pub fn read_items(
 
 /// Import header logs into database.
 pub fn import_headers(input: impl Read, to_db: &mut impl DB) -> Result<u32> {
-    read_items(input, |header, buffer| {
-        to_db.put(&header.number.to_be_bytes(), &buffer[4..])?;
+    read_items(input, |record| {
+        let header = record.header()?;
+        to_db.put(&header.number.to_be_bytes(), record.payload())?;
         Ok(false)
     })
 }
@@ -87,9 +126,7 @@ pub async fn grap_headers_to_file(
                 info!("Got justification at {}", info.header.number);
             }
             let encoded = info.encode();
-            let length = encoded.len() as u32;
-            output.write_all(length.to_be_bytes().as_ref())?;
-            output.write_all(&encoded)?;
+            Record::new(&encoded).write(&mut output)?;
             Ok(())
         },
     )

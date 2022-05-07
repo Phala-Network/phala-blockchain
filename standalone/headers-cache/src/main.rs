@@ -199,13 +199,14 @@ async fn main() -> anyhow::Result<()> {
                 let mut file_size = 0;
                 let mut first = 0;
                 let mut last = 0;
-                let count = cache::read_items(&mut input, |hdr, data| {
-                    outfile.write_all(data)?;
+                let count = cache::read_items(&mut input, |record| {
+                    let hdr = record.header()?;
+                    let len = record.write(&mut outfile)?;
                     if first == 0 {
                         first = hdr.number;
                     }
                     last = hdr.number;
-                    file_size += data.len();
+                    file_size += len;
                     Ok(file_size >= limit)
                 })?;
                 drop(outfile);
