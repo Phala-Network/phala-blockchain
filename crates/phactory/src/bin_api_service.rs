@@ -37,24 +37,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn bin_sync_header(&mut self, input: blocks::SyncHeaderReq) -> Result<Value, Value> {
-        let resp =
-            self.sync_header(input.headers, input.authority_set_change).map_err(display)?;
+        let resp = self
+            .sync_header(input.headers, input.authority_set_change)
+            .map_err(display)?;
         Ok(json!({ "synced_to": resp.synced_to }))
     }
 
     fn bin_sync_para_header(&mut self, input: SyncParachainHeaderReq) -> Result<Value, Value> {
-        let resp = self.sync_para_header(input.headers, input.proof).map_err(display)?;
+        let resp = self
+            .sync_para_header(input.headers, input.proof)
+            .map_err(display)?;
         Ok(json!({ "synced_to": resp.synced_to }))
     }
 
     fn bin_sync_combined_headers(&mut self, input: SyncCombinedHeadersReq) -> Result<Value, Value> {
-        let resp = self.sync_combined_headers(
-            input.relaychain_headers,
-            input.authority_set_change,
-            input.parachain_headers,
-            input.proof,
-        )
-        .map_err(display)?;
+        let resp = self
+            .sync_combined_headers(
+                input.relaychain_headers,
+                input.authority_set_change,
+                input.parachain_headers,
+                input.proof,
+            )
+            .map_err(display)?;
         Ok(json!({
             "relaychain_synced_to": resp.relaychain_synced_to,
             "parachain_synced_to": resp.parachain_synced_to,

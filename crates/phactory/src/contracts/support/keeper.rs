@@ -91,7 +91,6 @@ define_any_native_contract!(
     }
 );
 
-
 #[derive(Default, Serialize, Deserialize)]
 pub struct ContractsKeeper(ContractMap);
 

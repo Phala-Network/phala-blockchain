@@ -2,7 +2,7 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractClusterId, MessageOrigin, ContractId};
+use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber, Hash};
 
@@ -154,11 +154,14 @@ impl contracts::NativeContract for Pink {
     }
 
     fn on_block_end(&mut self, context: &mut contracts::NativeContext) -> TransactionResult {
-        let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
-            .expect("Pink cluster should always exists!");
+        let mut storage = pink::Storage::new_with_mut(context.block.storage);
         let effects = self
             .instance
-            .on_block_end(storage, context.block.block_number, context.block.now_ms)
+            .on_block_end(
+                &mut storage,
+                context.block.block_number,
+                context.block.now_ms,
+            )
             .map_err(|err| {
                 log::error!("Pink [{:?}] on_block_end exec error: {:?}", self.id(), err);
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
@@ -170,7 +173,6 @@ impl contracts::NativeContract for Pink {
         self.clone()
     }
 }
-
 
 pub mod cluster {
     use super::Pink;
@@ -197,6 +199,7 @@ pub mod cluster {
     impl ClusterKeeper {
         pub fn instantiate_contract(
             &mut self,
+            storage: &mut pink::Storage,
             cluster_id: ContractClusterId,
             origin: AccountId,
             code_hash: Hash,
@@ -210,7 +213,7 @@ pub mod cluster {
                 .context("Cluster must exist before instantiation")?;
             let (_, effects) = Pink::instantiate(
                 cluster_id,
-                &mut cluster.storage,
+                storage,
                 origin,
                 code_hash,
                 input_data,
@@ -221,10 +224,33 @@ pub mod cluster {
             Ok(effects)
         }
 
+        // get a cluster from kepper storage
         pub fn get_cluster_mut(&mut self, cluster_id: &ContractClusterId) -> Option<&mut Cluster> {
             self.clusters.get_mut(cluster_id)
         }
 
+        // create cluster with storage and return the mutable reference
+        pub fn create_cluster_and_return(
+            &mut self,
+            storage: &mut pink::Storage,
+            cluster_id: &ContractClusterId,
+            cluster_key: &sr25519::Pair,
+        ) -> &mut Cluster {
+            self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
+                let mut cluster = Cluster {
+                    contracts: Default::default(),
+                    key: cluster_key.clone(),
+                };
+                let seed_key = cluster_key
+                    .derive_sr25519_pair(&[b"ink key derivation seed"])
+                    .expect("Derive key seed should always success!");
+                cluster.set_id(storage, cluster_id);
+                cluster.set_key_seed(storage, seed_key.dump_secret_key());
+                cluster
+            })
+        }
+
+        #[deprecated]
         pub fn get_cluster_or_default_mut(
             &mut self,
             cluster_id: &ContractClusterId,
@@ -273,7 +299,7 @@ pub mod cluster {
 
         pub fn upload_code(
             &mut self,
-            storage: &mut pink::Storage, 
+            storage: &mut pink::Storage,
             origin: AccountId,
             code: Vec<u8>,
         ) -> Result<Hash, DispatchError> {

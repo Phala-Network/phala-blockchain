@@ -1,7 +1,7 @@
-use std::fmt::Debug;
 use anyhow::Result;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use phala_types::contract::ContractQueryError;
+use std::fmt::Debug;
 use thiserror::Error;
 
 extern crate runtime as chain;
@@ -53,10 +53,7 @@ impl BlockInfoBuilder {
         }
     }
     pub fn now_ms(self, now_ms: u64) -> Self {
-        Self {
-            now_ms,
-            ..self
-        }
+        Self { now_ms, ..self }
     }
     pub fn build(&mut self) -> BlockInfo {
         BlockInfo {

@@ -2,6 +2,8 @@ pub mod gk;
 mod master_key;
 mod side_tasks;
 
+use crate::contracts;
+use crate::pal;
 use crate::{
     benchmark,
     contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv},
@@ -10,17 +12,10 @@ use crate::{
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::{anyhow, Context, Result};
-use core::fmt;
-use log::info;
-use pink::runtime::ExecSideEffects;
-use runtime::BlockNumber;
-use pkvdb::PhalaTrieBackend;
-use std::sync::Arc;
-use std::sync::Mutex;
-use crate::contracts;
-use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
+use core::fmt;
+use log::info;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
@@ -42,9 +37,15 @@ use phala_types::{
     },
     EcdhPublicKey, WorkerPublicKey,
 };
+use pink::runtime::ExecSideEffects;
+use pink::Storage as PinkStorage;
+use pkvdb::PhalaDB;
+use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -424,6 +425,11 @@ pub struct System<Platform> {
     // Cached for query
     block_number: BlockNumber,
     now_ms: u64,
+
+    // phala db used as underlying storage
+    // TODO:george maybe need Arc and Mutex to suppot concurrency
+    #[serde(skip)]
+    pub(crate) phala_db: PhalaDB<RuntimeHasher>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -437,6 +443,7 @@ impl<Platform: pal::Platform> System<Platform> {
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
         contracts: ContractsKeeper,
+        phala_db: PhalaDB<RuntimeHasher>,
     ) -> Self {
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
@@ -464,25 +471,25 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_clusters: Default::default(),
             block_number: 0,
             now_ms: 0,
+            phala_db,
         }
     }
 
-    // NOTE: keep the storage is the correct snapshot db type 
+    // NOTE: keep the storage is the correct snapshot db type
     // please take snapshot in prpc
     pub fn make_query(
         &mut self,
-        storage: PhalaTrieBackend<RuntimeHasher>, 
         contract_id: &ContractId,
     ) -> Result<
         impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
         OpaqueError,
     > {
-
+        let snapshot = self.phala_db.derive_pink_snapshot();
+        let storage = pink::Storage::new(snapshot);
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        let storage = pink::Storage::new(Arc::new(Mutex::new(storage)));
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
@@ -837,12 +844,13 @@ impl<Platform: pal::Platform> System<Platform> {
                 code,
                 cluster_id,
             } => {
+                let pink_storage = PinkStorage::new_with_mut(block.storage);
                 let cluster = self
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
                 let hash = cluster
-                    .upload_code(origin.clone(), code)
+                    .upload_code(&mut pink_storage, origin.clone(), code)
                     .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
                 let uploader = phala_types::messaging::AccountId(origin.into());
                 let message = WorkerContractReport::CodeUploaded {
@@ -939,6 +947,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
                         let contract_id = contract_info.contract_id(blake2_256);
+                        let mut pink_storage = PinkStorage::new_with_mut(block.storage);
 
                         let message = ContractRegistryEvent::PubkeyAvailable {
                             contract: contract_id,
@@ -949,6 +958,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         let effects = self
                             .contract_clusters
                             .instantiate_contract(
+                                &mut pink_storage,
                                 cluster_id,
                                 deployer.clone(),
                                 code_hash,
@@ -1020,7 +1030,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_cluster_key_distribution(
         &mut self,
-        _block: &mut BlockInfo,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
         event: BatchDispatchClusterKeyEvent<chain::BlockNumber>,
     ) -> anyhow::Result<()> {
@@ -1045,12 +1055,14 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &event.cluster);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-            // TODO: should use the global storage to inject into it 
-            // register cluster
 
-            // Phactory should know that if the 
-            self.contract_clusters
-                .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+            let mut storage = PinkStorage::new_with_mut(block.storage);
+            // Phactory should know that if the
+            self.contract_clusters.create_cluster_and_return(
+                &mut storage,
+                &event.cluster,
+                &cluster_key,
+            );
             let message = WorkerClusterReport::ClusterDeployed {
                 id: event.cluster,
                 pubkey: cluster_key.public(),
@@ -1251,7 +1263,7 @@ pub mod chain_state {
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
+        let gatekeepers = chain_storage.0
             .get(&key)
             .map(|v| {
                 Vec::<WorkerPublicKey>::decode(&mut &v[..])
@@ -1266,21 +1278,26 @@ pub mod chain_state {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pink::storage::helper;
     use sp_runtime::AccountId32;
 
     const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
     #[test]
     fn test_on_block_end() {
+        let mut storage = helper::new_in_memory();
         let cluster_key = sp_core::Pair::from_seed(&Default::default());
         let mut contracts = ContractsKeeper::default();
         let mut keeper = ClusterKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
-        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
-        let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
+        let cluster = keeper.create_cluster_and_return(&mut storage, &cluster_id, &cluster_key);
+        let code_hash = cluster
+            .upload_code(&mut storage, ALICE.clone(), wasm_bin)
+            .unwrap();
         let effects = keeper
             .instantiate_contract(
+                &mut storage,
                 cluster_id,
                 ALICE,
                 code_hash,

@@ -14,10 +14,8 @@ struct V1 {
     b: u32,
 }
 
-
 #[test]
 fn test_versioning_rmp_serde() {
-
     let a = V0 { a: 42, b: 24 };
 
     let buf = rmp_serde::to_vec(&a).unwrap();
@@ -32,7 +30,6 @@ fn test_versioning_serde_cbor() {
     let buf = serde_cbor::to_vec(&a).unwrap();
     let de: Result<V1, _> = serde_cbor::from_slice(&buf);
     insta::assert_debug_snapshot!(de);
-
 }
 
 #[test]

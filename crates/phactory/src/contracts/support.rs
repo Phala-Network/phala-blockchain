@@ -25,7 +25,7 @@ pub struct NativeContext<'a, 'b> {
 pub struct QueryContext {
     pub block_number: BlockNumber,
     pub now_ms: u64,
-    pub storage: ::pink::Storage,
+    pub storage: ::pink::Storage<'static>,
 }
 
 impl NativeContext<'_, '_> {
@@ -34,7 +34,7 @@ impl NativeContext<'_, '_> {
     }
 }
 
-// The Phala FatContract abstraction 
+// The Phala FatContract abstraction
 // TODO: if we need on_block_begin lifecycle hook ?
 pub trait NativeContract {
     type Cmd: Decode + Debug;

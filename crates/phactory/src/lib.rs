@@ -236,10 +236,6 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
-    #[serde(skip)]
-    state_storage: PhalaDB<RuntimeHasher>,
-    #[serde(skip)]
-    trie_storage: PhactoryTrieStorage,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
@@ -262,9 +258,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_state: None,
             system: None,
             side_task_man: Default::default(),
-            trie_storage: None,
             last_checkpoint: Instant::now(),
         }
+    }
+
+    // get phala_db used in runtime 
+    fn get_phala_db(&mut self) -> &mut PhalaDB<RuntimeHasher> {
+        let mut system = self.system.expect("phaladb must be None when call from the runtime");
+        &mut system.phala_db
     }
 
     pub fn init(&mut self, args: InitArgs) {
@@ -281,12 +282,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         self.args = args;
-    }
-
-    // open trie storage and return it for next usage 
-    pub fn open_trie_storage(&mut self, path: AsRef<Path>) -> Arc<Mutex<PhalaTrieBackend<RuntimeHasher>>> {
-        //self.trie_storage = trie_storage;
-        unimplemented!()
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
@@ -308,7 +303,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         genesis_block_hash: H256,
         predefined_identity_key: Option<sr25519::Pair>,
     ) -> Result<PersistentRuntimeData> {
-        // let transaction = self.chain_storage.begin_transaction();
         let data = if let Some(identity_sk) = predefined_identity_key {
             self.save_runtime_data(genesis_block_hash, identity_sk, true)?
         } else {

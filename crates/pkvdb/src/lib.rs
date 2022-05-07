@@ -142,7 +142,7 @@ where
             .pink_overlay
             .lock()
             .expect("commit should hold the pink overlay lock");
-        let mut sync = self
+        let sync = self
             .sync_overlay
             .lock()
             .expect("commit should hold the sync overlay lock");
@@ -189,6 +189,10 @@ where
     pub fn get_raw(&self, key: &[u8]) -> Option<Vec<u8>> {
         let mut db = self.db.lock().expect("get raw key have to hold the lock");
         DB::get(db.borrow_mut(), key)
+    }
+
+    pub fn put_raw(&mut self, key: Vec<u8>, value: Vec<u8>) {
+        let _ = self.raw_map.insert(key, value);
     }
 }
 

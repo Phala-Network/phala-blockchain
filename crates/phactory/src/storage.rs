@@ -1,9 +1,9 @@
 use crate::light_validation::{storage_proof::StorageProof, LightValidation};
-use std::string::ToString;
 use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
+use std::string::ToString;
 
-pub use storage_ext::{StorageExt};
 pub use phactory_api::Storage;
+pub use storage_ext::StorageExt;
 
 impl BlockValidator for LightValidation<chain::Runtime> {
     fn submit_finalized_headers(
@@ -36,13 +36,13 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 }
 
 mod storage_ext {
+    use super::Storage;
     use crate::chain;
     use crate::light_validation::utils::storage_prefix;
-    use phactory_api::blocks::ParaId;
     use log::error;
     use parity_scale_codec::{Decode, Error};
+    use phactory_api::blocks::ParaId;
     use phala_mq::Message;
-    use super::Storage;
 
     pub trait StorageExt {
         fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;

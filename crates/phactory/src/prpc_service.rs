@@ -67,10 +67,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let public_key = system.map(|state| hex::encode(state.identity_key.public()));
         let ecdh_public_key = system.map(|state| hex::encode(&state.ecdh_key.public()));
         let dev_mode = self.dev_mode;
-
+        let mut backend = self.get_phala_db().derive_sync_backend();
         let (state_root, pending_messages, counters) = match state.as_ref() {
             Some(state) => {
-                let state_root = hex::encode(state.chain_storage.root());
+                let state_root = hex::encode(backend.0.root().clone());
                 let pending_messages = state.send_mq.count_messages();
                 let counters = state.storage_synchronizer.counters();
                 (state_root, pending_messages, counters)
@@ -152,9 +152,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         );
 
         let state = self.runtime_state()?;
+        let mut phala_db = self.get_phala_db();
 
-        let para_id = state
-            .chain_storage
+        let mut storage = phala_db.derive_sync_backend();
+
+        let para_id = storage
             .para_id()
             .ok_or_else(|| from_display("No para_id"))?;
 
@@ -202,14 +204,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         })
     }
 
-    fn before_dispatch_block(&mut self, block: &blocks::BlockHeaderWithChanges){
-        // do something before dispatching block into system 
-    }
-    
-    fn after_dispatch_block(){
-
-    }
-
     pub(crate) fn dispatch_block(
         &mut self,
         blocks: Vec<blocks::BlockHeaderWithChanges>,
@@ -220,29 +214,36 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             blocks.last().map(|h| h.block_header.number)
         );
 
-        // Currently take a snpshot storage waiting for use 
-
         let mut last_block = 0;
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
+            let mut sync_backend = self.get_phala_db().derive_sync_backend();
+            let mut pink_backend = self.get_phala_db().derive_pink_backend();
+
             let state = self.runtime_state()?;
             state
                 .storage_synchronizer
-                .feed_block(&block, &mut state.chain_storage)
+                .feed_block(&block, &mut sync_backend)
                 .map_err(from_display)?;
 
             state.purge_mq();
-            self.handle_inbound_messages(block.block_header.number)?;
-            self.poll_side_tasks(block.block_header.number)?;
+            self.handle_inbound_messages(&mut pink_backend, block.block_header.number)?;
+            self.poll_side_tasks(&mut pink_backend, block.block_header.number)?;
             last_block = block.block_header.number;
+
+
+            let mut phala_db = self.get_phala_db();
+            // set the sync root 
+            phala_db.sync_root = Some(sync_backend.0.root().clone());
+            phala_db.pink_root = Some(pink_backend.0.root().clone());
+
+            // TAKE CHECKPOINT and then commit it 
+            phala_db.commit_at_checkpoint();
 
             if let Err(e) = self.maybe_take_checkpoint(last_block) {
                 error!("Failed to take checkpoint: {:?}", e);
             }
         }
-
-        // also take checkpoint over this method 
-       //  self.chain_storage.commit();
 
         Ok(pb::SyncedTo {
             synced_to: last_block,
@@ -271,6 +272,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if self.system.is_some() {
             return Err(from_display("Runtime already initialized"));
         }
+
+        // open the phala db 
+        let phala_db = PhalaDB::<RuntimeHasher>::open(self.args.phaladb_path);
 
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
@@ -352,7 +356,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let mut runtime_state = RuntimeState {
             send_mq,
             recv_mq,
-            storage_synchronizer, 
+            storage_synchronizer,
             genesis_block_hash,
         };
 
@@ -366,6 +370,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
+            Some(phala_db),
         );
 
         let resp = pb::InitRuntimeResponse::new(
@@ -460,7 +465,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<impl FnOnce() -> RpcResult<pb::ContractQueryResponse>> {
-        // lock and take snapshot from current storage 
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
@@ -532,7 +536,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         })
     }
 
-    fn handle_inbound_messages(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
+    fn handle_inbound_messages(&mut self, storage: &mut PhalaTrieBackend<RuntimeHasher>, block_number: chain::BlockNumber) -> RpcResult<()> {
         let state = self
             .runtime_state
             .as_mut()
@@ -543,8 +547,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Runtime not initialized"))?;
 
         // Dispatch events
-        let messages = state
-            .chain_storage
+        let messages = storage
             .mq_messages()
             .map_err(|_| from_display("Can not get mq messages from storage"))?;
 
@@ -588,8 +591,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         });
 
-        let now_ms = state
-            .chain_storage
+        let now_ms = storage
             .timestamp_now()
             .ok_or_else(|| from_display("No timestamp found in block"))?;
 
@@ -605,13 +607,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         );
         benchmark::set_ready(ready);
 
-        let storage = &state.chain_storage;
         let side_task_man = &mut self.side_task_man;
         let recv_mq = &mut *guard;
         let mut block = BlockInfo {
             block_number,
             now_ms,
-            storage, // storage is from the RuntimeState and we just replace this to total one 
+            storage, // storage is from the RuntimeState and we just replace this to total one
             send_mq: &state.send_mq,
             recv_mq,
             side_task_man,
@@ -621,7 +622,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(())
     }
 
-    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
+    fn poll_side_tasks(&mut self, storage: &mut PhalaTrieBackend<RuntimeHasher>, block_number: chain::BlockNumber) -> RpcResult<()> {
         let state = self
             .runtime_state
             .as_ref()
@@ -629,7 +630,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let context = side_task::PollContext {
             block_number,
             send_mq: &state.send_mq,
-            storage: &state.chain_storage,
+            storage: storage,
         };
         self.side_task_man.poll(&context);
         Ok(())

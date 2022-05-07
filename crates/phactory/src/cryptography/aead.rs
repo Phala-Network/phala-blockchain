@@ -1,4 +1,3 @@
-
 pub const IV_BYTES: usize = 12;
 pub type IV = [u8; IV_BYTES];
 
