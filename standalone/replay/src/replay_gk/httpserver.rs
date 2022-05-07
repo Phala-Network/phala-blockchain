@@ -25,7 +25,7 @@ async fn meminfo(data: web::Data<AppState>) -> HttpResponse {
 
 #[get("/worker-state/{pubkey}")]
 async fn get_worker_state(
-    web::Path(pubkey): web::Path<String>,
+    pubkey: web::Path<String>,
     data: web::Data<AppState>,
 ) -> HttpResponse {
     let factory = data.factory.lock().await;
@@ -72,7 +72,7 @@ pub async fn serve(bind_addr: String, factory: Arc<Mutex<ReplayFactory>>) {
     HttpServer::new(move || {
         let factory = factory.clone();
         App::new()
-            .data(AppState { factory })
+            .app_data(web::Data::new(AppState { factory }))
             .service(get_worker_state)
             .service(meminfo)
             .service(dump_workers)

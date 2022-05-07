@@ -29,7 +29,7 @@ exclude = [
 	"native-nostd-hasher",
 	"standalone/pruntime",
 	"standalone/prouter",
-	"crates/pink/examples/",
+	"crates/pink/sidevm/examples",
 ]
 
 members = [
@@ -52,11 +52,19 @@ members = [
 	"crates/phala-types",
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
+	"crates/wasmer-tunables",
+	"crates/phala-rocket-middleware",
 	"crates/pink",
 	"crates/pink/pink-extension",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
+	"crates/pink/sidevm/host-runtime",
+	"crates/pink/sidevm/env",
+	"crates/pink/sidevm/macro",
+	"crates/pink/sidevm/logger",
+	"crates/pink/sidevm/sidevm",
 	"crates/phala-serde-more",
+	"crates/rustfmt-snippet",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/utility",

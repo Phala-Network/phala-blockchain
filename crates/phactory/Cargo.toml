@@ -48,7 +48,7 @@ parity-scale-codec   = { package = "parity-scale-codec", version = "3.0", defaul
 scopeguard   = { version = "1.1", default-features = false }
 
 # Phala specific
-runtime = { path = "../../standalone/runtime", package = "phala-node-runtime", default-features = false }
+runtime = { path = "../../standalone/runtime", package = "phala-node-runtime" }
 phala-pallets = { path = "../../pallets/phala", default-features = false }
 phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
 phactory-api = { path = "./api", default-features = false, features = ["serde"] }
@@ -88,6 +88,10 @@ phala-async-executor = { path = '../phala-async-executor' }
 
 # for geo probing
 maxminddb = "0.17"
+
+glob = "0.3"
+sidevm = { version = "0.1.0", package = "pink-sidevm-host-runtime", path = "../pink/sidevm/host-runtime" }
+tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
 insta = "1.7.2"

@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
+use sp_runtime::generic::Era;
 use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
-use structopt::StructOpt;
 use tokio::time::sleep;
 
 use codec::Decode;
@@ -31,158 +31,166 @@ use phactory_api::blocks::{
 use phactory_api::prpc::{self, InitRuntimeResponse};
 use phactory_api::pruntime_client;
 
+use clap::{AppSettings, Parser};
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "pherry")]
+#[derive(Parser, Debug)]
+#[clap(
+    about = "Sync messages between pruntime and the blockchain.",
+    version,
+    author
+)]
+#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
     )]
     dev: bool,
 
-    #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
+    #[clap(short = 'n', long = "no-init", help = "Should init pRuntime?")]
     no_init: bool,
 
-    #[structopt(
+    #[clap(
         long = "no-sync",
         help = "Don't sync pRuntime. Quit right after initialization."
     )]
     no_sync: bool,
 
-    #[structopt(long, help = "Don't write pRuntime egress data back to Substarte.")]
+    #[clap(long, help = "Don't write pRuntime egress data back to Substarte.")]
     no_msg_submit: bool,
 
-    #[structopt(long, help = "Skip registering the worker.")]
+    #[clap(long, help = "Skip registering the worker.")]
     no_register: bool,
 
-    #[structopt(long, help = "Skip binding the worker endpoint.")]
+    #[clap(
+        long, 
+        help = "Skip binding the worker endpoint."
+    )]
     no_bind: bool,
 
-    #[structopt(
+    #[clap(
         long,
         help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled."
     )]
     use_dev_key: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "",
         long = "inject-key",
         help = "Inject key to pRuntime."
     )]
     inject_key: String,
 
-    #[structopt(
-        short = "r",
+    #[clap(
+        short = 'r',
         long = "remote-attestation",
         help = "Should enable Remote Attestation"
     )]
     ra: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "ws://localhost:9944",
         long,
         help = "Substrate rpc websocket endpoint"
     )]
     substrate_ws_endpoint: String,
 
-    #[structopt(
+    #[clap(
         default_value = "ws://localhost:9977",
         long,
         help = "Parachain collator rpc websocket endpoint"
     )]
     collator_ws_endpoint: String,
 
-    #[structopt(
+    #[clap(
         default_value = "http://localhost:8000",
         long,
         help = "pRuntime http endpoint"
     )]
     pruntime_endpoint: String,
 
-    #[structopt(default_value = "", long, help = "notify endpoint")]
+    #[clap(default_value = "", long, help = "notify endpoint")]
     notify_endpoint: String,
 
-    #[structopt(
-        required = true,
+    #[clap(
         default_value = "//Alice",
-        short = "m",
+        short = 'm',
         long = "mnemonic",
         help = "Controller SR25519 private key mnemonic, private key seed, or derive path"
     )]
     mnemonic: String,
 
-    #[structopt(
+    #[clap(
         default_value = "1000",
         long = "fetch-blocks",
         help = "The batch size to fetch blocks from Substrate."
     )]
     fetch_blocks: u32,
 
-    #[structopt(
+    #[clap(
         default_value = "100",
         long = "sync-blocks",
         help = "The batch size to sync blocks to pRuntime."
     )]
     sync_blocks: usize,
 
-    #[structopt(
+    #[clap(
         long = "operator",
         help = "The operator account to set the miner for the worker."
     )]
     operator: Option<String>,
 
-    #[structopt(long = "parachain", help = "Parachain mode")]
+    #[clap(long = "parachain", help = "Parachain mode")]
     parachain: bool,
 
-    #[structopt(
+    #[clap(
         long,
         help = "The first parent header to be synced, default to auto-determine"
     )]
     start_header: Option<BlockNumber>,
 
-    #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
+    #[clap(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "5000",
         long,
         help = "(Debug only) Set the wait block duration in ms"
     )]
     dev_wait_block_ms: u64,
 
-    #[structopt(
+    #[clap(
         default_value = "0",
         long,
         help = "The charge transaction payment, unit: balance"
     )]
-    tip: u64,
-    #[structopt(
+    tip: u128,
+    #[clap(
         default_value = "4",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
     longevity: u64,
-    #[structopt(
+    #[clap(
         default_value = "200",
         long,
         help = "Max number of messages to be submitted per-round"
     )]
     max_sync_msgs_per_round: u64,
 
-    #[structopt(long, help = "Auto restart self after an error occurred")]
+    #[clap(long, help = "Auto restart self after an error occurred")]
     auto_restart: bool,
 
-    #[structopt(
+    #[clap(
         default_value = "10",
         long,
         help = "Max auto restart retries if it continiously failing. Only used with --auto-restart"
     )]
     max_restart_retries: u32,
 
-    #[structopt(long, help = "Restart if number of rpc errors reaches the threshold")]
+    #[clap(long, help = "Restart if number of rpc errors reaches the threshold")]
     restart_on_rpc_error_threshold: Option<u64>,
 }
 
@@ -782,6 +790,7 @@ async fn register_worker(
     encoded_runtime_info: Vec<u8>,
     attestation: prpc::Attestation,
     signer: &mut SrSigner,
+    args: &Args,
 ) -> Result<()> {
     let payload = attestation
         .payload
@@ -795,11 +804,12 @@ async fn register_worker(
             raw_signing_cert: payload.signing_cert,
         };
     chain_client::update_signer_nonce(para_api, signer).await?;
+    let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
         .tx()
         .phala_registry()
         .register_worker(pruntime_info, attestation)
-        .sign_and_submit_then_watch(signer)
+        .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
@@ -814,13 +824,21 @@ async fn try_register_worker(
     paraclient: &ParachainApi,
     signer: &mut SrSigner,
     operator: Option<AccountId32>,
+    args: &Args,
 ) -> Result<()> {
     let info = pr
         .get_runtime_info(prpc::GetRuntimeInfoRequest::new(false, operator))
         .await?;
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
-        register_worker(&paraclient, info.encoded_runtime_info, attestation, signer).await?;
+        register_worker(
+            &paraclient,
+            info.encoded_runtime_info,
+            attestation,
+            signer,
+            args,
+        )
+        .await?;
     }
     Ok(())
 }
@@ -952,7 +970,7 @@ async fn bridge(
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &para_api, &mut signer, operator).await?;
+            try_register_worker(&pr, &para_api, &mut signer, operator, &args).await?;
             flags.worker_registered = true;
         }
         // try bind worker endpoint
@@ -1070,7 +1088,8 @@ async fn bridge(
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 if !flags.worker_registered {
-                    try_register_worker(&pr, &para_api, &mut signer, operator.clone()).await?;
+                    try_register_worker(&pr, &para_api, &mut signer, operator.clone(), &args)
+                        .await?;
                     flags.worker_registered = true;
                 }
             }
@@ -1162,13 +1181,53 @@ async fn collect_async_errors(
     }
 }
 
+async fn mk_params(
+    api: &ParachainApi,
+    longevity: u64,
+    tip: u128,
+) -> Result<phaxt::ExtrinsicParamsBuilder> {
+    let era = if longevity > 0 {
+        let header = api
+            .client
+            .rpc()
+            .header(<Option<Hash>>::None)
+            .await?
+            .ok_or_else(|| anyhow!("No header"))?;
+        let number = header.number as u64;
+        let period = longevity;
+        let phase = number % period;
+        let era = Era::Mortal(period, phase);
+        info!(
+            "update era: block={}, period={}, phase={}, birth={}, death={}",
+            number,
+            period,
+            phase,
+            era.birth(number),
+            era.death(number)
+        );
+        Some((era, header.hash()))
+    } else {
+        None
+    };
+
+    let params = if let Some((era, checkpoint)) = era {
+        phaxt::ExtrinsicParamsBuilder::new()
+            .tip(tip)
+            .era(era, checkpoint)
+    } else {
+        phaxt::ExtrinsicParamsBuilder::new().tip(tip)
+    };
+
+    Ok(params)
+}
+
 pub async fn pherry_main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .parse_default_env()
         .init();
 
-    let mut args = Args::from_args();
+    let mut args = Args::parse();
     preprocess_args(&mut args);
 
     let mut flags = RunningFlags {

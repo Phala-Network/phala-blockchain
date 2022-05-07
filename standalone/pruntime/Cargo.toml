@@ -1,0 +1,35 @@
+[package]
+edition = "2021"
+name = "pruntime"
+version = "0.1.0"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+anyhow = "1.0"
+clap = {version = "3", features = ["derive"]}
+colored = "2"
+http_req = {version = "0.8.1", default-features = false, features = ["rust-tls"]}
+libc = "0.2"
+log = "0.4.14"
+num_cpus = "1.13"
+os_pipe = "1.0.0"
+
+rocket = { version = "0.5.0-rc.1", features = ["json"] }
+rocket_cors = "0.6.0-alpha1"
+serde_json = "1.0"
+
+base64 = "0.13.0"
+
+env_logger = {version = "0.9.0", features = ["termcolor"]}
+lazy_static = {version = "1.4.0", default-features = false}
+parity-scale-codec = {version = "3.0", default-features = false}
+serde = {version = "1.0", default-features = false, features = ["derive"]}
+urlencoding = "2.1.0"
+
+phactory = {path = "../../crates/phactory"}
+phactory-api = {path = "../../crates/phactory/api"}
+phactory-pal = {path = "../../crates/phactory/pal"}
+phala-allocator = {path = "../../crates/phala-allocator"}
+phala-rocket-middleware = {path = "../../crates/phala-rocket-middleware"}

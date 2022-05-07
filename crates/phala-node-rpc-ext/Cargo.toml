@@ -30,7 +30,8 @@ sc-client-api = { path = "../../substrate/client/api" }
 sc-transaction-pool-api = { path = "../../substrate/client/transaction-pool/api" }
 sc-rpc = { path = "../../substrate/client/rpc" }
 
-phala-mq = { path = "../../crates/phala-mq", default-features = false }
-phala-pallets = { path = "../../pallets/phala", default-features = false }
-pallet-mq-runtime-api = { path = "../../pallets/phala/mq-runtime-api", default-features = false }
-ext-types = { path = "./types", package = "phala-node-rpc-ext-types", default-features = false }
+phala-mq = { path = "../../crates/phala-mq" }
+phala-pallets = { path = "../../pallets/phala" }
+pallet-mq-runtime-api = { path = "../../pallets/phala/mq-runtime-api" }
+ext-types = { path = "./types", package = "phala-node-rpc-ext-types" }
+

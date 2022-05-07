@@ -11,6 +11,7 @@ extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
+use glob::PatternError;
 use rand::*;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
@@ -20,8 +21,8 @@ use serde::{
 
 use crate::light_validation::LightValidation;
 use std::path::PathBuf;
-use std::str;
 use std::{io::Write, marker::PhantomData};
+use std::{path::Path, str};
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -110,19 +111,77 @@ impl RuntimeState {
 
 const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 const CHECKPOINT_FILE: &str = "checkpoint.seal";
-const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
-const BACKUP_CHECKPOINT_FILE: &str = "checkpoint.seal.bak";
-const CHECKPOINT_VERSION: u32 = 1;
+const CHECKPOINT_VERSION: u32 = 2;
+
+fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
+    format!("{}/{}-{:0>9}", basedir, CHECKPOINT_FILE, block_number)
+}
+
+fn checkpoint_filename_pattern(basedir: &str) -> String {
+    format!("{}/{}-*", basedir, CHECKPOINT_FILE)
+}
+
+fn glob_checkpoint_files(basedir: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
+    let pattern = checkpoint_filename_pattern(basedir);
+    Ok(glob::glob(&pattern)?.filter_map(|path| path.ok()))
+}
+
+fn glob_checkpoint_files_sorted(
+    basedir: &str,
+) -> Result<Vec<(chain::BlockNumber, PathBuf)>, PatternError> {
+    fn parse_block(filename: &Path) -> Option<chain::BlockNumber> {
+        let filename = filename.to_str()?;
+        let block_number = filename.rsplit('-').next()?.parse().ok()?;
+        Some(block_number)
+    }
+    let mut files = Vec::new();
+
+    for filename in glob_checkpoint_files(basedir)? {
+        match parse_block(&filename) {
+            Some(block_number) => {
+                files.push((block_number, filename));
+            }
+            _ => {}
+        }
+    }
+    files.sort_by_key(|(block_number, _)| std::cmp::Reverse(*block_number));
+    Ok(files)
+}
 
 fn maybe_remove_checkpoints(basedir: &str) {
-    for filename in [CHECKPOINT_FILE, BACKUP_CHECKPOINT_FILE].iter() {
-        let path = PathBuf::from(basedir).join(filename);
-        if path.exists() {
-            if let Err(e) = std::fs::remove_file(&path) {
-                error!("failed to remove {}: {}", path.display(), e);
+    match glob_checkpoint_files(basedir) {
+        Err(err) => error!("Error globbing checkpoints: {:?}", err),
+        Ok(iter) => {
+            for filename in iter {
+                if let Err(e) = std::fs::remove_file(&filename) {
+                    error!("failed to remove {}: {}", filename.display(), e);
+                }
             }
         }
     }
+}
+
+fn remove_outdated_checkpoints(
+    basedir: &str,
+    max_kept: u32,
+    current_block: chain::BlockNumber,
+) -> Result<()> {
+    let mut kept = 0_u32;
+    for (block, filename) in glob_checkpoint_files_sorted(basedir)? {
+        if block > current_block {
+            continue;
+        }
+        kept += 1;
+        if kept > max_kept {
+            match std::fs::remove_file(&filename) {
+                Err(e) => error!("Failed to remove {}: {}", filename.display(), e),
+                Ok(_) => {
+                    info!("Removed {}", filename.display());
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Encode, Decode, Clone, Debug)]
@@ -297,8 +356,18 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 }
 
+impl<P> Phactory<P> {
+    // Restored from checkpoint
+    pub fn on_restored(&mut self) -> Result<()> {
+        if let Some(system) = &mut self.system {
+            system.on_restored()?;
+        }
+        Ok(())
+    }
+}
+
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
-    pub fn take_checkpoint(&mut self) -> anyhow::Result<()> {
+    pub fn take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
         let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
             key.dump_secret_key().to_vec()
         } else {
@@ -306,33 +375,25 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         info!("Taking checkpoint...");
-        let checkpoint_file = PathBuf::from(&self.args.sealing_path).join(CHECKPOINT_FILE);
-        // Write to a tmpfile to avoid the previous checkpoint file being corrupted.
-        let tmpfile = PathBuf::from(&self.args.sealing_path).join(TMP_CHECKPOINT_FILE);
-        if tmpfile.is_symlink() {
-            std::fs::remove_file(&tmpfile).context("Failed to remove tmp checkpoint file")?;
-        }
-
+        let checkpoint_file = checkpoint_filename_for(current_block, &self.args.sealing_path);
         {
             // Do serialization
             let file = self
                 .platform
-                .create_protected_file(&tmpfile, &key)
+                .create_protected_file(&checkpoint_file, &key)
                 .map_err(|err| anyhow!("{:?}", err))
                 .context("Failed to create protected file")?;
 
             serde_cbor::ser::to_writer(file, &PhactoryDumper(self))
                 .context("Failed to write checkpoint")?;
         }
-
-        {
-            // Post-process filenames
-            let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
-            let _ = std::fs::rename(&checkpoint_file, &backup);
-            std::fs::rename(&tmpfile, &checkpoint_file).context("Failed to rename checkpoint")?;
-        }
-        info!("Checkpoint saved to {:?}", checkpoint_file);
+        info!("Checkpoint saved to {}", checkpoint_file);
         self.last_checkpoint = Instant::now();
+        remove_outdated_checkpoints(
+            &self.args.sealing_path,
+            self.args.max_checkpoint_files,
+            current_block,
+        )?;
         Ok(())
     }
 
@@ -359,42 +420,57 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
+        remove_corrupted_checkpoint: bool,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
-            Ok(data) => data,
-            Err(err) => match err {
-                Error::PersistentRuntimeNotFound => return Ok(None),
-                _ => return Err(err.into()),
-            },
+            Err(Error::PersistentRuntimeNotFound) => return Ok(None),
+            other => other.context("Failed to load persistent data")?,
         };
-        let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
-        let checkpoint_file = if checkpoint_file.exists() {
-            checkpoint_file
-        } else {
-            PathBuf::from(sealing_path).join(BACKUP_CHECKPOINT_FILE)
-        };
-        let tmpfile = PathBuf::from(sealing_path).join(TMP_CHECKPOINT_FILE);
-
-        // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump the checkpoint.
-        if tmpfile.is_symlink() || tmpfile.exists() {
-            std::fs::remove_file(&tmpfile).context("Failed to remove tmp checkpoint file")?;
+        let files =
+            glob_checkpoint_files_sorted(sealing_path).context("Glob checkpoint files failed")?;
+        if files.is_empty() {
+            return Ok(None);
         }
-        std::os::unix::fs::symlink(&checkpoint_file, &tmpfile)?;
-        scopeguard::defer! {
-            let _ = std::fs::remove_file(&tmpfile);
-        }
+        let (_block, ckpt_filename) = &files[0];
 
-        let file = match platform.open_protected_file(&tmpfile, &runtime_data.sk) {
+        let file = match platform.open_protected_file(&ckpt_filename, &runtime_data.sk) {
             Ok(Some(file)) => file,
-            Ok(None) => return Ok(None),
+            Ok(None) => {
+                // This should never happen unless it was removed just after the glob.
+                anyhow::bail!("Checkpoint file {:?} is not found", ckpt_filename);
+            }
             Err(err) => {
-                return Err(anyhow!("Failed to open checkpoint file: {:?}", err));
+                error!(
+                    "Failed to open checkpoint file {:?}: {:?}",
+                    ckpt_filename, err
+                );
+                if remove_corrupted_checkpoint {
+                    error!("Removing {:?}", ckpt_filename);
+                    std::fs::remove_file(&ckpt_filename)
+                        .context("Failed to remove corrupted checkpoint file")?;
+                }
+                anyhow::bail!(
+                    "Failed to open checkpoint file {:?}: {:?}",
+                    ckpt_filename,
+                    err
+                );
             }
         };
 
-        let loader: PhactoryLoader<_> =
-            serde_cbor::de::from_reader(file).context("Failed to decode state")?;
-        Ok(Some(loader.0))
+        let loader: PhactoryLoader<_> = match serde_cbor::de::from_reader(file) {
+            Ok(loader) => loader,
+            Err(_err /*Don't leak it into the log*/) => {
+                error!("Failed to load checkpoint file {:?}", ckpt_filename);
+                if remove_corrupted_checkpoint {
+                    error!("Removing {:?}", ckpt_filename);
+                    std::fs::remove_file(&ckpt_filename)
+                        .context("Failed to remove corrupted checkpoint file")?;
+                }
+                anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
+            }
+        };
+        info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
+        return Ok(Some(loader.0));
     }
 
     pub fn restore_from_checkpoint_reader<R: std::io::Read>(
@@ -484,7 +560,10 @@ impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Pl
 struct PhactoryLoader<Platform>(Phactory<Platform>);
 impl<'de, Platform: Serialize + DeserializeOwned> Deserialize<'de> for PhactoryLoader<Platform> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let factory = Phactory::load_state(deserializer)?;
+        let mut factory = Phactory::load_state(deserializer)?;
+        factory
+            .on_restored()
+            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {:?}", err)))?;
         Ok(Self(factory))
     }
 }

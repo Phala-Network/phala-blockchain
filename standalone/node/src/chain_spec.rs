@@ -491,6 +491,7 @@ pub fn testnet_genesis(
 		phala_registry,
 		phala_mining: Default::default(),
 		transaction_payment: Default::default(),
+		nomination_pools: Default::default(),
 	}
 }
 

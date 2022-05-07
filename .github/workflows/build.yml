@@ -50,7 +50,7 @@ jobs:
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Build pRuntime
-        run: make V=1 dist -C ./standalone/pruntime/pruntime/gramine-build/
+        run: make V=1 dist -C ./standalone/pruntime/gramine-build/
       - name: Save pruntime binaries
         uses: actions/upload-artifact@v2
         with:

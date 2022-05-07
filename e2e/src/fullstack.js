@@ -17,8 +17,7 @@ const { checkUntil, skipSlowTest } = require('./utils');
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
 
-const isGramine = process.env.PRUNTIME_TYPE == "gramine";
-const pRuntimeBin = isGramine ? "pruntime" : "app";
+const pRuntimeBin = "pruntime";
 const pathPRuntime = path.resolve(`../standalone/pruntime/bin/${pRuntimeBin}`);
 
 
@@ -202,7 +201,7 @@ describe('A full stack', function () {
                 await cluster.waitWorkerExitAndRestart(1, 10 * 6000),
                 'worker1 restart timeout'
             );
-            const dataDir = isGramine ? "data" : ".";
+            const dataDir = "data";
             assert.isTrue(
                 fs.existsSync(`${tmpPath}/pruntime1/${dataDir}/master_key.seal`),
                 'master key not received'
@@ -659,7 +658,7 @@ class Cluster {
 }
 
 function waitPRuntimeOutput(p) {
-    return p.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/);
+    return p.startAndWaitForOutput(/Rocket has launched from/);
 }
 function waitRelayerOutput(p) {
     return p.startAndWaitForOutput(/runtime_info: InitRuntimeResp/);
@@ -690,9 +689,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     if (!fs.existsSync(workDir)) {
         fs.mkdirSync(workDir);
         fs.mkdirSync(sealDir);
-        const filesMustCopy = isGramine ?
-            ['Rocket.toml', pRuntimeBin, 'pruntime.manifest'] :
-            ['Rocket.toml', pRuntimeBin, 'enclave.signed.so'];
+        const filesMustCopy = ['Rocket.toml', pRuntimeBin];
         const filesShouldCopy = ['GeoLite2-City.mmdb']
         filesMustCopy.forEach(f =>
             fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
@@ -703,14 +700,10 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
             }
         });
     }
-    const args = isGramine ?
-        [
-            '--cores=0',  // Disable benchmark
-            '--port', teePort.toString()
-        ] :
-        [
-            '--cores=0',
-        ];
+    const args = [
+        '--cores=0',  // Disable benchmark
+        '--port', teePort.toString()
+    ];
     return new Process([
         `${workDir}/${pRuntimeBin}`, args, {
             cwd: workDir,

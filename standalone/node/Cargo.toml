@@ -4,7 +4,7 @@ version = "3.0.0"
 authors = ["Phala Network"]
 description = "Phala Substrate Node"
 build = "build.rs"
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 default-run = "phala-node"
 homepage = "https://substrate.dev"
@@ -126,7 +126,6 @@ async-std = { version = "1.10.0", features = ["attributes"] }
 soketto = "0.4.2"
 criterion = { version = "0.3.5", features = ["async_tokio"] }
 tokio = { version = "1.15", features = ["macros", "time", "parking_lot"] }
-jsonrpsee-ws-client = "0.4.1"
 wait-timeout = "0.2"
 remote-externalities = { path = "../../substrate/utils/frame/remote-externalities" }
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
@@ -163,11 +162,3 @@ runtime-benchmarks = [
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
 try-runtime = ["node-runtime/try-runtime", "try-runtime-cli"]
-
-[[bench]]
-name = "transaction_pool"
-harness = false
-
-[[bench]]
-name = "block_production"
-harness = false

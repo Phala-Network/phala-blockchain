@@ -1,0 +1,13 @@
+# workaround for https://github.com/rust-lang/cargo/issues/6745
+[workspace]
+
+[package]
+edition = "2021"
+name = "sidevm-host"
+version = "0.1.0"
+
+[dependencies]
+pink-sidevm-host-runtime = {path = "../../host-runtime"}
+tokio = {version = "1.17.0", features = ["full"]}
+env_logger = "0.9.0"
+anyhow = "1.0.56"

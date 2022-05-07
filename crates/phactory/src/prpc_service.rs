@@ -205,15 +205,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub(crate) fn dispatch_block(
         &mut self,
-        blocks: Vec<blocks::BlockHeaderWithChanges>,
+        mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
             "dispatch_block from={:?} to={:?}",
             blocks.first().map(|h| h.block_header.number),
             blocks.last().map(|h| h.block_header.number)
         );
+        let counters = self.runtime_state()?.storage_synchronizer.counters();
+        blocks.retain(|b| b.block_header.number >= counters.next_block_number);
 
-        let mut last_block = 0;
+        let mut last_block = counters.next_block_number - 1;
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
             let state = self.runtime_state()?;
@@ -226,10 +228,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.handle_inbound_messages(block.block_header.number)?;
             self.poll_side_tasks(block.block_header.number)?;
             last_block = block.block_header.number;
-        }
 
-        if let Err(e) = self.maybe_take_checkpoint() {
-            error!("Failed to take checkpoint: {:?}", e);
+            if let Err(e) = self.maybe_take_checkpoint(last_block) {
+                error!("Failed to take checkpoint: {:?}", e);
+            }
         }
 
         Ok(pb::SyncedTo {
@@ -237,14 +239,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         })
     }
 
-    fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
+    fn maybe_take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
         if !self.args.enable_checkpoint {
             return Ok(());
         }
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
-        self.take_checkpoint()
+        self.take_checkpoint(current_block)
     }
 
     fn init_runtime(
@@ -595,7 +597,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // When delta time reaches 3600s, there are about 3600 / 12 = 300 blocks rest.
         // It need about 30 more seconds to sync up to date.
         let ready = block_time + 3600 > sys_time;
-        debug!("block_time={}, sys_time={}, ready={}", block_time, sys_time, ready);
+        debug!(
+            "block_time={}, sys_time={}, ready={}",
+            block_time, sys_time, ready
+        );
         benchmark::set_ready(ready);
 
         let storage = &state.chain_storage;

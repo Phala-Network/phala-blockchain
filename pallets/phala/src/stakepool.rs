@@ -1,3 +1,5 @@
+//! Pool for collaboratively mining staking
+
 pub use self::pallet::*;
 
 use frame_support::traits::Currency;
@@ -45,6 +47,7 @@ pub mod pallet {
 
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
+	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
 		///
@@ -89,7 +92,7 @@ pub mod pallet {
 		type BackfillOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -159,35 +162,119 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// \[owner, pid\]
-		PoolCreated(T::AccountId, u64),
-		/// The real commission ratio is commission/1_000_000u32. \[pid, commission\]
-		PoolCommissionSet(u64, u32),
-		/// \[pid, cap\]
-		PoolCapacitySet(u64, BalanceOf<T>),
-		/// \[pid, worker\]
-		PoolWorkerAdded(u64, WorkerPublicKey),
-		/// \[pid, user, amount\]
-		Contribution(u64, T::AccountId, BalanceOf<T>),
-		/// \[pid, user, amount\]
-		Withdrawal(u64, T::AccountId, BalanceOf<T>),
-		/// \[pid, user, amount\]
-		RewardsWithdrawn(u64, T::AccountId, BalanceOf<T>),
-		/// \[pid, amount\]
-		PoolSlashed(u64, BalanceOf<T>),
-		/// \[pid, account, amount\]
-		SlashSettled(u64, T::AccountId, BalanceOf<T>),
-		/// Some reward is dismissed because the worker is no longer bound to a pool. \[worker, amount\]
-		RewardDismissedNotInPool(WorkerPublicKey, BalanceOf<T>),
-		/// Some reward is dismissed because the pool doesn't have any share. \[pid, amount\]
-		RewardDismissedNoShare(u64, BalanceOf<T>),
-		/// Some reward is dismissed because the amount is too tiny (dust). \[pid, amount\]
-		RewardDismissedDust(u64, BalanceOf<T>),
-		/// Some dust stake is removed. \[user, amount\]
-		DustRemoved(T::AccountId, BalanceOf<T>),
+		/// A pool is created under an owner
+		///
+		/// Affected states:
+		/// - a new entry in [`StakePools`] with the pid
+		PoolCreated { owner: T::AccountId, pid: u64 },
+		/// The commission of a pool is updated
+		///
+		/// The commission ratio is represented by an integer. The real value is
+		/// `commission / 1_000_000u32`.
+		///
+		/// Affected states:
+		/// - the `payout_commission` field in [`StakePools`] is updated
+		PoolCommissionSet { pid: u64, commission: u32 },
+		/// The stake capacity of the pool is updated
+		///
+		/// Affected states:
+		/// - the `cap` field in [`StakePools`] is updated
+		PoolCapacitySet { pid: u64, cap: BalanceOf<T> },
+		/// A worker is added to the pool
+		///
+		/// Affected states:
+		/// - the `worker` is added to the vector `workers` in [`StakePools`]
+		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
+		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
+		///   [`MinerBindings`](mining::pallet::MinerBindings))
+		PoolWorkerAdded { pid: u64, worker: WorkerPublicKey },
+		/// Someone contributed to a pool
+		///
+		/// Affected states:
+		/// - the stake related fields in [`StakePools`]
+		/// - the user staking account at [`PoolStakers`]
+		/// - the locking ledger of the contributor at [`StakeLedger`]
+		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
+		///   ([`Withdrawal`](#variant.Withdrawal) event)
+		Contribution {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// Some stake was withdrawn from a pool
+		///
+		/// The lock in [`Balances`](pallet_balances::pallet::Pallet) is updated to release the
+		/// locked stake.
+		///
+		/// Affected states:
+		/// - the stake related fields in [`StakePools`]
+		/// - the user staking account at [`PoolStakers`]
+		/// - the locking ledger of the contributor at [`StakeLedger`]
+		Withdrawal {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// Pending rewards were withdrawn by a user
+		///
+		/// The reward and slash accumulator is resolved, and the reward is sent to the user
+		/// account.
+		///
+		/// Affected states:
+		/// - the stake related fields in [`StakePools`]
+		/// - the user staking account at [`PoolStakers`]
+		RewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// The pool received a slash event from one of its workers (currently disabled)
+		///
+		/// The slash is accured to the pending slash accumulator.
+		PoolSlashed { pid: u64, amount: BalanceOf<T> },
+		/// Some slash is actually settled to a contributor (currently disabled)
+		SlashSettled {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// Some reward is dismissed because the worker is no longer bound to a pool
+		///
+		/// There's no affected state.
+		RewardDismissedNotInPool {
+			worker: WorkerPublicKey,
+			amount: BalanceOf<T>,
+		},
+		/// Some reward is dismissed because the pool doesn't have any share
+		///
+		/// There's no affected state.
+		RewardDismissedNoShare { pid: u64, amount: BalanceOf<T> },
+		/// Some reward is dismissed because the amount is too tiny (dust)
+		///
+		/// There's no affected state.
+		RewardDismissedDust { pid: u64, amount: BalanceOf<T> },
+		/// Some dust stake is removed
+		///
+		/// Triggered when the remaining stake of a user is too small after withdrawal or slash.
+		///
+		/// Affected states:
+		/// - the balance of the locking ledger of the contributor at [`StakeLedger`] is set to 0
+		/// - the user's dust stake is moved to treasury
+		DustRemoved {
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
 		/// A worker is removed from a pool.
+		///
+		/// Affected states:
+		/// - the worker item in [`WorkerAssignments`] is removed
+		/// - the worker is removed from the [`StakePools`] item
 		PoolWorkerRemoved { pid: u64, worker: WorkerPublicKey },
-		/// A withdrawal request is queued by adding or replacing an old one.
+		/// A withdrawal request is inserted to a queue
+		///
+		/// Affected states:
+		/// - a new item is inserted to or an old item is being replaced by the new item in the
+		///   withdraw queue in [`StakePools`]
 		WithdrawalQueued {
 			pid: u64,
 			user: T::AccountId,
@@ -197,23 +284,40 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The worker is not registered in the registry when adding to the pool
 		WorkerNotRegistered,
+		/// The worker doesn't have a valid benchmark when adding to the pool
 		BenchmarkMissing,
+		/// The worker is already added to the pool
 		WorkerExists,
+		/// The target worker is not in the pool
 		WorkerDoesNotExist,
+		/// The worker is already added to another pool
 		WorkerInAnotherPool,
+		/// The owner of the pool doesn't have the access to the worker
+		///
+		/// The access to a worker is granted by it's `operator` parameter set by `register_worker`
 		UnauthorizedOperator,
+		/// The caller is not the owner of the pool
 		UnauthorizedPoolOwner,
-		/// The stake capacity is set too low for the existing stake
+		/// The stake capacity is set too low to cover the existing stake
 		InadequateCapacity,
+		/// The stake added to a pool exceeds its capacity
 		StakeExceedsCapacity,
+		/// The specified pool doesn't exist
 		PoolDoesNotExist,
 		_PoolIsBusy,
+		/// The contributed stake is smaller than the minimum threshold
 		InsufficientContribution,
+		/// Trying to contribute more than the available balance
 		InsufficientBalance,
+		/// The user doesn't have stake in a pool
 		PoolStakeNotFound,
+		/// Cannot start mining because there's no enough free stake
 		InsufficientFreeStake,
+		/// The withdrawal amount is too small (considered as dust)
 		InvalidWithdrawalAmount,
+		/// Couldn't bind worker and the pool mining subaccount
 		FailedToBindMinerAndWorker,
 		/// Internal error: Cannot withdraw from the subsidy pool. This should never happen.
 		InternalSubsidyPoolCannotWithdraw,
@@ -222,6 +326,7 @@ pub mod pallet {
 		/// In this case, no more funds can be contributed to the pool until all the pending slash
 		/// has been resolved.
 		PoolBankrupt,
+		/// There's no pending reward to claim
 		NoRewardToClaim,
 		/// The StakePool is not enabled yet.
 		FeatureNotEnabled,
@@ -275,7 +380,7 @@ pub mod pallet {
 				},
 			);
 			PoolCount::<T>::put(pid + 1);
-			Self::deposit_event(Event::<T>::PoolCreated(owner, pid));
+			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
 
 			Ok(())
 		}
@@ -333,7 +438,10 @@ pub mod pallet {
 			workers.push(pubkey);
 			StakePools::<T>::insert(&pid, &pool_info);
 			WorkerAssignments::<T>::insert(&pubkey, pid);
-			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
+			Self::deposit_event(Event::<T>::PoolWorkerAdded {
+				pid,
+				worker: pubkey,
+			});
 
 			Ok(())
 		}
@@ -397,7 +505,7 @@ pub mod pallet {
 			pool_info.cap = Some(cap);
 			StakePools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::PoolCapacitySet(pid, cap));
+			Self::deposit_event(Event::<T>::PoolCapacitySet { pid, cap });
 			Ok(())
 		}
 
@@ -419,10 +527,10 @@ pub mod pallet {
 			pool_info.payout_commission = Some(payout_commission);
 			StakePools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::PoolCommissionSet(
+			Self::deposit_event(Event::<T>::PoolCommissionSet {
 				pid,
-				payout_commission.deconstruct(),
-			));
+				commission: payout_commission.deconstruct(),
+			});
 
 			Ok(())
 		}
@@ -461,7 +569,11 @@ pub mod pallet {
 			if let Some(user_info) = user_info {
 				PoolStakers::<T>::insert(&info_key, &user_info);
 			}
-			Self::deposit_event(Event::<T>::RewardsWithdrawn(pid, who, rewards));
+			Self::deposit_event(Event::<T>::RewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
 
 			Ok(())
 		}
@@ -472,6 +584,7 @@ pub mod pallet {
 		/// 1. The pool exists
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let a = amount; // Alias to reduce confusion in the code below
@@ -485,13 +598,6 @@ pub mod pallet {
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
-			if let Some(cap) = pool_info.cap {
-				ensure!(
-					cap.saturating_sub(pool_info.total_stake) >= a,
-					Error::<T>::StakeExceedsCapacity
-				);
-			}
-
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
@@ -528,9 +634,21 @@ pub mod pallet {
 			// We have new free stake now, try to handle the waiting withdraw queue
 			Self::try_process_withdraw_queue(&mut pool_info);
 
+			// Post-check to ensure the total stake doesn't exceed the cap
+			if let Some(cap) = pool_info.cap {
+				ensure!(
+					pool_info.total_stake <= cap,
+					Error::<T>::StakeExceedsCapacity
+				);
+			}
+
 			// Persist
 			StakePools::<T>::insert(&pid, &pool_info);
-			Self::deposit_event(Event::<T>::Contribution(pid, who, a));
+			Self::deposit_event(Event::<T>::Contribution {
+				pid,
+				user: who,
+				amount: a,
+			});
 			Ok(())
 		}
 
@@ -753,7 +871,10 @@ pub mod pallet {
 		) {
 			if rewards > Zero::zero() {
 				if balance_close_to_zero(pool_info.total_shares) {
-					Self::deposit_event(Event::<T>::RewardDismissedNoShare(pool_info.pid, rewards));
+					Self::deposit_event(Event::<T>::RewardDismissedNoShare {
+						pid: pool_info.pid,
+						amount: rewards,
+					});
 					return;
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
@@ -762,10 +883,10 @@ pub mod pallet {
 				if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
 				} else if to_distribute > Zero::zero() {
-					Self::deposit_event(Event::<T>::RewardDismissedDust(
-						pool_info.pid,
-						to_distribute,
-					));
+					Self::deposit_event(Event::<T>::RewardDismissedDust {
+						pid: pool_info.pid,
+						amount: to_distribute,
+					});
 				}
 			}
 		}
@@ -783,7 +904,10 @@ pub mod pallet {
 				// and creating a logical pending slash. The actual slash happens with the pending
 				// slash to individuals is settled.
 				pool_info.slash(slashed);
-				Self::deposit_event(Event::<T>::PoolSlashed(pid, slashed));
+				Self::deposit_event(Event::<T>::PoolSlashed {
+					pid,
+					amount: slashed,
+				});
 			}
 
 			// With the worker being cleaned, those stake now are free
@@ -839,11 +963,11 @@ pub mod pallet {
 					.remove_stake(user_info, withdrawing_shares)
 					.expect("There are enough withdrawing_shares; qed.");
 				Self::ledger_reduce(&user_info.user, reduced, dust);
-				Self::deposit_event(Event::<T>::Withdrawal(
-					pool_info.pid,
-					user_info.user.clone(),
-					reduced,
-				));
+				Self::deposit_event(Event::<T>::Withdrawal {
+					pid: pool_info.pid,
+					user: user_info.user.clone(),
+					amount: reduced,
+				});
 			}
 			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
 			// queue. When the pool has free stake again, the withdrawal will be fulfilled.
@@ -918,11 +1042,11 @@ pub mod pallet {
 					withdraw.shares = shares;
 					// Withdraw the funds
 					Self::ledger_reduce(&user_info.user, reduced, dust);
-					Self::deposit_event(Event::<T>::Withdrawal(
-						pool_info.pid,
-						user_info.user.clone(),
-						reduced,
-					));
+					Self::deposit_event(Event::<T>::Withdrawal {
+						pid: pool_info.pid,
+						user: user_info.user.clone(),
+						amount: reduced,
+					});
 					// Update the pending reward after changing the staked amount
 					pool_info.reset_pending_reward(&mut user_info);
 					PoolStakers::<T>::insert(&info_key, &user_info);
@@ -958,7 +1082,10 @@ pub mod pallet {
 				let (imbalance, _remaining) = <T as Config>::Currency::slash(who, dust);
 				let actual_removed = imbalance.peek();
 				T::OnSlashed::on_unbalanced(imbalance);
-				Self::deposit_event(Event::<T>::DustRemoved(who.clone(), actual_removed));
+				Self::deposit_event(Event::<T>::DustRemoved {
+					user: who.clone(),
+					amount: actual_removed,
+				});
 			}
 		}
 
@@ -1025,11 +1152,11 @@ pub mod pallet {
 					// Dust is not considered because it's already merged into the slash if
 					// presents.
 					Self::ledger_reduce(&user.user, actual_slashed, Zero::zero());
-					Self::deposit_event(Event::<T>::SlashSettled(
-						pool.pid,
-						user.user.clone(),
-						actual_slashed,
-					));
+					Self::deposit_event(Event::<T>::SlashSettled {
+						pid: pool.pid,
+						user: user.user.clone(),
+						amount: actual_slashed,
+					});
 				}
 				_ => (),
 			}
@@ -1068,6 +1195,11 @@ pub mod pallet {
 			}
 			WithdrawalTimestamps::<T>::put(&t);
 		}
+
+		pub(crate) fn migration_remove_assignments() -> Weight {
+			let writes = WorkerAssignments::<T>::drain().count();
+			T::DbWeight::get().writes(writes as _)
+		}
 	}
 
 	impl<T: Config> mining::OnReward for Pallet<T>
@@ -1086,10 +1218,10 @@ pub mod pallet {
 				let pid = match WorkerAssignments::<T>::get(&info.pubkey) {
 					Some(pid) => pid,
 					None => {
-						Self::deposit_event(Event::<T>::RewardDismissedNotInPool(
-							info.pubkey,
-							reward,
-						));
+						Self::deposit_event(Event::<T>::RewardDismissedNotInPool {
+							worker: info.pubkey,
+							amount: reward,
+						});
 						return;
 					}
 				};
@@ -1176,6 +1308,7 @@ pub mod pallet {
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
+	/// The state of a pool
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId, Balance> {
 		/// Pool ID
@@ -1183,20 +1316,42 @@ pub mod pallet {
 		/// The owner of the pool
 		pub owner: AccountId,
 		/// The commission the pool owner takes
+		///
+		/// For example, 10% commission means 10% of the miner reward goes to the pool owner, and
+		/// the remaining 90% is distributed to the contributors. Setting to `None` means a
+		/// commission of 0%.
 		pub payout_commission: Option<Permill>,
 		/// Claimable owner reward
+		///
+		/// Whenver a miner gets some reward, the commission the pool taken goes to here. The owner
+		/// can claim their reward at any time.
 		pub owner_reward: Balance,
-		/// The hard cap of the pool
+		/// The hard capacity of the pool
+		///
+		/// When it's set, the totals stake a pool can receive will not exceed this capacity.
 		pub cap: Option<Balance>,
-		/// The reward accumulator
+		/// The reward [accumulator](crate::utils::accumulator)
+		///
+		/// An individual user's reward is tracked by [`reward_acc`](PoolInfo::reward_acc), their
+		/// [`shares`](UserStakeInfo::shares) and the [`reward_debt`](UserStakeInfo::reward_debt).
 		pub reward_acc: CodecFixedPoint,
-		/// Total shares. Cannot be dust.
+		/// Total shares
+		///
+		/// It tracks the total number of shared of all the contributors. Guaranteed to be
+		/// non-dust.
 		pub total_shares: Balance,
-		/// Total stake. Cannot be dust.
+		/// Total stake
+		///
+		/// It tracks the total number of the stake the pool received. Guaranteed to be non-dust.
 		pub total_stake: Balance,
-		/// Total free stake. Can be dust.
+		/// Total free stake
+		///
+		/// It tracks the total free stake (not used by any miner) in the pool. Can be dust.
 		pub free_stake: Balance,
-		/// Releasing stake (will be unlocked after worker reclaiming)
+		/// Releasing stake
+		///
+		/// It tracks the stake that will be unlocked in the future. It's the sum of all the
+		/// cooling down miners' remaining stake.
 		pub releasing_stake: Balance,
 		/// Bound workers
 		pub workers: Vec<WorkerPublicKey>,
@@ -1351,6 +1506,8 @@ pub mod pallet {
 
 		/// Settles the pending slash for a pool user.
 		///
+		/// The slash is
+		///
 		/// Returns the slashed amount if succeeded, otherwise None.
 		fn settle_slash(&self, user: &mut UserStakeInfo<AccountId, Balance>) -> Option<Balance> {
 			let price = self.share_price()?;
@@ -1449,23 +1606,30 @@ pub mod pallet {
 		}
 	}
 
+	/// A user's staking info
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct UserStakeInfo<AccountId, Balance> {
-		/// User account
+		/// User's address
 		pub user: AccountId,
-		/// The actual locked stake
+		/// The actual locked stake in the pool
 		pub locked: Balance,
-		/// The share in the pool. Cannot be dust.
+		/// The share in the pool
 		///
-		/// Invariant must hold:
-		///   StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)
+		/// Guaranteed to be non-dust. Invariant must hold:
+		/// - `StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)`
 		pub shares: Balance,
-		/// Claimable rewards
+		/// Resolved claimable rewards
+		///
+		/// It's accumulated by resolving "pending stake" from the reward
+		/// [accumulator](crate::utils::accumulator).
 		pub available_rewards: Balance,
-		/// The debt of a user's stake subject to the pool reward accumulator
+		/// The debt of a user's stake
+		///
+		/// It's subject to the pool reward [accumulator](crate::utils::accumulator).
 		pub reward_debt: Balance,
 	}
 
+	/// A withdraw request, usually stored in the withdrawal queue
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WithdrawInfo<AccountId, Balance> {
 		/// The withdrawal requester
@@ -1516,8 +1680,8 @@ pub mod pallet {
 				assert_matches!(
 					take_events().as_slice(),
 					[
-						TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),
-						TestEvent::PhalaStakePool(Event::PoolCreated(1, 1)),
+						TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 0 }),
+						TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 1 }),
 					]
 				);
 				assert_eq!(
@@ -1720,15 +1884,9 @@ pub mod pallet {
 		fn test_pool_cap() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
-				let worker1 = worker_pubkey(1);
-				assert_ok!(PhalaRegistry::force_register_worker(
-					Origin::root(),
-					worker1.clone(),
-					ecdh_pubkey(1),
-					Some(1)
-				));
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
 
-				assert_ok!(PhalaStakePool::create(Origin::signed(1))); // pid = 0
 				assert_eq!(PhalaStakePool::stake_pools(0).unwrap().cap, None);
 				// Pool existence
 				assert_noop!(
@@ -1771,6 +1929,29 @@ pub mod pallet {
 					PhalaStakePool::contribute(Origin::signed(2), 0, 900 * DOLLARS),
 					Error::<Test>::StakeExceedsCapacity,
 				);
+
+				// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
+				// can be maintained after the contribution
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(1),
+					0,
+					1000 * DOLLARS
+				));
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(2), 0, 1001 * DOLLARS),
+					Error::<Test>::StakeExceedsCapacity
+				);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1000 * DOLLARS
+				));
 			});
 		}
 
@@ -1896,10 +2077,14 @@ pub mod pallet {
 				assert_matches!(
 					ev.as_slice(),
 					[
-						TestEvent::PhalaMining(mining::Event::MinerSettled(_, v, 0)),
-						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
-						TestEvent::PhalaMining(mining::Event::MinerReclaimed(_, _, _)),
-						TestEvent::PhalaStakePool(Event::PoolSlashed(0, slashed)),
+						TestEvent::PhalaMining(mining::Event::MinerSettled {
+							miner: _,
+							v_bits: v,
+							payout_bits:0
+						}),
+						TestEvent::PhalaMining(mining::Event::MinerStopped { miner: _ }),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed { .. }),
+						TestEvent::PhalaStakePool(Event::PoolSlashed { pid: 0, amount: slashed }),
 					]
 					if FixedPoint::from_bits(*v) == ve / 2
 						&& *slashed == 250000000000000
@@ -1923,12 +2108,20 @@ pub mod pallet {
 							who: 1,
 							amount: 50000000000000
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 50000000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 1,
+							amount: 50000000000000
+						}),
 						TestEvent::Balances(pallet_balances::Event::Slashed {
 							who: 2,
 							amount: 200000000000000
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000000))
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 2,
+							amount: 200000000000000
+						})
 					]
 				);
 				// Check slash settled. Remaining: 50 PHA, 200 PHA
@@ -1971,14 +2164,21 @@ pub mod pallet {
 				assert_matches!(
 					ev.as_slice(),
 					[
-						TestEvent::PhalaMining(mining::Event::MinerSettled(_, _, 0)),
-						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
-						TestEvent::PhalaMining(mining::Event::MinerReclaimed(
-							_,
-							500000000000000,
-							250000000000000
-						)),
-						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000000)),
+						TestEvent::PhalaMining(mining::Event::MinerSettled {
+							miner: _,
+							v_bits: _,
+							payout_bits: 0
+						}),
+						TestEvent::PhalaMining(mining::Event::MinerStopped { miner: _ }),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed {
+							miner: _,
+							original_stake: 500000000000000,
+							slashed: 250000000000000
+						}),
+						TestEvent::PhalaStakePool(Event::PoolSlashed {
+							pid: 0,
+							amount: 250000000000000
+						}),
 					]
 				);
 				// Withdraw & check amount
@@ -2010,22 +2210,46 @@ pub mod pallet {
 							who: 1,
 							amount: 25000000000000
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 25000000000000)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 25000000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 1,
+							amount: 25000000000000
+						}),
+						TestEvent::PhalaStakePool(Event::Withdrawal {
+							pid: 0,
+							user: 1,
+							amount: 25000000000000
+						}),
 						// Account2: ~100 PHA remaining
 						TestEvent::Balances(pallet_balances::Event::Slashed {
 							who: 2,
 							amount: 100000000000000
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 100000000000000)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 100000000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 2,
+							amount: 100000000000000
+						}),
+						TestEvent::PhalaStakePool(Event::Withdrawal {
+							pid: 0,
+							user: 2,
+							amount: 100000000000000
+						}),
 						// Account1: ~125 PHA remaining
 						TestEvent::Balances(pallet_balances::Event::Slashed {
 							who: 3,
 							amount: 125000000000001
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 3, 125000000000001)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 3, 125000000000000))
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 3,
+							amount: 125000000000001
+						}),
+						TestEvent::PhalaStakePool(Event::Withdrawal {
+							pid: 0,
+							user: 3,
+							amount: 125000000000000
+						})
 					]
 				);
 			});
@@ -2119,7 +2343,11 @@ pub mod pallet {
 							to: 1,
 							amount: 100 * DOLLARS
 						}),
-						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 1, 100 * DOLLARS))
+						TestEvent::PhalaStakePool(Event::RewardsWithdrawn {
+							pid: 0,
+							user: 1,
+							amount: 100 * DOLLARS
+						})
 					]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -2184,11 +2412,11 @@ pub mod pallet {
 				));
 				assert_eq!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::Withdrawal(
-						0,
-						1,
-						400 * DOLLARS
-					))]
+					[TestEvent::PhalaStakePool(Event::Withdrawal {
+						pid: 0,
+						user: 1,
+						amount: 400 * DOLLARS
+					})]
 				);
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
@@ -2228,7 +2456,10 @@ pub mod pallet {
 				let ev = take_events();
 				assert_eq!(
 					ev,
-					vec![TestEvent::PhalaStakePool(Event::RewardDismissedDust(0, 99))]
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedDust {
+						pid: 0,
+						amount: 99
+					})]
 				);
 			});
 		}
@@ -2252,10 +2483,10 @@ pub mod pallet {
 				let ev = take_events();
 				assert_eq!(
 					ev,
-					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNoShare(
-						0,
-						500 * DOLLARS
-					))]
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNoShare {
+						pid: 0,
+						amount: 500 * DOLLARS
+					})]
 				);
 				// Simulate the worker is already unbound
 				assert_ok!(PhalaStakePool::remove_worker(
@@ -2273,10 +2504,10 @@ pub mod pallet {
 				let ev = take_events();
 				assert_eq!(
 					ev,
-					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNotInPool(
-						worker_pubkey(1),
-						500 * DOLLARS
-					))]
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNotInPool {
+						worker: worker_pubkey(1),
+						amount: 500 * DOLLARS
+					})]
 				);
 			});
 		}
@@ -2394,8 +2625,16 @@ pub mod pallet {
 				assert_eq!(
 					take_events().as_slice(),
 					[
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 1 * DOLLARS)),
-						TestEvent::PhalaStakePool(Event::Contribution(0, 1, 1 * DOLLARS))
+						TestEvent::PhalaStakePool(Event::Withdrawal {
+							pid: 0,
+							user: 2,
+							amount: 1 * DOLLARS
+						}),
+						TestEvent::PhalaStakePool(Event::Contribution {
+							pid: 0,
+							user: 1,
+							amount: 1 * DOLLARS
+						})
 					]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -2441,11 +2680,11 @@ pub mod pallet {
 				PhalaStakePool::handle_reclaim(0, 100 * DOLLARS, 0);
 				assert_eq!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::Withdrawal(
-						0,
-						2,
-						100 * DOLLARS
-					)),]
+					[TestEvent::PhalaStakePool(Event::Withdrawal {
+						pid: 0,
+						user: 2,
+						amount: 100 * DOLLARS
+					}),]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
@@ -2462,21 +2701,40 @@ pub mod pallet {
 				assert_eq!(
 					take_events().as_slice(),
 					[
-						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 100 * DOLLARS)),
+						TestEvent::PhalaStakePool(Event::PoolSlashed {
+							pid: 0,
+							amount: 100 * DOLLARS
+						}),
 						// Staker 2 got 75% * 99 PHA back
 						TestEvent::Balances(pallet_balances::Event::Slashed {
 							who: 2,
 							amount: 99_750000000000
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 99_750000000000)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 74_250000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 2,
+							amount: 99_750000000000
+						}),
+						TestEvent::PhalaStakePool(Event::Withdrawal {
+							pid: 0,
+							user: 2,
+							amount: 74_250000000000
+						}),
 						// Staker 1 got 75% * 1 PHA back
 						TestEvent::Balances(pallet_balances::Event::Slashed {
 							who: 1,
 							amount: 250000000000
 						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 250000000000)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 750000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled {
+							pid: 0,
+							user: 1,
+							amount: 250000000000
+						}),
+						TestEvent::PhalaStakePool(Event::Withdrawal {
+							pid: 0,
+							user: 1,
+							amount: 750000000000
+						}),
 					]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -2724,13 +2982,21 @@ pub mod pallet {
 							to: 1,
 							amount: 50000000000000
 						}),
-						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 1, 50000000000000)),
+						TestEvent::PhalaStakePool(Event::RewardsWithdrawn {
+							pid: 0,
+							user: 1,
+							amount: 50000000000000
+						}),
 						TestEvent::Balances(pallet_balances::Event::Transfer {
 							from: _,
 							to: 2,
 							amount: 49999999999999
 						}),
-						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 2, 49999999999999))
+						TestEvent::PhalaStakePool(Event::RewardsWithdrawn {
+							pid: 0,
+							user: 2,
+							amount: 49999999999999
+						})
 					]
 				);
 			});
@@ -2776,10 +3042,10 @@ pub mod pallet {
 				));
 				assert_eq!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::PoolCommissionSet(
-						0,
-						1000_000u32 * 50 / 100
-					))]
+					[TestEvent::PhalaStakePool(Event::PoolCommissionSet {
+						pid: 0,
+						commission: 1000_000u32 * 50 / 100
+					})]
 				);
 				assert_ok!(PhalaStakePool::add_worker(
 					Origin::signed(1),

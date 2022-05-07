@@ -128,10 +128,12 @@ where
     /// Given chain headers in sequence, validate it and output the state_roots
     pub fn sync_header(
         &mut self,
-        headers: Vec<HeaderToSync>,
+        mut headers: Vec<HeaderToSync>,
         authority_set_change: Option<AuthoritySetChange>,
         state_roots: &mut VecDeque<Hash>,
     ) -> Result<chain::BlockNumber> {
+        headers.retain(|header| header.header.number >= self.header_number_next);
+
         let first_header = match headers.first() {
             Some(header) => header,
             None => return Ok(self.header_number_next - 1),
@@ -323,17 +325,22 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         let last_header =
             self.sync_state
                 .sync_header(headers, authority_set_change, &mut state_roots)?;
-        self.last_relaychain_state_root = state_roots.pop_back();
+        // Don't overwrite the last state_root if given headers is empty
+        if let Some(last_root) = state_roots.pop_back() {
+            self.last_relaychain_state_root = Some(last_root);
+        }
         Ok(last_header)
     }
 
     /// Given the parachain headers in sequence, validate it and cached the state_roots for block validation
     fn sync_parachain_header(
         &mut self,
-        headers: Vec<chain::Header>,
+        mut headers: Vec<chain::Header>,
         proof: StorageProof,
         storage_key: &[u8],
     ) -> Result<chain::BlockNumber> {
+        headers.retain(|header| header.number >= self.para_header_number_next);
+
         let first_hdr = match headers.first() {
             Some(hdr) => hdr,
             None => return Ok(self.para_header_number_next - 1)

@@ -17,7 +17,6 @@ use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
 use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
 
-#[cfg(feature = "serde")]
 use sp_trie::HashDBT as _;
 
 /// Storage key.

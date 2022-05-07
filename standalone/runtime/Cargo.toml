@@ -2,7 +2,7 @@
 name = "phala-node-runtime"
 version = "2.0.0"
 authors = ["Phala Network"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 license = "Apache-2.0"
 homepage = "https://phala.network/"
@@ -68,6 +68,8 @@ pallet-identity = { default-features = false, path = "../../substrate/frame/iden
 pallet-lottery = { default-features = false, path = "../../substrate/frame/lottery" }
 pallet-membership = { default-features = false, path = "../../substrate/frame/membership" }
 pallet-multisig = { default-features = false, path = "../../substrate/frame/multisig" }
+pallet-nomination-pools = { default-features = false, path = "../../substrate/frame/nomination-pools" }
+pallet-nomination-pools-benchmarking = { default-features = false, optional = true, path = "../../substrate/frame/nomination-pools/benchmarking" }
 pallet-offences = { default-features = false, path = "../../substrate/frame/offences" }
 pallet-offences-benchmarking = { path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
 pallet-preimage = { default-features = false, path = "../../substrate/frame/preimage" }
@@ -124,6 +126,7 @@ std = [
 	"pallet-lottery/std",
 	"pallet-membership/std",
 	"pallet-multisig/std",
+	"pallet-nomination-pools/std",
 	"pallet-identity/std",
 	"pallet-scheduler/std",
 	"node-primitives/std",
@@ -189,6 +192,7 @@ runtime-benchmarks = [
 	"pallet-lottery/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
+	"pallet-nomination-pools-benchmarking",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-society/runtime-benchmarks",

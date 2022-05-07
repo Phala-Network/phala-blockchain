@@ -42,6 +42,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
+use sidevm::service::Spawner;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -416,10 +417,25 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_clusters: ClusterKeeper,
+    #[serde(skip)]
+    #[serde(default = "create_sidevm_service")]
+    sidevm_spawner: Spawner,
 
     // Cached for query
     block_number: BlockNumber,
     now_ms: u64,
+}
+
+fn create_sidevm_service() -> Spawner {
+    let (run, spawner) = sidevm::service::service();
+    std::thread::spawn(move || {
+        run.blocking_run(|report| {
+            let todo = "kevin: restart sidevm instance if it crashes";
+            let todo = "kevin: remove the log since it leak vm info";
+            info!("Sidevm report: {:?}", report);
+        })
+    });
+    spawner
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -460,6 +476,7 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_clusters: Default::default(),
             block_number: 0,
             now_ms: 0,
+            sidevm_spawner: create_sidevm_service(),
         }
     }
 
@@ -583,6 +600,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     &mut self.contract_clusters,
                     block,
                     &self.egress,
+                    &self.sidevm_spawner,
                 );
             }
             let mut env = ExecuteEnv {
@@ -602,6 +620,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &mut self.contract_clusters,
                 block,
                 &self.egress,
+                &self.sidevm_spawner,
             );
         }
     }
@@ -969,6 +988,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             cluster,
                             block,
                             &self.egress,
+                            &self.sidevm_spawner,
                         );
                     }
                 }
@@ -1083,6 +1103,12 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 }
 
+impl<P> System<P> {
+    pub fn on_restored(&mut self) -> Result<()> {
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner)
+    }
+}
+
 pub fn handle_contract_command_result(
     result: TransactionResult,
     cluster_id: phala_mq::ContractClusterId,
@@ -1090,6 +1116,7 @@ pub fn handle_contract_command_result(
     clusters: &mut ClusterKeeper,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
+    spawner: &Spawner,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1108,7 +1135,9 @@ pub fn handle_contract_command_result(
         }
         Some(cluster) => cluster,
     };
-    apply_pink_side_effects(effects, cluster_id, contracts, cluster, block, egress);
+    apply_pink_side_effects(
+        effects, cluster_id, contracts, cluster, block, egress, spawner,
+    );
 }
 
 pub fn apply_pink_side_effects(
@@ -1118,6 +1147,7 @@ pub fn apply_pink_side_effects(
     cluster: &mut Cluster,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
+    spawner: &Spawner,
 ) {
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1158,6 +1188,9 @@ pub fn apply_pink_side_effects(
         egress.push_message(&message);
     }
 
+    const MAX_SIDEVM_CODE_SIZE: usize = 1024 * 1024 * 2;
+    let mut wasm_code = Vec::new();
+
     for (address, event) in effects.pink_events {
         let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
@@ -1183,6 +1216,29 @@ pub fn apply_pink_side_effects(
             }
             PinkEvent::OnBlockEndSelector(selector) => {
                 contract.set_on_block_end_selector(selector);
+            }
+            PinkEvent::StartToTransferSidevmCode => {
+                wasm_code.clear();
+            }
+            PinkEvent::SidevmCodeChunk(chunk) => {
+                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
+                    wasm_code.extend_from_slice(&chunk);
+                }
+            }
+            PinkEvent::StartSidevm { memory_pages } => {
+                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
+                    let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
+                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, memory_pages) {
+                        error!(target: "sidevm", "Start sidevm failed: {:?}", err);
+                    }
+                } else {
+                    error!(target: "sidevm", "Start sidevm failed: Code too large");
+                }
+            }
+            PinkEvent::SidevmMessage(payload) => {
+                if let Err(err) = contract.push_message_to_sidevm(spawner, payload) {
+                    error!(target: "sidevm", "Push message to sidevm failed: {:?}", err);
+                }
             }
         }
     }
@@ -1295,6 +1351,7 @@ mod tests {
             .send_mq
             .channel(MessageOrigin::Gatekeeper, signer.into());
         let mut block_info = builder.build();
+        let spawner = create_sidevm_service();
 
         apply_pink_side_effects(
             effects,
@@ -1303,6 +1360,7 @@ mod tests {
             cluster,
             &mut block_info,
             &egress,
+            &spawner,
         );
 
         insta::assert_display_snapshot!(contracts.len());
