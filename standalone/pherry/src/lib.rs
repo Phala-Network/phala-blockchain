@@ -286,7 +286,7 @@ pub async fn batch_get_storage_changes(
                 .enumerate()
                 .map(|(offset, storage_changes)| {
                     BlockHeaderWithChanges {
-                        // Only the block number is used in pRuntime.
+                        // Headers are synced separately. Only the `number` is used in pRuntime while syncing blocks.
                         block_header: BlockHeader {
                             number: from + offset as BlockNumber,
                             parent_hash: Default::default(),
@@ -1097,7 +1097,6 @@ async fn bridge(
             }
         };
 
-        // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
             let block = get_block_without_storage_changes(&api, Some(b)).await?;
 
