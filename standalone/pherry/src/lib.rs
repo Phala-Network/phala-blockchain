@@ -1027,6 +1027,7 @@ async fn bridge(
         .await
         .ok();
 
+        // Sync the relaychain and parachain data from the cache service as much as possible
         if let (true, Some(cache)) = (args.parachain, &cache_client) {
             info!("Fetching headers at {} from cache...", info.headernum);
             let cached_headers = cache.get_headers(info.headernum).await.unwrap_or_default();
