@@ -1,8 +1,6 @@
 use std::str;
 
-use rocket::config::Limits;
 use rocket::data::Data;
-use rocket::data::ToByteUnit;
 use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
@@ -10,6 +8,7 @@ use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::Phase;
 use rocket::{get, post, routes};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
+use rocket::data::{Limits, ToByteUnit};
 
 use colored::Colorize as _;
 use log::{debug, error, info};
@@ -141,7 +140,7 @@ async fn prpc_proxy(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
 }
 
 #[post("/<method>", data = "<data>")]
-fn prpc_proxy_acl(method: String, data: Data) -> Custom<Vec<u8>> {
+async fn prpc_proxy_acl(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
     let permitted_method: [&str; 1] = ["contract_query"];
     if !permitted_method.contains(&&method[..]) {
@@ -149,30 +148,7 @@ fn prpc_proxy_acl(method: String, data: Data) -> Custom<Vec<u8>> {
         return Custom(Status::ServiceUnavailable, vec![]);
     }
 
-    prpc_proxy(method, data)
-}
-
-#[get("/dump")]
-fn dump_state() -> anyhow::Result<Stream<PipeReader>> {
-    let (r, writer) = os_pipe::pipe()?;
-    std::thread::spawn(move || {
-        let writer = BufWriter::new(writer);
-        if let Err(err) = crate::runtime::ecall_dump_state(writer) {
-            error!("Failed to dump state: {:?}", err);
-        }
-    });
-    Ok(r.into())
-}
-
-#[post("/load", data = "<data>")]
-fn load_state(data: Data) -> Custom<()> {
-    match crate::runtime::ecall_load_state(data.open()) {
-        Ok(_) => Custom(Status::Ok, ()),
-        Err(err) => {
-            error!("Failed to load state: {:?}", err);
-            Custom(Status::BadRequest, ())
-        }
-    }
+    prpc_proxy(method, data).await
 }
 
 fn cors_options() -> CorsOptions {
@@ -257,21 +233,19 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
 }
 
 // api endpoint with access control, will be exposed to the public
-pub fn rocket_acl(args: &super::Args) -> rocket::Rocket<impl Phase> {
+pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase>> {
     let port_acl: u16 = if args.port_acl.is_some() {
         args.port_acl.expect("port_acl should be set")
     } else {
-        Default::default();
-    }
+        return None;
+    };
 
-    let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
-        .address("0.0.0.0")
-        .port(port_acl)
-        .workers(1)
-        .limits(Limits::new().limit("json", 104857600))
-        .expect("Config should be build with no erros");
+    let figment = rocket::Config::figment()
+        .merge(("address", "0.0.0.0"))
+        .merge(("port", port_acl))
+        .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(cfg)
+    let mut server_acl = rocket::custom(figment)
         .mount(
             "/",
             proxy_routes![
@@ -285,11 +259,11 @@ pub fn rocket_acl(args: &super::Args) -> rocket::Rocket<impl Phase> {
     if args.allow_cors {
         info!("Allow CORS");
 
-        server = server
+        server_acl = server_acl
             .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
             .attach(cors_options().to_cors().expect("To not fail"))
             .manage(cors_options().to_cors().expect("To not fail"));
     }
     
-    server_acl
+    Some(server_acl)
 }

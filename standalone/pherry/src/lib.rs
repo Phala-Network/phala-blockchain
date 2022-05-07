@@ -750,15 +750,17 @@ async fn bind_worker_endpoint(
     encoded_versioned_endpoint: Vec<u8>,
     signature: Vec<u8>,
     signer: &mut SrSigner,
+    args: &Args,
 ) -> Result<()> {
     chain_client::update_signer_nonce(para_api, signer).await?;
     let versioned_endpoint = Decode::decode(&mut &encoded_versioned_endpoint[..])
         .map_err(|_| anyhow!("Decode versioned endpoint failed"))?;
+    let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
         .tx()
         .phala_registry()
         .bind_worker_endpoint(versioned_endpoint, signature)
-        .sign_and_submit_then_watch(signer)
+        .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {
         error!("FailedToCallBindWorkerEndpoint: {:?}", ret);
@@ -772,13 +774,14 @@ async fn try_bind_worker_endpoint(
     pr: &PrClient,
     para_api: &ParachainApi,
     signer: &mut SrSigner,
+    args: &Args,
 ) -> Result<()> {
     let info = pr
         .get_endpoint_info(())
         .await?;
     if let Some(signature) = info.signature {
         info!("Binding worker's endpoint...");
-        bind_worker_endpoint(&para_api, info.encoded_versioned_endpoint, signature, signer).await?;
+        bind_worker_endpoint(&para_api, info.encoded_versioned_endpoint, signature, signer, args).await?;
         return Ok(());
     };
 
@@ -975,7 +978,7 @@ async fn bridge(
         }
         // try bind worker endpoint
         if !args.no_bind {
-            if try_bind_worker_endpoint(&pr, &para_api, &mut signer).await.is_ok() {
+            if try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await.is_ok() {
                 flags.endpoint_registered = true;
             };
         }
@@ -1096,7 +1099,7 @@ async fn bridge(
 
             if !args.no_bind {
                 if !flags.endpoint_registered {
-                    if try_bind_worker_endpoint(&pr, &para_api, &mut signer).await.is_ok() {
+                    if try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await.is_ok() {
                         flags.endpoint_registered = true;
                     };
                 }

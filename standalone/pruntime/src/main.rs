@@ -1,4 +1,5 @@
 #![feature(decl_macro)]
+#![feature(async_closure)]
 
 mod api_server;
 mod pal_gramine;
@@ -130,12 +131,6 @@ async fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
-    let mut servers = vec![];
-    let rocket = api_server::rocket(&args).launch();
-    servers.push(rocket);
-    let rocket_acl = api_server::rocket_acl(&args).launch();
-    servers.push(rocket_acl);
-
     let mut v = vec![];
     for i in 0..bench_cores {
         let child = thread::Builder::new()
@@ -151,13 +146,37 @@ async fn main() {
         v.push(child);
     }
 
+    let mut servers = vec![];
+
+    if args.clone().port_acl.is_some() {
+        let args_clone = args.clone();
+        let server_acl = rocket::tokio::spawn(async move {
+            api_server::rocket_acl(&args_clone)
+                .expect("should not failed as port is provided")
+                .launch()
+                .await
+                .expect("Failed to launch API server");
+        });
+        servers.push(server_acl);
+    }
+
+    let args_clone = args.clone();
+    let server_internal = rocket::tokio::spawn(async move {
+        api_server::rocket(&args_clone)
+            .launch()
+            .await
+            .expect("Failed to launch API server");
+    });
+    servers.push(server_internal);
+
     for server in servers {
-        let _ = server.join();
+        server.await.expect("Failed to launch server");
     }
 
     for child in v {
         let _ = child.join();
     }
+
     info!("pRuntime quited");
 }
 
