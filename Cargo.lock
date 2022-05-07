@@ -7320,6 +7320,7 @@ dependencies = [
  "phala-pallets",
  "phala-types",
  "phaxt",
+ "pkvdb",
  "rand 0.8.5",
  "reqwest",
  "sc-finality-grandpa",

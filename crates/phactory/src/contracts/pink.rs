@@ -130,7 +130,7 @@ impl contracts::NativeContract for Pink {
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
-                let storage = pink::Storage::new_with_mut(context.block.storage);
+                let mut storage = pink::Storage::new_with_mut(context.block.storage);
 
                 let (result, effects) = self.instance.bare_call(
                     &mut storage,

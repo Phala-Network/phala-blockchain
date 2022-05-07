@@ -36,13 +36,13 @@ pub mod v4 {
 		StorageVersion::new(1),
 	);
 
-	const FINAL_STORAGE_VERSION: Versions = (
-		StorageVersion::new(4),
-		StorageVersion::new(4),
-		StorageVersion::new(4),
-		StorageVersion::new(4),
-		StorageVersion::new(4),
-	);
+	// const FINAL_STORAGE_VERSION: Versions = (
+	// 	StorageVersion::new(4),
+	// 	StorageVersion::new(4),
+	// 	StorageVersion::new(4),
+	// 	StorageVersion::new(4),
+	// 	StorageVersion::new(4),
+	// );
 
 	fn get_versions<T>() -> Versions
 	where

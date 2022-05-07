@@ -42,5 +42,6 @@ phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 phala-mq = { path = "../../crates/phala-mq" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phactory-pal = { path = "../../crates/phactory/pal" }
+pkvdb = { path = "../../crates/pkvdb" }
 
 phaxt = { path = "../../crates/phaxt" }

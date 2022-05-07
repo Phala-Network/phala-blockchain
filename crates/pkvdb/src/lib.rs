@@ -4,6 +4,8 @@ mod snapshot;
 mod transactional;
 mod trie;
 
+use parity_scale_codec::Codec;
+use parity_scale_codec::Decode;
 use rusty_leveldb::Options as LevelDBOptions;
 use rusty_leveldb::WriteBatch;
 use rusty_leveldb::DB;
@@ -13,7 +15,6 @@ use std::borrow::BorrowMut;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use parity_scale_codec::Codec;
 
 pub use backend::{PhalaTrieBackend, PhalaTrieStorage};
 pub use snapshot::TrieSnapshot;
@@ -63,10 +64,12 @@ where
     }
 }
 
+const PINK_TRIE_ROOT_STORAGE_KEY: &str = "phaladb_pink_storage_key";
+const SYNC_TRIE_ROOT_STORAGE_KEY: &str = "phaladb_sync_storage_key";
 
-// PhalaDB used for keep tract root and other memory 
-// NOTE: you have to change the root at every checkpoint and save to transaction to 
-// make the DB work correctly 
+// PhalaDB used for keep tract root and other memory
+// NOTE: you have to change the root at every checkpoint and save to transaction to
+// make the DB work correctly
 pub struct PhalaDB<H: hash_db::Hasher> {
     db: Arc<Mutex<DB>>,
     pink_overlay: Arc<Mutex<MemoryDB<H>>>,
@@ -82,14 +85,30 @@ where
 {
     pub fn open(path: impl AsRef<Path>) -> Self {
         let options = LevelDBOptions::default();
-        let db = DB::open(path, options).expect("open underlying leveldb failed");
+        let mut db = DB::open(path, options).expect("open underlying leveldb failed");
+        let mut proot = db.get(PINK_TRIE_ROOT_STORAGE_KEY.as_bytes());
+        let mut sroot = db.get(SYNC_TRIE_ROOT_STORAGE_KEY.as_bytes());
         Self {
             db: Arc::new(Mutex::new(db)),
             pink_overlay: Default::default(),
             sync_overlay: Default::default(),
             raw_map: Default::default(),
-            pink_root: None,
-            sync_root: None,
+            pink_root: if let Some(ref mut v) = proot {
+                Some(
+                    H::Out::decode(&mut v.as_slice())
+                        .expect("merkle root must not be decode failed"),
+                )
+            } else {
+                None
+            },
+            sync_root: if let Some(ref mut v) = sroot {
+                Some(
+                    H::Out::decode(&mut v.as_slice())
+                        .expect("merkle root must not be decode failed"),
+                )
+            } else {
+                None
+            },
         }
     }
 
@@ -169,6 +188,14 @@ where
             batch.put(key, value)
         }
 
+        if let Some(root) = self.pink_root {
+            batch.put(PINK_TRIE_ROOT_STORAGE_KEY.as_bytes(), root.as_ref())
+        }
+
+        if let Some(ref root) = self.sync_root {
+            batch.put(SYNC_TRIE_ROOT_STORAGE_KEY.as_bytes(), root.as_ref())
+        }
+
         if batch.count() > 0 {
             DB::write(db.borrow_mut(), batch, true)?;
         }
@@ -193,6 +220,12 @@ where
 
     pub fn put_raw(&mut self, key: Vec<u8>, value: Vec<u8>) {
         let _ = self.raw_map.insert(key, value);
+    }
+
+    // directly puth dat into without any transaction
+    pub fn put_raw_directly(&mut self, key: &[u8], value: &[u8]) {
+        let mut db = self.db.lock().expect("put directly have to hold the lock");
+        let _ = DB::put(db.borrow_mut(), key, value);
     }
 }
 

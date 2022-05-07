@@ -1,9 +1,10 @@
 use phactory_api::{
-    blocks::{StorageChanges, StorageProof},
+    blocks::{ StorageProof},
     pruntime_client,
 };
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519;
+use pkvdb::ser::StorageChanges;
 use sp_runtime::{generic::SignedBlock as SpSignedBlock, OpaqueExtrinsic};
 
 pub use sp_core::storage::{StorageData, StorageKey};

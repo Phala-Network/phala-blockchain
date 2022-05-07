@@ -11,7 +11,6 @@ extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use glob::PatternError;
 use rand::*;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
@@ -20,11 +19,10 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::path::PathBuf;
 use std::{marker::PhantomData};
-use std::{path::Path, str};
+use std::{ str};
 
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{anyhow, Result};
 use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
@@ -49,8 +47,6 @@ use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
 use std::time::Instant;
-use std::sync::Mutex;
-use std::sync::Arc;
 use pkvdb::PhalaTrieBackend;
 use pkvdb::PhalaDB;
 use types::Error;
@@ -95,7 +91,7 @@ struct RuntimeState {
 }
 
 impl RuntimeState {
-    fn purge_mq(&mut self) {
+    fn purge_mq(&mut self, backend: &mut PhalaTrieBackend<RuntimeHasher>) {
         self.send_mq.purge(|sender| {
             use pallet_mq::StorageMapTrait as _;
             type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
@@ -103,7 +99,7 @@ impl RuntimeState {
             let module_prefix = OffchainIngress::module_prefix();
             let storage_prefix = OffchainIngress::storage_prefix();
             let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
+            let sequence: u64 = backend.get_decoded(&key).unwrap_or(0);
             debug!("purging, sequence = {}", sequence);
             sequence
         })
@@ -118,83 +114,6 @@ const CHECKPOINT_FILE: &str = "checkpoint.seal";
 const CHECKPOINT_VERSION: u32 = 2;
 const CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY: &str = "phala_runtime_dump_storage_seal_key";
 const CHECKPOINT_RUNTIME_DATA_STORAGE_KEY: &str = "phala_runtime_data_storage_seal_key";
-
-#[deprecated]
-fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
-    format!("{}/{}-{:0>9}", basedir, CHECKPOINT_FILE, block_number)
-}
-
-#[deprecated]
-fn checkpoint_filename_pattern(basedir: &str) -> String {
-    format!("{}/{}-*", basedir, CHECKPOINT_FILE)
-}
-
-#[deprecated]
-fn glob_checkpoint_files(basedir: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
-    let pattern = checkpoint_filename_pattern(basedir);
-    Ok(glob::glob(&pattern)?.filter_map(|path| path.ok()))
-}
-
-#[deprecated]
-fn glob_checkpoint_files_sorted(
-    basedir: &str,
-) -> Result<Vec<(chain::BlockNumber, PathBuf)>, PatternError> {
-    fn parse_block(filename: &Path) -> Option<chain::BlockNumber> {
-        let filename = filename.to_str()?;
-        let block_number = filename.rsplit('-').next()?.parse().ok()?;
-        Some(block_number)
-    }
-    let mut files = Vec::new();
-
-    for filename in glob_checkpoint_files(basedir)? {
-        match parse_block(&filename) {
-            Some(block_number) => {
-                files.push((block_number, filename));
-            }
-            _ => {}
-        }
-    }
-    files.sort_by_key(|(block_number, _)| std::cmp::Reverse(*block_number));
-    Ok(files)
-}
-
-#[deprecated]
-fn maybe_remove_checkpoints(basedir: &str) {
-    match glob_checkpoint_files(basedir) {
-        Err(err) => error!("Error globbing checkpoints: {:?}", err),
-        Ok(iter) => {
-            for filename in iter {
-                if let Err(e) = std::fs::remove_file(&filename) {
-                    error!("failed to remove {}: {}", filename.display(), e);
-                }
-            }
-        }
-    }
-}
-
-#[deprecated]
-fn remove_outdated_checkpoints(
-    basedir: &str,
-    max_kept: u32,
-    current_block: chain::BlockNumber,
-) -> Result<()> {
-    let mut kept = 0_u32;
-    for (block, filename) in glob_checkpoint_files_sorted(basedir)? {
-        if block > current_block {
-            continue;
-        }
-        kept += 1;
-        if kept > max_kept {
-            match std::fs::remove_file(&filename) {
-                Err(e) => error!("Failed to remove {}: {}", filename.display(), e),
-                Ok(_) => {
-                    info!("Removed {}", filename.display());
-                }
-            }
-        }
-    }
-    Ok(())
-}
 
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
@@ -223,7 +142,6 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
-type PhactoryTrieStorage = Option<Arc<Mutex<PhalaTrieBackend<RuntimeHasher>>>>;
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
@@ -263,9 +181,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 
     // get phala_db used in runtime 
+    // TODO: rename as mut 
     fn get_phala_db(&mut self) -> &mut PhalaDB<RuntimeHasher> {
-        let mut system = self.system.expect("phaladb must be None when call from the runtime");
-        &mut system.phala_db
+        let system = self.system.as_mut().expect("phaladb must be None when call from the runtime");
+        system.get_phala_db_mut()
     }
 
     pub fn init(&mut self, args: InitArgs) {
@@ -300,18 +219,19 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     // NOTE: self.trie_storage is MUST set now.
     fn init_runtime_data(
         &self,
+        phala_db: &mut PhalaDB<RuntimeHasher>,
         genesis_block_hash: H256,
         predefined_identity_key: Option<sr25519::Pair>,
     ) -> Result<PersistentRuntimeData> {
         let data = if let Some(identity_sk) = predefined_identity_key {
-            self.save_runtime_data(genesis_block_hash, identity_sk, true)?
+            self.save_runtime_data(phala_db, genesis_block_hash, identity_sk, true)?
         } else {
-            match Self::load_runtime_data(&self.trie_storage,&self.platform, &self.args.sealing_path) {
+            match Self::load_runtime_data(phala_db,&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
-                    self.save_runtime_data(genesis_block_hash, identity_sk, false)?
+                    self.save_runtime_data(phala_db, genesis_block_hash, identity_sk, false)?
                 }
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
@@ -331,6 +251,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
     fn save_runtime_data(
         &self,
+        phala_db: &mut PhalaDB<RuntimeHasher>,
         genesis_block_hash: H256,
         sr25519_sk: sr25519::Pair,
         dev_mode: bool,
@@ -346,36 +267,17 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             let data = RuntimeDataSeal::V1(data.clone());
             let encoded_vec = data.encode();
             info!("Length of encoded slice: {}", encoded_vec.len());
-            let trie_storage = self.trie_storage.expect("Phala database must open");
-            let mut trie_backend = trie_storage.lock().expect("save runtime data must hold lock");
-            let mut transaction = trie_backend.begin_transaction();
-
-            transaction.set(Default::default(), CHECKPOINT_RUNTIME_DATA_STORAGE_KEY.as_bytes(), &data);
-            trie_backend.commit_outer_transaction(transaction);
-
-            // let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
-            // self.platform
-            //     .seal_data(filepath, &encoded_vec)
-            //     .map_err(Into::into)
-            //     .context("Failed to seal runtime data")?;
-            // info!("Persistent Runtime Data saved");
+            phala_db.put_raw_directly(CHECKPOINT_RUNTIME_DATA_STORAGE_KEY.as_bytes(), &encoded_vec);
         }
         Ok(data)
     }
 
     fn load_runtime_data(
-        trie_storage: &PhactoryTrieStorage,
+        phala_db: &mut PhalaDB<RuntimeHasher>,
         platform: &Platform,
-        sealing_path: &str,
+        _sealing_path: &str,
     ) -> Result<PersistentRuntimeData, Error> {
-        // let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
-        // let data = platform
-        //     .unseal_data(filepath)
-        //     .map_err(Into::into)?
-        //     .ok_or(Error::PersistentRuntimeNotFound)?;
-        let trie_storage = trie_storage.expect("Phala database must open");
-        let mut trie_backend = trie_storage.lock().expect("save runtime data must hold lock");
-        let data = trie_backend.get_raw(CHECKPOINT_RUNTIME_DATA_STORAGE_KEY.as_bytes()).expect("sealed runtime data should not be none");
+        let data = phala_db.get_raw(CHECKPOINT_RUNTIME_DATA_STORAGE_KEY.as_bytes()).expect("sealed runtime data should not be none");
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
             RuntimeDataSeal::V1(data) => Ok(data),
@@ -386,97 +288,24 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     pub fn take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
         let data = serde_cbor::to_vec(&PhactoryDumper(self))?;
-        let trie_storage = self.trie_storage.expect("Phala database must open");
-        let mut trie_backend = trie_storage.lock().expect("save runtime data must hold lock");
-        let mut transaction = trie_backend.begin_transaction();
-
-        transaction.set(Default::default(), CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY.as_bytes(), &data);
-        trie_backend.commit_outer_transaction(transaction);
-
-        // let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
-        //     key.dump_secret_key().to_vec()
-        // } else {
-        //     return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
-        // };
-
-        // info!("Taking checkpoint...");
-        // let checkpoint_file = checkpoint_filename_for(current_block, &self.args.sealing_path);
-        // {
-        //     // Do serialization
-        //     let file = self
-        //         .platform
-        //         .create_protected_file(&checkpoint_file, &key)
-        //         .map_err(|err| anyhow!("{:?}", err))
-        //         .context("Failed to create protected file")?;
-
-        //     serde_cbor::ser::to_writer(file, &PhactoryDumper(self))
-        //         .context("Failed to write checkpoint")?;
-        // }
-        // info!("Checkpoint saved to {}", checkpoint_file);
-        // self.last_checkpoint = Instant::now();
-        // remove_outdated_checkpoints(
-        //     &self.args.sealing_path,
-        //     self.args.max_checkpoint_files,
-        //     current_block,
-        // )?;
+        let phala_db = self.get_phala_db();
+        phala_db.put_raw(Vec::from(CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY.as_bytes()), data);
         Ok(())
     }
 
     #[deprecated]
     pub fn restore_from_checkpoint(
-        trie_storage: &PhactoryTrieStorage,
         platform: &Platform,
-        sealing_path: &str,
+        phala_db_path: &str,
         remove_corrupted_checkpoint: bool,
     ) -> anyhow::Result<Option<Self>> {
-        // let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
-        //     Err(Error::PersistentRuntimeNotFound) => return Ok(None),
-        //     other => other.context("Failed to load persistent data")?,
-        // };
-        // let files =
-        //     glob_checkpoint_files_sorted(sealing_path).context("Glob checkpoint files failed")?;
-        // if files.is_empty() {
-        //     return Ok(None);
-        // }
-        // let (_block, ckpt_filename) = &files[0];
-
-        // let file = match platform.open_protected_file(&ckpt_filename, &runtime_data.sk) {
-        //     Ok(Some(file)) => file,
-        //     Ok(None) => {
-        //         // This should never happen unless it was removed just after the glob.
-        //         anyhow::bail!("Checkpoint file {:?} is not found", ckpt_filename);
-        //     }
-        //     Err(err) => {
-        //         error!(
-        //             "Failed to open checkpoint file {:?}: {:?}",
-        //             ckpt_filename, err
-        //         );
-        //         if remove_corrupted_checkpoint {
-        //             error!("Removing {:?}", ckpt_filename);
-        //             std::fs::remove_file(&ckpt_filename)
-        //                 .context("Failed to remove corrupted checkpoint file")?;
-        //         }
-        //         anyhow::bail!(
-        //             "Failed to open checkpoint file {:?}: {:?}",
-        //             ckpt_filename,
-        //             err
-        //         );
-        //     }
-        // };
-        let trie_storage = trie_storage.expect("Phala database must open");
-        let mut trie_backend = trie_storage.lock().expect("save runtime data must hold lock");
-        let data = trie_backend.get_raw(CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY.as_bytes()).expect("sealed runtime data should not be none");
+        // only used for a sight
+        let phala_db = PhalaDB::<RuntimeHasher>::open(phala_db_path);
+        let data = phala_db.get_raw(CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY.as_bytes()).expect("sealed runtime data should not be none");
 
         let loader: PhactoryLoader<_> = match serde_cbor::de::from_slice(&data) {
             Ok(loader) => loader,
-            Err(_err /*Don't leak it into the log*/) => {
-                // error!("Failed to load checkpoint file {:?}", ckpt_filename);
-                // if remove_corrupted_checkpoint {
-                //     error!("Removing {:?}", ckpt_filename);
-                //     std::fs::remove_file(&ckpt_filename)
-                //         .context("Failed to remove corrupted checkpoint file")?;
-                // }
-                // anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
+            Err(_err /*Don't leak it into the log*/) => { 
                 error!("Failed to load checkpoint file from the key {:?}", CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY);
                 anyhow::bail!("Failed to load checkpoint file from the key  {:?}", CHECKPOINT_RUNTIME_DUMP_STORAGE_KEY);
             }
@@ -597,6 +426,7 @@ fn error_msg(msg: &str) -> Value {
     json!({ "message": msg })
 }
 
+#[allow(dead_code)]
 fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
     sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
 }

@@ -1004,6 +1004,7 @@ pub mod pallet {
 
 		use phala_types::messaging::TokenomicParameters as TokenomicParams;
 
+		#[allow(dead_code)]
 		pub fn initialize<T: Config>() -> Weight {
 			log::info!("phala_pallet::mining: initialize()");
 			let block_sec = 12;

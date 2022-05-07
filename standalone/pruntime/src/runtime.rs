@@ -16,7 +16,6 @@ pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
-    // TODO: init the storage init at there and pass into the phactory 
     static INITIALIZED: AtomicU32 = AtomicU32::new(0);
     if INITIALIZED.fetch_add(1, Ordering::SeqCst) != 0 {
         anyhow::bail!("Enclave already initialized.");
@@ -25,7 +24,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     if args.enable_checkpoint {
         match Phactory::restore_from_checkpoint(
             &GraminePlatform,
-            &args.sealing_path,
+            &args.phaladb_path,
             args.remove_corrupted_checkpoint,
         ) {
             Ok(Some(mut factory)) => {

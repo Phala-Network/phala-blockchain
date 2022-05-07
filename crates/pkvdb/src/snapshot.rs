@@ -74,11 +74,11 @@ where
         }
     }
 
-    fn emplace(&mut self, key: H::Out, value: DBValue) {
+    fn emplace(&mut self, _key: H::Out, _value: DBValue) {
         unimplemented!("trie snapshot does not support the write methods")
     }
 
-    fn remove(&mut self, key: &H::Out) {
+    fn remove(&mut self, _key: &H::Out) {
         unimplemented!("trie snapshot does not support the write methods")
     }
 }
@@ -165,15 +165,15 @@ where
         }
     }
 
-    fn insert(&mut self, prefix: Prefix, value: &[u8]) -> H::Out {
+    fn insert(&mut self, _prefix: Prefix, _value: &[u8]) -> H::Out {
         unimplemented!("trie snapshot does not support the write methods")
     }
 
-    fn emplace(&mut self, key: H::Out, prefix: Prefix, value: DBValue) {
+    fn emplace(&mut self, _key: H::Out, _prefix: Prefix, _value: DBValue) {
         unimplemented!("trie snapshot does not support the write methods")
     }
 
-    fn remove(&mut self, key: &H::Out, prefix: Prefix) {
+    fn remove(&mut self, _key: &H::Out, _prefix: Prefix) {
         unimplemented!("trie snapshot does not support the write methods")
     }
 }

@@ -2,7 +2,7 @@ use super::*;
 
 // For bin_api
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
-    fn get_info_json(&self) -> Result<Value, Value> {
+    fn get_info_json(&mut self) -> Result<Value, Value> {
         let info = self.get_info();
         let machine_id = hex::encode(&self.machine_id);
         let gatekeeper = info.gatekeeper.unwrap();

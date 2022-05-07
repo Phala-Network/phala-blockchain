@@ -13,7 +13,6 @@ use sp_trie::empty_trie_root;
 use sp_trie::DBValue;
 use sp_trie::LayoutV1;
 use sp_trie::MemoryDB;
-use std::sync::Arc;
 
 type Result<T> = sp_std::result::Result<T, sp_state_machine::DefaultError>;
 
@@ -232,5 +231,13 @@ where
             }),
             sp_core::storage::StateVersion::V0,
         )
+    }
+
+    pub fn get_raw_from_backend(&self, key: &[u8]) -> Option<Vec<u8>> {
+        if let Ok(storage) = self.0.storage(key) {
+            storage
+        } else {
+            None
+        }
     }
 }

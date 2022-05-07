@@ -44,8 +44,6 @@ use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
-use std::sync::Arc;
-use std::sync::Mutex;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -429,7 +427,7 @@ pub struct System<Platform> {
     // phala db used as underlying storage
     // TODO:george maybe need Arc and Mutex to suppot concurrency
     #[serde(skip)]
-    pub(crate) phala_db: PhalaDB<RuntimeHasher>,
+    pub(crate) phala_db: Option<PhalaDB<RuntimeHasher>>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -471,8 +469,12 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_clusters: Default::default(),
             block_number: 0,
             now_ms: 0,
-            phala_db,
+            phala_db: Some(phala_db),
         }
+    }
+
+    pub(crate) fn get_phala_db_mut(&mut self) -> &mut PhalaDB<RuntimeHasher> {
+        self.phala_db.as_mut().expect("in runtime phaladb should not be none")
     }
 
     // NOTE: keep the storage is the correct snapshot db type
@@ -484,7 +486,7 @@ impl<Platform: pal::Platform> System<Platform> {
         impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
         OpaqueError,
     > {
-        let snapshot = self.phala_db.derive_pink_snapshot();
+        let snapshot = self.get_phala_db_mut().derive_pink_snapshot();
         let storage = pink::Storage::new(snapshot);
         let contract = self
             .contracts
@@ -630,7 +632,6 @@ impl<Platform: pal::Platform> System<Platform> {
             self.master_key = Some(master_key);
 
             if need_restart {
-                crate::maybe_remove_checkpoints(&self.sealing_path);
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
@@ -703,7 +704,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
 
         // double check the first gatekeeper is valid on chain
-        if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
+        if !chain_state::is_gatekeeper(&event.pubkey, self.get_phala_db_mut()) {
             error!(
                 "Fatal error: Invalid first gatekeeper registration {:?}",
                 event
@@ -772,7 +773,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
 
         // double check the registered gatekeeper is valid on chain
-        if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
+        if !chain_state::is_gatekeeper(&event.pubkey,self.get_phala_db_mut()) {
             error!(
                 "Fatal error: Invalid first gatekeeper registration {:?}",
                 event
@@ -844,7 +845,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 code,
                 cluster_id,
             } => {
-                let pink_storage = PinkStorage::new_with_mut(block.storage);
+                let mut pink_storage = PinkStorage::new_with_mut(block.storage);
                 let cluster = self
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
@@ -1258,13 +1259,13 @@ impl fmt::Display for Error {
 pub mod chain_state {
     use super::*;
     use crate::light_validation::utils::storage_prefix;
-    use crate::storage::Storage;
+    use pkvdb::PhalaDB;
     use parity_scale_codec::Decode;
 
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &mut PhalaDB<RuntimeHasher>) -> bool {
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage.0
-            .get(&key)
+        let gatekeepers = chain_storage
+            .get_raw(&key)
             .map(|v| {
                 Vec::<WorkerPublicKey>::decode(&mut &v[..])
                     .expect("Decode value of Gatekeeper Failed. (This should not happen)")

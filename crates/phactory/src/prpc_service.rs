@@ -7,7 +7,7 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use phactory_api::{blocks, crypto, prpc as pb, Storage as PhalaTrieStorage};
+use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::{contract, WorkerPublicKey};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -59,7 +59,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Runtime not initialized"))
     }
 
-    pub fn get_info(&self) -> pb::PhactoryInfo {
+    pub fn get_info(&mut self) -> pb::PhactoryInfo {
+        let backend = self.get_phala_db().derive_sync_backend();
+        let root = backend.0.root().clone();
         let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
         let system = self.system.as_ref();
@@ -67,10 +69,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let public_key = system.map(|state| hex::encode(state.identity_key.public()));
         let ecdh_public_key = system.map(|state| hex::encode(&state.ecdh_key.public()));
         let dev_mode = self.dev_mode;
-        let mut backend = self.get_phala_db().derive_sync_backend();
+        
         let (state_root, pending_messages, counters) = match state.as_ref() {
             Some(state) => {
-                let state_root = hex::encode(backend.0.root().clone());
+                let state_root = hex::encode(root);
                 let pending_messages = state.send_mq.count_messages();
                 let counters = state.storage_synchronizer.counters();
                 (state_root, pending_messages, counters)
@@ -151,10 +153,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             headers.last().map(|h| h.number)
         );
 
-        let state = self.runtime_state()?;
-        let mut phala_db = self.get_phala_db();
+        
+        let phala_db = self.get_phala_db();
 
-        let mut storage = phala_db.derive_sync_backend();
+        let storage = phala_db.derive_sync_backend();
 
         let para_id = storage
             .para_id()
@@ -164,6 +166,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             b"Paras", b"Heads", &para_id,
         );
 
+        let state = self.runtime_state()?;
         let last_header = state
             .storage_synchronizer
             .sync_parachain_header(headers, proof, &storage_key)
@@ -226,23 +229,23 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .feed_block(&block, &mut sync_backend)
                 .map_err(from_display)?;
 
-            state.purge_mq();
+            state.purge_mq(&mut sync_backend);
             self.handle_inbound_messages(&mut pink_backend, block.block_header.number)?;
             self.poll_side_tasks(&mut pink_backend, block.block_header.number)?;
-            last_block = block.block_header.number;
-
-
-            let mut phala_db = self.get_phala_db();
-            // set the sync root 
-            phala_db.sync_root = Some(sync_backend.0.root().clone());
-            phala_db.pink_root = Some(pink_backend.0.root().clone());
-
-            // TAKE CHECKPOINT and then commit it 
-            phala_db.commit_at_checkpoint();
+            last_block = block.block_header.number;  
 
             if let Err(e) = self.maybe_take_checkpoint(last_block) {
                 error!("Failed to take checkpoint: {:?}", e);
             }
+
+            // TAKE CHECKPOINT and then commit it 
+            let mut phala_db = self.get_phala_db();
+            // set the sync root 
+            phala_db.sync_root = Some(sync_backend.0.root().clone());
+            phala_db.pink_root = Some(pink_backend.0.root().clone()); 
+
+            // TODO:george supports the sync transactional semantic and refacor it 
+            phala_db.commit_at_checkpoint();
         }
 
         Ok(pb::SyncedTo {
@@ -274,7 +277,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
 
         // open the phala db 
-        let phala_db = PhalaDB::<RuntimeHasher>::open(self.args.phaladb_path);
+        let mut phala_db = PhalaDB::<RuntimeHasher>::open(self.args.phaladb_path.clone());
 
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
@@ -287,10 +290,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 ));
             }
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
-            self.init_runtime_data(genesis_block_hash, Some(priv_key))
+            self.init_runtime_data(&mut phala_db, genesis_block_hash, Some(priv_key))
                 .map_err(from_debug)?
         } else {
-            self.init_runtime_data(genesis_block_hash, None)
+            self.init_runtime_data(&mut phala_db, genesis_block_hash, None)
                 .map_err(from_debug)?
         };
         self.dev_mode = rt_data.dev_mode;
@@ -370,7 +373,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
-            Some(phala_db),
+            phala_db,
         );
 
         let resp = pb::InitRuntimeResponse::new(
