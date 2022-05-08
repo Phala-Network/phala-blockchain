@@ -246,12 +246,12 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 let mut outfile = File::create(&tmpfile)?;
                 let mut file_size = 0;
-                let mut first = 0;
+                let mut first = u32::MAX;
                 let mut last = 0;
                 let count = cache::read_items(&mut input, |record| {
                     let hdr = record.header()?;
                     let len = record.write(&mut outfile)?;
-                    if first == 0 {
+                    if first == u32::MAX {
                         first = hdr.number;
                     }
                     last = hdr.number;
