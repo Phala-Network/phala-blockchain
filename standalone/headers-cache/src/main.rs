@@ -28,6 +28,12 @@ enum Import {
         #[clap(default_value = "headers.bin")]
         input_files: Vec<String>,
     },
+    /// Import parachain headers from given file to database.
+    ParaHeaders {
+        /// The grabbed headers files to read from
+        #[clap(default_value = "parachain-headers.bin")]
+        input_files: Vec<String>,
+    },
     /// Import genesis from given file to database.
     Genesis {
         /// The grabbed genesis file to read from
@@ -57,6 +63,21 @@ enum Grab {
         justification_interval: BlockNumber,
         /// The file to write the headers to
         #[clap(default_value = "headers.bin")]
+        output: String,
+    },
+    /// Grap parachain headers from the chain and dump them to a file
+    ParaHeaders {
+        /// The parachain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9944")]
+        para_node_uri: String,
+        /// The block number to start at
+        #[clap(long, default_value_t = 0)]
+        from_block: BlockNumber,
+        /// Number of headers to grab
+        #[clap(long, default_value_t = BlockNumber::MAX)]
+        count: BlockNumber,
+        /// The file to write the headers to
+        #[clap(default_value = "parachain-headers.bin")]
         output: String,
     },
     Genesis {
@@ -151,6 +172,18 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
                 println!("{} headers written", count);
             }
+            Grab::ParaHeaders {
+                para_node_uri,
+                from_block,
+                count,
+                output,
+            } => {
+                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let output = File::create(output)?;
+                let count =
+                    cache::grap_para_headers_to_file(&para_api, from_block, count, output).await?;
+                println!("{} headers written", count);
+            }
             Grab::Genesis {
                 node_uri,
                 from_block,
@@ -169,15 +202,31 @@ async fn main() -> anyhow::Result<()> {
                     for filename in input_files {
                         println!("Importing headers from {}", filename);
                         let input = File::open(&filename)?;
-                        let count = cache::import_headers(input, &mut cache)?;
+                        let count = cache::read_items(input, |record| {
+                            let header = record.header()?;
+                            cache.put_header(header.number, record.payload())?;
+                            Ok(false)
+                        })?;
                         println!("{} headers imported", count);
                     }
                 }
+                Import::ParaHeaders { input_files } => {
+                    for filename in input_files {
+                        println!("Importing parachain headers from {}", filename);
+                        let input = File::open(&filename)?;
+                        let count = cache::read_items(input, |record| {
+                            let header = record.header()?;
+                            cache.put_para_header(header.number, record.payload())?;
+                            Ok(false)
+                        })?;
+                        println!("{} headers imported", count);
+                    }
+                },
                 Import::Genesis { input } => {
                     let data = std::fs::read(input)?;
                     let info = cache::GenesisBlockInfo::decode(&mut &data[..])
                         .context("Failed to decode the genesis data")?;
-                    cache.put_genesis(&data, info.block_header.number)?;
+                    cache.put_genesis(info.block_header.number, &data)?;
                     println!("genesis at {} put", info.block_header.number);
                 }
             }

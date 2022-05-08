@@ -27,10 +27,6 @@ pub struct ParaHeader {
     pub proof: Vec<Vec<u8>>,
 }
 
-pub trait DB {
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()>;
-}
-
 #[derive(Clone)]
 pub struct Record<'a> {
     payload: &'a [u8],
@@ -97,15 +93,6 @@ pub fn read_items(
     Ok(count)
 }
 
-/// Import header logs into database.
-pub fn import_headers(input: impl Read, to_db: &mut impl DB) -> Result<u32> {
-    read_items(input, |record| {
-        let header = record.header()?;
-        to_db.put(&header.number.to_be_bytes(), record.payload())?;
-        Ok(false)
-    })
-}
-
 /// Dump headers from the chain to a log file.
 pub async fn grap_headers_to_file(
     api: &RelaychainApi,
@@ -130,6 +117,24 @@ pub async fn grap_headers_to_file(
             Ok(())
         },
     )
+    .await
+}
+
+/// Dump parachain headers from the chain to a log file.
+pub async fn grap_para_headers_to_file(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    mut output: impl Write,
+) -> Result<BlockNumber> {
+    grab_para_headers(api, start_at, count, |header| {
+        if header.number % 1000 == 0 {
+            info!("Got para header at {}", header.number);
+        }
+        let encoded = header.encode();
+        Record::new(&encoded).write(&mut output)?;
+        Ok(())
+    })
     .await
 }
 
@@ -255,6 +260,34 @@ async fn grab_headers(
     Ok(grabbed)
 }
 
+async fn grab_para_headers(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    mut f: impl FnMut(Header) -> Result<()>,
+) -> Result<BlockNumber> {
+    if count == 0 {
+        return Ok(0);
+    }
+
+    let mut grabbed = 0;
+
+    for block_number in start_at.. {
+        let header = match crate::get_header_at(&api.client, Some(block_number)).await {
+            Err(e) if e.to_string().contains("not found") => {
+                break;
+            }
+            other @ _ => other?.0,
+        };
+        f(header)?;
+        grabbed += 1;
+        if count == grabbed {
+            break;
+        }
+    }
+    Ok(grabbed)
+}
+
 pub async fn fetch_genesis_info(
     api: &RelaychainApi,
     genesis_block_number: BlockNumber,
@@ -298,6 +331,18 @@ impl Client {
 
     pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {
         let url = format!("{}/headers/{}", self.base_uri, block_number);
+        self.request(&url).await
+    }
+
+    pub async fn get_parachain_headers(
+        &self,
+        start_number: BlockNumber,
+        count: BlockNumber,
+    ) -> Result<Vec<Header>> {
+        let url = format!(
+            "{}/parachain_headers/{}/{}",
+            self.base_uri, start_number, count
+        );
         self.request(&url).await
     }
 
