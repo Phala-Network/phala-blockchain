@@ -259,11 +259,22 @@ async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) 
 
 pub async fn fetch_storage_changes(
     client: &RpcClient,
+    cache: Option<&CacheClient>,
     from: BlockNumber,
     to: BlockNumber,
 ) -> Result<Vec<BlockHeaderWithChanges>> {
     if to < from {
         return Ok(vec![]);
+    }
+    if let Some(cache) = cache {
+        let count = to + 1 - from;
+        if let Ok(changes) = cache.get_storage_changes(from, count).await {
+            log::info!(
+                "Got {} storage changes from cache server, from {from} to {to}",
+                changes.len()
+            );
+            return Ok(changes);
+        }
     }
     let from_hash = get_header_hash(client, Some(from)).await?;
     let to_hash = get_header_hash(client, Some(to)).await?;
@@ -292,6 +303,7 @@ pub async fn fetch_storage_changes(
 pub async fn batch_sync_storage_changes(
     pr: &PrClient,
     api: &ParachainApi,
+    cache: Option<&CacheClient>,
     from: BlockNumber,
     to: BlockNumber,
     batch_size: BlockNumber,
@@ -305,7 +317,9 @@ pub async fn batch_sync_storage_changes(
 
     for from in (from..=to).step_by(batch_size as _) {
         let to = to.min(from + batch_size - 1);
-        let storage_changes = fetcher.fetch_storage_changes(&api.client, from, to).await?;
+        let storage_changes = fetcher
+            .fetch_storage_changes(&api.client, cache, from, to)
+            .await?;
         let r = req_dispatch_block(pr, storage_changes).await?;
         log::debug!("  ..dispatch_block: {:?}", r);
     }
@@ -464,7 +478,7 @@ async fn batch_sync_block(
     macro_rules! sync_blocks_to {
         ($to: expr) => {
             if next_blocknum <= $to {
-                batch_sync_storage_changes(pr, paraclient, next_blocknum, $to, batch_window)
+                batch_sync_storage_changes(pr, paraclient, cache, next_blocknum, $to, batch_window)
                     .await?;
                 synced_blocks += $to - next_blocknum + 1;
                 next_blocknum = $to + 1;
@@ -1317,8 +1331,15 @@ async fn sync_with_cached_headers(
         )
         .await?;
         if next_blocknum <= hdr_synced_to {
-            batch_sync_storage_changes(pr, para_api, next_blocknum, hdr_synced_to, batch_window)
-                .await?;
+            batch_sync_storage_changes(
+                pr,
+                para_api,
+                cache,
+                next_blocknum,
+                hdr_synced_to,
+                batch_window,
+            )
+            .await?;
         }
     }
     Ok(())

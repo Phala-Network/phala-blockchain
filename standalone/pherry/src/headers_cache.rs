@@ -322,7 +322,7 @@ async fn grab_storage_changes(
 
     for from in (start_at..to).step_by(batch_size as _) {
         let to = to.min(from + batch_size - 1);
-        let headers = crate::fetch_storage_changes(&api.client, from, to).await?;
+        let headers = crate::fetch_storage_changes(&api.client, None, from, to).await?;
         for header in headers {
             f(header)?;
             grabbed += 1;
@@ -357,7 +357,7 @@ pub async fn fetch_genesis_info(
 }
 
 #[derive(Clone)]
-pub(crate) struct Client {
+pub struct Client {
     base_uri: String,
 }
 
