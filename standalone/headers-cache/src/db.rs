@@ -1,7 +1,7 @@
 use crate::BlockNumber;
 
 use anyhow::Result;
-use rusty_leveldb::DB;
+use rocksdb::DB;
 use std::mem::size_of;
 
 pub struct CacheDB(DB);
@@ -14,11 +14,16 @@ fn mk_key(prefix: u8, block_number: BlockNumber) -> [u8; size_of::<BlockNumber>(
 
 impl CacheDB {
     pub fn open(path: &str) -> Result<Self> {
-        Ok(CacheDB(DB::open(path, Default::default())?))
+        Ok(CacheDB(DB::open_default(path)?))
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
+        self.0.flush()?;
+        Ok(())
     }
 
     fn get(&mut self, prefix: u8, block: BlockNumber) -> Option<Vec<u8>> {
-        self.0.get(&mk_key(prefix, block))
+        self.0.get(&mk_key(prefix, block)).ok().flatten()
     }
 
     fn put(&mut self, prefix: u8, block: BlockNumber, value: &[u8]) -> Result<()> {
