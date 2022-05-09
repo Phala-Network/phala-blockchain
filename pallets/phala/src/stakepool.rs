@@ -1197,7 +1197,7 @@ pub mod pallet {
 		}
 
 		pub(crate) fn migration_remove_assignments() -> Weight {
-			let writes = WorkerAssignments::<T>::drain().count();
+			let writes = SubAccountAssignments::<T>::drain().count();
 			T::DbWeight::get().writes(writes as _)
 		}
 	}
