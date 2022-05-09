@@ -284,7 +284,8 @@ pub async fn replay(args: Args) -> Result<()> {
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::fetch_storage_changes(&api.client, block_number, block_number).await {
+            match pherry::fetch_storage_changes(&api.client, None, block_number, block_number).await
+            {
                 Ok(mut blocks) => {
                     let mut block = blocks.pop().expect("Expected one block");
                     let (header, _hash) =

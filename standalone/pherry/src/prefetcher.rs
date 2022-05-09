@@ -30,11 +30,11 @@ impl PrefetchClient {
         let count = to + 1 - from;
         let result = if let Some(state) = self.prefetching_storage_changes.take() {
             if state.from == from && state.to == to {
-                log::info!("reusing prefetching storage changes, from {from}, to {to}",);
+                log::info!("use prefetched storage changes ({from}-{to})",);
                 state.handle.await?.ok()
             } else {
                 log::info!(
-                    "cancelling the prefetch from {}, to {}, requesting from {from}, to {to}",
+                    "cancelling the prefetch ({}-{}), requesting ({from}-{to})",
                     state.from,
                     state.to,
                 );
@@ -58,6 +58,7 @@ impl PrefetchClient {
             from: next_from,
             to: next_to,
             handle: tokio::spawn(async move {
+                log::info!("prefetching ({next_from}-{next_to})");
                 crate::fetch_storage_changes(&client, (&cache).as_ref(), next_from, next_to).await
             }),
         });

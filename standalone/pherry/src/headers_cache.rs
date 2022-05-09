@@ -36,7 +36,7 @@ impl<'a> Record<'a> {
         Self { payload }
     }
 
-    pub fn read<'buf>(mut input: impl Read, buffer: &'a mut Vec<u8>) -> Result<Option<Self>> {
+    pub fn read(mut input: impl Read, buffer: &'a mut Vec<u8>) -> Result<Option<Self>> {
         let mut len_buf = [0u8; 4];
 
         if input.read(&mut len_buf)? != 4 {

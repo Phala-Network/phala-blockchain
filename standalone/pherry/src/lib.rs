@@ -263,6 +263,7 @@ pub async fn fetch_storage_changes(
     from: BlockNumber,
     to: BlockNumber,
 ) -> Result<Vec<BlockHeaderWithChanges>> {
+    log::info!("fetch_storage_changes ({from}-{to})");
     if to < from {
         return Ok(vec![]);
     }
@@ -270,7 +271,7 @@ pub async fn fetch_storage_changes(
         let count = to + 1 - from;
         if let Ok(changes) = cache.get_storage_changes(from, count).await {
             log::info!(
-                "Got {} storage changes from cache server, from {from} to {to}",
+                "Got {} storage changes from cache server ({from}-{to})",
                 changes.len()
             );
             return Ok(changes);
@@ -278,7 +279,6 @@ pub async fn fetch_storage_changes(
     }
     let from_hash = get_header_hash(client, Some(from)).await?;
     let to_hash = get_header_hash(client, Some(to)).await?;
-    log::info!("batch_get_changes from {from} to {to}");
     let storage_changes = chain_client::fetch_storage_changes(client, &from_hash, &to_hash)
         .await?
         .into_iter()

@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use anyhow::Context;
+use log::info;
 use scale::{Decode, Encode};
 
 use clap::{AppSettings, Parser, Subcommand};
@@ -244,9 +245,8 @@ async fn main() -> anyhow::Result<()> {
                         let count = cache::read_items(input, |record| {
                             let header = record.header()?;
                             cache.put_header(header.number, record.payload())?;
-                            if header.number % 1000 == 0{
-                                cache.flush()?;
-                                println!("Imported {}", header.number);
+                            if header.number % 1000 == 0 {
+                                info!("Imported to {}", header.number);
                             }
                             Ok(false)
                         })?;
@@ -260,9 +260,8 @@ async fn main() -> anyhow::Result<()> {
                         let count = cache::read_items(input, |record| {
                             let header = record.header()?;
                             cache.put_para_header(header.number, record.payload())?;
-                            if header.number % 1000 == 0{
-                                cache.flush()?;
-                                println!("Imported {}", header.number);
+                            if header.number % 1000 == 0 {
+                                info!("Imported to {}", header.number);
                             }
                             Ok(false)
                         })?;
@@ -276,6 +275,9 @@ async fn main() -> anyhow::Result<()> {
                         let count = cache::read_items(input, |record| {
                             let header = record.header()?;
                             cache.put_storage_changes(header.number, record.payload())?;
+                            if header.number % 1000 == 0 {
+                                info!("Imported to {}", header.number);
+                            }
                             Ok(false)
                         })?;
                         println!("{} blocks imported", count);
