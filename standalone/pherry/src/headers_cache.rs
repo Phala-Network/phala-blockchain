@@ -1,7 +1,6 @@
 use crate::GRANDPA_ENGINE_ID;
 use anyhow::{anyhow, Result};
 use codec::{Decode, Encode};
-use phactory_api::blocks::AuthoritySetChange;
 use phaxt::{
     subxt::{self, rpc::NumberOrHex},
     BlockNumber, Header, ParachainApi, RelaychainApi,
@@ -10,7 +9,7 @@ use std::io::{Read, Write};
 
 use log::info;
 
-pub use phactory_api::blocks::GenesisBlockInfo;
+pub use phactory_api::blocks::{AuthoritySetChange, BlockHeaderWithChanges, GenesisBlockInfo};
 
 #[derive(Decode, Encode, Debug)]
 pub struct BlockInfo {
@@ -132,6 +131,25 @@ pub async fn grap_para_headers_to_file(
             info!("Got para header at {}", header.number);
         }
         let encoded = header.encode();
+        Record::new(&encoded).write(&mut output)?;
+        Ok(())
+    })
+    .await
+}
+
+/// Dump storage changes from the chain to a log file.
+pub async fn grap_storage_changes_to_file(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    batch_size: BlockNumber,
+    mut output: impl Write,
+) -> Result<BlockNumber> {
+    grab_storage_changes(api, start_at, count, batch_size, |changes| {
+        if changes.block_header.number % 1000 == 0 {
+            info!("Got storage changes at {}", changes.block_header.number);
+        }
+        let encoded = changes.encode();
         Record::new(&encoded).write(&mut output)?;
         Ok(())
     })
@@ -288,6 +306,32 @@ async fn grab_para_headers(
     Ok(grabbed)
 }
 
+async fn grab_storage_changes(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    batch_size: BlockNumber,
+    mut f: impl FnMut(BlockHeaderWithChanges) -> Result<()>,
+) -> Result<BlockNumber> {
+    if count == 0 {
+        return Ok(0);
+    }
+
+    let to = start_at + count - 1;
+    let mut grabbed = 0;
+
+    for from in (start_at..to).step_by(batch_size as _) {
+        let to = to.min(from + batch_size - 1);
+        let headers = crate::fetch_storage_changes(&api.client, from, to).await?;
+        for header in headers {
+            f(header)?;
+            grabbed += 1;
+        }
+    }
+
+    Ok(grabbed)
+}
+
 pub async fn fetch_genesis_info(
     api: &RelaychainApi,
     genesis_block_number: BlockNumber,
@@ -340,7 +384,19 @@ impl Client {
         count: BlockNumber,
     ) -> Result<Vec<Header>> {
         let url = format!(
-            "{}/parachain_headers/{}/{}",
+            "{}/parachain-headers/{}/{}",
+            self.base_uri, start_number, count
+        );
+        self.request(&url).await
+    }
+
+    pub async fn get_storage_changes(
+        &self,
+        start_number: BlockNumber,
+        count: BlockNumber,
+    ) -> Result<Vec<BlockHeaderWithChanges>> {
+        let url = format!(
+            "{}/storage-changes/{}/{}",
             self.base_uri, start_number, count
         );
         self.request(&url).await

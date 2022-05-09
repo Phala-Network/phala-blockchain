@@ -56,7 +56,7 @@ fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound
     Ok(headers.encode())
 }
 
-#[get("/parachain_headers/<start>/<count>")]
+#[get("/parachain-headers/<start>/<count>")]
 fn get_parachain_headers(
     app: &State<App>,
     start: BlockNumber,
@@ -73,13 +73,38 @@ fn get_parachain_headers(
                 headers.push(header);
             }
             None => {
-                log::warn!("{} not found", block);
+                log::warn!("header at {} not found", block);
                 return Err(NotFound("header not found".into()));
             }
         }
     }
     log::info!("Got {} parachain headers", headers.len());
     Ok(headers.encode())
+}
+
+#[get("/storage-changes/<start>/<count>")]
+fn get_storage_changes(
+    app: &State<App>,
+    start: BlockNumber,
+    count: BlockNumber,
+) -> Result<Vec<u8>, NotFound<String>> {
+    let mut changes = vec![];
+    let mut db = app.db.lock().unwrap();
+    for block in start..start + count {
+        match db.get_storage_changes(block) {
+            Some(data) => {
+                let header = crate::cache::BlockHeaderWithChanges::decode(&mut &data[..])
+                    .or(Err(NotFound("Codec error".into())))?;
+                changes.push(header);
+            }
+            None => {
+                log::warn!("changes at {} not found", block);
+                return Err(NotFound("header not found".into()));
+            }
+        }
+    }
+    log::info!("Got {} storage changes", changes.len());
+    Ok(changes.encode())
 }
 
 pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
@@ -89,7 +114,13 @@ pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
         })
         .mount(
             "/",
-            routes![get_genesis, get_header, get_headers, get_parachain_headers],
+            routes![
+                get_genesis,
+                get_header,
+                get_headers,
+                get_parachain_headers,
+                get_storage_changes,
+            ],
         )
         .launch()
         .await?;

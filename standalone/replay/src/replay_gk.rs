@@ -18,9 +18,7 @@ use phala_mq::Path as MqPath;
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
-use pherry::types::{
-    phaxt, subxt, BlockNumber, Hashing, NumberOrHex, ParachainApi, StorageKey,
-};
+use pherry::types::{phaxt, subxt, BlockNumber, Hashing, NumberOrHex, ParachainApi, StorageKey};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex};
 
@@ -286,10 +284,11 @@ pub async fn replay(args: Args) -> Result<()> {
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::batch_get_storage_changes(&api, block_number, block_number, 1).await {
+            match pherry::fetch_storage_changes(&api.client, block_number, block_number).await {
                 Ok(mut blocks) => {
                     let mut block = blocks.pop().expect("Expected one block");
-                    let (header, _hash) = pherry::get_header_at(&api.client, Some(block_number)).await?;
+                    let (header, _hash) =
+                        pherry::get_header_at(&api.client, Some(block_number)).await?;
                     block.block_header = header;
                     log::info!("Replaying block {}", block_number);
                     let mut factory = factory.lock().await;

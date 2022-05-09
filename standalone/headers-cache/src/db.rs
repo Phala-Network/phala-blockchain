@@ -47,6 +47,14 @@ impl CacheDB {
         self.put(b'p', block, value)
     }
 
+    pub fn get_storage_changes(&mut self, block: BlockNumber) -> Option<Vec<u8>> {
+        self.get(b'c', block)
+    }
+
+    pub fn put_storage_changes(&mut self, block: BlockNumber, value: &[u8]) -> Result<()> {
+        self.put(b'c', block, value)
+    }
+
     pub fn get_genesis(&mut self, block: BlockNumber) -> Option<Vec<u8>> {
         self.get(b'g', block)
     }
