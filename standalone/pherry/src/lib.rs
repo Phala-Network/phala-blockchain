@@ -316,7 +316,7 @@ pub async fn batch_sync_storage_changes(
     let mut fetcher = prefetcher::PrefetchClient::new();
 
     for from in (from..=to).step_by(batch_size as _) {
-        let to = to.min(from + batch_size - 1);
+        let to = to.min(from.saturating_add(batch_size - 1));
         let storage_changes = fetcher
             .fetch_storage_changes(&api.client, cache, from, to)
             .await?;

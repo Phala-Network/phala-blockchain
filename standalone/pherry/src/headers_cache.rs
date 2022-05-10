@@ -317,11 +317,11 @@ async fn grab_storage_changes(
         return Ok(0);
     }
 
-    let to = start_at + count - 1;
+    let to = start_at.saturating_add(count - 1);
     let mut grabbed = 0;
 
     for from in (start_at..=to).step_by(batch_size as _) {
-        let to = to.min(from + batch_size - 1);
+        let to = to.min(from.saturating_add(batch_size - 1));
         let headers = crate::fetch_storage_changes(&api.client, None, from, to).await?;
         for header in headers {
             f(header)?;
