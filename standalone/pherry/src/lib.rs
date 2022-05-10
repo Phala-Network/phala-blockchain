@@ -194,6 +194,10 @@ struct Args {
     #[clap(long, help = "URI to fetch cached headers from")]
     #[clap(default_value = "")]
     headers_cache_uri: String,
+
+    #[clap(long, help = "Stop when synced to given parachain block")]
+    #[clap(default_value_t = BlockNumber::MAX)]
+    to_block: BlockNumber,
 }
 
 struct RunningFlags {
@@ -1025,6 +1029,10 @@ async fn bridge(
         // update the latest pRuntime state
         let info = pr.get_info(()).await?;
         info!("pRuntime get_info response: {:#?}", info);
+        if info.blocknum >= args.to_block {
+            info!("Reached target block: {}", args.to_block);
+            return Ok(());
+        }
 
         // STATUS: header_synced = info.headernum
         // STATUS: block_synced = info.blocknum
