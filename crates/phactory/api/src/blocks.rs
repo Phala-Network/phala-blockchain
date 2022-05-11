@@ -42,6 +42,7 @@ pub type BlockHeaderWithChanges =
     GenericBlockHeaderWithChanges<chain::BlockNumber, RuntimeHasher>;
 pub type Headers = Vec<Header<chain::BlockNumber, RuntimeHasher>>;
 pub type HeadersToSync = Vec<HeaderToSync>;
+pub type BlockHeader = chain::Header;
 
 pub type RawStorageKey = Vec<u8>;
 
