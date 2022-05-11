@@ -28,7 +28,7 @@ sp-runtime = { path = "../../../substrate/primitives/runtime", default-features 
 # for pruntime_client
 async-trait = { version = "0.1.51", optional = true }
 anyhow = { version = "1.0.43", optional = true }
-log = { version = "0.4.14", optional = true }
+log = { version = "0.4.14" }
 reqwest = { version = "0.11.4", optional = true }
 
 primitive-types = { version = "0.11.0", optional = true, default-features = false }
@@ -58,7 +58,6 @@ sgx = []
 pruntime-client = [
     "async-trait",
     "anyhow",
-    "log",
     "reqwest",
 ]
 
