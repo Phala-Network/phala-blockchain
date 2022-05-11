@@ -99,7 +99,7 @@ async fn main() {
     }
 
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
-    env_logger::Builder::from_env(env).init();
+    env_logger::Builder::from_env(env).format_timestamp_micros().init();
 
     let init_args = {
         let args = args.clone();
