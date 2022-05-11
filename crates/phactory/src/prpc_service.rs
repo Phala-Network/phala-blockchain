@@ -221,10 +221,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .storage_synchronizer
                 .feed_block(&block, &mut state.chain_storage)
                 .map_err(from_display)?;
-
+            info!("State synced");
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
             self.poll_side_tasks(block.block_header.number)?;
+            if block
+                .block_header
+                .number
+                .saturating_sub(self.last_storage_purge_at)
+                >= self.args.gc_interval
+            {
+                self.last_storage_purge_at = block.block_header.number;
+                info!("Purging database");
+                self.runtime_state()?.chain_storage.purge();
+            }
             last_block = block.block_header.number;
         }
 

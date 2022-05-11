@@ -69,6 +69,7 @@ impl ReplayFactory {
         }
 
         self.storage.apply_changes(state_root, transaction);
+        self.storage.purge();
         self.handle_inbound_messages(header.number).await?;
         self.current_block = block.block.block.header.number;
         Ok(())

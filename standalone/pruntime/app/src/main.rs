@@ -93,6 +93,11 @@ struct Args {
     /// Measuring the time it takes to process each RPC call.
     #[structopt(long)]
     measure_rpc_time: bool,
+
+    /// Run the database garbage collection at given interval in blocks
+    #[structopt(long)]
+    #[structopt(default_value = "100")]
+    gc_interval: u32,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -656,6 +661,7 @@ async fn main() {
         enable_checkpoint: !args.disable_checkpoint,
         checkpoint_interval: args.checkpoint_interval,
         skip_corrupted_checkpoint: args.skip_corrupted_checkpoint,
+        gc_interval: args.gc_interval,
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
