@@ -24,11 +24,10 @@ fn get_genesis(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, N
 
 #[get("/header/<block_number>")]
 fn get_header(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
-    let key = block_number.to_be_bytes();
     app.db
         .lock()
         .unwrap()
-        .get(&key)
+        .get_header(block_number)
         .ok_or(NotFound(format!("header not found")))
 }
 
@@ -37,8 +36,7 @@ fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound
     let mut headers = vec![];
     let mut db = app.db.lock().unwrap();
     for block in start..start + 10000 {
-        let key = block.to_be_bytes();
-        match db.get(&key) {
+        match db.get_header(block) {
             Some(data) => {
                 let info = crate::cache::BlockInfo::decode(&mut &data[..])
                     .or(Err(NotFound("Codec error".into())))?;
@@ -58,12 +56,72 @@ fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound
     Ok(headers.encode())
 }
 
+#[get("/parachain-headers/<start>/<count>")]
+fn get_parachain_headers(
+    app: &State<App>,
+    start: BlockNumber,
+    count: BlockNumber,
+) -> Result<Vec<u8>, NotFound<String>> {
+    let mut headers = vec![];
+    let mut db = app.db.lock().unwrap();
+    for block in start..start + count {
+        match db.get_para_header(block) {
+            Some(data) => {
+                use pherry::types::Header;
+                let header =
+                    Header::decode(&mut &data[..]).or(Err(NotFound("Codec error".into())))?;
+                headers.push(header);
+            }
+            None => {
+                log::warn!("header at {} not found", block);
+                return Err(NotFound("header not found".into()));
+            }
+        }
+    }
+    log::info!("Got {} parachain headers", headers.len());
+    Ok(headers.encode())
+}
+
+#[get("/storage-changes/<start>/<count>")]
+fn get_storage_changes(
+    app: &State<App>,
+    start: BlockNumber,
+    count: BlockNumber,
+) -> Result<Vec<u8>, NotFound<String>> {
+    let mut changes = vec![];
+    let mut db = app.db.lock().unwrap();
+    for block in start..start + count {
+        match db.get_storage_changes(block) {
+            Some(data) => {
+                let header = crate::cache::BlockHeaderWithChanges::decode(&mut &data[..])
+                    .or(Err(NotFound("Codec error".into())))?;
+                changes.push(header);
+            }
+            None => {
+                log::warn!("changes at {} not found", block);
+                return Err(NotFound("header not found".into()));
+            }
+        }
+    }
+    log::info!("Got {} storage changes", changes.len());
+    Ok(changes.encode())
+}
+
 pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
     rocket::build()
         .manage(App {
             db: Mutex::new(CacheDB::open(db)?),
         })
-        .mount("/", routes![get_genesis, get_header, get_headers])
+        .mount(
+            "/",
+            routes![
+                get_genesis,
+                get_header,
+                get_headers,
+                get_parachain_headers,
+                get_storage_changes,
+            ],
+        )
         .launch()
         .await?;
     Ok(())

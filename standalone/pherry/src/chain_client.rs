@@ -9,7 +9,7 @@ use phactory_api::blocks::StorageProof;
 use phala_node_rpc_ext::MakeInto as _;
 use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
-use phaxt::{rpc::ExtraRpcExt as _, subxt};
+use phaxt::{rpc::ExtraRpcExt as _, subxt, RpcClient};
 use serde_json::to_value;
 use subxt::rpc::{rpc_params, ClientT};
 
@@ -49,12 +49,11 @@ pub async fn read_proofs(
 
 /// Fetch storage changes made by given block.
 pub async fn fetch_storage_changes(
-    api: &ParachainApi,
+    client: &RpcClient,
     from: &Hash,
     to: &Hash,
 ) -> Result<Vec<StorageChanges>> {
-    let response = api
-        .client
+    let response = client
         .extra_rpc()
         .get_storage_changes(from, to)
         .await?

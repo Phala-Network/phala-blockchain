@@ -1,7 +1,6 @@
 use crate::GRANDPA_ENGINE_ID;
 use anyhow::{anyhow, Result};
 use codec::{Decode, Encode};
-use phactory_api::blocks::AuthoritySetChange;
 use phaxt::{
     subxt::{self, rpc::NumberOrHex},
     BlockNumber, Header, ParachainApi, RelaychainApi,
@@ -10,7 +9,7 @@ use std::io::{Read, Write};
 
 use log::info;
 
-pub use phactory_api::blocks::GenesisBlockInfo;
+pub use phactory_api::blocks::{AuthoritySetChange, BlockHeaderWithChanges, GenesisBlockInfo};
 
 #[derive(Decode, Encode, Debug)]
 pub struct BlockInfo {
@@ -27,10 +26,6 @@ pub struct ParaHeader {
     pub proof: Vec<Vec<u8>>,
 }
 
-pub trait DB {
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<()>;
-}
-
 #[derive(Clone)]
 pub struct Record<'a> {
     payload: &'a [u8],
@@ -41,7 +36,7 @@ impl<'a> Record<'a> {
         Self { payload }
     }
 
-    pub fn read<'buf>(mut input: impl Read, buffer: &'a mut Vec<u8>) -> Result<Option<Self>> {
+    pub fn read(mut input: impl Read, buffer: &'a mut Vec<u8>) -> Result<Option<Self>> {
         let mut len_buf = [0u8; 4];
 
         if input.read(&mut len_buf)? != 4 {
@@ -97,15 +92,6 @@ pub fn read_items(
     Ok(count)
 }
 
-/// Import header logs into database.
-pub fn import_headers(input: impl Read, to_db: &mut impl DB) -> Result<u32> {
-    read_items(input, |record| {
-        let header = record.header()?;
-        to_db.put(&header.number.to_be_bytes(), record.payload())?;
-        Ok(false)
-    })
-}
-
 /// Dump headers from the chain to a log file.
 pub async fn grap_headers_to_file(
     api: &RelaychainApi,
@@ -130,6 +116,43 @@ pub async fn grap_headers_to_file(
             Ok(())
         },
     )
+    .await
+}
+
+/// Dump parachain headers from the chain to a log file.
+pub async fn grap_para_headers_to_file(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    mut output: impl Write,
+) -> Result<BlockNumber> {
+    grab_para_headers(api, start_at, count, |header| {
+        if header.number % 1000 == 0 {
+            info!("Got para header at {}", header.number);
+        }
+        let encoded = header.encode();
+        Record::new(&encoded).write(&mut output)?;
+        Ok(())
+    })
+    .await
+}
+
+/// Dump storage changes from the chain to a log file.
+pub async fn grap_storage_changes_to_file(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    batch_size: BlockNumber,
+    mut output: impl Write,
+) -> Result<BlockNumber> {
+    grab_storage_changes(api, start_at, count, batch_size, |changes| {
+        if changes.block_header.number % 1000 == 0 {
+            info!("Got storage changes at {}", changes.block_header.number);
+        }
+        let encoded = changes.encode();
+        Record::new(&encoded).write(&mut output)?;
+        Ok(())
+    })
     .await
 }
 
@@ -255,6 +278,60 @@ async fn grab_headers(
     Ok(grabbed)
 }
 
+async fn grab_para_headers(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    mut f: impl FnMut(Header) -> Result<()>,
+) -> Result<BlockNumber> {
+    if count == 0 {
+        return Ok(0);
+    }
+
+    let mut grabbed = 0;
+
+    for block_number in start_at.. {
+        let header = match crate::get_header_at(&api.client, Some(block_number)).await {
+            Err(e) if e.to_string().contains("not found") => {
+                break;
+            }
+            other @ _ => other?.0,
+        };
+        f(header)?;
+        grabbed += 1;
+        if count == grabbed {
+            break;
+        }
+    }
+    Ok(grabbed)
+}
+
+async fn grab_storage_changes(
+    api: &ParachainApi,
+    start_at: BlockNumber,
+    count: BlockNumber,
+    batch_size: BlockNumber,
+    mut f: impl FnMut(BlockHeaderWithChanges) -> Result<()>,
+) -> Result<BlockNumber> {
+    if count == 0 {
+        return Ok(0);
+    }
+
+    let to = start_at.saturating_add(count - 1);
+    let mut grabbed = 0;
+
+    for from in (start_at..=to).step_by(batch_size as _) {
+        let to = to.min(from.saturating_add(batch_size - 1));
+        let headers = crate::fetch_storage_changes(&api.client, None, from, to).await?;
+        for header in headers {
+            f(header)?;
+            grabbed += 1;
+        }
+    }
+
+    Ok(grabbed)
+}
+
 pub async fn fetch_genesis_info(
     api: &RelaychainApi,
     genesis_block_number: BlockNumber,
@@ -280,7 +357,7 @@ pub async fn fetch_genesis_info(
 }
 
 #[derive(Clone)]
-pub(crate) struct Client {
+pub struct Client {
     base_uri: String,
 }
 
@@ -298,6 +375,30 @@ impl Client {
 
     pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {
         let url = format!("{}/headers/{}", self.base_uri, block_number);
+        self.request(&url).await
+    }
+
+    pub async fn get_parachain_headers(
+        &self,
+        start_number: BlockNumber,
+        count: BlockNumber,
+    ) -> Result<Vec<Header>> {
+        let url = format!(
+            "{}/parachain-headers/{}/{}",
+            self.base_uri, start_number, count
+        );
+        self.request(&url).await
+    }
+
+    pub async fn get_storage_changes(
+        &self,
+        start_number: BlockNumber,
+        count: BlockNumber,
+    ) -> Result<Vec<BlockHeaderWithChanges>> {
+        let url = format!(
+            "{}/storage-changes/{}/{}",
+            self.base_uri, start_number, count
+        );
         self.request(&url).await
     }
 

@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 
 use anyhow::Context;
+use log::info;
 use scale::{Decode, Encode};
 
 use clap::{AppSettings, Parser, Subcommand};
@@ -26,6 +27,18 @@ enum Import {
     Headers {
         /// The grabbed headers files to read from
         #[clap(default_value = "headers.bin")]
+        input_files: Vec<String>,
+    },
+    /// Import parachain headers from given file to database.
+    ParaHeaders {
+        /// The grabbed headers files to read from
+        #[clap(default_value = "parachain-headers.bin")]
+        input_files: Vec<String>,
+    },
+    /// Import storage changes from given file to database.
+    StorageChanges {
+        /// The grabbed files to read from
+        #[clap(default_value = "storage-changes.bin")]
         input_files: Vec<String>,
     },
     /// Import genesis from given file to database.
@@ -57,6 +70,39 @@ enum Grab {
         justification_interval: BlockNumber,
         /// The file to write the headers to
         #[clap(default_value = "headers.bin")]
+        output: String,
+    },
+    /// Grap parachain headers from the chain and dump them to a file
+    ParaHeaders {
+        /// The parachain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9944")]
+        para_node_uri: String,
+        /// The block number to start at
+        #[clap(long, default_value_t = 0)]
+        from_block: BlockNumber,
+        /// Number of headers to grab
+        #[clap(long, default_value_t = BlockNumber::MAX)]
+        count: BlockNumber,
+        /// The file to write the headers to
+        #[clap(default_value = "parachain-headers.bin")]
+        output: String,
+    },
+    /// Grap storage changes from the chain and dump them to a file
+    StorageChanges {
+        /// The parachain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9944")]
+        para_node_uri: String,
+        /// The block number to start at
+        #[clap(long, default_value_t = 0)]
+        from_block: BlockNumber,
+        /// Number of headers to grab
+        #[clap(long, default_value_t = BlockNumber::MAX)]
+        count: BlockNumber,
+        /// Number of blocks requested in a single RPC.
+        #[clap(long, default_value_t = 10)]
+        batch_size: BlockNumber,
+        /// The file to write the headers to
+        #[clap(default_value = "storage-changes.bin")]
         output: String,
     },
     Genesis {
@@ -151,6 +197,33 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
                 println!("{} headers written", count);
             }
+            Grab::ParaHeaders {
+                para_node_uri,
+                from_block,
+                count,
+                output,
+            } => {
+                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let output = File::create(output)?;
+                let count =
+                    cache::grap_para_headers_to_file(&para_api, from_block, count, output).await?;
+                println!("{} headers written", count);
+            }
+            Grab::StorageChanges {
+                para_node_uri,
+                from_block,
+                count,
+                batch_size,
+                output,
+            } => {
+                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let output = File::create(output)?;
+                let count = cache::grap_storage_changes_to_file(
+                    &para_api, from_block, count, batch_size, output,
+                )
+                .await?;
+                println!("{} blocks written", count);
+            }
             Grab::Genesis {
                 node_uri,
                 from_block,
@@ -169,18 +242,56 @@ async fn main() -> anyhow::Result<()> {
                     for filename in input_files {
                         println!("Importing headers from {}", filename);
                         let input = File::open(&filename)?;
-                        let count = cache::import_headers(input, &mut cache)?;
+                        let count = cache::read_items(input, |record| {
+                            let header = record.header()?;
+                            cache.put_header(header.number, record.payload())?;
+                            if header.number % 1000 == 0 {
+                                info!("Imported to {}", header.number);
+                            }
+                            Ok(false)
+                        })?;
                         println!("{} headers imported", count);
+                    }
+                }
+                Import::ParaHeaders { input_files } => {
+                    for filename in input_files {
+                        println!("Importing parachain headers from {}", filename);
+                        let input = File::open(&filename)?;
+                        let count = cache::read_items(input, |record| {
+                            let header = record.header()?;
+                            cache.put_para_header(header.number, record.payload())?;
+                            if header.number % 1000 == 0 {
+                                info!("Imported to {}", header.number);
+                            }
+                            Ok(false)
+                        })?;
+                        println!("{} headers imported", count);
+                    }
+                }
+                Import::StorageChanges { input_files } => {
+                    for filename in input_files {
+                        println!("Importing storage changes from {}", filename);
+                        let input = File::open(&filename)?;
+                        let count = cache::read_items(input, |record| {
+                            let header = record.header()?;
+                            cache.put_storage_changes(header.number, record.payload())?;
+                            if header.number % 1000 == 0 {
+                                info!("Imported to {}", header.number);
+                            }
+                            Ok(false)
+                        })?;
+                        println!("{} blocks imported", count);
                     }
                 }
                 Import::Genesis { input } => {
                     let data = std::fs::read(input)?;
                     let info = cache::GenesisBlockInfo::decode(&mut &data[..])
                         .context("Failed to decode the genesis data")?;
-                    cache.put_genesis(&data, info.block_header.number)?;
+                    cache.put_genesis(info.block_header.number, &data)?;
                     println!("genesis at {} put", info.block_header.number);
                 }
             }
+            cache.flush()?;
         }
         Action::Serve { db } => {
             web_api::serve(&db).await?;
@@ -197,12 +308,12 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 let mut outfile = File::create(&tmpfile)?;
                 let mut file_size = 0;
-                let mut first = 0;
+                let mut first = u32::MAX;
                 let mut last = 0;
                 let count = cache::read_items(&mut input, |record| {
                     let hdr = record.header()?;
                     let len = record.write(&mut outfile)?;
-                    if first == 0 {
+                    if first == u32::MAX {
                         first = hdr.number;
                     }
                     last = hdr.number;
