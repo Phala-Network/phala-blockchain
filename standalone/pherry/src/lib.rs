@@ -1058,6 +1058,8 @@ async fn bridge(
                     cached_headers.len(),
                     cached_headers[0].header.number
                 );
+                sync_state.authory_set_state = None;
+                sync_state.blocks.clear();
                 sync_with_cached_headers(
                     &pr,
                     &para_api,
@@ -1068,8 +1070,6 @@ async fn bridge(
                     args.sync_blocks,
                 )
                 .await?;
-                sync_state.authory_set_state = None;
-                sync_state.blocks.clear();
                 continue;
             }
         }
