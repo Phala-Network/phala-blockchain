@@ -1,0 +1,18 @@
+[package]
+name = "headers-cache"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pherry = { path = "../pherry" }
+
+log = "0.4.14"
+anyhow = "1.0.43"
+clap = { version = "3", features = ["derive"] }
+tokio = { version = "1.9.0", features = ["full"] }
+chrono = { version = "0.4.19" }
+env_logger = "0.9.0"
+rocket = "0.5.0-rc.1"
+scale = { package = 'parity-scale-codec', version = "3.0" }
+rocksdb = "0.18"
+

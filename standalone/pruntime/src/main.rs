@@ -1,5 +1,3 @@
-#![feature(decl_macro)]
-
 mod api_server;
 mod pal_gramine;
 mod ra;
@@ -11,6 +9,7 @@ use clap::{AppSettings, Parser};
 use log::{error, info};
 
 use phactory_api::ecall_args::{git_revision, InitArgs};
+use phactory::BlockNumber;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
@@ -68,6 +67,11 @@ struct Args {
     /// Measuring the time it takes to process each RPC call.
     #[clap(long)]
     measure_rpc_time: bool,
+
+    /// Run the database garbage collection at given interval in blocks
+    #[clap(long)]
+    #[clap(default_value_t = 100)]
+    gc_interval: BlockNumber,
 }
 
 #[rocket::main]
@@ -101,7 +105,7 @@ async fn main() {
     }
 
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
-    env_logger::Builder::from_env(env).init();
+    env_logger::Builder::from_env(env).format_timestamp_micros().init();
 
     let init_args = {
         let args = args.clone();
@@ -116,6 +120,7 @@ async fn main() {
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
             max_checkpoint_files: args.max_checkpoint_files,
+            gc_interval: args.gc_interval,
         }
     };
     info!("init_args: {:#?}", init_args);

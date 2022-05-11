@@ -39,6 +39,7 @@ members = [
 	"standalone/runtime",
 	"standalone/pherry",
 	"standalone/replay",
+	"standalone/headers-cache",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",

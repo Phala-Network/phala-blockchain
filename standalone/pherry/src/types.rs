@@ -1,7 +1,4 @@
-use phactory_api::{
-    blocks::{StorageChanges, StorageProof},
-    pruntime_client,
-};
+use phactory_api::{blocks::StorageProof, pruntime_client};
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519;
 use sp_runtime::{generic::SignedBlock as SpSignedBlock, OpaqueExtrinsic};
@@ -10,20 +7,14 @@ pub use sp_core::storage::{StorageData, StorageKey};
 
 pub use khala::runtime_types::phala_mq::types::*;
 pub use phaxt::{self, *};
-pub use sp_runtime::generic::Block;
 pub use subxt::rpc::NumberOrHex;
 
 pub type PrClient = pruntime_client::PRuntimeClient;
 pub type SrSigner = subxt::PairSigner<phaxt::Config, sr25519::Pair>;
 
-pub type SignedBlock<Hdr, Ext> = SpSignedBlock<Block<Hdr, Ext>>;
+pub type SignedBlock<Hdr, Ext> = SpSignedBlock<sp_runtime::generic::Block<Hdr, Ext>>;
 
-#[derive(Clone, Debug)]
-pub struct BlockWithChanges {
-    pub block: SignedBlock<Header, OpaqueExtrinsic>,
-    pub storage_changes: StorageChanges,
-}
-
+pub type Block = SignedBlock<Header, OpaqueExtrinsic>;
 // API: notify
 
 #[derive(Serialize, Deserialize, Debug)]

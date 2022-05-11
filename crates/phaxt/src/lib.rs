@@ -22,6 +22,7 @@ pub type RelaychainApi = kusama::RuntimeApi<DefaultConfig, ExtrinsicParams>;
 pub type ExtrinsicParams = DefaultExtrinsicParams<DefaultConfig>;
 pub type ExtrinsicParamsBuilder = DefaultExtrinsicParamsBuilder<DefaultConfig>;
 pub use subxt::DefaultConfig as Config;
+pub type RpcClient = subxt::Client<Config>;
 
 pub use subxt;
 pub use subxt::sp_core::storage::{StorageData, StorageKey};

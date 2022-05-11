@@ -3438,6 +3438,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "headers-cache"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap 3.1.15",
+ "env_logger",
+ "log",
+ "parity-scale-codec",
+ "pherry",
+ "rocket",
+ "rocksdb",
+ "tokio",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5061,6 +5077,7 @@ dependencies = [
  "libc",
  "libz-sys",
  "tikv-jemalloc-sys",
+ "zstd-sys",
 ]
 
 [[package]]
