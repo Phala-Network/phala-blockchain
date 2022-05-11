@@ -54,13 +54,13 @@ fn set_unified_versoin<T: PhalaPallets>(version: u16) {
 	StorageVersion::new(version).put::<stakepool::Pallet<T>>();
 }
 
-pub mod v5 {
+pub mod v6 {
 	use super::*;
 
 	#[cfg(feature = "try-runtime")]
 	pub fn pre_migrate<T: PhalaPallets>() -> Result<(), &'static str> {
 		frame_support::ensure!(
-			get_versions::<T>() == unified_versions::<T>(4),
+			get_versions::<T>() == unified_versions::<T>(5),
 			"incorrect pallet versions"
 		);
 		Ok(())
@@ -72,14 +72,13 @@ pub mod v5 {
 		MiningBalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: mining::pallet::Config<Currency = <T as stakepool::pallet::Config>::Currency>,
 	{
-		if get_versions::<T>() == unified_versions::<T>(4) {
+		if get_versions::<T>() == unified_versions::<T>(5) {
 			let mut weight: Weight = 0;
-			log::info!("Ᵽ migrating phala-pallets to v5");
-			weight += mining::migrations::trigger_unresp_fix::<T>();
+			log::info!("Ᵽ migrating phala-pallets to v6");
 			weight += stakepool::Pallet::<T>::migration_remove_assignments();
-			log::info!("Ᵽ pallets migrated to v5");
+			log::info!("Ᵽ pallets migrated to v6");
 
-			set_unified_versoin::<T>(5);
+			set_unified_versoin::<T>(6);
 			weight += T::DbWeight::get().reads_writes(5, 5);
 			weight
 		} else {
@@ -90,7 +89,7 @@ pub mod v5 {
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: PhalaPallets>() -> Result<(), &'static str> {
 		frame_support::ensure!(
-			get_versions::<T>() == unified_versions::<T>(5),
+			get_versions::<T>() == unified_versions::<T>(6),
 			"incorrect pallet versions postmigrate"
 		);
 		log::info!("Ᵽ phala pallet migration passes POST migrate checks ✅",);
