@@ -4188,6 +4188,7 @@ dependencies = [
  "base64 0.13.0",
  "derive_more",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "phala-crypto",
  "phala-mq",
