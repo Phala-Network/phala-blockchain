@@ -68,6 +68,7 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
     };
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter))
+        .format_timestamp_micros()
         .init();
 
     if args.enable_checkpoint {
@@ -87,7 +88,7 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
             }
             Ok(None) => {
                 info!("No checkpoint found");
-            },
+            }
         }
     } else {
         info!("Checkpoint disabled");

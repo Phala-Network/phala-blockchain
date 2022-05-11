@@ -137,6 +137,12 @@ where
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
         let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate(transaction);
+        let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
+    }
+
+    pub fn purge(&mut self) {
+        let root = *self.0.root();
+        let mut storage = core::mem::take(self).0.into_storage();
         storage.purge();
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
     }

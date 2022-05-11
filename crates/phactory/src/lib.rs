@@ -169,6 +169,9 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
+    #[serde(skip)]
+    #[serde(default)]
+    last_storage_purge_at: chain::BlockNumber,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -185,6 +188,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             system: None,
             side_task_man: Default::default(),
             last_checkpoint: Instant::now(),
+            last_storage_purge_at: 0,
         }
     }
 
