@@ -624,6 +624,7 @@ async fn main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .parse_default_env()
+        .format_timestamp_micros()
         .init();
 
     let enclave = match init_enclave() {
