@@ -552,20 +552,19 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn force_assign_reward(
 			origin: OriginFor<T>,
-			pid: u64,
-			reward: BalanceOf<T>
+			reward_arr: Vec<(u64, BalanceOf<T>)>,
 		) -> DispatchResult {
 			// origin must be root
 			T::MiningSwitchOrigin::ensure_origin(origin)?;
-			//assigned pool must exist
 			for pair in reward_arr {
 			    let (pid, reward) = pair;
+			    //assigned pool must exist
 			    let mut pool_info = Self::ensure_pool(pid)?;
-			//reward must be positive
+			    //reward must be positive
 			    if reward <= Zero::zero() {
 				continue
 			    }
-			//assign reward
+			    //assign reward
 			    Self::handle_pool_new_reward(&mut pool_info, reward);
 			    StakePools::<T>::insert(&pid, &pool_info);
 			}
