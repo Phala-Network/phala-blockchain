@@ -558,13 +558,17 @@ pub mod pallet {
 			// origin must be root
 			T::MiningSwitchOrigin::ensure_origin(origin)?;
 			//assigned pool must exist
-			let mut pool_info = Self::ensure_pool(pid)?;
+			for pair in reward_arr {
+			    let (pid, reward) = pair;
+			    let mut pool_info = Self::ensure_pool(pid)?;
 			//reward must be positive
-			ensure!(reward > Zero::zero(), Error::<T>::InvalidForceRewardAmount);
+			    if reward <= Zero::zero() {
+				continue
+			    }
 			//assign reward
-			Self::handle_pool_new_reward(&mut pool_info, reward);
-			StakePools::<T>::insert(&pid, &pool_info);
-
+			    Self::handle_pool_new_reward(&mut pool_info, reward);
+			    StakePools::<T>::insert(&pid, &pool_info);
+			}
 			Ok(())
 		}
 
