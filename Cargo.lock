@@ -7842,7 +7842,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "ink_env",
  "ink_lang",
