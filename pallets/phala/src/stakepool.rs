@@ -334,6 +334,8 @@ pub mod pallet {
 		WorkersExceedLimit,
 		/// Restarted with a less stake is not allowed in the tokenomic.
 		CannotRestartWithLessStake,
+		/// Invalid amount of balance input when force reward.
+		InvalidForceRewardAmount,
 	}
 
 	#[pallet::hooks]
@@ -540,6 +542,32 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		/// manually assign rewards to pools by root for fixing issue 763
+		///
+		///Reuires:
+		/// 1. The caller is root
+		/// 2. assigned pool must currently exist
+		/// 3. reeward is positive
+		#[pallet::weight(0)]
+		pub fn force_assign_reward(
+			origin: OriginFor<T>,
+			pid: u64,
+			reward: BalanceOf<T>
+		) -> DispatchResult {
+			// origin must be root
+			T::MiningSwitchOrigin::ensure_origin(origin)?;
+			//assigned pool must exist
+			let mut pool_info = Self::ensure_pool(pid)?;
+			//reward must be positive
+			ensure!(reward > Zero::zero(), Error::<T>::InvalidForceRewardAmount);
+			//assign reward
+			Self::handle_pool_new_reward(&mut pool_info, reward);
+			StakePools::<T>::insert(&pid, &pool_info);
+
+			Ok(())
+		}
+
 
 		/// Claims all the pending rewards of the sender and send to the `target`
 		///
