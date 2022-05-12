@@ -28,14 +28,33 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfo,
+		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
 	pub enum RegistryEvent {
-		BenchReport { start_time: u64, iterations: u64 },
-		MasterPubkey { master_pubkey: MasterPublicKey },
+		BenchReport {
+			start_time: u64,
+			iterations: u64,
+		},
+		///	MessageOrigin::Worker -> Pallet
+		///
+		/// Only used for first master pubkey upload, the origin has to be worker identity since there is no master pubkey
+		/// on-chain yet.
+		MasterPubkey {
+			master_pubkey: MasterPublicKey,
+		},
+	}
+
+	bind_topic!(GKRegistryEvent, b"^phala/registry/gk_event");
+	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
+	pub enum GKRegistryEvent {
+		RotatedMasterPubkey {
+			master_pubkey: MasterPublicKey,
+			old_master_pubkey: MasterPublicKey,
+		},
 	}
 
 	#[pallet::config]
@@ -80,6 +99,18 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
+	// The rotation counter, it always equals to the latest rotation id.
+	#[pallet::storage]
+	pub type RotationCounter<T> = StorageValue<_, u64, ValueQuery>;
+
+	/// Current rotation info including rotation id and initial time
+	///
+	/// Only one rotation process is allowed at one time. A new rotation can be initiated if there is no rotation or the
+	/// previous one is outdated (we now hardcode the expiration time to be 20 blocks).
+	#[pallet::storage]
+	pub type MasterKeyRotation<T: Config> =
+		StorageValue<_, Option<(u64, T::BlockNumber)>, ValueQuery>;
+
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Workers<T: Config> =
@@ -107,7 +138,7 @@ pub mod pallet {
 	#[pallet::getter(fn pruntime_allowlist)]
 	pub type PRuntimeAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
 
-	/// The effecitve height of pRuntime binary
+	/// The effective height of pRuntime binary
 	#[pallet::storage]
 	pub type PRuntimeTimestamp<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, T::BlockNumber>;
 
@@ -181,6 +212,7 @@ pub mod pallet {
 		UnknownCluster,
 		NotImplemented,
 		LastGatekeeper,
+		MasterKeyInRotation,
 		// PRouter related
 		InvalidEndpointSigningTime,
 	}
@@ -257,8 +289,16 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let mut gatekeepers = Gatekeeper::<T>::get();
+			// disable gatekeeper registration during key rotation
+			let now = frame_system::Pallet::<T>::block_number();
+			let timeout = T::BlockNumber::from(20 as u32);
+			let rotating = MasterKeyRotation::<T>::get();
+			ensure!(
+				rotating.is_none() || rotating.unwrap().1 + timeout < now,
+				Error::<T>::MasterKeyInRotation
+			);
 
+			let mut gatekeepers = Gatekeeper::<T>::get();
 			// wait for the lead gatekeeper to upload the master pubkey
 			ensure!(
 				gatekeepers.is_empty() || GatekeeperMasterPubkey::<T>::get().is_some(),
@@ -312,6 +352,49 @@ pub mod pallet {
 				.collect();
 			Gatekeeper::<T>::put(filtered);
 			Self::push_message(GatekeeperChange::gatekeeper_unregistered(gatekeeper));
+			Ok(())
+		}
+
+		/// Rotate the master key
+		///
+		/// # Arguments
+		///
+		/// * `lead_gatekeeper` - The gatekeeper to generate the new key
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let now = frame_system::Pallet::<T>::block_number();
+			let timeout = T::BlockNumber::from(20 as u32);
+			let rotating = MasterKeyRotation::<T>::get();
+			ensure!(
+				rotating.is_none() || rotating.unwrap().1 + timeout < now,
+				Error::<T>::MasterKeyInRotation
+			);
+
+			let gatekeepers = Gatekeeper::<T>::get();
+			let gk_identities = gatekeepers
+				.iter()
+				.map(|gk| {
+					let worker_info = Workers::<T>::get(gk).ok_or(Error::<T>::WorkerNotFound)?;
+					Ok(WorkerIdentity {
+						pubkey: worker_info.pubkey,
+						ecdh_pubkey: worker_info.ecdh_pubkey,
+					})
+				})
+				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
+
+			let rotation_id = RotationCounter::<T>::mutate(|counter| {
+				let rotation_id = *counter;
+				*counter += 1;
+				rotation_id
+			});
+
+			MasterKeyRotation::<T>::put(Some((rotation_id, now)));
+			Self::push_message(GatekeeperLaunch::rotate_master_key(
+				rotation_id,
+				gk_identities,
+			));
 			Ok(())
 		}
 

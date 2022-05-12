@@ -26,7 +26,8 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{
-        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity,
+        WorkerPublicKey,
     };
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
@@ -377,6 +378,7 @@ pub mod messaging {
     pub enum GatekeeperLaunch {
         FirstGatekeeper(NewGatekeeperEvent),
         MasterPubkeyOnChain(MasterPubkeyEvent),
+        RotateMasterKey(RotateMasterKeyEvent),
     }
 
     impl GatekeeperLaunch {
@@ -392,6 +394,16 @@ pub mod messaging {
 
         pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> GatekeeperLaunch {
             GatekeeperLaunch::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
+        }
+
+        pub fn rotate_master_key(
+            rotation_id: u64,
+            gk_identities: Vec<WorkerIdentity>,
+        ) -> GatekeeperLaunch {
+            GatekeeperLaunch::RotateMasterKey(RotateMasterKeyEvent {
+                rotation_id,
+                gk_identities,
+            })
         }
     }
 
@@ -414,6 +426,12 @@ pub mod messaging {
         pub master_pubkey: MasterPublicKey,
     }
 
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct RotateMasterKeyEvent {
+        pub rotation_id: u64,
+        pub gk_identities: Vec<WorkerIdentity>,
+    }
+
     // Messages: Gatekeeper change
     bind_topic!(GatekeeperChange, b"phala/gatekeeper/change");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
@@ -433,12 +451,8 @@ pub mod messaging {
             })
         }
 
-        pub fn gatekeeper_unregistered(
-            pubkey: WorkerPublicKey,
-        ) -> GatekeeperChange {
-            GatekeeperChange::GatekeeperUnregistered(RemoveGatekeeperEvent {
-                pubkey,
-            })
+        pub fn gatekeeper_unregistered(pubkey: WorkerPublicKey) -> GatekeeperChange {
+            GatekeeperChange::GatekeeperUnregistered(RemoveGatekeeperEvent { pubkey })
         }
     }
 
@@ -446,7 +460,12 @@ pub mod messaging {
     bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum KeyDistribution {
+        /// MessageOrigin::Gatekeeper -> MessageOrigin::Worker
         MasterKeyDistribution(DispatchMasterKeyEvent),
+        /// MessageOrigin::Worker -> ALL
+        ///
+        /// The origin cannot be Gatekeeper, else the leakage of old master key will further leak the following keys
+        MasterKeyRotation(BatchRotateMasterKeyEvent),
     }
 
     impl KeyDistribution {
@@ -463,6 +482,16 @@ pub mod messaging {
                 iv,
             })
         }
+
+        pub fn master_key_rotation(
+            rotation_id: u64,
+            secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+        ) -> KeyDistribution {
+            KeyDistribution::MasterKeyRotation(BatchRotateMasterKeyEvent {
+                rotation_id,
+                secret_keys,
+            })
+        }
     }
 
     // TODO.shelven: merge this into KeyDistribution
@@ -470,6 +499,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum ClusterOperation<BlockNumber> {
         // TODO.shelven: a better way for real large batch key distribution
+        /// MessageOrigin::Gatekeeper -> ALL
         DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
         /// Set the contract to receive the ink logs inside given cluster.
         SetLogReceiver {
@@ -518,6 +548,12 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct BatchRotateMasterKeyEvent {
+        pub rotation_id: u64,
+        pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]

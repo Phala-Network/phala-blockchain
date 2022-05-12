@@ -10,8 +10,8 @@ use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
         ClusterOperation, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
-        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
-        SystemEvent, WorkerEvent, WorkerEventWithKey,
+        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent,
+        RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -204,6 +204,33 @@ where
             ));
     }
 
+    pub fn process_master_key_rotation(
+        &mut self,
+        block: &mut BlockInfo,
+        event: RotateMasterKeyEvent,
+    ) {
+        let new_master_key = crate::new_sr25519_key();
+        let secret_key = new_master_key.dump_secret_key();
+        let secret_keys: BTreeMap<_, _> = event
+            .gk_identities
+            .into_iter()
+            .map(|gk_identity| {
+                let encrypted_key = self.encrypt_key_to(
+                    &[b"cluster_key_sharing"],
+                    &gk_identity.ecdh_pubkey,
+                    &secret_key,
+                    block.block_number,
+                );
+                (gk_identity.pubkey, encrypted_key)
+            })
+            .collect();
+        self.egress
+            .push_message(&KeyDistribution::master_key_rotation(
+                event.rotation_id,
+                secret_keys,
+            ));
+    }
+
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
         if !self.master_pubkey_on_chain {
             info!("Gatekeeper: not handling the messages because Gatekeeper has not launched on chain");
@@ -257,11 +284,12 @@ where
         }
     }
 
-    // Manually encrypt the secret key for sharing
-    //
-    // The encrypted key intends to be shared through public channel in a broadcast way,
-    // so it is possible to share one key to multiple parties in one message.
-    // For end-to-end secret sharing, use `SecretMessageChannel`.
+    /// Manually encrypt the secret key for sharing
+    ///
+    /// The encrypted key intends to be shared through public channel in a broadcast way,
+    /// so it is possible to share one key to multiple parties in one message.
+    ///
+    /// For end-to-end secret sharing, use `SecretMessageChannel`.
     fn encrypt_key_to(
         &mut self,
         key_derive_info: &[&[u8]],
