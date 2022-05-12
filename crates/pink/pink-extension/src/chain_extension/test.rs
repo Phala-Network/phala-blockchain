@@ -17,7 +17,8 @@ where
     }
 
     fn call(&mut self, input: &[u8], output: &mut Vec<u8>) -> u32 {
-        let input = In::decode(&mut &input[..]).expect("decode input");
+        let input: Vec<u8> = Decode::decode(&mut &input[..]).expect("mock decode input failed");
+        let input = In::decode(&mut &input[..]).expect("mock decode input failed");
         let out = (self.call)(input);
         out.encode_to(output);
         0
