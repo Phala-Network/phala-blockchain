@@ -163,7 +163,7 @@ pub mod pallet {
 	/// Mapping for pools that specify certain stakers to contribute stakes
 	#[pallet::storage]
 	pub type LimitContribtionPoolsList<T: Config> =
-		StorageMap<_, Twox64Cocat, u64, Vec<T::AccountId>>;
+		StorageMap<_, Twox64Concat, u64, Vec<T::AccountId>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -557,6 +557,7 @@ pub mod pallet {
 		/// caller must be the owner of the pool.
 		/// if a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
 		/// whitelist has a lmit len of 500 stakers.
+		#[pallet::weight(0)]
 		pub fn add_staker_to_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -567,7 +568,7 @@ pub mod pallet {
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
 				if !whitelist.contains(&staker) {
-					ensure!(whitelist.len() <= MAX_WHITELIST_LEN, Error::<T>::ExceedWhitelistMaxLen);
+					ensure!(whitelist.len() as u32 <= MAX_WHITELIST_LEN, Error::<T>::ExceedWhitelistMaxLen);
 					whitelist.push(staker);
 					LimitContribtionPoolsList::<T>::insert(&pid, &whitelist);
 				}
@@ -580,6 +581,7 @@ pub mod pallet {
 		/// remove a staker accountid to contribution whitelist.
 		/// caller must be the owner of the pool.
 		/// if the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
+		#[pallet::weight(0)]
 		pub fn remove_staker_from_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -591,7 +593,7 @@ pub mod pallet {
 			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
 				if whitelist.contains(&staker) {
 					whitelist.retain(|accountid| accountid != &staker);
-					if whitelist.len() <= 0 {
+					if whitelist.len() as u32 <= 0 {
 						LimitContribtionPoolsList::<T>::remove(&pid);
 					} else {
 						LimitContribtionPoolsList::<T>::insert(&pid, &whitelist);
@@ -685,7 +687,7 @@ pub mod pallet {
 			let a = amount; // Alias to reduce confusion in the code below
 			/// if the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
-				ensure!(whitelist.contains(&staker) || pool_info.owner == owner, Error::<T>::NotInContributeWhitelist);
+				ensure!(whitelist.contains(&who) || pool_info.owner == who, Error::<T>::NotInContributeWhitelist);
 			}
 			ensure!(
 				a >= T::MinContribution::get(),
