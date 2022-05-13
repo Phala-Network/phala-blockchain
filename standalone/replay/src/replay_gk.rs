@@ -13,7 +13,7 @@ use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phactory_api::blocks::BlockHeaderWithChanges;
-use phala_mq::MessageDispatcher;
+use phala_mq::{MessageDispatcher, Sr25519Signer};
 use phala_mq::Path as MqPath;
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
@@ -185,6 +185,7 @@ impl ReplayFactory {
 struct ReplayMsgChannel;
 
 impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
+    type Signer = Sr25519Signer;
     fn push_data(&self, _data: Vec<u8>, _to: impl Into<MqPath>) {}
 }
 

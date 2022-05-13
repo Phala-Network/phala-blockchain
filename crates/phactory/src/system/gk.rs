@@ -4,7 +4,7 @@ use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
 };
-use phala_mq::{traits::MessageChannel, MessageDispatcher};
+use phala_mq::{traits::MessageChannel, MessageDispatcher, Sr25519Signer};
 use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
@@ -120,7 +120,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
 
 impl<MsgChan> Gatekeeper<MsgChan>
 where
-    MsgChan: MessageChannel + Clone,
+    MsgChan: MessageChannel<Signer=Sr25519Signer> + Clone,
 {
     pub fn new(
         master_key: sr25519::Pair,
@@ -538,7 +538,7 @@ impl From<&WorkerInfo> for pb::WorkerState {
     }
 }
 
-impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
+impl<MsgChan: MessageChannel<Signer=Sr25519Signer>> MiningEconomics<MsgChan> {
     pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
         MiningEconomics {
             egress,
@@ -617,7 +617,7 @@ struct MiningMessageProcessor<'a, MsgChan> {
 
 impl<MsgChan> MiningMessageProcessor<'_, MsgChan>
 where
-    MsgChan: MessageChannel,
+    MsgChan: MessageChannel<Signer=Sr25519Signer>,
 {
     fn process(&mut self) {
         self.prepare();
