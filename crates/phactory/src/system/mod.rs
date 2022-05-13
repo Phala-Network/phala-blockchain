@@ -69,6 +69,8 @@ pub enum TransactionError {
     BadDecimal,
     DestroyNotAllowed,
     ChannelError,
+    // for gatekeeper
+    NotGatekeeper,
     // for pdiem
     BadAccountInfo,
     BadLedgerInfo,
@@ -416,6 +418,8 @@ pub struct System<Platform> {
     // Gatekeeper
     #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
+    #[serde(with = "more::option_key_bytes")]
+    next_master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -480,6 +484,7 @@ impl<Platform: pal::Platform> System<Platform> {
             ecdh_key,
             worker_state: WorkerState::new(pubkey),
             master_key,
+            next_master_key: None,
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
@@ -678,6 +683,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
     }
 
+<<<<<<< HEAD
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
         match event {
             PRuntimeManagementEvent::RetirePRuntime(condition) => {
@@ -707,6 +713,10 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
+=======
+    /// Only the first master key possessed by the gk needs to be sealed
+    fn init_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
+>>>>>>> d8cd949e (gk: switch to rotated master key when it is published on-chain)
         if self.master_key.is_none() {
             master_key::seal(
                 self.sealing_path.clone(),
@@ -721,7 +731,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
-            // TODO(shelven): remove this assertion after we enable master key rotation
             assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
         }
     }
@@ -783,6 +792,32 @@ impl<Platform: pal::Platform> System<Platform> {
                 info!("Master key rotation req in block {}", block.block_number);
                 self.process_master_key_rotation(block, origin, rotate_master_key_event);
             }
+            GatekeeperLaunch::MasterPubkeyRotated(master_pubkey_event) => {
+                if !origin.is_pallet() {
+                    error!(
+                        "Invalid origin {:?} sent a {:?}",
+                        origin, master_pubkey_event
+                    );
+                    return;
+                }
+
+                info!(
+                    "Rotated Master Pubkey on chain in block {}",
+                    block.block_number
+                );
+                assert!(
+                    self.next_master_key.is_some()
+                        && self.next_master_key.as_ref().unwrap().public()
+                            == master_pubkey_event.master_pubkey,
+                    "Rotated master key mismatches"
+                );
+                self.master_key = self.next_master_key.clone();
+                self.next_master_key = None;
+                self.gatekeeper
+                    .as_mut()
+                    .expect("gatekeeper must be ready when rotation; qed.")
+                    .master_pubkey_rotated(master_pubkey_event.master_pubkey);
+            }
         }
     }
 
@@ -822,13 +857,13 @@ impl<Platform: pal::Platform> System<Platform> {
                 // generate master key as the first gatekeeper
                 // no need to restart
                 let master_key = crate::new_sr25519_key();
-                self.set_master_key(master_key.clone(), false);
+                self.init_master_key(master_key.clone(), false);
             }
 
             let master_key = self
                 .master_key
                 .as_ref()
-                .expect("should never be none; qed.");
+                .expect("checked; qed.");
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
@@ -929,7 +964,7 @@ impl<Platform: pal::Platform> System<Platform> {
     /// There is no meaning to remove the master_key.seal file
     fn process_remove_gatekeeper_event(
         &mut self,
-        block: &mut BlockInfo,
+        _block: &mut BlockInfo,
         origin: MessageOrigin,
         event: RemoveGatekeeperEvent,
     ) {
@@ -959,7 +994,16 @@ impl<Platform: pal::Platform> System<Platform> {
                     error!("Failed to process master key distribution event: {:?}", err);
                 };
             }
-            KeyDistribution::MasterKeyRotation(_) => {}
+            KeyDistribution::MasterKeyRotation(batch_rotate_master_key_event) => {
+                if let Err(err) =
+                    self.process_batch_rotate_master_key(origin, batch_rotate_master_key_event)
+                {
+                    error!(
+                        "Failed to process batch master key rotation event: {:?}",
+                        err
+                    );
+                };
+            }
         }
     }
 
@@ -1204,7 +1248,47 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pair =
                 self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
-            self.set_master_key(master_pair, true);
+            self.init_master_key(master_pair, true);
+        }
+        Ok(())
+    }
+
+    /// Decrypt the rotated master key
+    ///
+    /// The new master key will not take effect immediately until the gatekeeper is notified that the new master pubkey
+    /// is already on-chain
+    fn process_batch_rotate_master_key(
+        &mut self,
+        origin: MessageOrigin,
+        event: BatchRotateMasterKeyEvent,
+    ) -> Result<(), TransactionError> {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return Err(TransactionError::BadOrigin.into());
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if event.secret_keys.contains_key(&my_pubkey) {
+            if self.gatekeeper.is_none() {
+                panic!(
+                    "Batch rotate master key to a normal worker {:?}",
+                    &my_pubkey
+                );
+            }
+
+            let encrypted_key = &event.secret_keys[&my_pubkey];
+            let new_master_key = self.decrypt_key_from(
+                &encrypted_key.ecdh_pubkey,
+                &encrypted_key.encrypted_key,
+                &encrypted_key.iv,
+            );
+            info!("Worker: successfully decrypt received rotated master key");
+
+            self.next_master_key = Some(new_master_key.clone());
+            self.gatekeeper
+                .as_mut()
+                .expect("checked above; qed.")
+                .prepare_rotated_master_key(event.rotation_id, new_master_key);
         }
         Ok(())
     }

@@ -379,6 +379,7 @@ pub mod messaging {
         FirstGatekeeper(NewGatekeeperEvent),
         MasterPubkeyOnChain(MasterPubkeyEvent),
         RotateMasterKey(RotateMasterKeyEvent),
+        MasterPubkeyRotated(MasterPubkeyEvent),
     }
 
     impl GatekeeperLaunch {
@@ -404,6 +405,10 @@ pub mod messaging {
                 rotation_id,
                 gk_identities,
             })
+        }
+
+        pub fn master_pubkey_rotated(master_pubkey: MasterPublicKey) -> GatekeeperLaunch {
+            GatekeeperLaunch::MasterPubkeyRotated(MasterPubkeyEvent { master_pubkey })
         }
     }
 

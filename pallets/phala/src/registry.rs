@@ -52,8 +52,8 @@ pub mod pallet {
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
 	pub enum GKRegistryEvent {
 		RotatedMasterPubkey {
+			rotation_id: u64,
 			master_pubkey: MasterPublicKey,
-			old_master_pubkey: MasterPublicKey,
 		},
 	}
 
@@ -103,13 +103,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type RotationCounter<T> = StorageValue<_, u64, ValueQuery>;
 
-	/// Current rotation info including rotation id and initial time
+	/// Current rotation info including rotation id
 	///
-	/// Only one rotation process is allowed at one time. A new rotation can be initiated if there is no rotation or the
-	/// previous one is outdated (we now hardcode the expiration time to be 20 blocks).
+	/// Only one rotation process is allowed at one time.
+	/// Since the rotation request is broadcasted to all gatekeepers, it should be finished only if there is one functional
+	/// gatekeeper.
 	#[pallet::storage]
-	pub type MasterKeyRotation<T: Config> =
-		StorageValue<_, Option<(u64, T::BlockNumber)>, ValueQuery>;
+	pub type MasterKeyRotationLock<T: Config> = StorageValue<_, Option<u64>, ValueQuery>;
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
@@ -213,6 +213,7 @@ pub mod pallet {
 		NotImplemented,
 		LastGatekeeper,
 		MasterKeyInRotation,
+		InvalidRotatedMasterPubkey,
 		// PRouter related
 		InvalidEndpointSigningTime,
 	}
@@ -289,14 +290,9 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			// disable gatekeeper registration during key rotation
-			let now = frame_system::Pallet::<T>::block_number();
-			let timeout = T::BlockNumber::from(20 as u32);
-			let rotating = MasterKeyRotation::<T>::get();
-			ensure!(
-				rotating.is_none() || rotating.unwrap().1 + timeout < now,
-				Error::<T>::MasterKeyInRotation
-			);
+			// disable gatekeeper change during key rotation
+			let rotating = MasterKeyRotationLock::<T>::get();
+			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
 			let mut gatekeepers = Gatekeeper::<T>::get();
 			// wait for the lead gatekeeper to upload the master pubkey
@@ -339,6 +335,10 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
+			// disable gatekeeper change during key rotation
+			let rotating = MasterKeyRotationLock::<T>::get();
+			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
+
 			let gatekeepers = Gatekeeper::<T>::get();
 			ensure!(
 				gatekeepers.contains(&gatekeeper),
@@ -364,13 +364,8 @@ pub mod pallet {
 		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let now = frame_system::Pallet::<T>::block_number();
-			let timeout = T::BlockNumber::from(20 as u32);
-			let rotating = MasterKeyRotation::<T>::get();
-			ensure!(
-				rotating.is_none() || rotating.unwrap().1 + timeout < now,
-				Error::<T>::MasterKeyInRotation
-			);
+			let rotating = MasterKeyRotationLock::<T>::get();
+			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
 			let gatekeepers = Gatekeeper::<T>::get();
 			let gk_identities = gatekeepers
@@ -390,7 +385,7 @@ pub mod pallet {
 				rotation_id
 			});
 
-			MasterKeyRotation::<T>::put(Some((rotation_id, now)));
+			MasterKeyRotationLock::<T>::put(Some(rotation_id));
 			Self::push_message(GatekeeperLaunch::rotate_master_key(
 				rotation_id,
 				gk_identities,
@@ -714,6 +709,29 @@ pub mod pallet {
 							));
 						}
 					}
+				}
+			}
+			Ok(())
+		}
+
+		pub fn on_gk_message_received(message: DecodedMessage<GKRegistryEvent>) -> DispatchResult {
+			if !message.sender.is_gatekeeper() {
+				return Err(Error::<T>::InvalidSender.into());
+			}
+
+			match message.payload {
+				GKRegistryEvent::RotatedMasterPubkey {
+					rotation_id,
+					master_pubkey,
+				} => {
+					let rotating = MasterKeyRotationLock::<T>::get();
+					if rotating.is_none() || rotating.unwrap() != rotation_id {
+						return Err(Error::<T>::InvalidRotatedMasterPubkey.into());
+					}
+
+					GatekeeperMasterPubkey::<T>::put(master_pubkey);
+					MasterKeyRotationLock::<T>::put(Option::<u64>::None);
+					Self::push_message(GatekeeperLaunch::master_pubkey_rotated(master_pubkey));
 				}
 			}
 			Ok(())
