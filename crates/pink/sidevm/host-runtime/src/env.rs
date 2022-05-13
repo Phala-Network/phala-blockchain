@@ -11,7 +11,7 @@ use tokio::{
 };
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, IntRet, OcallError, Poll, Result, RetEncode};
+use env::{IntPtr, IntRet, OcallError, Result, RetEncode};
 use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
@@ -205,19 +205,19 @@ impl env::OcallFuncs for State {
         }
     }
 
-    fn poll(&mut self, resource_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
+    fn poll(&mut self, resource_id: i32) -> Result<Vec<u8>> {
         self.resources.get_mut(resource_id)?.poll()
     }
 
-    fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>> {
+    fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<u32> {
         self.resources.get_mut(resource_id)?.poll_read(data)
     }
 
-    fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<Poll<u32>> {
+    fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<u32> {
         self.resources.get_mut(resource_id)?.poll_write(data)
     }
 
-    fn poll_shutdown(&mut self, resource_id: i32) -> Result<Poll<()>> {
+    fn poll_shutdown(&mut self, resource_id: i32) -> Result<()> {
         self.resources.get_mut(resource_id)?.poll_shutdown()
     }
 
@@ -249,7 +249,7 @@ impl env::OcallFuncs for State {
         self.resources.push(Resource::TcpListener(listener))
     }
 
-    fn tcp_accept(&mut self, tcp_res_id: i32) -> Result<Poll<i32>> {
+    fn tcp_accept(&mut self, tcp_res_id: i32) -> Result<i32> {
         let (stream, remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
@@ -257,16 +257,14 @@ impl env::OcallFuncs for State {
                 _ => return Err(OcallError::UnsupportedOperation),
             };
             match get_task_cx(|ct| listener.poll_accept(ct)) {
-                Pending => return Ok(Poll::Pending),
+                Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
         };
-        self.resources
-            .push(Resource::TcpStream {
-                stream,
-                remote_addr,
-            })
-            .map(Poll::Ready)
+        self.resources.push(Resource::TcpStream {
+            stream,
+            remote_addr,
+        })
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {

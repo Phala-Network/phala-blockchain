@@ -32,9 +32,13 @@ impl Future for RxNext<'_> {
     type Output = Option<Vec<u8>>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        ocall::poll(self.ch.res_id.0)
-            .expect("Poll timer failed")
-            .into()
+        use crate::env::OcallError;
+        match ocall::poll(self.ch.res_id.0) {
+            Ok(msg) => Poll::Ready(Some(msg)),
+            Err(OcallError::EndOfFile) => Poll::Ready(None), // tx dropped
+            Err(OcallError::Pending) => Poll::Pending,
+            Err(err) => panic!("unexpected error: {:?}", err),
+        }
     }
 }
 
