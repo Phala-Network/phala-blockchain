@@ -221,6 +221,11 @@ impl env::OcallFuncs for State {
         self.resources.get_mut(resource_id)?.poll_shutdown()
     }
 
+    fn poll_res(&mut self, resource_id: i32) -> Result<i32> {
+        let res = self.resources.get_mut(resource_id)?.poll_res()?;
+        self.resources.push(res)
+    }
+
     fn mark_task_ready(&mut self, task_id: i32) -> Result<()> {
         self.awake_tasks.push(task_id);
         Ok(())
@@ -261,10 +266,7 @@ impl env::OcallFuncs for State {
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
         };
-        self.resources.push(Resource::TcpStream {
-            stream,
-            remote_addr,
-        })
+        self.resources.push(Resource::TcpStream { stream })
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
