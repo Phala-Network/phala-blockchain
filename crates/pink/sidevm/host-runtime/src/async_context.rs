@@ -159,7 +159,7 @@ where
 }
 
 /// Polls a future in the current thread-local task context.
-pub(crate) fn poll_in_task_cx<F>(f: Pin<&mut F>) -> task::Poll<F::Output>
+pub(crate) fn poll_in_task_cx<F: ?Sized>(f: Pin<&mut F>) -> task::Poll<F::Output>
 where
     F: Future,
 {
