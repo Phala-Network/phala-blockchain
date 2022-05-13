@@ -47,6 +47,7 @@ pub mod pallet {
 
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
+	const MAX_WHITELIST_LEN: u32 = 500;
 	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
@@ -158,6 +159,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type SubAccountPreimages<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
+
+	/// Mapping for pools that specify certain stakers to contribute stakes
+	#[pallet::storage]
+	pub type LimitContribtionPoolsList<T: Config> =
+		StorageMap<_, Twox64Cocat, u64, Vec<T::AccountId>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -336,6 +342,10 @@ pub mod pallet {
 		CannotRestartWithLessStake,
 		/// Invalid amount of balance input when force reward.
 		InvalidForceRewardAmount,
+		/// Invalid staker to contribute because origin isn't in Pool's contribution whitelist.
+		NotInContributeWhitelist,
+		/// Too many stakers in contribution whitelist that exceed the limit
+		ExceedWhitelistMaxLen,
 	}
 
 	#[pallet::hooks]
@@ -542,7 +552,54 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		/// add a staker accountid to contribution whitelist.
+		/// calling this method will forbide stakers contribute who isn't in the whitelist.
+		/// caller must be the owner of the pool.
+		/// if a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
+		/// whitelist has a lmit len of 500 stakers.
+		pub fn add_staker_to_whitelist(
+			origin: OriginFor<T>,
+			pid: u64,
+			staker: T::AccountId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
+				if !whitelist.contains(&staker) {
+					ensure!(whitelist.len() <= MAX_WHITELIST_LEN, Error::<T>::ExceedWhitelistMaxLen);
+					whitelist.push(staker);
+					LimitContribtionPoolsList::<T>::insert(&pid, &whitelist);
+				}
+			} else {
+				let mut new_list = vec![staker];
+				LimitContribtionPoolsList::<T>::insert(&pid, &new_list);
+			}
+			Ok(())
+		}
+		/// remove a staker accountid to contribution whitelist.
+		/// caller must be the owner of the pool.
+		/// if the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
+		pub fn remove_staker_from_whitelist(
+			origin: OriginFor<T>,
+			pid: u64,
+			staker: T::AccountId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
+				if whitelist.contains(&staker) {
+					whitelist.retain(|accountid| accountid != &staker);
+					if whitelist.len() <= 0 {
+						LimitContribtionPoolsList::<T>::remove(&pid);
+					} else {
+						LimitContribtionPoolsList::<T>::insert(&pid, &whitelist);
+					}
+				}
+			}
+			Ok(())
+		}
 		/// manually assign rewards to pools by root for fixing issue 763
 		///
 		///Reuires:
@@ -624,8 +681,12 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-
+			/// if the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
+				ensure!(whitelist.contains(&staker) || pool_info.owner == owner, Error::<T>::NotInContributeWhitelist);
+			}
 			ensure!(
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
@@ -634,7 +695,7 @@ pub mod pallet {
 			let locked = Self::ledger_query(&who);
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 
-			let mut pool_info = Self::ensure_pool(pid)?;
+			
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
@@ -1147,7 +1208,7 @@ pub mod pallet {
 					pool_list.push(pid);
 					WithdrawalQueuedPools::<T>::insert(&start_time, &pool_list);
 				}
-			} else {
+			} else {n
 				WithdrawalQueuedPools::<T>::insert(&start_time, vec![pid]);
 			}
 		}
