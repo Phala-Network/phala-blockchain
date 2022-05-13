@@ -25,7 +25,7 @@ mod ocall_def;
 mod tasks;
 
 cfg_if::cfg_if! {
-    if #[cfg(any(target_pointer_width = "32", feature = "host"))] {
+    if #[cfg(all(not(test), any(target_pointer_width = "32", feature = "host")))] {
         pub type IntPtr = i32;
     } else {
         // For unit test
