@@ -488,16 +488,6 @@ pub mod messaging {
                 iv,
             })
         }
-
-        pub fn master_key_rotation(
-            rotation_id: u64,
-            secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
-        ) -> KeyDistribution {
-            KeyDistribution::MasterKeyRotation(BatchRotateMasterKeyEvent {
-                rotation_id,
-                secret_keys,
-            })
-        }
     }
 
     bind_topic!(ClusterOperation<BlockNumber>, b"phala/cluster/key");
@@ -559,6 +549,26 @@ pub mod messaging {
     pub struct BatchRotateMasterKeyEvent {
         pub rotation_id: u64,
         pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+        pub sender: WorkerPublicKey,
+        pub sig: Vec<u8>,
+    }
+
+    #[derive(Encode)]
+    pub(crate) struct BatchRotateMasterKeyData<'a> {
+        pub(crate) rotation_id: u64,
+        pub(crate) secret_keys: &'a BTreeMap<WorkerPublicKey, EncryptedKey>,
+        pub(crate) sender: WorkerPublicKey,
+    }
+
+    impl BatchRotateMasterKeyEvent {
+        pub fn data_be_signed(&self) -> Vec<u8> {
+            BatchRotateMasterKeyData {
+                rotation_id: self.rotation_id,
+                secret_keys: &self.secret_keys,
+                sender: self.sender.clone(),
+            }
+            .encode()
+        }
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]

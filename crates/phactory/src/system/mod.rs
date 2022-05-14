@@ -45,6 +45,9 @@ use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
 use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+use sp_io;
+
+use std::convert::TryFrom;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -71,6 +74,8 @@ pub enum TransactionError {
     ChannelError,
     // for gatekeeper
     NotGatekeeper,
+    MasterKeyLeakage,
+    BadSenderSignature,
     // for pdiem
     BadAccountInfo,
     BadLedgerInfo,
@@ -898,7 +903,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
         if let Some(gatekeeper) = &mut self.gatekeeper {
             info!("Gatekeeper：Rotate master key");
-            gatekeeper.process_master_key_rotation(block, event);
+            gatekeeper.process_master_key_rotation(block, event, self.identity_key.0.clone());
         }
     }
 
@@ -973,7 +978,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_key_distribution_event(
         &mut self,
-        _block: &mut BlockInfo,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
         event: KeyDistribution,
     ) {
@@ -986,9 +991,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
             }
             KeyDistribution::MasterKeyRotation(batch_rotate_master_key_event) => {
-                if let Err(err) =
-                    self.process_batch_rotate_master_key(origin, batch_rotate_master_key_event)
-                {
+                if let Err(err) = self.process_batch_rotate_master_key(
+                    block,
+                    origin,
+                    batch_rotate_master_key_event,
+                ) {
                     error!(
                         "Failed to process batch master key rotation event: {:?}",
                         err
@@ -1252,12 +1259,25 @@ impl<Platform: pal::Platform> System<Platform> {
     /// is updated, which may cause problem in the future.
     fn process_batch_rotate_master_key(
         &mut self,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
         event: BatchRotateMasterKeyEvent,
     ) -> Result<(), TransactionError> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return Err(TransactionError::BadOrigin.into());
+        }
+        // check the event sender identity and signature to ensure it's not forged with a leaked master key and really from
+        // a gatekeeper
+        let data = event.data_be_signed();
+        let sig = sp_core::sr25519::Signature::try_from(event.sig.as_slice())
+            .or(Err(TransactionError::BadSenderSignature))?;
+        if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
+            return Err(TransactionError::BadSenderSignature.into());
+        }
+        if !chain_state::is_gatekeeper(&event.sender, block.storage) {
+            error!("Fatal error: Forged batch master key rotation {:?}", event);
+            return Err(TransactionError::MasterKeyLeakage);
         }
 
         let my_pubkey = self.identity_key.public();

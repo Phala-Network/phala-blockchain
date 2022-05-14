@@ -10,9 +10,10 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        ClusterOperation, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
-        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent,
-        RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
+        BatchRotateMasterKeyEvent, ClusterOperation, EncryptedKey, GatekeeperEvent,
+        KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
+        RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent,
+        WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -215,6 +216,7 @@ where
         &mut self,
         block: &mut BlockInfo,
         event: RotateMasterKeyEvent,
+        identity_key: sr25519::Pair,
     ) {
         let new_master_key = crate::new_sr25519_key();
         let secret_key = new_master_key.dump_secret_key();
@@ -231,11 +233,16 @@ where
                 (gk_identity.pubkey, encrypted_key)
             })
             .collect();
+        let mut event = BatchRotateMasterKeyEvent {
+            rotation_id: event.rotation_id,
+            secret_keys,
+            sender: identity_key.public(),
+            sig: vec![],
+        };
+        let data_to_sign = event.data_be_signed();
+        event.sig = identity_key.sign(&data_to_sign).0.to_vec();
         self.egress
-            .push_message(&KeyDistribution::master_key_rotation(
-                event.rotation_id,
-                secret_keys,
-            ));
+            .push_message(&KeyDistribution::MasterKeyRotation(event));
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
