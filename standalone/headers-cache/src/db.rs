@@ -17,49 +17,49 @@ impl CacheDB {
         Ok(CacheDB(DB::open_default(path)?))
     }
 
-    pub fn flush(&mut self) -> Result<()> {
+    pub fn flush(&self) -> Result<()> {
         self.0.flush()?;
         Ok(())
     }
 
-    fn get(&mut self, prefix: u8, block: BlockNumber) -> Option<Vec<u8>> {
+    fn get(&self, prefix: u8, block: BlockNumber) -> Option<Vec<u8>> {
         self.0.get(&mk_key(prefix, block)).ok().flatten()
     }
 
-    fn put(&mut self, prefix: u8, block: BlockNumber, value: &[u8]) -> Result<()> {
+    fn put(&self, prefix: u8, block: BlockNumber, value: &[u8]) -> Result<()> {
         self.0.put(&mk_key(prefix, block), value)?;
         Ok(())
     }
 
-    pub fn get_header(&mut self, block: BlockNumber) -> Option<Vec<u8>> {
+    pub fn get_header(&self, block: BlockNumber) -> Option<Vec<u8>> {
         self.get(b'h', block)
     }
 
-    pub fn put_header(&mut self, block: BlockNumber, value: &[u8]) -> Result<()> {
+    pub fn put_header(&self, block: BlockNumber, value: &[u8]) -> Result<()> {
         self.put(b'h', block, value)
     }
 
-    pub fn get_para_header(&mut self, block: BlockNumber) -> Option<Vec<u8>> {
+    pub fn get_para_header(&self, block: BlockNumber) -> Option<Vec<u8>> {
         self.get(b'p', block)
     }
 
-    pub fn put_para_header(&mut self, block: BlockNumber, value: &[u8]) -> Result<()> {
+    pub fn put_para_header(&self, block: BlockNumber, value: &[u8]) -> Result<()> {
         self.put(b'p', block, value)
     }
 
-    pub fn get_storage_changes(&mut self, block: BlockNumber) -> Option<Vec<u8>> {
+    pub fn get_storage_changes(&self, block: BlockNumber) -> Option<Vec<u8>> {
         self.get(b'c', block)
     }
 
-    pub fn put_storage_changes(&mut self, block: BlockNumber, value: &[u8]) -> Result<()> {
+    pub fn put_storage_changes(&self, block: BlockNumber, value: &[u8]) -> Result<()> {
         self.put(b'c', block, value)
     }
 
-    pub fn get_genesis(&mut self, block: BlockNumber) -> Option<Vec<u8>> {
+    pub fn get_genesis(&self, block: BlockNumber) -> Option<Vec<u8>> {
         self.get(b'g', block)
     }
 
-    pub fn put_genesis(&mut self, block_number: BlockNumber, value: &[u8]) -> Result<()> {
+    pub fn put_genesis(&self, block_number: BlockNumber, value: &[u8]) -> Result<()> {
         self.put(b'g', block_number, value)
     }
 }
