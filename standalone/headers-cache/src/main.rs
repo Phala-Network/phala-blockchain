@@ -236,7 +236,7 @@ async fn main() -> anyhow::Result<()> {
             }
         },
         Action::Import { db, what } => {
-            let mut cache = db::CacheDB::open(&db)?;
+            let cache = db::CacheDB::open(&db)?;
             match what {
                 Import::Headers { input_files } => {
                     for filename in input_files {
