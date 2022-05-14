@@ -418,8 +418,6 @@ pub struct System<Platform> {
     // Gatekeeper
     #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
-    #[serde(with = "more::option_key_bytes")]
-    next_master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -484,7 +482,6 @@ impl<Platform: pal::Platform> System<Platform> {
             ecdh_key,
             worker_state: WorkerState::new(pubkey),
             master_key,
-            next_master_key: None,
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
@@ -806,17 +803,11 @@ impl<Platform: pal::Platform> System<Platform> {
                     block.block_number
                 );
                 assert!(
-                    self.next_master_key.is_some()
-                        && self.next_master_key.as_ref().unwrap().public()
+                    self.master_key.is_some()
+                        && self.master_key.as_ref().unwrap().public()
                             == master_pubkey_event.master_pubkey,
                     "Rotated master key mismatches"
                 );
-                self.master_key = self.next_master_key.clone();
-                self.next_master_key = None;
-                self.gatekeeper
-                    .as_mut()
-                    .expect("gatekeeper must be ready when rotation; qed.")
-                    .master_pubkey_rotated(master_pubkey_event.master_pubkey);
             }
         }
     }
@@ -1255,8 +1246,10 @@ impl<Platform: pal::Platform> System<Platform> {
 
     /// Decrypt the rotated master key
     ///
-    /// The new master key will not take effect immediately until the gatekeeper is notified that the new master pubkey
-    /// is already on-chain
+    /// The new master key takes effect immediately after the GKRegistryEvent::RotatedMasterPubkey is sent
+    ///
+    /// ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain pubkey
+    /// is updated, which may cause problem in the future.
     fn process_batch_rotate_master_key(
         &mut self,
         origin: MessageOrigin,
@@ -1284,11 +1277,11 @@ impl<Platform: pal::Platform> System<Platform> {
             );
             info!("Worker: successfully decrypt received rotated master key");
 
-            self.next_master_key = Some(new_master_key.clone());
+            self.master_key = Some(new_master_key.clone());
             self.gatekeeper
                 .as_mut()
                 .expect("checked above; qed.")
-                .prepare_rotated_master_key(event.rotation_id, new_master_key);
+                .rotate_master_key(event.rotation_id, new_master_key);
         }
         Ok(())
     }
