@@ -612,13 +612,13 @@ pub enum AttestationReport {
         signature: Vec<u8>,
         raw_signing_cert: Vec<u8>,
     },
-    OptOut,
+    None,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AttestationProvider {
     Ias,
-    OptOut,
+    None,
     RootOrCouncil,
     Unknown,
 }

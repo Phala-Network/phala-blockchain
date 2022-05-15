@@ -1283,7 +1283,7 @@ fn preprocess_args(args: &mut Args) {
     if args.dev {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
-        args.attestation_provider = String::from("opt-out");
+        args.attestation_provider = String::from("none");
     }
     if args.longevity > 0 {
         assert!(args.longevity >= 4, "Option --longevity must be 0 or >= 4.");

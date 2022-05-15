@@ -724,7 +724,7 @@ function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relaye
             `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
             `--pruntime-endpoint=http://localhost:${teePort}`,
             '--dev-wait-block-ms=1000',
-            '--attestation-provider', 'opt-out',
+            '--attestation-provider', 'none',
         ]
     ], { logPath: `${tmpPath}/${name}.log` });
 }

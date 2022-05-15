@@ -2966,7 +2966,6 @@ $root.pruntime_rpc = (function() {
          * Properties of an InitRuntimeRequest.
          * @memberof pruntime_rpc
          * @interface IInitRuntimeRequest
-         * @property {boolean|null} [skipRa] InitRuntimeRequest skipRa
          * @property {Uint8Array|null} [encodedGenesisInfo] InitRuntimeRequest encodedGenesisInfo
          * @property {Uint8Array|null} [debugSetKey] InitRuntimeRequest debugSetKey
          * @property {Uint8Array|null} [encodedGenesisState] InitRuntimeRequest encodedGenesisState
@@ -2989,14 +2988,6 @@ $root.pruntime_rpc = (function() {
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
-
-        /**
-         * InitRuntimeRequest skipRa.
-         * @member {boolean} skipRa
-         * @memberof pruntime_rpc.InitRuntimeRequest
-         * @instance
-         */
-        InitRuntimeRequest.prototype.skipRa = false;
 
         /**
          * InitRuntimeRequest encodedGenesisInfo.
@@ -3106,8 +3097,6 @@ $root.pruntime_rpc = (function() {
         InitRuntimeRequest.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.skipRa != null && Object.hasOwnProperty.call(message, "skipRa"))
-                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.skipRa);
             if (message.encodedGenesisInfo != null && Object.hasOwnProperty.call(message, "encodedGenesisInfo"))
                 writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedGenesisInfo);
             if (message.debugSetKey != null && Object.hasOwnProperty.call(message, "debugSetKey"))
@@ -3154,9 +3143,6 @@ $root.pruntime_rpc = (function() {
             while (reader.pos < end) {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
-                case 1:
-                    message.skipRa = reader.bool();
-                    break;
                 case 2:
                     message.encodedGenesisInfo = reader.bytes();
                     break;
@@ -3211,9 +3197,6 @@ $root.pruntime_rpc = (function() {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             var properties = {};
-            if (message.skipRa != null && message.hasOwnProperty("skipRa"))
-                if (typeof message.skipRa !== "boolean")
-                    return "skipRa: boolean expected";
             if (message.encodedGenesisInfo != null && message.hasOwnProperty("encodedGenesisInfo"))
                 if (!(message.encodedGenesisInfo && typeof message.encodedGenesisInfo.length === "number" || $util.isString(message.encodedGenesisInfo)))
                     return "encodedGenesisInfo: buffer expected";
@@ -3253,8 +3236,6 @@ $root.pruntime_rpc = (function() {
             if (object instanceof $root.pruntime_rpc.InitRuntimeRequest)
                 return object;
             var message = new $root.pruntime_rpc.InitRuntimeRequest();
-            if (object.skipRa != null)
-                message.skipRa = Boolean(object.skipRa);
             if (object.encodedGenesisInfo != null)
                 if (typeof object.encodedGenesisInfo === "string")
                     $util.base64.decode(object.encodedGenesisInfo, message.encodedGenesisInfo = $util.newBuffer($util.base64.length(object.encodedGenesisInfo)), 0);
@@ -3296,7 +3277,6 @@ $root.pruntime_rpc = (function() {
                 options = {};
             var object = {};
             if (options.defaults) {
-                object.skipRa = false;
                 if (options.bytes === String)
                     object.encodedGenesisInfo = "";
                 else {
@@ -3313,8 +3293,6 @@ $root.pruntime_rpc = (function() {
                 }
                 object.isParachain = false;
             }
-            if (message.skipRa != null && message.hasOwnProperty("skipRa"))
-                object.skipRa = message.skipRa;
             if (message.encodedGenesisInfo != null && message.hasOwnProperty("encodedGenesisInfo"))
                 object.encodedGenesisInfo = options.bytes === String ? $util.base64.encode(message.encodedGenesisInfo, 0, message.encodedGenesisInfo.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedGenesisInfo) : message.encodedGenesisInfo;
             if (message.debugSetKey != null && message.hasOwnProperty("debugSetKey")) {

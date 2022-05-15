@@ -94,8 +94,8 @@ impl RA for GraminePlatform {
 
                 Ok(Encode::encode(&attestation_report))
             },
-            "opt-out" => {
-                Ok(Encode::encode(&phala_types::AttestationReport::OptOut))
+            "none" => {
+                Ok(Encode::encode(&phala_types::AttestationReport::None))
             },
             _ => {
                 Err(anyhow!("Unknown attestation provider `{}`", provider))
@@ -108,7 +108,7 @@ impl RA for GraminePlatform {
             "ias" => {
                 ias::create_quote_vec(&[0u8; 64]).map(|_| ())
             },
-            "opt-out" => {
+            "none" => {
                 Ok(())
             },
             _ => {

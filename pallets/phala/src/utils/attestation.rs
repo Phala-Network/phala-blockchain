@@ -20,7 +20,7 @@ pub enum Error {
 	OutdatedIASReport,
 	UnknownQuoteBodyFormat,
 	InvalidUserDataHash,
-	OptOutDisabled,
+	NoneAttestationDisabled,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -53,14 +53,14 @@ pub fn validate(
 				pruntime_allowlist,
 			)
 		},
-		AttestationReport::OptOut => {
+		AttestationReport::None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport {
-					provider: AttestationProvider::OptOut,
+					provider: AttestationProvider::None,
 					confidence_level: 128u8
 				})
 			} else {
-				Err(Error::OptOutDisabled)
+				Err(Error::NoneAttestationDisabled)
 			}
 		}
 	}

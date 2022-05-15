@@ -1445,7 +1445,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1479,7 +1479,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1577,7 +1577,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1643,7 +1643,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1698,7 +1698,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1780,7 +1780,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1854,7 +1854,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -1925,7 +1925,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -2013,7 +2013,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                attestation_provider: AttestationProvider::OptOut,
+                attestation_provider: AttestationProvider::None,
                 confidence_level: 2,
             }));
             r.gk.process_messages(block);
@@ -2087,7 +2087,7 @@ pub mod tests {
             for i in 0..=1 {
                 let mut worker = r.for_worker(i);
                 worker.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
-                    attestation_provider: AttestationProvider::OptOut,
+                    attestation_provider: AttestationProvider::None,
                     confidence_level: 2,
                 }));
             }

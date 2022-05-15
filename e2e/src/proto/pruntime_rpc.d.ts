@@ -1242,9 +1242,6 @@ export namespace pruntime_rpc {
     /** Properties of an InitRuntimeRequest. */
     interface IInitRuntimeRequest {
 
-        /** InitRuntimeRequest skipRa */
-        skipRa?: (boolean|null);
-
         /** InitRuntimeRequest encodedGenesisInfo */
         encodedGenesisInfo?: (Uint8Array|null);
 
@@ -1272,9 +1269,6 @@ export namespace pruntime_rpc {
          * @param [properties] Properties to set
          */
         constructor(properties?: pruntime_rpc.IInitRuntimeRequest);
-
-        /** InitRuntimeRequest skipRa. */
-        public skipRa: boolean;
 
         /** InitRuntimeRequest encodedGenesisInfo. */
         public encodedGenesisInfo: Uint8Array;
