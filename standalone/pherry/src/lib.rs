@@ -883,7 +883,6 @@ async fn init_runtime(
 
     let resp = pr
         .init_runtime(prpc::InitRuntimeRequest::new(
-            false,
             genesis_info,
             debug_set_key,
             genesis_state,
