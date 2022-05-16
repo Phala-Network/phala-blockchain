@@ -228,6 +228,20 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
+		/// Familiar to event "RewardsWithdrawn" but only affected states:
+		///  - the stake related fields in [`StakePools`]
+		OwnerRewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// Familiar to event "RewardsWithdrawn" but only affected states:
+		///  - the user staking account at [`PoolStakers`]
+		StakerRewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
 		/// The pool received a slash event from one of its workers (currently disabled)
 		///
 		/// The slash is accured to the pending slash accumulator.
@@ -554,11 +568,13 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			reward_arr: Vec<(u64, BalanceOf<T>)>,
 		) -> DispatchResult {
+
 			// Origin must be MiningSwitchOrigin
 			T::MiningSwitchOrigin::ensure_origin(origin)?;
 
 			for (pid, reward) in reward_arr {
 			    //The assigned pool must exist
+
 			    let mut pool_info = Self::ensure_pool(pid)?;
 			    //reward must be positive
 			    if reward <= Zero::zero() {
@@ -570,6 +586,75 @@ pub mod pallet {
  
 			}
 			Ok(())
+		}
+		
+		/// Claims pool-owner's pending rewards of the sender and send to the `target`
+		/// The rewards associate to sender's "staker role" will not be claimed
+		/// Requires:
+		/// 1. The sender is a pool owner
+		#[pallet::weight(0)]
+		pub fn claim_owner_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			let mut rewards = BalanceOf::<T>::zero();
+			// Add pool owner's reward if applicable
+			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
+			
+			rewards += pool_info.owner_reward;
+			pool_info.owner_reward = Zero::zero();
+
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			StakePools::<T>::insert(pid, &pool_info);
+			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
+
+			Ok(())
+		}
+
+		/// Claims staker's pending rewards of the sender and send to the `target`
+		/// The rewards associate to sender's "owner role" will not be claimed
+		/// Requires:
+		/// 1. The sender is a staker
+		#[pallet::weight(0)]
+		pub fn claim_staker_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			let mut rewards = BalanceOf::<T>::zero();	
+			let info_key = (pid, who.clone());
+			let mut user_info = Self::pool_stakers(&info_key);
+			if let Some(ref mut user_info) = user_info {
+				pool_info.settle_user_pending_reward(user_info);
+				rewards += user_info.available_rewards;
+				user_info.available_rewards = Zero::zero();
+			}
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			// Update ledger
+			StakePools::<T>::insert(pid, &pool_info);
+			if let Some(user_info) = user_info {
+				PoolStakers::<T>::insert(&info_key, &user_info);
+			}
+			Self::deposit_event(Event::<T>::StakerRewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
+
+			Ok(())		
 		}
 
 		/// Claims all the pending rewards of the sender and send to the `target`
