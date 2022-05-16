@@ -255,7 +255,7 @@ impl env::OcallFuncs for State {
     }
 
     fn tcp_accept(&mut self, tcp_res_id: i32) -> Result<i32> {
-        let (stream, remote_addr) = {
+        let (stream, _remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
                 Resource::TcpListener(listener) => listener,
@@ -267,6 +267,11 @@ impl env::OcallFuncs for State {
             }
         };
         self.resources.push(Resource::TcpStream { stream })
+    }
+
+    fn tcp_connect(&mut self, addr: &str) -> Result<i32> {
+        let fut = tokio::net::TcpStream::connect(addr.to_string());
+        self.resources.push(Resource::TcpConnect(Box::pin(fut)))
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
