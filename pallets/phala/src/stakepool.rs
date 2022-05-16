@@ -554,11 +554,13 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			reward_arr: Vec<(u64, BalanceOf<T>)>,
 		) -> DispatchResult {
+
 			// Origin must be MiningSwitchOrigin
 			T::MiningSwitchOrigin::ensure_origin(origin)?;
 
 			for (pid, reward) in reward_arr {
 			    //The assigned pool must exist
+
 			    let mut pool_info = Self::ensure_pool(pid)?;
 			    //reward must be positive
 			    if reward <= Zero::zero() {
