@@ -16,6 +16,12 @@ pub struct TcpListener {
     res_id: ResourceId,
 }
 
+/// A resource pointing to a connecting TCP socket.
+#[derive(Debug)]
+pub struct TcpConnector {
+    res_id: ResourceId,
+}
+
 const TODO: &str = "Split the buf out and define a wrapper BufferedTcpStrem";
 /// A connected TCP socket.
 #[derive(Debug)]
@@ -36,12 +42,7 @@ impl Future for Acceptor<'_> {
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
         match ocall::tcp_accept(self.listener.res_id.0) {
-            Ok(res_id) => Poll::Ready(Ok(TcpStream {
-                res_id: ResourceId(res_id),
-                buf: Default::default(),
-                start: 0,
-                filled: 0,
-            })),
+            Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
         }
@@ -164,5 +165,36 @@ impl AsyncWrite for TcpStream {
             Err(env::OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
         }
+    }
+}
+
+impl Future for TcpConnector {
+    type Output = Result<TcpStream>;
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        use env::OcallError;
+        match ocall::poll_res(self.res_id.0) {
+            Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
+            Err(OcallError::Pending) => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+}
+
+impl TcpStream {
+    fn new(res_id: ResourceId) -> Self {
+        Self {
+            res_id,
+            buf: Default::default(),
+            start: 0,
+            filled: 0,
+        }
+    }
+
+    /// Initiate a TCP connection to a remote host.
+    pub async fn connect(addr: &str) -> Result<Self> {
+        let todo = "prevent local network probing";
+        let res_id = ResourceId(ocall::tcp_connect(addr.into())?);
+        TcpConnector { res_id }.await
     }
 }
