@@ -30,10 +30,12 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let rv = ocall::poll_read(self.id.0, &mut []).expect("Poll timer failed");
+        use env::OcallError;
+        let rv = ocall::poll_read(self.id.0, &mut []);
         match rv {
-            env::Poll::Ready(_) => Poll::Ready(()),
-            env::Poll::Pending => Poll::Pending,
+            Ok(_) => Poll::Ready(()),
+            Err(OcallError::Pending) => Poll::Pending,
+            Err(err) => panic!("unexpected error: {:?}", err),
         }
     }
 }

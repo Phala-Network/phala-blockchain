@@ -49,10 +49,8 @@ pub enum OcallError {
     UnsupportedOperation = 8,
     IoError = 9,
     ResourceLimited = 10,
-    /// Reserved for future use
-    Reserved11 = 11,
-    /// Reserved for future use
-    Reserved12 = 12,
+    Pending = 11,
+    EndOfFile = 12,
     /// Reserved for future use
     Reserved13 = 13,
     /// Reserved for future use

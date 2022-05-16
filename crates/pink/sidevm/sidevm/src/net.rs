@@ -34,18 +34,16 @@ impl Future for Acceptor<'_> {
     type Output = Result<TcpStream>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let rv = match ocall::tcp_accept(self.listener.res_id.0) {
-            Ok(rv) => rv,
-            Err(err) => return Poll::Ready(Err(err)),
-        };
-        match rv {
-            env::Poll::Ready(res_id) => Poll::Ready(Ok(TcpStream {
+        use env::OcallError;
+        match ocall::tcp_accept(self.listener.res_id.0) {
+            Ok(res_id) => Poll::Ready(Ok(TcpStream {
                 res_id: ResourceId(res_id),
                 buf: Default::default(),
                 start: 0,
                 filled: 0,
             })),
-            env::Poll::Pending => Poll::Pending,
+            Err(OcallError::Pending) => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
         }
     }
 }
@@ -95,9 +93,9 @@ impl AsyncRead for TcpStream {
             let buf = buf.initialize_unfilled_to(size);
             ocall::poll_read(self.res_id.0, buf)
         };
+        use env::OcallError;
         match result {
-            Ok(env::Poll::Pending) => Poll::Pending,
-            Ok(env::Poll::Ready(len)) => {
+            Ok(len) => {
                 let len = len as usize;
                 if len > buf.remaining() {
                     Poll::Ready(Err(Error::from_raw_os_error(
@@ -108,6 +106,7 @@ impl AsyncRead for TcpStream {
                     Poll::Ready(Ok(()))
                 }
             }
+            Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
         }
     }
@@ -120,10 +119,11 @@ impl AsyncBufRead for TcpStream {
     ) -> Poll<std::io::Result<&[u8]>> {
         // When the `start` reaches `filled`, both are reset to zero.
         if self.filled == self.start {
+            use env::OcallError;
             match ocall::poll_read(self.res_id.0, &mut self.buf[..]) {
-                Ok(env::Poll::Pending) => return Poll::Pending,
+                Err(OcallError::Pending) => return Poll::Pending,
                 Err(err) => return Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
-                Ok(env::Poll::Ready(sz)) => {
+                Ok(sz) => {
                     self.filled = sz as _;
                 }
             }
@@ -148,8 +148,8 @@ impl AsyncWrite for TcpStream {
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
         match ocall::poll_write(self.res_id.0, buf) {
-            Ok(env::Poll::Ready(len)) => Poll::Ready(Ok(len as _)),
-            Ok(env::Poll::Pending) => Poll::Pending,
+            Ok(len) => Poll::Ready(Ok(len as _)),
+            Err(env::OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
         }
     }
@@ -160,8 +160,8 @@ impl AsyncWrite for TcpStream {
 
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         match ocall::poll_shutdown(self.res_id.0) {
-            Ok(env::Poll::Ready(())) => Poll::Ready(Ok(())),
-            Ok(env::Poll::Pending) => Poll::Pending,
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(env::OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
         }
     }
