@@ -54,8 +54,12 @@ pub trait OcallFuncs {
     fn tcp_listen(addr: &str, backlog: i32) -> Result<i32>;
 
     /// Accept incoming TCP connections.
-    #[ocall(id = 211, fast_input)]
+    #[ocall(id = 211, fast_input, fast_return)]
     fn tcp_accept(resource_id: i32) -> Result<i32>;
+
+    /// Initiate a TCP connection to a remote endpoint.
+    #[ocall(id = 212, fast_input, fast_return)]
+    fn tcp_connect(&mut self, addr: &str) -> Result<i32>;
 
     /// Print log message.
     #[ocall(id = 220, fast_input, fast_return)]
