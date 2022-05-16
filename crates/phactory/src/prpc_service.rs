@@ -302,6 +302,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.attestation_provider = attestation_provider.unwrap_or("ias".to_owned());
         info!("attestation_provider: {}", self.attestation_provider);
 
+        if self.dev_mode && self.attestation_provider != "none" {
+            return Err(from_display(
+                "RA is disallowed when debug_set_key is enabled",
+            ));
+        }
+
         self.platform.quote_test(self.attestation_provider.clone()).map_err(from_debug)?;
 
         let (identity_key, ecdh_key) = rt_data.decode_keys();
