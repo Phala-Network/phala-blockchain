@@ -286,6 +286,16 @@ pub mod pallet {
 			user: T::AccountId,
 			shares: BalanceOf<T>,
 		},
+		/// A pool contribution whitelist is added
+		/// - lazy operated when the first staker is added to the whitelist
+		PoolWhitelistCreated {pid: u64, },
+		/// The pool contribution whitelist is deleted
+		/// - lazy operated when the last staker is removed from the whitelist
+		PoolWhitelistDeleted {pid: u64,},
+		/// A staker is added to the pool contribution whitelist
+		PoolWhitelistStakerAdded {pid: u64, staker: T::AccountId},
+		/// A staker is removed from the pool contribution whitelist
+		PoolWhitelistStakerRemoved {pid: u64, staker: T::AccountId},
 	}
 
 	#[pallet::error]
@@ -569,12 +579,23 @@ pub mod pallet {
 			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
 				if !whitelist.contains(&staker) {
 					ensure!(whitelist.len() as u32 <= MAX_WHITELIST_LEN, Error::<T>::ExceedWhitelistMaxLen);
-					whitelist.push(staker);
+					whitelist.push(staker.clone());
 					LimitContribtionPoolsList::<T>::insert(&pid, &whitelist);
+					Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded{
+						pid,
+						staker,
+					});
 				}
 			} else {
-				let mut new_list = vec![staker];
+				let mut new_list = vec![staker.clone()];
 				LimitContribtionPoolsList::<T>::insert(&pid, &new_list);
+				Self::deposit_event(Event::<T>::PoolWhitelistCreated {
+					pid,
+				});
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded{
+					pid,
+					staker,
+				});
 			}
 			Ok(())
 		}
@@ -592,19 +613,33 @@ pub mod pallet {
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			if let Some(mut whitelist) = LimitContribtionPoolsList::<T>::get(&pid) {
 				if whitelist.contains(&staker) {
-					whitelist.retain(|accountid| accountid != &staker);
+					&whitelist.retain(|accountid| accountid != &staker);
 					if whitelist.len() as u32 <= 0 {
 						LimitContribtionPoolsList::<T>::remove(&pid);
+						Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+							pid,
+							staker: staker.clone(),
+						});
+						Self::deposit_event(Event::<T>::PoolWhitelistDeleted {
+							pid,
+						});
 					} else {
 						LimitContribtionPoolsList::<T>::insert(&pid, &whitelist);
+						Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+							pid,
+							staker: staker.clone(),
+						});
 					}
 				}
 			}
 			Ok(())
 		}
-		/// manually assign rewards to pools by root for fixing issue 763
+
+
+		/// Manually assign rewards to pools by miningSwitchOrigin for fixing issue 763
+
 		///
-		///Reuires:
+		/// Requires:
 		/// 1. The caller is root
 		/// 2. assigned pool must currently exist
 		/// 3. reeward is positive
@@ -613,8 +648,9 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			reward_arr: Vec<(u64, BalanceOf<T>)>,
 		) -> DispatchResult {
-			// origin must be root
+			// origin must be miningSwitchOrigin
 			T::MiningSwitchOrigin::ensure_origin(origin)?;
+
 			for pair in reward_arr {
 			    let (pid, reward) = pair;
 			    //assigned pool must exist
@@ -626,10 +662,10 @@ pub mod pallet {
 			    //assign reward
 			    Self::handle_pool_new_reward(&mut pool_info, reward);
 			    StakePools::<T>::insert(&pid, &pool_info);
+ 
 			}
 			Ok(())
 		}
-
 
 		/// Claims all the pending rewards of the sender and send to the `target`
 		///
@@ -2387,6 +2423,137 @@ pub mod pallet {
 			});
 		}
 
+		#[test]
+		fn test_force_assign_reward() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Check stake before receiving any rewards
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.reward_acc.get(), fp!(0));
+				assert_eq!(pool.owner_reward, fp!(0));
+				let input = vec![(0, 500 * DOLLARS)];
+				PhalaStakePool::force_assign_reward(Origin::root(), input);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.reward_acc.get(), fp!(0.5));
+				assert_eq!(pool.owner_reward, 250 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_staker_whitelist() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);				
+			
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					40 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					40 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					40 * DOLLARS
+				));
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				assert_eq!(staker1.shares, 40 * DOLLARS);
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(staker2.shares, 40 * DOLLARS);
+				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker3.shares, 40 * DOLLARS);
+				assert_ok!(PhalaStakePool::add_staker_to_whitelist(
+					Origin::signed(1),
+					0,
+					2,
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					10 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					40 * DOLLARS
+				));
+				assert_noop!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					40 * DOLLARS),
+					Error::<Test>::NotInContributeWhitelist
+				);
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				assert_eq!(staker1.shares, 50 * DOLLARS);
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(staker2.shares, 80 * DOLLARS);
+				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker3.shares, 40 * DOLLARS);
+				assert_ok!(PhalaStakePool::add_staker_to_whitelist(
+					Origin::signed(1),
+					0,
+					3,
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					20 * DOLLARS,
+				));
+				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker4.shares, 60 * DOLLARS);
+				PhalaStakePool::remove_staker_from_whitelist(
+					Origin::signed(1),
+					0,
+					2,
+				);
+				assert_noop!(
+					PhalaStakePool::contribute(
+						Origin::signed(2),
+						0,
+						20 * DOLLARS,
+					), 
+					Error::<Test>::NotInContributeWhitelist
+				);
+				PhalaStakePool::remove_staker_from_whitelist(
+					Origin::signed(1),
+					0,
+					3,
+				);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					20 * DOLLARS,
+				));
+				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker4.shares, 80 * DOLLARS);
+			});
+
+
+		}
 		#[test]
 		fn test_reward_management() {
 			use crate::mining::pallet::OnReward;
