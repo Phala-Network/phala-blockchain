@@ -319,7 +319,7 @@ fn do_start_sidevm(
     memory_pages: u32,
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    let todo = "handle the gas properly";
+    let todo = "connect the gas to some where";
     let gas = u128::MAX;
     let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
     let code = instrument(code).context("Faile to instrument the wasm code")?;

@@ -4,7 +4,7 @@ use pink_sidevm_host_runtime::instrument;
 use clap::{Parser, AppSettings};
 
 #[derive(Parser)]
-#[clap(about = "Cache server for relaychain headers", version, author)]
+#[clap(about = "Demo sidevm host app", version, author)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub struct Args {
     /// The gas limit for the program to consume.
