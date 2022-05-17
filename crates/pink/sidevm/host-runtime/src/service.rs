@@ -2,6 +2,7 @@ use crate::VmId;
 use crate::{env::GasError, run::WasmRun};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
@@ -15,14 +16,22 @@ pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ExitReason {
+    // The program returned from main
     Exited(i32),
+    // Stopped by external command
     Stopped,
+    // The input channel has been closed, likely caused by stop command.
     InputClosed,
+    // The program panicked
     Panicked,
+    // The task future has beed dropped, likely caused by stop command.
     Cancelled,
+    // Terminated due to gas checking
     GasError(GasError),
+    // When a previous running instance restored from checkpoint
+    Restore,
 }
 
 pub enum Command {
@@ -84,7 +93,7 @@ impl Spawner {
         id: VmId,
         gas: u128,
         gas_per_breath: u128,
-    ) -> Result<(CommandSender, JoinHandle<()>)> {
+    ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(100);
         let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id, gas_per_breath)
             .context("Failed to create sidevm instance")?;
@@ -153,6 +162,7 @@ impl Spawner {
             if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
                 warn!(target: "sidevm", "Failed to send report to sidevm service: {}", err);
             }
+            reason
         });
         Ok((cmd_tx, handle))
     }

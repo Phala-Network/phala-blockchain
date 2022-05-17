@@ -20,3 +20,4 @@ wasmer-engine-universal = "2.2.1"
 wasmer-tunables = {path = "../../../wasmer-tunables"}
 parity-wasm = "0.42"
 wasm-instrument = "0.1"
+serde = { version = "1.0", features = ["derive"] }

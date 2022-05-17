@@ -49,6 +49,8 @@ pub enum PinkEvent {
     StartSidevm {
         /// Number of memory wasm pages (64KB per page) to allocate for the side VM.
         memory_pages: u32,
+        /// Restart the instance when it has crashed
+        auto_restart: bool,
     },
     /// Push a message to the associated sidevm instance.
     SidevmMessage(Vec<u8>),
@@ -106,13 +108,13 @@ pub fn set_on_block_end_selector(selector: u32) {
 }
 
 /// Start a side VM instance
-pub fn start_sidevm(wasm_code: &'static [u8], memory_pages: u32) {
+pub fn start_sidevm(wasm_code: &'static [u8], memory_pages: u32, auto_restart: bool) {
     // `ink!` limit a single event size to 16KB. As a workaround, we chop the code in to 15KB chunks.
     emit_event::<PinkEnvironment, _>(PinkEvent::StartToTransferSidevmCode);
     for chunk in wasm_code.chunks(1024 * 15) {
         emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
     }
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { memory_pages })
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { memory_pages, auto_restart })
 }
 
 /// Push a message to the associated sidevm instance.
