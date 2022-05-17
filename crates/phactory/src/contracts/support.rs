@@ -141,7 +141,6 @@ impl<'de> Deserialize<'de> for SidevmHandle {
 #[derive(Serialize, Deserialize)]
 struct SidevmInfo {
     code: Vec<u8>,
-    memory_pages: u32,
     auto_restart: bool,
     handle: Arc<Mutex<SidevmHandle>>,
 }
@@ -259,16 +258,14 @@ impl FatContract {
         &mut self,
         spawner: &sidevm::service::Spawner,
         code: Vec<u8>,
-        memory_pages: u32,
         auto_restart: bool,
     ) -> Result<()> {
         if self.sidevm_info.is_some() {
             bail!("Sidevm can only be started once");
         }
-        let handle = do_start_sidevm(spawner, &code, memory_pages, self.contract_id.0)?;
+        let handle = do_start_sidevm(spawner, &code, self.contract_id.0)?;
         self.sidevm_info = Some(SidevmInfo {
             code,
-            memory_pages,
             handle,
             auto_restart,
         });
@@ -300,7 +297,6 @@ impl FatContract {
                 do_start_sidevm(
                     spawner,
                     &sidevm_info.code,
-                    sidevm_info.memory_pages,
                     self.cluster_id.0,
                 )?
             } else {
@@ -348,14 +344,14 @@ impl FatContract {
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
-    memory_pages: u32,
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
     let todo = "connect the gas to some where";
+    let max_memory_pages: u32 = 1024; // 64MB
     let gas = u128::MAX;
     let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
     let code = instrument(code).context("Faile to instrument the wasm code")?;
-    let (sender, join_handle) = spawner.start(&code, memory_pages, id, gas, gas_per_breath)?;
+    let (sender, join_handle) = spawner.start(&code, max_memory_pages, id, gas, gas_per_breath)?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
 

@@ -1229,13 +1229,12 @@ pub fn apply_pink_side_effects(
                 }
             }
             PinkEvent::StartSidevm {
-                memory_pages,
                 auto_restart,
             } => {
                 if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
                     let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
                     if let Err(err) =
-                        contract.start_sidevm(&spawner, wasm_code, memory_pages, auto_restart)
+                        contract.start_sidevm(&spawner, wasm_code, auto_restart)
                     {
                         error!(target: "sidevm", "Start sidevm failed: {:?}", err);
                     }
