@@ -1,5 +1,6 @@
 use std::{
     cell::Cell,
+    fmt,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
     time::Duration,
@@ -39,10 +40,17 @@ pub fn create_env(id: VmId, store: &Store) -> (Env, ImportObject) {
                 ),
                 "sidevm_ocall_fast_return" => Function::new_native_with_env(
                     store,
-                    env,
+                    env.clone(),
                     sidevm_ocall_fast_return,
                 ),
-            }
+            },
+            "sidevm" => {
+                "gas" => Function::new_native_with_env(
+                    store,
+                    env,
+                    gas,
+                ),
+            },
         },
     )
 }
@@ -76,6 +84,10 @@ impl TaskSet {
 
 struct State {
     id: VmId,
+    // Total gas remain
+    gas: u128,
+    // Gas remain to next async yield point
+    gas_to_breath: u128,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
@@ -112,6 +124,8 @@ impl Env {
                 memory: VmMemory(None),
                 state: State {
                     id,
+                    gas: 0,
+                    gas_to_breath: 0,
                     resources,
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
@@ -147,6 +161,14 @@ impl Env {
             .state
             .message_tx
             .blocking_send(message)
+    }
+
+    pub fn set_gas(&self, gas: u128) {
+        self.inner.lock().unwrap().state.gas = gas;
+    }
+
+    pub fn set_gas_to_breath(&self, gas: u128) {
+        self.inner.lock().unwrap().state.gas_to_breath = gas;
     }
 }
 
@@ -335,4 +357,35 @@ fn sidevm_ocall(
         );
     }
     result.encode_ret()
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum GasError {
+    GasExhausted,
+    Drowning,
+}
+
+impl fmt::Display for GasError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GasError::GasExhausted => write!(f, "Gas exhausted"),
+            GasError::Drowning => write!(f, "Drowning"),
+        }
+    }
+}
+
+impl std::error::Error for GasError {}
+
+fn gas(env: &Env, cost: u32) -> Result<(), GasError> {
+    let mut env = env.inner.lock().unwrap();
+    let cost = cost as u128;
+    if cost > env.state.gas {
+        return Err(GasError::GasExhausted);
+    }
+    if cost > env.state.gas_to_breath {
+        return Err(GasError::Drowning);
+    }
+    env.state.gas -= cost;
+    env.state.gas_to_breath -= cost;
+    Ok(())
 }

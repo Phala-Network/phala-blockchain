@@ -319,7 +319,11 @@ fn do_start_sidevm(
     memory_pages: u32,
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    let (sender, join_handle) = spawner.start(code, memory_pages, id)?;
+    let todo = "handle the gas properly";
+    let gas = u128::MAX;
+    let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
+    let code = instrument(code).context("Faile to instrument the wasm code")?;
+    let (sender, join_handle) = spawner.start(&code, memory_pages, id, gas, gas_per_breath)?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
 

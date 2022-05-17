@@ -1,5 +1,5 @@
-use crate::run::WasmRun;
 use crate::VmId;
+use crate::{env::GasError, run::WasmRun};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
 use std::future::Future;
@@ -22,6 +22,7 @@ pub enum ExitReason {
     InputClosed,
     Panicked,
     Cancelled,
+    GasError(GasError),
 }
 
 pub enum Command {
@@ -81,10 +82,13 @@ impl Spawner {
         wasm_bytes: &[u8],
         memory_pages: u32,
         id: VmId,
+        gas: u128,
+        gas_per_breath: u128,
     ) -> Result<(CommandSender, JoinHandle<()>)> {
         let (cmd_tx, mut cmd_rx) = channel(100);
-        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id)
+        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id, gas_per_breath)
             .context("Failed to create sidevm instance")?;
+        env.set_gas(gas);
         let handle = self.runtime_handle.spawn(async move {
             loop {
                 tokio::select! {
@@ -118,8 +122,15 @@ impl Spawner {
                             }
                             Err(err) => {
                                 info!(target: "sidevm", "The sidevm instance exited with error: {}", err);
-                                // TODO.kevin: Restart the instance?
-                                break ExitReason::Panicked;
+                                match err.downcast::<crate::env::GasError>() {
+                                    Ok(err) => {
+                                        break ExitReason::GasError(err);
+                                    }
+                                    Err(_) => {
+                                        // TODO.kevin: Restart the instance?
+                                        break ExitReason::Panicked;
+                                    }
+                                }
                             }
                         }
                     }
