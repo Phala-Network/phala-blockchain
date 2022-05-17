@@ -4,7 +4,7 @@ use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
-use sidevm::VmId;
+use sidevm::{instrument::instrument, VmId};
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;

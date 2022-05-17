@@ -235,6 +235,6 @@ pub fn instrument(wasm: &[u8]) -> Result<Vec<u8>> {
     const WEIGHTS: InstructionWeights = InstructionWeights::default_weights();
     let module = Module::from_bytes(wasm)?;
     let rules = WEIGHTS.rules(&module);
-    let module = inject(module, &rules, "pha").or(Err(anyhow!("Invalid module")))?;
+    let module = inject(module, &rules, "sidevm").or(Err(anyhow!("Invalid module")))?;
     Ok(module.to_bytes()?)
 }
