@@ -150,6 +150,11 @@ enum Action {
         /// The headers file to split
         file: String,
     },
+    /// Show block number info for given bin file
+    Inspect {
+        /// The grabbed headers file to read from
+        files: Vec<String>,
+    },
     /// Merge given chunks into a single file
     Merge {
         /// Appending to existing file
@@ -344,6 +349,37 @@ async fn main() -> anyhow::Result<()> {
             for filename in files {
                 println!("Merging {}", filename);
                 std::io::copy(&mut File::open(filename)?, &mut output)?;
+            }
+        }
+        Action::Inspect { files } => {
+            for file in &files {
+                let mut input = File::open(file)?;
+                let mut first = None;
+                let mut last = None;
+                let count = cache::read_items(&mut input, |record| {
+                    let number = record.header()?.number;
+                    if first.is_none() {
+                        first = Some(number);
+                    }
+                    if let Some(last) = &last {
+                        if last + 1 != number {
+                            println!("WARN: non-contiguous block numbers: {last} -> {number}");
+                        }
+                    }
+                    last = Some(number);
+                    Ok(false)
+                });
+                match (first, last, count) {
+                    (None, None, Ok(0)) => {
+                        println!("{file}: no blocks");
+                    }
+                    (Some(first), Some(last), Ok(count)) => {
+                        println!("{file}: {count} blocks, from {first} to {last}");
+                    }
+                    _ => {
+                        println!("{file}: broken file");
+                    }
+                }
             }
         }
     }
