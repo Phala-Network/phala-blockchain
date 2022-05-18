@@ -10,7 +10,7 @@ use pb::{
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, EndpointType, WorkerEndpointPayload, VersionedWorkerEndpoints, WorkerPublicKey,
+    contract, EndpointType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -774,6 +774,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         Ok(resp)
     }
+
+    fn get_worker_key_challenge(&self) -> RpcResult<pb::WorkerKeyChallenge> {
+        let system = self
+            .system
+            .as_ref()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let (block_number, signature) = system.get_worker_key_challenge();
+        Ok(pb::WorkerKeyChallenge {
+            block_number,
+            signature: signature.0.to_vec(),
+        })
+    }
 }
 
 pub fn dispatch_prpc_request<Platform>(
@@ -971,5 +983,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
         let echo_msg = request.echo_msg;
         Ok(pb::EchoMessage { echo_msg })
+    }
+
+    fn get_worker_key_challenge(&mut self, _request: ()) -> RpcResult<pb::WorkerKeyChallenge> {
+        self.lock_phactory().get_worker_key_challenge()
+    }
+
+    fn get_worker_key(
+        &mut self,
+        request: pb::GetWorkerKeyRequest,
+    ) -> RpcResult<pb::GetWorkerKeyResponse> {
+        Ok(pb::GetWorkerKeyResponse {
+            encrypted_secret_key: None,
+        })
     }
 }

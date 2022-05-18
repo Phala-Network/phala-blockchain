@@ -24,7 +24,7 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
     ecdh::{self, EcdhKey},
-    sr25519::KDF,
+    sr25519::{Signature, Signing, KDF},
 };
 use phala_mq::{
     traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
@@ -518,6 +518,12 @@ impl<Platform: pal::Platform> System<Platform> {
         self.get_system_message_handler(&cluster_id)
     }
 
+    pub fn get_worker_key_challenge(&self) -> (chain::BlockNumber, Signature) {
+        let block_number = self.block_number;
+        let signature = self.identity_key.sign_data(&block_number.to_be_bytes());
+        (block_number, signature)
+    }
+
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
@@ -685,7 +691,6 @@ impl<Platform: pal::Platform> System<Platform> {
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
     }
 
-<<<<<<< HEAD
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
         match event {
             PRuntimeManagementEvent::RetirePRuntime(condition) => {
@@ -714,11 +719,8 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
-=======
     /// Only the first master key possessed by the gk needs to be sealed
     fn init_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
->>>>>>> d8cd949e (gk: switch to rotated master key when it is published on-chain)
         if self.master_key.is_none() {
             master_key::seal(
                 self.sealing_path.clone(),
@@ -856,10 +858,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.init_master_key(master_key.clone(), false);
             }
 
-            let master_key = self
-                .master_key
-                .as_ref()
-                .expect("checked; qed.");
+            let master_key = self.master_key.as_ref().expect("checked; qed.");
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
