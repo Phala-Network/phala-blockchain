@@ -2966,6 +2966,7 @@ $root.pruntime_rpc = (function() {
          * Properties of an InitRuntimeRequest.
          * @memberof pruntime_rpc
          * @interface IInitRuntimeRequest
+         * @property {boolean|null} [skipRa] InitRuntimeRequest skipRa
          * @property {Uint8Array|null} [encodedGenesisInfo] InitRuntimeRequest encodedGenesisInfo
          * @property {Uint8Array|null} [debugSetKey] InitRuntimeRequest debugSetKey
          * @property {Uint8Array|null} [encodedGenesisState] InitRuntimeRequest encodedGenesisState
@@ -2988,6 +2989,14 @@ $root.pruntime_rpc = (function() {
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
+
+        /**
+         * InitRuntimeRequest skipRa.
+         * @member {boolean} skipRa
+         * @memberof pruntime_rpc.InitRuntimeRequest
+         * @instance
+         */
+        InitRuntimeRequest.prototype.skipRa = false;
 
         /**
          * InitRuntimeRequest encodedGenesisInfo.
@@ -3097,6 +3106,8 @@ $root.pruntime_rpc = (function() {
         InitRuntimeRequest.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
+            if (message.skipRa != null && Object.hasOwnProperty.call(message, "skipRa"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.skipRa);
             if (message.encodedGenesisInfo != null && Object.hasOwnProperty.call(message, "encodedGenesisInfo"))
                 writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedGenesisInfo);
             if (message.debugSetKey != null && Object.hasOwnProperty.call(message, "debugSetKey"))
@@ -3143,6 +3154,9 @@ $root.pruntime_rpc = (function() {
             while (reader.pos < end) {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
+                case 1:
+                    message.skipRa = reader.bool();
+                    break;
                 case 2:
                     message.encodedGenesisInfo = reader.bytes();
                     break;
@@ -3197,6 +3211,9 @@ $root.pruntime_rpc = (function() {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             var properties = {};
+            if (message.skipRa != null && message.hasOwnProperty("skipRa"))
+                if (typeof message.skipRa !== "boolean")
+                    return "skipRa: boolean expected";
             if (message.encodedGenesisInfo != null && message.hasOwnProperty("encodedGenesisInfo"))
                 if (!(message.encodedGenesisInfo && typeof message.encodedGenesisInfo.length === "number" || $util.isString(message.encodedGenesisInfo)))
                     return "encodedGenesisInfo: buffer expected";
@@ -3236,6 +3253,8 @@ $root.pruntime_rpc = (function() {
             if (object instanceof $root.pruntime_rpc.InitRuntimeRequest)
                 return object;
             var message = new $root.pruntime_rpc.InitRuntimeRequest();
+            if (object.skipRa != null)
+                message.skipRa = Boolean(object.skipRa);
             if (object.encodedGenesisInfo != null)
                 if (typeof object.encodedGenesisInfo === "string")
                     $util.base64.decode(object.encodedGenesisInfo, message.encodedGenesisInfo = $util.newBuffer($util.base64.length(object.encodedGenesisInfo)), 0);
@@ -3277,6 +3296,7 @@ $root.pruntime_rpc = (function() {
                 options = {};
             var object = {};
             if (options.defaults) {
+                object.skipRa = false;
                 if (options.bytes === String)
                     object.encodedGenesisInfo = "";
                 else {
@@ -3293,6 +3313,8 @@ $root.pruntime_rpc = (function() {
                 }
                 object.isParachain = false;
             }
+            if (message.skipRa != null && message.hasOwnProperty("skipRa"))
+                object.skipRa = message.skipRa;
             if (message.encodedGenesisInfo != null && message.hasOwnProperty("encodedGenesisInfo"))
                 object.encodedGenesisInfo = options.bytes === String ? $util.base64.encode(message.encodedGenesisInfo, 0, message.encodedGenesisInfo.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedGenesisInfo) : message.encodedGenesisInfo;
             if (message.debugSetKey != null && message.hasOwnProperty("debugSetKey")) {
@@ -3907,7 +3929,8 @@ $root.pruntime_rpc = (function() {
          * @interface IAttestation
          * @property {number|null} [version] Attestation version
          * @property {string|null} [provider] Attestation provider
-         * @property {Uint8Array|null} [payload] Attestation payload
+         * @property {pruntime_rpc.IAttestationReport|null} [payload] Attestation payload
+         * @property {Uint8Array|null} [encodedReport] Attestation encodedReport
          * @property {number|Long|null} [timestamp] Attestation timestamp
          */
 
@@ -3944,11 +3967,19 @@ $root.pruntime_rpc = (function() {
 
         /**
          * Attestation payload.
-         * @member {Uint8Array} payload
+         * @member {pruntime_rpc.IAttestationReport|null|undefined} payload
          * @memberof pruntime_rpc.Attestation
          * @instance
          */
-        Attestation.prototype.payload = $util.newBuffer([]);
+        Attestation.prototype.payload = null;
+
+        /**
+         * Attestation encodedReport.
+         * @member {Uint8Array} encodedReport
+         * @memberof pruntime_rpc.Attestation
+         * @instance
+         */
+        Attestation.prototype.encodedReport = $util.newBuffer([]);
 
         /**
          * Attestation timestamp.
@@ -3987,9 +4018,11 @@ $root.pruntime_rpc = (function() {
             if (message.provider != null && Object.hasOwnProperty.call(message, "provider"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.provider);
             if (message.payload != null && Object.hasOwnProperty.call(message, "payload"))
-                writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.payload);
+                $root.pruntime_rpc.AttestationReport.encode(message.payload, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
             if (message.timestamp != null && Object.hasOwnProperty.call(message, "timestamp"))
                 writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.timestamp);
+            if (message.encodedReport != null && Object.hasOwnProperty.call(message, "encodedReport"))
+                writer.uint32(/* id 5, wireType 2 =*/42).bytes(message.encodedReport);
             return writer;
         };
 
@@ -4031,7 +4064,10 @@ $root.pruntime_rpc = (function() {
                     message.provider = reader.string();
                     break;
                 case 3:
-                    message.payload = reader.bytes();
+                    message.payload = $root.pruntime_rpc.AttestationReport.decode(reader, reader.uint32());
+                    break;
+                case 5:
+                    message.encodedReport = reader.bytes();
                     break;
                 case 4:
                     message.timestamp = reader.uint64();
@@ -4077,9 +4113,14 @@ $root.pruntime_rpc = (function() {
             if (message.provider != null && message.hasOwnProperty("provider"))
                 if (!$util.isString(message.provider))
                     return "provider: string expected";
-            if (message.payload != null && message.hasOwnProperty("payload"))
-                if (!(message.payload && typeof message.payload.length === "number" || $util.isString(message.payload)))
-                    return "payload: buffer expected";
+            if (message.payload != null && message.hasOwnProperty("payload")) {
+                var error = $root.pruntime_rpc.AttestationReport.verify(message.payload);
+                if (error)
+                    return "payload." + error;
+            }
+            if (message.encodedReport != null && message.hasOwnProperty("encodedReport"))
+                if (!(message.encodedReport && typeof message.encodedReport.length === "number" || $util.isString(message.encodedReport)))
+                    return "encodedReport: buffer expected";
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 if (!$util.isInteger(message.timestamp) && !(message.timestamp && $util.isInteger(message.timestamp.low) && $util.isInteger(message.timestamp.high)))
                     return "timestamp: integer|Long expected";
@@ -4102,11 +4143,16 @@ $root.pruntime_rpc = (function() {
                 message.version = object.version | 0;
             if (object.provider != null)
                 message.provider = String(object.provider);
-            if (object.payload != null)
-                if (typeof object.payload === "string")
-                    $util.base64.decode(object.payload, message.payload = $util.newBuffer($util.base64.length(object.payload)), 0);
-                else if (object.payload.length)
-                    message.payload = object.payload;
+            if (object.payload != null) {
+                if (typeof object.payload !== "object")
+                    throw TypeError(".pruntime_rpc.Attestation.payload: object expected");
+                message.payload = $root.pruntime_rpc.AttestationReport.fromObject(object.payload);
+            }
+            if (object.encodedReport != null)
+                if (typeof object.encodedReport === "string")
+                    $util.base64.decode(object.encodedReport, message.encodedReport = $util.newBuffer($util.base64.length(object.encodedReport)), 0);
+                else if (object.encodedReport.length)
+                    message.encodedReport = object.encodedReport;
             if (object.timestamp != null)
                 if ($util.Long)
                     (message.timestamp = $util.Long.fromValue(object.timestamp)).unsigned = true;
@@ -4135,30 +4181,33 @@ $root.pruntime_rpc = (function() {
             if (options.defaults) {
                 object.version = 0;
                 object.provider = "";
-                if (options.bytes === String)
-                    object.payload = "";
-                else {
-                    object.payload = [];
-                    if (options.bytes !== Array)
-                        object.payload = $util.newBuffer(object.payload);
-                }
+                object.payload = null;
                 if ($util.Long) {
                     var long = new $util.Long(0, 0, true);
                     object.timestamp = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.timestamp = options.longs === String ? "0" : 0;
+                if (options.bytes === String)
+                    object.encodedReport = "";
+                else {
+                    object.encodedReport = [];
+                    if (options.bytes !== Array)
+                        object.encodedReport = $util.newBuffer(object.encodedReport);
+                }
             }
             if (message.version != null && message.hasOwnProperty("version"))
                 object.version = message.version;
             if (message.provider != null && message.hasOwnProperty("provider"))
                 object.provider = message.provider;
             if (message.payload != null && message.hasOwnProperty("payload"))
-                object.payload = options.bytes === String ? $util.base64.encode(message.payload, 0, message.payload.length) : options.bytes === Array ? Array.prototype.slice.call(message.payload) : message.payload;
+                object.payload = $root.pruntime_rpc.AttestationReport.toObject(message.payload, options);
             if (message.timestamp != null && message.hasOwnProperty("timestamp"))
                 if (typeof message.timestamp === "number")
                     object.timestamp = options.longs === String ? String(message.timestamp) : message.timestamp;
                 else
                     object.timestamp = options.longs === String ? $util.Long.prototype.toString.call(message.timestamp) : options.longs === Number ? new $util.LongBits(message.timestamp.low >>> 0, message.timestamp.high >>> 0).toNumber(true) : message.timestamp;
+            if (message.encodedReport != null && message.hasOwnProperty("encodedReport"))
+                object.encodedReport = options.bytes === String ? $util.base64.encode(message.encodedReport, 0, message.encodedReport.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedReport) : message.encodedReport;
             return object;
         };
 
@@ -4174,6 +4223,256 @@ $root.pruntime_rpc = (function() {
         };
 
         return Attestation;
+    })();
+
+    pruntime_rpc.AttestationReport = (function() {
+
+        /**
+         * Properties of an AttestationReport.
+         * @memberof pruntime_rpc
+         * @interface IAttestationReport
+         * @property {string|null} [report] AttestationReport report
+         * @property {Uint8Array|null} [signature] AttestationReport signature
+         * @property {Uint8Array|null} [signingCert] AttestationReport signingCert
+         */
+
+        /**
+         * Constructs a new AttestationReport.
+         * @memberof pruntime_rpc
+         * @classdesc Represents an AttestationReport.
+         * @implements IAttestationReport
+         * @constructor
+         * @param {pruntime_rpc.IAttestationReport=} [properties] Properties to set
+         */
+        function AttestationReport(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * AttestationReport report.
+         * @member {string} report
+         * @memberof pruntime_rpc.AttestationReport
+         * @instance
+         */
+        AttestationReport.prototype.report = "";
+
+        /**
+         * AttestationReport signature.
+         * @member {Uint8Array} signature
+         * @memberof pruntime_rpc.AttestationReport
+         * @instance
+         */
+        AttestationReport.prototype.signature = $util.newBuffer([]);
+
+        /**
+         * AttestationReport signingCert.
+         * @member {Uint8Array} signingCert
+         * @memberof pruntime_rpc.AttestationReport
+         * @instance
+         */
+        AttestationReport.prototype.signingCert = $util.newBuffer([]);
+
+        /**
+         * Creates a new AttestationReport instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {pruntime_rpc.IAttestationReport=} [properties] Properties to set
+         * @returns {pruntime_rpc.AttestationReport} AttestationReport instance
+         */
+        AttestationReport.create = function create(properties) {
+            return new AttestationReport(properties);
+        };
+
+        /**
+         * Encodes the specified AttestationReport message. Does not implicitly {@link pruntime_rpc.AttestationReport.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {pruntime_rpc.IAttestationReport} message AttestationReport message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AttestationReport.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.report != null && Object.hasOwnProperty.call(message, "report"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.report);
+            if (message.signature != null && Object.hasOwnProperty.call(message, "signature"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.signature);
+            if (message.signingCert != null && Object.hasOwnProperty.call(message, "signingCert"))
+                writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.signingCert);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified AttestationReport message, length delimited. Does not implicitly {@link pruntime_rpc.AttestationReport.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {pruntime_rpc.IAttestationReport} message AttestationReport message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AttestationReport.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an AttestationReport message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.AttestationReport} AttestationReport
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AttestationReport.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.AttestationReport();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.report = reader.string();
+                    break;
+                case 2:
+                    message.signature = reader.bytes();
+                    break;
+                case 3:
+                    message.signingCert = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an AttestationReport message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.AttestationReport} AttestationReport
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AttestationReport.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an AttestationReport message.
+         * @function verify
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        AttestationReport.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.report != null && message.hasOwnProperty("report"))
+                if (!$util.isString(message.report))
+                    return "report: string expected";
+            if (message.signature != null && message.hasOwnProperty("signature"))
+                if (!(message.signature && typeof message.signature.length === "number" || $util.isString(message.signature)))
+                    return "signature: buffer expected";
+            if (message.signingCert != null && message.hasOwnProperty("signingCert"))
+                if (!(message.signingCert && typeof message.signingCert.length === "number" || $util.isString(message.signingCert)))
+                    return "signingCert: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates an AttestationReport message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.AttestationReport} AttestationReport
+         */
+        AttestationReport.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.AttestationReport)
+                return object;
+            var message = new $root.pruntime_rpc.AttestationReport();
+            if (object.report != null)
+                message.report = String(object.report);
+            if (object.signature != null)
+                if (typeof object.signature === "string")
+                    $util.base64.decode(object.signature, message.signature = $util.newBuffer($util.base64.length(object.signature)), 0);
+                else if (object.signature.length)
+                    message.signature = object.signature;
+            if (object.signingCert != null)
+                if (typeof object.signingCert === "string")
+                    $util.base64.decode(object.signingCert, message.signingCert = $util.newBuffer($util.base64.length(object.signingCert)), 0);
+                else if (object.signingCert.length)
+                    message.signingCert = object.signingCert;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an AttestationReport message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.AttestationReport
+         * @static
+         * @param {pruntime_rpc.AttestationReport} message AttestationReport
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        AttestationReport.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.report = "";
+                if (options.bytes === String)
+                    object.signature = "";
+                else {
+                    object.signature = [];
+                    if (options.bytes !== Array)
+                        object.signature = $util.newBuffer(object.signature);
+                }
+                if (options.bytes === String)
+                    object.signingCert = "";
+                else {
+                    object.signingCert = [];
+                    if (options.bytes !== Array)
+                        object.signingCert = $util.newBuffer(object.signingCert);
+                }
+            }
+            if (message.report != null && message.hasOwnProperty("report"))
+                object.report = message.report;
+            if (message.signature != null && message.hasOwnProperty("signature"))
+                object.signature = options.bytes === String ? $util.base64.encode(message.signature, 0, message.signature.length) : options.bytes === Array ? Array.prototype.slice.call(message.signature) : message.signature;
+            if (message.signingCert != null && message.hasOwnProperty("signingCert"))
+                object.signingCert = options.bytes === String ? $util.base64.encode(message.signingCert, 0, message.signingCert.length) : options.bytes === Array ? Array.prototype.slice.call(message.signingCert) : message.signingCert;
+            return object;
+        };
+
+        /**
+         * Converts this AttestationReport to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.AttestationReport
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        AttestationReport.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return AttestationReport;
     })();
 
     pruntime_rpc.GetEgressMessagesResponse = (function() {

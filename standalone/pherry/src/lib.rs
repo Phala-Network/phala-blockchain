@@ -883,6 +883,7 @@ async fn init_runtime(
 
     let resp = pr
         .init_runtime(prpc::InitRuntimeRequest::new(
+            false,
             genesis_info,
             debug_set_key,
             genesis_state,
@@ -903,7 +904,7 @@ async fn register_worker(
 ) -> Result<()> {
     let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
         .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation = Decode::decode(&mut &attestation.payload[..])
+    let attestation = Decode::decode(&mut &attestation.encoded_report[..])
         .map_err(|_| anyhow!("Decode attestation payload failed"))?;
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;

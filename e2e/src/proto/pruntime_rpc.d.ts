@@ -1242,6 +1242,9 @@ export namespace pruntime_rpc {
     /** Properties of an InitRuntimeRequest. */
     interface IInitRuntimeRequest {
 
+        /** InitRuntimeRequest skipRa */
+        skipRa?: (boolean|null);
+
         /** InitRuntimeRequest encodedGenesisInfo */
         encodedGenesisInfo?: (Uint8Array|null);
 
@@ -1269,6 +1272,9 @@ export namespace pruntime_rpc {
          * @param [properties] Properties to set
          */
         constructor(properties?: pruntime_rpc.IInitRuntimeRequest);
+
+        /** InitRuntimeRequest skipRa. */
+        public skipRa: boolean;
 
         /** InitRuntimeRequest encodedGenesisInfo. */
         public encodedGenesisInfo: Uint8Array;
@@ -1594,7 +1600,10 @@ export namespace pruntime_rpc {
         provider?: (string|null);
 
         /** Attestation payload */
-        payload?: (Uint8Array|null);
+        payload?: (pruntime_rpc.IAttestationReport|null);
+
+        /** Attestation encodedReport */
+        encodedReport?: (Uint8Array|null);
 
         /** Attestation timestamp */
         timestamp?: (number|Long|null);
@@ -1616,7 +1625,10 @@ export namespace pruntime_rpc {
         public provider: string;
 
         /** Attestation payload. */
-        public payload: Uint8Array;
+        public payload?: (pruntime_rpc.IAttestationReport|null);
+
+        /** Attestation encodedReport. */
+        public encodedReport: Uint8Array;
 
         /** Attestation timestamp. */
         public timestamp: (number|Long);
@@ -1687,6 +1699,108 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this Attestation to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of an AttestationReport. */
+    interface IAttestationReport {
+
+        /** AttestationReport report */
+        report?: (string|null);
+
+        /** AttestationReport signature */
+        signature?: (Uint8Array|null);
+
+        /** AttestationReport signingCert */
+        signingCert?: (Uint8Array|null);
+    }
+
+    /** Represents an AttestationReport. */
+    class AttestationReport implements IAttestationReport {
+
+        /**
+         * Constructs a new AttestationReport.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IAttestationReport);
+
+        /** AttestationReport report. */
+        public report: string;
+
+        /** AttestationReport signature. */
+        public signature: Uint8Array;
+
+        /** AttestationReport signingCert. */
+        public signingCert: Uint8Array;
+
+        /**
+         * Creates a new AttestationReport instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns AttestationReport instance
+         */
+        public static create(properties?: pruntime_rpc.IAttestationReport): pruntime_rpc.AttestationReport;
+
+        /**
+         * Encodes the specified AttestationReport message. Does not implicitly {@link pruntime_rpc.AttestationReport.verify|verify} messages.
+         * @param message AttestationReport message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IAttestationReport, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified AttestationReport message, length delimited. Does not implicitly {@link pruntime_rpc.AttestationReport.verify|verify} messages.
+         * @param message AttestationReport message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IAttestationReport, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an AttestationReport message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns AttestationReport
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.AttestationReport;
+
+        /**
+         * Decodes an AttestationReport message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns AttestationReport
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.AttestationReport;
+
+        /**
+         * Verifies an AttestationReport message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an AttestationReport message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns AttestationReport
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.AttestationReport;
+
+        /**
+         * Creates a plain object from an AttestationReport message. Also converts values to other types if specified.
+         * @param message AttestationReport
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.AttestationReport, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this AttestationReport to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };

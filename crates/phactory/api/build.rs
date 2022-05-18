@@ -24,6 +24,7 @@ fn main() {
     for r#type in [
         "InitRuntimeResponse",
         "Attestation",
+        "AttestationReport",
         "TokenomicInfo",
         "WorkerState",
         "BenchState",
