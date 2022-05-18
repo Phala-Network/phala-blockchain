@@ -416,7 +416,7 @@ pub struct System<Platform> {
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
-    contract_clusters: ClusterKeeper,
+    pub(crate) contract_clusters: ClusterKeeper,
     #[serde(skip)]
     #[serde(default = "create_sidevm_service")]
     sidevm_spawner: Spawner,
