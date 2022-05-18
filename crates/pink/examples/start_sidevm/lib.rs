@@ -12,7 +12,7 @@ mod start_sidevm {
     impl Contract {
         #[ink(constructor)]
         pub fn default() -> Self {
-            let code = &include_bytes!("./sidevm_recv_messages.wasm")[..];
+            let code = &include_bytes!("./sideprog.wasm")[..];
             pink::start_sidevm(code.into(), true);
             Self {}
         }
