@@ -13,13 +13,17 @@ pub enum Error {
     ApiError(#[from] sp_api::ApiError),
 }
 
-impl From<Error> for jsonrpc_core::Error {
+impl From<Error> for JsonRpseeError {
     fn from(e: Error) -> Self {
-        jsonrpc_core::Error {
-            code: jsonrpc_core::ErrorCode::ServerError(CUSTOM_RPC_ERROR),
-            message: e.to_string(),
-            data: None,
-        }
+        JsonRpseeError::Call(
+            CallError::Custom(
+                ErrorObject::owned(
+                    CUSTOM_RPC_ERROR,
+                    e.to_string(),
+                    Option::<()>::None
+                )
+            )
+        )
     }
 }
 

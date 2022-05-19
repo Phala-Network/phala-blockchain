@@ -1,5 +1,5 @@
 use aead::{AeadCore, AeadInPlace, NewAead};
-use aead_io::{DecryptBE32BufReader, EncryptBE32BufWriter};
+use aead_io::{DecryptBE32BufReader, EncryptBE32BufWriter, Write};
 use alloc::vec::Vec;
 use core::convert::TryInto;
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, MAX_TAG_LEN};
@@ -108,7 +108,7 @@ pub fn new_aes128gcm_reader<R>(
         .expect("Create DecryptBE32BufReader should always success with valid capacity")
 }
 
-pub fn new_aes128gcm_writer<W>(
+pub fn new_aes128gcm_writer<W: Write>(
     key: [u8; 16],
     nonce: [u8; 7],
     writer: W,

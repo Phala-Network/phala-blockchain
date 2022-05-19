@@ -136,7 +136,7 @@ pub fn new_partial(
 			impl Fn(
 				node_rpc::DenyUnsafe,
 				sc_rpc::SubscriptionTaskExecutor,
-			) -> Result<node_rpc::IoHandler, sc_service::Error>,
+			) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>,
 			(
 				sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
 				grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
@@ -238,7 +238,7 @@ pub fn new_partial(
 		let justification_stream = grandpa_link.justification_stream();
 		let shared_authority_set = grandpa_link.shared_authority_set().clone();
 		let shared_voter_state = grandpa::SharedVoterState::empty();
-		let rpc_setup = shared_voter_state.clone();
+		let shared_voter_state2 = shared_voter_state.clone();
 
 		let finality_proof_provider = grandpa::FinalityProofProvider::new_for_service(
 			backend.clone(),
@@ -254,9 +254,14 @@ pub fn new_partial(
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
 		let backend = backend.clone();
-		let is_archive_mode = match config.state_pruning {
-			PruningMode::Constrained(_) => false,
-			PruningMode::ArchiveAll | PruningMode::ArchiveCanonical => true,
+		let is_archive_mode = match &config.state_pruning {
+			Some(m) => {
+				match m {
+					PruningMode::Constrained(_) => false,
+					PruningMode::ArchiveAll | PruningMode::ArchiveCanonical => true,
+				}
+			},
+			None => false
 		};
 
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
@@ -280,12 +285,12 @@ pub fn new_partial(
 				},
 			};
 
-			let mut io = node_rpc::create_full(deps)?;
+			let mut io = node_rpc::create_full(deps, backend.clone())?;
 			phala_node_rpc_ext::extend_rpc(&mut io, client.clone(), backend.clone(), is_archive_mode, pool.clone());
 			Ok(io)
 		};
 
-		(rpc_extensions_builder, rpc_setup)
+		(rpc_extensions_builder, shared_voter_state2)
 	};
 
 	Ok(sc_service::PartialComponents {
@@ -330,7 +335,7 @@ pub fn new_full_base(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, rpc_setup, mut telemetry),
+		other: (rpc_builder, import_setup, rpc_setup, mut telemetry),
 	} = new_partial(&config)?;
 
 	let shared_voter_state = rpc_setup;
@@ -384,7 +389,7 @@ pub fn new_full_base(
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
-		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		rpc_builder: Box::new(rpc_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
 		system_rpc_tx,
