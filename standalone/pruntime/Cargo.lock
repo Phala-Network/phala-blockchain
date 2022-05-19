@@ -4001,7 +4001,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-utility"
-version = "4.0.0-phala-dev"
+version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",

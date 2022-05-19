@@ -6775,12 +6775,11 @@ dependencies = [
 
 [[package]]
 name = "pallet-utility"
-version = "4.0.0-phala-dev"
+version = "4.0.0-dev"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
