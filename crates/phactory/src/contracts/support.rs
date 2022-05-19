@@ -294,7 +294,7 @@ impl FatContract {
                 if !need_restart {
                     return Ok(());
                 }
-                do_start_sidevm(spawner, &sidevm_info.code, self.cluster_id.0)?
+                do_start_sidevm(spawner, &sidevm_info.code, self.contract_id.0)?
             } else {
                 return Ok(());
             };
