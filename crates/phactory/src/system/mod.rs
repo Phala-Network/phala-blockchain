@@ -1205,6 +1205,7 @@ pub fn apply_pink_side_effects(
                 );
             }
         };
+        let vmid = sidevm::ShortId(address.as_ref());
         use pink::runtime::PinkEvent;
         match event {
             PinkEvent::Message(message) => {
@@ -1236,15 +1237,15 @@ pub fn apply_pink_side_effects(
                     if let Err(err) =
                         contract.start_sidevm(&spawner, wasm_code, auto_restart)
                     {
-                        error!(target: "sidevm", "Start sidevm failed: {:?}", err);
+                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                     }
                 } else {
-                    error!(target: "sidevm", "Start sidevm failed: Code too large");
+                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: Code too large");
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
-                if let Err(err) = contract.push_message_to_sidevm(spawner, payload) {
-                    error!(target: "sidevm", "Push message to sidevm failed: {:?}", err);
+                if let Err(err) = contract.push_message_to_sidevm(payload) {
+                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::CacheOp(op) => {

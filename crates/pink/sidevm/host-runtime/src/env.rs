@@ -23,6 +23,15 @@ use crate::{
     VmId,
 };
 
+pub struct ShortId<'a>(pub &'a [u8]);
+
+impl fmt::Display for ShortId<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        hex_fmt::HexFmt(&self.0[..len.min(6)]).fmt(f)
+    }
+}
+
 // Let the compiler check IntPtr is 32bit sized.
 fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
@@ -103,12 +112,6 @@ struct State {
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
     cache_ops: CacheOps,
-}
-
-impl State {
-    fn short_id(&self) -> hex_fmt::HexFmt<&[u8]> {
-        hex_fmt::HexFmt(&self.id[..4])
-    }
 }
 
 struct VmMemory(Option<Memory>);
@@ -308,8 +311,8 @@ impl env::OcallFuncs for State {
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
         let task = self.current_task;
-        let vm_id = self.short_id();
-        log::log!(target: "sidevm", level, "[vm:{vm_id:<8}][{task:<3}] {message}");
+        let vm_id = ShortId(&self.id);
+        log::log!(target: "sidevm", level, "[{vm_id}][tid={task:<3}] {message}");
         Ok(())
     }
 
@@ -348,10 +351,10 @@ fn sidevm_ocall_fast_return(
     });
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = env.state.short_id();
+        let vm_id = ShortId(&env.state.id);
         log::trace!(
             target: "sidevm",
-            "[vm:{vm_id:<8}][{task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
     result.encode_ret()
@@ -376,10 +379,10 @@ fn sidevm_ocall(
     });
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = env.state.short_id();
+        let vm_id = ShortId(&env.state.id);
         log::trace!(
             target: "sidevm",
-            "[vm:{vm_id:<8}][{task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
     result.encode_ret()

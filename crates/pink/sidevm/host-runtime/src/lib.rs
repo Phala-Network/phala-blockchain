@@ -1,12 +1,11 @@
-
 mod async_context;
 mod env;
+pub mod instrument;
 mod resource;
 mod run;
 pub mod service;
-pub mod instrument;
 
-pub use env::{GasError, CacheOps};
+pub use env::{CacheOps, GasError, ShortId};
 
 pub type VmId = [u8; 32];
 pub use run::WasmRun;

@@ -306,7 +306,6 @@ impl FatContract {
 
     pub(crate) fn push_message_to_sidevm(
         &self,
-        spawner: &sidevm::service::Spawner,
         message: Vec<u8>,
     ) -> Result<()> {
         let handle = self
@@ -316,9 +315,11 @@ impl FatContract {
             .handle
             .clone();
 
+        let vmid = sidevm::ShortId(&self.contract_id.0);
+
         let tx = match &*handle.lock().unwrap() {
             SidevmHandle::Terminated(_) => {
-                error!(target: "sidevm", "Push message to sidevm failed, instance terminated");
+                error!(target: "sidevm", "[{vmid}] PM to sidevm failed, instance terminated");
                 return Err(anyhow!(
                     "Push message to sidevm failed, instance terminated"
                 ));
@@ -330,10 +331,10 @@ impl FatContract {
             use tokio::sync::mpsc::error::TrySendError;
             match err {
                 TrySendError::Full(_) => {
-                    error!(target: "sidevm", "Push message to sidevm failed (channel full), the guest program may be stucked");
+                    error!(target: "sidevm", "[{vmid}] PM to sidevm failed (channel full), the guest program may be stucked");
                 }
                 TrySendError::Closed(_) => {
-                    error!(target: "sidevm", "Push message to sidevm failed (channel closed), the vm might be already stopped");
+                    error!(target: "sidevm", "[{vmid}] PM to sidevm failed (channel closed), the VM might be already stopped");
                 }
             }
         }
@@ -362,10 +363,12 @@ fn do_start_sidevm(
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
 
-    debug!(target: "sidevm", "Starting sidevm...");
+    let vmid = sidevm::ShortId(&id);
+    info!(target: "sidevm", "[{vmid}] Starting sidevm...");
     spawner.spawn(async move {
+        let vmid = sidevm::ShortId(&id);
         let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
-        error!(target: "sidevm", "Sidevm process terminated with reason: {:?}", reason);
+        error!(target: "sidevm", "[{vmid}] Sidevm process terminated with reason: {:?}", reason);
         *cloned_handle.lock().unwrap() = SidevmHandle::Terminated(reason);
     });
     Ok(handle)
