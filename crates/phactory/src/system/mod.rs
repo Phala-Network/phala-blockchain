@@ -1248,7 +1248,7 @@ pub fn apply_pink_side_effects(
                 }
             }
             PinkEvent::CacheOp(op) => {
-                pink::local_cache_op(&address, op);
+                pink::local_cache::local_cache_op(&address, op);
             }
         }
     }

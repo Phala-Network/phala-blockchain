@@ -64,4 +64,22 @@ pub trait OcallFuncs {
     /// Print log message.
     #[ocall(id = 220)]
     fn log(level: log::Level, message: &str) -> Result<()>;
+
+    /// Get value from the local cache.
+    #[ocall(id = 230, encode_output)]
+    fn local_cache_get(key: &[u8]) -> Result<Option<Vec<u8>>>;
+
+    /// Set value to the local cache.
+    #[ocall(id = 231)]
+    fn local_cache_set(key: &[u8], value: &[u8]) -> Result<()>;
+
+    /// Set expiration time for a key in the local cache.
+    #[ocall(id = 232)]
+    fn local_cache_set_expiration(key: &[u8], expire_after_secs: u64) -> Result<()>;
+
+    /// Remove a value from the local cache.
+    ///
+    /// Returns the previous value if it existed.
+    #[ocall(id = 233, encode_output)]
+    fn local_cache_remove(key: &[u8]) -> Result<Option<Vec<u8>>>;
 }

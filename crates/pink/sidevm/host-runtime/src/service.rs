@@ -1,3 +1,4 @@
+use crate::env::CacheOps;
 use crate::VmId;
 use crate::{env::GasError, run::WasmRun};
 use anyhow::{Context as _, Result};
@@ -93,10 +94,12 @@ impl Spawner {
         id: VmId,
         gas: u128,
         gas_per_breath: u128,
+        cache_ops: CacheOps,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(100);
-        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath)
-            .context("Failed to create sidevm instance")?;
+        let (mut wasm_run, env) =
+            WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath, cache_ops)
+                .context("Failed to create sidevm instance")?;
         env.set_gas(gas);
         let handle = self.runtime_handle.spawn(async move {
             loop {

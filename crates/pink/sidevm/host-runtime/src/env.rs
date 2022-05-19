@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::mpsc::{error::SendError, Sender},
@@ -28,8 +28,8 @@ fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &Store) -> (Env, ImportObject) {
-    let env = Env::new(id);
+pub fn create_env(id: VmId, store: &Store, cache_ops: CacheOps) -> (Env, ImportObject) {
+    let env = Env::new(id, cache_ops);
     (
         env.clone(),
         imports! {
@@ -83,6 +83,13 @@ impl TaskSet {
     }
 }
 
+pub struct CacheOps {
+    pub get: fn(&[u8], &[u8]) -> Result<Option<Vec<u8>>>,
+    pub set: fn(&[u8], &[u8], &[u8]) -> Result<()>,
+    pub set_expiration: fn(&[u8], &[u8], u64) -> Result<()>,
+    pub remove: fn(&[u8], &[u8]) -> Result<Option<Vec<u8>>>,
+}
+
 struct State {
     id: VmId,
     // Total gas remain
@@ -95,6 +102,7 @@ struct State {
     message_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
+    cache_ops: CacheOps,
 }
 
 impl State {
@@ -116,7 +124,7 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(id: VmId) -> Self {
+    fn new(id: VmId, cache_ops: CacheOps) -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
         let mut resources = ResourceKeeper::default();
         let _ = resources.push(Resource::ChannelRx(message_rx));
@@ -133,6 +141,7 @@ impl Env {
                     message_tx,
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
+                    cache_ops,
                 },
             })),
         }
@@ -302,6 +311,22 @@ impl env::OcallFuncs for State {
         let vm_id = self.short_id();
         log::log!(target: "sidevm", level, "[vm:{vm_id:<8}][{task:<3}] {message}");
         Ok(())
+    }
+
+    fn local_cache_get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        (self.cache_ops.get)(&self.id[..], key)
+    }
+
+    fn local_cache_set(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+        (self.cache_ops.set)(&self.id[..], key, value)
+    }
+
+    fn local_cache_set_expiration(&mut self, key: &[u8], expire_after_secs: u64) -> Result<()> {
+        (self.cache_ops.set_expiration)(&self.id[..], key, expire_after_secs)
+    }
+
+    fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        (self.cache_ops.remove)(&self.id[..], key)
     }
 }
 

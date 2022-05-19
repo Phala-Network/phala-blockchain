@@ -294,11 +294,7 @@ impl FatContract {
                 if !need_restart {
                     return Ok(());
                 }
-                do_start_sidevm(
-                    spawner,
-                    &sidevm_info.code,
-                    self.cluster_id.0,
-                )?
+                do_start_sidevm(spawner, &sidevm_info.code, self.cluster_id.0)?
             } else {
                 return Ok(());
             };
@@ -351,7 +347,14 @@ fn do_start_sidevm(
     let gas = u128::MAX;
     let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
     let code = instrument(code).context("Failed to instrument the wasm code")?;
-    let (sender, join_handle) = spawner.start(&code, max_memory_pages, id, gas, gas_per_breath)?;
+    let (sender, join_handle) = spawner.start(
+        &code,
+        max_memory_pages,
+        id,
+        gas,
+        gas_per_breath,
+        local_cache_ops(),
+    )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
 
@@ -362,6 +365,22 @@ fn do_start_sidevm(
         *cloned_handle.lock().unwrap() = SidevmHandle::Terminated(reason);
     });
     Ok(handle)
+}
+
+fn local_cache_ops() -> sidevm::CacheOps {
+    use ::pink::local_cache as cache;
+    sidevm::CacheOps {
+        get: |contract, key| Ok(cache::local_cache_get(contract, key)),
+        set: |contract, key, value| {
+            cache::local_cache_set(contract, key, value)
+                .map_err(|_| sidevm::OcallError::ResourceLimited)
+        },
+        set_expiration: |contract, key, exp| {
+            cache::local_cache_set_expiration(contract, key, exp);
+            Ok(())
+        },
+        remove: |contract, key| Ok(cache::local_cache_remove(contract, key)),
+    }
 }
 
 pub use keeper::*;
