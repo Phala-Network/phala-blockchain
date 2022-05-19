@@ -50,7 +50,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 
 		let (ws_url, _) = common::find_ws_url_from_output(stderr);
 
-		common::wait_n_finalized_blocks(3, 30, &ws_url)
+		common::wait_n_finalized_blocks(3, 60, &ws_url)
 			.await
 			.expect("Blocks are produced in time");
 		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");

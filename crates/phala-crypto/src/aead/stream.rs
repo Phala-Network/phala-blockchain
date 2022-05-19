@@ -1,5 +1,5 @@
 use aead::{AeadCore, AeadInPlace, NewAead};
-use aead_io::{DecryptBE32BufReader, EncryptBE32BufWriter, Write};
+use aead_io::{DecryptBE32BufReader, EncryptBE32BufWriter};
 use alloc::vec::Vec;
 use core::convert::TryInto;
 use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, MAX_TAG_LEN};
@@ -108,7 +108,7 @@ pub fn new_aes128gcm_reader<R>(
         .expect("Create DecryptBE32BufReader should always success with valid capacity")
 }
 
-pub fn new_aes128gcm_writer<W: Write>(
+pub fn new_aes128gcm_writer<W: std::io::Write>(
     key: [u8; 16],
     nonce: [u8; 7],
     writer: W,
@@ -142,16 +142,20 @@ mod tests {
         let ciphertext = {
             let aead = Aes128Gcm::from_key(*key);
             let mut ciphertext = Vec::default();
-            let nonce = Default::default();
-            let mut writer = EncryptBE32BufWriter::from_aead(
-                aead,
-                &nonce,
-                Vec::with_capacity(128),
-                &mut ciphertext,
-            )
-            .unwrap();
-            writer.write_all(plaintext).unwrap();
-            writer.flush().unwrap();
+
+            {
+                let nonce = Default::default();
+                let mut writer = EncryptBE32BufWriter::from_aead(
+                    aead,
+                    &nonce,
+                    Vec::with_capacity(128),
+                    &mut ciphertext,
+                )
+                    .unwrap();
+                writer.write_all(plaintext).unwrap();
+                writer.flush().unwrap();
+            }
+
             ciphertext
         };
 
@@ -188,10 +192,14 @@ mod tests {
 
         let ciphertext = {
             let mut ciphertext = Vec::default();
-            let nonce = Default::default();
-            let mut writer = new_aes128gcm_writer(*key, nonce, &mut ciphertext);
-            writer.write_all(plaintext).unwrap();
-            writer.flush().unwrap();
+
+            {
+                let nonce = Default::default();
+                let mut writer = new_aes128gcm_writer(*key, nonce, &mut ciphertext);
+                writer.write_all(plaintext).unwrap();
+                writer.flush().unwrap();
+            }
+
             ciphertext
         };
 

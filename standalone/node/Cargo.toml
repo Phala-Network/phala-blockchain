@@ -81,6 +81,7 @@ sc-telemetry = { path = "../../substrate/client/telemetry" }
 sc-executor = { path = "../../substrate/client/executor" }
 sc-authority-discovery = { path = "../../substrate/client/authority-discovery" }
 sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
+sc-sysinfo = { path = "../../substrate/client/sysinfo" }
 
 # frame dependencies
 frame-system = { path = "../../substrate/frame/system" }

@@ -115,10 +115,10 @@ pub fn create_extrinsic(
 	let signature = raw_payload.using_encoded(|e| sender.sign(e));
 
 	node_runtime::UncheckedExtrinsic::new_signed(
-		function.clone(),
+		function,
 		sp_runtime::AccountId32::from(sender.public()).into(),
-		node_runtime::Signature::Sr25519(signature.clone()),
-		extra.clone(),
+		node_runtime::Signature::Sr25519(signature),
+		extra,
 	)
 }
 
@@ -253,7 +253,8 @@ pub fn new_partial(
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
-		let backend = backend.clone();
+
+		let rpc_backend = backend.clone();
 		let is_archive_mode = match &config.state_pruning {
 			Some(m) => {
 				match m {
@@ -263,7 +264,6 @@ pub fn new_partial(
 			},
 			None => false
 		};
-
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
 				client: client.clone(),
@@ -285,8 +285,8 @@ pub fn new_partial(
 				},
 			};
 
-			let mut io = node_rpc::create_full(deps, backend.clone())?;
-			phala_node_rpc_ext::extend_rpc(&mut io, client.clone(), backend.clone(), is_archive_mode, pool.clone());
+			let mut io = node_rpc::create_full(deps, rpc_backend.clone())?;
+			phala_node_rpc_ext::extend_rpc(&mut io, client.clone(), rpc_backend.clone(), is_archive_mode, pool.clone());
 			Ok(io)
 		};
 
@@ -322,11 +322,21 @@ pub struct NewFullBase {
 /// Creates a full service from the configuration.
 pub fn new_full_base(
 	mut config: Configuration,
+	disable_hardware_benchmarks: bool,
 	with_startup_data: impl FnOnce(
 		&sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
 		&sc_consensus_babe::BabeLink<Block>,
 	),
 ) -> Result<NewFullBase, ServiceError> {
+	let hwbench = if !disable_hardware_benchmarks {
+		config.database.path().map(|database_path| {
+			let _ = std::fs::create_dir_all(&database_path);
+			sc_sysinfo::gather_hwbench(Some(database_path))
+		})
+	} else {
+		None
+	};
+
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -395,6 +405,19 @@ pub fn new_full_base(
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
+
+	if let Some(hwbench) = hwbench {
+		sc_sysinfo::print_hwbench(&hwbench);
+
+		if let Some(ref mut telemetry) = telemetry {
+			let telemetry_handle = telemetry.handle();
+			task_manager.spawn_handle().spawn(
+				"telemetry_hwbench",
+				None,
+				sc_sysinfo::initialize_hwbench_telemetry(telemetry_handle, hwbench),
+			);
+		}
+	}
 
 	let (block_import, grandpa_link, babe_link) = import_setup;
 
@@ -543,8 +566,12 @@ pub fn new_full_base(
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
-	new_full_base(config, |_, _| ()).map(|NewFullBase { task_manager, .. }| task_manager)
+pub fn new_full(
+	config: Configuration,
+	disable_hardware_benchmarks: bool,
+) -> Result<TaskManager, ServiceError> {
+	new_full_base(config, disable_hardware_benchmarks, |_, _| ())
+		.map(|NewFullBase { task_manager, .. }| task_manager)
 }
 
 #[cfg(test)]
@@ -575,7 +602,7 @@ mod tests {
 		RuntimeAppPublic,
 	};
 	use sp_timestamp;
-	use std::{borrow::Cow, convert::TryInto, sync::Arc};
+	use std::{borrow::Cow, sync::Arc};
 
 	type AccountPublic = <Signature as Verify>::Signer;
 
@@ -611,6 +638,7 @@ mod tests {
 				let NewFullBase { task_manager, client, network, transaction_pool, .. } =
 					new_full_base(
 						config,
+						false,
 						|block_import: &sc_consensus_babe::BabeBlockImport<Block, _, _>,
 						 babe_link: &sc_consensus_babe::BabeLink<Block>| {
 							setup_handles = Some((block_import.clone(), babe_link.clone()));
@@ -790,7 +818,7 @@ mod tests {
 			crate::chain_spec::tests::integration_test_config_with_two_authorities(),
 			|config| {
 				let NewFullBase { task_manager, client, network, transaction_pool, .. } =
-					new_full_base(config, |_, _| ())?;
+					new_full_base(config, false, |_, _| ())?;
 				Ok(sc_service_test::TestNetComponents::new(
 					task_manager,
 					client,
