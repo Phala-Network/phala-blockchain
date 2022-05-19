@@ -5,6 +5,7 @@ use pink_extension as pink;
 #[pink::contract]
 mod start_sidevm {
     use super::pink;
+    use scale::Encode;
 
     #[ink(storage)]
     pub struct Contract {}
@@ -18,6 +19,8 @@ mod start_sidevm {
         }
         #[pink(on_block_end)]
         pub fn on_block_end(&self) {
+            let number = self.env().block_number().encode();
+            pink::ext().cache_set(b"block_number", &number).unwrap();
             pink::push_sidevm_message(b"hello".to_vec());
         }
         #[ink(message)]

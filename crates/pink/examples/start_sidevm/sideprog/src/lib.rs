@@ -15,14 +15,16 @@ async fn main() {
     let listener = sidevm::net::TcpListener::listen(address).await.unwrap();
 
     loop {
-        info!("Waiting for imcomming connection or message...");
+        info!("Waiting for incomming connection or message...");
         tokio::select! {
             message = sidevm::channel::input_messages().next() => {
                 if let Some(message) = message {
                     let text_message = String::from_utf8_lossy(&message);
-                    info!("received message: {}", text_message);
+                    info!("Received message: {}", text_message);
+                    let number = sidevm::ocall::local_cache_get(b"block_number");
+                    info!("Current block number: {:?}", number);
                 } else {
-                    info!("input message channel closed");
+                    info!("Input message channel closed");
                     break;
                 }
             }
