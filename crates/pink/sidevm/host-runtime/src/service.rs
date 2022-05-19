@@ -96,7 +96,7 @@ impl Spawner {
         gas_per_breath: u128,
         cache_ops: CacheOps,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
-        let (cmd_tx, mut cmd_rx) = channel(100);
+        let (cmd_tx, mut cmd_rx) = channel(128);
         let (mut wasm_run, env) =
             WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath, cache_ops)
                 .context("Failed to create sidevm instance")?;
@@ -139,7 +139,6 @@ impl Spawner {
                                         break ExitReason::GasError(err);
                                     }
                                     Err(_) => {
-                                        // TODO.kevin: Restart the instance?
                                         break ExitReason::Panicked;
                                     }
                                 }

@@ -325,14 +325,18 @@ impl FatContract {
             }
             SidevmHandle::Running(tx) => tx.clone(),
         };
-        spawner.spawn(async move {
-            let result = tx
-                .send(sidevm::service::Command::PushMessage(message))
-                .await;
-            if let Err(_) = result {
-                error!(target: "sidevm", "Push message to sidevm failed, the vm might be already stopped");
+        let result = tx.try_send(sidevm::service::Command::PushMessage(message));
+        if let Err(err) = result {
+            use tokio::sync::mpsc::error::TrySendError;
+            match err {
+                TrySendError::Full(_) => {
+                    error!(target: "sidevm", "Push message to sidevm failed (channel full), the guest program may be stucked");
+                }
+                TrySendError::Closed(_) => {
+                    error!(target: "sidevm", "Push message to sidevm failed (channel closed), the vm might be already stopped");
+                }
             }
-        });
+        }
         Ok(())
     }
 }
