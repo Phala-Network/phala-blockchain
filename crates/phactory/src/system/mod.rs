@@ -1247,6 +1247,9 @@ pub fn apply_pink_side_effects(
                     error!(target: "sidevm", "Push message to sidevm failed: {:?}", err);
                 }
             }
+            PinkEvent::CacheOp(op) => {
+                pink::local_cache_op(&address, op);
+            }
         }
     }
 }

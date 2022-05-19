@@ -52,6 +52,15 @@ pub enum PinkEvent {
     },
     /// Push a message to the associated sidevm instance.
     SidevmMessage(Vec<u8>),
+    /// CacheOperation
+    CacheOp(CacheOp),
+}
+
+#[derive(Encode, Decode, Debug)]
+pub enum CacheOp {
+    Set { key: Vec<u8>, value: Vec<u8> },
+    SetExpiration { key: Vec<u8>, expiration: u64 },
+    Remove { key: Vec<u8> },
 }
 
 impl Topics for PinkEvent {
