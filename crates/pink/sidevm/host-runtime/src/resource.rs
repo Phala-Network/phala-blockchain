@@ -1,6 +1,12 @@
 use pink_sidevm_env::{OcallError, Result};
-use std::{io::ErrorKind, net::SocketAddr, pin::Pin, task::Poll::*};
-use tokio::{io::AsyncWrite as _, net, sync::mpsc::Receiver, time::Sleep};
+use std::future::Future;
+use std::io::ErrorKind;
+use std::pin::Pin;
+use std::task::Poll::*;
+use tokio::io::AsyncWrite as _;
+use tokio::net;
+use tokio::sync::mpsc::Receiver;
+use tokio::time::Sleep;
 use Resource::*;
 
 use crate::async_context::get_task_cx;
@@ -9,10 +15,8 @@ pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
     TcpListener(net::TcpListener),
-    TcpStream {
-        stream: net::TcpStream,
-        remote_addr: SocketAddr,
-    },
+    TcpStream { stream: net::TcpStream },
+    TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<net::TcpStream>> + Send>>),
 }
 
 impl Resource {
@@ -27,6 +31,24 @@ impl Resource {
                     Ready(Some(data)) => Ok(data),
                     Ready(None) => Err(OcallError::EndOfFile),
                     Pending => Err(OcallError::Pending),
+                }
+            }
+            _ => Err(OcallError::UnsupportedOperation),
+        }
+    }
+
+    pub(crate) fn poll_res(&mut self) -> Result<Resource> {
+        use crate::async_context::poll_in_task_cx;
+        match self {
+            TcpConnect(fut) => {
+                let rv = poll_in_task_cx(fut.as_mut());
+                match rv {
+                    Pending => Err(OcallError::Pending),
+                    Ready(Ok(stream)) => Ok(Resource::TcpStream { stream }),
+                    Ready(Err(err)) => {
+                        log::error!("Tcp connect error: {}", err);
+                        Err(OcallError::IoError)
+                    }
                 }
             }
             _ => Err(OcallError::UnsupportedOperation),

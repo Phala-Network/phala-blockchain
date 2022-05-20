@@ -2,16 +2,16 @@
 fn test_ocall() {
     let stream = crate::macro_ocall::patch(syn::parse_quote! {
         pub trait Ocall {
-            #[ocall(id = 101)]
+            #[ocall(id = 101, encode_input, encode_output)]
             fn call_slow(a: i32, b: i32) -> i32;
 
-            #[ocall(id = 103, fast_input)]
+            #[ocall(id = 103, encode_output)]
             fn call_fi(a: i32, b: i32) -> i32;
 
-            #[ocall(id = 104, fast_return)]
+            #[ocall(id = 104, encode_input)]
             fn call_fo(a: i32, b: i32) -> i32;
 
-            #[ocall(id = 102, fast_input, fast_return)]
+            #[ocall(id = 102)]
             fn poll_fi_fo(a: i32, b: i32) -> i32;
         }
     });
