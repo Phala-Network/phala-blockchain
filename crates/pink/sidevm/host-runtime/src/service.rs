@@ -18,19 +18,19 @@ pub enum Report {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ExitReason {
-    // The program returned from main
+    /// The program returned from `fn main`.
     Exited(i32),
-    // Stopped by external command
+    /// Stopped by an external Stop command.
     Stopped,
-    // The input channel has been closed, likely caused by stop command.
+    /// The input channel has been closed, likely caused by a Stop command.
     InputClosed,
-    // The program panicked
+    /// The program panicked.
     Panicked,
-    // The task future has beed dropped, likely caused by stop command.
+    /// The task future has beed dropped, likely caused by a Stop command.
     Cancelled,
-    // Terminated due to gas checking
+    /// Terminated due to gas checking.
     GasError(GasError),
-    // When a previous running instance restored from checkpoint
+    /// When a previous running instance restored from a checkpoint.
     Restore,
 }
 
