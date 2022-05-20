@@ -1,6 +1,5 @@
 ---
 source: crates/phactory/api/tests/test_block_abi.rs
-assertion_line: 12
 expression: "travel_types::<blocks::SyncHeaderReq>()"
 ---
 [
@@ -135,7 +134,7 @@ expression: "travel_types::<blocks::SyncHeaderReq>()"
           "fields": [
             {
               "type": 6,
-              "typeName": "[u8; 32]"
+              "typeName": "[u8; /*«*/ 32 /*»*/]"
             }
           ]
         }
