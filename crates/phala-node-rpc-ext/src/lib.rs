@@ -103,10 +103,7 @@ where
                 to,
             );
 
-            match result {
-                Ok(r) => Ok(r),
-                Err(e) => Err(JsonRpseeError::from(e))
-            }
+            Ok(result?)
         }
     }
 
@@ -120,10 +117,7 @@ where
     fn get_mq_seq(&self, sender_hex: String) -> RpcResult<u64> {
         let result = mq_seq::get_mq_seq(&*self.client, &self.pool, sender_hex);
 
-        match result {
-            Ok(r) => Ok(r),
-            Err(e) => Err(JsonRpseeError::from(e))
-        }
+        Ok(result?)
     }
 }
 
