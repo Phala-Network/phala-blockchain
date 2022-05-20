@@ -664,7 +664,7 @@ function waitRelayerOutput(p) {
     return p.startAndWaitForOutput(/runtime_info: InitRuntimeResp/);
 }
 function waitNodeOutput(p) {
-    return p.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/);
+    return p.startAndWaitForOutput(/Starting BABE Authorship worker/);
 }
 
 
@@ -676,6 +676,7 @@ function newNode(wsPort, tmpPath, name = 'node') {
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
             `--ws-port=${wsPort}`,
             '--rpc-methods=Unsafe',
+            '--pruning=archive'
         ]
     ];
     const cmd = cli.flat().join(' ');
