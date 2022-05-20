@@ -262,7 +262,7 @@ pub fn new_partial(
 					PruningMode::ArchiveAll | PruningMode::ArchiveCanonical => true,
 				}
 			},
-			None => false
+			None => true
 		};
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
