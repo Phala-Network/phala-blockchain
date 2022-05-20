@@ -1,5 +1,6 @@
 ---
 source: crates/phactory/api/tests/test_block_abi.rs
+assertion_line: 15
 expression: "travel_types::<blocks::DispatchBlockReq>()"
 ---
 [
@@ -134,7 +135,7 @@ expression: "travel_types::<blocks::DispatchBlockReq>()"
           "fields": [
             {
               "type": 6,
-              "typeName": "[u8; /*«*/ 32 /*»*/]"
+              "typeName": "[u8; 32]"
             }
           ]
         }
