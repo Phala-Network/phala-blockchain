@@ -75,7 +75,7 @@ struct Args {
 }
 
 #[rocket::main]
-async fn main() {
+async fn main() -> Result<(), rocket::Error> {
     // Disable the thread local arena(memory pool) for glibc.
     // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
     #[cfg(target_env = "gnu")]
@@ -146,7 +146,7 @@ async fn main() {
         v.push(child);
     }
 
-    api_server::rocket(&args)
+    let _: rocket::Rocket<rocket::Ignite> = api_server::rocket(&args)
         .launch()
         .await
         .expect("Failed to launch API server");
@@ -155,6 +155,8 @@ async fn main() {
         let _ = child.join();
     }
     info!("pRuntime quited");
+
+    Ok(())
 }
 
 fn set_thread_idle_policy() {
