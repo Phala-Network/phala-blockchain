@@ -579,7 +579,6 @@ fn generate_random_iv() -> aead::IV {
     nonce_vec
 }
 
-#[allow(dead_code)]
 fn generate_random_info() -> [u8; 32] {
     let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();

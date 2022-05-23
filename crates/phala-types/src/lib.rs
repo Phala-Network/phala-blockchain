@@ -745,6 +745,22 @@ pub struct WorkerIdentity {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct WorkerKeyChallengePayload<BlockNumber> {
+    // The challenge is only considered valid within 300 blocks (~1h)
+    pub block_number: BlockNumber,
+    pub now: u64,
+    pub nonce: [u8; 32],
+}
+
+/// One-time Challenge for WorkerKey handover
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct WorkerKeyChallenge<BlockNumber> {
+    pub payload: WorkerKeyChallengePayload<BlockNumber>,
+    // Signature on encoded challenge payload
+    pub signature: Sr25519Signature,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerRegistrationInfo<AccountId> {
     pub version: u32,
     pub machine_id: MachineId,

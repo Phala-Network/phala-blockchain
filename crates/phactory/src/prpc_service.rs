@@ -777,33 +777,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(resp)
     }
 
-    fn get_worker_key_challenge(&self) -> RpcResult<pb::WorkerKeyChallenge> {
+    fn get_worker_key_challenge(&mut self) -> RpcResult<pb::WorkerKeyChallenge> {
         let system = self
             .system
-            .as_ref()
+            .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let (block_number, signature) = system.get_worker_key_challenge();
-        Ok(pb::WorkerKeyChallenge {
-            block_number,
-            signature: signature.0.to_vec(),
-        })
+        let challenge = system.get_worker_key_challenge();
+        Ok(pb::WorkerKeyChallenge::new(challenge))
     }
 
-    fn verify_worker_key_challenge(&self, challenge: pb::WorkerKeyChallenge) -> RpcResult<()> {
+    fn verify_worker_key_challenge(&mut self, challenge: pb::WorkerKeyChallenge) -> RpcResult<()> {
         let system = self
             .system
-            .as_ref()
+            .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
 
-        let raw_sig = &challenge.signature;
-        if raw_sig.len() != 64 {
-            return Err(from_display("Malformed signature"));
-        }
-
-        let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
-            .or(Err(from_display("Malformed signature")))?;
-        if !system.verify_worker_key_challenge(&challenge.block_number, &sig) {
-            return Err(from_display("Invalid signature"));
+        let challenge = challenge.decode_challenge().map_err(from_display)?;
+        if !system.verify_worker_key_challenge(&challenge) {
+            return Err(from_display("Invalid challenge"));
         }
         Ok(())
     }
@@ -1014,7 +1005,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         &mut self,
         request: pb::GetWorkerKeyRequest,
     ) -> RpcResult<pb::GetWorkerKeyResponse> {
-        let phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory();
         let system = phactory.system()?;
 
         // 1. verify RA report
@@ -1037,9 +1028,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .map_err(|_| from_display("Invalid RA report"))?;
         // 2. verify challenge validity
         let challenge = challenge_response
-            .challenge
-            .ok_or_else(|| from_display("Challenge not found"))?;
-        phactory.verify_worker_key_challenge(challenge)?;
+            .decode_challenge()
+            .map_err(from_display)?;
+        if !system.verify_worker_key_challenge(&challenge) {
+            return Err(from_display("Invalid challenge"));
+        }
         // 3. verify challenge block height and report timestamp
         // let challenge_height = challenge.block_number;
         // let runtime_info = request.decode_runtime_info().map_err(from_display)?;

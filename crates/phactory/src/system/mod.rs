@@ -24,7 +24,7 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
     ecdh::{self, EcdhKey},
-    sr25519::{Signature, Signing, KDF},
+    sr25519::{Signing, KDF},
 };
 use phala_mq::{
     traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
@@ -39,7 +39,7 @@ use phala_types::{
         NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent,
         SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
-    EcdhPublicKey, WorkerPublicKey,
+    EcdhPublicKey, WorkerKeyChallenge, WorkerKeyChallengePayload, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -417,6 +417,8 @@ pub struct System<Platform> {
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
+    #[serde(skip)]
+    last_challenge: Option<WorkerKeyChallengePayload<chain::BlockNumber>>,
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
@@ -484,6 +486,7 @@ impl<Platform: pal::Platform> System<Platform> {
             cluster_key_distribution_events: recv_mq.subscribe_bound(),
             contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
+            last_challenge: None,
             ecdh_key,
             worker_state: WorkerState::new(pubkey),
             master_key,
@@ -518,19 +521,31 @@ impl<Platform: pal::Platform> System<Platform> {
         self.get_system_message_handler(&cluster_id)
     }
 
-    pub fn get_worker_key_challenge(&self) -> (chain::BlockNumber, Signature) {
-        let block_number = self.block_number;
-        let signature = self.identity_key.sign_data(&block_number.to_be_bytes());
-        (block_number, signature)
+    pub fn get_worker_key_challenge(&mut self) -> WorkerKeyChallenge<chain::BlockNumber> {
+        let payload = WorkerKeyChallengePayload {
+            block_number: self.block_number,
+            now: self.now_ms,
+            nonce: crate::generate_random_info(),
+        };
+        self.last_challenge = Some(payload.clone());
+        let signature = self.identity_key.sign_data(&payload.encode());
+        WorkerKeyChallenge { payload, signature }
     }
 
     pub fn verify_worker_key_challenge(
-        &self,
-        block_number: &chain::BlockNumber,
-        signature: &Signature,
+        &mut self,
+        challenge: &WorkerKeyChallenge<chain::BlockNumber>,
     ) -> bool {
+        if self.last_challenge.is_none()
+            || self.last_challenge.as_ref().unwrap() != &challenge.payload
+        {
+            info!("Outdated WorkerKey challenge: {:?}", challenge);
+            return false;
+        }
+        // Clear the one-time challenge
+        self.last_challenge = None;
         self.identity_key
-            .verify_data(signature, &block_number.to_be_bytes())
+            .verify_data(&challenge.signature, &challenge.payload.encode())
     }
 
     pub fn make_query(
