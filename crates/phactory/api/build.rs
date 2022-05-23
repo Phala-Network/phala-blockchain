@@ -41,6 +41,12 @@ fn main() {
         "InitRuntimeResponse.attestation",
         "#[cfg_attr(feature = \"serde\", serde(skip, default))]",
     );
+    for r#type in ["WorkerKeyChallenge", "WorkerKeyChallengeResponse"] {
+        builder = builder.type_attribute(
+            r#type,
+            "#[derive(::parity_scale_codec::Encode, ::parity_scale_codec::Decode)]",
+        )
+    }
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();
