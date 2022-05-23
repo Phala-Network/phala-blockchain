@@ -600,16 +600,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
-			let mut rewards = BalanceOf::<T>::zero();
 			// Add pool owner's reward if applicable
 			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
-
-			rewards += pool_info.owner_reward;
-			pool_info.owner_reward = Zero::zero();
-
-			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+			ensure!(pool_info.owner_reward > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, pool_info.owner_reward)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			let rewards = pool_info.owner_reward;
+			pool_info.owner_reward = Zero::zero();
 			StakePools::<T>::insert(pid, &pool_info);
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
 				pid,
@@ -632,15 +629,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let pool_info = Self::ensure_pool(pid)?;
-			let mut rewards = BalanceOf::<T>::zero();
 			let info_key = (pid, who.clone());
 			let mut user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::NoRewardToClaim)?;
 			pool_info.settle_user_pending_reward(&mut user_info);
-			rewards += user_info.available_rewards;
-			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			user_info.available_rewards = Zero::zero();
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+			ensure!(user_info.available_rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, user_info.available_rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			let rewards = user_info.available_rewards;
+			user_info.available_rewards = Zero::zero();
 			// Update ledger
 			StakePools::<T>::insert(pid, &pool_info);
 			PoolStakers::<T>::insert(&info_key, &user_info);
