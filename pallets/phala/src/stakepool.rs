@@ -230,14 +230,14 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
-		/// Similar to event "RewardsWithdrawn" but only affected states:
+		/// Similar to event `RewardsWithdrawn` but only affected states:
 		///  - the stake related fields in [`StakePools`]
 		OwnerRewardsWithdrawn {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
-		/// Similar to event "RewardsWithdrawn" but only affected states:
+		/// Similar to event `ewardsWithdrawn` but only affected states:
 		///  - the user staking account at [`PoolStakers`]
 		StakerRewardsWithdrawn {
 			pid: u64,
