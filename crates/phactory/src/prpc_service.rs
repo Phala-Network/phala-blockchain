@@ -1,8 +1,11 @@
+use std::convert::TryFrom;
 use std::sync::{Mutex, MutexGuard};
 
 use crate::system::System;
 
 use super::*;
+use chain::pallet_registry::{Attestation, AttestationValidator, IasValidator};
+use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
@@ -524,7 +527,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Origin
         let accid_origin = match origin {
             Some(origin) => {
-                use core::convert::TryFrom;
                 let accid = chain::AccountId::try_from(origin.as_slice())
                     .map_err(|_| from_display("Bad account id"))?;
                 Some(accid)
@@ -786,6 +788,25 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             signature: signature.0.to_vec(),
         })
     }
+
+    fn verify_worker_key_challenge(&self, challenge: pb::WorkerKeyChallenge) -> RpcResult<()> {
+        let system = self
+            .system
+            .as_ref()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+
+        let raw_sig = &challenge.signature;
+        if raw_sig.len() != 64 {
+            return Err(from_display("Malformed signature"));
+        }
+
+        let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
+            .or(Err(from_display("Malformed signature")))?;
+        if !system.verify_worker_key_challenge(&challenge.block_number, &sig) {
+            return Err(from_display("Invalid signature"));
+        }
+        Ok(())
+    }
 }
 
 pub fn dispatch_prpc_request<Platform>(
@@ -993,6 +1014,39 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         &mut self,
         request: pb::GetWorkerKeyRequest,
     ) -> RpcResult<pb::GetWorkerKeyResponse> {
+        let phactory = self.lock_phactory();
+        let system = phactory.system()?;
+
+        // 1. verify RA report
+        let challenge_response = request
+            .response
+            .ok_or_else(|| from_display("Challenge response not found"))?;
+        let response_hash = sp_core::hashing::blake2_256(&challenge_response.encode());
+        let attestation = request
+            .attestation
+            .ok_or_else(|| from_display("Attestation not found"))?;
+        let payload = attestation
+            .payload
+            .ok_or_else(|| from_display("Missing attestation payload"))?;
+        let attestation = Attestation::SgxIas {
+            ra_report: payload.report.as_bytes().to_vec(),
+            signature: payload.signature,
+            raw_signing_cert: payload.signing_cert,
+        };
+        IasValidator::validate(&attestation, &response_hash, system.now_ms, false, vec![])
+            .map_err(|_| from_display("Invalid RA report"))?;
+        // 2. verify challenge validity
+        let challenge = challenge_response
+            .challenge
+            .ok_or_else(|| from_display("Challenge not found"))?;
+        phactory.verify_worker_key_challenge(challenge)?;
+        // 3. verify challenge block height and report timestamp
+        // let challenge_height = challenge.block_number;
+        // let runtime_info = request.decode_runtime_info().map_err(from_display)?;
+        // let pubkey = request.decode_public_key().map_err(from_display)?;
+        // let ecdh_pubkey = request.decode_ecdh_public_key.map_err(from_display)?;
+        // 4. verify runtime version
+
         Ok(pb::GetWorkerKeyResponse {
             encrypted_secret_key: None,
         })

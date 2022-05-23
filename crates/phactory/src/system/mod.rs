@@ -432,8 +432,8 @@ pub struct System<Platform> {
     sidevm_spawner: Spawner,
 
     // Cached for query
-    block_number: BlockNumber,
-    now_ms: u64,
+    pub(crate) block_number: BlockNumber,
+    pub(crate) now_ms: u64,
     retired_versions: Vec<Condition>,
 }
 
@@ -522,6 +522,15 @@ impl<Platform: pal::Platform> System<Platform> {
         let block_number = self.block_number;
         let signature = self.identity_key.sign_data(&block_number.to_be_bytes());
         (block_number, signature)
+    }
+
+    pub fn verify_worker_key_challenge(
+        &self,
+        block_number: &chain::BlockNumber,
+        signature: &Signature,
+    ) -> bool {
+        self.identity_key
+            .verify_data(signature, &block_number.to_be_bytes())
     }
 
     pub fn make_query(
@@ -1595,8 +1604,8 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::storage_prefix;
-    use crate::storage::Storage;
+    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+    use crate::storage::{Storage, StorageExt};
     use parity_scale_codec::Decode;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
@@ -1610,6 +1619,16 @@ pub mod chain_state {
             .unwrap_or_default();
 
         gatekeepers.contains(pubkey)
+    }
+
+    /// Return `None` if given pruntime hash is not allowed on-chain
+    pub fn get_pruntime_timestamp(
+        chain_storage: &Storage,
+        runtime_hash: &Vec<u8>,
+    ) -> Option<chain::BlockNumber> {
+        let key =
+            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeTimestamp", runtime_hash);
+        chain_storage.get_decoded(&key).unwrap_or(None)
     }
 }
 

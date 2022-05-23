@@ -17,10 +17,10 @@ pub mod pallet {
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
 
-	use crate::attestation::{AttestationValidator, Error as AttestationError};
+	use crate::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
 	// Re-export
-	pub use crate::attestation::{Attestation, IasValidator};
+	pub use crate::attestation::{Attestation, AttestationValidator, IasValidator};
 
 	use phala_types::{
 		messaging::{
