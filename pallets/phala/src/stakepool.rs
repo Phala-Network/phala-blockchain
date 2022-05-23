@@ -334,6 +334,8 @@ pub mod pallet {
 		WorkersExceedLimit,
 		/// Restarted with a less stake is not allowed in the tokenomic.
 		CannotRestartWithLessStake,
+		/// Invalid amount of balance input when force reward.
+		InvalidForceRewardAmount,
 	}
 
 	#[pallet::hooks]
@@ -538,6 +540,33 @@ pub mod pallet {
 				commission: payout_commission.deconstruct(),
 			});
 
+			Ok(())
+		}
+
+		/// Manually assign rewards to pools by miningSwitchOrigin for fixing issue 763
+		///
+		/// Requires:
+		/// 1. The caller is root
+		/// 2. Assigned pool must currently exist
+		/// 3. Reward is positive
+		#[pallet::weight(0)]
+		pub fn force_assign_reward(
+			origin: OriginFor<T>,
+			reward_arr: Vec<(u64, BalanceOf<T>)>,
+		) -> DispatchResult {
+			// Origin must be MiningSwitchOrigin
+			T::MiningSwitchOrigin::ensure_origin(origin)?;
+			for (pid, reward) in reward_arr {
+				// The assigned pool must exist
+				let mut pool_info = Self::ensure_pool(pid)?;
+				// The reward must be positive
+				if reward <= Zero::zero() {
+					continue;
+				}
+				// Assign reward
+				Self::handle_pool_new_reward(&mut pool_info, reward);
+				StakePools::<T>::insert(&pid, &pool_info);
+			}
 			Ok(())
 		}
 
@@ -2290,6 +2319,41 @@ pub mod pallet {
 					PhalaStakePool::contribute(Origin::signed(1), 0, 10 * DOLLARS),
 					Error::<Test>::PoolBankrupt,
 				);
+			});
+		}
+
+		#[test]
+		fn test_force_assign_reward() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Check stake before receiving any rewards
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.reward_acc.get(), fp!(0));
+				assert_eq!(pool.owner_reward, fp!(0));
+				let input = vec![(0, 500 * DOLLARS)];
+				PhalaStakePool::force_assign_reward(Origin::root(), input);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.reward_acc.get(), fp!(0.5));
+				assert_eq!(pool.owner_reward, 250 * DOLLARS);
 			});
 		}
 
