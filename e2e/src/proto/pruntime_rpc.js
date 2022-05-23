@@ -439,6 +439,9 @@ $root.pruntime_rpc = (function() {
          * @property {string|null} [gitRevision] PhactoryInfo gitRevision
          * @property {number|Long|null} [runningSideTasks] PhactoryInfo runningSideTasks
          * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
+         * @property {number|Long|null} [numberOfClusters] PhactoryInfo numberOfClusters
+         * @property {number|Long|null} [numberOfContracts] PhactoryInfo numberOfContracts
+         * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
          */
 
         /**
@@ -592,6 +595,30 @@ $root.pruntime_rpc = (function() {
          */
         PhactoryInfo.prototype.memoryUsage = null;
 
+        /**
+         * PhactoryInfo numberOfClusters.
+         * @member {number|Long} numberOfClusters
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.numberOfClusters = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * PhactoryInfo numberOfContracts.
+         * @member {number|Long} numberOfContracts
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * PhactoryInfo waitingForParaheaders.
+         * @member {boolean} waitingForParaheaders
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.waitingForParaheaders = false;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
@@ -686,6 +713,12 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 17, wireType 0 =*/136).uint64(message.runningSideTasks);
             if (message.memoryUsage != null && Object.hasOwnProperty.call(message, "memoryUsage"))
                 $root.pruntime_rpc.MemoryUsage.encode(message.memoryUsage, writer.uint32(/* id 18, wireType 2 =*/146).fork()).ldelim();
+            if (message.numberOfClusters != null && Object.hasOwnProperty.call(message, "numberOfClusters"))
+                writer.uint32(/* id 19, wireType 0 =*/152).uint64(message.numberOfClusters);
+            if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
+                writer.uint32(/* id 20, wireType 0 =*/160).uint64(message.numberOfContracts);
+            if (message.waitingForParaheaders != null && Object.hasOwnProperty.call(message, "waitingForParaheaders"))
+                writer.uint32(/* id 21, wireType 0 =*/168).bool(message.waitingForParaheaders);
             return writer;
         };
 
@@ -770,6 +803,15 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 18:
                     message.memoryUsage = $root.pruntime_rpc.MemoryUsage.decode(reader, reader.uint32());
+                    break;
+                case 19:
+                    message.numberOfClusters = reader.uint64();
+                    break;
+                case 20:
+                    message.numberOfContracts = reader.uint64();
+                    break;
+                case 21:
+                    message.waitingForParaheaders = reader.bool();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -868,6 +910,15 @@ $root.pruntime_rpc = (function() {
                 if (error)
                     return "memoryUsage." + error;
             }
+            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
+                if (!$util.isInteger(message.numberOfClusters) && !(message.numberOfClusters && $util.isInteger(message.numberOfClusters.low) && $util.isInteger(message.numberOfClusters.high)))
+                    return "numberOfClusters: integer|Long expected";
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
+                    return "numberOfContracts: integer|Long expected";
+            if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
+                if (typeof message.waitingForParaheaders !== "boolean")
+                    return "waitingForParaheaders: boolean expected";
             return null;
         };
 
@@ -944,6 +995,26 @@ $root.pruntime_rpc = (function() {
                     throw TypeError(".pruntime_rpc.PhactoryInfo.memoryUsage: object expected");
                 message.memoryUsage = $root.pruntime_rpc.MemoryUsage.fromObject(object.memoryUsage);
             }
+            if (object.numberOfClusters != null)
+                if ($util.Long)
+                    (message.numberOfClusters = $util.Long.fromValue(object.numberOfClusters)).unsigned = true;
+                else if (typeof object.numberOfClusters === "string")
+                    message.numberOfClusters = parseInt(object.numberOfClusters, 10);
+                else if (typeof object.numberOfClusters === "number")
+                    message.numberOfClusters = object.numberOfClusters;
+                else if (typeof object.numberOfClusters === "object")
+                    message.numberOfClusters = new $util.LongBits(object.numberOfClusters.low >>> 0, object.numberOfClusters.high >>> 0).toNumber(true);
+            if (object.numberOfContracts != null)
+                if ($util.Long)
+                    (message.numberOfContracts = $util.Long.fromValue(object.numberOfContracts)).unsigned = true;
+                else if (typeof object.numberOfContracts === "string")
+                    message.numberOfContracts = parseInt(object.numberOfContracts, 10);
+                else if (typeof object.numberOfContracts === "number")
+                    message.numberOfContracts = object.numberOfContracts;
+                else if (typeof object.numberOfContracts === "object")
+                    message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
+            if (object.waitingForParaheaders != null)
+                message.waitingForParaheaders = Boolean(object.waitingForParaheaders);
             return message;
         };
 
@@ -987,6 +1058,17 @@ $root.pruntime_rpc = (function() {
                 } else
                     object.runningSideTasks = options.longs === String ? "0" : 0;
                 object.memoryUsage = null;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfClusters = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfClusters = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfContracts = options.longs === String ? "0" : 0;
+                object.waitingForParaheaders = false;
             }
             if (message.initialized != null && message.hasOwnProperty("initialized"))
                 object.initialized = message.initialized;
@@ -1040,6 +1122,18 @@ $root.pruntime_rpc = (function() {
                     object.runningSideTasks = options.longs === String ? $util.Long.prototype.toString.call(message.runningSideTasks) : options.longs === Number ? new $util.LongBits(message.runningSideTasks.low >>> 0, message.runningSideTasks.high >>> 0).toNumber(true) : message.runningSideTasks;
             if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage"))
                 object.memoryUsage = $root.pruntime_rpc.MemoryUsage.toObject(message.memoryUsage, options);
+            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
+                if (typeof message.numberOfClusters === "number")
+                    object.numberOfClusters = options.longs === String ? String(message.numberOfClusters) : message.numberOfClusters;
+                else
+                    object.numberOfClusters = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfClusters) : options.longs === Number ? new $util.LongBits(message.numberOfClusters.low >>> 0, message.numberOfClusters.high >>> 0).toNumber(true) : message.numberOfClusters;
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (typeof message.numberOfContracts === "number")
+                    object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
+                else
+                    object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
+            if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
+                object.waitingForParaheaders = message.waitingForParaheaders;
             return object;
         };
 

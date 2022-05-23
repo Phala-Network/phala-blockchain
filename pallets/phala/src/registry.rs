@@ -209,7 +209,7 @@ pub mod pallet {
 				runtime_version: 0,
 				last_updated: 0,
 				operator,
-				attestation_provider: AttestationProvider::RootOrCouncil,
+				attestation_provider: AttestationProvider::Root,
 				confidence_level: 128u8,
 				initial_score: None,
 				features: vec![1, 4],
@@ -218,7 +218,7 @@ pub mod pallet {
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
 				WorkerEvent::Registered(messaging::WorkerInfo {
-					attestation_provider: AttestationProvider::RootOrCouncil,
+					attestation_provider: AttestationProvider::Root,
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
@@ -621,7 +621,7 @@ pub mod pallet {
 						runtime_version: 0,
 						last_updated: 0,
 						operator: operator.clone(),
-						attestation_provider: AttestationProvider::RootOrCouncil,
+						attestation_provider: AttestationProvider::Root,
 						confidence_level: 128u8,
 						initial_score: None,
 						features: vec![1, 4],
@@ -630,7 +630,7 @@ pub mod pallet {
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					*pubkey,
 					WorkerEvent::Registered(messaging::WorkerInfo {
-						attestation_provider: AttestationProvider::RootOrCouncil,
+						attestation_provider: AttestationProvider::Root,
 						confidence_level: 128u8,
 					}),
 				));

@@ -310,6 +310,15 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo memoryUsage */
         memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
+
+        /** PhactoryInfo numberOfClusters */
+        numberOfClusters?: (number|Long|null);
+
+        /** PhactoryInfo numberOfContracts */
+        numberOfContracts?: (number|Long|null);
+
+        /** PhactoryInfo waitingForParaheaders */
+        waitingForParaheaders?: (boolean|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -371,6 +380,15 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo memoryUsage. */
         public memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
+
+        /** PhactoryInfo numberOfClusters. */
+        public numberOfClusters: (number|Long);
+
+        /** PhactoryInfo numberOfContracts. */
+        public numberOfContracts: (number|Long);
+
+        /** PhactoryInfo waitingForParaheaders. */
+        public waitingForParaheaders: boolean;
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";

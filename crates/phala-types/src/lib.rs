@@ -617,13 +617,13 @@ pub enum AttestationReport {
 
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AttestationProvider {
-    Ias,
     None,
-    RootOrCouncil,
-    Unknown,
+    Root,
+    Ias,
 }
+
 impl Default for AttestationProvider {
-    fn default() -> Self { AttestationProvider::Unknown }
+    fn default() -> Self { AttestationProvider::None }
 }
 
 #[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
