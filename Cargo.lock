@@ -3543,6 +3543,8 @@ dependencies = [
  "pherry",
  "rocket",
  "rocksdb",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
