@@ -746,7 +746,7 @@ pub struct WorkerIdentity {
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerKeyChallengePayload<BlockNumber> {
-    // The challenge is only considered valid within 300 blocks (~1h)
+    // The challenge is only considered valid within 150 blocks (~30 min)
     pub block_number: BlockNumber,
     pub now: u64,
     pub nonce: [u8; 32],

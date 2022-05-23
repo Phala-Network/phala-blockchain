@@ -539,10 +539,10 @@ impl<Platform: pal::Platform> System<Platform> {
         if self.last_challenge.is_none()
             || self.last_challenge.as_ref().unwrap() != &challenge.payload
         {
-            info!("Outdated WorkerKey challenge: {:?}", challenge);
+            info!("Unknown challenge: {:?}", challenge);
             return false;
         }
-        // Clear the one-time challenge
+        // Clear used one-time challenge
         self.last_challenge = None;
         self.identity_key
             .verify_data(&challenge.signature, &challenge.payload.encode())
