@@ -6,7 +6,7 @@ use std::time::Duration;
 #[ignore]
 async fn test_timer() -> Result<()> {
     let wasm_bytes = include_bytes!("res/sidevm_timer.wasm");
-    let (run, env) = WasmRun::run(wasm_bytes, 100, Default::default())?;
+    let (run, env) = WasmRun::run(wasm_bytes, 100, Default::default(), u128::MAX)?;
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
         println!("push message...");
