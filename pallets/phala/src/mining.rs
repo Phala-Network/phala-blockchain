@@ -403,6 +403,8 @@ pub mod pallet {
 		BenchmarkTooLow,
 		/// Internal error. A miner should never start with existing stake in the storage.
 		InternalErrorCannotStartWithExistingStake,
+		/// The worker in CD has no stakes bounded with it
+		CDWorkerNoStake,
 	}
 
 	type BalanceOf<T> =
