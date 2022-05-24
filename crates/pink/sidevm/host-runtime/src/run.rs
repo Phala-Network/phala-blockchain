@@ -11,6 +11,7 @@ use crate::{async_context, env};
 pub struct WasmRun {
     env: env::Env,
     wasm_poll_entry: NativeFunc<(), i32>,
+    gas_per_breath: u128,
 }
 
 impl Drop for WasmRun {
@@ -20,7 +21,12 @@ impl Drop for WasmRun {
 }
 
 impl WasmRun {
-    pub fn run(code: &[u8], max_pages: u32, id: crate::VmId) -> Result<(WasmRun, env::Env)> {
+    pub fn run(
+        code: &[u8],
+        max_pages: u32,
+        id: crate::VmId,
+        gas_per_breath: u128,
+    ) -> Result<(WasmRun, env::Env)> {
         let compiler = Singlepass::default();
         let engine = Universal::new(compiler).engine();
         let base = BaseTunables {
@@ -42,6 +48,7 @@ impl WasmRun {
             WasmRun {
                 env: env.clone(),
                 wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
+                gas_per_breath,
             },
             env,
         ))
@@ -52,6 +59,7 @@ impl Future for WasmRun {
     type Output = Result<i32, RuntimeError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.env.set_gas_to_breath(self.gas_per_breath);
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {
                 if rv == 0 {
