@@ -843,7 +843,7 @@ async fn register_worker(
     let ret = para_api
         .tx()
         .phala_registry()
-        .register_worker(pruntime_info, attestation)
+        .register_worker(pruntime_info, attestation)?
         .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {

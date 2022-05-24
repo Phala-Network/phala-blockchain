@@ -2,8 +2,12 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use codec::Encode;
-use jsonrpc_derive::rpc;
-use mq_seq::Error as MqSeqError;
+use jsonrpsee::{
+    core::{async_trait, Error as JsonRpseeError, RpcResult},
+    proc_macros::rpc,
+    types::error::{CallError, ErrorObject},
+    RpcModule
+};
 use pallet_mq_runtime_api::MqApi;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
 use sc_client_api::{backend, Backend, BlockBackend, StorageProvider};
@@ -20,28 +24,28 @@ mod mq_seq;
 mod storage_changes;
 
 /// Base code for all errors.
-const CUSTOM_RPC_ERROR: i64 = 10000;
+const CUSTOM_RPC_ERROR: i32 = 10000;
 
-#[rpc]
+#[rpc(server)]
 pub trait NodeRpcExtApi<BlockHash> {
     /// Return the storage changes made by each block one by one from `from` to `to`(both inclusive).
     /// To get better performance, the client should limit the amount of requested block properly.
     /// 100 blocks for each call should be OK. REQUESTS FOR TOO LARGE NUMBER OF BLOCKS WILL BE REJECTED.
-    #[rpc(name = "pha_getStorageChanges")]
+    #[method(name = "pha_getStorageChanges")]
     fn get_storage_changes(
         &self,
         from: BlockHash,
         to: BlockHash,
-    ) -> Result<GetStorageChangesResponse, StorageChangesError>;
+    ) -> RpcResult<GetStorageChangesResponse>;
 
     /// Get storage changes made by given block.
     /// Returns `hex_encode(scale_encode(StorageChanges))`
-    #[rpc(name = "pha_getStorageChangesAt")]
-    fn get_storage_changes_at(&self, block: BlockHash) -> Result<String, StorageChangesError>;
+    #[method(name = "pha_getStorageChangesAt")]
+    fn get_storage_changes_at(&self, block: BlockHash) -> RpcResult<String>;
 
     /// Return the next mq sequence number for given sender which take the ready transactions in count.
-    #[rpc(name = "pha_getMqNextSequence")]
-    fn get_mq_seq(&self, sender_hex: String) -> Result<u64, MqSeqError>;
+    #[method(name = "pha_getMqNextSequence")]
+    fn get_mq_seq(&self, sender_hex: String) -> RpcResult<u64>;
 }
 
 /// Stuffs for custom RPC
@@ -65,7 +69,8 @@ impl<BE, Block: BlockT, Client, P> NodeRpcExt<BE, Block, Client, P> {
     }
 }
 
-impl<BE: 'static, Block: BlockT, Client: 'static, P> NodeRpcExtApi<Block::Hash>
+#[async_trait]
+impl<BE: 'static, Block: BlockT, Client: 'static, P> NodeRpcExtApiServer<Block::Hash>
     for NodeRpcExt<BE, Block, Client, P>
 where
     BE: Backend<Block>,
@@ -85,35 +90,39 @@ where
         &self,
         from: Block::Hash,
         to: Block::Hash,
-    ) -> Result<GetStorageChangesResponse, StorageChangesError> {
+    ) -> RpcResult<GetStorageChangesResponse> {
         if !self.is_archive_mode {
-            Err(StorageChangesError::Unavailable(
+            Err(JsonRpseeError::from(StorageChangesError::Unavailable(
                 r#"Add "--pruning=archive" to the command line to enable this RPC"#.into(),
-            ))
+            )))
         } else {
-            storage_changes::get_storage_changes(
+            let result = storage_changes::get_storage_changes(
                 self.client.as_ref(),
                 self.backend.as_ref(),
                 from,
                 to,
-            )
+            );
+
+            Ok(result?)
         }
     }
 
-    fn get_storage_changes_at(&self, block: Block::Hash) -> Result<String, StorageChangesError> {
+    fn get_storage_changes_at(&self, block: Block::Hash) -> RpcResult<String> {
         let changes = self.get_storage_changes(block, block)?;
         // get_storage_changes never returns empty vec without error.
         let encoded = changes[0].encode();
         Ok(impl_serde::serialize::to_hex(&encoded, false))
     }
 
-    fn get_mq_seq(&self, sender_hex: String) -> Result<u64, MqSeqError> {
-        mq_seq::get_mq_seq(&*self.client, &self.pool, sender_hex)
+    fn get_mq_seq(&self, sender_hex: String) -> RpcResult<u64> {
+        let result = mq_seq::get_mq_seq(&*self.client, &self.pool, sender_hex);
+
+        Ok(result?)
     }
 }
 
 pub fn extend_rpc<Client, BE, Block, P>(
-    io: &mut jsonrpc_core::IoHandler<sc_rpc::Metadata>,
+    io: &mut RpcModule<()>,
     client: Arc<Client>,
     backend: Arc<BE>,
     is_archive_mode: bool,
@@ -133,10 +142,12 @@ pub fn extend_rpc<Client, BE, Block, P>(
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
     P: TransactionPool + 'static,
 {
-    io.extend_with(NodeRpcExtApi::to_delegate(NodeRpcExt::new(
-        client,
-        backend,
-        is_archive_mode,
-        pool,
-    )));
+    io.merge(
+        NodeRpcExt::new(
+            client,
+            backend,
+            is_archive_mode,
+            pool,
+        ).into_rpc(),
+    ).expect("Initialize Phala node RPC ext failed.");
 }

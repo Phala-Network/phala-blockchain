@@ -39,7 +39,7 @@ frame_support::construct_runtime! {
 
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
-    pub BlockWeights: frame_system::limits::BlockWeights =
+    pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
         frame_system::limits::BlockWeights::simple_max(2 * WEIGHT_PER_SECOND);
     pub static ExistentialDeposit: u64 = 0;
 }
@@ -48,7 +48,7 @@ impl pallet_pink::Config for PinkRuntime {}
 
 impl frame_system::Config for PinkRuntime {
     type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = BlockWeights;
+    type BlockWeights = RuntimeBlockWeights;
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
@@ -129,6 +129,7 @@ impl Config for PinkRuntime {
     type DepositPerByte = ConstU128<0>;
     type DepositPerItem = ConstU128<0>;
     type AddressGenerator = Pink;
+    type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
 }
 
 

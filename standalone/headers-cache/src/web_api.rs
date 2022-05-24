@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use rocket::response::status::NotFound;
 use rocket::State;
 use rocket::{get, routes};
@@ -10,14 +8,12 @@ use crate::db::CacheDB;
 use crate::BlockNumber;
 
 struct App {
-    db: Mutex<CacheDB>,
+    db: CacheDB,
 }
 
 #[get("/genesis/<block_number>")]
 fn get_genesis(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     app.db
-        .lock()
-        .unwrap()
         .get_genesis(block_number)
         .ok_or(NotFound(format!("genesis not found")))
 }
@@ -25,8 +21,6 @@ fn get_genesis(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, N
 #[get("/header/<block_number>")]
 fn get_header(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     app.db
-        .lock()
-        .unwrap()
         .get_header(block_number)
         .ok_or(NotFound(format!("header not found")))
 }
@@ -34,9 +28,8 @@ fn get_header(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, No
 #[get("/headers/<start>")]
 fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     let mut headers = vec![];
-    let mut db = app.db.lock().unwrap();
     for block in start..start + 10000 {
-        match db.get_header(block) {
+        match app.db.get_header(block) {
             Some(data) => {
                 let info = crate::cache::BlockInfo::decode(&mut &data[..])
                     .or(Err(NotFound("Codec error".into())))?;
@@ -63,9 +56,8 @@ fn get_parachain_headers(
     count: BlockNumber,
 ) -> Result<Vec<u8>, NotFound<String>> {
     let mut headers = vec![];
-    let mut db = app.db.lock().unwrap();
     for block in start..start + count {
-        match db.get_para_header(block) {
+        match app.db.get_para_header(block) {
             Some(data) => {
                 use pherry::types::Header;
                 let header =
@@ -89,9 +81,8 @@ fn get_storage_changes(
     count: BlockNumber,
 ) -> Result<Vec<u8>, NotFound<String>> {
     let mut changes = vec![];
-    let mut db = app.db.lock().unwrap();
     for block in start..start + count {
-        match db.get_storage_changes(block) {
+        match app.db.get_storage_changes(block) {
             Some(data) => {
                 let header = crate::cache::BlockHeaderWithChanges::decode(&mut &data[..])
                     .or(Err(NotFound("Codec error".into())))?;
@@ -110,7 +101,7 @@ fn get_storage_changes(
 pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
     rocket::build()
         .manage(App {
-            db: Mutex::new(CacheDB::open(db)?),
+            db: CacheDB::open(db)?,
         })
         .mount(
             "/",

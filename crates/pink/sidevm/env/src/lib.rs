@@ -25,7 +25,7 @@ mod ocall_def;
 mod tasks;
 
 cfg_if::cfg_if! {
-    if #[cfg(any(target_pointer_width = "32", feature = "host"))] {
+    if #[cfg(all(not(test), any(target_pointer_width = "32", feature = "host")))] {
         pub type IntPtr = i32;
     } else {
         // For unit test
@@ -49,10 +49,8 @@ pub enum OcallError {
     UnsupportedOperation = 8,
     IoError = 9,
     ResourceLimited = 10,
-    /// Reserved for future use
-    Reserved11 = 11,
-    /// Reserved for future use
-    Reserved12 = 12,
+    Pending = 11,
+    EndOfFile = 12,
     /// Reserved for future use
     Reserved13 = 13,
     /// Reserved for future use
