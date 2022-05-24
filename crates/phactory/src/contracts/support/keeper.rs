@@ -117,7 +117,6 @@ impl ContractsKeeper {
         self.0.values_mut()
     }
 
-    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.0.len()
     }

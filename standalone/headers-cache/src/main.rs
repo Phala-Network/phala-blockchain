@@ -150,6 +150,17 @@ enum Action {
         /// The headers file to split
         file: String,
     },
+    /// Show block number info for given bin file
+    Inspect {
+        /// The grabbed headers file to read from
+        files: Vec<String>,
+    },
+    /// Show imported block number info in the cache database
+    InspectDb {
+        /// The database file to use
+        #[clap(long, default_value = "cache.db")]
+        db: String,
+    },
     /// Merge given chunks into a single file
     Merge {
         /// Appending to existing file
@@ -236,11 +247,12 @@ async fn main() -> anyhow::Result<()> {
             }
         },
         Action::Import { db, what } => {
-            let mut cache = db::CacheDB::open(&db)?;
+            let cache = db::CacheDB::open(&db)?;
             match what {
                 Import::Headers { input_files } => {
                     for filename in input_files {
                         println!("Importing headers from {}", filename);
+                        let mut metadata = cache.get_metadata()?.unwrap_or_default();
                         let input = File::open(&filename)?;
                         let count = cache::read_items(input, |record| {
                             let header = record.header()?;
@@ -248,8 +260,10 @@ async fn main() -> anyhow::Result<()> {
                             if header.number % 1000 == 0 {
                                 info!("Imported to {}", header.number);
                             }
+                            metadata.update_header(header.number);
                             Ok(false)
                         })?;
+                        cache.put_metadata(metadata)?;
                         println!("{} headers imported", count);
                     }
                 }
@@ -257,14 +271,17 @@ async fn main() -> anyhow::Result<()> {
                     for filename in input_files {
                         println!("Importing parachain headers from {}", filename);
                         let input = File::open(&filename)?;
+                        let mut metadata = cache.get_metadata()?.unwrap_or_default();
                         let count = cache::read_items(input, |record| {
                             let header = record.header()?;
                             cache.put_para_header(header.number, record.payload())?;
                             if header.number % 1000 == 0 {
                                 info!("Imported to {}", header.number);
                             }
+                            metadata.update_para_header(header.number);
                             Ok(false)
                         })?;
+                        cache.put_metadata(metadata)?;
                         println!("{} headers imported", count);
                     }
                 }
@@ -272,14 +289,17 @@ async fn main() -> anyhow::Result<()> {
                     for filename in input_files {
                         println!("Importing storage changes from {}", filename);
                         let input = File::open(&filename)?;
+                        let mut metadata = cache.get_metadata()?.unwrap_or_default();
                         let count = cache::read_items(input, |record| {
                             let header = record.header()?;
                             cache.put_storage_changes(header.number, record.payload())?;
                             if header.number % 1000 == 0 {
                                 info!("Imported to {}", header.number);
                             }
+                            metadata.update_storage_changes(header.number);
                             Ok(false)
                         })?;
+                        cache.put_metadata(metadata)?;
                         println!("{} blocks imported", count);
                     }
                 }
@@ -288,6 +308,9 @@ async fn main() -> anyhow::Result<()> {
                     let info = cache::GenesisBlockInfo::decode(&mut &data[..])
                         .context("Failed to decode the genesis data")?;
                     cache.put_genesis(info.block_header.number, &data)?;
+                    let mut metadata = cache.get_metadata()?.unwrap_or_default();
+                    metadata.put_genesis(info.block_header.number);
+                    cache.put_metadata(metadata)?;
                     println!("genesis at {} put", info.block_header.number);
                 }
             }
@@ -345,6 +368,42 @@ async fn main() -> anyhow::Result<()> {
                 println!("Merging {}", filename);
                 std::io::copy(&mut File::open(filename)?, &mut output)?;
             }
+        }
+        Action::Inspect { files } => {
+            for file in &files {
+                let mut input = File::open(file)?;
+                let mut first = None;
+                let mut last = None;
+                let count = cache::read_items(&mut input, |record| {
+                    let number = record.header()?.number;
+                    if first.is_none() {
+                        first = Some(number);
+                    }
+                    if let Some(last) = &last {
+                        if last + 1 != number {
+                            println!("WARN: non-contiguous block numbers: {last} -> {number}");
+                        }
+                    }
+                    last = Some(number);
+                    Ok(false)
+                });
+                match (first, last, count) {
+                    (None, None, Ok(0)) => {
+                        println!("{file}: no blocks");
+                    }
+                    (Some(first), Some(last), Ok(count)) => {
+                        println!("{file}: {count} blocks, from {first} to {last}");
+                    }
+                    _ => {
+                        println!("{file}: broken file");
+                    }
+                }
+            }
+        }
+        Action::InspectDb { db } => {
+            let cache = db::CacheDB::open(&db)?;
+            let metadata = cache.get_metadata()?.unwrap_or_default();
+            serde_json::to_writer_pretty(std::io::stdout(), &metadata)?;
         }
     }
     Ok(())

@@ -4,8 +4,8 @@ use syn::{parse_quote, Result};
 
 struct OcallMethod {
     id: i32,
-    fast_return: bool,
-    fast_input: bool,
+    encode_output: bool,
+    encode_input: bool,
     args: Vec<TokenStream>,
     method: syn::TraitItemMethod,
 }
@@ -13,8 +13,8 @@ struct OcallMethod {
 impl OcallMethod {
     fn parse(method: &syn::TraitItemMethod) -> Result<Self> {
         let mut id = None;
-        let mut fast_return = false;
-        let mut fast_input = false;
+        let mut encode_output = false;
+        let mut encode_input = false;
 
         for attr in method.attrs.iter() {
             if !attr.is_ocall() {
@@ -72,8 +72,8 @@ impl OcallMethod {
                                     .to_string()
                                     .as_str()
                                 {
-                                    "fast_return" => fast_return = true,
-                                    "fast_input" => fast_input = true,
+                                    "encode_input" => encode_input = true,
+                                    "encode_output" => encode_output = true,
                                     attr => {
                                         return Err(syn::Error::new_spanned(
                                             path,
@@ -83,10 +83,7 @@ impl OcallMethod {
                                 }
                             }
                             _ => {
-                                return Err(syn::Error::new_spanned(
-                                    nested,
-                                    "Invalid attribute",
-                                ));
+                                return Err(syn::Error::new_spanned(nested, "Invalid attribute"));
                             }
                         }
                     }
@@ -105,8 +102,8 @@ impl OcallMethod {
             )),
             Some(id) => Ok(OcallMethod {
                 id,
-                fast_return,
-                fast_input,
+                encode_input,
+                encode_output,
                 args: parse_args(method)?,
                 method: method.clone(),
             }),
@@ -165,7 +162,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         let name = &method.method.sig.ident;
         let args = &method.args;
         let args_reversed = args.iter().rev();
-        let parse_inputs: TokenStream = if method.fast_input {
+        let parse_inputs: TokenStream = if !method.encode_input {
             parse_quote! {
                 let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
                 #(let (#args_reversed, stack) = stack.pop_arg(vm)?;)*
@@ -183,7 +180,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             env.#name(#(#args),*)
         };
 
-        if method.fast_return {
+        if !method.encode_output {
             fast_calls.push(parse_quote! {
                 #id => {
                     #parse_inputs
@@ -324,14 +321,14 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
 
     let args = &method.args;
 
-    let ocall_fn = if method.fast_return {
-        "do_ocall_fast_return"
-    } else {
+    let ocall_fn = if method.encode_output {
         "do_ocall"
+    } else {
+        "do_ocall_fast_return"
     };
     let ocall_fn = Ident::new(ocall_fn, Span::call_site());
 
-    let body_top: TokenStream = if method.fast_input {
+    let body_top: TokenStream = if !method.encode_input {
         parse_quote! {
             let stack = StackedArgs::empty();
             #(let stack = stack.push_arg(#args);)*
@@ -354,7 +351,7 @@ fn gen_ocall_impl_method(method: &OcallMethod) -> Result<TokenStream> {
         }
     };
 
-    let body_bottom: TokenStream = if method.fast_return {
+    let body_bottom: TokenStream = if !method.encode_output {
         parse_quote!(<Result<i32> as RetDecode>::decode_ret(ret).and_then(I32Convertible::from_i32))
     } else {
         parse_quote! {

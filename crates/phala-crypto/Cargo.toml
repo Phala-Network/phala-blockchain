@@ -22,6 +22,7 @@ schnorrkel = { version = "0.9.1", default-features = false, features = ["preaudi
 
 [features]
 default = [ "full_crypto" ]
+std = [ "aead/std" ]
 getrandom = [ "schnorrkel/getrandom" ]
 full_crypto = [
     "sp-core/full_crypto",
@@ -29,6 +30,7 @@ full_crypto = [
 ]
 
 stream = [
+    "std",
     "aead/stream",
     "aead-io",
     "typenum",

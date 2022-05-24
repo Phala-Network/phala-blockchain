@@ -27,6 +27,16 @@ pub struct Cli {
 	#[clap(flatten)]
 	pub run: sc_cli::RunCmd,
 
+	/// Disable automatic hardware benchmarks.
+	///
+	/// By default these benchmarks are automatically ran at startup and measure
+	/// the CPU speed, the memory bandwidth and the disk speed.
+	///
+	/// The results are then printed out in the logs, and also sent as part of
+	/// telemetry, if telemetry is enabled.
+	#[clap(long)]
+	pub no_hardware_benchmarks: bool,
+
 	/// Custom block duration in milliseconds (only useful with --dev)
 	#[clap(long)]
 	pub block_millisecs: Option<u64>,
@@ -37,12 +47,13 @@ pub struct Cli {
 pub enum Subcommand {
 	/// The custom inspect subcommmand for decoding blocks and extrinsics.
 	#[clap(
-		name = "inspect",
-		about = "Decode given block or extrinsic using current native runtime."
+	name = "inspect",
+	about = "Decode given block or extrinsic using current native runtime."
 	)]
 	Inspect(node_inspect::cli::InspectCmd),
 
-	/// The custom benchmark subcommmand benchmarking runtime pallets.
+	/// Sub-commands concerned with benchmarking.
+	/// The pallet benchmarking moved to the `pallet` sub-command.
 	#[clap(subcommand)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
@@ -87,4 +98,7 @@ pub enum Subcommand {
 
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
+
+	/// Db meta columns information.
+	ChainInfo(sc_cli::ChainInfoCmd),
 }

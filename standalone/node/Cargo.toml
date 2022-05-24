@@ -40,6 +40,7 @@ phala-pallets = { path = "../../pallets/phala" }
 clap = { version = "3.0", features = ["derive"], optional = true }
 codec = { version = "3.0", package = "parity-scale-codec" }
 serde = { version = "1.0.136", features = ["derive"] }
+jsonrpsee = { version = "0.13", features = ["server"] }
 futures = "0.3.16"
 hex-literal = "0.3.4"
 log = "0.4.8"
@@ -80,6 +81,7 @@ sc-telemetry = { path = "../../substrate/client/telemetry" }
 sc-executor = { path = "../../substrate/client/executor" }
 sc-authority-discovery = { path = "../../substrate/client/authority-discovery" }
 sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
+sc-sysinfo = { path = "../../substrate/client/sysinfo" }
 
 # frame dependencies
 frame-system = { path = "../../substrate/frame/system" }

@@ -68,7 +68,6 @@ members = [
 	"crates/rustfmt-snippet",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-	"pallets/utility",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
