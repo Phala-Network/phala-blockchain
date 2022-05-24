@@ -1,7 +1,8 @@
-use crate::run::WasmRun;
 use crate::VmId;
+use crate::{env::GasError, run::WasmRun};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
@@ -15,13 +16,22 @@ pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ExitReason {
+    /// The program returned from `fn main`.
     Exited(i32),
+    /// Stopped by an external Stop command.
     Stopped,
+    /// The input channel has been closed, likely caused by a Stop command.
     InputClosed,
+    /// The program panicked.
     Panicked,
+    /// The task future has beed dropped, likely caused by a Stop command.
     Cancelled,
+    /// Terminated due to gas checking.
+    GasError(GasError),
+    /// When a previous running instance restored from a checkpoint.
+    Restore,
 }
 
 pub enum Command {
@@ -79,12 +89,15 @@ impl Spawner {
     pub fn start(
         &self,
         wasm_bytes: &[u8],
-        memory_pages: u32,
+        max_memory_pages: u32,
         id: VmId,
-    ) -> Result<(CommandSender, JoinHandle<()>)> {
+        gas: u128,
+        gas_per_breath: u128,
+    ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(100);
-        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id)
+        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath)
             .context("Failed to create sidevm instance")?;
+        env.set_gas(gas);
         let handle = self.runtime_handle.spawn(async move {
             loop {
                 tokio::select! {
@@ -118,8 +131,15 @@ impl Spawner {
                             }
                             Err(err) => {
                                 info!(target: "sidevm", "The sidevm instance exited with error: {}", err);
-                                // TODO.kevin: Restart the instance?
-                                break ExitReason::Panicked;
+                                match err.downcast::<crate::env::GasError>() {
+                                    Ok(err) => {
+                                        break ExitReason::GasError(err);
+                                    }
+                                    Err(_) => {
+                                        // TODO.kevin: Restart the instance?
+                                        break ExitReason::Panicked;
+                                    }
+                                }
                             }
                         }
                     }
@@ -142,6 +162,7 @@ impl Spawner {
             if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
                 warn!(target: "sidevm", "Failed to send report to sidevm service: {}", err);
             }
+            reason
         });
         Ok((cmd_tx, handle))
     }
