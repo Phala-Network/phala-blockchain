@@ -590,7 +590,7 @@ pub mod pallet {
 					PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
 				}
 			} else {
-				let mut new_list = vec![staker.clone()];
+				let new_list = vec![staker.clone()];
 				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
 				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
 			}
