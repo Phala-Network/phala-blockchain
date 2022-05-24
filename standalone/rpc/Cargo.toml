@@ -11,7 +11,7 @@ repository = "https://github.com/paritytech/substrate/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-jsonrpc-core = "18.0"
+jsonrpsee = { version = "0.13", features = ["server"] }
 node-primitives = { path = "../../substrate/bin/node/primitives" }
 pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
 sc-client-api = { path = "../../substrate/client/api" }

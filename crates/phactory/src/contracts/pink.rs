@@ -204,6 +204,10 @@ pub mod cluster {
     }
 
     impl ClusterKeeper {
+        pub fn len(&self) -> usize {
+            self.clusters.len()
+        }
+
         pub fn instantiate_contract(
             &mut self,
             cluster_id: ContractClusterId,
