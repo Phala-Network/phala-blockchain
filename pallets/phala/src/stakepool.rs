@@ -603,9 +603,9 @@ pub mod pallet {
 			// Add pool owner's reward if applicable
 			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
 			ensure!(pool_info.owner_reward > Zero::zero(), Error::<T>::NoRewardToClaim);
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, pool_info.owner_reward)
-				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			let rewards = pool_info.owner_reward;
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			pool_info.owner_reward = Zero::zero();
 			StakePools::<T>::insert(pid, &pool_info);
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
