@@ -586,6 +586,7 @@ pub mod pallet {
 		}
 
 		/// Claims pool-owner's pending rewards of the sender and send to the `target`
+		/// 
 		/// The rewards associate to sender's "staker role" will not be claimed
 		/// Requires:
 		/// 1. The sender is a pool owner
@@ -599,8 +600,8 @@ pub mod pallet {
 			let mut pool_info = Self::ensure_pool(pid)?;
 			// Add pool owner's reward if applicable
 			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
-			ensure!(pool_info.owner_reward > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let rewards = pool_info.owner_reward;
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			pool_info.owner_reward = Zero::zero();
@@ -615,6 +616,7 @@ pub mod pallet {
 		}
 
 		/// Claims staker's pending rewards of the sender and send to the `target`
+		/// 
 		/// The rewards associate to sender's "owner role" will not be claimed
 		/// Requires:
 		/// 1. The sender is a staker
@@ -629,7 +631,8 @@ pub mod pallet {
 			let info_key = (pid, who.clone());
 			let mut user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::NoRewardToClaim)?;
 			pool_info.settle_user_pending_reward(&mut user_info);
-			ensure!(user_info.available_rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			let rewards = user_info.available_rewards;
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let rewards = user_info.available_rewards;
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
