@@ -581,7 +581,7 @@ pub mod pallet {
 				Self::handle_pool_new_reward(&mut pool_info, reward);
 				StakePools::<T>::insert(&pid, &pool_info);
 			}
-			
+
 			Ok(())
 		}
 
@@ -601,7 +601,7 @@ pub mod pallet {
 			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
 			ensure!(pool_info.owner_reward > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let rewards = pool_info.owner_reward;
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, pool_info.owner_reward)
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			pool_info.owner_reward = Zero::zero();
 			StakePools::<T>::insert(pid, &pool_info);
@@ -631,7 +631,7 @@ pub mod pallet {
 			pool_info.settle_user_pending_reward(&mut user_info);
 			ensure!(user_info.available_rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let rewards = user_info.available_rewards;
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, user_info.available_rewards)
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			user_info.available_rewards = Zero::zero();
 			// Update ledger
