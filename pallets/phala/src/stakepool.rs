@@ -126,7 +126,6 @@ pub mod pallet {
 	/// (Deprecated)
 	// TODO: remove it
 	#[pallet::storage]
-	/// remove in v2
 	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
 
 	/// Mapping staker to it's the balance locked in all pools
@@ -143,7 +142,6 @@ pub mod pallet {
 	/// This queue has a max size of (T::GracePeriod * 8) bytes
 	#[pallet::storage]
 	#[pallet::getter(fn withdrawal_timestamps)]
-	/// remove in v2
 	pub type WithdrawalTimestamps<T> = StorageValue<_, VecDeque<u64>, ValueQuery>;
 
 	/// Switch to enable the stake pool pallet (disabled by default)
@@ -355,7 +353,6 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	/// remove in v2
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
@@ -567,7 +564,6 @@ pub mod pallet {
 		/// 2. Assigned pool must currently exist
 		/// 3. Reward is positive
 		#[pallet::weight(0)]
-		/// remove in v2
 		pub fn force_assign_reward(
 			origin: OriginFor<T>,
 			reward_arr: Vec<(u64, BalanceOf<T>)>,
@@ -585,6 +581,7 @@ pub mod pallet {
 				Self::handle_pool_new_reward(&mut pool_info, reward);
 				StakePools::<T>::insert(&pid, &pool_info);
 			}
+			
 			Ok(())
 		}
 
@@ -603,9 +600,9 @@ pub mod pallet {
 			// Add pool owner's reward if applicable
 			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
 			ensure!(pool_info.owner_reward > Zero::zero(), Error::<T>::NoRewardToClaim);
+			let rewards = pool_info.owner_reward;
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, pool_info.owner_reward)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
-			let rewards = pool_info.owner_reward;
 			pool_info.owner_reward = Zero::zero();
 			StakePools::<T>::insert(pid, &pool_info);
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
@@ -633,9 +630,9 @@ pub mod pallet {
 			let mut user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::NoRewardToClaim)?;
 			pool_info.settle_user_pending_reward(&mut user_info);
 			ensure!(user_info.available_rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			let rewards = user_info.available_rewards;
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, user_info.available_rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
-			let rewards = user_info.available_rewards;
 			user_info.available_rewards = Zero::zero();
 			// Update ledger
 			StakePools::<T>::insert(pid, &pool_info);
@@ -654,7 +651,6 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is a pool owner or staker
 		#[pallet::weight(0)]
-		/// to be discuss in v2
 		pub fn claim_rewards(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -852,7 +848,6 @@ pub mod pallet {
 
 		// TODO(hangyin): remove once after issue 527 is closed.
 		/// Temporary function to reconcile incorrect withdraw queue (issue 527).
-		/// remove in v2
 		#[pallet::weight(195_000_000)]
 		pub fn reconcile_withdraw_queue(
 			origin: OriginFor<T>,
@@ -895,7 +890,6 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			// Make sure the withdraw queue is empty to avoid troubles
 			let pool = Self::ensure_pool(pid)?;
-			// check withdraw_queue is empty instead in v2
 			ensure!(
 				pool.free_stake > Zero::zero(),
 				Error::<T>::InsufficientFreeStake
@@ -942,7 +936,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-		/// add worker in cd to pool_info in v2
 		fn do_stop_mining(
 			owner: &T::AccountId,
 			pid: u64,
@@ -962,7 +955,6 @@ pub mod pallet {
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 			Ok(())
 		}
-		/// remove worker in cd from pool_info in v2
 		fn do_reclaim(
 			pid: u64,
 			sub_account: T::AccountId,
@@ -975,7 +967,6 @@ pub mod pallet {
 		}
 
 		/// Adds up the newly received reward to `reward_acc`
-		/// just add rewards to free stakes, owner rewards and total_stakes in v2
 		fn handle_pool_new_reward(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
@@ -1027,7 +1018,6 @@ pub mod pallet {
 				"More return then expected"
 			);
 			pool_info.free_stake.saturating_accrue(returned);
-			// remove in v2
 			pool_info.releasing_stake.saturating_reduce(returned);
 
 			Self::try_process_withdraw_queue(&mut pool_info);
@@ -1109,8 +1099,6 @@ pub mod pallet {
 		}
 
 		/// Tries to fulfill the withdraw queue with the newly freed stake
-		/// don't call when rewards assign in v2
-		/// if so, free stakes and withdraw queue could be both exist in v2
 		fn try_process_withdraw_queue(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
 			// The share price shouldn't change at any point in this function. So we can calculate
 			// only once at the beginning.
@@ -1221,7 +1209,6 @@ pub mod pallet {
 				// first time add withdraw pool
 				t.push_back(start_time);
 			}
-			// remove in v2
 			WithdrawalTimestamps::<T>::put(&t);
 
 			// push pool to the pool list, if the pool was added in this pool, means it has waiting withdraw request
@@ -1280,7 +1267,6 @@ pub mod pallet {
 		/// Tries to enforce expired withdraw requests
 		///
 		/// TODO: carefully examine the caveat in this function
-		/// sepcify pid, check every worker in cd in v2
 		fn maybe_force_withdraw(now: u64) {
 			// TODO: review again!
 			let mut t = WithdrawalTimestamps::<T>::get();
@@ -1309,7 +1295,6 @@ pub mod pallet {
 				// pop front timestamp
 				t.pop_front();
 			}
-			//remove in v2
 			WithdrawalTimestamps::<T>::put(&t);
 		}
 
@@ -1327,7 +1312,6 @@ pub mod pallet {
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
 		/// would be clear once pool was updated
-		/// add to free stakes and total_stakes in v2
 		fn on_reward(settle: &[SettleInfo]) {
 			for info in settle {
 				let payout_fixed = FixedPoint::from_bits(info.payout);
@@ -1376,7 +1360,6 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Called when a worker is stopped and there is releasing stake
-		/// remove in v2
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
 			let pid = WorkerAssignments::<T>::get(worker)
 				.expect("Stopping workers have assignment; qed.");
@@ -1430,7 +1413,6 @@ pub mod pallet {
 	/// The state of a pool
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId, Balance> {
-		// add cd worker queue in v2 with it's functions
 		/// Pool ID
 		pub pid: u64,
 		/// The owner of the pool
@@ -1454,7 +1436,6 @@ pub mod pallet {
 		///
 		/// An individual user's reward is tracked by [`reward_acc`](PoolInfo::reward_acc), their
 		/// [`shares`](UserStakeInfo::shares) and the [`reward_debt`](UserStakeInfo::reward_debt).
-		/// remove in v2
 		pub reward_acc: CodecFixedPoint,
 		/// Total shares
 		///
@@ -1473,7 +1454,6 @@ pub mod pallet {
 		///
 		/// It tracks the stake that will be unlocked in the future. It's the sum of all the
 		/// cooling down miners' remaining stake.
-		/// remove in v2
 		pub releasing_stake: Balance,
 		/// Bound workers
 		pub workers: Vec<WorkerPublicKey>,
@@ -1617,7 +1597,6 @@ pub mod pallet {
 		}
 
 		/// Asserts there's no pending reward (in debug profile only)
-		/// remove in v2
 		fn assert_reward_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
 			debug_assert!(
 				self.pending_reward(user) == Zero::zero(),
@@ -1655,7 +1634,6 @@ pub mod pallet {
 		}
 
 		/// Settles all the pending rewards of a user and move to `available_rewards` for claiming
-		/// remove in v2
 		fn settle_user_pending_reward(&self, user: &mut UserStakeInfo<AccountId, Balance>) {
 			let pending_reward = self.pending_reward(user);
 			user.available_rewards.saturating_accrue(pending_reward);
@@ -1668,7 +1646,6 @@ pub mod pallet {
 		// share effectively grows by (rewards / total_shares).
 		//
 		// Warning: `total_reward` mustn't be zero.
-		/// remove in v2
 		fn distribute_reward(&mut self, rewards: Balance) {
 			assert!(
 				is_nondust_balance(self.total_shares),
@@ -1682,13 +1659,11 @@ pub mod pallet {
 		}
 
 		/// Calculates the pending reward a user is holding
-		/// remove in v2
 		fn pending_reward(&self, user: &UserStakeInfo<AccountId, Balance>) -> Balance {
 			Accumulator::<Balance>::pending(user.shares, &self.reward_acc.into(), user.reward_debt)
 		}
 
 		/// Resets user's `reward_debt` to remove all the pending rewards
-		/// remove in v2
 		fn reset_pending_reward(&self, user: &mut UserStakeInfo<AccountId, Balance>) {
 			Accumulator::<Balance>::clear_pending(
 				user.shares,
@@ -1718,7 +1693,6 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => price,
 				_ => return false,
 			};
-			// sum up worker in cd in the pool in v2
 			let mut budget = self.free_stake + self.releasing_stake;
 			for request in &self.withdraw_queue {
 				let amount = bmul(request.shares, &price);
@@ -1738,8 +1712,6 @@ pub mod pallet {
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct UserStakeInfo<AccountId, Balance> {
 		/// User's address
-		/// replace nftid to accountid in v2
-		/// should be careful when user to user transfer in v2 (for lock balance)
 		pub user: AccountId,
 		/// The actual locked stake in the pool
 		pub locked: Balance,
