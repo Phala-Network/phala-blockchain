@@ -108,17 +108,17 @@ export namespace pruntime_rpc {
 
         /**
          * Calls GetRuntimeInfo.
-         * @param request Empty message or plain object
+         * @param request GetRuntimeInfoRequest message or plain object
          * @param callback Node-style callback called with the error, if any, and InitRuntimeResponse
          */
-        public getRuntimeInfo(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GetRuntimeInfoCallback): void;
+        public getRuntimeInfo(request: pruntime_rpc.IGetRuntimeInfoRequest, callback: pruntime_rpc.PhactoryAPI.GetRuntimeInfoCallback): void;
 
         /**
          * Calls GetRuntimeInfo.
-         * @param request Empty message or plain object
+         * @param request GetRuntimeInfoRequest message or plain object
          * @returns Promise
          */
-        public getRuntimeInfo(request: google.protobuf.IEmpty): Promise<pruntime_rpc.InitRuntimeResponse>;
+        public getRuntimeInfo(request: pruntime_rpc.IGetRuntimeInfoRequest): Promise<pruntime_rpc.InitRuntimeResponse>;
 
         /**
          * Calls GetEgressMessages.
@@ -310,6 +310,12 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo memoryUsage */
         memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
+
+        /** PhactoryInfo numberOfClusters */
+        numberOfClusters?: (number|Long|null);
+
+        /** PhactoryInfo numberOfContracts */
+        numberOfContracts?: (number|Long|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -371,6 +377,12 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo memoryUsage. */
         public memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
+
+        /** PhactoryInfo numberOfClusters. */
+        public numberOfClusters: (number|Long);
+
+        /** PhactoryInfo numberOfContracts. */
+        public numberOfContracts: (number|Long);
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";
@@ -1360,6 +1372,105 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this InitRuntimeRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a GetRuntimeInfoRequest. */
+    interface IGetRuntimeInfoRequest {
+
+        /** GetRuntimeInfoRequest forceRefreshRa */
+        forceRefreshRa?: (boolean|null);
+
+        /** GetRuntimeInfoRequest encodedOperator */
+        encodedOperator?: (Uint8Array|null);
+    }
+
+    /** Represents a GetRuntimeInfoRequest. */
+    class GetRuntimeInfoRequest implements IGetRuntimeInfoRequest {
+
+        /**
+         * Constructs a new GetRuntimeInfoRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetRuntimeInfoRequest);
+
+        /** GetRuntimeInfoRequest forceRefreshRa. */
+        public forceRefreshRa: boolean;
+
+        /** GetRuntimeInfoRequest encodedOperator. */
+        public encodedOperator?: (Uint8Array|null);
+
+        /** GetRuntimeInfoRequest _encodedOperator. */
+        public _encodedOperator?: "encodedOperator";
+
+        /**
+         * Creates a new GetRuntimeInfoRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetRuntimeInfoRequest instance
+         */
+        public static create(properties?: pruntime_rpc.IGetRuntimeInfoRequest): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @param message GetRuntimeInfoRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetRuntimeInfoRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @param message GetRuntimeInfoRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetRuntimeInfoRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Verifies a GetRuntimeInfoRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetRuntimeInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetRuntimeInfoRequest
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Creates a plain object from a GetRuntimeInfoRequest message. Also converts values to other types if specified.
+         * @param message GetRuntimeInfoRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetRuntimeInfoRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetRuntimeInfoRequest to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
@@ -2720,8 +2831,11 @@ export namespace pruntime_rpc {
         /** TokenomicInfo vInit */
         vInit?: (string|null);
 
-        /** TokenomicInfo payable */
-        payable?: (string|null);
+        /** TokenomicInfo vDeductible */
+        vDeductible?: (string|null);
+
+        /** TokenomicInfo share */
+        share?: (string|null);
 
         /** TokenomicInfo vUpdateAt */
         vUpdateAt?: (number|Long|null);
@@ -2784,8 +2898,11 @@ export namespace pruntime_rpc {
         /** TokenomicInfo vInit. */
         public vInit: string;
 
-        /** TokenomicInfo payable. */
-        public payable: string;
+        /** TokenomicInfo vDeductible. */
+        public vDeductible: string;
+
+        /** TokenomicInfo share. */
+        public share: string;
 
         /** TokenomicInfo vUpdateAt. */
         public vUpdateAt: (number|Long);

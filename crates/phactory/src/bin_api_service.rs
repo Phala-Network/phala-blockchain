@@ -32,7 +32,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 "total_peak_used": meminfo.total_peak_used,
                 "rust_used": meminfo.rust_used,
                 "rust_peak_used": meminfo.rust_peak_used,
-            }
+            },
+            "number_of_clusters": info.number_of_clusters,
+            "number_of_contracts": info.number_of_contracts,
         }))
     }
 

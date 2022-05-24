@@ -78,18 +78,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => Default::default(),
         };
 
-        let (registered, gatekeeper_status) = {
-            match system {
-                Some(system) => (system.is_registered(), system.gatekeeper_status()),
-                None => (
-                    false,
-                    pb::GatekeeperStatus {
-                        role: pb::GatekeeperRole::None.into(),
-                        master_public_key: Default::default(),
-                    },
-                ),
+        let registered;
+        let gatekeeper_status;
+        let number_of_clusters;
+        let number_of_contracts;
+
+        match system {
+            Some(system) => {
+                registered = system.is_registered();
+                gatekeeper_status = system.gatekeeper_status();
+                number_of_clusters = system.contract_clusters.len();
+                number_of_contracts = system.contracts.len();
             }
-        };
+            None => {
+                registered = false;
+                gatekeeper_status = pb::GatekeeperStatus {
+                    role: pb::GatekeeperRole::None.into(),
+                    master_public_key: Default::default(),
+                };
+                number_of_clusters = 0;
+                number_of_contracts = 0;
+            }
+        }
 
         let score = benchmark::score();
         let m_usage = self.platform.memory_usage();
@@ -116,6 +126,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
             }),
+            number_of_clusters: number_of_clusters as _,
+            number_of_contracts: number_of_contracts as _,
         }
     }
 

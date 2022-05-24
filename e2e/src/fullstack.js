@@ -664,7 +664,7 @@ function waitRelayerOutput(p) {
     return p.startAndWaitForOutput(/runtime_info: InitRuntimeResp/);
 }
 function waitNodeOutput(p) {
-    return p.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/);
+    return p.startAndWaitForOutput(/Starting BABE Authorship worker/);
 }
 
 

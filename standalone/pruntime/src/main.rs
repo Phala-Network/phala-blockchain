@@ -75,7 +75,7 @@ struct Args {
 }
 
 #[rocket::main]
-async fn main() {
+async fn main() -> Result<(), rocket::Error> {
     // Disable the thread local arena(memory pool) for glibc.
     // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
     #[cfg(target_env = "gnu")]
@@ -131,9 +131,8 @@ async fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
-    let mut v = vec![];
     for i in 0..bench_cores {
-        let child = thread::Builder::new()
+        thread::Builder::new()
             .name(format!("bench-{}", i))
             .spawn(move || {
                 set_thread_idle_policy();
@@ -143,18 +142,16 @@ async fn main() {
                 }
             })
             .expect("Failed to launch benchmark thread");
-        v.push(child);
     }
 
-    api_server::rocket(&args)
+    let _: rocket::Rocket<rocket::Ignite> = api_server::rocket(&args)
         .launch()
         .await
         .expect("Failed to launch API server");
 
-    for child in v {
-        let _ = child.join();
-    }
     info!("pRuntime quited");
+
+    Ok(())
 }
 
 fn set_thread_idle_policy() {
