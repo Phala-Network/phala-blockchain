@@ -586,8 +586,9 @@ pub mod pallet {
 		}
 
 		/// Claims pool-owner's pending rewards of the sender and send to the `target`
-		/// 
+		///
 		/// The rewards associate to sender's "staker role" will not be claimed
+		///
 		/// Requires:
 		/// 1. The sender is a pool owner
 		#[pallet::weight(0)]
@@ -616,9 +617,11 @@ pub mod pallet {
 		}
 
 		/// Claims staker's pending rewards of the sender and send to the `target`
-		/// 
+		///
 		/// The rewards associate to sender's "owner role" will not be claimed
+		///
 		/// Requires:
+		///
 		/// 1. The sender is a staker
 		#[pallet::weight(0)]
 		pub fn claim_staker_rewards(
@@ -633,7 +636,6 @@ pub mod pallet {
 			pool_info.settle_user_pending_reward(&mut user_info);
 			let rewards = user_info.available_rewards;
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			let rewards = user_info.available_rewards;
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			user_info.available_rewards = Zero::zero();
@@ -652,6 +654,7 @@ pub mod pallet {
 		/// Claims all the pending rewards of the sender and send to the `target`
 		///
 		/// Requires:
+		///
 		/// 1. The sender is a pool owner or staker
 		#[pallet::weight(0)]
 		pub fn claim_rewards(
@@ -2474,7 +2477,11 @@ pub mod pallet {
 				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
 				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
 				assert_eq!(pool.owner_reward, 0 * DOLLARS);
-				assert_ok!(PhalaStakePool::claim_staker_rewards(Origin::signed(1), 0, 1));
+				assert_ok!(PhalaStakePool::claim_staker_rewards(
+					Origin::signed(1),
+					0,
+					1
+				));
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
