@@ -13,7 +13,7 @@ mod start_sidevm {
         #[ink(constructor)]
         pub fn default() -> Self {
             let code = &include_bytes!("./sidevm_recv_messages.wasm")[..];
-            pink::start_sidevm(code.into(), 100, true);
+            pink::start_sidevm(code.into(), true);
             Self {}
         }
         #[pink(on_block_end)]

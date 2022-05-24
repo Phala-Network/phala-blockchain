@@ -89,13 +89,13 @@ impl Spawner {
     pub fn start(
         &self,
         wasm_bytes: &[u8],
-        memory_pages: u32,
+        max_memory_pages: u32,
         id: VmId,
         gas: u128,
         gas_per_breath: u128,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(100);
-        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id, gas_per_breath)
+        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath)
             .context("Failed to create sidevm instance")?;
         env.set_gas(gas);
         let handle = self.runtime_handle.spawn(async move {
