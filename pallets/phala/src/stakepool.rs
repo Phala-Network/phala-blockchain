@@ -581,7 +581,7 @@ pub mod pallet {
 				Self::handle_pool_new_reward(&mut pool_info, reward);
 				StakePools::<T>::insert(&pid, &pool_info);
 			}
-			
+
 			Ok(())
 		}
 
@@ -601,7 +601,7 @@ pub mod pallet {
 			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
 			ensure!(pool_info.owner_reward > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let rewards = pool_info.owner_reward;
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, pool_info.owner_reward)
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			pool_info.owner_reward = Zero::zero();
 			StakePools::<T>::insert(pid, &pool_info);
@@ -631,7 +631,7 @@ pub mod pallet {
 			pool_info.settle_user_pending_reward(&mut user_info);
 			ensure!(user_info.available_rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let rewards = user_info.available_rewards;
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, user_info.available_rewards)
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			user_info.available_rewards = Zero::zero();
 			// Update ledger
@@ -2430,7 +2430,56 @@ pub mod pallet {
 				assert_eq!(pool.owner_reward, 250 * DOLLARS);
 			});
 		}
-
+		#[test]
+		fn test_divided_claim_rewards() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(1000u32).to_bits(),
+					treasury: 0,
+				}]);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 500 * DOLLARS);
+				assert_ok!(PhalaStakePool::claim_owner_rewards(Origin::signed(1), 0, 1));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 0 * DOLLARS);
+				assert_ok!(PhalaStakePool::claim_staker_rewards(Origin::signed(1), 0, 1));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 0 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 0 * DOLLARS);
+			});
+		}
 		#[test]
 		fn test_reward_management() {
 			use crate::mining::pallet::OnReward;
