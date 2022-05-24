@@ -119,11 +119,6 @@ lazy_static! {
         env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != "";
 }
 
-fn destroy_enclave() {
-    let enclave = ENCLAVE.write().unwrap().take().unwrap();
-    enclave.destroy();
-}
-
 fn get_eid() -> u64 {
     ENCLAVE.read().unwrap().as_ref().unwrap().geteid()
 }
@@ -625,6 +620,7 @@ async fn main() {
 
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_PROFILE", "debug");
+    env::set_var("ROCKET_WORKERS", "1");
 
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -696,9 +692,8 @@ async fn main() {
 
     let measure_rpc_time = args.measure_rpc_time;
 
-    let mut v = vec![];
     for i in 0..bench_cores {
-        let child = thread::Builder::new()
+        thread::Builder::new()
             .name(format!("bench-{}", i))
             .spawn(move || {
                 set_thread_idle_policy();
@@ -711,7 +706,6 @@ async fn main() {
                 }
             })
             .expect("Failed to launch benchmark thread");
-        v.push(child);
     }
 
     rocket(measure_rpc_time)
@@ -719,14 +713,7 @@ async fn main() {
         .await
         .expect("Failed to launch Rocket");
 
-    for child in v {
-        let _ = child.join();
-    }
-
-    info!("Quit signal received, destroying enclave...");
-    destroy_enclave();
-
-    std::process::exit(0);
+    info!("Quiting...");
 }
 
 fn set_thread_idle_policy() {
