@@ -609,25 +609,26 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
-			let mut whitelist =
-				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
-			if whitelist.contains(&staker) {
-				whitelist.retain(|accountid| accountid != &staker);
-				if whitelist.empty() {
-					PoolContributionWhitelists::<T>::remove(&pid);
-					Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
-						pid,
-						staker: staker.clone(),
-					});
-					Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
-				} else {
-					PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
-					Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
-						pid,
-						staker: staker.clone(),
-					});
+			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+				if whitelist.contains(&staker) {
+					whitelist.retain(|accountid| accountid != &staker);
+					if whitelist.is_empty() {
+						PoolContributionWhitelists::<T>::remove(&pid);
+						Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+							pid,
+							staker: staker.clone(),
+						});
+						Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
+					} else {
+						PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+						Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+							pid,
+							staker: staker.clone(),
+						});
+					}
 				}
 			}
+
 			Ok(())
 		}
 
@@ -713,7 +714,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-			/// if the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+			/// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.owner == who,
