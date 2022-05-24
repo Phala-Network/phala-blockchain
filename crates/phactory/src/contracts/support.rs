@@ -4,7 +4,11 @@ use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
-use sidevm::{instrument::instrument, VmId};
+use sidevm::{
+    instrument::instrument,
+    service::{CommandSender, ExitReason},
+    GasError, VmId,
+};
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
@@ -108,30 +112,36 @@ impl Decode for RawData {
 }
 
 pub enum SidevmHandle {
-    Running(sidevm::service::CommandSender),
-    Terminated,
+    Running(CommandSender),
+    Terminated(ExitReason),
 }
 
-impl SidevmHandle {
-    fn is_terminated(&self) -> bool {
+impl Serialize for SidevmHandle {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         match self {
-            SidevmHandle::Running(_) => false,
-            SidevmHandle::Terminated => true,
+            SidevmHandle::Running(_) => ExitReason::Restore.serialize(serializer),
+            SidevmHandle::Terminated(r) => r.serialize(serializer),
         }
     }
 }
 
-impl Default for SidevmHandle {
-    fn default() -> Self {
-        SidevmHandle::Terminated
+impl<'de> Deserialize<'de> for SidevmHandle {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let reason = ExitReason::deserialize(deserializer)?;
+        Ok(SidevmHandle::Terminated(reason))
     }
 }
 
 #[derive(Serialize, Deserialize)]
 struct SidevmInfo {
     code: Vec<u8>,
-    memory_pages: u32,
-    #[serde(skip, default)]
+    auto_restart: bool,
     handle: Arc<Mutex<SidevmHandle>>,
 }
 
@@ -248,34 +258,52 @@ impl FatContract {
         &mut self,
         spawner: &sidevm::service::Spawner,
         code: Vec<u8>,
-        memory_pages: u32,
+        auto_restart: bool,
     ) -> Result<()> {
         if self.sidevm_info.is_some() {
             bail!("Sidevm can only be started once");
         }
-        let handle = do_start_sidevm(spawner, &code, memory_pages, self.contract_id.0)?;
+        let handle = do_start_sidevm(spawner, &code, self.contract_id.0)?;
         self.sidevm_info = Some(SidevmInfo {
             code,
-            memory_pages,
             handle,
+            auto_restart,
         });
         Ok(())
     }
 
-    pub(crate) fn restart_sidevm_if_terminated(
+    pub(crate) fn restart_sidevm_if_needed(
         &mut self,
         spawner: &sidevm::service::Spawner,
     ) -> Result<()> {
         if let Some(sidevm_info) = &mut self.sidevm_info {
-            if sidevm_info.handle.lock().unwrap().is_terminated() {
-                let handle = do_start_sidevm(
+            let guard = sidevm_info.handle.lock().unwrap();
+            let handle = if let SidevmHandle::Terminated(reason) = &*guard {
+                let need_restart = match reason {
+                    ExitReason::Exited(_) => false,
+                    ExitReason::Stopped => false,
+                    ExitReason::InputClosed => false,
+                    ExitReason::Panicked => true,
+                    ExitReason::Cancelled => false,
+                    // TODO.kevin: Allow to charge new gas? How to charge gas or weather the gas
+                    // system works or not is not clear ATM.
+                    ExitReason::GasError(GasError::GasExhausted) => false,
+                    ExitReason::GasError(GasError::Drowning) => true,
+                    ExitReason::Restore => true,
+                };
+                if !need_restart {
+                    return Ok(());
+                }
+                do_start_sidevm(
                     spawner,
                     &sidevm_info.code,
-                    sidevm_info.memory_pages,
                     self.cluster_id.0,
-                )?;
-                sidevm_info.handle = handle;
-            }
+                )?
+            } else {
+                return Ok(());
+            };
+            drop(guard);
+            sidevm_info.handle = handle;
         }
         Ok(())
     }
@@ -293,7 +321,7 @@ impl FatContract {
             .clone();
 
         let tx = match &*handle.lock().unwrap() {
-            SidevmHandle::Terminated => {
+            SidevmHandle::Terminated(_) => {
                 error!(target: "sidevm", "Push message to sidevm failed, instance terminated");
                 return Err(anyhow!(
                     "Push message to sidevm failed, instance terminated"
@@ -316,23 +344,22 @@ impl FatContract {
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
-    memory_pages: u32,
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
     let todo = "connect the gas to some where";
+    let max_memory_pages: u32 = 1024; // 64MB
     let gas = u128::MAX;
     let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
     let code = instrument(code).context("Failed to instrument the wasm code")?;
-    let (sender, join_handle) = spawner.start(&code, memory_pages, id, gas, gas_per_breath)?;
+    let (sender, join_handle) = spawner.start(&code, max_memory_pages, id, gas, gas_per_breath)?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
 
     debug!(target: "sidevm", "Starting sidevm...");
     spawner.spawn(async move {
-        if let Err(err) = join_handle.await {
-            error!(target: "sidevm", "Sidevm process terminated with error: {:?}", err);
-        }
-        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated;
+        let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
+        error!(target: "sidevm", "Sidevm process terminated with reason: {:?}", reason);
+        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated(reason);
     });
     Ok(handle)
 }

@@ -6,6 +6,7 @@ use std::{
     time::Duration,
 };
 
+use serde::{Serialize, Deserialize};
 use tokio::{
     net::TcpListener,
     sync::mpsc::{error::SendError, Sender},
@@ -359,7 +360,7 @@ fn sidevm_ocall(
     result.encode_ret()
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum GasError {
     GasExhausted,
     Drowning,

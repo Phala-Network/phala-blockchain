@@ -42,7 +42,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
-use sidevm::service::Spawner;
+use sidevm::service::{Report, Spawner};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -429,10 +429,11 @@ pub struct System<Platform> {
 fn create_sidevm_service() -> Spawner {
     let (run, spawner) = sidevm::service::service();
     std::thread::spawn(move || {
-        run.blocking_run(|report| {
-            let todo = "kevin: restart sidevm instance if it crashes";
-            let todo = "kevin: remove the log since it leak vm info";
-            info!("Sidevm report: {:?}", report);
+        run.blocking_run(|report| match report {
+            Report::VmTerminated { id, reason } => {
+                let id = hex_fmt::HexFmt(&id[..4]);
+                info!("Sidevm {id} terminated with reason: {reason:?}");
+            }
         })
     });
     spawner
@@ -623,6 +624,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.sidevm_spawner,
             );
         }
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
     }
 
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
@@ -1105,7 +1107,8 @@ impl<Platform: pal::Platform> System<Platform> {
 
 impl<P> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner)
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        Ok(())
     }
 }
 
@@ -1225,10 +1228,14 @@ pub fn apply_pink_side_effects(
                     wasm_code.extend_from_slice(&chunk);
                 }
             }
-            PinkEvent::StartSidevm { memory_pages } => {
+            PinkEvent::StartSidevm {
+                auto_restart,
+            } => {
                 if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
                     let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
-                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, memory_pages) {
+                    if let Err(err) =
+                        contract.start_sidevm(&spawner, wasm_code, auto_restart)
+                    {
                         error!(target: "sidevm", "Start sidevm failed: {:?}", err);
                     }
                 } else {

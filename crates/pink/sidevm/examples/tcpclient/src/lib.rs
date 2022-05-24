@@ -1,7 +1,7 @@
 use log::info;
 use pink_sidevm as sidevm;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[sidevm::main]
 async fn main() {
@@ -12,7 +12,8 @@ async fn main() {
 
     info!("Connecting to {}", address);
 
-    let mut stream = sidevm::net::TcpStream::connect(address).await.unwrap();
+    let stream = sidevm::net::TcpStream::connect(address).await.unwrap();
+    let mut stream = BufReader::new(stream);
     info!("Sending request");
     stream
         .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
