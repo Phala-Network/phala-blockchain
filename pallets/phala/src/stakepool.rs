@@ -566,7 +566,9 @@ pub mod pallet {
 
 			Ok(())
 		}
+		
 		/// Add a staker accountid to contribution whitelist.
+		/// 
 		/// Calling this method will forbide stakers contribute who isn't in the whitelist.
 		/// The caller must be the owner of the pool.
 		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
@@ -597,7 +599,9 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
 			Ok(())
 		}
+
 		/// Remove a staker accountid to contribution whitelist.
+		/// 
 		/// The caller must be the owner of the pool.
 		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
 		#[pallet::weight(0)]
