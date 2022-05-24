@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use hyper::server::accept::Accept;
-use tokio::io::{AsyncBufRead, AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::env::{self, Result};
 use crate::{ocall, ResourceId};
@@ -22,14 +22,10 @@ pub struct TcpConnector {
     res_id: ResourceId,
 }
 
-const TODO: &str = "Split the buf out and define a wrapper BufferedTcpStrem";
 /// A connected TCP socket.
 #[derive(Debug)]
 pub struct TcpStream {
     res_id: ResourceId,
-    buf: [u8; 32],
-    filled: usize,
-    start: usize,
 }
 
 struct Acceptor<'a> {
@@ -113,35 +109,6 @@ impl AsyncRead for TcpStream {
     }
 }
 
-impl AsyncBufRead for TcpStream {
-    fn poll_fill_buf(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<&[u8]>> {
-        // When the `start` reaches `filled`, both are reset to zero.
-        if self.filled == self.start {
-            use env::OcallError;
-            match ocall::poll_read(self.res_id.0, &mut self.buf[..]) {
-                Err(OcallError::Pending) => return Poll::Pending,
-                Err(err) => return Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
-                Ok(sz) => {
-                    self.filled = sz as _;
-                }
-            }
-        }
-        let me = self.get_mut();
-        Poll::Ready(Ok(&me.buf[me.start..me.filled]))
-    }
-
-    fn consume(mut self: Pin<&mut Self>, amt: usize) {
-        self.start += amt;
-        if self.start >= self.filled {
-            self.start = 0;
-            self.filled = 0;
-        }
-    }
-}
-
 impl AsyncWrite for TcpStream {
     fn poll_write(
         self: Pin<&mut Self>,
@@ -185,9 +152,6 @@ impl TcpStream {
     fn new(res_id: ResourceId) -> Self {
         Self {
             res_id,
-            buf: Default::default(),
-            start: 0,
-            filled: 0,
         }
     }
 
