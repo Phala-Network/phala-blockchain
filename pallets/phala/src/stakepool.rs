@@ -2527,7 +2527,7 @@ pub mod pallet {
 					Error::<Test>::NotInContributeWhitelist
 				);
 				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
-				assert_eq!(PhalaStakePool::pool_whitelist(0).is_none(), true);
+				assert!(PhalaStakePool::pool_whitelist(0).is_none());
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(3),
 					0,
