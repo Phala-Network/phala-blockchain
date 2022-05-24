@@ -613,7 +613,7 @@ pub mod pallet {
 				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
 			if whitelist.contains(&staker) {
 				whitelist.retain(|accountid| accountid != &staker);
-				if whitelist.len() as u32 <= 0 {
+				if whitelist.empty() {
 					PoolContributionWhitelists::<T>::remove(&pid);
 					Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
 						pid,
