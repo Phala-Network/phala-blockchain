@@ -1,7 +1,10 @@
 use pink_sidevm_host_runtime::service::service;
-use pink_sidevm_host_runtime::instrument;
+use pink_sidevm_host_runtime::{instrument, CacheOps, DynCacheOps, OcallError};
 
-use clap::{Parser, AppSettings};
+use clap::{AppSettings, Parser};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::sync::RwLock;
 
 #[derive(Parser)]
 #[clap(about = "Demo sidevm host app", version, author)]
@@ -15,6 +18,41 @@ pub struct Args {
     gas_per_breath: u128,
     /// The WASM program to run
     program: String,
+}
+
+fn simple_cache() -> DynCacheOps {
+    static CACHE: Lazy<RwLock<HashMap<Vec<u8>, Vec<u8>>>> = Lazy::new(Default::default);
+    struct Ops;
+    type OpResult<T> = Result<T, OcallError>;
+    impl CacheOps for Ops {
+        fn get(&self, _contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+            let cache = CACHE.read().unwrap();
+            let value = cache.get(key).cloned();
+            Ok(value)
+        }
+
+        fn set(&self, _contract: &[u8], key: &[u8], value: &[u8]) -> OpResult<()> {
+            let mut cache = CACHE.write().unwrap();
+            cache.insert(key.to_vec(), value.to_vec());
+            Ok(())
+        }
+
+        fn set_expiration(
+            &self,
+            _contract: &[u8],
+            _key: &[u8],
+            _expire_after_secs: u64,
+        ) -> OpResult<()> {
+            Ok(())
+        }
+
+        fn remove(&self, _contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+            let mut cache = CACHE.write().unwrap();
+            let value = cache.remove(key);
+            Ok(value)
+        }
+    }
+    &Ops
 }
 
 #[tokio::main]
@@ -36,13 +74,16 @@ async fn main() -> anyhow::Result<()> {
     println!("Instrumenting...");
     let wasm_bytes = instrument::instrument(&wasm_bytes)?;
     println!("VM running...");
-    let (_sender, handle) = spawner.start(
-        &wasm_bytes,
-        100,
-        Default::default(),
-        args.gas,
-        args.gas_per_breath,
-    ).unwrap();
+    let (_sender, handle) = spawner
+        .start(
+            &wasm_bytes,
+            1024,
+            Default::default(),
+            args.gas,
+            args.gas_per_breath,
+            simple_cache(),
+        )
+        .unwrap();
     handle.await?;
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     println!("done");

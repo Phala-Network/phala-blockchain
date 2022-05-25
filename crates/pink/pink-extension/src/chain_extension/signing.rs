@@ -54,7 +54,7 @@ macro_rules! sign {
             message: message.into(),
             key: key.into(),
         };
-        $crate::pink_extension_instance().sign(args)
+        $crate::ext().sign(args)
     }};
 }
 
@@ -82,7 +82,7 @@ macro_rules! verify {
             pubkey: pubkey.into(),
             signature: signature.into(),
         };
-        $crate::pink_extension_instance().verify(args)
+        $crate::ext().verify(args)
     }};
 }
 
@@ -102,7 +102,7 @@ macro_rules! verify {
 macro_rules! derive_sr25519_key {
     ($salt: expr) => {{
         let salt: &[u8] = $salt.as_ref();
-        $crate::pink_extension_instance().derive_sr25519_key(salt.into())
+        $crate::ext().derive_sr25519_key(salt.into())
     }};
 }
 
@@ -128,6 +128,6 @@ macro_rules! get_public_key {
             sigtype,
             key: key.into(),
         };
-        $crate::pink_extension_instance().get_public_key(args)
+        $crate::ext().get_public_key(args)
     }};
 }

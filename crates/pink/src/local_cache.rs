@@ -5,9 +5,12 @@
 
 use alloc::borrow::Cow;
 use once_cell::sync::Lazy;
+use pink_extension::CacheOp;
 use std::{collections::HashMap, sync::RwLock, time::Instant};
 
 pub use pink_extension::chain_extension::StorageQuotaExceeded;
+
+use crate::types::AccountId;
 
 pub static GLOBAL_CACHE: Lazy<RwLock<LocalCache>> = Lazy::new(Default::default);
 
@@ -149,6 +152,48 @@ impl LocalCache {
 fn now() -> u64 {
     static REF_TIME: Lazy<Instant> = Lazy::new(Instant::now);
     REF_TIME.elapsed().as_secs()
+}
+
+pub fn local_cache_op(contract: &AccountId, op: CacheOp) {
+    let mut cache = GLOBAL_CACHE.write().unwrap();
+    let contract: &[u8] = contract.as_ref();
+    match op {
+        CacheOp::Set { key, value } => {
+            let _ = cache.set(contract.into(), key.into(), value.into());
+        }
+        CacheOp::SetExpiration { key, expiration } => {
+            cache.set_expire(contract.into(), key.into(), expiration)
+        }
+        CacheOp::Remove { key } => {
+            let _ = cache.remove(contract, &key);
+        }
+    }
+}
+
+pub fn local_cache_set(
+    contract: &[u8],
+    key: &[u8],
+    value: &[u8],
+) -> Result<(), StorageQuotaExceeded> {
+    GLOBAL_CACHE
+        .write()
+        .unwrap()
+        .set(contract.into(), key.into(), value.into())
+}
+
+pub fn local_cache_get(contract: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+    GLOBAL_CACHE.read().unwrap().get(contract, key)
+}
+
+pub fn local_cache_set_expiration(contract: &[u8], key: &[u8], expiration: u64) {
+    GLOBAL_CACHE
+        .write()
+        .unwrap()
+        .set_expire(contract.into(), key.into(), expiration)
+}
+
+pub fn local_cache_remove(contract: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+    GLOBAL_CACHE.write().unwrap().remove(contract, key)
 }
 
 #[cfg(test)]

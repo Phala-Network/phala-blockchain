@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::mpsc::{error::SendError, Sender},
@@ -23,13 +23,22 @@ use crate::{
     VmId,
 };
 
+pub struct ShortId<'a>(pub &'a [u8]);
+
+impl fmt::Display for ShortId<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        hex_fmt::HexFmt(&self.0[..len.min(6)]).fmt(f)
+    }
+}
+
 // Let the compiler check IntPtr is 32bit sized.
 fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &Store) -> (Env, ImportObject) {
-    let env = Env::new(id);
+pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
+    let env = Env::new(id, cache_ops);
     (
         env.clone(),
         imports! {
@@ -83,6 +92,15 @@ impl TaskSet {
     }
 }
 
+pub trait CacheOps {
+    fn get(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
+    fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> Result<()>;
+    fn set_expiration(&self, contract: &[u8], key: &[u8], expire_after_secs: u64) -> Result<()>;
+    fn remove(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
+}
+
+pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
+
 struct State {
     id: VmId,
     // Total gas remain
@@ -95,12 +113,7 @@ struct State {
     message_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
-}
-
-impl State {
-    fn short_id(&self) -> hex_fmt::HexFmt<&[u8]> {
-        hex_fmt::HexFmt(&self.id[..4])
-    }
+    cache_ops: DynCacheOps,
 }
 
 struct VmMemory(Option<Memory>);
@@ -116,7 +129,7 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(id: VmId) -> Self {
+    fn new(id: VmId, cache_ops: DynCacheOps) -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
         let mut resources = ResourceKeeper::default();
         let _ = resources.push(Resource::ChannelRx(message_rx));
@@ -133,6 +146,7 @@ impl Env {
                     message_tx,
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
+                    cache_ops,
                 },
             })),
         }
@@ -299,9 +313,25 @@ impl env::OcallFuncs for State {
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
         let task = self.current_task;
-        let vm_id = self.short_id();
-        log::log!(target: "sidevm", level, "[vm:{vm_id:<8}][{task:<3}] {message}");
+        let vm_id = ShortId(&self.id);
+        log::log!(target: "sidevm", level, "[{vm_id}][tid={task:<3}] {message}");
         Ok(())
+    }
+
+    fn local_cache_get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        self.cache_ops.get(&self.id[..], key)
+    }
+
+    fn local_cache_set(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+        self.cache_ops.set(&self.id[..], key, value)
+    }
+
+    fn local_cache_set_expiration(&mut self, key: &[u8], expire_after_secs: u64) -> Result<()> {
+        self.cache_ops.set_expiration(&self.id[..], key, expire_after_secs)
+    }
+
+    fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        self.cache_ops.remove(&self.id[..], key)
     }
 }
 
@@ -323,10 +353,10 @@ fn sidevm_ocall_fast_return(
     });
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = env.state.short_id();
+        let vm_id = ShortId(&env.state.id);
         log::trace!(
             target: "sidevm",
-            "[vm:{vm_id:<8}][{task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
     result.encode_ret()
@@ -351,10 +381,10 @@ fn sidevm_ocall(
     });
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = env.state.short_id();
+        let vm_id = ShortId(&env.state.id);
         log::trace!(
             target: "sidevm",
-            "[vm:{vm_id:<8}][{task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
     result.encode_ret()
