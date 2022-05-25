@@ -221,6 +221,7 @@ pub mod pallet {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
+			shares: BalanceOf<T>,
 		},
 		/// Some stake was withdrawn from a pool
 		///
@@ -235,6 +236,7 @@ pub mod pallet {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
+			shares: BalanceOf<T>,
 		},
 		/// Pending rewards were withdrawn by a user
 		///
@@ -327,6 +329,12 @@ pub mod pallet {
 		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
 		/// A worker is reclaimed from the pool
 		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
+		/// The amount of reward that distributed to owner and stakers
+		RewardReceived {
+			pid: u64,
+			to_owner: BalanceOf<T>,
+			to_stakers: BalanceOf<T>,
+		},
 	}
 
 	#[pallet::error]
@@ -841,7 +849,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-			// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.owner == who,
@@ -882,7 +890,7 @@ pub mod pallet {
 					reward_debt: Zero::zero(),
 				},
 			};
-			pool_info.add_stake(&mut user_info, a);
+			let shares = pool_info.add_stake(&mut user_info, a);
 
 			// Persist
 			PoolStakers::<T>::insert(&info_key, &user_info);
@@ -906,6 +914,7 @@ pub mod pallet {
 				pid,
 				user: who,
 				amount: a,
+				shares,
 			});
 			Ok(())
 		}
@@ -1130,13 +1139,23 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
-				let to_distribute = rewards - commission;
+				let mut to_distribute = rewards - commission;
 				if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
 				} else if to_distribute > Zero::zero() {
 					Self::deposit_event(Event::<T>::RewardDismissedDust {
 						pid: pool_info.pid,
 						amount: to_distribute,
+					});
+				}
+				if !is_nondust_balance(to_distribute) {
+					to_distribute = Zero::zero();
+				}
+				if to_distribute > Zero::zero() && commission > Zero::zero() {
+					Self::deposit_event(Event::<T>::RewardReceived {
+						pid: pool_info.pid,
+						to_owner: commission,
+						to_stakers: to_distribute,
 					});
 				}
 			}
@@ -1210,7 +1229,7 @@ pub mod pallet {
 				Self::maybe_settle_slash(pool_info, user_info);
 				// Overflow warning: remove_stake is carefully written to avoid precision error.
 				// (I hope so)
-				let (reduced, dust) = pool_info
+				let (reduced, dust, actural_withdrawing_shares) = pool_info
 					.remove_stake(user_info, withdrawing_shares)
 					.expect("There are enough withdrawing_shares; qed.");
 				Self::ledger_reduce(&user_info.user, reduced, dust);
@@ -1218,6 +1237,7 @@ pub mod pallet {
 					pid: pool_info.pid,
 					user: user_info.user.clone(),
 					amount: reduced,
+					shares: actural_withdrawing_shares,
 				});
 			}
 			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
@@ -1286,7 +1306,7 @@ pub mod pallet {
 					// Actually remove the fulfilled withdraw request. Dust in the user shares is
 					// considered but it in the request is ignored.
 					Self::maybe_settle_slash(pool_info, &mut user_info);
-					let (reduced, dust) = pool_info
+					let (reduced, dust, actural_withdrawing_shares) = pool_info
 						.remove_stake(&mut user_info, withdrawing_shares)
 						.expect("Remove only what we have; qed.");
 					let (shares, _) = extract_dust(withdraw.shares - withdrawing_shares);
@@ -1297,6 +1317,7 @@ pub mod pallet {
 						pid: pool_info.pid,
 						user: user_info.user.clone(),
 						amount: reduced,
+						shares: actural_withdrawing_shares,
 					});
 					// Update the pending reward after changing the staked amount
 					pool_info.reset_pending_reward(&mut user_info);
@@ -1619,7 +1640,11 @@ pub mod pallet {
 		/// No dirty slash allowed. Usually it doesn't change the price of the share, unless the
 		/// share price is zero (all slashed), which is a really a disrupting case that we don't
 		/// even bother to deal with.
-		fn add_stake(&mut self, user: &mut UserStakeInfo<AccountId, Balance>, amount: Balance) {
+		fn add_stake(
+			&mut self,
+			user: &mut UserStakeInfo<AccountId, Balance>,
+			amount: Balance,
+		) -> Balance {
 			debug_assert!(is_nondust_balance(amount));
 			self.assert_slash_clean(user);
 			self.assert_reward_clean(user);
@@ -1636,6 +1661,7 @@ pub mod pallet {
 			self.total_shares += shares;
 			self.total_stake.saturating_accrue(amount);
 			self.free_stake.saturating_accrue(amount);
+			shares
 		}
 
 		/// Removes some shares from a user and returns the removed stake amount.
@@ -1653,7 +1679,7 @@ pub mod pallet {
 			&mut self,
 			user: &mut UserStakeInfo<AccountId, Balance>,
 			shares: Balance,
-		) -> Option<(Balance, Balance)> {
+		) -> Option<(Balance, Balance, Balance)> {
 			debug_assert!(is_nondust_balance(shares));
 			self.assert_slash_clean(user);
 			self.assert_reward_clean(user);
@@ -1679,7 +1705,8 @@ pub mod pallet {
 			// Whenver we remove dust shares in user's account, we remove it in the total_shares
 			// as well. It keeps the invariant:
 			//   pool.total_shares == sum(pool_user.shares)
-			let total_shares = self.total_shares.checked_sub(&(shares + shares_dust))?;
+			let removed_shares = shares + shares_dust;
+			let total_shares = self.total_shares.checked_sub(&(removed_shares))?;
 			debug_assert!(
 				extract_dust(total_shares).1 == Zero::zero(),
 				"total_shares should never have dust"
@@ -1709,7 +1736,7 @@ pub mod pallet {
 			user.shares = user_shares;
 			user.locked = user_locked;
 			self.reset_pending_reward(user);
-			Some((amount, user_dust))
+			Some((amount, user_dust, removed_shares))
 		}
 
 		/// Slashes the pool with dust removed.
@@ -2493,7 +2520,8 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::Withdrawal {
 							pid: 0,
 							user: 1,
-							amount: 25000000000000
+							amount: 25000000000000,
+							shares: staker1.shares
 						}),
 						// Account2: ~100 PHA remaining
 						TestEvent::Balances(pallet_balances::Event::Slashed {
@@ -2508,7 +2536,8 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::Withdrawal {
 							pid: 0,
 							user: 2,
-							amount: 100000000000000
+							amount: 100000000000000,
+							shares: staker2.shares
 						}),
 						// Account1: ~125 PHA remaining
 						TestEvent::Balances(pallet_balances::Event::Slashed {
@@ -2523,7 +2552,8 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::Withdrawal {
 							pid: 0,
 							user: 3,
-							amount: 125000000000000
+							amount: 125000000000000,
+							shares: staker3.shares
 						})
 					]
 				);
@@ -2865,7 +2895,8 @@ pub mod pallet {
 					[TestEvent::PhalaStakePool(Event::Withdrawal {
 						pid: 0,
 						user: 1,
-						amount: 400 * DOLLARS
+						amount: 400 * DOLLARS,
+						shares: 400 * DOLLARS
 					})]
 				);
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
@@ -2909,7 +2940,7 @@ pub mod pallet {
 					vec![TestEvent::PhalaStakePool(Event::RewardDismissedDust {
 						pid: 0,
 						amount: 99
-					})]
+					}),]
 				);
 			});
 		}
@@ -3078,12 +3109,14 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::Withdrawal {
 							pid: 0,
 							user: 2,
-							amount: 1 * DOLLARS
+							amount: 1 * DOLLARS,
+							shares: 1 * DOLLARS
 						}),
 						TestEvent::PhalaStakePool(Event::Contribution {
 							pid: 0,
 							user: 1,
-							amount: 1 * DOLLARS
+							amount: 1 * DOLLARS,
+							shares: 1 * DOLLARS
 						})
 					]
 				);
@@ -3133,7 +3166,8 @@ pub mod pallet {
 					[TestEvent::PhalaStakePool(Event::Withdrawal {
 						pid: 0,
 						user: 2,
-						amount: 100 * DOLLARS
+						amount: 100 * DOLLARS,
+						shares: 100 * DOLLARS
 					}),]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -3168,7 +3202,8 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::Withdrawal {
 							pid: 0,
 							user: 2,
-							amount: 74_250000000000
+							amount: 74_250000000000,
+							shares: 99000000000000
 						}),
 						// Staker 1 got 75% * 1 PHA back
 						TestEvent::Balances(pallet_balances::Event::Slashed {
@@ -3183,7 +3218,8 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::Withdrawal {
 							pid: 0,
 							user: 1,
-							amount: 750000000000
+							amount: 750000000000,
+							shares: 1000000000000
 						}),
 					]
 				);
