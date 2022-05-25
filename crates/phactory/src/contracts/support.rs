@@ -304,10 +304,7 @@ impl FatContract {
         Ok(())
     }
 
-    pub(crate) fn push_message_to_sidevm(
-        &self,
-        message: Vec<u8>,
-    ) -> Result<()> {
+    pub(crate) fn push_message_to_sidevm(&self, message: Vec<u8>) -> Result<()> {
         let handle = self
             .sidevm_info
             .as_ref()
@@ -374,20 +371,31 @@ fn do_start_sidevm(
     Ok(handle)
 }
 
-fn local_cache_ops() -> sidevm::CacheOps {
+fn local_cache_ops() -> sidevm::DynCacheOps {
     use ::pink::local_cache as cache;
-    sidevm::CacheOps {
-        get: |contract, key| Ok(cache::local_cache_get(contract, key)),
-        set: |contract, key, value| {
+    type OpResult<T> = Result<T, sidevm::OcallError>;
+
+    struct CacheOps;
+    impl sidevm::CacheOps for CacheOps {
+        fn get(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+            Ok(cache::local_cache_get(contract, key))
+        }
+
+        fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> OpResult<()> {
             cache::local_cache_set(contract, key, value)
                 .map_err(|_| sidevm::OcallError::ResourceLimited)
-        },
-        set_expiration: |contract, key, exp| {
-            cache::local_cache_set_expiration(contract, key, exp);
+        }
+
+        fn set_expiration(&self, contract: &[u8], key: &[u8], expire_after_secs: u64) -> OpResult<()> {
+            cache::local_cache_set_expiration(contract, key, expire_after_secs);
             Ok(())
-        },
-        remove: |contract, key| Ok(cache::local_cache_remove(contract, key)),
+        }
+
+        fn remove(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+            Ok(cache::local_cache_remove(contract, key))
+        }
     }
+    &CacheOps
 }
 
 pub use keeper::*;

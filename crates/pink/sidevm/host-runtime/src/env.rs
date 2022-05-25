@@ -37,7 +37,7 @@ fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &Store, cache_ops: CacheOps) -> (Env, ImportObject) {
+pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
     let env = Env::new(id, cache_ops);
     (
         env.clone(),
@@ -92,16 +92,14 @@ impl TaskSet {
     }
 }
 
-pub struct CacheOps {
-    /// get(contract_id: &[u8], key: &[u8])
-    pub get: fn(&[u8], &[u8]) -> Result<Option<Vec<u8>>>,
-    /// set(contract_id: &[u8], key: &[u8], value: &[u8])
-    pub set: fn(&[u8], &[u8], &[u8]) -> Result<()>,
-    /// set_expiration(contract_id: &[u8], key: &[u8], expire: u64)
-    pub set_expiration: fn(&[u8], &[u8], u64) -> Result<()>,
-    /// remove(contract_id: &[u8], key: &[u8])
-    pub remove: fn(&[u8], &[u8]) -> Result<Option<Vec<u8>>>,
+pub trait CacheOps {
+    fn get(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
+    fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> Result<()>;
+    fn set_expiration(&self, contract: &[u8], key: &[u8], expire_after_secs: u64) -> Result<()>;
+    fn remove(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
 }
+
+pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 
 struct State {
     id: VmId,
@@ -115,7 +113,7 @@ struct State {
     message_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
-    cache_ops: CacheOps,
+    cache_ops: DynCacheOps,
 }
 
 struct VmMemory(Option<Memory>);
@@ -131,7 +129,7 @@ pub struct Env {
 }
 
 impl Env {
-    fn new(id: VmId, cache_ops: CacheOps) -> Self {
+    fn new(id: VmId, cache_ops: DynCacheOps) -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
         let mut resources = ResourceKeeper::default();
         let _ = resources.push(Resource::ChannelRx(message_rx));
@@ -321,19 +319,19 @@ impl env::OcallFuncs for State {
     }
 
     fn local_cache_get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        (self.cache_ops.get)(&self.id[..], key)
+        self.cache_ops.get(&self.id[..], key)
     }
 
     fn local_cache_set(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
-        (self.cache_ops.set)(&self.id[..], key, value)
+        self.cache_ops.set(&self.id[..], key, value)
     }
 
     fn local_cache_set_expiration(&mut self, key: &[u8], expire_after_secs: u64) -> Result<()> {
-        (self.cache_ops.set_expiration)(&self.id[..], key, expire_after_secs)
+        self.cache_ops.set_expiration(&self.id[..], key, expire_after_secs)
     }
 
     fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        (self.cache_ops.remove)(&self.id[..], key)
+        self.cache_ops.remove(&self.id[..], key)
     }
 }
 

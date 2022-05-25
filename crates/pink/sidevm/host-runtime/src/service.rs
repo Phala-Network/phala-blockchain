@@ -1,6 +1,6 @@
-use crate::env::CacheOps;
-use crate::{VmId, ShortId};
+use crate::env::DynCacheOps;
 use crate::{env::GasError, run::WasmRun};
+use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ impl Spawner {
         id: VmId,
         gas: u128,
         gas_per_breath: u128,
-        cache_ops: CacheOps,
+        cache_ops: DynCacheOps,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (mut wasm_run, env) =

@@ -6,7 +6,7 @@ use wasmer::{BaseTunables, Instance, Module, NativeFunc, Pages, RuntimeError, St
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
-use crate::env::CacheOps;
+use crate::env::DynCacheOps;
 use crate::{async_context, env};
 
 pub struct WasmRun {
@@ -27,7 +27,7 @@ impl WasmRun {
         max_pages: u32,
         id: crate::VmId,
         gas_per_breath: u128,
-        cache_ops: CacheOps,
+        cache_ops: DynCacheOps,
     ) -> Result<(WasmRun, env::Env)> {
         let compiler = Singlepass::default();
         let engine = Universal::new(compiler).engine();

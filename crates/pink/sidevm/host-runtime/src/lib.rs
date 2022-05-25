@@ -5,7 +5,7 @@ mod resource;
 mod run;
 pub mod service;
 
-pub use env::{CacheOps, GasError, ShortId};
+pub use env::{CacheOps, DynCacheOps, GasError, ShortId};
 
 pub type VmId = [u8; 32];
 pub use run::WasmRun;
