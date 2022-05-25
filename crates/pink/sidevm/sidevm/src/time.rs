@@ -29,9 +29,10 @@ pub fn sleep(duration: Duration) -> Sleep {
 impl Future for Sleep {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
-        let rv = ocall::poll_read(self.id.0, &mut []);
+        let waker_id = env::tasks::intern_waker(cx.waker().clone());
+        let rv = ocall::poll_read(waker_id, self.id.0, &mut []);
         match rv {
             Ok(_) => Poll::Ready(()),
             Err(OcallError::Pending) => Poll::Pending,

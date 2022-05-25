@@ -22,7 +22,7 @@ pub use tasks::{spawn, TaskHandle};
 
 mod args_stack;
 mod ocall_def;
-mod tasks;
+pub mod tasks;
 
 cfg_if::cfg_if! {
     if #[cfg(all(not(test), any(target_pointer_width = "32", feature = "host")))] {

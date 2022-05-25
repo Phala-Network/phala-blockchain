@@ -31,9 +31,10 @@ impl Receiver {
 impl Future for RxNext<'_> {
     type Output = Option<Vec<u8>>;
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use crate::env::OcallError;
-        match ocall::poll(self.ch.res_id.0) {
+        let waker_id = crate::env::tasks::intern_waker(cx.waker().clone());
+        match ocall::poll(waker_id, self.ch.res_id.0) {
             Ok(msg) => Poll::Ready(Some(msg)),
             Err(OcallError::EndOfFile) => Poll::Ready(None), // tx dropped
             Err(OcallError::Pending) => Poll::Pending,

@@ -1,5 +1,5 @@
+use futures::stream::futures_unordered::FuturesUnordered;
 use log::info;
-use std::time::Duration;
 
 use pink_sidevm as sidevm;
 use sidevm::{logger::Logger, ocall};
@@ -8,19 +8,24 @@ use sidevm::{logger::Logger, ocall};
 async fn main() {
     Logger::with_max_level(log::Level::Trace).init();
     ocall::enable_ocall_trace(true).unwrap();
-
     info!("starting...");
+    for _ in 0..20 {
+        sidevm::spawn(async {
+            let mut futures: FuturesUnordered<_> = (0..10)
+                .map(|i| async move {
+                    sidevm::time::sleep(std::time::Duration::from_millis(i * 10)).await;
+                })
+                .collect();
 
-    let _ = sidevm::env::spawn(async {
-        for _ in 0..10 {
-            info!("Task 1 sleeping...");
-            sidevm::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
-        info!("Task 1 done");
-    });
-
-    loop {
-        info!("Timer 0 sleeping...");
-        sidevm::time::sleep(Duration::from_millis(500)).await;
+            loop {
+                info!("waiting for next future");
+                let next = futures::StreamExt::next(&mut futures).await;
+                if next.is_none() {
+                    info!("All timers finished");
+                    break;
+                }
+            }
+        });
     }
+    sidevm::time::sleep(std::time::Duration::from_secs(10)).await;
 }

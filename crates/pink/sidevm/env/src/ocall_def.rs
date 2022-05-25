@@ -10,23 +10,23 @@ pub trait OcallFuncs {
 
     /// Poll given resource by id and return a dynamic sized data.
     #[ocall(id = 102, encode_output)]
-    fn poll(resource_id: i32) -> Result<Vec<u8>>;
+    fn poll(waker_id: i32, resource_id: i32) -> Result<Vec<u8>>;
 
     /// Poll given resource to read data. Low level support for AsyncRead.
     #[ocall(id = 103)]
-    fn poll_read(resource_id: i32, data: &mut [u8]) -> Result<u32>;
+    fn poll_read(waker_id: i32, resource_id: i32, data: &mut [u8]) -> Result<u32>;
 
     /// Poll given resource to write data. Low level support for AsyncWrite.
     #[ocall(id = 104)]
-    fn poll_write(resource_id: i32, data: &[u8]) -> Result<u32>;
+    fn poll_write(waker_id: i32, resource_id: i32, data: &[u8]) -> Result<u32>;
 
     /// Shutdown a socket
     #[ocall(id = 105)]
-    fn poll_shutdown(resource_id: i32) -> Result<()>;
+    fn poll_shutdown(waker_id: i32, resource_id: i32) -> Result<()>;
 
     /// Poll given resource to generate a new resource id.
     #[ocall(id = 106)]
-    fn poll_res(resource_id: i32) -> Result<i32>;
+    fn poll_res(waker_id: i32, resource_id: i32) -> Result<i32>;
 
     /// Mark a task as ready for next polling
     #[ocall(id = 109)]
@@ -39,6 +39,10 @@ pub trait OcallFuncs {
     /// Enable logging for ocalls
     #[ocall(id = 111)]
     fn enable_ocall_trace(enable: bool) -> Result<()>;
+
+    /// Get awaked wakers
+    #[ocall(id = 112, encode_output)]
+    fn awake_wakers() -> Result<Vec<i32>>;
 
     /// Create a timer given a duration of time in milliseconds.
     #[ocall(id = 201)]
@@ -55,11 +59,11 @@ pub trait OcallFuncs {
 
     /// Accept incoming TCP connections.
     #[ocall(id = 211)]
-    fn tcp_accept(resource_id: i32) -> Result<i32>;
+    fn tcp_accept(waker_id: i32, resource_id: i32) -> Result<i32>;
 
     /// Initiate a TCP connection to a remote endpoint.
     #[ocall(id = 212)]
-    fn tcp_connect(&mut self, addr: &str) -> Result<i32>;
+    fn tcp_connect(addr: &str) -> Result<i32>;
 
     /// Print log message.
     #[ocall(id = 220)]
