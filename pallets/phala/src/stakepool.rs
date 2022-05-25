@@ -236,6 +236,20 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
+		/// Similar to event `RewardsWithdrawn` but only affected states:
+		///  - the stake related fields in [`StakePools`]
+		OwnerRewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// Similar to event `ewardsWithdrawn` but only affected states:
+		///  - the user staking account at [`PoolStakers`]
+		StakerRewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
 		/// The pool received a slash event from one of its workers (currently disabled)
 		///
 		/// The slash is accured to the pending slash accumulator.
@@ -668,12 +682,80 @@ pub mod pallet {
 				Self::handle_pool_new_reward(&mut pool_info, reward);
 				StakePools::<T>::insert(&pid, &pool_info);
 			}
+
+			Ok(())
+		}
+
+		/// Claims pool-owner's pending rewards of the sender and send to the `target`
+		///
+		/// The rewards associate to sender's "staker role" will not be claimed
+		///
+		/// Requires:
+		/// 1. The sender is a pool owner
+		#[pallet::weight(0)]
+		pub fn claim_owner_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			// Add pool owner's reward if applicable
+			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
+			let rewards = pool_info.owner_reward;
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			pool_info.owner_reward = Zero::zero();
+			StakePools::<T>::insert(pid, &pool_info);
+			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
+
+			Ok(())
+		}
+
+		/// Claims staker's pending rewards of the sender and send to the `target`
+		///
+		/// The rewards associate to sender's "owner role" will not be claimed
+		///
+		/// Requires:
+		///
+		/// 1. The sender is a staker
+		#[pallet::weight(0)]
+		pub fn claim_staker_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let pool_info = Self::ensure_pool(pid)?;
+			let info_key = (pid, who.clone());
+			let mut user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::NoRewardToClaim)?;
+			pool_info.settle_user_pending_reward(&mut user_info);
+			let rewards = user_info.available_rewards;
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			user_info.available_rewards = Zero::zero();
+			// Update ledger
+			StakePools::<T>::insert(pid, &pool_info);
+			PoolStakers::<T>::insert(&info_key, &user_info);
+			Self::deposit_event(Event::<T>::StakerRewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
+
 			Ok(())
 		}
 
 		/// Claims all the pending rewards of the sender and send to the `target`
 		///
 		/// Requires:
+		///
 		/// 1. The sender is a pool owner or staker
 		#[pallet::weight(0)]
 		pub fn claim_rewards(
@@ -967,7 +1049,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
 		fn do_stop_mining(
 			owner: &T::AccountId,
 			pid: u64,
@@ -987,7 +1068,6 @@ pub mod pallet {
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 			Ok(())
 		}
-
 		fn do_reclaim(
 			pid: u64,
 			sub_account: T::AccountId,
@@ -2463,7 +2543,60 @@ pub mod pallet {
 				assert_eq!(pool.owner_reward, 250 * DOLLARS);
 			});
 		}
-
+		#[test]
+		fn test_divided_claim_rewards() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(1000u32).to_bits(),
+					treasury: 0,
+				}]);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 500 * DOLLARS);
+				assert_ok!(PhalaStakePool::claim_owner_rewards(Origin::signed(1), 0, 1));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 0 * DOLLARS);
+				assert_ok!(PhalaStakePool::claim_staker_rewards(
+					Origin::signed(1),
+					0,
+					1
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 0 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 0 * DOLLARS);
+			});
+		}
 		#[test]
 		fn test_staker_whitelist() {
 			new_test_ext().execute_with(|| {
