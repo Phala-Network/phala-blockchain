@@ -1,4 +1,7 @@
 [package]
+description = "A logger works in sidevm guest program"
+homepage = "https://github.com/Phala-Network/phala-blockchain"
+license = "Apache-2.0"
 edition = "2021"
 name = "pink-sidevm-logger"
 version = "0.1.0"
