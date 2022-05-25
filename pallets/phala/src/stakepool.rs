@@ -356,6 +356,8 @@ pub mod pallet {
 		InvalidForceRewardAmount,
 		/// Invalid staker to contribute because origin isn't in Pool's contribution whitelist.
 		NotInContributeWhitelist,
+		/// Can not add the staker to whitelist because the staker is already in whitelist.
+		AlreadyInContributeWhitelist,
 		/// Too many stakers in contribution whitelist that exceed the limit
 		ExceedWhitelistMaxLen,
 		/// The pool hasn't have a whitelist created
@@ -566,9 +568,9 @@ pub mod pallet {
 
 			Ok(())
 		}
-		
+
 		/// Add a staker accountid to contribution whitelist.
-		/// 
+		///
 		/// Calling this method will forbide stakers contribute who isn't in the whitelist.
 		/// The caller must be the owner of the pool.
 		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
@@ -583,25 +585,28 @@ pub mod pallet {
 			let mut pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
-				if !whitelist.contains(&staker) {
-					ensure!(
-						(whitelist.len() as u32) < MAX_WHITELIST_LEN,
-						Error::<T>::ExceedWhitelistMaxLen
-					);
-					whitelist.push(staker.clone());
-					PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
-				}
+				ensure!(
+					!whitelist.contains(&staker),
+					Error::<T>::AlreadyInContributeWhitelist
+				);
+				ensure!(
+					(whitelist.len() as u32) < MAX_WHITELIST_LEN,
+					Error::<T>::ExceedWhitelistMaxLen
+				);
+				whitelist.push(staker.clone());
+				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
 			} else {
 				let new_list = vec![staker.clone()];
 				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
 				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
 			}
 			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
+
 			Ok(())
 		}
 
 		/// Remove a staker accountid to contribution whitelist.
-		/// 
+		///
 		/// The caller must be the owner of the pool.
 		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
 		#[pallet::weight(0)]
@@ -613,24 +618,26 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
-			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
-				if whitelist.contains(&staker) {
-					whitelist.retain(|accountid| accountid != &staker);
-					if whitelist.is_empty() {
-						PoolContributionWhitelists::<T>::remove(&pid);
-						Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
-							pid,
-							staker: staker.clone(),
-						});
-						Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
-					} else {
-						PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
-						Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
-							pid,
-							staker: staker.clone(),
-						});
-					}
-				}
+			let mut whitelist =
+				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
+			ensure!(
+				whitelist.contains(&staker),
+				Error::<T>::NotInContributeWhitelist
+			);
+			whitelist.retain(|accountid| accountid != &staker);
+			if whitelist.is_empty() {
+				PoolContributionWhitelists::<T>::remove(&pid);
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+					pid,
+					staker: staker.clone(),
+				});
+				Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
+			} else {
+				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+					pid,
+					staker: staker.clone(),
+				});
 			}
 
 			Ok(())
@@ -960,6 +967,7 @@ pub mod pallet {
 
 			Ok(())
 		}
+
 		fn do_stop_mining(
 			owner: &T::AccountId,
 			pid: u64,
@@ -979,6 +987,7 @@ pub mod pallet {
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 			Ok(())
 		}
+
 		fn do_reclaim(
 			pid: u64,
 			sub_account: T::AccountId,
