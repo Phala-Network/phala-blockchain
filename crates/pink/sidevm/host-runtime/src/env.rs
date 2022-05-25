@@ -93,9 +93,13 @@ impl TaskSet {
 }
 
 pub struct CacheOps {
+    /// get(contract_id: &[u8], key: &[u8])
     pub get: fn(&[u8], &[u8]) -> Result<Option<Vec<u8>>>,
+    /// set(contract_id: &[u8], key: &[u8], value: &[u8])
     pub set: fn(&[u8], &[u8], &[u8]) -> Result<()>,
+    /// set_expiration(contract_id: &[u8], key: &[u8], expire: u64)
     pub set_expiration: fn(&[u8], &[u8], u64) -> Result<()>,
+    /// remove(contract_id: &[u8], key: &[u8])
     pub remove: fn(&[u8], &[u8]) -> Result<Option<Vec<u8>>>,
 }
 

@@ -326,7 +326,14 @@ impl PinkExtBackend for CallInCommand {
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
+    fn cache_set_expire(&self, key: Cow<[u8]>, expiration: u64) -> Result<(), Self::Error> {
+        deposit_pink_event(
+            self.as_in_query.address.clone(),
+            PinkEvent::CacheOp(CacheOp::SetExpiration {
+                key: key.into_owned(),
+                expiration,
+            }),
+        );
         Ok(())
     }
 
@@ -334,7 +341,13 @@ impl PinkExtBackend for CallInCommand {
         Ok(None)
     }
 
-    fn cache_remove(&self, _args: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn cache_remove(&self, key: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        deposit_pink_event(
+            self.as_in_query.address.clone(),
+            PinkEvent::CacheOp(CacheOp::Remove {
+                key: key.into_owned(),
+            }),
+        );
         Ok(None)
     }
 }
