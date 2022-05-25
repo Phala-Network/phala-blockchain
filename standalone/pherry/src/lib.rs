@@ -978,9 +978,8 @@ async fn bridge(
         }
         // try bind worker endpoint
         if !args.no_bind {
-            if try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await.is_ok() {
-                flags.endpoint_registered = true;
-            };
+            try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await?;
+            flags.endpoint_registered = true;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1099,9 +1098,8 @@ async fn bridge(
 
             if !args.no_bind {
                 if !flags.endpoint_registered {
-                    if try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await.is_ok() {
-                        flags.endpoint_registered = true;
-                    };
+                    try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await?;
+                    flags.endpoint_registered = true;
                 }
             }
 

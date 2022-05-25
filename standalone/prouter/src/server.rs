@@ -6,16 +6,19 @@ use rocket::http::Method;
 use rocket_contrib::json::Json;
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use std::io::Read;
-use std::sync::{Arc, Mutex};
 
 use phala_types::EndpointType;
 
-use crate::{Args, translator};
+use crate::{translator};
 use crate::types;
 
 use rocket::post;
 
-use phaxt::ParachainApi;
+struct PRouterState {
+    local_proxy: String,
+    para_api: super::SharedParachainApi,
+}
+
 
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
@@ -73,8 +76,7 @@ fn send_data(
 // by posting to this endpoint, data will be routed to the target endpoint
 #[post("/json/send_data", format = "json", data = "<prouter_send_json>")]
 fn json_send_data(
-    local_proxy: rocket::State<String>,
-    para_api_arc: rocket::State<Arc<Mutex<Option<ParachainApi>>>>,
+    prouter_state: rocket::State<PRouterState>,
     prouter_send_json: Json<types::PRouterSendJsonRequest>,
 ) -> Json<types::PRouterSendJsonResponse> {
     debug!("{:?}", &prouter_send_json);
@@ -84,7 +86,8 @@ fn json_send_data(
         msg: Default::default(),
     };
 
-    let para_api = para_api_arc.lock().unwrap();
+    let para_api = prouter_state.para_api.lock().unwrap();
+    // TODO(soptq): Query storage from the chain RPC might be slow sometime, which might impact the performance of our i2p data transfer speed.
     match translator::block_get_endpoint_info_by_pubkey(
         &mut para_api.as_ref().expect("guaranteed to be initialized"),
         prouter_send_data.target_pubkey,
@@ -98,7 +101,7 @@ fn json_send_data(
                 &prouter_send_data.path,
                 &prouter_send_data.method,
                 &prouter_send_data.data,
-                &local_proxy,
+                &prouter_state.local_proxy,
             ) {
                 Ok(msg) => {
                     response.msg = msg;
@@ -120,20 +123,23 @@ fn json_send_data(
 
 pub fn rocket(
     local_proxy: String,
-    para_api: Arc<Mutex<Option<ParachainApi>>>,
+    para_api: super::SharedParachainApi,
     server_address: String,
     server_port: u16,
 ) -> rocket::Rocket {
     let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
         .address(server_address)
-        .port(server_port.clone())
-        .workers(1)
+        .port(server_port)
         .limits(Limits::new().limit("json", 104857600))
         .expect("Config should be build with no erros");
 
+    let prouter_state = PRouterState {
+        local_proxy,
+        para_api
+    };
+
     let server = rocket::custom(cfg)
-        .manage(local_proxy)
-        .manage(para_api)
+        .manage(prouter_state)
         .mount("/", rocket::routes!(json_send_data));
     info!("Allow CORS");
     server

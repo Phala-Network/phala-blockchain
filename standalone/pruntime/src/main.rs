@@ -1,5 +1,4 @@
 #![feature(decl_macro)]
-#![feature(async_closure)]
 
 mod api_server;
 mod pal_gramine;
@@ -160,9 +159,8 @@ async fn main() {
         servers.push(server_acl);
     }
 
-    let args_clone = args.clone();
     let server_internal = rocket::tokio::spawn(async move {
-        api_server::rocket(&args_clone)
+        api_server::rocket(&args)
             .launch()
             .await
             .expect("Failed to launch API server");

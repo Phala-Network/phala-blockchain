@@ -1,7 +1,5 @@
 #![feature(decl_macro)]
 
-use lazy_static::lazy_static;
-
 mod config;
 mod i2pd;
 mod server;
@@ -34,6 +32,8 @@ use phactory_api::pruntime_client;
 use phaxt::rpc::ExtraRpcExt;
 
 use phala_types::EndpointType;
+
+pub type SharedParachainApi = Arc<Mutex<Option<ParachainApi>>>;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "prouter")]
@@ -148,11 +148,6 @@ fn preprocess_path(path_str: &String) -> Result<PathBuf> {
         .expect("Any path should always be able to converted into a absolute path");
 
     Ok(absolute_path)
-}
-
-// static API references for multi thread accessing in rocket server
-lazy_static! {
-    static ref PARA_API: Arc<Mutex<Option<ParachainApi>>> = Arc::new(Mutex::new(None));
 }
 
 async fn display_prouter_info(i2pd: &I2pd) -> Result<()> {
@@ -350,12 +345,12 @@ pub async fn prouter_daemon(args: &Args, i2pd: &I2pd) -> Result<()> {
     Ok(())
 }
 
-pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
+pub async fn prouter_main(args: &Args, para_api: SharedParachainApi) -> Result<(String, I2pd)> {
     let mut i2pd = I2pd::new("PRouter".parse()?);
     let mut local_proxy: String = Default::default();
     {
         let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
-        let mut para_api = PARA_API.lock().unwrap();
+        let mut para_api = para_api.lock().unwrap();
         let endpoint: Vec<u8>;
         let mut no_bind: bool = false;
 
@@ -492,14 +487,14 @@ async fn main() {
 
     let args = Args::from_args();
     check_args(&args).expect("Args should be valid");
-    let para_api = Arc::clone(&*PARA_API);
-    let (local_proxy, i2pd) = prouter_main(&args).await.expect("prouter_main should be ok");
+    let para_api: SharedParachainApi = Arc::new(Mutex::new(None));
+    let (local_proxy, i2pd) = prouter_main(&args, para_api.clone()).await.expect("prouter_main should be ok");
     let server_address = args.server_address.clone();
     let server_port = args.server_port.clone();
     let _rocket = thread::Builder::new()
         .name("rocket".into())
         .spawn(move || {
-            server::rocket(local_proxy, para_api, server_address, server_port).launch();
+            server::rocket(local_proxy, para_api.clone(), server_address, server_port).launch();
         })
         .expect("Failed to launch Rocket");
     match prouter_daemon(&args, &i2pd).await {

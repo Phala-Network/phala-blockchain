@@ -27,11 +27,11 @@ impl SU3File {
         Ok(SU3File {
             signer_id: signer_id.to_string(),
             signer_id_length: signer_id.chars().count() as u8,
-            signature_type: 6, // 0x0006
+            signature_type: 0x0006,
             signature_length: 512,
-            version_length: 16, // 0x10
-            file_type: 0,       // 0x00
-            content_type: 3,    // 0x03
+            version_length: 0x10,
+            file_type: 0x00,
+            content_type: 0x03,
             content: Vec::<u8>::new(),
             content_length: 0,
             version: SystemTime::now()
