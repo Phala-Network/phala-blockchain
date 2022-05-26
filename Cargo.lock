@@ -7730,6 +7730,7 @@ dependencies = [
 name = "pink-sidevm"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "hyper",
  "log",
  "pink-sidevm-env",
