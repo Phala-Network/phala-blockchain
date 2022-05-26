@@ -16,6 +16,9 @@ pub struct Args {
     /// The gas limit for each poll.
     #[clap(long, default_value_t = 1000_000_000_000_u128)]
     gas_per_breath: u128,
+    /// Don't instrument the program.
+    #[clap(long)]
+    no_instrument: bool,
     /// The WASM program to run
     program: String,
 }
@@ -70,9 +73,11 @@ async fn main() -> anyhow::Result<()> {
     });
 
     println!("Reading {}...", args.program);
-    let wasm_bytes = std::fs::read(&args.program)?;
-    println!("Instrumenting...");
-    let wasm_bytes = instrument::instrument(&wasm_bytes)?;
+    let mut wasm_bytes = std::fs::read(&args.program)?;
+    if !args.no_instrument {
+        println!("Instrumenting...");
+        wasm_bytes = instrument::instrument(&wasm_bytes)?;
+    }
     println!("VM running...");
     let (_sender, handle) = spawner
         .start(

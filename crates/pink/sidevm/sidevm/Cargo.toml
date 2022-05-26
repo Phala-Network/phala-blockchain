@@ -7,14 +7,15 @@ name = "pink-sidevm"
 version = "0.1.1"
 
 [dependencies]
-pink-sidevm-env = {version = "0.1.1", path = "../env"}
-pink-sidevm-logger = {version = "0.1.0", path = "../logger"}
-pink-sidevm-macro = {version = "0.1.0", path = "../macro"}
+pink-sidevm-env = { version = "0.1.1", path = "../env" }
+pink-sidevm-logger = { version = "0.1.0", path = "../logger" }
+pink-sidevm-macro = { version = "0.1.0", path = "../macro" }
 log = "0.4.16"
+derive_more = "0.99"
 
-hyper = {version = "0.14.18", features = ["server"], optional = true}
-tokio = {version = "1", optional = true}
-futures = {version = "0.3", optional = true}
+hyper = { version = "0.14.18", features = ["server"], optional = true }
+tokio = { version = "1", optional = true }
+futures = "0.3"
 
 [features]
-default = ["hyper", "tokio", "futures"]
+default = ["hyper", "tokio"]

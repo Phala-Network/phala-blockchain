@@ -167,7 +167,6 @@ mod impl_tokio {
     }
 }
 
-#[cfg(feature = "futures")]
 mod impl_futures_io {
     use super::*;
     use futures::io::{AsyncRead, AsyncWrite};
