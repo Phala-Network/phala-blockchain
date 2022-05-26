@@ -28,8 +28,8 @@ pub struct InitArgs {
     /// Checkpoint interval in seconds
     pub checkpoint_interval: u64,
 
-    /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
-    pub skip_corrupted_checkpoint: bool,
+    /// Remove corrupted checkpoint.
+    pub remove_corrupted_checkpoint: bool,
 
     /// Run the database garbage collection at given interval in blocks
     #[cfg_attr(feature = "serde", serde(default))]

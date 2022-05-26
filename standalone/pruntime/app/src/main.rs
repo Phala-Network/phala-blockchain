@@ -86,9 +86,9 @@ struct Args {
     #[structopt(default_value = "300")]
     checkpoint_interval: u64,
 
-    /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
+    /// Remove corrupted checkpoint.
     #[structopt(long)]
-    skip_corrupted_checkpoint: bool,
+    remove_corrupted_checkpoint: bool,
 
     /// Measuring the time it takes to process each RPC call.
     #[structopt(long)]
@@ -656,7 +656,7 @@ async fn main() {
         geoip_city_db: args.geoip_city_db,
         enable_checkpoint: !args.disable_checkpoint,
         checkpoint_interval: args.checkpoint_interval,
-        skip_corrupted_checkpoint: args.skip_corrupted_checkpoint,
+        remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
         gc_interval: args.gc_interval,
     };
     info!("init_args: {:#?}", init_args);

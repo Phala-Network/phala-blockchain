@@ -331,6 +331,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
+        remove_corrupted: bool,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Ok(data) => data,
@@ -351,20 +352,36 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if tmpfile.is_symlink() || tmpfile.exists() {
             std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
         }
+        fn remove_file(file: &(impl AsRef<std::path::Path> + std::fmt::Debug)) {
+            if let Err(err) = std::fs::remove_file(file) {
+                warn!("Failed to remove file {:?}: {:?}", file, err);
+            }
+        }
         std::os::unix::fs::symlink(&checkpoint_file, &tmpfile)?;
         scopeguard::defer! {
-            let _ = std::fs::remove_file(&tmpfile);
+            remove_file(&tmpfile);
         }
 
         let file = match platform.open_protected_file(&tmpfile, &runtime_data.sk) {
             Ok(Some(file)) => file,
             Ok(None) => return Ok(None),
             Err(err) => {
+                if remove_corrupted {
+                    remove_file(&checkpoint_file);
+                }
                 return Err(anyhow!("Failed to open checkpoint file: {:?}", err));
             }
         };
 
-        let loader: PhactoryLoader<_> = serde_cbor::de::from_reader(file)?;
+        let loader: PhactoryLoader<_> = match serde_cbor::de::from_reader(file) {
+            Ok(loader) => loader,
+            Err(err) => {
+                if remove_corrupted {
+                    remove_file(&checkpoint_file);
+                }
+                return Err(anyhow!("Failed to load checkpoint file: {:?}", err));
+            }
+        };
         Ok(Some(loader.0))
     }
 
