@@ -18,7 +18,7 @@ use tinyvec::TinyVec;
 pub use args_stack::RetEncode;
 pub use ocall_def::*;
 pub use pink_sidevm_macro::main;
-pub use tasks::{spawn, TaskHandle};
+pub use tasks::spawn;
 
 mod args_stack;
 mod ocall_def;
