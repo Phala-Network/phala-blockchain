@@ -145,7 +145,7 @@ async fn prpc_proxy_acl(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
     let permitted_method: [&str; 1] = ["contract_query"];
     if !permitted_method.contains(&&method[..]) {
         error!("prpc_acl: access denied");
-        return Custom(Status::ServiceUnavailable, vec![]);
+        return Custom(Status::Forbidden, vec![]);
     }
 
     prpc_proxy(method, data).await
