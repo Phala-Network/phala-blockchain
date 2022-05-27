@@ -9,7 +9,7 @@ use std::io::Read;
 
 use phala_types::EndpointType;
 
-use crate::{translator};
+use crate::translator;
 use crate::types;
 
 use rocket::post;
@@ -18,7 +18,6 @@ struct PRouterState {
     local_proxy: String,
     para_api: super::SharedParachainApi,
 }
-
 
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
@@ -61,7 +60,9 @@ fn send_data(
 
     let mut res = match method {
         types::PRouterRequestMethod::GET => client.get(target_endpoint_url).send()?,
-        types::PRouterRequestMethod::POST => client.post(target_endpoint_url).body(data.clone()).send()?,
+        types::PRouterRequestMethod::POST => {
+            client.post(target_endpoint_url).body(data.clone()).send()?
+        }
     };
 
     if res.status().is_success() {
@@ -135,7 +136,7 @@ pub fn rocket(
 
     let prouter_state = PRouterState {
         local_proxy,
-        para_api
+        para_api,
     };
 
     let server = rocket::custom(cfg)

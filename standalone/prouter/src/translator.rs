@@ -1,13 +1,15 @@
 use phaxt::ParachainApi;
 
 use phaxt::khala::runtime_types::phala_types::{
-    VersionedWorkerEndpoint,
-    worker_endpoint_v1::WorkerEndpoint,
+    worker_endpoint_v1::WorkerEndpoint, VersionedWorkerEndpoint,
 };
 
 use phala_types::EndpointType;
 
-pub async fn get_endpoint_info_by_pubkey(api: &mut &ParachainApi, pubkey: [u8; 32]) -> Option<(EndpointType, Vec<u8>)> {
+pub async fn get_endpoint_info_by_pubkey(
+    api: &mut &ParachainApi,
+    pubkey: [u8; 32],
+) -> Option<(EndpointType, Vec<u8>)> {
     let endpoint_storage_iter = &mut api
         .storage()
         .phala_registry()
@@ -35,7 +37,10 @@ pub async fn get_endpoint_info_by_pubkey(api: &mut &ParachainApi, pubkey: [u8; 3
     None
 }
 
-pub fn block_get_endpoint_info_by_pubkey(api: &mut &ParachainApi, pubkey: [u8; 32]) -> Option<(EndpointType, Vec<u8>)> {
+pub fn block_get_endpoint_info_by_pubkey(
+    api: &mut &ParachainApi,
+    pubkey: [u8; 32],
+) -> Option<(EndpointType, Vec<u8>)> {
     return match tokio::runtime::Runtime::new() {
         Ok(r) => r.block_on(get_endpoint_info_by_pubkey(api, pubkey)),
         Err(_) => None,

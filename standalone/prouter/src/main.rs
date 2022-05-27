@@ -13,17 +13,17 @@ use std::thread;
 use anyhow::{anyhow, Context, Result};
 use log::{error, info, warn};
 use std::fs;
-use std::path::{ Path, PathBuf};
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use tokio::{ select, signal };
 use tokio::time::{sleep, Duration};
+use tokio::{select, signal};
 
 use phaxt::{subxt, ParachainApi};
 
 use chrono::{DateTime, Utc};
 
-use i2pd::I2pd;
 use config::*;
+use i2pd::I2pd;
 use utils::*;
 
 use crate::prpc::phactory_api_client::PhactoryApiClient;
@@ -70,10 +70,7 @@ pub struct Args {
     #[structopt(long, help = "Specify the type of the endpoint", default_value = "i2p")]
     endpoint_type: EndpointType,
 
-    #[structopt(
-        long,
-        help = "Provide custom public endpoint. E.g. http://xxx:3333"
-    )]
+    #[structopt(long, help = "Provide custom public endpoint. E.g. http://xxx:3333")]
     endpoint: Option<String>,
 
     // PRouter Settings
@@ -95,7 +92,11 @@ pub struct Args {
     )]
     shutdown_interval: u64,
 
-    #[structopt(long, default_value = "./prouter_data", help = "Path to store pRouter data")]
+    #[structopt(
+        long,
+        default_value = "./prouter_data",
+        help = "Path to store pRouter data"
+    )]
     datadir: String,
 
     #[structopt(long, help = "Override default i2pd config file provided")]
@@ -122,16 +123,16 @@ pub struct Args {
     exposed_port: u16,
 
     #[structopt(
-    default_value = "127.0.0.1",
-    long,
-    help = "Host for the pRouter server, without `http://` prefix. Required to support http protocol"
+        default_value = "127.0.0.1",
+        long,
+        help = "Host for the pRouter server, without `http://` prefix. Required to support http protocol"
     )]
     server_address: String,
 
     #[structopt(
-    default_value = "8100",
-    long,
-    help = "Port for the pRouter server. Required to support http protocol"
+        default_value = "8100",
+        long,
+        help = "Port for the pRouter server. Required to support http protocol"
     )]
     server_port: u16,
 }
@@ -217,7 +218,13 @@ async fn display_prouter_info(i2pd: &I2pd) -> Result<()> {
 
         fn log_feature_enabled(feature: &str, enabled: bool) {
             info!(
-                "{}: {}", feature, if enabled { "Enabled 🟢" } else { "Disabled 🔴" }
+                "{}: {}",
+                feature,
+                if enabled {
+                    "Enabled 🟢"
+                } else {
+                    "Disabled 🔴"
+                }
             );
         }
 
@@ -358,10 +365,7 @@ pub async fn prouter_main(args: &Args, para_api: SharedParachainApi) -> Result<(
         if !args.no_pnode {
             let para_uri: &str = &args.substrate_ws_endpoint;
             *para_api = Some(subxt_connect(para_uri).await?.into());
-            info!(
-                "Connected to parachain node at: {}",
-                para_uri
-            );
+            info!("Connected to parachain node at: {}", para_uri);
 
             if !args.no_wait {
                 // Don't start our worker until the substrate node is synced
@@ -454,10 +458,8 @@ pub async fn prouter_main(args: &Args, para_api: SharedParachainApi) -> Result<(
         // 4. register endpoint to pRuntime
         if !no_bind {
             info!("Binding Endpoint: {}", String::from_utf8_lossy(&endpoint));
-            let init_endpoint_request = prpc::InitEndpointRequest::new(
-                args.endpoint_type.clone(),
-                endpoint.clone(),
-            );
+            let init_endpoint_request =
+                prpc::InitEndpointRequest::new(args.endpoint_type.clone(), endpoint.clone());
             pr.as_ref()
                 .expect("guaranteed to be initialized")
                 .init_endpoint(init_endpoint_request)
@@ -488,7 +490,9 @@ async fn main() {
     let args = Args::from_args();
     check_args(&args).expect("Args should be valid");
     let para_api: SharedParachainApi = Arc::new(Mutex::new(None));
-    let (local_proxy, i2pd) = prouter_main(&args, para_api.clone()).await.expect("prouter_main should be ok");
+    let (local_proxy, i2pd) = prouter_main(&args, para_api.clone())
+        .await
+        .expect("prouter_main should be ok");
     let server_address = args.server_address.clone();
     let server_port = args.server_port.clone();
     let _rocket = thread::Builder::new()

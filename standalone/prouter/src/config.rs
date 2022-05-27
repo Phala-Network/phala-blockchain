@@ -125,10 +125,16 @@ pub fn init_prouter_conf(
         }
     }
 
-    let address = conf.section(Some("httpproxy")).expect("httpproxy should exist")
-        .get("address").expect("httpproxy.address should exist");
-    let port = conf.section(Some("httpproxy")).expect("httpproxy should exist")
-        .get("port").expect("httpproxy.port should exist");
+    let address = conf
+        .section(Some("httpproxy"))
+        .expect("httpproxy should exist")
+        .get("address")
+        .expect("httpproxy.address should exist");
+    let port = conf
+        .section(Some("httpproxy"))
+        .expect("httpproxy should exist")
+        .get("port")
+        .expect("httpproxy.port should exist");
     conf.write_to_file(conf_path.clone())?;
 
     Ok((conf_path, format!("http://{}:{}", address, port)))
