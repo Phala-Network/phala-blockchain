@@ -48,6 +48,11 @@ pub struct I2pd {
     is_running: bool,
 }
 
+pub fn string_from_c_char(c_char: *const c_char) -> Result<String> {
+    let c_str = unsafe { CStr::from_ptr(c_char) };
+    Ok(c_str.to_str()?.to_owned())
+}
+
 // Here `phala_i2p_key` is the private key derived from the pRuntime private key with `PhalaI2PKey` info.
 // check `derive_phala_i2p_key()` method in `prpc_service.rs`
 pub fn generate_ident_to_file(
@@ -80,12 +85,7 @@ pub fn generate_ident_to_file(
         return Err(anyhow!("The ident returned from C is corrupted"));
     }
 
-    unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-        anyhow!(
-            "Failed to convert the value returned from C to String: {:?}",
-            e
-        )
-    })
+    string_from_c_char(buf.as_ptr())
 }
 
 fn get_client_tunnel_name_by_id(index: i32) -> Result<String> {
@@ -96,12 +96,7 @@ fn get_client_tunnel_name_by_id(index: i32) -> Result<String> {
         return Err(anyhow!("The name returned from C is corrupted"));
     }
 
-    unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-        anyhow!(
-            "Failed to convert the value returned from C to String: {:?}",
-            e
-        )
-    })
+    string_from_c_char(buf.as_ptr())
 }
 
 fn get_client_tunnel_ident_by_id(index: i32) -> Result<String> {
@@ -112,12 +107,7 @@ fn get_client_tunnel_ident_by_id(index: i32) -> Result<String> {
         return Err(anyhow!("The ident returned from C is corrupted"));
     }
 
-    unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-        anyhow!(
-            "Failed to convert the value returned from C to String: {:?}",
-            e
-        )
-    })
+    string_from_c_char(buf.as_ptr())
 }
 
 fn get_server_tunnel_name_by_id(index: i32) -> Result<String> {
@@ -128,12 +118,7 @@ fn get_server_tunnel_name_by_id(index: i32) -> Result<String> {
         return Err(anyhow!("The name returned from C is corrupted"));
     }
 
-    unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-        anyhow!(
-            "Failed to convert the value returned from C to String: {:?}",
-            e
-        )
-    })
+    string_from_c_char(buf.as_ptr())
 }
 
 fn get_server_tunnel_ident_by_id(index: i32) -> Result<String> {
@@ -144,12 +129,7 @@ fn get_server_tunnel_ident_by_id(index: i32) -> Result<String> {
         return Err(anyhow!("The ident returned from C is corrupted"));
     }
 
-    unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-        anyhow!(
-            "Failed to convert the value returned from C to String: {:?}",
-            e
-        )
-    })
+    string_from_c_char(buf.as_ptr())
 }
 
 impl I2pd {
@@ -243,12 +223,7 @@ impl I2pd {
             return Err(anyhow!("The status returned from C is corrupted"));
         }
 
-        unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-            anyhow!(
-                "Failed to convert the value returned from C to String: {:?}",
-                e
-            )
-        })
+        string_from_c_char(buf.as_ptr())
     }
 
     pub fn get_tunnel_creation_success_rate(&self) -> Result<i32> {
@@ -416,18 +391,8 @@ impl I2pd {
             return Err(anyhow!("The ident returned from C is corrupted"));
         }
 
-        let ident = match unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) } {
-            Ok(s) => s,
-            Err(e) => {
-                error!(
-                    "Failed to convert the status returned from C to String: {:?}",
-                    e
-                );
-                return Err(anyhow!(
-                    "Failed to convert the status returned from C to String"
-                ));
-            }
-        };
+        let ident = string_from_c_char(buf.as_ptr())
+            .expect("The ident returned from C is corrupted");
 
         Ok(TunnelInfo("HTTP Proxy".to_string(), ident))
     }
@@ -443,18 +408,8 @@ impl I2pd {
             return Err(anyhow!("The ident returned from C is corrupted"));
         }
 
-        let ident = match unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) } {
-            Ok(s) => s,
-            Err(e) => {
-                error!(
-                    "Failed to convert the status returned from C to String: {:?}",
-                    e
-                );
-                return Err(anyhow!(
-                    "Failed to convert the status returned from C to String"
-                ));
-            }
-        };
+        let ident = string_from_c_char(buf.as_ptr())
+            .expect("The ident returned from C is corrupted");
 
         Ok(TunnelInfo("SOCKS Proxy".to_string(), ident))
     }
@@ -504,12 +459,7 @@ impl I2pd {
             return Err(anyhow!("The info returned from C is corrupted"));
         }
 
-        unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-            anyhow!(
-                "Failed to convert the value returned from C to String: {:?}",
-                e
-            )
-        })
+        string_from_c_char(buf.as_ptr())
     }
 
     pub fn get_outbound_tunnel_formatted_info(&self, index: i32) -> Result<String> {
@@ -524,11 +474,6 @@ impl I2pd {
             return Err(anyhow!("The info returned from C is corrupted"));
         }
 
-        unsafe { String::from_utf8(std::mem::transmute(buf.to_vec())) }.map_err(|e| {
-            anyhow!(
-                "Failed to convert the value returned from C to String: {:?}",
-                e
-            )
-        })
+        string_from_c_char(buf.as_ptr())
     }
 }
