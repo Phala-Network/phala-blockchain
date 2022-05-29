@@ -44,8 +44,8 @@ impl Future for Acceptor<'_> {
 }
 
 impl TcpListener {
-    /// Listen on the specified address for incoming TCP connections.
-    pub async fn listen(addr: &str) -> Result<Self> {
+    /// Bind and listen on the specified address for incoming TCP connections.
+    pub async fn bind(addr: &str) -> Result<Self> {
         // Side notes: could be used to probe enabled interfaces and occupied ports. We may
         // consider to introduce some manifest file to further limit the capability in the future
         let todo = "prevent local interface probing and port occupation";

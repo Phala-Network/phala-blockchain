@@ -12,7 +12,7 @@ async fn main() {
 
     info!("Listening on {}", address);
 
-    let listener = sidevm::net::TcpListener::listen(address).await.unwrap();
+    let listener = sidevm::net::TcpListener::bind(address).await.unwrap();
 
     loop {
         info!("Waiting for incomming connection or message...");
