@@ -995,17 +995,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
 
     fn get_worker_key(
         &mut self,
-        request: pb::GetWorkerKeyRequest,
+        request: pb::WorkerKeyChallengeResponse,
     ) -> RpcResult<pb::GetWorkerKeyResponse> {
         let mut phactory = self.lock_phactory();
         let system = phactory.system()?;
         let my_identity_key = system.identity_key.clone();
 
         // 1. verify RA report
-        let challenge_response = request
-            .response
+        let challenge_client = request
+            .payload
             .ok_or_else(|| from_display("Challenge response not found"))?;
-        let response_hash = sp_core::hashing::blake2_256(&challenge_response.encode());
+        let payload_hash = sp_core::hashing::blake2_256(&challenge_client.encode());
         let attestation = request
             .attestation
             .ok_or_else(|| from_display("Attestation not found"))?;
@@ -1022,12 +1022,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         // malicious workers.
         let now = system.now_ms;
         let block_number = system.block_number;
-        IasValidator::validate(&attestation, &response_hash, now, false, vec![])
+        IasValidator::validate(&attestation, &payload_hash, now, false, vec![])
             .map_err(|_| from_display("Invalid RA report"))?;
         // 2. verify challenge validity to prevent replay attack
-        let challenge = challenge_response
-            .decode_challenge()
-            .map_err(from_display)?;
+        let challenge = challenge_client.decode_challenge().map_err(from_display)?;
         if !system.verify_worker_key_challenge(&challenge) {
             return Err(from_display("Invalid challenge"));
         }
@@ -1049,7 +1047,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             &my_runtime_hash.to_vec(),
         )
         .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
-        let req_runtime_hash = challenge_response.runtime_info_hash.clone();
+        let req_runtime_hash = challenge_client.runtime_info_hash.clone();
         let req_runtime_timestamp =
             chain_state::get_pruntime_timestamp(&runtime_state.chain_storage, &req_runtime_hash)
                 .ok_or_else(|| from_display("Invalid req pRuntime"))?;
@@ -1059,7 +1057,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
 
         // TODO.shelven: refactor
         // Share the key
-        let ecdh_pubkey = challenge_response
+        let ecdh_pubkey = challenge_client
             .decode_ecdh_public_key()
             .map_err(from_display)?;
         let derived_key = my_identity_key
@@ -1080,5 +1078,54 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         };
 
         Ok(pb::GetWorkerKeyResponse::new(Some(encrypted_key)))
+    }
+
+    fn handle_worker_key_challenge(
+        &mut self,
+        request: pb::WorkerKeyChallenge,
+    ) -> RpcResult<pb::WorkerKeyChallengeResponse> {
+        let mut phactory = self.lock_phactory();
+        let runtime_info = phactory
+            .runtime_info
+            .as_ref()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let runtime_info_hash = sp_core::hashing::blake2_256(&runtime_info.encoded_runtime_info);
+
+        let system = phactory.system()?;
+        let public_key = system.identity_key.public();
+        let ecdh_public_key = phala_types::EcdhPublicKey(system.ecdh_key.public());
+        let payload = pb::ChallengeClient::new(
+            request.decode_challenge().map_err(from_display)?,
+            runtime_info_hash.to_vec(),
+            public_key,
+            ecdh_public_key,
+        );
+
+        let payload_hash = sp_core::hashing::blake2_256(&payload.encode());
+        let (attn_report, sig, cert) =
+            match phactory.platform.create_attestation_report(&payload_hash) {
+                Ok(r) => r,
+                Err(e) => {
+                    let message = format!("Failed to create attestation report: {:?}", e);
+                    error!("{}", message);
+                    return Err(from_display(message));
+                }
+            };
+        let attestation = pb::Attestation {
+            version: 1,
+            provider: "SGX".to_string(),
+            payload: Some(pb::AttestationReport {
+                report: attn_report,
+                signature: base64::decode(sig).map_err(from_display)?,
+                signing_cert: base64::decode_config(cert, base64::STANDARD)
+                    .map_err(from_display)?,
+            }),
+            timestamp: now(),
+        };
+
+        Ok(pb::WorkerKeyChallengeResponse {
+            payload: Some(payload),
+            attestation: Some(attestation),
+        })
     }
 }

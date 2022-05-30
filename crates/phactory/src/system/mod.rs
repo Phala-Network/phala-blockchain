@@ -417,10 +417,10 @@ pub struct System<Platform> {
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
-    #[serde(skip)]
-    last_challenge: Option<WorkerKeyChallengePayload<chain::BlockNumber>>,
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
+    #[serde(skip)]
+    last_challenge: Option<WorkerKeyChallengePayload<chain::BlockNumber>>,
     worker_state: WorkerState,
     // Gatekeeper
     #[serde(with = "more::option_key_bytes")]
@@ -486,8 +486,8 @@ impl<Platform: pal::Platform> System<Platform> {
             cluster_key_distribution_events: recv_mq.subscribe_bound(),
             contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
-            last_challenge: None,
             ecdh_key,
+            last_challenge: None,
             worker_state: WorkerState::new(pubkey),
             master_key,
             gatekeeper: None,
