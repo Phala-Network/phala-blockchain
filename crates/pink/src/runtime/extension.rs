@@ -6,6 +6,7 @@ use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
+use pink_extension::CacheOp;
 use pink_extension::{
     chain_extension::{
         HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
@@ -28,6 +29,15 @@ use crate::local_cache::GLOBAL_CACHE;
 pub struct ExecSideEffects {
     pub pink_events: Vec<(AccountId, PinkEvent)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
+}
+
+fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
+    let topics = [pink_extension::PinkEvent::event_topic().into()];
+    let event = super::Event::Contracts(pallet_contracts::Event::ContractEmitted {
+        contract,
+        data: event.encode(),
+    });
+    super::System::deposit_event_indexed(&topics[..], event);
 }
 
 pub fn get_side_effects() -> ExecSideEffects {
@@ -75,8 +85,14 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
     {
         let mut env = env.buf_in_buf_out();
+        let address = env
+            .ext()
+            .address()
+            .as_ref()
+            .try_into()
+            .expect("Address should be valid");
         let call_in_query = CallInQuery {
-            address: env.ext().address().clone(),
+            address: AccountId::new(address),
         };
         let result = if matches!(get_call_mode(), Some(CallMode::Command)) {
             let call = CallInCommand {
@@ -103,14 +119,11 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     }
 }
 
-struct CallInQuery<AccountId> {
+struct CallInQuery {
     address: AccountId,
 }
 
-impl<AccountId> PinkExtBackend for CallInQuery<AccountId>
-where
-    AccountId: AsRef<[u8]>,
-{
+impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
         let uri = http_req::uri::Uri::try_from(request.url.as_str())
@@ -230,49 +243,50 @@ where
         key: Cow<[u8]>,
         value: Cow<[u8]>,
     ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
+        let contract: &[u8] = self.address.as_ref();
         let result = GLOBAL_CACHE
             .write()
             .unwrap()
-            .set(self.address.as_ref().into(), key, value);
+            .set(contract.into(), key, value);
         Ok(result)
     }
 
     fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
+        let contract: &[u8] = self.address.as_ref();
         GLOBAL_CACHE
             .write()
             .unwrap()
-            .set_expire(self.address.as_ref().into(), key, expire);
+            .set_expire(contract.into(), key, expire);
         Ok(())
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let contract: &[u8] = self.address.as_ref();
         let value = GLOBAL_CACHE
             .read()
             .unwrap()
-            .get(self.address.as_ref(), key.as_ref());
+            .get(contract, key.as_ref());
         Ok(value)
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let contract: &[u8] = self.address.as_ref();
         let value = GLOBAL_CACHE
             .write()
             .unwrap()
-            .remove(self.address.as_ref(), key.as_ref());
+            .remove(contract, key.as_ref());
         Ok(value)
     }
 }
 
-struct CallInCommand<AccountId> {
-    as_in_query: CallInQuery<AccountId>,
+struct CallInCommand {
+    as_in_query: CallInQuery,
 }
 
 /// This implementation is used when calling the extension in a command.
 /// # NOTE FOR IMPLEMENTORS
 /// Make sure the return values are deterministic.
-impl<AccountId> PinkExtBackend for CallInCommand<AccountId>
-where
-    AccountId: AsRef<[u8]>,
-{
+impl PinkExtBackend for CallInCommand {
     type Error = DispatchError;
 
     fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
@@ -299,13 +313,27 @@ where
 
     fn cache_set(
         &self,
-        _key: Cow<[u8]>,
-        _value: Cow<[u8]>,
+        key: Cow<[u8]>,
+        value: Cow<[u8]>,
     ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
+        deposit_pink_event(
+            self.as_in_query.address.clone(),
+            PinkEvent::CacheOp(CacheOp::Set {
+                key: key.into_owned(),
+                value: value.into_owned(),
+            }),
+        );
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
+    fn cache_set_expire(&self, key: Cow<[u8]>, expiration: u64) -> Result<(), Self::Error> {
+        deposit_pink_event(
+            self.as_in_query.address.clone(),
+            PinkEvent::CacheOp(CacheOp::SetExpiration {
+                key: key.into_owned(),
+                expiration,
+            }),
+        );
         Ok(())
     }
 
@@ -313,7 +341,13 @@ where
         Ok(None)
     }
 
-    fn cache_remove(&self, _args: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn cache_remove(&self, key: Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        deposit_pink_event(
+            self.as_in_query.address.clone(),
+            PinkEvent::CacheOp(CacheOp::Remove {
+                key: key.into_owned(),
+            }),
+        );
         Ok(None)
     }
 }

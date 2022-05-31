@@ -2,7 +2,7 @@ extern crate alloc;
 
 mod contract;
 mod export_fixtures;
-mod local_cache;
+pub mod local_cache;
 
 pub mod runtime;
 pub mod storage;

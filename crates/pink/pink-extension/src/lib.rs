@@ -11,7 +11,7 @@ use scale::{Decode, Encode};
 pub use pink_extension_macro::contract;
 
 pub mod chain_extension;
-pub use chain_extension::pink_extension_instance;
+pub use chain_extension::pink_extension_instance as ext;
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
@@ -52,6 +52,15 @@ pub enum PinkEvent {
     },
     /// Push a message to the associated sidevm instance.
     SidevmMessage(Vec<u8>),
+    /// CacheOperation
+    CacheOp(CacheOp),
+}
+
+#[derive(Encode, Decode, Debug)]
+pub enum CacheOp {
+    Set { key: Vec<u8>, value: Vec<u8> },
+    SetExpiration { key: Vec<u8>, expiration: u64 },
+    Remove { key: Vec<u8> },
 }
 
 impl Topics for PinkEvent {
