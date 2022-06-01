@@ -7,9 +7,11 @@ name = "sidevm-host"
 version = "0.1.0"
 
 [dependencies]
-pink-sidevm-host-runtime = {path = "../../host-runtime"}
-tokio = {version = "1.17.0", features = ["full"]}
+pink-sidevm-host-runtime = { path = "../../host-runtime", features = [
+    "wasmer-compiler-cranelift",
+] }
+tokio = { version = "1.17.0", features = ["full"] }
 env_logger = "0.9.0"
 anyhow = "1.0.56"
-clap = {version = "3", features = ["derive"]}
+clap = { version = "3", features = ["derive"] }
 once_cell = "1"

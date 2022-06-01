@@ -10,6 +10,7 @@ pub use pink_sidevm_macro::main;
 pub use res_id::ResourceId;
 
 pub use env::spawn;
+pub use env::tasks as task;
 
 pub mod channel;
 pub mod time;

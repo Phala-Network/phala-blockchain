@@ -1,5 +1,6 @@
 use std::{
     cell::Cell,
+    collections::VecDeque,
     fmt,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
@@ -66,25 +67,30 @@ pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, Impo
 }
 
 pub(crate) struct TaskSet {
-    tasks: dashmap::DashSet<i32>,
+    awake_tasks: dashmap::DashSet<i32>,
+    /// Guest waker ids that are ready to be woken up, or to be dropped if negative.
+    pub(crate) awake_wakers: Mutex<VecDeque<i32>>,
 }
 
 impl TaskSet {
     fn with_task0() -> Self {
-        let tasks = dashmap::DashSet::new();
-        tasks.insert(0);
-        Self { tasks }
+        let awake_tasks = dashmap::DashSet::new();
+        awake_tasks.insert(0);
+        Self {
+            awake_tasks,
+            awake_wakers: Default::default(),
+        }
     }
 
-    pub(crate) fn push(&self, task_id: i32) {
-        self.tasks.insert(task_id);
+    pub(crate) fn push_task(&self, task_id: i32) {
+        self.awake_tasks.insert(task_id);
     }
 
-    pub(crate) fn pop(&self) -> Option<i32> {
-        let item = self.tasks.iter().next().map(|task_id| *task_id);
+    pub(crate) fn pop_task(&self) -> Option<i32> {
+        let item = self.awake_tasks.iter().next().map(|task_id| *task_id);
         match item {
             Some(task_id) => {
-                self.tasks.remove(&task_id);
+                self.awake_tasks.remove(&task_id);
                 Some(task_id)
             }
             None => None,
@@ -242,34 +248,38 @@ impl env::OcallFuncs for State {
         }
     }
 
-    fn poll(&mut self, resource_id: i32) -> Result<Vec<u8>> {
-        self.resources.get_mut(resource_id)?.poll()
+    fn poll(&mut self, waker_id: i32, resource_id: i32) -> Result<Vec<u8>> {
+        self.resources.get_mut(resource_id)?.poll(waker_id)
     }
 
-    fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<u32> {
-        self.resources.get_mut(resource_id)?.poll_read(data)
+    fn poll_read(&mut self, waker_id: i32, resource_id: i32, data: &mut [u8]) -> Result<u32> {
+        self.resources
+            .get_mut(resource_id)?
+            .poll_read(waker_id, data)
     }
 
-    fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<u32> {
-        self.resources.get_mut(resource_id)?.poll_write(data)
+    fn poll_write(&mut self, waker_id: i32, resource_id: i32, data: &[u8]) -> Result<u32> {
+        self.resources
+            .get_mut(resource_id)?
+            .poll_write(waker_id, data)
     }
 
-    fn poll_shutdown(&mut self, resource_id: i32) -> Result<()> {
-        self.resources.get_mut(resource_id)?.poll_shutdown()
+    fn poll_shutdown(&mut self, waker_id: i32, resource_id: i32) -> Result<()> {
+        self.resources.get_mut(resource_id)?.poll_shutdown(waker_id)
     }
 
-    fn poll_res(&mut self, resource_id: i32) -> Result<i32> {
-        let res = self.resources.get_mut(resource_id)?.poll_res()?;
+    fn poll_res(&mut self, waker_id: i32, resource_id: i32) -> Result<i32> {
+        let res = self.resources.get_mut(resource_id)?.poll_res(waker_id)?;
         self.resources.push(res)
     }
 
     fn mark_task_ready(&mut self, task_id: i32) -> Result<()> {
-        self.awake_tasks.push(task_id);
+        self.awake_tasks.push_task(task_id);
         Ok(())
     }
 
     fn next_ready_task(&mut self) -> Result<i32> {
-        self.awake_tasks.pop().ok_or(OcallError::NotFound)
+        self.awake_tasks.pop_task().ok_or(OcallError::NotFound)
     }
 
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
@@ -291,14 +301,14 @@ impl env::OcallFuncs for State {
         self.resources.push(Resource::TcpListener(listener))
     }
 
-    fn tcp_accept(&mut self, tcp_res_id: i32) -> Result<i32> {
+    fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<i32> {
         let (stream, _remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
                 Resource::TcpListener(listener) => listener,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            match get_task_cx(|ct| listener.poll_accept(ct)) {
+            match get_task_cx(waker_id, |ct| listener.poll_accept(ct)) {
                 Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
@@ -332,6 +342,16 @@ impl env::OcallFuncs for State {
 
     fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         self.cache_ops.remove(&self.id[..], key)
+    }
+
+    fn awake_wakers(&mut self) -> Result<Vec<i32>> {
+        Ok(self
+            .awake_tasks
+            .awake_wakers
+            .lock()
+            .unwrap()
+            .drain(..)
+            .collect())
     }
 }
 

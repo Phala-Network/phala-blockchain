@@ -12,5 +12,4 @@ crate-type = ["cdylib"]
 [dependencies]
 log = "0.4.16"
 pink-sidevm = {path = "../../sidevm"}
-tokio = {version = "1", features = ["macros", "io-util"]}
 futures = "0.3"
