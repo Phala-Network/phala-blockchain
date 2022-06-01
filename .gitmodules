@@ -10,3 +10,6 @@
 [submodule "subxt"]
 	path = subxt
 	url = https://github.com/Phala-Network/substrate-subxt.git
+[submodule "crates/pink/sidevm/sidevm-emscripten"]
+	path = crates/pink/sidevm/sidevm-emscripten
+	url = https://github.com/Phala-Network/sidevm-emscripten.git
