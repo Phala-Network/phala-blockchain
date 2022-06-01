@@ -108,17 +108,17 @@ export namespace pruntime_rpc {
 
         /**
          * Calls GetRuntimeInfo.
-         * @param request Empty message or plain object
+         * @param request GetRuntimeInfoRequest message or plain object
          * @param callback Node-style callback called with the error, if any, and InitRuntimeResponse
          */
-        public getRuntimeInfo(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GetRuntimeInfoCallback): void;
+        public getRuntimeInfo(request: pruntime_rpc.IGetRuntimeInfoRequest, callback: pruntime_rpc.PhactoryAPI.GetRuntimeInfoCallback): void;
 
         /**
          * Calls GetRuntimeInfo.
-         * @param request Empty message or plain object
+         * @param request GetRuntimeInfoRequest message or plain object
          * @returns Promise
          */
-        public getRuntimeInfo(request: google.protobuf.IEmpty): Promise<pruntime_rpc.InitRuntimeResponse>;
+        public getRuntimeInfo(request: pruntime_rpc.IGetRuntimeInfoRequest): Promise<pruntime_rpc.InitRuntimeResponse>;
 
         /**
          * Calls GetEgressMessages.
@@ -161,6 +161,76 @@ export namespace pruntime_rpc {
          * @returns Promise
          */
         public getWorkerState(request: pruntime_rpc.IGetWorkerStateRequest): Promise<pruntime_rpc.WorkerState>;
+
+        /**
+         * Calls Echo.
+         * @param request EchoMessage message or plain object
+         * @param callback Node-style callback called with the error, if any, and EchoMessage
+         */
+        public echo(request: pruntime_rpc.IEchoMessage, callback: pruntime_rpc.PhactoryAPI.EchoCallback): void;
+
+        /**
+         * Calls Echo.
+         * @param request EchoMessage message or plain object
+         * @returns Promise
+         */
+        public echo(request: pruntime_rpc.IEchoMessage): Promise<pruntime_rpc.EchoMessage>;
+
+        /**
+         * Calls GetWorkerKeyChallenge.
+         * @param request Empty message or plain object
+         * @param callback Node-style callback called with the error, if any, and WorkerKeyChallenge
+         */
+        public getWorkerKeyChallenge(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GetWorkerKeyChallengeCallback): void;
+
+        /**
+         * Calls GetWorkerKeyChallenge.
+         * @param request Empty message or plain object
+         * @returns Promise
+         */
+        public getWorkerKeyChallenge(request: google.protobuf.IEmpty): Promise<pruntime_rpc.WorkerKeyChallenge>;
+
+        /**
+         * Calls GetWorkerKey.
+         * @param request WorkerKeyChallengeResponse message or plain object
+         * @param callback Node-style callback called with the error, if any, and GetWorkerKeyResponse
+         */
+        public getWorkerKey(request: pruntime_rpc.IWorkerKeyChallengeResponse, callback: pruntime_rpc.PhactoryAPI.GetWorkerKeyCallback): void;
+
+        /**
+         * Calls GetWorkerKey.
+         * @param request WorkerKeyChallengeResponse message or plain object
+         * @returns Promise
+         */
+        public getWorkerKey(request: pruntime_rpc.IWorkerKeyChallengeResponse): Promise<pruntime_rpc.GetWorkerKeyResponse>;
+
+        /**
+         * Calls HandleWorkerKeyChallenge.
+         * @param request WorkerKeyChallenge message or plain object
+         * @param callback Node-style callback called with the error, if any, and WorkerKeyChallengeResponse
+         */
+        public handleWorkerKeyChallenge(request: pruntime_rpc.IWorkerKeyChallenge, callback: pruntime_rpc.PhactoryAPI.HandleWorkerKeyChallengeCallback): void;
+
+        /**
+         * Calls HandleWorkerKeyChallenge.
+         * @param request WorkerKeyChallenge message or plain object
+         * @returns Promise
+         */
+        public handleWorkerKeyChallenge(request: pruntime_rpc.IWorkerKeyChallenge): Promise<pruntime_rpc.WorkerKeyChallengeResponse>;
+
+        /**
+         * Calls ReceiveWorkerKey.
+         * @param request GetWorkerKeyResponse message or plain object
+         * @param callback Node-style callback called with the error, if any, and BoolValue
+         */
+        public receiveWorkerKey(request: pruntime_rpc.IGetWorkerKeyResponse, callback: pruntime_rpc.PhactoryAPI.ReceiveWorkerKeyCallback): void;
+
+        /**
+         * Calls ReceiveWorkerKey.
+         * @param request GetWorkerKeyResponse message or plain object
+         * @returns Promise
+         */
+        public receiveWorkerKey(request: pruntime_rpc.IGetWorkerKeyResponse): Promise<google.protobuf.BoolValue>;
     }
 
     namespace PhactoryAPI {
@@ -234,6 +304,41 @@ export namespace pruntime_rpc {
          * @param [response] WorkerState
          */
         type GetWorkerStateCallback = (error: (Error|null), response?: pruntime_rpc.WorkerState) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#echo}.
+         * @param error Error, if any
+         * @param [response] EchoMessage
+         */
+        type EchoCallback = (error: (Error|null), response?: pruntime_rpc.EchoMessage) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getWorkerKeyChallenge}.
+         * @param error Error, if any
+         * @param [response] WorkerKeyChallenge
+         */
+        type GetWorkerKeyChallengeCallback = (error: (Error|null), response?: pruntime_rpc.WorkerKeyChallenge) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getWorkerKey}.
+         * @param error Error, if any
+         * @param [response] GetWorkerKeyResponse
+         */
+        type GetWorkerKeyCallback = (error: (Error|null), response?: pruntime_rpc.GetWorkerKeyResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#handleWorkerKeyChallenge}.
+         * @param error Error, if any
+         * @param [response] WorkerKeyChallengeResponse
+         */
+        type HandleWorkerKeyChallengeCallback = (error: (Error|null), response?: pruntime_rpc.WorkerKeyChallengeResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#receiveWorkerKey}.
+         * @param error Error, if any
+         * @param [response] BoolValue
+         */
+        type ReceiveWorkerKeyCallback = (error: (Error|null), response?: google.protobuf.BoolValue) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -277,6 +382,24 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo gatekeeper */
         gatekeeper?: (pruntime_rpc.IGatekeeperStatus|null);
+
+        /** PhactoryInfo version */
+        version?: (string|null);
+
+        /** PhactoryInfo gitRevision */
+        gitRevision?: (string|null);
+
+        /** PhactoryInfo runningSideTasks */
+        runningSideTasks?: (number|Long|null);
+
+        /** PhactoryInfo memoryUsage */
+        memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
+
+        /** PhactoryInfo numberOfClusters */
+        numberOfClusters?: (number|Long|null);
+
+        /** PhactoryInfo numberOfContracts */
+        numberOfContracts?: (number|Long|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -326,6 +449,24 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo gatekeeper. */
         public gatekeeper?: (pruntime_rpc.IGatekeeperStatus|null);
+
+        /** PhactoryInfo version. */
+        public version: string;
+
+        /** PhactoryInfo gitRevision. */
+        public gitRevision: string;
+
+        /** PhactoryInfo runningSideTasks. */
+        public runningSideTasks: (number|Long);
+
+        /** PhactoryInfo memoryUsage. */
+        public memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
+
+        /** PhactoryInfo numberOfClusters. */
+        public numberOfClusters: (number|Long);
+
+        /** PhactoryInfo numberOfContracts. */
+        public numberOfContracts: (number|Long);
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";
@@ -505,6 +646,108 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this GatekeeperStatus to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a MemoryUsage. */
+    interface IMemoryUsage {
+
+        /** MemoryUsage rustUsed */
+        rustUsed?: (number|Long|null);
+
+        /** MemoryUsage rustPeakUsed */
+        rustPeakUsed?: (number|Long|null);
+
+        /** MemoryUsage totalPeakUsed */
+        totalPeakUsed?: (number|Long|null);
+    }
+
+    /** Represents a MemoryUsage. */
+    class MemoryUsage implements IMemoryUsage {
+
+        /**
+         * Constructs a new MemoryUsage.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IMemoryUsage);
+
+        /** MemoryUsage rustUsed. */
+        public rustUsed: (number|Long);
+
+        /** MemoryUsage rustPeakUsed. */
+        public rustPeakUsed: (number|Long);
+
+        /** MemoryUsage totalPeakUsed. */
+        public totalPeakUsed: (number|Long);
+
+        /**
+         * Creates a new MemoryUsage instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns MemoryUsage instance
+         */
+        public static create(properties?: pruntime_rpc.IMemoryUsage): pruntime_rpc.MemoryUsage;
+
+        /**
+         * Encodes the specified MemoryUsage message. Does not implicitly {@link pruntime_rpc.MemoryUsage.verify|verify} messages.
+         * @param message MemoryUsage message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IMemoryUsage, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified MemoryUsage message, length delimited. Does not implicitly {@link pruntime_rpc.MemoryUsage.verify|verify} messages.
+         * @param message MemoryUsage message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IMemoryUsage, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a MemoryUsage message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns MemoryUsage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.MemoryUsage;
+
+        /**
+         * Decodes a MemoryUsage message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns MemoryUsage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.MemoryUsage;
+
+        /**
+         * Verifies a MemoryUsage message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a MemoryUsage message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns MemoryUsage
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.MemoryUsage;
+
+        /**
+         * Creates a plain object from a MemoryUsage message. Also converts values to other types if specified.
+         * @param message MemoryUsage
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.MemoryUsage, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this MemoryUsage to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
@@ -1218,6 +1461,105 @@ export namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
+    /** Properties of a GetRuntimeInfoRequest. */
+    interface IGetRuntimeInfoRequest {
+
+        /** GetRuntimeInfoRequest forceRefreshRa */
+        forceRefreshRa?: (boolean|null);
+
+        /** GetRuntimeInfoRequest encodedOperator */
+        encodedOperator?: (Uint8Array|null);
+    }
+
+    /** Represents a GetRuntimeInfoRequest. */
+    class GetRuntimeInfoRequest implements IGetRuntimeInfoRequest {
+
+        /**
+         * Constructs a new GetRuntimeInfoRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetRuntimeInfoRequest);
+
+        /** GetRuntimeInfoRequest forceRefreshRa. */
+        public forceRefreshRa: boolean;
+
+        /** GetRuntimeInfoRequest encodedOperator. */
+        public encodedOperator?: (Uint8Array|null);
+
+        /** GetRuntimeInfoRequest _encodedOperator. */
+        public _encodedOperator?: "encodedOperator";
+
+        /**
+         * Creates a new GetRuntimeInfoRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetRuntimeInfoRequest instance
+         */
+        public static create(properties?: pruntime_rpc.IGetRuntimeInfoRequest): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @param message GetRuntimeInfoRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetRuntimeInfoRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @param message GetRuntimeInfoRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetRuntimeInfoRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Verifies a GetRuntimeInfoRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetRuntimeInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetRuntimeInfoRequest
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetRuntimeInfoRequest;
+
+        /**
+         * Creates a plain object from a GetRuntimeInfoRequest message. Also converts values to other types if specified.
+         * @param message GetRuntimeInfoRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetRuntimeInfoRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetRuntimeInfoRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
     /** Properties of an InitRuntimeResponse. */
     interface IInitRuntimeResponse {
 
@@ -1734,8 +2076,8 @@ export namespace pruntime_rpc {
     /** Properties of a Signature. */
     interface ISignature {
 
-        /** Signature origin */
-        origin?: (Uint8Array|null);
+        /** Signature signedBy */
+        signedBy?: (pruntime_rpc.ICertificate|null);
 
         /** Signature signatureType */
         signatureType?: (pruntime_rpc.SignatureType|null);
@@ -1753,8 +2095,8 @@ export namespace pruntime_rpc {
          */
         constructor(properties?: pruntime_rpc.ISignature);
 
-        /** Signature origin. */
-        public origin: Uint8Array;
+        /** Signature signedBy. */
+        public signedBy?: (pruntime_rpc.ICertificate|null);
 
         /** Signature signatureType. */
         public signatureType: pruntime_rpc.SignatureType;
@@ -1833,11 +2175,110 @@ export namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
+    /** Properties of a Certificate. */
+    interface ICertificate {
+
+        /** Certificate encodedBody */
+        encodedBody?: (Uint8Array|null);
+
+        /** Certificate signature */
+        signature?: (pruntime_rpc.ISignature|null);
+    }
+
+    /** Represents a Certificate. */
+    class Certificate implements ICertificate {
+
+        /**
+         * Constructs a new Certificate.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ICertificate);
+
+        /** Certificate encodedBody. */
+        public encodedBody: Uint8Array;
+
+        /** Certificate signature. */
+        public signature?: (pruntime_rpc.ISignature|null);
+
+        /**
+         * Creates a new Certificate instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Certificate instance
+         */
+        public static create(properties?: pruntime_rpc.ICertificate): pruntime_rpc.Certificate;
+
+        /**
+         * Encodes the specified Certificate message. Does not implicitly {@link pruntime_rpc.Certificate.verify|verify} messages.
+         * @param message Certificate message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ICertificate, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Certificate message, length delimited. Does not implicitly {@link pruntime_rpc.Certificate.verify|verify} messages.
+         * @param message Certificate message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ICertificate, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Certificate message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Certificate
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.Certificate;
+
+        /**
+         * Decodes a Certificate message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Certificate
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.Certificate;
+
+        /**
+         * Verifies a Certificate message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Certificate message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Certificate
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.Certificate;
+
+        /**
+         * Creates a plain object from a Certificate message. Also converts values to other types if specified.
+         * @param message Certificate
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.Certificate, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Certificate to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
     /** SignatureType enum. */
     enum SignatureType {
         Ed25519 = 0,
         Sr25519 = 1,
-        Ecdsa = 2
+        Ecdsa = 2,
+        Ed25519WrapBytes = 3,
+        Sr25519WrapBytes = 4,
+        EcdsaWrapBytes = 5
     }
 
     /** Properties of a ContractQueryResponse. */
@@ -2049,6 +2490,9 @@ export namespace pruntime_rpc {
 
         /** WorkerState lastGkResponsiveEventAtBlock */
         lastGkResponsiveEventAtBlock?: (number|null);
+
+        /** WorkerState tokenomicInfo */
+        tokenomicInfo?: (pruntime_rpc.ITokenomicInfo|null);
     }
 
     /** Represents a WorkerState. */
@@ -2086,6 +2530,9 @@ export namespace pruntime_rpc {
 
         /** WorkerState lastGkResponsiveEventAtBlock. */
         public lastGkResponsiveEventAtBlock: number;
+
+        /** WorkerState tokenomicInfo. */
+        public tokenomicInfo?: (pruntime_rpc.ITokenomicInfo|null);
 
         /**
          * Creates a new WorkerState instance using the specified properties.
@@ -2153,6 +2600,393 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this WorkerState to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a WorkerKeyChallenge. */
+    interface IWorkerKeyChallenge {
+
+        /** WorkerKeyChallenge encodedChallenge */
+        encodedChallenge?: (Uint8Array|null);
+    }
+
+    /** Represents a WorkerKeyChallenge. */
+    class WorkerKeyChallenge implements IWorkerKeyChallenge {
+
+        /**
+         * Constructs a new WorkerKeyChallenge.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IWorkerKeyChallenge);
+
+        /** WorkerKeyChallenge encodedChallenge. */
+        public encodedChallenge: Uint8Array;
+
+        /**
+         * Creates a new WorkerKeyChallenge instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns WorkerKeyChallenge instance
+         */
+        public static create(properties?: pruntime_rpc.IWorkerKeyChallenge): pruntime_rpc.WorkerKeyChallenge;
+
+        /**
+         * Encodes the specified WorkerKeyChallenge message. Does not implicitly {@link pruntime_rpc.WorkerKeyChallenge.verify|verify} messages.
+         * @param message WorkerKeyChallenge message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IWorkerKeyChallenge, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified WorkerKeyChallenge message, length delimited. Does not implicitly {@link pruntime_rpc.WorkerKeyChallenge.verify|verify} messages.
+         * @param message WorkerKeyChallenge message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IWorkerKeyChallenge, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a WorkerKeyChallenge message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns WorkerKeyChallenge
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.WorkerKeyChallenge;
+
+        /**
+         * Decodes a WorkerKeyChallenge message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns WorkerKeyChallenge
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.WorkerKeyChallenge;
+
+        /**
+         * Verifies a WorkerKeyChallenge message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a WorkerKeyChallenge message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns WorkerKeyChallenge
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.WorkerKeyChallenge;
+
+        /**
+         * Creates a plain object from a WorkerKeyChallenge message. Also converts values to other types if specified.
+         * @param message WorkerKeyChallenge
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.WorkerKeyChallenge, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this WorkerKeyChallenge to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ChallengeClient. */
+    interface IChallengeClient {
+
+        /** ChallengeClient encodedChallenge */
+        encodedChallenge?: (Uint8Array|null);
+
+        /** ChallengeClient runtimeInfoHash */
+        runtimeInfoHash?: (Uint8Array|null);
+
+        /** ChallengeClient encodedPublicKey */
+        encodedPublicKey?: (Uint8Array|null);
+
+        /** ChallengeClient encodedEcdhPublicKey */
+        encodedEcdhPublicKey?: (Uint8Array|null);
+    }
+
+    /** Represents a ChallengeClient. */
+    class ChallengeClient implements IChallengeClient {
+
+        /**
+         * Constructs a new ChallengeClient.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IChallengeClient);
+
+        /** ChallengeClient encodedChallenge. */
+        public encodedChallenge: Uint8Array;
+
+        /** ChallengeClient runtimeInfoHash. */
+        public runtimeInfoHash: Uint8Array;
+
+        /** ChallengeClient encodedPublicKey. */
+        public encodedPublicKey: Uint8Array;
+
+        /** ChallengeClient encodedEcdhPublicKey. */
+        public encodedEcdhPublicKey: Uint8Array;
+
+        /**
+         * Creates a new ChallengeClient instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ChallengeClient instance
+         */
+        public static create(properties?: pruntime_rpc.IChallengeClient): pruntime_rpc.ChallengeClient;
+
+        /**
+         * Encodes the specified ChallengeClient message. Does not implicitly {@link pruntime_rpc.ChallengeClient.verify|verify} messages.
+         * @param message ChallengeClient message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IChallengeClient, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ChallengeClient message, length delimited. Does not implicitly {@link pruntime_rpc.ChallengeClient.verify|verify} messages.
+         * @param message ChallengeClient message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IChallengeClient, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ChallengeClient message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ChallengeClient
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ChallengeClient;
+
+        /**
+         * Decodes a ChallengeClient message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ChallengeClient
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ChallengeClient;
+
+        /**
+         * Verifies a ChallengeClient message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ChallengeClient message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ChallengeClient
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ChallengeClient;
+
+        /**
+         * Creates a plain object from a ChallengeClient message. Also converts values to other types if specified.
+         * @param message ChallengeClient
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ChallengeClient, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ChallengeClient to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a WorkerKeyChallengeResponse. */
+    interface IWorkerKeyChallengeResponse {
+
+        /** WorkerKeyChallengeResponse payload */
+        payload?: (pruntime_rpc.IChallengeClient|null);
+
+        /** WorkerKeyChallengeResponse attestation */
+        attestation?: (pruntime_rpc.IAttestation|null);
+    }
+
+    /** Represents a WorkerKeyChallengeResponse. */
+    class WorkerKeyChallengeResponse implements IWorkerKeyChallengeResponse {
+
+        /**
+         * Constructs a new WorkerKeyChallengeResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IWorkerKeyChallengeResponse);
+
+        /** WorkerKeyChallengeResponse payload. */
+        public payload?: (pruntime_rpc.IChallengeClient|null);
+
+        /** WorkerKeyChallengeResponse attestation. */
+        public attestation?: (pruntime_rpc.IAttestation|null);
+
+        /**
+         * Creates a new WorkerKeyChallengeResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns WorkerKeyChallengeResponse instance
+         */
+        public static create(properties?: pruntime_rpc.IWorkerKeyChallengeResponse): pruntime_rpc.WorkerKeyChallengeResponse;
+
+        /**
+         * Encodes the specified WorkerKeyChallengeResponse message. Does not implicitly {@link pruntime_rpc.WorkerKeyChallengeResponse.verify|verify} messages.
+         * @param message WorkerKeyChallengeResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IWorkerKeyChallengeResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified WorkerKeyChallengeResponse message, length delimited. Does not implicitly {@link pruntime_rpc.WorkerKeyChallengeResponse.verify|verify} messages.
+         * @param message WorkerKeyChallengeResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IWorkerKeyChallengeResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a WorkerKeyChallengeResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns WorkerKeyChallengeResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.WorkerKeyChallengeResponse;
+
+        /**
+         * Decodes a WorkerKeyChallengeResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns WorkerKeyChallengeResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.WorkerKeyChallengeResponse;
+
+        /**
+         * Verifies a WorkerKeyChallengeResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a WorkerKeyChallengeResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns WorkerKeyChallengeResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.WorkerKeyChallengeResponse;
+
+        /**
+         * Creates a plain object from a WorkerKeyChallengeResponse message. Also converts values to other types if specified.
+         * @param message WorkerKeyChallengeResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.WorkerKeyChallengeResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this WorkerKeyChallengeResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a GetWorkerKeyResponse. */
+    interface IGetWorkerKeyResponse {
+
+        /** GetWorkerKeyResponse encodedEncryptedKey */
+        encodedEncryptedKey?: (Uint8Array|null);
+    }
+
+    /** Represents a GetWorkerKeyResponse. */
+    class GetWorkerKeyResponse implements IGetWorkerKeyResponse {
+
+        /**
+         * Constructs a new GetWorkerKeyResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetWorkerKeyResponse);
+
+        /** GetWorkerKeyResponse encodedEncryptedKey. */
+        public encodedEncryptedKey?: (Uint8Array|null);
+
+        /** GetWorkerKeyResponse _encodedEncryptedKey. */
+        public _encodedEncryptedKey?: "encodedEncryptedKey";
+
+        /**
+         * Creates a new GetWorkerKeyResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetWorkerKeyResponse instance
+         */
+        public static create(properties?: pruntime_rpc.IGetWorkerKeyResponse): pruntime_rpc.GetWorkerKeyResponse;
+
+        /**
+         * Encodes the specified GetWorkerKeyResponse message. Does not implicitly {@link pruntime_rpc.GetWorkerKeyResponse.verify|verify} messages.
+         * @param message GetWorkerKeyResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetWorkerKeyResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetWorkerKeyResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetWorkerKeyResponse.verify|verify} messages.
+         * @param message GetWorkerKeyResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetWorkerKeyResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetWorkerKeyResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetWorkerKeyResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetWorkerKeyResponse;
+
+        /**
+         * Decodes a GetWorkerKeyResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetWorkerKeyResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetWorkerKeyResponse;
+
+        /**
+         * Verifies a GetWorkerKeyResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetWorkerKeyResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetWorkerKeyResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetWorkerKeyResponse;
+
+        /**
+         * Creates a plain object from a GetWorkerKeyResponse message. Also converts values to other types if specified.
+         * @param message GetWorkerKeyResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetWorkerKeyResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetWorkerKeyResponse to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
@@ -2362,11 +3196,299 @@ export namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
+    /** Properties of an EchoMessage. */
+    interface IEchoMessage {
+
+        /** EchoMessage echoMsg */
+        echoMsg?: (Uint8Array|null);
+    }
+
+    /** Represents an EchoMessage. */
+    class EchoMessage implements IEchoMessage {
+
+        /**
+         * Constructs a new EchoMessage.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IEchoMessage);
+
+        /** EchoMessage echoMsg. */
+        public echoMsg: Uint8Array;
+
+        /**
+         * Creates a new EchoMessage instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns EchoMessage instance
+         */
+        public static create(properties?: pruntime_rpc.IEchoMessage): pruntime_rpc.EchoMessage;
+
+        /**
+         * Encodes the specified EchoMessage message. Does not implicitly {@link pruntime_rpc.EchoMessage.verify|verify} messages.
+         * @param message EchoMessage message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IEchoMessage, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified EchoMessage message, length delimited. Does not implicitly {@link pruntime_rpc.EchoMessage.verify|verify} messages.
+         * @param message EchoMessage message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IEchoMessage, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an EchoMessage message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns EchoMessage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.EchoMessage;
+
+        /**
+         * Decodes an EchoMessage message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns EchoMessage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.EchoMessage;
+
+        /**
+         * Verifies an EchoMessage message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an EchoMessage message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns EchoMessage
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.EchoMessage;
+
+        /**
+         * Creates a plain object from an EchoMessage message. Also converts values to other types if specified.
+         * @param message EchoMessage
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.EchoMessage, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this EchoMessage to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
     /** ResponsiveEvent enum. */
     enum ResponsiveEvent {
         NoEvent = 0,
         EnterUnresponsive = 1,
         ExitUnresponsive = 2
+    }
+
+    /** Properties of a TokenomicInfo. */
+    interface ITokenomicInfo {
+
+        /** TokenomicInfo v */
+        v?: (string|null);
+
+        /** TokenomicInfo vInit */
+        vInit?: (string|null);
+
+        /** TokenomicInfo vDeductible */
+        vDeductible?: (string|null);
+
+        /** TokenomicInfo share */
+        share?: (string|null);
+
+        /** TokenomicInfo vUpdateAt */
+        vUpdateAt?: (number|Long|null);
+
+        /** TokenomicInfo vUpdateBlock */
+        vUpdateBlock?: (number|null);
+
+        /** TokenomicInfo iterationLast */
+        iterationLast?: (number|Long|null);
+
+        /** TokenomicInfo challengeTimeLast */
+        challengeTimeLast?: (number|Long|null);
+
+        /** TokenomicInfo pBench */
+        pBench?: (string|null);
+
+        /** TokenomicInfo pInstant */
+        pInstant?: (string|null);
+
+        /** TokenomicInfo confidenceLevel */
+        confidenceLevel?: (number|null);
+
+        /** TokenomicInfo lastPayout */
+        lastPayout?: (string|null);
+
+        /** TokenomicInfo lastPayoutAtBlock */
+        lastPayoutAtBlock?: (number|null);
+
+        /** TokenomicInfo totalPayout */
+        totalPayout?: (string|null);
+
+        /** TokenomicInfo totalPayoutCount */
+        totalPayoutCount?: (number|null);
+
+        /** TokenomicInfo lastSlash */
+        lastSlash?: (string|null);
+
+        /** TokenomicInfo lastSlashAtBlock */
+        lastSlashAtBlock?: (number|null);
+
+        /** TokenomicInfo totalSlash */
+        totalSlash?: (string|null);
+
+        /** TokenomicInfo totalSlashCount */
+        totalSlashCount?: (number|null);
+    }
+
+    /** Represents a TokenomicInfo. */
+    class TokenomicInfo implements ITokenomicInfo {
+
+        /**
+         * Constructs a new TokenomicInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ITokenomicInfo);
+
+        /** TokenomicInfo v. */
+        public v: string;
+
+        /** TokenomicInfo vInit. */
+        public vInit: string;
+
+        /** TokenomicInfo vDeductible. */
+        public vDeductible: string;
+
+        /** TokenomicInfo share. */
+        public share: string;
+
+        /** TokenomicInfo vUpdateAt. */
+        public vUpdateAt: (number|Long);
+
+        /** TokenomicInfo vUpdateBlock. */
+        public vUpdateBlock: number;
+
+        /** TokenomicInfo iterationLast. */
+        public iterationLast: (number|Long);
+
+        /** TokenomicInfo challengeTimeLast. */
+        public challengeTimeLast: (number|Long);
+
+        /** TokenomicInfo pBench. */
+        public pBench: string;
+
+        /** TokenomicInfo pInstant. */
+        public pInstant: string;
+
+        /** TokenomicInfo confidenceLevel. */
+        public confidenceLevel: number;
+
+        /** TokenomicInfo lastPayout. */
+        public lastPayout: string;
+
+        /** TokenomicInfo lastPayoutAtBlock. */
+        public lastPayoutAtBlock: number;
+
+        /** TokenomicInfo totalPayout. */
+        public totalPayout: string;
+
+        /** TokenomicInfo totalPayoutCount. */
+        public totalPayoutCount: number;
+
+        /** TokenomicInfo lastSlash. */
+        public lastSlash: string;
+
+        /** TokenomicInfo lastSlashAtBlock. */
+        public lastSlashAtBlock: number;
+
+        /** TokenomicInfo totalSlash. */
+        public totalSlash: string;
+
+        /** TokenomicInfo totalSlashCount. */
+        public totalSlashCount: number;
+
+        /**
+         * Creates a new TokenomicInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns TokenomicInfo instance
+         */
+        public static create(properties?: pruntime_rpc.ITokenomicInfo): pruntime_rpc.TokenomicInfo;
+
+        /**
+         * Encodes the specified TokenomicInfo message. Does not implicitly {@link pruntime_rpc.TokenomicInfo.verify|verify} messages.
+         * @param message TokenomicInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ITokenomicInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified TokenomicInfo message, length delimited. Does not implicitly {@link pruntime_rpc.TokenomicInfo.verify|verify} messages.
+         * @param message TokenomicInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ITokenomicInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a TokenomicInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns TokenomicInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.TokenomicInfo;
+
+        /**
+         * Decodes a TokenomicInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns TokenomicInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.TokenomicInfo;
+
+        /**
+         * Verifies a TokenomicInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a TokenomicInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns TokenomicInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.TokenomicInfo;
+
+        /**
+         * Creates a plain object from a TokenomicInfo message. Also converts values to other types if specified.
+         * @param message TokenomicInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.TokenomicInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this TokenomicInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
     }
 }
 
@@ -2455,6 +3577,816 @@ export namespace google {
 
             /**
              * Converts this Empty to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a DoubleValue. */
+        interface IDoubleValue {
+
+            /** DoubleValue value */
+            value?: (number|null);
+        }
+
+        /** Represents a DoubleValue. */
+        class DoubleValue implements IDoubleValue {
+
+            /**
+             * Constructs a new DoubleValue.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IDoubleValue);
+
+            /** DoubleValue value. */
+            public value: number;
+
+            /**
+             * Creates a new DoubleValue instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns DoubleValue instance
+             */
+            public static create(properties?: google.protobuf.IDoubleValue): google.protobuf.DoubleValue;
+
+            /**
+             * Encodes the specified DoubleValue message. Does not implicitly {@link google.protobuf.DoubleValue.verify|verify} messages.
+             * @param message DoubleValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IDoubleValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified DoubleValue message, length delimited. Does not implicitly {@link google.protobuf.DoubleValue.verify|verify} messages.
+             * @param message DoubleValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IDoubleValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a DoubleValue message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns DoubleValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.DoubleValue;
+
+            /**
+             * Decodes a DoubleValue message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns DoubleValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.DoubleValue;
+
+            /**
+             * Verifies a DoubleValue message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a DoubleValue message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns DoubleValue
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.DoubleValue;
+
+            /**
+             * Creates a plain object from a DoubleValue message. Also converts values to other types if specified.
+             * @param message DoubleValue
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.DoubleValue, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this DoubleValue to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a FloatValue. */
+        interface IFloatValue {
+
+            /** FloatValue value */
+            value?: (number|null);
+        }
+
+        /** Represents a FloatValue. */
+        class FloatValue implements IFloatValue {
+
+            /**
+             * Constructs a new FloatValue.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IFloatValue);
+
+            /** FloatValue value. */
+            public value: number;
+
+            /**
+             * Creates a new FloatValue instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns FloatValue instance
+             */
+            public static create(properties?: google.protobuf.IFloatValue): google.protobuf.FloatValue;
+
+            /**
+             * Encodes the specified FloatValue message. Does not implicitly {@link google.protobuf.FloatValue.verify|verify} messages.
+             * @param message FloatValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IFloatValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified FloatValue message, length delimited. Does not implicitly {@link google.protobuf.FloatValue.verify|verify} messages.
+             * @param message FloatValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IFloatValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a FloatValue message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns FloatValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.FloatValue;
+
+            /**
+             * Decodes a FloatValue message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns FloatValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.FloatValue;
+
+            /**
+             * Verifies a FloatValue message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a FloatValue message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns FloatValue
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.FloatValue;
+
+            /**
+             * Creates a plain object from a FloatValue message. Also converts values to other types if specified.
+             * @param message FloatValue
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.FloatValue, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this FloatValue to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of an Int64Value. */
+        interface IInt64Value {
+
+            /** Int64Value value */
+            value?: (number|Long|null);
+        }
+
+        /** Represents an Int64Value. */
+        class Int64Value implements IInt64Value {
+
+            /**
+             * Constructs a new Int64Value.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IInt64Value);
+
+            /** Int64Value value. */
+            public value: (number|Long);
+
+            /**
+             * Creates a new Int64Value instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns Int64Value instance
+             */
+            public static create(properties?: google.protobuf.IInt64Value): google.protobuf.Int64Value;
+
+            /**
+             * Encodes the specified Int64Value message. Does not implicitly {@link google.protobuf.Int64Value.verify|verify} messages.
+             * @param message Int64Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IInt64Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified Int64Value message, length delimited. Does not implicitly {@link google.protobuf.Int64Value.verify|verify} messages.
+             * @param message Int64Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IInt64Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an Int64Value message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns Int64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.Int64Value;
+
+            /**
+             * Decodes an Int64Value message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns Int64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.Int64Value;
+
+            /**
+             * Verifies an Int64Value message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an Int64Value message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns Int64Value
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.Int64Value;
+
+            /**
+             * Creates a plain object from an Int64Value message. Also converts values to other types if specified.
+             * @param message Int64Value
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.Int64Value, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this Int64Value to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a UInt64Value. */
+        interface IUInt64Value {
+
+            /** UInt64Value value */
+            value?: (number|Long|null);
+        }
+
+        /** Represents a UInt64Value. */
+        class UInt64Value implements IUInt64Value {
+
+            /**
+             * Constructs a new UInt64Value.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IUInt64Value);
+
+            /** UInt64Value value. */
+            public value: (number|Long);
+
+            /**
+             * Creates a new UInt64Value instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns UInt64Value instance
+             */
+            public static create(properties?: google.protobuf.IUInt64Value): google.protobuf.UInt64Value;
+
+            /**
+             * Encodes the specified UInt64Value message. Does not implicitly {@link google.protobuf.UInt64Value.verify|verify} messages.
+             * @param message UInt64Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IUInt64Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified UInt64Value message, length delimited. Does not implicitly {@link google.protobuf.UInt64Value.verify|verify} messages.
+             * @param message UInt64Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IUInt64Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a UInt64Value message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns UInt64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.UInt64Value;
+
+            /**
+             * Decodes a UInt64Value message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns UInt64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.UInt64Value;
+
+            /**
+             * Verifies a UInt64Value message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a UInt64Value message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns UInt64Value
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.UInt64Value;
+
+            /**
+             * Creates a plain object from a UInt64Value message. Also converts values to other types if specified.
+             * @param message UInt64Value
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.UInt64Value, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this UInt64Value to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of an Int32Value. */
+        interface IInt32Value {
+
+            /** Int32Value value */
+            value?: (number|null);
+        }
+
+        /** Represents an Int32Value. */
+        class Int32Value implements IInt32Value {
+
+            /**
+             * Constructs a new Int32Value.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IInt32Value);
+
+            /** Int32Value value. */
+            public value: number;
+
+            /**
+             * Creates a new Int32Value instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns Int32Value instance
+             */
+            public static create(properties?: google.protobuf.IInt32Value): google.protobuf.Int32Value;
+
+            /**
+             * Encodes the specified Int32Value message. Does not implicitly {@link google.protobuf.Int32Value.verify|verify} messages.
+             * @param message Int32Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IInt32Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified Int32Value message, length delimited. Does not implicitly {@link google.protobuf.Int32Value.verify|verify} messages.
+             * @param message Int32Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IInt32Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes an Int32Value message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns Int32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.Int32Value;
+
+            /**
+             * Decodes an Int32Value message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns Int32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.Int32Value;
+
+            /**
+             * Verifies an Int32Value message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates an Int32Value message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns Int32Value
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.Int32Value;
+
+            /**
+             * Creates a plain object from an Int32Value message. Also converts values to other types if specified.
+             * @param message Int32Value
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.Int32Value, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this Int32Value to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a UInt32Value. */
+        interface IUInt32Value {
+
+            /** UInt32Value value */
+            value?: (number|null);
+        }
+
+        /** Represents a UInt32Value. */
+        class UInt32Value implements IUInt32Value {
+
+            /**
+             * Constructs a new UInt32Value.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IUInt32Value);
+
+            /** UInt32Value value. */
+            public value: number;
+
+            /**
+             * Creates a new UInt32Value instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns UInt32Value instance
+             */
+            public static create(properties?: google.protobuf.IUInt32Value): google.protobuf.UInt32Value;
+
+            /**
+             * Encodes the specified UInt32Value message. Does not implicitly {@link google.protobuf.UInt32Value.verify|verify} messages.
+             * @param message UInt32Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IUInt32Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified UInt32Value message, length delimited. Does not implicitly {@link google.protobuf.UInt32Value.verify|verify} messages.
+             * @param message UInt32Value message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IUInt32Value, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a UInt32Value message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns UInt32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.UInt32Value;
+
+            /**
+             * Decodes a UInt32Value message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns UInt32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.UInt32Value;
+
+            /**
+             * Verifies a UInt32Value message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a UInt32Value message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns UInt32Value
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.UInt32Value;
+
+            /**
+             * Creates a plain object from a UInt32Value message. Also converts values to other types if specified.
+             * @param message UInt32Value
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.UInt32Value, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this UInt32Value to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a BoolValue. */
+        interface IBoolValue {
+
+            /** BoolValue value */
+            value?: (boolean|null);
+        }
+
+        /** Represents a BoolValue. */
+        class BoolValue implements IBoolValue {
+
+            /**
+             * Constructs a new BoolValue.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IBoolValue);
+
+            /** BoolValue value. */
+            public value: boolean;
+
+            /**
+             * Creates a new BoolValue instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns BoolValue instance
+             */
+            public static create(properties?: google.protobuf.IBoolValue): google.protobuf.BoolValue;
+
+            /**
+             * Encodes the specified BoolValue message. Does not implicitly {@link google.protobuf.BoolValue.verify|verify} messages.
+             * @param message BoolValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IBoolValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified BoolValue message, length delimited. Does not implicitly {@link google.protobuf.BoolValue.verify|verify} messages.
+             * @param message BoolValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IBoolValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a BoolValue message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns BoolValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.BoolValue;
+
+            /**
+             * Decodes a BoolValue message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns BoolValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.BoolValue;
+
+            /**
+             * Verifies a BoolValue message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a BoolValue message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns BoolValue
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.BoolValue;
+
+            /**
+             * Creates a plain object from a BoolValue message. Also converts values to other types if specified.
+             * @param message BoolValue
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.BoolValue, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this BoolValue to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a StringValue. */
+        interface IStringValue {
+
+            /** StringValue value */
+            value?: (string|null);
+        }
+
+        /** Represents a StringValue. */
+        class StringValue implements IStringValue {
+
+            /**
+             * Constructs a new StringValue.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IStringValue);
+
+            /** StringValue value. */
+            public value: string;
+
+            /**
+             * Creates a new StringValue instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns StringValue instance
+             */
+            public static create(properties?: google.protobuf.IStringValue): google.protobuf.StringValue;
+
+            /**
+             * Encodes the specified StringValue message. Does not implicitly {@link google.protobuf.StringValue.verify|verify} messages.
+             * @param message StringValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IStringValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified StringValue message, length delimited. Does not implicitly {@link google.protobuf.StringValue.verify|verify} messages.
+             * @param message StringValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IStringValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a StringValue message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns StringValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.StringValue;
+
+            /**
+             * Decodes a StringValue message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns StringValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.StringValue;
+
+            /**
+             * Verifies a StringValue message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a StringValue message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns StringValue
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.StringValue;
+
+            /**
+             * Creates a plain object from a StringValue message. Also converts values to other types if specified.
+             * @param message StringValue
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.StringValue, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this StringValue to JSON.
+             * @returns JSON object
+             */
+            public toJSON(): { [k: string]: any };
+        }
+
+        /** Properties of a BytesValue. */
+        interface IBytesValue {
+
+            /** BytesValue value */
+            value?: (Uint8Array|null);
+        }
+
+        /** Represents a BytesValue. */
+        class BytesValue implements IBytesValue {
+
+            /**
+             * Constructs a new BytesValue.
+             * @param [properties] Properties to set
+             */
+            constructor(properties?: google.protobuf.IBytesValue);
+
+            /** BytesValue value. */
+            public value: Uint8Array;
+
+            /**
+             * Creates a new BytesValue instance using the specified properties.
+             * @param [properties] Properties to set
+             * @returns BytesValue instance
+             */
+            public static create(properties?: google.protobuf.IBytesValue): google.protobuf.BytesValue;
+
+            /**
+             * Encodes the specified BytesValue message. Does not implicitly {@link google.protobuf.BytesValue.verify|verify} messages.
+             * @param message BytesValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encode(message: google.protobuf.IBytesValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Encodes the specified BytesValue message, length delimited. Does not implicitly {@link google.protobuf.BytesValue.verify|verify} messages.
+             * @param message BytesValue message or plain object to encode
+             * @param [writer] Writer to encode to
+             * @returns Writer
+             */
+            public static encodeDelimited(message: google.protobuf.IBytesValue, writer?: $protobuf.Writer): $protobuf.Writer;
+
+            /**
+             * Decodes a BytesValue message from the specified reader or buffer.
+             * @param reader Reader or buffer to decode from
+             * @param [length] Message length if known beforehand
+             * @returns BytesValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): google.protobuf.BytesValue;
+
+            /**
+             * Decodes a BytesValue message from the specified reader or buffer, length delimited.
+             * @param reader Reader or buffer to decode from
+             * @returns BytesValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): google.protobuf.BytesValue;
+
+            /**
+             * Verifies a BytesValue message.
+             * @param message Plain object to verify
+             * @returns `null` if valid, otherwise the reason why it is not
+             */
+            public static verify(message: { [k: string]: any }): (string|null);
+
+            /**
+             * Creates a BytesValue message from a plain object. Also converts values to their respective internal types.
+             * @param object Plain object
+             * @returns BytesValue
+             */
+            public static fromObject(object: { [k: string]: any }): google.protobuf.BytesValue;
+
+            /**
+             * Creates a plain object from a BytesValue message. Also converts values to other types if specified.
+             * @param message BytesValue
+             * @param [options] Conversion options
+             * @returns Plain object
+             */
+            public static toObject(message: google.protobuf.BytesValue, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+            /**
+             * Converts this BytesValue to JSON.
              * @returns JSON object
              */
             public toJSON(): { [k: string]: any };
