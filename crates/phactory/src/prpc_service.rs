@@ -990,7 +990,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     }
 
     fn get_worker_key_challenge(&mut self, _request: ()) -> RpcResult<pb::WorkerKeyChallenge> {
-        self.lock_phactory().get_worker_key_challenge()
+        let mut phactory = self.lock_phactory();
+        let system = phactory.system()?;
+        let challenge = system.get_worker_key_challenge();
+        Ok(pb::WorkerKeyChallenge::new(challenge))
     }
 
     fn get_worker_key(
@@ -1127,5 +1130,32 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             payload: Some(payload),
             attestation: Some(attestation),
         })
+    }
+
+    fn receive_worker_key(&mut self, request: pb::GetWorkerKeyResponse) -> RpcResult<bool> {
+        let mut phactory = self.lock_phactory();
+        let system = phactory.system()?;
+
+        let encrypted_key = request.decode_encrypted_key().map_err(from_display)?;
+        if encrypted_key.is_none() {
+            info!("Receive empty key handover");
+            return Ok(false);
+        }
+        // TODO.shelven: fix DoS here
+        system.update_worker_key(encrypted_key.expect("checked; qed."));
+        let secret = system.identity_key.dump_secret_key();
+
+        // only seal if the key is successfully updated
+        let runtime_state = phactory.runtime_state()?;
+        let genesis_block_hash = runtime_state.genesis_block_hash.clone();
+        phactory
+            .save_runtime_data(
+                genesis_block_hash,
+                sr25519::Pair::restore_from_secret_key(&secret),
+                phactory.dev_mode,
+            )
+            .map_err(from_display)?;
+
+        Ok(true)
     }
 }
