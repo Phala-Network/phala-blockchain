@@ -66,7 +66,10 @@ impl WasmRun {
         Ok((
             WasmRun {
                 env: env.clone(),
-                wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
+                wasm_poll_entry: instance
+                    .exports
+                    .get_native_function("sidevm_poll")
+                    .context("sidevm_poll entry point not found")?,
                 gas_per_breath,
             },
             env,
