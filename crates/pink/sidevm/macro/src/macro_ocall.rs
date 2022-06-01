@@ -200,7 +200,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
 
     let call_get_return: TokenStream = parse_quote! {
         {
-            let buffer = env.take_return().ok_or(OcallError::NoReturnValue)?;
+            let buffer = env.take_return().ok_or(OcallError::NotFound)?;
             let len = p1 as usize;
             if buffer.len() != len {
                 return Err(OcallError::InvalidParameter);

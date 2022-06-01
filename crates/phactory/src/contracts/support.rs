@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sidevm::{
     instrument::instrument,
     service::{CommandSender, ExitReason},
-    GasError, VmId,
+    OcallAborted, VmId,
 };
 
 use super::pink::cluster::ClusterKeeper;
@@ -287,8 +287,8 @@ impl FatContract {
                     ExitReason::Cancelled => false,
                     // TODO.kevin: Allow to charge new gas? How to charge gas or weather the gas
                     // system works or not is not clear ATM.
-                    ExitReason::GasError(GasError::GasExhausted) => false,
-                    ExitReason::GasError(GasError::Drowning) => true,
+                    ExitReason::OcallAborted(OcallAborted::GasExhausted) => false,
+                    ExitReason::OcallAborted(OcallAborted::Drowning) => true,
                     ExitReason::Restore => true,
                 };
                 if !need_restart {

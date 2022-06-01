@@ -44,6 +44,10 @@ pub trait OcallFuncs {
     #[ocall(id = 112, encode_output)]
     fn awake_wakers() -> Result<Vec<i32>>;
 
+    /// Get random number
+    #[ocall(id = 113)]
+    fn getrandom(buf: &mut [u8]) -> Result<()>;
+
     /// Create a timer given a duration of time in milliseconds.
     #[ocall(id = 201)]
     fn create_timer(timeout: i32) -> Result<i32>;
