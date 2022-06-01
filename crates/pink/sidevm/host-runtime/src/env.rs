@@ -68,6 +68,7 @@ pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, Impo
 
 pub(crate) struct TaskSet {
     awake_tasks: dashmap::DashSet<i32>,
+    /// Guest waker ids that are ready to be woken up, or to be dropped if negative.
     pub(crate) awake_wakers: Mutex<VecDeque<i32>>,
 }
 
