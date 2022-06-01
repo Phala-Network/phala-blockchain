@@ -227,6 +227,23 @@ describe('A full stack', function () {
                 return seq >= seqStart + 1;
             }, 500 * 6000), 'ingress stale');
         });
+
+        it('can be unregistered', async function () {
+            const info = await pruntime[1].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.unregisterGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Check if the role is no longer Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[1].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
+                return !gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not unregistered');
+        });
     });
 
     describe('Cluster & Contract', () => {
