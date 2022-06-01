@@ -8,11 +8,12 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use sidevm_emscripten::imports;
 use tokio::{
     net::TcpListener,
     sync::mpsc::{error::SendError, Sender},
 };
-use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
+use wasmer::{Exports, Function, ImportObject, Memory, Module, Store, WasmerEnv};
 
 use env::{IntPtr, IntRet, OcallError, Result, RetEncode};
 use pink_sidevm_env as env;
@@ -20,6 +21,7 @@ use thread_local::ThreadLocal;
 
 use crate::{
     async_context::{get_task_cx, set_task_env},
+    emscripten::merge_imports,
     resource::{Resource, ResourceKeeper},
     VmId,
 };
@@ -38,32 +40,71 @@ fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
+fn convert_import_object(object: sidevm_emscripten::ImportObject) -> ImportObject {
+    let mut import_object = ImportObject::new();
+    for (ns_name, ns) in object.into_iter() {
+        let mut exports = Exports::new();
+        for (name, ext) in ns.into_iter() {
+            exports.insert(name, ext);
+        }
+        import_object.register(ns_name, exports);
+    }
+    import_object
+}
+
+pub fn create_env(
+    id: VmId,
+    module: &Module,
+    cache_ops: DynCacheOps,
+) -> anyhow::Result<(Env, ImportObject)> {
     let env = Env::new(id, cache_ops);
-    (
-        env.clone(),
-        imports! {
-            "env" => {
-                "sidevm_ocall" => Function::new_native_with_env(
-                    store,
-                    env.clone(),
-                    sidevm_ocall,
-                ),
-                "sidevm_ocall_fast_return" => Function::new_native_with_env(
-                    store,
-                    env.clone(),
-                    sidevm_ocall_fast_return,
-                ),
-            },
-            "sidevm" => {
-                "gas" => Function::new_native_with_env(
-                    store,
-                    env,
-                    gas,
-                ),
-            },
+    let store = module.store();
+    let mut sidevm_imports = imports! {
+        "env" => {
+            "sidevm_ocall" => Function::new_native_with_env(
+                store,
+                env.clone(),
+                sidevm_ocall,
+            ),
+            "sidevm_ocall_fast_return" => Function::new_native_with_env(
+                store,
+                env.clone(),
+                sidevm_ocall_fast_return,
+            ),
         },
-    )
+        "sidevm" => {
+            "gas" => Function::new_native_with_env(
+                store,
+                env.clone(),
+                gas,
+            ),
+        },
+    };
+
+    if is_emscripten_module(module) {
+        let (memory, imports) = crate::emscripten::create_env(module)?;
+        merge_imports(imports, &mut sidevm_imports);
+        env.set_memory(memory);
+        env.set_is_emsctipten(true);
+    }
+
+    log::info!("is_emsctipten_module: {}", env.is_emsctipten());
+    log::info!("create_env: {:#?}", sidevm_imports);
+
+    Ok((env, convert_import_object(sidevm_imports)))
+}
+
+fn is_emscripten_module(module: &Module) -> bool {
+    if sidevm_emscripten::is_emscripten_module(module) {
+        return true;
+    }
+    for export in module.exports().functions() {
+        let name = export.name();
+        if name.starts_with("emscripten_") {
+            return true;
+        }
+    }
+    false
 }
 
 pub(crate) struct TaskSet {
@@ -127,6 +168,7 @@ struct VmMemory(Option<Memory>);
 pub(crate) struct EnvInner {
     memory: VmMemory,
     state: State,
+    is_emsctipten: bool,
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -154,12 +196,21 @@ impl Env {
                     current_task: 0,
                     cache_ops,
                 },
+                is_emsctipten: false,
             })),
         }
     }
 
     pub fn set_memory(&self, memory: Memory) {
         self.inner.lock().unwrap().memory.0 = Some(memory);
+    }
+
+    pub fn set_is_emsctipten(&self, is_emsctipten: bool) {
+        self.inner.lock().unwrap().is_emsctipten = is_emsctipten;
+    }
+
+    pub fn is_emsctipten(&self) -> bool {
+        self.inner.lock().unwrap().is_emsctipten
     }
 
     pub fn cleanup(&self) {
@@ -337,7 +388,8 @@ impl env::OcallFuncs for State {
     }
 
     fn local_cache_set_expiration(&mut self, key: &[u8], expire_after_secs: u64) -> Result<()> {
-        self.cache_ops.set_expiration(&self.id[..], key, expire_after_secs)
+        self.cache_ops
+            .set_expiration(&self.id[..], key, expire_after_secs)
     }
 
     fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {

@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result};
+use log::info;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -11,7 +12,7 @@ use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
 use crate::env::DynCacheOps;
-use crate::{async_context, env};
+use crate::{async_context, env, ShortId};
 
 pub struct WasmRun {
     env: env::Env,
@@ -56,13 +57,24 @@ impl WasmRun {
         let tunables = LimitingTunables::new(base, Pages(max_pages));
         let store = Store::new_with_tunables(&engine, tunables);
         let module = Module::new(&store, code)?;
-        let (env, import_object) = env::create_env(id, &store, cache_ops);
-        let instance = Instance::new(&module, &import_object)?;
-        let memory = instance
-            .exports
-            .get_memory("memory")
-            .context("No memory exported")?;
-        env.set_memory(memory.clone());
+        let (env, import_object) = env::create_env(id, &module, cache_ops)?;
+        let mut instance = Instance::new(&module, &import_object)?;
+
+        let vmid = ShortId(&id);
+        // setup
+        if env.is_emsctipten() {
+            info!(target: "sidevm", "[{vmid}] Emscripten setup");
+            env.set_gas_to_breath(1_000_000_000_000_u128);
+            sidevm_emscripten::set_up_emscripten(&mut instance)?;
+        } else {
+            info!(target: "sidevm", "[{vmid}] Memory setup");
+            let memory = instance
+                .exports
+                .get_memory("memory")
+                .context("No memory exported")?;
+            env.set_memory(memory.clone());
+        }
+
         Ok((
             WasmRun {
                 env: env.clone(),

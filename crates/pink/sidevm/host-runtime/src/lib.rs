@@ -3,6 +3,7 @@ mod env;
 pub mod instrument;
 mod resource;
 mod run;
+mod emscripten;
 pub mod service;
 
 pub use env::{CacheOps, DynCacheOps, GasError, ShortId};
