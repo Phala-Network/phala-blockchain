@@ -1,7 +1,7 @@
 use log::info;
 use pink_sidevm as sidevm;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use futures::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[sidevm::main]
 async fn main() {

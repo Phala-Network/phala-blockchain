@@ -7728,8 +7728,10 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
+ "derive_more",
+ "futures",
  "hyper",
  "log",
  "pink-sidevm-env",
@@ -7740,10 +7742,11 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm-env"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cfg-if",
  "derive_more",
+ "futures",
  "log",
  "num_enum",
  "parity-scale-codec",

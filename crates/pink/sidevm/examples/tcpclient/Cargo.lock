@@ -321,6 +321,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 name = "pink-sidevm"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "hyper",
  "log",
  "pink-sidevm-env",
@@ -422,7 +423,6 @@ dependencies = [
  "futures",
  "log",
  "pink-sidevm",
- "tokio",
 ]
 
 [[package]]
@@ -489,21 +489,7 @@ version = "1.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4903bf0427cf68dddd5aa6a93220756f8be0c34fcfa9f5e6191e103e15a31395"
 dependencies = [
- "bytes",
- "memchr",
  "pin-project-lite",
- "tokio-macros",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b557f72f448c511a979e2564e55d74e6c4432fc96ff4f6241bc6bded342643b7"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

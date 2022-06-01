@@ -3,6 +3,7 @@
 use super::*;
 
 use core::pin::Pin;
+use derive_more::{Display, Error};
 use std::future::Future;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -38,5 +39,21 @@ impl Future for Sleep {
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => panic!("unexpected error: {:?}", err),
         }
+    }
+}
+
+/// Indicates that a timeout has elapsed for `timeout(future)`.
+#[derive(Display, Error, Debug)]
+pub struct TimedOut;
+
+/// Timeout the provided future for the specified duration.
+pub async fn timeout<T: Future<Output = O>, O>(
+    duration: Duration,
+    future: T,
+) -> Result<O, TimedOut> {
+    use futures::FutureExt;
+    futures::select! {
+        v = future.fuse() => Ok(v),
+        _ = sleep(duration).fuse() => Err(TimedOut),
     }
 }

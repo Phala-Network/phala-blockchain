@@ -1,5 +1,7 @@
 use core::panic;
-use std::task::Waker;
+use std::task::{Poll, Waker};
+
+use futures::{channel::oneshot, pin_mut};
 
 use super::*;
 
@@ -30,9 +32,6 @@ thread_local! {
     /// runtime to deside to awake or drop the waker from this Vec.
     static WAKERS: RefCell<Vec<Option<Waker>>> = RefCell::new(vec![]);
 }
-
-// TODO.kevin: Support task joining
-pub struct TaskHandle;
 
 pub fn intern_waker(waker: task::Waker) -> i32 {
     const MAX_N_WAKERS: usize = (i32::MAX / 2) as usize;
@@ -71,9 +70,34 @@ fn drop_waker(waker_id: i32) {
     });
 }
 
-pub fn spawn(fut: impl Future<Output = ()> + 'static) -> TaskHandle {
-    SPAWNING_TASKS.with(move |tasks| (*tasks).borrow_mut().push(Box::pin(fut)));
-    TaskHandle
+pub struct JoinHandle<T>(oneshot::Receiver<T>);
+
+/// The task is dropped.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Canceled;
+
+impl<T> Future for JoinHandle<T> {
+    type Output = Result<T, Canceled>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let inner = &mut this.0;
+        pin_mut!(inner);
+        match inner.poll(cx) {
+            Poll::Ready(x) => Poll::Ready(x.map_err(|_: oneshot::Canceled| Canceled)),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+pub fn spawn<T: 'static>(fut: impl Future<Output = T> + 'static) -> JoinHandle<T> {
+    let (tx, rx) = oneshot::channel();
+    SPAWNING_TASKS.with(move |tasks| {
+        (*tasks).borrow_mut().push(Box::pin(async move {
+            let _ = tx.send(fut.await);
+        }))
+    });
+    JoinHandle(rx)
 }
 
 fn start_task(tasks: &mut Tasks, task: TaskFuture) {

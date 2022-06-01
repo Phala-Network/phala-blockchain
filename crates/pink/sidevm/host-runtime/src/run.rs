@@ -3,6 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use wasmer::{BaseTunables, Instance, Module, NativeFunc, Pages, RuntimeError, Store, Universal};
+#[cfg(feature = "wasmer-compiler-cranelift")]
+use wasmer_compiler_cranelift::Cranelift;
+#[cfg(feature = "wasmer-compiler-llvm")]
+use wasmer_compiler_llvm::LLVM;
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
@@ -29,8 +33,21 @@ impl WasmRun {
         gas_per_breath: u128,
         cache_ops: DynCacheOps,
     ) -> Result<(WasmRun, env::Env)> {
-        let compiler = Singlepass::default();
-        let engine = Universal::new(compiler).engine();
+        let compiler_env = std::env::var("WASMER_COMPILER");
+        let compiler_env = compiler_env
+            .as_ref()
+            .map(AsRef::as_ref)
+            .unwrap_or("singlepass");
+
+        let engine = match compiler_env {
+            "singlepass" => Universal::new(Singlepass::default()),
+            #[cfg(feature = "wasmer-compiler-cranelift")]
+            "cranelift" => Universal::new(Cranelift::default()),
+            #[cfg(feature = "wasmer-compiler-llvm")]
+            "llvm" => Universal::new(LLVM::default()),
+            _ => panic!("Unsupported compiler engine: {}", compiler_env),
+        }
+        .engine();
         let base = BaseTunables {
             static_memory_bound: Pages(0x10),
             static_memory_offset_guard_size: 0x1000,
