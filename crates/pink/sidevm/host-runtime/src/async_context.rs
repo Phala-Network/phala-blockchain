@@ -13,7 +13,7 @@ thread_local! {
 
 #[derive(Clone)]
 struct TaskEnv {
-    awake_tasks: Weak<TaskSet>,
+    tasks: Weak<TaskSet>,
     this_task: i32,
 }
 
@@ -25,7 +25,7 @@ struct WakerData {
 
 impl Drop for WakerData {
     fn drop(&mut self) {
-        if let Some(tasks) = self.env.awake_tasks.upgrade() {
+        if let Some(tasks) = self.env.tasks.upgrade() {
             // negative means drop it
             tasks
                 .awake_wakers
@@ -38,7 +38,7 @@ impl Drop for WakerData {
 
 impl WakerData {
     fn wake_by_ref(&self) {
-        if let Some(tasks) = self.env.awake_tasks.upgrade() {
+        if let Some(tasks) = self.env.tasks.upgrade() {
             tasks.push_task(self.env.this_task);
             tasks
                 .awake_wakers
@@ -105,7 +105,7 @@ where
 {
     TLS_TASK_ENV.with(|tls_task_env| {
         *tls_task_env.borrow_mut() = Some(TaskEnv {
-            awake_tasks: Arc::downgrade(&awake_tasks),
+            tasks: Arc::downgrade(&awake_tasks),
             this_task: task_id,
         });
     });

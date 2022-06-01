@@ -40,7 +40,7 @@ pub trait OcallFuncs {
     #[ocall(id = 111)]
     fn enable_ocall_trace(enable: bool) -> Result<()>;
 
-    /// Get awaked wakers
+    /// Get awake wakers
     #[ocall(id = 112, encode_output)]
     fn awake_wakers() -> Result<Vec<i32>>;
 

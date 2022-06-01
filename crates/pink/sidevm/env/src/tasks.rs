@@ -169,7 +169,7 @@ extern "C" fn sidevm_poll() -> i32 {
 
     fn poll() -> task::Poll<()> {
         loop {
-            for waker_id in ocall::awake_wakers().expect("Failed to get awaked wakers") {
+            for waker_id in ocall::awake_wakers().expect("Failed to get awake wakers") {
                 if waker_id >= 0 {
                     wake_waker(waker_id);
                 } else {

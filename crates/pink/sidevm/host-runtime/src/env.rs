@@ -67,29 +67,29 @@ pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, Impo
 }
 
 pub(crate) struct TaskSet {
-    awaked_tasks: dashmap::DashSet<i32>,
+    awake_tasks: dashmap::DashSet<i32>,
     pub(crate) awake_wakers: Mutex<VecDeque<i32>>,
 }
 
 impl TaskSet {
     fn with_task0() -> Self {
-        let awaked_tasks = dashmap::DashSet::new();
-        awaked_tasks.insert(0);
+        let awake_tasks = dashmap::DashSet::new();
+        awake_tasks.insert(0);
         Self {
-            awaked_tasks,
+            awake_tasks,
             awake_wakers: Default::default(),
         }
     }
 
     pub(crate) fn push_task(&self, task_id: i32) {
-        self.awaked_tasks.insert(task_id);
+        self.awake_tasks.insert(task_id);
     }
 
     pub(crate) fn pop_task(&self) -> Option<i32> {
-        let item = self.awaked_tasks.iter().next().map(|task_id| *task_id);
+        let item = self.awake_tasks.iter().next().map(|task_id| *task_id);
         match item {
             Some(task_id) => {
-                self.awaked_tasks.remove(&task_id);
+                self.awake_tasks.remove(&task_id);
                 Some(task_id)
             }
             None => None,
