@@ -17,8 +17,11 @@
 
 //! Some configurable implementations as associated type for the substrate runtime.
 
-use crate::{Authorship, Balances, NegativeImbalance};
-use frame_support::traits::{Currency, OnUnbalanced};
+use crate::{AccountId, Authorship, Balances, NegativeImbalance, Runtime};
+use frame_support::traits::{
+	fungibles::{Balanced, CreditOf},
+	Currency, OnUnbalanced,
+};
 
 pub struct Author;
 impl OnUnbalanced<NegativeImbalance> for Author {
@@ -43,7 +46,7 @@ mod multiplier_tests {
 		AdjustmentVariable, MinimumMultiplier, Runtime, RuntimeBlockWeights as BlockWeights,
 		System, TargetBlockFullness, TransactionPayment,
 	};
-	use frame_support::weights::{DispatchClass, Weight, WeightToFeePolynomial};
+	use frame_support::weights::{DispatchClass, Weight, WeightToFee};
 
 	fn max_normal() -> Weight {
 		BlockWeights::get()
@@ -218,7 +221,9 @@ mod multiplier_tests {
 				fm = next;
 				iterations += 1;
 				let fee =
-					<Runtime as pallet_transaction_payment::Config>::WeightToFee::calc(&tx_weight);
+					<Runtime as pallet_transaction_payment::Config>::WeightToFee::weight_to_fee(
+						&tx_weight,
+					);
 				let adjusted_fee = fm.saturating_mul_acc_int(fee);
 				println!(
 					"iteration {}, new fm = {:?}. Fee at this point is: {} units / {} millicents, \
@@ -342,14 +347,14 @@ mod multiplier_tests {
 			Weight::max_value() / 2,
 			Weight::max_value(),
 		]
-		.into_iter()
-		.for_each(|i| {
-			run_with_system_weight(i, || {
-				let next = runtime_multiplier_update(Multiplier::one());
-				let truth = truth_value_update(i, Multiplier::one());
-				assert_eq_error_rate!(truth, next, Multiplier::from_inner(50_000_000));
+			.into_iter()
+			.for_each(|i| {
+				run_with_system_weight(i, || {
+					let next = runtime_multiplier_update(Multiplier::one());
+					let truth = truth_value_update(i, Multiplier::one());
+					assert_eq_error_rate!(truth, next, Multiplier::from_inner(50_000_000));
+				});
 			});
-		});
 
 		// Some values that are all above the target and will cause an increase.
 		let t = target();

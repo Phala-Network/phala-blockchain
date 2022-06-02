@@ -21,7 +21,6 @@ sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
 sc-chain-spec = { path = "../../substrate/client/chain-spec" }
 sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 sc-finality-grandpa-rpc = { path = "../../substrate/client/finality-grandpa/rpc" }
-sc-keystore = { path = "../../substrate/client/keystore" }
 sc-rpc-api = { path = "../../substrate/client/rpc-api" }
 sc-rpc = { path = "../../substrate/client/rpc" }
 sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
