@@ -64,7 +64,7 @@ pub enum OcallError {
     /// The gas is not enough.
     GasExhausted = 13,
     /// The gas is not enough for current poll.
-    Drowning = 14,
+    Stifled = 14,
     /// Reserved for future use
     Reserved15 = 15,
     /// Reserved for future use

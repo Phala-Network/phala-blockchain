@@ -288,7 +288,7 @@ impl FatContract {
                     // TODO.kevin: Allow to charge new gas? How to charge gas or weather the gas
                     // system works or not is not clear ATM.
                     ExitReason::OcallAborted(OcallAborted::GasExhausted) => false,
-                    ExitReason::OcallAborted(OcallAborted::Drowning) => true,
+                    ExitReason::OcallAborted(OcallAborted::Stifled) => true,
                     ExitReason::Restore => true,
                 };
                 if !need_restart {

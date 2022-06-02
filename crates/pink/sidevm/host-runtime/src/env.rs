@@ -423,7 +423,7 @@ fn sidevm_ocall(
 fn convert(result: Result<i32, OcallError>) -> Result<IntRet, OcallAborted> {
     match result {
         Err(OcallError::GasExhausted) => Err(OcallAborted::GasExhausted),
-        Err(OcallError::Drowning) => Err(OcallAborted::Drowning),
+        Err(OcallError::Stifled) => Err(OcallAborted::Stifled),
         _ => Ok(result.encode_ret()),
     }
 }
@@ -431,14 +431,14 @@ fn convert(result: Result<i32, OcallError>) -> Result<IntRet, OcallAborted> {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum OcallAborted {
     GasExhausted,
-    Drowning,
+    Stifled,
 }
 
 impl From<OcallAborted> for OcallError {
     fn from(aborted: OcallAborted) -> Self {
         match aborted {
             OcallAborted::GasExhausted => OcallError::GasExhausted,
-            OcallAborted::Drowning => OcallError::Drowning,
+            OcallAborted::Stifled => OcallError::Stifled,
         }
     }
 }
@@ -447,7 +447,7 @@ impl fmt::Display for OcallAborted {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             OcallAborted::GasExhausted => write!(f, "Gas exhausted"),
-            OcallAborted::Drowning => write!(f, "Drowning"),
+            OcallAborted::Stifled => write!(f, "Stifled"),
         }
     }
 }
@@ -464,7 +464,7 @@ fn pay(state: &mut State, cost: u128) -> Result<(), OcallAborted> {
         return Err(OcallAborted::GasExhausted);
     }
     if cost > state.gas_to_breath {
-        return Err(OcallAborted::Drowning);
+        return Err(OcallAborted::Stifled);
     }
     state.gas -= cost;
     state.gas_to_breath -= cost;
