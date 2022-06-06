@@ -19,7 +19,7 @@ use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
 use crate::{
-    async_context::{get_task_cx, set_task_env},
+    async_context::{get_task_cx, set_task_env, GuestWaker},
     resource::{Resource, ResourceKeeper},
     VmId,
 };
@@ -302,13 +302,14 @@ impl env::OcallFuncs for State {
     }
 
     fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<i32> {
+        let waker = GuestWaker::from_id(waker_id);
         let (stream, _remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
                 Resource::TcpListener(listener) => listener,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            match get_task_cx(waker_id, |ct| listener.poll_accept(ct)) {
+            match get_task_cx(waker, |ct| listener.poll_accept(ct)) {
                 Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
