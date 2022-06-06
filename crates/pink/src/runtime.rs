@@ -97,13 +97,11 @@ parameter_types! {
     pub const MaxValueSize: u32 = 16_384;
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = 500_000_000_000;
-    pub const MaxCodeSize: u32 = 2 * 1024 * 1024;
-    pub DefaultSchedule: Schedule<PinkRuntime> = {
-        let mut schedule = <Schedule<PinkRuntime>>::default();
-        schedule.limits.code_len = MaxCodeSize::get();
-        schedule
-    };
+    pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
+    pub const RelaxedMaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const TransactionByteFee: u64 = 0;
+
+    pub DefaultSchedule: Schedule<PinkRuntime> = Default::default();
 }
 
 impl Convert<Weight, Balance> for PinkRuntime {
@@ -130,6 +128,8 @@ impl Config for PinkRuntime {
     type DepositPerItem = ConstU128<0>;
     type AddressGenerator = Pink;
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
+    type MaxCodeLen = MaxCodeLen;
+    type RelaxedMaxCodeLen = RelaxedMaxCodeLen;
 }
 
 
