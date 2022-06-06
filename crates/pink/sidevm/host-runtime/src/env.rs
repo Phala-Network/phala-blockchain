@@ -24,6 +24,8 @@ use crate::{
     VmId,
 };
 
+mod wasi_env;
+
 pub struct ShortId<'a>(pub &'a [u8]);
 
 impl fmt::Display for ShortId<'_> {
@@ -40,6 +42,7 @@ fn _sizeof_i32_must_eq_to_intptr() {
 
 pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
     let env = Env::new(id, cache_ops);
+    let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
         env.clone(),
         imports! {
@@ -62,6 +65,7 @@ pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, Impo
                     gas,
                 ),
             },
+            "wasi_snapshot_preview1" => wasi_imports,
         },
     )
 }
@@ -127,6 +131,12 @@ struct VmMemory(Option<Memory>);
 pub(crate) struct EnvInner {
     memory: VmMemory,
     state: State,
+}
+
+impl VmMemory {
+    pub(crate) fn unwrap_ref(&self) -> &Memory {
+        self.0.as_ref().expect("memory is not initialized")
+    }
 }
 
 #[derive(WasmerEnv, Clone)]
