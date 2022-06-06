@@ -842,14 +842,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
 
                 info!(
-                    "Rotated Master Pubkey on chain in block {}",
+                    "Rotated Master Pubkey {} on chain in block {}",
+                    hex::encode(master_pubkey_event.master_pubkey),
                     block.block_number
-                );
-                assert!(
-                    self.master_key.is_some()
-                        && self.master_key.as_ref().unwrap().public()
-                            == master_pubkey_event.master_pubkey,
-                    "Rotated master key mismatches"
                 );
             }
         }
