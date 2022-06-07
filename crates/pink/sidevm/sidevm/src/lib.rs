@@ -13,7 +13,8 @@ pub use env::spawn;
 pub use env::tasks as task;
 
 pub mod channel;
-pub mod time;
 pub mod net;
+pub mod time;
+pub mod exec;
 
 mod res_id;

@@ -7701,7 +7701,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -7743,7 +7743,7 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm-env"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -7763,11 +7763,14 @@ dependencies = [
  "dashmap 5.3.4",
  "futures",
  "hex_fmt",
+ "libc",
  "log",
  "loupe",
  "parity-wasm 0.42.2",
  "pink-sidevm-env",
+ "rand 0.8.5",
  "serde",
+ "thiserror",
  "thread_local",
  "tokio",
  "wasm-instrument",
@@ -7778,6 +7781,7 @@ dependencies = [
  "wasmer-engine",
  "wasmer-engine-universal",
  "wasmer-tunables",
+ "wasmer-wasi-types",
 ]
 
 [[package]]
@@ -7790,7 +7794,7 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm-macro"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "heck 0.4.0",
  "insta",
@@ -13416,6 +13420,17 @@ dependencies = [
  "thiserror",
  "wasmer-types",
  "winapi",
+]
+
+[[package]]
+name = "wasmer-wasi-types"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69adbd8d0d89cd19fb8b1e0252c76e3f72dbc65c944f0db7a9c28c4157fbcd3a"
+dependencies = [
+ "byteorder",
+ "time 0.2.27",
+ "wasmer-types",
 ]
 
 [[package]]

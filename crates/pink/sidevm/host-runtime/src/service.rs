@@ -1,5 +1,5 @@
 use crate::env::DynCacheOps;
-use crate::{env::GasError, run::WasmRun};
+use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
@@ -30,7 +30,7 @@ pub enum ExitReason {
     /// The task future has beed dropped, likely caused by a Stop command.
     Cancelled,
     /// Terminated due to gas checking.
-    GasError(GasError),
+    OcallAborted(OcallAborted),
     /// When a previous running instance restored from a checkpoint.
     Restore,
 }
@@ -135,9 +135,9 @@ impl Spawner {
                             }
                             Err(err) => {
                                 info!(target: "sidevm", "[{vmid}] The sidevm instance exited with error: {}", err);
-                                match err.downcast::<crate::env::GasError>() {
+                                match err.downcast::<crate::env::OcallAborted>() {
                                     Ok(err) => {
-                                        break ExitReason::GasError(err);
+                                        break ExitReason::OcallAborted(err);
                                     }
                                     Err(_) => {
                                         break ExitReason::Panicked;

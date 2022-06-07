@@ -83,7 +83,7 @@ pub fn dispatch_call_fast_return<Env: Ocall + OcallEnv, Vm: VmMemory>(
 ) -> Result<i32> {
     match id {
         0 => {
-            let buffer = env.take_return().ok_or(OcallError::NoReturnValue)?;
+            let buffer = env.take_return().ok_or(OcallError::NotFound)?;
             let len = p1 as usize;
             if buffer.len() != len {
                 return Err(OcallError::InvalidParameter);

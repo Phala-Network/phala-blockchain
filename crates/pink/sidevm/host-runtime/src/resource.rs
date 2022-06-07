@@ -9,7 +9,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio::time::Sleep;
 use Resource::*;
 
-use crate::async_context::get_task_cx;
+use crate::async_context::{get_task_cx, GuestWaker};
 
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
@@ -22,12 +22,13 @@ pub enum Resource {
 impl Resource {
     pub(crate) fn poll(&mut self, waker_id: i32) -> Result<Vec<u8>> {
         use crate::async_context::poll_in_task_cx;
+        let waker = GuestWaker::from_id(waker_id);
 
         match self {
             ChannelRx(rx) => {
                 let fut = rx.recv();
                 futures::pin_mut!(fut);
-                match poll_in_task_cx(waker_id, fut) {
+                match poll_in_task_cx(waker, fut) {
                     Ready(Some(data)) => Ok(data),
                     Ready(None) => Err(OcallError::EndOfFile),
                     Pending => Err(OcallError::Pending),
@@ -39,9 +40,10 @@ impl Resource {
 
     pub(crate) fn poll_res(&mut self, waker_id: i32) -> Result<Resource> {
         use crate::async_context::poll_in_task_cx;
+        let waker = GuestWaker::from_id(waker_id);
         match self {
             TcpConnect(fut) => {
-                let rv = poll_in_task_cx(waker_id, fut.as_mut());
+                let rv = poll_in_task_cx(waker, fut.as_mut());
                 match rv {
                     Pending => Err(OcallError::Pending),
                     Ready(Ok(stream)) => Ok(Resource::TcpStream { stream }),
@@ -57,8 +59,9 @@ impl Resource {
 
     pub(crate) fn poll_read(&mut self, waker_id: i32, buf: &mut [u8]) -> Result<u32> {
         use crate::async_context::poll_in_task_cx;
+        let waker = GuestWaker::from_id(waker_id);
         match self {
-            Sleep(handle) => match poll_in_task_cx(waker_id, handle.as_mut()) {
+            Sleep(handle) => match poll_in_task_cx(waker, handle.as_mut()) {
                 Ready(_) => Ok(0),
                 Pending => Err(OcallError::Pending),
             },
@@ -67,7 +70,7 @@ impl Resource {
                     Ok(sz) => break Ok(sz as _),
                     Err(err) => {
                         if err.kind() == ErrorKind::WouldBlock {
-                            match get_task_cx(waker_id, |cx| stream.poll_read_ready(cx)) {
+                            match get_task_cx(waker.clone(), |cx| stream.poll_read_ready(cx)) {
                                 Pending => break Err(OcallError::Pending),
                                 Ready(Err(_err)) => break Err(OcallError::IoError),
                                 Ready(Ok(())) => continue,
@@ -83,13 +86,14 @@ impl Resource {
     }
 
     pub(crate) fn poll_write(&mut self, waker_id: i32, buf: &[u8]) -> Result<u32> {
+        let waker = GuestWaker::from_id(waker_id);
         match self {
             TcpStream { stream, .. } => loop {
                 match stream.try_write(buf) {
                     Ok(sz) => break Ok(sz as _),
                     Err(err) => {
                         if err.kind() == ErrorKind::WouldBlock {
-                            match get_task_cx(waker_id, |cx| stream.poll_write_ready(cx)) {
+                            match get_task_cx(waker.clone(), |cx| stream.poll_write_ready(cx)) {
                                 Pending => break Err(OcallError::Pending),
                                 Ready(Err(_err)) => break Err(OcallError::IoError),
                                 Ready(Ok(())) => continue,
@@ -105,10 +109,11 @@ impl Resource {
     }
 
     pub(crate) fn poll_shutdown(&mut self, waker_id: i32) -> Result<()> {
+        let waker = GuestWaker::from_id(waker_id);
         match self {
             TcpStream { stream, .. } => {
                 let stream = Pin::new(stream);
-                match get_task_cx(waker_id, |cx| stream.poll_shutdown(cx)) {
+                match get_task_cx(waker, |cx| stream.poll_shutdown(cx)) {
                     Pending => Err(OcallError::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
                     Ready(Ok(())) => Ok(()),

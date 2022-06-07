@@ -19,10 +19,12 @@ use pink_sidevm_env as env;
 use thread_local::ThreadLocal;
 
 use crate::{
-    async_context::{get_task_cx, set_task_env},
+    async_context::{get_task_cx, set_task_env, GuestWaker},
     resource::{Resource, ResourceKeeper},
     VmId,
 };
+
+mod wasi_env;
 
 pub struct ShortId<'a>(pub &'a [u8]);
 
@@ -40,6 +42,7 @@ fn _sizeof_i32_must_eq_to_intptr() {
 
 pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
     let env = Env::new(id, cache_ops);
+    let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
         env.clone(),
         imports! {
@@ -62,6 +65,7 @@ pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, Impo
                     gas,
                 ),
             },
+            "wasi_snapshot_preview1" => wasi_imports,
         },
     )
 }
@@ -127,6 +131,12 @@ struct VmMemory(Option<Memory>);
 pub(crate) struct EnvInner {
     memory: VmMemory,
     state: State,
+}
+
+impl VmMemory {
+    pub(crate) fn unwrap_ref(&self) -> &Memory {
+        self.0.as_ref().expect("memory is not initialized")
+    }
 }
 
 #[derive(WasmerEnv, Clone)]
@@ -302,13 +312,14 @@ impl env::OcallFuncs for State {
     }
 
     fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<i32> {
+        let waker = GuestWaker::from_id(waker_id);
         let (stream, _remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
                 Resource::TcpListener(listener) => listener,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            match get_task_cx(waker_id, |ct| listener.poll_accept(ct)) {
+            match get_task_cx(waker, |ct| listener.poll_accept(ct)) {
                 Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
@@ -337,7 +348,8 @@ impl env::OcallFuncs for State {
     }
 
     fn local_cache_set_expiration(&mut self, key: &[u8], expire_after_secs: u64) -> Result<()> {
-        self.cache_ops.set_expiration(&self.id[..], key, expire_after_secs)
+        self.cache_ops
+            .set_expiration(&self.id[..], key, expire_after_secs)
     }
 
     fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -353,6 +365,15 @@ impl env::OcallFuncs for State {
             .drain(..)
             .collect())
     }
+
+    fn getrandom(&mut self, buf: &mut [u8]) -> Result<()> {
+        use rand::RngCore;
+        const RANDOM_BYTE_WEIGHT: usize = 100_000_000;
+
+        pay(self, (RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
+        rand::thread_rng().fill_bytes(buf);
+        Ok(())
+    }
 }
 
 fn sidevm_ocall_fast_return(
@@ -363,7 +384,7 @@ fn sidevm_ocall_fast_return(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntRet {
+) -> Result<IntRet, OcallAborted> {
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
 
@@ -379,7 +400,7 @@ fn sidevm_ocall_fast_return(
             "[{vm_id}][tid={task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
-    result.encode_ret()
+    convert(result)
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
@@ -391,7 +412,7 @@ fn sidevm_ocall(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntRet {
+) -> Result<IntRet, OcallAborted> {
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
 
@@ -407,36 +428,56 @@ fn sidevm_ocall(
             "[{vm_id}][tid={task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
-    result.encode_ret()
+    convert(result)
+}
+
+fn convert(result: Result<i32, OcallError>) -> Result<IntRet, OcallAborted> {
+    match result {
+        Err(OcallError::GasExhausted) => Err(OcallAborted::GasExhausted),
+        Err(OcallError::Stifled) => Err(OcallAborted::Stifled),
+        _ => Ok(result.encode_ret()),
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum GasError {
+pub enum OcallAborted {
     GasExhausted,
-    Drowning,
+    Stifled,
 }
 
-impl fmt::Display for GasError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            GasError::GasExhausted => write!(f, "Gas exhausted"),
-            GasError::Drowning => write!(f, "Drowning"),
+impl From<OcallAborted> for OcallError {
+    fn from(aborted: OcallAborted) -> Self {
+        match aborted {
+            OcallAborted::GasExhausted => OcallError::GasExhausted,
+            OcallAborted::Stifled => OcallError::Stifled,
         }
     }
 }
 
-impl std::error::Error for GasError {}
+impl fmt::Display for OcallAborted {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OcallAborted::GasExhausted => write!(f, "Gas exhausted"),
+            OcallAborted::Stifled => write!(f, "Stifled"),
+        }
+    }
+}
 
-fn gas(env: &Env, cost: u32) -> Result<(), GasError> {
+impl std::error::Error for OcallAborted {}
+
+fn gas(env: &Env, cost: u32) -> Result<(), OcallAborted> {
     let mut env = env.inner.lock().unwrap();
-    let cost = cost as u128;
-    if cost > env.state.gas {
-        return Err(GasError::GasExhausted);
+    pay(&mut env.state, cost as _)
+}
+
+fn pay(state: &mut State, cost: u128) -> Result<(), OcallAborted> {
+    if cost > state.gas {
+        return Err(OcallAborted::GasExhausted);
     }
-    if cost > env.state.gas_to_breath {
-        return Err(GasError::Drowning);
+    if cost > state.gas_to_breath {
+        return Err(OcallAborted::Stifled);
     }
-    env.state.gas -= cost;
-    env.state.gas_to_breath -= cost;
+    state.gas -= cost;
+    state.gas_to_breath -= cost;
     Ok(())
 }
