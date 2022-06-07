@@ -49,7 +49,6 @@ webpki_wasm = { package = "webpki", path = "../../webpki", default-features = fa
 frame-support-test = { path = "../../substrate/frame/support/test" }
 assert_matches = "1.4.0"
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
-libsecp256k1 = { version = "0.7.0", default-features = false }
 rand = "0.7.3"
 
 [features]
