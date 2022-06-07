@@ -129,11 +129,8 @@ impl Spawner {
                                 let push = env.push_message(msg);
                                 spawner.spawn(async move {
                                     let vmid = ShortId(&id);
-                                    match push.await {
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            error!(target: "sidevm", "[{vmid}] Failed to send message to sidevm: {}", e);
-                                        }
+                                    if let Err(e) = push.await {
+                                        error!(target: "sidevm", "[{vmid}] Failed to send message to sidevm: {}", e);
                                     }
                                 });
                             }
@@ -142,11 +139,8 @@ impl Spawner {
                                 let push = env.push_query(origin, payload, reply_tx);
                                 spawner.spawn(async move {
                                     let vmid = ShortId(&id);
-                                    match push.await {
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            error!(target: "sidevm", "[{vmid}] Failed to push query to sidevm: {}", e);
-                                        }
+                                    if let Err(e) = push.await {
+                                        error!(target: "sidevm", "[{vmid}] Failed to push query to sidevm: {}", e);
                                     }
                                 });
                             }
