@@ -49,7 +49,7 @@ jobs:
           submodules: 'true'
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
-      - name: Build pRuntime
+      - name: Build pruntime
         run: make V=1 dist -C ./standalone/pruntime/gramine-build/
       - name: Save pruntime binaries
         uses: actions/upload-artifact@v2
@@ -61,7 +61,7 @@ jobs:
             ./standalone/pruntime/bin/Rocket.toml
 
   build-prouter:
-    name: Build pRouter
+    name: Build prouter
     runs-on: ubuntu-20.04
     steps:
       - name: Install latest nightly
@@ -74,11 +74,11 @@ jobs:
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
-      - name: Install pRouter dependencies
+      - name: Install prouter dependencies
         run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc
-      - name: Build pRouter
+      - name: Build prouter
         run: cd ./standalone/prouter/ && cargo build -vv
-      - name: Save pRouter binaries
+      - name: Save prouter binaries
         uses: actions/upload-artifact@v2
         with:
           name: prouter-binaries

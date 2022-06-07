@@ -174,10 +174,6 @@ async fn main() -> Result<(), rocket::Error> {
         server.await.expect("Failed to launch server");
     }
 
-    for child in v {
-        let _ = child.join();
-    }
-
     info!("pRuntime quited");
 
     Ok(())
