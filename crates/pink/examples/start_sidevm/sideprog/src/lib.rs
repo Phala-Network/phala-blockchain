@@ -1,7 +1,7 @@
 use log::info;
 use pink_sidevm as sidevm;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use futures::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[sidevm::main]
 async fn main() {
@@ -12,7 +12,7 @@ async fn main() {
 
     info!("Listening on {}", address);
 
-    let listener = sidevm::net::TcpListener::listen(address).await.unwrap();
+    let listener = sidevm::net::TcpListener::bind(address).await.unwrap();
 
     loop {
         info!("Waiting for incomming connection or message...");
