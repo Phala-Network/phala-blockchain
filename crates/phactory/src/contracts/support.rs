@@ -34,6 +34,7 @@ pub struct QueryContext {
     pub block_number: BlockNumber,
     pub now_ms: u64,
     pub storage: ::pink::Storage,
+    pub sidevm_handle: Option<SidevmHandle>,
 }
 
 impl NativeContext<'_, '_> {
@@ -111,6 +112,7 @@ impl Decode for RawData {
     }
 }
 
+#[derive(Clone)]
 pub enum SidevmHandle {
     Running(CommandSender),
     Terminated(ExitReason),
@@ -190,6 +192,12 @@ impl FatContract {
         Query {
             contract: self.contract.snapshot(),
         }
+    }
+
+    pub(crate) fn sidevm_handle(&self) -> Option<SidevmHandle> {
+        self.sidevm_info
+            .as_ref()
+            .map(|info| info.handle.lock().unwrap().clone())
     }
 
     pub(crate) fn process_next_message(
@@ -386,7 +394,12 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
                 .map_err(|_| sidevm::OcallError::ResourceLimited)
         }
 
-        fn set_expiration(&self, contract: &[u8], key: &[u8], expire_after_secs: u64) -> OpResult<()> {
+        fn set_expiration(
+            &self,
+            contract: &[u8],
+            key: &[u8],
+            expire_after_secs: u64,
+        ) -> OpResult<()> {
             cache::local_cache_set_expiration(contract, key, expire_after_secs);
             Ok(())
         }

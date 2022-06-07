@@ -500,11 +500,13 @@ impl<Platform: pal::Platform> System<Platform> {
             .expect("BUG: contract cluster should always exists")
             .storage
             .snapshot();
+        let sidevm_handle = contract.sidevm_handle();
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
             now_ms: self.now_ms,
             storage,
+            sidevm_handle,
         };
         Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
             contract.handle_query(origin, req, &mut context)
@@ -1229,14 +1231,10 @@ pub fn apply_pink_side_effects(
                     wasm_code.extend_from_slice(&chunk);
                 }
             }
-            PinkEvent::StartSidevm {
-                auto_restart,
-            } => {
+            PinkEvent::StartSidevm { auto_restart } => {
                 if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
                     let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
-                    if let Err(err) =
-                        contract.start_sidevm(&spawner, wasm_code, auto_restart)
-                    {
+                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
                         error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                     }
                 } else {

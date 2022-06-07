@@ -2,6 +2,7 @@ use std::{
     cell::Cell,
     collections::VecDeque,
     fmt,
+    future::Future,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
     time::Duration,
@@ -11,11 +12,16 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::mpsc::{error::SendError, Sender},
+    sync::oneshot::Sender as OneshotSender,
 };
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, IntRet, OcallError, Result, RetEncode};
+use env::{
+    query::{AccountId, QueryRequest},
+    IntPtr, IntRet, OcallError, Result, RetEncode,
+};
 use pink_sidevm_env as env;
+use scale::Encode;
 use thread_local::ThreadLocal;
 
 use crate::{
@@ -121,6 +127,7 @@ struct State {
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
     message_tx: Sender<Vec<u8>>,
+    query_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
     cache_ops: DynCacheOps,
@@ -147,8 +154,10 @@ pub struct Env {
 impl Env {
     fn new(id: VmId, cache_ops: DynCacheOps) -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
+        let (query_tx, query_rx) = tokio::sync::mpsc::channel(10);
         let mut resources = ResourceKeeper::default();
         let _ = resources.push(Resource::ChannelRx(message_rx));
+        let _ = resources.push(Resource::ChannelRx(query_rx));
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
@@ -160,6 +169,7 @@ impl Env {
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
                     message_tx,
+                    query_tx,
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
                     cache_ops,
@@ -178,9 +188,36 @@ impl Env {
     }
 
     /// Push a pink message into the Sidevm instance.
-    pub async fn push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+    pub fn push_message(
+        &self,
+        message: Vec<u8>,
+    ) -> impl Future<Output = Result<(), SendError<Vec<u8>>>> {
         let tx = self.inner.lock().unwrap().state.message_tx.clone();
-        tx.send(message).await
+        async move { tx.send(message).await }
+    }
+
+    /// Push a contract query to the Sidevm instance.
+    pub fn push_query(
+        &self,
+        origin: AccountId,
+        payload: Vec<u8>,
+        reply_tx: OneshotSender<Vec<u8>>,
+    ) -> impl Future<Output = anyhow::Result<()>> + 'static {
+        let mut env_guard = self.inner.lock().unwrap();
+        let reply_tx = env_guard
+            .state
+            .resources
+            .push(Resource::OneshotTx(Some(reply_tx)));
+        let tx = env_guard.state.query_tx.clone();
+        async move {
+            let query = QueryRequest {
+                origin,
+                payload,
+                reply_tx: reply_tx?,
+            };
+            tx.send(query.encode()).await?;
+            Ok(())
+        }
     }
 
     /// The blocking version of `push_message`.
@@ -372,6 +409,18 @@ impl env::OcallFuncs for State {
 
         pay(self, (RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
         rand::thread_rng().fill_bytes(buf);
+        Ok(())
+    }
+
+    fn oneshot_send(&mut self, resource_id: i32, data: &[u8]) -> Result<()> {
+        let res = self.resources.get_mut(resource_id)?;
+        match res {
+            Resource::OneshotTx(sender) => match sender.take() {
+                Some(sender) => sender.send(data.to_vec()).or(Err(OcallError::IoError))?,
+                None => return Err(OcallError::IoError),
+            },
+            _ => return Err(OcallError::UnsupportedOperation),
+        }
         Ok(())
     }
 }

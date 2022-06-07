@@ -16,6 +16,7 @@ derive_more = "0.99"
 hyper = { version = "0.14.18", features = ["server"], optional = true }
 tokio = { version = "1", optional = true }
 futures = "0.3"
+scale = { version = "3", package = "parity-scale-codec" }
 
 [features]
 default = ["hyper", "tokio"]

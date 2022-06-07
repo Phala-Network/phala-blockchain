@@ -3,10 +3,12 @@ use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
+use pink_sidevm_env::query::AccountId;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
+    sync::oneshot::Sender as OneshotSender,
     task::JoinHandle,
 };
 
@@ -40,6 +42,12 @@ pub enum Command {
     Stop,
     // Send a sidevm message to the instance.
     PushMessage(Vec<u8>),
+    // Push a sidevm message to the instance.
+    PushQuery {
+        origin: AccountId,
+        payload: Vec<u8>,
+        reply_tx: OneshotSender<Vec<u8>>,
+    },
 }
 
 pub struct ServiceRun {
@@ -101,6 +109,7 @@ impl Spawner {
             WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath, cache_ops)
                 .context("Failed to create sidevm instance")?;
         env.set_gas(gas);
+        let spawner = self.runtime_handle.clone();
         let handle = self.runtime_handle.spawn(async move {
             let vmid = ShortId(&id);
             loop {
@@ -117,13 +126,29 @@ impl Spawner {
                             }
                             Some(Command::PushMessage(msg)) => {
                                 debug!(target: "sidevm", "[{vmid}] Sending message to sidevm.");
-                                match env.push_message(msg).await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        error!(target: "sidevm", "[{vmid}] Failed to send message to sidevm: {}", e);
-                                        break ExitReason::Panicked;
+                                let push = env.push_message(msg);
+                                spawner.spawn(async move {
+                                    let vmid = ShortId(&id);
+                                    match push.await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            error!(target: "sidevm", "[{vmid}] Failed to send message to sidevm: {}", e);
+                                        }
                                     }
-                                }
+                                });
+                            }
+                            Some(Command::PushQuery{ origin, payload, reply_tx }) => {
+                                debug!(target: "sidevm", "[{vmid}] Pushing query to sidevm.");
+                                let push = env.push_query(origin, payload, reply_tx);
+                                spawner.spawn(async move {
+                                    let vmid = ShortId(&id);
+                                    match push.await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            error!(target: "sidevm", "[{vmid}] Failed to push query to sidevm: {}", e);
+                                        }
+                                    }
+                                });
                             }
                         }
                     }

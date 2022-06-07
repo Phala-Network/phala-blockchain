@@ -2,9 +2,10 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractClusterId, MessageOrigin, ContractId};
+use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber, Hash};
+use sidevm::service::Command as SidevmCommand;
 
 use super::contract_address_to_id;
 
@@ -16,17 +17,19 @@ pub enum Command {
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
     InkMessage(Vec<u8>),
+    SidevmQuery(Vec<u8>),
 }
 
 #[derive(Debug, Encode, Decode)]
 pub enum Response {
-    InkMessageReturn(Vec<u8>),
+    Payload(Vec<u8>),
 }
 
 #[derive(Debug, Encode, Decode)]
 pub enum QueryError {
     BadOrigin,
     RuntimeError(String),
+    SidevmNotFound,
 }
 
 #[derive(Encode, Decode, Clone)]
@@ -112,7 +115,35 @@ impl contracts::NativeContract for Pink {
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
                 }
-                return Ok(Response::InkMessageReturn(ink_result.encode()));
+                return Ok(Response::Payload(ink_result.encode()));
+            }
+            Query::SidevmQuery(payload) => {
+                let handle = context
+                    .sidevm_handle
+                    .as_ref()
+                    .ok_or(QueryError::SidevmNotFound)?;
+                let cmd_sender = match handle {
+                    contracts::SidevmHandle::Terminated(_) => {
+                        return Err(QueryError::SidevmNotFound)
+                    }
+                    contracts::SidevmHandle::Running(sender) => sender,
+                };
+                let origin = origin.clone().into();
+
+                let reply = tokio::task::block_in_place(move || {
+                    tokio::runtime::Handle::current().block_on(async move {
+                        let (reply_tx, rx) = tokio::sync::oneshot::channel();
+                        let _x = cmd_sender
+                            .send(SidevmCommand::PushQuery {
+                                origin,
+                                payload,
+                                reply_tx,
+                            })
+                            .await;
+                        rx.await
+                    })
+                });
+                reply.or(Ok(vec![])).map(Response::Payload)
             }
         }
     }
