@@ -526,7 +526,7 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert,
 	{
 		pub fn account_id() -> T::AccountId {
-			MINING_PALLETID.into_account()
+			MINING_PALLETID.into_account_truncating()
 		}
 
 		fn heartbeat_challenge() {

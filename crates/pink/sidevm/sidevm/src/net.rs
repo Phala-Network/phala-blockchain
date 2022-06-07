@@ -5,10 +5,7 @@ use std::io::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use hyper::server::accept::Accept;
-use tokio::io::{AsyncRead, AsyncWrite};
-
-use crate::env::{self, Result};
+use crate::env::{self, tasks, Result};
 use crate::{ocall, ResourceId};
 
 /// A TCP socket server, listening for connections.
@@ -35,9 +32,10 @@ struct Acceptor<'a> {
 impl Future for Acceptor<'_> {
     type Output = Result<TcpStream>;
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
-        match ocall::tcp_accept(self.listener.res_id.0) {
+        let waker_id = tasks::intern_waker(cx.waker().clone());
+        match ocall::tcp_accept(waker_id, self.listener.res_id.0) {
             Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
@@ -46,8 +44,8 @@ impl Future for Acceptor<'_> {
 }
 
 impl TcpListener {
-    /// Listen on the specified address for incoming TCP connections.
-    pub async fn listen(addr: &str) -> Result<Self> {
+    /// Bind and listen on the specified address for incoming TCP connections.
+    pub async fn bind(addr: &str) -> Result<Self> {
         // Side notes: could be used to probe enabled interfaces and occupied ports. We may
         // consider to introduce some manifest file to further limit the capability in the future
         let todo = "prevent local interface probing and port occupation";
@@ -61,86 +59,13 @@ impl TcpListener {
     }
 }
 
-impl Accept for TcpListener {
-    type Conn = TcpStream;
-
-    type Error = env::OcallError;
-
-    fn poll_accept(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-        let mut accept = Acceptor {
-            listener: self.get_mut(),
-        };
-        let x = Pin::new(&mut accept).poll(cx).map(Some);
-        log::info!("Poll accept = {:?}", x);
-        x
-    }
-}
-
-impl AsyncRead for TcpStream {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        let result = {
-            let size = buf.remaining().min(512);
-            let buf = buf.initialize_unfilled_to(size);
-            ocall::poll_read(self.res_id.0, buf)
-        };
-        use env::OcallError;
-        match result {
-            Ok(len) => {
-                let len = len as usize;
-                if len > buf.remaining() {
-                    Poll::Ready(Err(Error::from_raw_os_error(
-                        env::OcallError::InvalidEncoding as i32,
-                    )))
-                } else {
-                    buf.advance(len);
-                    Poll::Ready(Ok(()))
-                }
-            }
-            Err(OcallError::Pending) => Poll::Pending,
-            Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
-        }
-    }
-}
-
-impl AsyncWrite for TcpStream {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, Error>> {
-        match ocall::poll_write(self.res_id.0, buf) {
-            Ok(len) => Poll::Ready(Ok(len as _)),
-            Err(env::OcallError::Pending) => Poll::Pending,
-            Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        match ocall::poll_shutdown(self.res_id.0) {
-            Ok(()) => Poll::Ready(Ok(())),
-            Err(env::OcallError::Pending) => Poll::Pending,
-            Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
-        }
-    }
-}
-
 impl Future for TcpConnector {
     type Output = Result<TcpStream>;
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
-        match ocall::poll_res(self.res_id.0) {
+
+        match ocall::poll_res(env::tasks::intern_waker(ctx.waker().clone()), self.res_id.0) {
             Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
@@ -150,9 +75,7 @@ impl Future for TcpConnector {
 
 impl TcpStream {
     fn new(res_id: ResourceId) -> Self {
-        Self {
-            res_id,
-        }
+        Self { res_id }
     }
 
     /// Initiate a TCP connection to a remote host.
@@ -160,5 +83,130 @@ impl TcpStream {
         let todo = "prevent local network probing";
         let res_id = ResourceId(ocall::tcp_connect(addr.into())?);
         TcpConnector { res_id }.await
+    }
+}
+
+#[cfg(feature = "hyper")]
+mod impl_hyper {
+    use super::*;
+    use hyper::server::accept::Accept;
+
+    impl Accept for TcpListener {
+        type Conn = TcpStream;
+
+        type Error = env::OcallError;
+
+        fn poll_accept(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+            let mut accept = Acceptor {
+                listener: self.get_mut(),
+            };
+            let x = Pin::new(&mut accept).poll(cx).map(Some);
+            log::info!("Poll accept = {:?}", x);
+            x
+        }
+    }
+}
+
+#[cfg(feature = "tokio")]
+mod impl_tokio {
+    use super::*;
+    use tokio::io::{AsyncRead, AsyncWrite};
+
+    impl AsyncRead for TcpStream {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            let result = {
+                let size = buf.remaining().min(512);
+                let buf = buf.initialize_unfilled_to(size);
+                let waker_id = tasks::intern_waker(cx.waker().clone());
+                ocall::poll_read(waker_id, self.res_id.0, buf)
+            };
+            use env::OcallError;
+            match result {
+                Ok(len) => {
+                    let len = len as usize;
+                    if len > buf.remaining() {
+                        Poll::Ready(Err(Error::from_raw_os_error(
+                            env::OcallError::InvalidEncoding as i32,
+                        )))
+                    } else {
+                        buf.advance(len);
+                        Poll::Ready(Ok(()))
+                    }
+                }
+                Err(OcallError::Pending) => Poll::Pending,
+                Err(err) => Poll::Ready(Err(Error::from_raw_os_error(err as i32))),
+            }
+        }
+    }
+
+    impl AsyncWrite for TcpStream {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<Result<usize, Error>> {
+            let waker_id = tasks::intern_waker(cx.waker().clone());
+            into_poll(ocall::poll_write(waker_id, self.res_id.0, buf).map(|len| len as usize))
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+            let waker_id = tasks::intern_waker(cx.waker().clone());
+            into_poll(ocall::poll_shutdown(waker_id, self.res_id.0))
+        }
+    }
+}
+
+mod impl_futures_io {
+    use super::*;
+    use futures::io::{AsyncRead, AsyncWrite};
+
+    impl AsyncRead for TcpStream {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<std::io::Result<usize>> {
+            let waker_id = tasks::intern_waker(cx.waker().clone());
+            into_poll(ocall::poll_read(waker_id, self.res_id.0, buf).map(|len| len as usize))
+        }
+    }
+
+    impl AsyncWrite for TcpStream {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<std::io::Result<usize>> {
+            let waker_id = tasks::intern_waker(cx.waker().clone());
+            into_poll(ocall::poll_write(waker_id, self.res_id.0, buf).map(|len| len as usize))
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            let waker_id = tasks::intern_waker(cx.waker().clone());
+            into_poll(ocall::poll_shutdown(waker_id, self.res_id.0))
+        }
+    }
+}
+
+fn into_poll<T>(res: Result<T, env::OcallError>) -> Poll<std::io::Result<T>> {
+    match res {
+        Ok(v) => Poll::Ready(Ok(v)),
+        Err(env::OcallError::Pending) => Poll::Pending,
+        Err(err) => Poll::Ready(Err(std::io::Error::from_raw_os_error(err as i32))),
     }
 }

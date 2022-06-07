@@ -189,7 +189,7 @@ async fn main() {
             use sp_runtime::traits::AccountIdConversion;
             let pallet_id_array: [u8; 8] = pallet_id.as_bytes().try_into().expect("Bad length");
             let id = frame_support::PalletId(pallet_id_array);
-            let account: AccountId = id.into_account();
+            let account: AccountId = id.into_account_truncating();
             println!("Pallet account: {}", account);
         }
         Cli::Rpc { url, command } => {

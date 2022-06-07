@@ -147,7 +147,7 @@ decl_module! {
 }
 impl<T: Config> Module<T> {
 	pub fn account_id() -> T::AccountId {
-		PALLET_ID.into_account()
+		PALLET_ID.into_account_truncating()
 	}
 
 	fn transfer(to: T::AccountId, kitty_id: T::Hash) -> Result {

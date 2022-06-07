@@ -54,6 +54,13 @@ struct InstructionWeights {
     i64shru: u32,
     i64rotl: u32,
     i64rotr: u32,
+    f64const: u32,
+    f64load: u32,
+    f64store: u32,
+    f64convert: u32,
+    f64cmp: u32,
+    f64low: u32,
+    f64calc: u32,
 }
 
 impl InstructionWeights {
@@ -111,6 +118,13 @@ impl InstructionWeights {
             i64shru: 4700,
             i64rotl: 4690,
             i64rotr: 4700,
+            f64const: 2960,
+            f64load: 7280,
+            f64store: 8360,
+            f64convert: 4700,
+            f64cmp: 4700,
+            f64low: 4700,
+            f64calc: 21620,
         }
     }
 }
@@ -214,10 +228,28 @@ impl Rules for InstrumentRules<'_> {
             I32ShrU | I64ShrU => w.i64shru,
             I32Rotl | I64Rotl => w.i64rotl,
             I32Rotr | I64Rotr => w.i64rotr,
+            F32Load(_, _) | F64Load(_, _) => w.f64load,
+            F32Store(_, _) | F64Store(_, _) => w.f64store,
+            F32Const(_) | F64Const(_) => w.f64const,
+            F32Eq | F32Ne | F32Lt | F32Gt | F32Le | F32Ge | F64Eq | F64Ne | F64Lt | F64Gt
+            | F64Le | F64Ge | F32Min | F32Max | F64Min | F64Max => w.f64cmp,
+            F32Abs | F32Neg | F32Ceil | F32Floor | F32Trunc | F32Nearest | F32Copysign | F64Abs
+            | F64Neg | F64Ceil | F64Floor | F64Trunc | F64Nearest | F64Copysign => w.f64low,
+            F32Sqrt | F32Add | F32Sub | F32Mul | F32Div | F64Sqrt | F64Add | F64Sub | F64Mul
+            | F64Div => w.f64calc,
+            I32TruncSF32 | I32TruncUF32 | I32TruncSF64 | I32TruncUF64 | I64TruncSF32
+            | I64TruncUF32 | I64TruncSF64 | I64TruncUF64 | F32ConvertSI32 | F32ConvertUI32
+            | F32ConvertSI64 | F32ConvertUI64 | F32DemoteF64 | F64ConvertSI32 | F64ConvertUI32
+            | F64ConvertSI64 | F64ConvertUI64 | F64PromoteF32 | I32ReinterpretF32
+            | I64ReinterpretF64 | F32ReinterpretI32 | F64ReinterpretI64 => w.f64convert,
 
             // Returning None makes the gas instrumentation fail which we intend for
             // unsupported or unknown instructions.
-            _ => return None,
+            #[allow(unreachable_patterns)]
+            _ => {
+                log::error!("Unsupported instruction: {:?}", instruction);
+                return None;
+            }
         };
         Some(weight)
     }
