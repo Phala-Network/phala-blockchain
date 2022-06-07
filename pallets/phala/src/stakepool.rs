@@ -2,7 +2,7 @@
 
 pub use self::pallet::*;
 
-use frame_support::traits::Currency;
+use frame_support::{traits::Currency, BoundedVec};
 use sp_runtime::traits::Zero;
 
 type BalanceOf<T> =
@@ -49,6 +49,13 @@ pub mod pallet {
 
 	const MAX_WHITELIST_LEN: u32 = 100;
 
+	pub struct DescMaxLen;
+
+	impl Get<u32> for DescMaxLen {
+		fn get() -> u32 {
+			400
+		}
+	}
 	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
@@ -166,6 +173,12 @@ pub mod pallet {
 	#[pallet::getter(fn pool_whitelist)]
 	pub type PoolContributionWhitelists<T: Config> =
 		StorageMap<_, Twox64Concat, u64, Vec<T::AccountId>>;
+
+	/// Mapping for pools that store their descriptions set by owner
+	#[pallet::storage]
+	#[pallet::getter(fn pool_descriptions)]
+	pub type PoolDescriptions<T: Config> =
+		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, super::DescMaxLen>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -312,6 +325,8 @@ pub mod pallet {
 		PoolWhitelistStakerAdded { pid: u64, staker: T::AccountId },
 		/// A staker is removed from the pool contribution whitelist
 		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
+		/// A worker is reclaimed from the pool
+		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
 	}
 
 	#[pallet::error]
@@ -376,6 +391,8 @@ pub mod pallet {
 		ExceedWhitelistMaxLen,
 		/// The pool hasn't have a whitelist created
 		NoWhitelistCreated,
+		/// Too long for pool description length
+		ExceedMaxDescriptionLen,
 	}
 
 	#[pallet::hooks]
@@ -615,6 +632,23 @@ pub mod pallet {
 				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
 			}
 			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
+
+			Ok(())
+		}
+
+		/// Add a description to the pool
+		///
+		/// The caller must be the owner of the pool.
+		#[pallet::weight(0)]
+		pub fn set_pool_description(
+			origin: OriginFor<T>,
+			pid: u64,
+			description: BoundedVec<u8, DescMaxLen>,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let pool_info = Self::ensure_pool(pid)?;
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			PoolDescriptions::<T>::insert(&pid, description);
 
 			Ok(())
 		}
@@ -948,7 +982,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 			Self::ensure_pool(pid)?;
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
-			Self::do_reclaim(pid, sub_account, true).map(|_| ())
+			Self::do_reclaim(pid, sub_account, worker, true).map(|_| ())
 		}
 
 		/// Enables or disables mining. Must be called with the council or root permission.
@@ -1010,7 +1044,7 @@ pub mod pallet {
 			// Stop and instantly reclaim the worker
 			Self::do_stop_mining(&owner, pid, worker)?;
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			let (orig_stake, slashed) = Self::do_reclaim(pid, miner, false)?;
+			let (orig_stake, slashed) = Self::do_reclaim(pid, miner, worker, false)?;
 			let released = orig_stake - slashed;
 			ensure!(stake > released, Error::<T>::CannotRestartWithLessStake);
 			// Simply start mining. Rollback if there's no enough stake,
@@ -1071,11 +1105,13 @@ pub mod pallet {
 		fn do_reclaim(
 			pid: u64,
 			sub_account: T::AccountId,
+			worker: WorkerPublicKey,
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let (orig_stake, slashed) =
 				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
+			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
 			Ok((orig_stake, slashed))
 		}
 
@@ -1917,6 +1953,30 @@ pub mod pallet {
 					})
 				);
 				assert_eq!(PoolCount::<Test>::get(), 2);
+			});
+		}
+
+		#[test]
+		fn test_set_pool_description() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);
+				let str_hello: BoundedVec<u8, DescMaxLen> =
+					("hello").as_bytes().to_vec().try_into().unwrap();
+				assert_ok!(PhalaStakePool::set_pool_description(
+					Origin::signed(1),
+					0,
+					str_hello.clone(),
+				));
+				let list = PhalaStakePool::pool_descriptions(0).unwrap();
+				assert_eq!(list, str_hello);
+				let str_bye: BoundedVec<u8, DescMaxLen> =
+					("bye").as_bytes().to_vec().try_into().unwrap();
+				assert_noop!(
+					PhalaStakePool::set_pool_description(Origin::signed(2), 0, str_bye,),
+					Error::<Test>::UnauthorizedPoolOwner
+				);
 			});
 		}
 
