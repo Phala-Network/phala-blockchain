@@ -1,5 +1,3 @@
-#![feature(decl_macro)]
-
 mod api_server;
 mod pal_gramine;
 mod ra;
@@ -11,6 +9,7 @@ use clap::{AppSettings, Parser};
 use log::{error, info};
 
 use phactory_api::ecall_args::{git_revision, InitArgs};
+use phactory::BlockNumber;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
@@ -72,10 +71,15 @@ struct Args {
     /// Measuring the time it takes to process each RPC call.
     #[clap(long)]
     measure_rpc_time: bool,
+
+    /// Run the database garbage collection at given interval in blocks
+    #[clap(long)]
+    #[clap(default_value_t = 100)]
+    gc_interval: BlockNumber,
 }
 
 #[rocket::main]
-async fn main() {
+async fn main() -> Result<(), rocket::Error> {
     // Disable the thread local arena(memory pool) for glibc.
     // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
     #[cfg(target_env = "gnu")]
@@ -105,7 +109,7 @@ async fn main() {
     }
 
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
-    env_logger::Builder::from_env(env).init();
+    env_logger::Builder::from_env(env).format_timestamp_micros().init();
 
     let init_args = {
         let args = args.clone();
@@ -120,6 +124,7 @@ async fn main() {
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
             max_checkpoint_files: args.max_checkpoint_files,
+            gc_interval: args.gc_interval,
         }
     };
     info!("init_args: {:#?}", init_args);
@@ -130,9 +135,8 @@ async fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
-    let mut v = vec![];
     for i in 0..bench_cores {
-        let child = thread::Builder::new()
+        thread::Builder::new()
             .name(format!("bench-{}", i))
             .spawn(move || {
                 set_thread_idle_policy();
@@ -142,7 +146,6 @@ async fn main() {
                 }
             })
             .expect("Failed to launch benchmark thread");
-        v.push(child);
     }
 
     let mut servers = vec![];
@@ -176,6 +179,8 @@ async fn main() {
     }
 
     info!("pRuntime quited");
+
+    Ok(())
 }
 
 fn set_thread_idle_policy() {

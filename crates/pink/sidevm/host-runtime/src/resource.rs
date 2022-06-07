@@ -1,51 +1,79 @@
-use pink_sidevm_env::{OcallError, Poll, Result};
-use std::{io::ErrorKind, net::SocketAddr, pin::Pin, task::Poll::*};
-use tokio::{io::AsyncWrite as _, net, sync::mpsc::Receiver, time::Sleep};
+use pink_sidevm_env::{OcallError, Result};
+use std::future::Future;
+use std::io::ErrorKind;
+use std::pin::Pin;
+use std::task::Poll::*;
+use tokio::io::AsyncWrite as _;
+use tokio::net;
+use tokio::sync::mpsc::Receiver;
+use tokio::sync::oneshot::Sender;
+use tokio::time::Sleep;
 use Resource::*;
 
-use crate::async_context::get_task_cx;
+use crate::async_context::{get_task_cx, GuestWaker};
 
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
+    OneshotTx(Option<Sender<Vec<u8>>>),
     TcpListener(net::TcpListener),
-    TcpStream {
-        stream: net::TcpStream,
-        remote_addr: SocketAddr,
-    },
+    TcpStream { stream: net::TcpStream },
+    TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<net::TcpStream>> + Send>>),
 }
 
 impl Resource {
-    pub(crate) fn poll(&mut self) -> Result<Poll<Option<Vec<u8>>>> {
+    pub(crate) fn poll(&mut self, waker_id: i32) -> Result<Vec<u8>> {
         use crate::async_context::poll_in_task_cx;
+        let waker = GuestWaker::from_id(waker_id);
 
         match self {
-            Sleep(handle) => match poll_in_task_cx(handle.as_mut()) {
-                Ready(_) => Ok(Poll::Ready(None)),
-                Pending => Ok(Poll::Pending),
-            },
             ChannelRx(rx) => {
                 let fut = rx.recv();
                 futures::pin_mut!(fut);
-                Ok(poll_in_task_cx(fut).into())
+                match poll_in_task_cx(waker, fut) {
+                    Ready(Some(data)) => Ok(data),
+                    Ready(None) => Err(OcallError::EndOfFile),
+                    Pending => Err(OcallError::Pending),
+                }
             }
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
 
-    pub(crate) fn poll_read(&mut self, buf: &mut [u8]) -> Result<Poll<u32>> {
+    pub(crate) fn poll_res(&mut self, waker_id: i32) -> Result<Resource> {
+        use crate::async_context::poll_in_task_cx;
+        let waker = GuestWaker::from_id(waker_id);
         match self {
-            Sleep(_) => self.poll().map(|state| match state {
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(_) => Poll::Ready(0),
-            }),
+            TcpConnect(fut) => {
+                let rv = poll_in_task_cx(waker, fut.as_mut());
+                match rv {
+                    Pending => Err(OcallError::Pending),
+                    Ready(Ok(stream)) => Ok(Resource::TcpStream { stream }),
+                    Ready(Err(err)) => {
+                        log::error!("Tcp connect error: {}", err);
+                        Err(OcallError::IoError)
+                    }
+                }
+            }
+            _ => Err(OcallError::UnsupportedOperation),
+        }
+    }
+
+    pub(crate) fn poll_read(&mut self, waker_id: i32, buf: &mut [u8]) -> Result<u32> {
+        use crate::async_context::poll_in_task_cx;
+        let waker = GuestWaker::from_id(waker_id);
+        match self {
+            Sleep(handle) => match poll_in_task_cx(waker, handle.as_mut()) {
+                Ready(_) => Ok(0),
+                Pending => Err(OcallError::Pending),
+            },
             TcpStream { stream, .. } => loop {
                 match stream.try_read(buf) {
-                    Ok(sz) => break Ok(Poll::Ready(sz as _)),
+                    Ok(sz) => break Ok(sz as _),
                     Err(err) => {
                         if err.kind() == ErrorKind::WouldBlock {
-                            match get_task_cx(|cx| stream.poll_read_ready(cx)) {
-                                Pending => break Ok(Poll::Pending),
+                            match get_task_cx(waker.clone(), |cx| stream.poll_read_ready(cx)) {
+                                Pending => break Err(OcallError::Pending),
                                 Ready(Err(_err)) => break Err(OcallError::IoError),
                                 Ready(Ok(())) => continue,
                             }
@@ -59,15 +87,16 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_write(&mut self, buf: &[u8]) -> Result<Poll<u32>> {
+    pub(crate) fn poll_write(&mut self, waker_id: i32, buf: &[u8]) -> Result<u32> {
+        let waker = GuestWaker::from_id(waker_id);
         match self {
             TcpStream { stream, .. } => loop {
                 match stream.try_write(buf) {
-                    Ok(sz) => break Ok(Poll::Ready(sz as _)),
+                    Ok(sz) => break Ok(sz as _),
                     Err(err) => {
                         if err.kind() == ErrorKind::WouldBlock {
-                            match get_task_cx(|cx| stream.poll_write_ready(cx)) {
-                                Pending => break Ok(Poll::Pending),
+                            match get_task_cx(waker.clone(), |cx| stream.poll_write_ready(cx)) {
+                                Pending => break Err(OcallError::Pending),
                                 Ready(Err(_err)) => break Err(OcallError::IoError),
                                 Ready(Ok(())) => continue,
                             }
@@ -81,14 +110,15 @@ impl Resource {
         }
     }
 
-    pub(crate) fn poll_shutdown(&mut self) -> Result<Poll<()>> {
+    pub(crate) fn poll_shutdown(&mut self, waker_id: i32) -> Result<()> {
+        let waker = GuestWaker::from_id(waker_id);
         match self {
             TcpStream { stream, .. } => {
                 let stream = Pin::new(stream);
-                match get_task_cx(|cx| stream.poll_shutdown(cx)) {
-                    Pending => Ok(Poll::Pending),
+                match get_task_cx(waker, |cx| stream.poll_shutdown(cx)) {
+                    Pending => Err(OcallError::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
-                    Ready(Ok(())) => Ok(Poll::Ready(())),
+                    Ready(Ok(())) => Ok(()),
                 }
             }
             _ => Err(OcallError::UnsupportedOperation),

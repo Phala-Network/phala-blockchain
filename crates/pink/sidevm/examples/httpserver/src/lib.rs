@@ -1,7 +1,7 @@
 use log::info;
 use pink_sidevm as sidevm;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use futures::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[sidevm::main]
 async fn main() {
@@ -12,11 +12,11 @@ async fn main() {
 
     info!("Listening on {}", address);
 
-    let listener = sidevm::net::TcpListener::listen(address).await.unwrap();
+    let listener = sidevm::net::TcpListener::bind(address).await.unwrap();
 
     loop {
         info!("Waiting for imcomming connection...");
-        let mut stream = listener.accept().await.unwrap();
+        let mut stream = BufReader::new(listener.accept().await.unwrap());
 
         info!("New imcomming connection");
         // Spawn a new task to handle the new connection concurrently

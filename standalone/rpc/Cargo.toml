@@ -11,7 +11,7 @@ repository = "https://github.com/paritytech/substrate/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-jsonrpc-core = "18.0"
+jsonrpsee = { version = "0.13", features = ["server"] }
 node-primitives = { path = "../../substrate/bin/node/primitives" }
 pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
 sc-client-api = { path = "../../substrate/client/api" }
@@ -21,7 +21,6 @@ sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
 sc-chain-spec = { path = "../../substrate/client/chain-spec" }
 sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 sc-finality-grandpa-rpc = { path = "../../substrate/client/finality-grandpa/rpc" }
-sc-keystore = { path = "../../substrate/client/keystore" }
 sc-rpc-api = { path = "../../substrate/client/rpc-api" }
 sc-rpc = { path = "../../substrate/client/rpc" }
 sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }

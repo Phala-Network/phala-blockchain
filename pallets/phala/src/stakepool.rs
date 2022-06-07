@@ -2,7 +2,7 @@
 
 pub use self::pallet::*;
 
-use frame_support::traits::Currency;
+use frame_support::{traits::Currency, BoundedVec};
 use sp_runtime::traits::Zero;
 
 type BalanceOf<T> =
@@ -47,6 +47,15 @@ pub mod pallet {
 
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
+	const MAX_WHITELIST_LEN: u32 = 100;
+
+	pub struct DescMaxLen;
+
+	impl Get<u32> for DescMaxLen {
+		fn get() -> u32 {
+			400
+		}
+	}
 	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
@@ -159,6 +168,18 @@ pub mod pallet {
 	pub type SubAccountPreimages<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
 
+	/// Mapping for pools that specify certain stakers to contribute stakes
+	#[pallet::storage]
+	#[pallet::getter(fn pool_whitelist)]
+	pub type PoolContributionWhitelists<T: Config> =
+		StorageMap<_, Twox64Concat, u64, Vec<T::AccountId>>;
+
+	/// Mapping for pools that store their descriptions set by owner
+	#[pallet::storage]
+	#[pallet::getter(fn pool_descriptions)]
+	pub type PoolDescriptions<T: Config> =
+		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, super::DescMaxLen>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -228,6 +249,20 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
+		/// Similar to event `RewardsWithdrawn` but only affected states:
+		///  - the stake related fields in [`StakePools`]
+		OwnerRewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		/// Similar to event `ewardsWithdrawn` but only affected states:
+		///  - the user staking account at [`PoolStakers`]
+		StakerRewardsWithdrawn {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
 		/// The pool received a slash event from one of its workers (currently disabled)
 		///
 		/// The slash is accured to the pending slash accumulator.
@@ -280,6 +315,18 @@ pub mod pallet {
 			user: T::AccountId,
 			shares: BalanceOf<T>,
 		},
+		/// A pool contribution whitelist is added
+		/// - lazy operated when the first staker is added to the whitelist
+		PoolWhitelistCreated { pid: u64 },
+		/// The pool contribution whitelist is deleted
+		/// - lazy operated when the last staker is removed from the whitelist
+		PoolWhitelistDeleted { pid: u64 },
+		/// A staker is added to the pool contribution whitelist
+		PoolWhitelistStakerAdded { pid: u64, staker: T::AccountId },
+		/// A staker is removed from the pool contribution whitelist
+		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
+		/// A worker is reclaimed from the pool
+		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
 	}
 
 	#[pallet::error]
@@ -334,6 +381,18 @@ pub mod pallet {
 		WorkersExceedLimit,
 		/// Restarted with a less stake is not allowed in the tokenomic.
 		CannotRestartWithLessStake,
+		/// Invalid amount of balance input when force reward.
+		InvalidForceRewardAmount,
+		/// Invalid staker to contribute because origin isn't in Pool's contribution whitelist.
+		NotInContributeWhitelist,
+		/// Can not add the staker to whitelist because the staker is already in whitelist.
+		AlreadyInContributeWhitelist,
+		/// Too many stakers in contribution whitelist that exceed the limit
+		ExceedWhitelistMaxLen,
+		/// The pool hasn't have a whitelist created
+		NoWhitelistCreated,
+		/// Too long for pool description length
+		ExceedMaxDescriptionLen,
 	}
 
 	#[pallet::hooks]
@@ -433,6 +492,12 @@ pub mod pallet {
 			// bind worker with miner
 			mining::pallet::Pallet::<T>::bind(miner.clone(), pubkey)
 				.or(Err(Error::<T>::FailedToBindMinerAndWorker))?;
+
+			// Save the preimage of the sub-account,
+			// the lifecycle of the preimage should be the same with the miner record,
+			// current implementation we don't delete miner records even its no longer in-use,
+			// so we won't delete preimages for now.
+			SubAccountPreimages::<T>::insert(miner, (pid, pubkey));
 
 			// update worker vector
 			workers.push(pubkey);
@@ -535,9 +600,196 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Add a staker accountid to contribution whitelist.
+		///
+		/// Calling this method will forbide stakers contribute who isn't in the whitelist.
+		/// The caller must be the owner of the pool.
+		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
+		/// The whitelist has a lmit len of 100 stakers.
+		#[pallet::weight(0)]
+		pub fn add_staker_to_whitelist(
+			origin: OriginFor<T>,
+			pid: u64,
+			staker: T::AccountId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+				ensure!(
+					!whitelist.contains(&staker),
+					Error::<T>::AlreadyInContributeWhitelist
+				);
+				ensure!(
+					(whitelist.len() as u32) < MAX_WHITELIST_LEN,
+					Error::<T>::ExceedWhitelistMaxLen
+				);
+				whitelist.push(staker.clone());
+				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+			} else {
+				let new_list = vec![staker.clone()];
+				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
+				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
+			}
+			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
+
+			Ok(())
+		}
+
+		/// Add a description to the pool
+		///
+		/// The caller must be the owner of the pool.
+		#[pallet::weight(0)]
+		pub fn set_pool_description(
+			origin: OriginFor<T>,
+			pid: u64,
+			description: BoundedVec<u8, DescMaxLen>,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let pool_info = Self::ensure_pool(pid)?;
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			PoolDescriptions::<T>::insert(&pid, description);
+
+			Ok(())
+		}
+
+		/// Remove a staker accountid to contribution whitelist.
+		///
+		/// The caller must be the owner of the pool.
+		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
+		#[pallet::weight(0)]
+		pub fn remove_staker_from_whitelist(
+			origin: OriginFor<T>,
+			pid: u64,
+			staker: T::AccountId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			let mut whitelist =
+				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
+			ensure!(
+				whitelist.contains(&staker),
+				Error::<T>::NotInContributeWhitelist
+			);
+			whitelist.retain(|accountid| accountid != &staker);
+			if whitelist.is_empty() {
+				PoolContributionWhitelists::<T>::remove(&pid);
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+					pid,
+					staker: staker.clone(),
+				});
+				Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
+			} else {
+				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+					pid,
+					staker: staker.clone(),
+				});
+			}
+
+			Ok(())
+		}
+
+		/// Manually assign rewards to pools by miningSwitchOrigin for fixing issue 763
+
+		///
+		/// Requires:
+		/// 1. The caller is root
+		/// 2. Assigned pool must currently exist
+		/// 3. Reward is positive
+		#[pallet::weight(0)]
+		pub fn force_assign_reward(
+			origin: OriginFor<T>,
+			reward_arr: Vec<(u64, BalanceOf<T>)>,
+		) -> DispatchResult {
+			// Origin must be MiningSwitchOrigin
+			T::MiningSwitchOrigin::ensure_origin(origin)?;
+			for (pid, reward) in reward_arr {
+				// The assigned pool must exist
+				let mut pool_info = Self::ensure_pool(pid)?;
+				// The reward must be positive
+				if reward <= Zero::zero() {
+					continue;
+				}
+				// Assign reward
+				Self::handle_pool_new_reward(&mut pool_info, reward);
+				StakePools::<T>::insert(&pid, &pool_info);
+			}
+
+			Ok(())
+		}
+
+		/// Claims pool-owner's pending rewards of the sender and send to the `target`
+		///
+		/// The rewards associate to sender's "staker role" will not be claimed
+		///
+		/// Requires:
+		/// 1. The sender is a pool owner
+		#[pallet::weight(0)]
+		pub fn claim_owner_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+			// Add pool owner's reward if applicable
+			ensure!(who == pool_info.owner, Error::<T>::UnauthorizedPoolOwner);
+			let rewards = pool_info.owner_reward;
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			pool_info.owner_reward = Zero::zero();
+			StakePools::<T>::insert(pid, &pool_info);
+			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
+
+			Ok(())
+		}
+
+		/// Claims staker's pending rewards of the sender and send to the `target`
+		///
+		/// The rewards associate to sender's "owner role" will not be claimed
+		///
+		/// Requires:
+		///
+		/// 1. The sender is a staker
+		#[pallet::weight(0)]
+		pub fn claim_staker_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let pool_info = Self::ensure_pool(pid)?;
+			let info_key = (pid, who.clone());
+			let mut user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::NoRewardToClaim)?;
+			pool_info.settle_user_pending_reward(&mut user_info);
+			let rewards = user_info.available_rewards;
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			user_info.available_rewards = Zero::zero();
+			// Update ledger
+			StakePools::<T>::insert(pid, &pool_info);
+			PoolStakers::<T>::insert(&info_key, &user_info);
+			Self::deposit_event(Event::<T>::StakerRewardsWithdrawn {
+				pid,
+				user: who,
+				amount: rewards,
+			});
+
+			Ok(())
+		}
+
 		/// Claims all the pending rewards of the sender and send to the `target`
 		///
 		/// Requires:
+		///
 		/// 1. The sender is a pool owner or staker
 		#[pallet::weight(0)]
 		pub fn claim_rewards(
@@ -587,8 +839,15 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-
+			/// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+				ensure!(
+					whitelist.contains(&who) || pool_info.owner == who,
+					Error::<T>::NotInContributeWhitelist
+				);
+			}
 			ensure!(
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
@@ -597,7 +856,6 @@ pub mod pallet {
 			let locked = Self::ledger_query(&who);
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 
-			let mut pool_info = Self::ensure_pool(pid)?;
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
@@ -724,7 +982,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 			Self::ensure_pool(pid)?;
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
-			Self::do_reclaim(pid, sub_account, true).map(|_| ())
+			Self::do_reclaim(pid, sub_account, worker, true).map(|_| ())
 		}
 
 		/// Enables or disables mining. Must be called with the council or root permission.
@@ -786,7 +1044,7 @@ pub mod pallet {
 			// Stop and instantly reclaim the worker
 			Self::do_stop_mining(&owner, pid, worker)?;
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			let (orig_stake, slashed) = Self::do_reclaim(pid, miner, false)?;
+			let (orig_stake, slashed) = Self::do_reclaim(pid, miner, worker, false)?;
 			let released = orig_stake - slashed;
 			ensure!(stake > released, Error::<T>::CannotRestartWithLessStake);
 			// Simply start mining. Rollback if there's no enough stake,
@@ -822,12 +1080,9 @@ pub mod pallet {
 			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
 			pool_info.free_stake -= stake;
 			StakePools::<T>::insert(&pid, &pool_info);
-			// Save the preimage of the sub-account when start mining. We remove the storage item
-			// after reclaiming. Only start_mining is paired with reclaim. So we insert it here.
-			SubAccountPreimages::<T>::insert(miner, (pid, worker));
+
 			Ok(())
 		}
-
 		fn do_stop_mining(
 			owner: &T::AccountId,
 			pid: u64,
@@ -847,20 +1102,16 @@ pub mod pallet {
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 			Ok(())
 		}
-
 		fn do_reclaim(
 			pid: u64,
 			sub_account: T::AccountId,
+			worker: WorkerPublicKey,
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let (orig_stake, slashed) =
 				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
-			// A successful relcaim will settle all the stake. We don't care about the preimage of
-			// the sub-account anymore. So we feel safe to delete the preimage. Also, this method
-			// is the only entrance to trigger the underlying reclaim. So we can release the
-			// storage now.
-			SubAccountPreimages::<T>::remove(sub_account);
+			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
 			Ok((orig_stake, slashed))
 		}
 
@@ -1197,7 +1448,7 @@ pub mod pallet {
 		}
 
 		pub(crate) fn migration_remove_assignments() -> Weight {
-			let writes = WorkerAssignments::<T>::drain().count();
+			let writes = SubAccountAssignments::<T>::drain().count();
 			T::DbWeight::get().writes(writes as _)
 		}
 	}
@@ -1702,6 +1953,30 @@ pub mod pallet {
 					})
 				);
 				assert_eq!(PoolCount::<Test>::get(), 2);
+			});
+		}
+
+		#[test]
+		fn test_set_pool_description() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);
+				let str_hello: BoundedVec<u8, DescMaxLen> =
+					("hello").as_bytes().to_vec().try_into().unwrap();
+				assert_ok!(PhalaStakePool::set_pool_description(
+					Origin::signed(1),
+					0,
+					str_hello.clone(),
+				));
+				let list = PhalaStakePool::pool_descriptions(0).unwrap();
+				assert_eq!(list, str_hello);
+				let str_bye: BoundedVec<u8, DescMaxLen> =
+					("bye").as_bytes().to_vec().try_into().unwrap();
+				assert_noop!(
+					PhalaStakePool::set_pool_description(Origin::signed(2), 0, str_bye,),
+					Error::<Test>::UnauthorizedPoolOwner
+				);
 			});
 		}
 
@@ -2294,6 +2569,181 @@ pub mod pallet {
 			});
 		}
 
+		#[test]
+		fn test_force_assign_reward() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Check stake before receiving any rewards
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.reward_acc.get(), fp!(0));
+				assert_eq!(pool.owner_reward, fp!(0));
+				let input = vec![(0, 500 * DOLLARS)];
+				PhalaStakePool::force_assign_reward(Origin::root(), input);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.reward_acc.get(), fp!(0.5));
+				assert_eq!(pool.owner_reward, 250 * DOLLARS);
+			});
+		}
+		#[test]
+		fn test_divided_claim_rewards() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(1000u32).to_bits(),
+					treasury: 0,
+				}]);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 500 * DOLLARS);
+				assert_ok!(PhalaStakePool::claim_owner_rewards(Origin::signed(1), 0, 1));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 0 * DOLLARS);
+				assert_ok!(PhalaStakePool::claim_staker_rewards(
+					Origin::signed(1),
+					0,
+					1
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(pool.pending_reward(&staker1), 0 * DOLLARS);
+				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
+				assert_eq!(pool.owner_reward, 0 * DOLLARS);
+			});
+		}
+		#[test]
+		fn test_staker_whitelist() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);
+
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					40 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					40 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					40 * DOLLARS
+				));
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				assert_eq!(staker1.shares, 40 * DOLLARS);
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(staker2.shares, 40 * DOLLARS);
+				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker3.shares, 40 * DOLLARS);
+				assert_ok!(PhalaStakePool::add_staker_to_whitelist(
+					Origin::signed(1),
+					0,
+					2,
+				));
+				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
+				assert_eq!(whitelist, [2]);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					10 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					40 * DOLLARS
+				));
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(3), 0, 40 * DOLLARS),
+					Error::<Test>::NotInContributeWhitelist
+				);
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				assert_eq!(staker1.shares, 50 * DOLLARS);
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				assert_eq!(staker2.shares, 80 * DOLLARS);
+				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker3.shares, 40 * DOLLARS);
+				assert_ok!(PhalaStakePool::add_staker_to_whitelist(
+					Origin::signed(1),
+					0,
+					3,
+				));
+				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
+				assert_eq!(whitelist, [2, 3]);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					20 * DOLLARS,
+				));
+				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker4.shares, 60 * DOLLARS);
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
+				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
+				assert_eq!(whitelist, [3]);
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS,),
+					Error::<Test>::NotInContributeWhitelist
+				);
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
+				assert!(PhalaStakePool::pool_whitelist(0).is_none());
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					20 * DOLLARS,
+				));
+				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				assert_eq!(staker4.shares, 80 * DOLLARS);
+			});
+		}
 		#[test]
 		fn test_reward_management() {
 			use crate::mining::pallet::OnReward;
@@ -3423,41 +3873,10 @@ pub mod pallet {
 			new_test_ext().execute_with(|| {
 				setup_workers(1);
 				setup_pool_with_workers(1, &[1]); // pid=0
-								  // Start a worker as usual
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					1500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					1500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::stop_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
+
 				let subaccount: u64 = pool_sub_account(0, &worker_pubkey(1));
 				let preimage = SubAccountPreimages::<Test>::get(subaccount);
 				assert_eq!(preimage, Some((0, worker_pubkey(1))));
-				assert_ok!(PhalaStakePool::remove_worker(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
-				let preimage = SubAccountPreimages::<Test>::get(subaccount);
-				assert_eq!(preimage, Some((0, worker_pubkey(1))));
-				elapse_cool_down();
-				assert_ok!(PhalaStakePool::reclaim_pool_worker(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
-				let preimage = SubAccountPreimages::<Test>::get(subaccount);
-				assert_eq!(preimage, None);
 			});
 		}
 

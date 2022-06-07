@@ -40,6 +40,7 @@ members = [
 	"standalone/runtime",
 	"standalone/pherry",
 	"standalone/replay",
+	"standalone/headers-cache",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",
@@ -68,7 +69,6 @@ members = [
 	"crates/rustfmt-snippet",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-	"pallets/utility",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]

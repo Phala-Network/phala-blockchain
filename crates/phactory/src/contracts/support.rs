@@ -4,7 +4,11 @@ use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
-use sidevm::VmId;
+use sidevm::{
+    instrument::instrument,
+    service::{CommandSender, ExitReason},
+    OcallAborted, VmId,
+};
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
@@ -30,6 +34,7 @@ pub struct QueryContext {
     pub block_number: BlockNumber,
     pub now_ms: u64,
     pub storage: ::pink::Storage,
+    pub sidevm_handle: Option<SidevmHandle>,
 }
 
 impl NativeContext<'_, '_> {
@@ -107,31 +112,38 @@ impl Decode for RawData {
     }
 }
 
+#[derive(Clone)]
 pub enum SidevmHandle {
-    Running(sidevm::service::CommandSender),
-    Terminated,
+    Running(CommandSender),
+    Terminated(ExitReason),
 }
 
-impl SidevmHandle {
-    fn is_terminated(&self) -> bool {
+impl Serialize for SidevmHandle {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         match self {
-            SidevmHandle::Running(_) => false,
-            SidevmHandle::Terminated => true,
+            SidevmHandle::Running(_) => ExitReason::Restore.serialize(serializer),
+            SidevmHandle::Terminated(r) => r.serialize(serializer),
         }
     }
 }
 
-impl Default for SidevmHandle {
-    fn default() -> Self {
-        SidevmHandle::Terminated
+impl<'de> Deserialize<'de> for SidevmHandle {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let reason = ExitReason::deserialize(deserializer)?;
+        Ok(SidevmHandle::Terminated(reason))
     }
 }
 
 #[derive(Serialize, Deserialize)]
 struct SidevmInfo {
     code: Vec<u8>,
-    memory_pages: u32,
-    #[serde(skip, default)]
+    auto_restart: bool,
     handle: Arc<Mutex<SidevmHandle>>,
 }
 
@@ -180,6 +192,12 @@ impl FatContract {
         Query {
             contract: self.contract.snapshot(),
         }
+    }
+
+    pub(crate) fn sidevm_handle(&self) -> Option<SidevmHandle> {
+        self.sidevm_info
+            .as_ref()
+            .map(|info| info.handle.lock().unwrap().clone())
     }
 
     pub(crate) fn process_next_message(
@@ -248,43 +266,53 @@ impl FatContract {
         &mut self,
         spawner: &sidevm::service::Spawner,
         code: Vec<u8>,
-        memory_pages: u32,
+        auto_restart: bool,
     ) -> Result<()> {
         if self.sidevm_info.is_some() {
             bail!("Sidevm can only be started once");
         }
-        let handle = do_start_sidevm(spawner, &code, memory_pages, self.contract_id.0)?;
+        let handle = do_start_sidevm(spawner, &code, self.contract_id.0)?;
         self.sidevm_info = Some(SidevmInfo {
             code,
-            memory_pages,
             handle,
+            auto_restart,
         });
         Ok(())
     }
 
-    pub(crate) fn restart_sidevm_if_terminated(
+    pub(crate) fn restart_sidevm_if_needed(
         &mut self,
         spawner: &sidevm::service::Spawner,
     ) -> Result<()> {
         if let Some(sidevm_info) = &mut self.sidevm_info {
-            if sidevm_info.handle.lock().unwrap().is_terminated() {
-                let handle = do_start_sidevm(
-                    spawner,
-                    &sidevm_info.code,
-                    sidevm_info.memory_pages,
-                    self.cluster_id.0,
-                )?;
-                sidevm_info.handle = handle;
-            }
+            let guard = sidevm_info.handle.lock().unwrap();
+            let handle = if let SidevmHandle::Terminated(reason) = &*guard {
+                let need_restart = match reason {
+                    ExitReason::Exited(_) => false,
+                    ExitReason::Stopped => false,
+                    ExitReason::InputClosed => false,
+                    ExitReason::Panicked => true,
+                    ExitReason::Cancelled => false,
+                    // TODO.kevin: Allow to charge new gas? How to charge gas or weather the gas
+                    // system works or not is not clear ATM.
+                    ExitReason::OcallAborted(OcallAborted::GasExhausted) => false,
+                    ExitReason::OcallAborted(OcallAborted::Stifled) => true,
+                    ExitReason::Restore => true,
+                };
+                if !need_restart {
+                    return Ok(());
+                }
+                do_start_sidevm(spawner, &sidevm_info.code, self.contract_id.0)?
+            } else {
+                return Ok(());
+            };
+            drop(guard);
+            sidevm_info.handle = handle;
         }
         Ok(())
     }
 
-    pub(crate) fn push_message_to_sidevm(
-        &self,
-        spawner: &sidevm::service::Spawner,
-        message: Vec<u8>,
-    ) -> Result<()> {
+    pub(crate) fn push_message_to_sidevm(&self, message: Vec<u8>) -> Result<()> {
         let handle = self
             .sidevm_info
             .as_ref()
@@ -292,23 +320,29 @@ impl FatContract {
             .handle
             .clone();
 
+        let vmid = sidevm::ShortId(&self.contract_id.0);
+
         let tx = match &*handle.lock().unwrap() {
-            SidevmHandle::Terminated => {
-                error!(target: "sidevm", "Push message to sidevm failed, instance terminated");
+            SidevmHandle::Terminated(_) => {
+                error!(target: "sidevm", "[{vmid}] PM to sidevm failed, instance terminated");
                 return Err(anyhow!(
                     "Push message to sidevm failed, instance terminated"
                 ));
             }
             SidevmHandle::Running(tx) => tx.clone(),
         };
-        spawner.spawn(async move {
-            let result = tx
-                .send(sidevm::service::Command::PushMessage(message))
-                .await;
-            if let Err(_) = result {
-                error!(target: "sidevm", "Push message to sidevm failed, the vm might be already stopped");
+        let result = tx.try_send(sidevm::service::Command::PushMessage(message));
+        if let Err(err) = result {
+            use tokio::sync::mpsc::error::TrySendError;
+            match err {
+                TrySendError::Full(_) => {
+                    error!(target: "sidevm", "[{vmid}] PM to sidevm failed (channel full), the guest program may be stucked");
+                }
+                TrySendError::Closed(_) => {
+                    error!(target: "sidevm", "[{vmid}] PM to sidevm failed (channel closed), the VM might be already stopped");
+                }
             }
-        });
+        }
         Ok(())
     }
 }
@@ -316,21 +350,65 @@ impl FatContract {
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
-    memory_pages: u32,
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    let (sender, join_handle) = spawner.start(code, memory_pages, id)?;
+    let todo = "connect the gas to some where";
+    let max_memory_pages: u32 = 1024; // 64MB
+    let gas = u128::MAX;
+    let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
+    let code = instrument(code).context("Failed to instrument the wasm code")?;
+    let (sender, join_handle) = spawner.start(
+        &code,
+        max_memory_pages,
+        id,
+        gas,
+        gas_per_breath,
+        local_cache_ops(),
+    )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
 
-    debug!(target: "sidevm", "Starting sidevm...");
+    let vmid = sidevm::ShortId(&id);
+    info!(target: "sidevm", "[{vmid}] Starting sidevm...");
     spawner.spawn(async move {
-        if let Err(err) = join_handle.await {
-            error!(target: "sidevm", "Sidevm process terminated with error: {:?}", err);
-        }
-        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated;
+        let vmid = sidevm::ShortId(&id);
+        let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
+        error!(target: "sidevm", "[{vmid}] Sidevm process terminated with reason: {:?}", reason);
+        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated(reason);
     });
     Ok(handle)
+}
+
+fn local_cache_ops() -> sidevm::DynCacheOps {
+    use ::pink::local_cache as cache;
+    type OpResult<T> = Result<T, sidevm::OcallError>;
+
+    struct CacheOps;
+    impl sidevm::CacheOps for CacheOps {
+        fn get(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+            Ok(cache::local_cache_get(contract, key))
+        }
+
+        fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> OpResult<()> {
+            cache::local_cache_set(contract, key, value)
+                .map_err(|_| sidevm::OcallError::ResourceLimited)
+        }
+
+        fn set_expiration(
+            &self,
+            contract: &[u8],
+            key: &[u8],
+            expire_after_secs: u64,
+        ) -> OpResult<()> {
+            cache::local_cache_set_expiration(contract, key, expire_after_secs);
+            Ok(())
+        }
+
+        fn remove(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+            Ok(cache::local_cache_remove(contract, key))
+        }
+    }
+    &CacheOps
 }
 
 pub use keeper::*;

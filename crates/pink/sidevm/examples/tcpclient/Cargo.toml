@@ -1,0 +1,15 @@
+# workaround for https://github.com/rust-lang/cargo/issues/6745
+[workspace]
+
+[package]
+edition = "2021"
+name = "sidevm-tcpclient"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+log = "0.4.16"
+pink-sidevm = {path = "../../sidevm"}
+futures = "0.3"

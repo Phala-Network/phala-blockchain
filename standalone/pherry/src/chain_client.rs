@@ -2,14 +2,14 @@ use crate::{
     types::{utils::raw_proof, Hash, ParachainApi, RelaychainApi, StorageKey},
     Error,
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use codec::Decode;
 use codec::Encode;
 use phactory_api::blocks::StorageProof;
 use phala_node_rpc_ext::MakeInto as _;
 use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
-use phaxt::{rpc::ExtraRpcExt as _, subxt};
+use phaxt::{rpc::ExtraRpcExt as _, subxt, RpcClient};
 use serde_json::to_value;
 use subxt::rpc::{rpc_params, ClientT};
 
@@ -48,20 +48,23 @@ pub async fn read_proofs(
 // Storage functions
 
 /// Fetch storage changes made by given block.
-pub async fn fetch_storage_changes(api: &ParachainApi, hash: &Hash) -> Result<StorageChanges> {
-    let response = api
-        .client
+pub async fn fetch_storage_changes(
+    client: &RpcClient,
+    from: &Hash,
+    to: &Hash,
+) -> Result<Vec<StorageChanges>> {
+    let response = client
         .extra_rpc()
-        .get_storage_changes(hash, hash)
-        .await?;
-    let first = response
+        .get_storage_changes(from, to)
+        .await?
         .into_iter()
-        .next()
-        .ok_or(anyhow!(crate::error::Error::BlockNotFound))?;
-    Ok(StorageChanges {
-        main_storage_changes: first.main_storage_changes.into_(),
-        child_storage_changes: first.child_storage_changes.into_(),
-    })
+        .map(|changes| StorageChanges {
+            // TODO.kevin: get rid of this convert
+            main_storage_changes: changes.main_storage_changes.into_(),
+            child_storage_changes: changes.child_storage_changes.into_(),
+        })
+        .collect();
+    Ok(response)
 }
 
 /// Fetch the genesis storage.

@@ -1,12 +1,22 @@
 [package]
+description = "Framework to help developing phala sidevm program"
+license = "Apache-2.0"
+homepage = "https://github.com/Phala-Network/phala-blockchain"
 edition = "2021"
 name = "pink-sidevm"
-version = "0.1.0"
+version = "0.1.4"
 
 [dependencies]
-hyper = {version = "0.14.18", features = ["server"]}
-pink-sidevm-env = {version = "0.1.0", path = "../env"}
-pink-sidevm-logger = {version = "0.1.0", path = "../logger"}
-pink-sidevm-macro = {version = "0.1.0", path = "../macro"}
-tokio = {version = "1"}
+pink-sidevm-env = { version = "0.1.1", path = "../env" }
+pink-sidevm-logger = { version = "0.1.0", path = "../logger" }
+pink-sidevm-macro = { version = "0.1.0", path = "../macro" }
 log = "0.4.16"
+derive_more = "0.99"
+
+hyper = { version = "0.14.18", features = ["server"], optional = true }
+tokio = { version = "1", optional = true }
+futures = "0.3"
+scale = { version = "3", package = "parity-scale-codec" }
+
+[features]
+default = ["hyper", "tokio"]

@@ -18,14 +18,15 @@ use tinyvec::TinyVec;
 pub use args_stack::RetEncode;
 pub use ocall_def::*;
 pub use pink_sidevm_macro::main;
-pub use tasks::{spawn, TaskHandle};
+pub use tasks::spawn;
 
 mod args_stack;
 mod ocall_def;
-mod tasks;
+pub mod tasks;
+pub mod query;
 
 cfg_if::cfg_if! {
-    if #[cfg(any(target_pointer_width = "32", feature = "host"))] {
+    if #[cfg(all(not(test), any(target_pointer_width = "32", feature = "host")))] {
         pub type IntPtr = i32;
     } else {
         // For unit test
@@ -39,24 +40,32 @@ pub type IntRet = i64;
 #[repr(u8)]
 pub enum OcallError {
     Ok = 0,
+    /// The ocall function is not implemented.
     UnknownCallNumber = 1,
+    /// Given argument is an invalid pointer.
     InvalidAddress = 2,
+    /// Given argument is invalid.
     InvalidParameter = 3,
+    /// Given argument is not well-formed.
     InvalidEncoding = 4,
+    /// Run out of memory.
     NoMemory = 5,
-    NoReturnValue = 6,
+    /// The resource is not found.
     NotFound = 7,
+    /// The resource does not support current operation.
     UnsupportedOperation = 8,
+    /// IO error.
     IoError = 9,
+    /// Resource quota is exceeded.
     ResourceLimited = 10,
-    /// Reserved for future use
-    Reserved11 = 11,
-    /// Reserved for future use
-    Reserved12 = 12,
-    /// Reserved for future use
-    Reserved13 = 13,
-    /// Reserved for future use
-    Reserved14 = 14,
+    /// The async poll is pending.
+    Pending = 11,
+    /// Read to the end of some stream-like resource.
+    EndOfFile = 12,
+    /// The gas is not enough.
+    GasExhausted = 13,
+    /// The gas is not enough for current poll.
+    Stifled = 14,
     /// Reserved for future use
     Reserved15 = 15,
     /// Reserved for future use

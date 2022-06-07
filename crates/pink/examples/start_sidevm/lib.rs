@@ -5,6 +5,7 @@ use pink_extension as pink;
 #[pink::contract]
 mod start_sidevm {
     use super::pink;
+    use scale::Encode;
 
     #[ink(storage)]
     pub struct Contract {}
@@ -12,12 +13,14 @@ mod start_sidevm {
     impl Contract {
         #[ink(constructor)]
         pub fn default() -> Self {
-            let code = &include_bytes!("./sidevm_recv_messages.wasm")[..];
-            pink::start_sidevm(code.into(), 100);
+            let code = &include_bytes!("./sideprog.wasm")[..];
+            pink::start_sidevm(code.into(), true);
             Self {}
         }
         #[pink(on_block_end)]
         pub fn on_block_end(&self) {
+            let number = self.env().block_number().encode();
+            pink::ext().cache_set(b"block_number", &number).unwrap();
             pink::push_sidevm_message(b"hello".to_vec());
         }
         #[ink(message)]

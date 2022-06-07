@@ -13,26 +13,68 @@ thread_local! {
 
 #[derive(Clone)]
 struct TaskEnv {
-    awake_tasks: Weak<TaskSet>,
+    tasks: Weak<TaskSet>,
     this_task: i32,
 }
 
-#[derive(Clone)]
 struct WakerData {
     env: TaskEnv,
     parent: Waker,
+    guest_waker: GuestWaker,
+}
+
+#[derive(Clone)]
+pub struct GuestWaker {
+    inner: Arc<GuestWakerInner>,
+}
+
+struct GuestWakerInner {
+    tasks: Weak<TaskSet>,
+    id: i32,
+}
+
+impl Drop for GuestWakerInner {
+    fn drop(&mut self) {
+        if let Some(tasks) = self.tasks.upgrade() {
+            // negative means drop it
+            tasks.awake_wakers.lock().unwrap().push_back(-1 - self.id);
+        }
+    }
+}
+
+impl GuestWaker {
+    pub fn from_id(id: i32) -> Self {
+        let tasks = TLS_TASK_ENV.with(move |tls_task_env| {
+            tls_task_env
+                .borrow()
+                .as_ref()
+                .expect("TLS TaskEnv not set. This is a bug.")
+                .tasks
+                .clone()
+        });
+        Self {
+            inner: Arc::new(GuestWakerInner { tasks, id }),
+        }
+    }
+
+    fn wake_by_ref(&self) {
+        if let Some(tasks) = self.inner.tasks.upgrade() {
+            tasks.awake_wakers.lock().unwrap().push_back(self.inner.id);
+        }
+    }
 }
 
 impl WakerData {
     fn wake_by_ref(&self) {
-        if let Some(tasks) = self.env.awake_tasks.upgrade() {
-            tasks.push(self.env.this_task);
+        if let Some(tasks) = self.env.tasks.upgrade() {
+            tasks.push_task(self.env.this_task);
+            self.guest_waker.wake_by_ref();
         }
         self.parent.wake_by_ref();
     }
 }
 
-fn relay_waker(env: &TaskEnv, parent: &Waker) -> Waker {
+fn relay_waker(env: &TaskEnv, parent: &Waker, guest_waker: GuestWaker) -> Waker {
     fn raw_waker_from_data(data: Arc<WakerData>) -> RawWaker {
         let vtable = &RawWakerVTable::new(clone_waker, wake_waker, wake_by_ref_waker, drop_waker);
         RawWaker::new(Arc::into_raw(data) as *const (), vtable)
@@ -62,10 +104,10 @@ fn relay_waker(env: &TaskEnv, parent: &Waker) -> Waker {
             drop(Arc::from_raw(data as *const WakerData));
         }
     }
-
     let data = Arc::new(WakerData {
         env: env.clone(),
         parent: parent.clone(),
+        guest_waker,
     });
 
     unsafe { Waker::from_raw(raw_waker_from_data(data)) }
@@ -87,7 +129,7 @@ where
 {
     TLS_TASK_ENV.with(|tls_task_env| {
         *tls_task_env.borrow_mut() = Some(TaskEnv {
-            awake_tasks: Arc::downgrade(&awake_tasks),
+            tasks: Arc::downgrade(&awake_tasks),
             this_task: task_id,
         });
     });
@@ -133,7 +175,7 @@ where
 ///
 /// Panics if no task has been set or if the task context has already been
 /// retrived by a surrounding call to get_task_cx.
-pub(crate) fn get_task_cx<F, R>(f: F) -> R
+pub(crate) fn get_task_cx<F, R>(guest_waker: GuestWaker, f: F) -> R
 where
     F: FnOnce(&mut task::Context) -> R,
 {
@@ -152,16 +194,19 @@ where
             .as_ref()
             .expect("TLS TaskEnv not set. This is a bug.");
         let parent = cx_ptr.as_mut().waker();
-        let waker = relay_waker(env, parent);
+        let waker = relay_waker(env, parent, guest_waker);
         let mut cx = task::Context::from_waker(&waker);
         f(&mut cx)
     })
 }
 
 /// Polls a future in the current thread-local task context.
-pub(crate) fn poll_in_task_cx<F>(f: Pin<&mut F>) -> task::Poll<F::Output>
+pub(crate) fn poll_in_task_cx<F: ?Sized>(
+    guest_waker: GuestWaker,
+    f: Pin<&mut F>,
+) -> task::Poll<F::Output>
 where
     F: Future,
 {
-    get_task_cx(|cx| f.poll(cx))
+    get_task_cx(guest_waker, |cx| f.poll(cx))
 }

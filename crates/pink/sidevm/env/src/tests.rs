@@ -4,25 +4,25 @@ use super::*;
 use std::cell::Cell;
 #[pink_sidevm_macro::ocall]
 pub trait TestOcall {
-    #[ocall(id = 100)]
+    #[ocall(id = 100, encode_input, encode_output)]
     fn echo(input: Vec<u8>) -> Result<Vec<u8>>;
 
-    #[ocall(id = 101)]
+    #[ocall(id = 101, encode_input, encode_output)]
     fn add(a: u32, b: u32) -> Result<u32>;
 
-    #[ocall(id = 102, fast_input, fast_return)]
+    #[ocall(id = 102)]
     fn add_fi_fo(a: u32, b: u32) -> Result<u32>;
 
-    #[ocall(id = 103, fast_input)]
+    #[ocall(id = 103, encode_output)]
     fn add_fi(a: u32, b: u32) -> Result<u32>;
 
-    #[ocall(id = 104, fast_return)]
+    #[ocall(id = 104, encode_input)]
     fn add_fo(a: u32, b: u32) -> Result<u32>;
 
-    #[ocall(id = 105, fast_input)]
+    #[ocall(id = 105, encode_output)]
     fn sub_fi(a: i32, b: i32) -> Result<i32>;
 
-    #[ocall(id = 106, fast_input, fast_return)]
+    #[ocall(id = 106)]
     fn copy(dst: &mut [u8], src: &[u8]) -> Result<()>;
 }
 

@@ -65,7 +65,7 @@ pub async fn maybe_sync_mq_egress(
             let extrinsic = api
                 .tx()
                 .phala_mq()
-                .sync_offchain_message(message)
+                .sync_offchain_message(message)?
                 .create_signed(signer, params)
                 .await;
             signer.increment_nonce();
@@ -86,7 +86,7 @@ pub async fn maybe_sync_mq_egress(
                                 error!("Error submitting message {}: {:?}", msg_info, err);
                                 use phaxt::subxt::{rpc::RpcError, BasicError as SubxtError};
                                 let report = match err {
-                                    SubxtError::Rpc(RpcError::Request(err)) => {
+                                    SubxtError::Rpc(RpcError::Custom(err)) => {
                                         if err.contains("bad signature") {
                                             Error::BadSignature
                                         } else {

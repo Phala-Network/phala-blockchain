@@ -201,6 +201,11 @@ where
 
         let changes = &block.storage_changes;
 
+        log::debug!(
+            "calc root ({}, {})",
+            changes.main_storage_changes.len(),
+            changes.child_storage_changes.len()
+        );
         let (state_root, transaction) = storage.calc_root_if_changes(
             &changes.main_storage_changes,
             &changes.child_storage_changes,
@@ -214,7 +219,9 @@ where
             });
         }
 
+        log::debug!("apply changes");
         storage.apply_changes(state_root, transaction);
+        log::debug!("applied");
 
         self.block_number_next += 1;
         state_roots.pop_front();

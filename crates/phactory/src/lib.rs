@@ -57,6 +57,7 @@ pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
+pub use chain::BlockNumber;
 
 pub mod benchmark;
 
@@ -237,6 +238,9 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
+    #[serde(skip)]
+    #[serde(default)]
+    last_storage_purge_at: chain::BlockNumber,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -254,6 +258,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             endpoint_info: None,
             side_task_man: Default::default(),
             last_checkpoint: Instant::now(),
+            last_storage_purge_at: 0,
         }
     }
 

@@ -1,10 +1,14 @@
-use crate::run::WasmRun;
-use crate::VmId;
+use crate::env::DynCacheOps;
+use crate::{env::OcallAborted, run::WasmRun};
+use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, warn};
+use pink_sidevm_env::query::AccountId;
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
+    sync::oneshot::Sender as OneshotSender,
     task::JoinHandle,
 };
 
@@ -15,13 +19,22 @@ pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ExitReason {
+    /// The program returned from `fn main`.
     Exited(i32),
+    /// Stopped by an external Stop command.
     Stopped,
+    /// The input channel has been closed, likely caused by a Stop command.
     InputClosed,
+    /// The program panicked.
     Panicked,
+    /// The task future has beed dropped, likely caused by a Stop command.
     Cancelled,
+    /// Terminated due to gas checking.
+    OcallAborted(OcallAborted),
+    /// When a previous running instance restored from a checkpoint.
+    Restore,
 }
 
 pub enum Command {
@@ -29,6 +42,12 @@ pub enum Command {
     Stop,
     // Send a sidevm message to the instance.
     PushMessage(Vec<u8>),
+    // Push a sidevm message to the instance.
+    PushQuery {
+        origin: Option<AccountId>,
+        payload: Vec<u8>,
+        reply_tx: OneshotSender<Vec<u8>>,
+    },
 }
 
 pub struct ServiceRun {
@@ -79,47 +98,70 @@ impl Spawner {
     pub fn start(
         &self,
         wasm_bytes: &[u8],
-        memory_pages: u32,
+        max_memory_pages: u32,
         id: VmId,
-    ) -> Result<(CommandSender, JoinHandle<()>)> {
-        let (cmd_tx, mut cmd_rx) = channel(100);
-        let (mut wasm_run, env) = WasmRun::run(wasm_bytes, memory_pages, id)
-            .context("Failed to create sidevm instance")?;
+        gas: u128,
+        gas_per_breath: u128,
+        cache_ops: DynCacheOps,
+    ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
+        let (cmd_tx, mut cmd_rx) = channel(128);
+        let (mut wasm_run, env) =
+            WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath, cache_ops)
+                .context("Failed to create sidevm instance")?;
+        env.set_gas(gas);
+        let spawner = self.runtime_handle.clone();
         let handle = self.runtime_handle.spawn(async move {
+            let vmid = ShortId(&id);
             loop {
                 tokio::select! {
                     cmd = cmd_rx.recv() => {
                         match cmd {
                             None => {
-                                info!(target: "sidevm", "The command channel is closed. Exiting...");
+                                info!(target: "sidevm", "[{vmid}] The command channel is closed. Exiting...");
                                 break ExitReason::InputClosed;
                             }
                             Some(Command::Stop) => {
-                                info!(target: "sidevm", "Received stop command. Exiting...");
+                                info!(target: "sidevm", "[{vmid}] Received stop command. Exiting...");
                                 break ExitReason::Stopped;
                             }
                             Some(Command::PushMessage(msg)) => {
-                                debug!(target: "sidevm", "Sending message to sidevm.");
-                                match env.push_message(msg).await {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        error!(target: "sidevm", "Failed to send message to sidevm: {}", e);
-                                        break ExitReason::Panicked;
+                                debug!(target: "sidevm", "[{vmid}] Sending message to sidevm.");
+                                let push = env.push_message(msg);
+                                spawner.spawn(async move {
+                                    let vmid = ShortId(&id);
+                                    if let Err(e) = push.await {
+                                        error!(target: "sidevm", "[{vmid}] Failed to send message to sidevm: {}", e);
                                     }
-                                }
+                                });
+                            }
+                            Some(Command::PushQuery{ origin, payload, reply_tx }) => {
+                                debug!(target: "sidevm", "[{vmid}] Pushing query to sidevm.");
+                                let push = env.push_query(origin, payload, reply_tx);
+                                spawner.spawn(async move {
+                                    let vmid = ShortId(&id);
+                                    if let Err(e) = push.await {
+                                        error!(target: "sidevm", "[{vmid}] Failed to push query to sidevm: {}", e);
+                                    }
+                                });
                             }
                         }
                     }
                     rv = &mut wasm_run => {
                         match rv {
                             Ok(ret) => {
-                                info!(target: "sidevm", "The sidevm instance exited with {} normally.", ret);
+                                info!(target: "sidevm", "[{vmid}] The sidevm instance exited with {} normally.", ret);
                                 break ExitReason::Exited(ret);
                             }
                             Err(err) => {
-                                info!(target: "sidevm", "The sidevm instance exited with error: {}", err);
-                                // TODO.kevin: Restart the instance?
-                                break ExitReason::Panicked;
+                                info!(target: "sidevm", "[{vmid}] The sidevm instance exited with error: {}", err);
+                                match err.downcast::<crate::env::OcallAborted>() {
+                                    Ok(err) => {
+                                        break ExitReason::OcallAborted(err);
+                                    }
+                                    Err(_) => {
+                                        break ExitReason::Panicked;
+                                    }
+                                }
                             }
                         }
                     }
@@ -128,10 +170,11 @@ impl Spawner {
         });
         let report_tx = self.report_tx.clone();
         let handle = self.runtime_handle.spawn(async move {
+            let vmid = ShortId(&id);
             let reason = match handle.await {
                 Ok(r) => r,
                 Err(err) => {
-                    warn!(target: "sidevm", "The sidevm instance exited with error: {}", err);
+                    warn!(target: "sidevm", "[{vmid}] The sidevm instance exited with error: {}", err);
                     if err.is_cancelled() {
                         ExitReason::Cancelled
                     } else {
@@ -140,8 +183,9 @@ impl Spawner {
                 }
             };
             if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
-                warn!(target: "sidevm", "Failed to send report to sidevm service: {}", err);
+                warn!(target: "sidevm", "[{vmid}] Failed to send report to sidevm service: {}", err);
             }
+            reason
         });
         Ok((cmd_tx, handle))
     }

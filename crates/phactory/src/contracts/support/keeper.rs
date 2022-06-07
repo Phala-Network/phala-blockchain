@@ -117,15 +117,15 @@ impl ContractsKeeper {
         self.0.values_mut()
     }
 
-    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    pub fn try_restart_sidevms(&mut self, spawner: &Spawner) -> anyhow::Result<()> {
+    pub fn try_restart_sidevms(&mut self, spawner: &Spawner) {
         for contract in self.0.values_mut() {
-            contract.restart_sidevm_if_terminated(spawner)?;
+            if let Err(err) = contract.restart_sidevm_if_needed(spawner) {
+                error!("Failed to restart sidevm instance: {:?}", err);
+            }
         }
-        Ok(())
     }
 }

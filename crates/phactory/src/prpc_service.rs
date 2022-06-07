@@ -79,18 +79,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => Default::default(),
         };
 
-        let (registered, gatekeeper_status) = {
-            match system {
-                Some(system) => (system.is_registered(), system.gatekeeper_status()),
-                None => (
-                    false,
-                    pb::GatekeeperStatus {
-                        role: pb::GatekeeperRole::None.into(),
-                        master_public_key: Default::default(),
-                    },
-                ),
+        let registered;
+        let gatekeeper_status;
+        let number_of_clusters;
+        let number_of_contracts;
+
+        match system {
+            Some(system) => {
+                registered = system.is_registered();
+                gatekeeper_status = system.gatekeeper_status();
+                number_of_clusters = system.contract_clusters.len();
+                number_of_contracts = system.contracts.len();
             }
-        };
+            None => {
+                registered = false;
+                gatekeeper_status = pb::GatekeeperStatus {
+                    role: pb::GatekeeperRole::None.into(),
+                    master_public_key: Default::default(),
+                };
+                number_of_clusters = 0;
+                number_of_contracts = 0;
+            }
+        }
 
         let score = benchmark::score();
         let m_usage = self.platform.memory_usage();
@@ -117,6 +127,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
             }),
+            number_of_clusters: number_of_clusters as _,
+            number_of_contracts: number_of_contracts as _,
         }
     }
 
@@ -223,10 +235,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .storage_synchronizer
                 .feed_block(&block, &mut state.chain_storage)
                 .map_err(from_display)?;
-
+            info!("State synced");
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
             self.poll_side_tasks(block.block_header.number)?;
+            if block
+                .block_header
+                .number
+                .saturating_sub(self.last_storage_purge_at)
+                >= self.args.gc_interval
+            {
+                self.last_storage_purge_at = block.block_header.number;
+                info!("Purging database");
+                self.runtime_state()?.chain_storage.purge();
+            }
             last_block = block.block_header.number;
 
             if let Err(e) = self.maybe_take_checkpoint(last_block) {

@@ -12,7 +12,7 @@ mod signing;
 #[cfg(feature = "std")]
 pub mod test;
 
-#[derive(scale::Encode, scale::Decode)]
+#[derive(scale::Encode, scale::Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct StorageQuotaExceeded;
 

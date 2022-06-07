@@ -14,7 +14,7 @@ pub mod ocall_guest {
     pub fn call_slow(a: i32, b: i32) -> i32 {
         unsafe {
             let inputs = (a, b);
-            let mut input_buf = empty_buffer();
+            let mut input_buf = Buffer::default();
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
             let ret = do_ocall(101, input_buf.as_ptr() as IntPtr, len, 0, 0);
@@ -54,7 +54,7 @@ pub mod ocall_guest {
     pub fn call_fo(a: i32, b: i32) -> i32 {
         unsafe {
             let inputs = (a, b);
-            let mut input_buf = empty_buffer();
+            let mut input_buf = Buffer::default();
             Encode::encode_to(&inputs, &mut input_buf);
             let len = input_buf.len() as IntPtr;
             let ret = do_ocall_fast_return(104, input_buf.as_ptr() as IntPtr, len, 0, 0);
@@ -83,7 +83,7 @@ pub fn dispatch_call_fast_return<Env: Ocall + OcallEnv, Vm: VmMemory>(
 ) -> Result<i32> {
     match id {
         0 => {
-            let buffer = env.take_return().ok_or(OcallError::NoReturnValue)?;
+            let buffer = env.take_return().ok_or(OcallError::NotFound)?;
             let len = p1 as usize;
             if buffer.len() != len {
                 return Err(OcallError::InvalidParameter);

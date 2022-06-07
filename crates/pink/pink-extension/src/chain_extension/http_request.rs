@@ -69,7 +69,7 @@ macro_rules! http_get {
             headers,
             body: Default::default(),
         };
-        $crate::pink_extension_instance().http_request(request)
+        $crate::ext().http_request(request)
     }};
     ($url: expr) => {{
         $crate::http_get!($url, Default::default())
@@ -109,7 +109,7 @@ macro_rules! http_post {
             headers,
             body,
         };
-        $crate::pink_extension_instance().http_request(request)
+        $crate::ext().http_request(request)
     }};
     ($url: expr, $data: expr) => {{
         $crate::http_post!($url, $data, Default::default())

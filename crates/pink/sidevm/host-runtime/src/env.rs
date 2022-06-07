@@ -1,33 +1,54 @@
 use std::{
     cell::Cell,
+    collections::VecDeque,
+    fmt,
+    future::Future,
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
     time::Duration,
 };
 
+use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
     sync::mpsc::{error::SendError, Sender},
+    sync::oneshot::Sender as OneshotSender,
 };
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
-use env::{IntPtr, IntRet, OcallError, Poll, Result, RetEncode};
+use env::{
+    query::{AccountId, QueryRequest},
+    IntPtr, IntRet, OcallError, Result, RetEncode,
+};
 use pink_sidevm_env as env;
+use scale::Encode;
 use thread_local::ThreadLocal;
 
 use crate::{
-    async_context::{get_task_cx, set_task_env},
+    async_context::{get_task_cx, set_task_env, GuestWaker},
     resource::{Resource, ResourceKeeper},
     VmId,
 };
+
+mod wasi_env;
+
+pub struct ShortId<'a>(pub &'a [u8]);
+
+impl fmt::Display for ShortId<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let len = self.0.len();
+        hex_fmt::HexFmt(&self.0[..len.min(6)]).fmt(f)
+    }
+}
 
 // Let the compiler check IntPtr is 32bit sized.
 fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &Store) -> (Env, ImportObject) {
-    let env = Env::new(id);
+pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
+    let env = Env::new(id, cache_ops);
+    let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
         env.clone(),
         imports! {
@@ -39,34 +60,47 @@ pub fn create_env(id: VmId, store: &Store) -> (Env, ImportObject) {
                 ),
                 "sidevm_ocall_fast_return" => Function::new_native_with_env(
                     store,
-                    env,
+                    env.clone(),
                     sidevm_ocall_fast_return,
                 ),
-            }
+            },
+            "sidevm" => {
+                "gas" => Function::new_native_with_env(
+                    store,
+                    env,
+                    gas,
+                ),
+            },
+            "wasi_snapshot_preview1" => wasi_imports,
         },
     )
 }
 
 pub(crate) struct TaskSet {
-    tasks: dashmap::DashSet<i32>,
+    awake_tasks: dashmap::DashSet<i32>,
+    /// Guest waker ids that are ready to be woken up, or to be dropped if negative.
+    pub(crate) awake_wakers: Mutex<VecDeque<i32>>,
 }
 
 impl TaskSet {
     fn with_task0() -> Self {
-        let tasks = dashmap::DashSet::new();
-        tasks.insert(0);
-        Self { tasks }
+        let awake_tasks = dashmap::DashSet::new();
+        awake_tasks.insert(0);
+        Self {
+            awake_tasks,
+            awake_wakers: Default::default(),
+        }
     }
 
-    pub(crate) fn push(&self, task_id: i32) {
-        self.tasks.insert(task_id);
+    pub(crate) fn push_task(&self, task_id: i32) {
+        self.awake_tasks.insert(task_id);
     }
 
-    pub(crate) fn pop(&self) -> Option<i32> {
-        let item = self.tasks.iter().next().map(|task_id| *task_id);
+    pub(crate) fn pop_task(&self) -> Option<i32> {
+        let item = self.awake_tasks.iter().next().map(|task_id| *task_id);
         match item {
             Some(task_id) => {
-                self.tasks.remove(&task_id);
+                self.awake_tasks.remove(&task_id);
                 Some(task_id)
             }
             None => None,
@@ -74,20 +108,29 @@ impl TaskSet {
     }
 }
 
+pub trait CacheOps {
+    fn get(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
+    fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> Result<()>;
+    fn set_expiration(&self, contract: &[u8], key: &[u8], expire_after_secs: u64) -> Result<()>;
+    fn remove(&self, contract: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>>;
+}
+
+pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
+
 struct State {
     id: VmId,
+    // Total gas remain
+    gas: u128,
+    // Gas remain to next async yield point
+    gas_to_breath: u128,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
     message_tx: Sender<Vec<u8>>,
+    query_tx: Sender<Vec<u8>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
-}
-
-impl State {
-    fn short_id(&self) -> hex_fmt::HexFmt<&[u8]> {
-        hex_fmt::HexFmt(&self.id[..4])
-    }
+    cache_ops: DynCacheOps,
 }
 
 struct VmMemory(Option<Memory>);
@@ -97,27 +140,39 @@ pub(crate) struct EnvInner {
     state: State,
 }
 
+impl VmMemory {
+    pub(crate) fn unwrap_ref(&self) -> &Memory {
+        self.0.as_ref().expect("memory is not initialized")
+    }
+}
+
 #[derive(WasmerEnv, Clone)]
 pub struct Env {
     pub(crate) inner: Arc<Mutex<EnvInner>>,
 }
 
 impl Env {
-    fn new(id: VmId) -> Self {
+    fn new(id: VmId, cache_ops: DynCacheOps) -> Self {
         let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
+        let (query_tx, query_rx) = tokio::sync::mpsc::channel(10);
         let mut resources = ResourceKeeper::default();
         let _ = resources.push(Resource::ChannelRx(message_rx));
+        let _ = resources.push(Resource::ChannelRx(query_rx));
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
                 state: State {
                     id,
+                    gas: 0,
+                    gas_to_breath: 0,
                     resources,
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
                     message_tx,
+                    query_tx,
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
+                    cache_ops,
                 },
             })),
         }
@@ -133,9 +188,36 @@ impl Env {
     }
 
     /// Push a pink message into the Sidevm instance.
-    pub async fn push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
+    pub fn push_message(
+        &self,
+        message: Vec<u8>,
+    ) -> impl Future<Output = Result<(), SendError<Vec<u8>>>> {
         let tx = self.inner.lock().unwrap().state.message_tx.clone();
-        tx.send(message).await
+        async move { tx.send(message).await }
+    }
+
+    /// Push a contract query to the Sidevm instance.
+    pub fn push_query(
+        &self,
+        origin: Option<AccountId>,
+        payload: Vec<u8>,
+        reply_tx: OneshotSender<Vec<u8>>,
+    ) -> impl Future<Output = anyhow::Result<()>> + 'static {
+        let mut env_guard = self.inner.lock().unwrap();
+        let reply_tx = env_guard
+            .state
+            .resources
+            .push(Resource::OneshotTx(Some(reply_tx)));
+        let tx = env_guard.state.query_tx.clone();
+        async move {
+            let query = QueryRequest {
+                origin,
+                payload,
+                reply_tx: reply_tx?,
+            };
+            tx.send(query.encode()).await?;
+            Ok(())
+        }
     }
 
     /// The blocking version of `push_message`.
@@ -147,6 +229,14 @@ impl Env {
             .state
             .message_tx
             .blocking_send(message)
+    }
+
+    pub fn set_gas(&self, gas: u128) {
+        self.inner.lock().unwrap().state.gas = gas;
+    }
+
+    pub fn set_gas_to_breath(&self, gas: u128) {
+        self.inner.lock().unwrap().state.gas_to_breath = gas;
     }
 }
 
@@ -205,29 +295,38 @@ impl env::OcallFuncs for State {
         }
     }
 
-    fn poll(&mut self, resource_id: i32) -> Result<Poll<Option<Vec<u8>>>> {
-        self.resources.get_mut(resource_id)?.poll()
+    fn poll(&mut self, waker_id: i32, resource_id: i32) -> Result<Vec<u8>> {
+        self.resources.get_mut(resource_id)?.poll(waker_id)
     }
 
-    fn poll_read(&mut self, resource_id: i32, data: &mut [u8]) -> Result<Poll<u32>> {
-        self.resources.get_mut(resource_id)?.poll_read(data)
+    fn poll_read(&mut self, waker_id: i32, resource_id: i32, data: &mut [u8]) -> Result<u32> {
+        self.resources
+            .get_mut(resource_id)?
+            .poll_read(waker_id, data)
     }
 
-    fn poll_write(&mut self, resource_id: i32, data: &[u8]) -> Result<Poll<u32>> {
-        self.resources.get_mut(resource_id)?.poll_write(data)
+    fn poll_write(&mut self, waker_id: i32, resource_id: i32, data: &[u8]) -> Result<u32> {
+        self.resources
+            .get_mut(resource_id)?
+            .poll_write(waker_id, data)
     }
 
-    fn poll_shutdown(&mut self, resource_id: i32) -> Result<Poll<()>> {
-        self.resources.get_mut(resource_id)?.poll_shutdown()
+    fn poll_shutdown(&mut self, waker_id: i32, resource_id: i32) -> Result<()> {
+        self.resources.get_mut(resource_id)?.poll_shutdown(waker_id)
+    }
+
+    fn poll_res(&mut self, waker_id: i32, resource_id: i32) -> Result<i32> {
+        let res = self.resources.get_mut(resource_id)?.poll_res(waker_id)?;
+        self.resources.push(res)
     }
 
     fn mark_task_ready(&mut self, task_id: i32) -> Result<()> {
-        self.awake_tasks.push(task_id);
+        self.awake_tasks.push_task(task_id);
         Ok(())
     }
 
     fn next_ready_task(&mut self) -> Result<i32> {
-        self.awake_tasks.pop().ok_or(OcallError::NotFound)
+        self.awake_tasks.pop_task().ok_or(OcallError::NotFound)
     }
 
     fn create_timer(&mut self, timeout: i32) -> Result<i32> {
@@ -249,30 +348,79 @@ impl env::OcallFuncs for State {
         self.resources.push(Resource::TcpListener(listener))
     }
 
-    fn tcp_accept(&mut self, tcp_res_id: i32) -> Result<Poll<i32>> {
-        let (stream, remote_addr) = {
+    fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<i32> {
+        let waker = GuestWaker::from_id(waker_id);
+        let (stream, _remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
                 Resource::TcpListener(listener) => listener,
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            match get_task_cx(|ct| listener.poll_accept(ct)) {
-                Pending => return Ok(Poll::Pending),
+            match get_task_cx(waker, |ct| listener.poll_accept(ct)) {
+                Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
         };
-        self.resources
-            .push(Resource::TcpStream {
-                stream,
-                remote_addr,
-            })
-            .map(Poll::Ready)
+        self.resources.push(Resource::TcpStream { stream })
+    }
+
+    fn tcp_connect(&mut self, addr: &str) -> Result<i32> {
+        let fut = tokio::net::TcpStream::connect(addr.to_string());
+        self.resources.push(Resource::TcpConnect(Box::pin(fut)))
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
         let task = self.current_task;
-        let vm_id = self.short_id();
-        log::log!(target: "sidevm", level, "[vm:{vm_id:<8}][{task:<3}] {message}");
+        let vm_id = ShortId(&self.id);
+        log::log!(target: "sidevm", level, "[{vm_id}][tid={task:<3}] {message}");
+        Ok(())
+    }
+
+    fn local_cache_get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        self.cache_ops.get(&self.id[..], key)
+    }
+
+    fn local_cache_set(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
+        self.cache_ops.set(&self.id[..], key, value)
+    }
+
+    fn local_cache_set_expiration(&mut self, key: &[u8], expire_after_secs: u64) -> Result<()> {
+        self.cache_ops
+            .set_expiration(&self.id[..], key, expire_after_secs)
+    }
+
+    fn local_cache_remove(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        self.cache_ops.remove(&self.id[..], key)
+    }
+
+    fn awake_wakers(&mut self) -> Result<Vec<i32>> {
+        Ok(self
+            .awake_tasks
+            .awake_wakers
+            .lock()
+            .unwrap()
+            .drain(..)
+            .collect())
+    }
+
+    fn getrandom(&mut self, buf: &mut [u8]) -> Result<()> {
+        use rand::RngCore;
+        const RANDOM_BYTE_WEIGHT: usize = 100_000_000;
+
+        pay(self, (RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
+        rand::thread_rng().fill_bytes(buf);
+        Ok(())
+    }
+
+    fn oneshot_send(&mut self, resource_id: i32, data: &[u8]) -> Result<()> {
+        let res = self.resources.get_mut(resource_id)?;
+        match res {
+            Resource::OneshotTx(sender) => match sender.take() {
+                Some(sender) => sender.send(data.to_vec()).or(Err(OcallError::IoError))?,
+                None => return Err(OcallError::IoError),
+            },
+            _ => return Err(OcallError::UnsupportedOperation),
+        }
         Ok(())
     }
 }
@@ -285,7 +433,7 @@ fn sidevm_ocall_fast_return(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntRet {
+) -> Result<IntRet, OcallAborted> {
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
 
@@ -295,13 +443,13 @@ fn sidevm_ocall_fast_return(
     });
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = env.state.short_id();
+        let vm_id = ShortId(&env.state.id);
         log::trace!(
             target: "sidevm",
-            "[vm:{vm_id:<8}][{task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
-    result.encode_ret()
+    convert(result)
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
@@ -313,7 +461,7 @@ fn sidevm_ocall(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
-) -> IntRet {
+) -> Result<IntRet, OcallAborted> {
     let mut env = env.inner.lock().unwrap();
     let env = &mut *env;
 
@@ -323,11 +471,62 @@ fn sidevm_ocall(
     });
     if env.state.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = env.state.short_id();
+        let vm_id = ShortId(&env.state.id);
         log::trace!(
             target: "sidevm",
-            "[vm:{vm_id:<8}][{task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
-    result.encode_ret()
+    convert(result)
+}
+
+fn convert(result: Result<i32, OcallError>) -> Result<IntRet, OcallAborted> {
+    match result {
+        Err(OcallError::GasExhausted) => Err(OcallAborted::GasExhausted),
+        Err(OcallError::Stifled) => Err(OcallAborted::Stifled),
+        _ => Ok(result.encode_ret()),
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum OcallAborted {
+    GasExhausted,
+    Stifled,
+}
+
+impl From<OcallAborted> for OcallError {
+    fn from(aborted: OcallAborted) -> Self {
+        match aborted {
+            OcallAborted::GasExhausted => OcallError::GasExhausted,
+            OcallAborted::Stifled => OcallError::Stifled,
+        }
+    }
+}
+
+impl fmt::Display for OcallAborted {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OcallAborted::GasExhausted => write!(f, "Gas exhausted"),
+            OcallAborted::Stifled => write!(f, "Stifled"),
+        }
+    }
+}
+
+impl std::error::Error for OcallAborted {}
+
+fn gas(env: &Env, cost: u32) -> Result<(), OcallAborted> {
+    let mut env = env.inner.lock().unwrap();
+    pay(&mut env.state, cost as _)
+}
+
+fn pay(state: &mut State, cost: u128) -> Result<(), OcallAborted> {
+    if cost > state.gas {
+        return Err(OcallAborted::GasExhausted);
+    }
+    if cost > state.gas_to_breath {
+        return Err(OcallAborted::Stifled);
+    }
+    state.gas -= cost;
+    state.gas_to_breath -= cost;
+    Ok(())
 }

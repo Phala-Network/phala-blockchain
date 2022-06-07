@@ -38,6 +38,7 @@ impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
 pub mod messaging {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
+    use core::fmt::Debug;
 
     use super::{ContractClusterId, ContractInfo};
     use crate::WorkerIdentity;
@@ -54,7 +55,7 @@ pub mod messaging {
     }
 
     bind_topic!(ContractOperation<CodeHash, AccountId>, b"phala/contract/op");
-    #[derive(Encode, Decode, Debug)]
+    #[derive(Encode, Decode)]
     pub enum ContractOperation<CodeHash, AccountId> {
         UploadCodeToCluster {
             origin: AccountId,
@@ -64,6 +65,27 @@ pub mod messaging {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
         },
+    }
+
+    impl<CodeHash: Debug, AccountId: Debug> Debug for ContractOperation<CodeHash, AccountId> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                Self::UploadCodeToCluster {
+                    origin,
+                    code,
+                    cluster_id,
+                } => f
+                    .debug_struct("UploadCodeToCluster")
+                    .field("origin", origin)
+                    .field("code.len", &code.len())
+                    .field("cluster_id", cluster_id)
+                    .finish(),
+                Self::InstantiateCode { contract_info } => f
+                    .debug_struct("InstantiateCode")
+                    .field("contract_info", contract_info)
+                    .finish(),
+            }
+        }
     }
 
     impl<CodeHash, AccountId> ContractOperation<CodeHash, AccountId> {

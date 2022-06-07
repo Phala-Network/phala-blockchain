@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "start_sidevm"
 version = "0.1.0"
@@ -5,20 +7,20 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2018"
 resolver = "2"
 
-# workaround for https://github.com/rust-lang/cargo/issues/6745
-[workspace]
-
 [dependencies]
-ink_primitives = { version = "3.0.0", default-features = false }
-ink_metadata = { version = "3.0.0", default-features = false, features = ["derive"], optional = true }
-ink_env = { version = "3.0.0", default-features = false }
-ink_storage = { version = "3.0.0", default-features = false }
-ink_lang = { version = "3.0.0", default-features = false }
+ink_primitives = { version = "3.1.0", default-features = false }
+ink_metadata = { version = "3.1.0", default-features = false, features = ["derive"], optional = true }
+ink_env = { version = "3.1.0", default-features = false }
+ink_storage = { version = "3.1.0", default-features = false }
+ink_lang = { version = "3.1.0", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.1.0", path = "../../pink-extension", default-features = false }
+
+[build-dependencies]
+run_shell = "0.1"
 
 [lib]
 name = "start_sidevm"

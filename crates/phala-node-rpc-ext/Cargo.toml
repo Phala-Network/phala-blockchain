@@ -11,9 +11,7 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 # third-party dependencies
 serde = { version = "1.0.102", features = ["derive"] }
 thiserror = "1.0"
-jsonrpc-derive = "18.0"
-jsonrpc-core = "18.0"
-jsonrpc-core-client = "18.0"
+jsonrpsee = { version = "0.13", features = ["server"] }
 impl-serde = "0.3"
 log = { version = "0.4.14", default-features = false }
 hex = { version = "0.4.3", default-features = false }
@@ -34,4 +32,6 @@ phala-mq = { path = "../../crates/phala-mq" }
 phala-pallets = { path = "../../pallets/phala" }
 pallet-mq-runtime-api = { path = "../../pallets/phala/mq-runtime-api" }
 ext-types = { path = "./types", package = "phala-node-rpc-ext-types" }
+
+rayon = "1"
 

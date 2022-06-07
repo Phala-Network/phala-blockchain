@@ -42,7 +42,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
-use sidevm::service::Spawner;
+use sidevm::service::{Report, Spawner};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -416,7 +416,7 @@ pub struct System<Platform> {
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
-    contract_clusters: ClusterKeeper,
+    pub(crate) contract_clusters: ClusterKeeper,
     #[serde(skip)]
     #[serde(default = "create_sidevm_service")]
     sidevm_spawner: Spawner,
@@ -429,10 +429,11 @@ pub struct System<Platform> {
 fn create_sidevm_service() -> Spawner {
     let (run, spawner) = sidevm::service::service();
     std::thread::spawn(move || {
-        run.blocking_run(|report| {
-            let todo = "kevin: restart sidevm instance if it crashes";
-            let todo = "kevin: remove the log since it leak vm info";
-            info!("Sidevm report: {:?}", report);
+        run.blocking_run(|report| match report {
+            Report::VmTerminated { id, reason } => {
+                let id = hex_fmt::HexFmt(&id[..4]);
+                info!("Sidevm {id} terminated with reason: {reason:?}");
+            }
         })
     });
     spawner
@@ -499,11 +500,13 @@ impl<Platform: pal::Platform> System<Platform> {
             .expect("BUG: contract cluster should always exists")
             .storage
             .snapshot();
+        let sidevm_handle = contract.sidevm_handle();
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
             now_ms: self.now_ms,
             storage,
+            sidevm_handle,
         };
         Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
             contract.handle_query(origin, req, &mut context)
@@ -623,6 +626,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.sidevm_spawner,
             );
         }
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
     }
 
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
@@ -1105,7 +1109,8 @@ impl<Platform: pal::Platform> System<Platform> {
 
 impl<P> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
-        self.contracts.try_restart_sidevms(&self.sidevm_spawner)
+        self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        Ok(())
     }
 }
 
@@ -1202,6 +1207,7 @@ pub fn apply_pink_side_effects(
                 );
             }
         };
+        let vmid = sidevm::ShortId(address.as_ref());
         use pink::runtime::PinkEvent;
         match event {
             PinkEvent::Message(message) => {
@@ -1225,20 +1231,23 @@ pub fn apply_pink_side_effects(
                     wasm_code.extend_from_slice(&chunk);
                 }
             }
-            PinkEvent::StartSidevm { memory_pages } => {
+            PinkEvent::StartSidevm { auto_restart } => {
                 if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
                     let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
-                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, memory_pages) {
-                        error!(target: "sidevm", "Start sidevm failed: {:?}", err);
+                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
+                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                     }
                 } else {
-                    error!(target: "sidevm", "Start sidevm failed: Code too large");
+                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: Code too large");
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
-                if let Err(err) = contract.push_message_to_sidevm(spawner, payload) {
-                    error!(target: "sidevm", "Push message to sidevm failed: {:?}", err);
+                if let Err(err) = contract.push_message_to_sidevm(payload) {
+                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }
+            }
+            PinkEvent::CacheOp(op) => {
+                pink::local_cache::local_cache_op(&address, op);
             }
         }
     }
