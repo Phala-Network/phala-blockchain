@@ -30,6 +30,7 @@ pub enum QueryError {
     BadOrigin,
     RuntimeError(String),
     SidevmNotFound,
+    NoResponse,
 }
 
 #[derive(Encode, Decode, Clone)]
@@ -143,7 +144,7 @@ impl contracts::NativeContract for Pink {
                         rx.await
                     })
                 });
-                reply.or(Ok(vec![])).map(Response::Payload)
+                reply.or(Err(QueryError::NoResponse)).map(Response::Payload)
             }
         }
     }
