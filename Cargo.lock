@@ -348,7 +348,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee49baf6cb617b853aa8d93bf420db2383fab46d314482ca2803b40d5fde979b"
 dependencies = [
- "winapi 0.3.9",
+ "winapi",
 ]
 
 [[package]]
@@ -9638,7 +9638,7 @@ dependencies = [
 name = "sc-informant"
 version = "0.10.0-dev"
 dependencies = [
- "ansi_term",
+ "ansi_term 0.12.1",
  "futures",
  "futures-timer",
  "log",
@@ -10162,7 +10162,7 @@ version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c46be926081c9f4dd5dd9b6f1d3e3229f2360bc6502dd8836f84a93b7c75e99a"
 dependencies = [
- "bitvec",
+ "bitvec 1.0.0",
  "cfg-if",
  "derive_more",
  "parity-scale-codec",
@@ -12052,7 +12052,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 name = "subxt"
 version = "0.21.0"
 dependencies = [
- "bitvec",
+ "bitvec 1.0.0",
  "derivative",
  "frame-metadata",
  "futures",

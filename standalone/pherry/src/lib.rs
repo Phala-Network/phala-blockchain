@@ -841,7 +841,7 @@ async fn bind_worker_endpoint(
     let ret = para_api
         .tx()
         .phala_registry()
-        .bind_worker_endpoint(versioned_endpoint, signature)
+        .bind_worker_endpoint(versioned_endpoint, signature)?
         .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {
