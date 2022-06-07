@@ -1,10 +1,10 @@
 mod query;
 
-use codec::{Encode, Decode};
+use clap::{AppSettings, Parser, Subcommand};
+use codec::{Decode, Encode};
 use phala_types::contract::ContractId;
 use std::convert::TryInto;
 use std::fmt::Debug;
-use clap::{AppSettings, Parser, Subcommand};
 
 // use phala_types;
 
@@ -81,6 +81,8 @@ enum PinkCommand {
     Query {
         #[clap(long, default_value = "http://localhost:8000")]
         url: String,
+        #[clap(long)]
+        sidevm: bool,
         id: String,
         message: String,
     },
@@ -228,6 +230,7 @@ async fn handle_pink_command(command: PinkCommand) {
     #[derive(Debug, Encode, Decode)]
     pub enum Query {
         InkMessage(Vec<u8>),
+        SidevmQuery(Vec<u8>),
     }
 
     #[derive(Debug, Encode, Decode)]
@@ -237,21 +240,31 @@ async fn handle_pink_command(command: PinkCommand) {
 
     #[derive(Debug, Encode, Decode)]
     pub enum Response {
-        InkMessageReturn(Vec<u8>),
+        Payload(Vec<u8>),
     }
 
     #[derive(Debug, Encode, Decode)]
     pub enum QueryError {
         BadOrigin,
         RuntimeError(String),
+        SidevmNotFound,
     }
 
     match command {
-        PinkCommand::Query { url, id, message } => {
+        PinkCommand::Query {
+            url,
+            sidevm,
+            id,
+            message,
+        } => {
             let id = decode_hex(&id);
             let id = ContractId::decode(&mut &id[..]).expect("Bad contract id");
             let message = decode_hex(&message);
-            let query = Query::InkMessage(message);
+            let query = if sidevm {
+                Query::SidevmQuery(message)
+            } else {
+                Query::InkMessage(message)
+            };
 
             let result: Result<Response, QueryError> =
                 query::query(url, id, query).await.expect("Query failed");
@@ -264,26 +277,29 @@ async fn handle_pink_command(command: PinkCommand) {
                 Ok(response) => response,
             };
             match response {
-                Response::InkMessageReturn(ret) => {
-                    println!("return: ({})", hex::encode(ret));
+                Response::Payload(response) => {
+                    let s = std::str::from_utf8(&response).unwrap_or_default();
+                    println!("response: [{}]({}))", hex::encode(&response), s);
                 }
             }
         }
-        PinkCommand::Command { id, message }  => {
+        PinkCommand::Command { id, message } => {
             #[derive(Encode)]
             enum Payload<T> {
-                Plain(T)
+                Plain(T),
             }
 
             let id = decode_hex(&id);
             let id = ContractId::decode(&mut &id[..]).expect("Bad contract id");
             let message = decode_hex(&message);
             let nonce = vec![];
-            let command = Command::InkMessage{ nonce, message };
+            let command = Command::InkMessage { nonce, message };
             let mq_payload = Payload::Plain(command);
-            println!("topic: (0x{})", hex::encode(phala_types::contract::command_topic(id)));
+            println!(
+                "topic: (0x{})",
+                hex::encode(phala_types::contract::command_topic(id))
+            );
             println!("command: (0x{})", hex::encode(mq_payload.encode()));
-
         }
     }
 }

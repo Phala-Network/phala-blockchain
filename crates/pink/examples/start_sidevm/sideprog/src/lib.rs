@@ -8,7 +8,7 @@ async fn main() {
     sidevm::logger::Logger::with_max_level(log::Level::Trace).init();
     sidevm::ocall::enable_ocall_trace(true).unwrap();
 
-    let address = "127.0.0.1:8080";
+    let address = "127.0.0.1:18080";
 
     info!("Listening on {}", address);
 
@@ -25,6 +25,15 @@ async fn main() {
                     info!("Current block number: {:?}", number);
                 } else {
                     info!("Input message channel closed");
+                    break;
+                }
+            }
+            query = sidevm::channel::incoming_queries().next() => {
+                if let Some(query) = query {
+                    info!("Received query from: {:?}", query.origin);
+                    let _ = query.reply_tx.send(b"Hello, world!");
+                } else {
+                    info!("Query channel closed");
                     break;
                 }
             }

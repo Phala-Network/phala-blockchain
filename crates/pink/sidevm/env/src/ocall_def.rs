@@ -52,6 +52,10 @@ pub trait OcallFuncs {
     #[ocall(id = 201)]
     fn create_timer(timeout: i32) -> Result<i32>;
 
+    /// Send data to a oneshot channel.
+    #[ocall(id = 202)]
+    fn oneshot_send(resource_id: i32, data: &[u8]) -> Result<()>;
+
     /// Create a TCP socket, bind to given address and listen to incoming connections.
     ///
     /// The backlog argument defines the maximum length to which the queue of pending connections

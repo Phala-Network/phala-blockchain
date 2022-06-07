@@ -6,6 +6,7 @@ use std::task::Poll::*;
 use tokio::io::AsyncWrite as _;
 use tokio::net;
 use tokio::sync::mpsc::Receiver;
+use tokio::sync::oneshot::Sender;
 use tokio::time::Sleep;
 use Resource::*;
 
@@ -14,6 +15,7 @@ use crate::async_context::{get_task_cx, GuestWaker};
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
+    OneshotTx(Option<Sender<Vec<u8>>>),
     TcpListener(net::TcpListener),
     TcpStream { stream: net::TcpStream },
     TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<net::TcpStream>> + Send>>),
