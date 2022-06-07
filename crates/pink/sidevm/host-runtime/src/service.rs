@@ -44,7 +44,7 @@ pub enum Command {
     PushMessage(Vec<u8>),
     // Push a sidevm message to the instance.
     PushQuery {
-        origin: AccountId,
+        origin: Option<AccountId>,
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     },

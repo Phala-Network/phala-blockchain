@@ -99,9 +99,9 @@ impl contracts::NativeContract for Pink {
         req: Query,
         context: &mut contracts::QueryContext,
     ) -> Result<Response, QueryError> {
-        let origin = origin.ok_or(QueryError::BadOrigin)?;
         match req {
             Query::InkMessage(input_data) => {
+                let origin = origin.ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
 
                 let (ink_result, _effects) = self.instance.bare_call(
@@ -128,7 +128,7 @@ impl contracts::NativeContract for Pink {
                     }
                     contracts::SidevmHandle::Running(sender) => sender,
                 };
-                let origin = origin.clone().into();
+                let origin = origin.cloned().map(Into::into);
 
                 let reply = tokio::task::block_in_place(move || {
                     tokio::runtime::Handle::current().block_on(async move {

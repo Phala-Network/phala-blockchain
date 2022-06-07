@@ -199,7 +199,7 @@ impl Env {
     /// Push a contract query to the Sidevm instance.
     pub fn push_query(
         &self,
-        origin: AccountId,
+        origin: Option<AccountId>,
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     ) -> impl Future<Output = anyhow::Result<()>> + 'static {

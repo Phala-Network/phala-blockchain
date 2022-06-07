@@ -15,7 +15,7 @@ use std::{
 /// A query from an external RPC request.
 pub struct Query {
     /// The account sending the query.
-    pub origin: AccountId,
+    pub origin: Option<AccountId>,
     /// The query payload.
     pub payload: Vec<u8>,
     /// The reply channel. Invoke `send` on this channel to send the reply.
