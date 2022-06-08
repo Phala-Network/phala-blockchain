@@ -3,7 +3,7 @@
 
 [package]
 edition = "2021"
-name = "sidevm-httpserver"
+name = "sidevm-tcpserver"
 version = "0.1.0"
 
 [lib]
