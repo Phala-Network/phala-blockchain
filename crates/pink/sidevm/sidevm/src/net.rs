@@ -2,6 +2,7 @@
 
 use std::future::Future;
 use std::io::Error;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -30,13 +31,18 @@ struct Acceptor<'a> {
 }
 
 impl Future for Acceptor<'_> {
-    type Output = Result<TcpStream>;
+    type Output = Result<(TcpStream, SocketAddr)>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
         let waker_id = tasks::intern_waker(cx.waker().clone());
         match ocall::tcp_accept(waker_id, self.listener.res_id.0) {
-            Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
+            Ok((res_id, remote_addr)) => Poll::Ready(Ok((
+                TcpStream::new(ResourceId(res_id)),
+                remote_addr
+                    .parse()
+                    .expect("ocall::tcp_accept returned an invalid remote address"),
+            ))),
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
         }
@@ -54,7 +60,7 @@ impl TcpListener {
     }
 
     /// Accept a new incoming connection.
-    pub async fn accept(&self) -> Result<TcpStream> {
+    pub async fn accept(&self) -> Result<(TcpStream, SocketAddr)> {
         Acceptor { listener: self }.await
     }
 }
@@ -103,9 +109,11 @@ mod impl_hyper {
             let mut accept = Acceptor {
                 listener: self.get_mut(),
             };
-            let x = Pin::new(&mut accept).poll(cx).map(Some);
-            log::info!("Poll accept = {:?}", x);
-            x
+            match Pin::new(&mut accept).poll(cx) {
+                Poll::Ready(Ok((conn, _addr))) => Poll::Ready(Some(Ok(conn))),
+                Poll::Ready(Err(err)) => Poll::Ready(Some(Err(err))),
+                Poll::Pending => Poll::Pending,
+            }
         }
     }
 }

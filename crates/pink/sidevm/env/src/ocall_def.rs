@@ -66,11 +66,15 @@ pub trait OcallFuncs {
     fn tcp_listen(addr: &str, backlog: i32) -> Result<i32>;
 
     /// Accept incoming TCP connections.
-    #[ocall(id = 211)]
-    fn tcp_accept(waker_id: i32, resource_id: i32) -> Result<i32>;
+    #[ocall(id = 211, encode_output)]
+    fn tcp_accept(waker_id: i32, resource_id: i32) -> Result<(i32, String)>;
+
+    /// Accept incoming TCP connections without returning the remote address.
+    #[ocall(id = 212)]
+    fn tcp_accept_no_addr(waker_id: i32, resource_id: i32) -> Result<i32>;
 
     /// Initiate a TCP connection to a remote endpoint.
-    #[ocall(id = 212)]
+    #[ocall(id = 213)]
     fn tcp_connect(addr: &str) -> Result<i32>;
 
     /// Print log message.

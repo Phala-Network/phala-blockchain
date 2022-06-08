@@ -348,9 +348,9 @@ impl env::OcallFuncs for State {
         self.resources.push(Resource::TcpListener(listener))
     }
 
-    fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<i32> {
+    fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<(i32, String)> {
         let waker = GuestWaker::from_id(waker_id);
-        let (stream, _remote_addr) = {
+        let (stream, remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
             let listener = match res {
                 Resource::TcpListener(listener) => listener,
@@ -361,7 +361,14 @@ impl env::OcallFuncs for State {
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             }
         };
-        self.resources.push(Resource::TcpStream { stream })
+        self.resources
+            .push(Resource::TcpStream { stream })
+            .map(|res_id| (res_id, remote_addr.to_string()))
+    }
+
+    fn tcp_accept_no_addr(&mut self, waker_id: i32, resource_id: i32) -> Result<i32> {
+        self.tcp_accept(waker_id, resource_id)
+            .map(|(res_id, _)| res_id)
     }
 
     fn tcp_connect(&mut self, addr: &str) -> Result<i32> {
