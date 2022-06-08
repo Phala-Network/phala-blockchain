@@ -89,12 +89,9 @@ pub(crate) fn load_tls_config(config: TlsServerConfig) -> Result<ServerConfig, O
         TlsServerConfig::V0 { cert, key } => (cert, key),
     };
 
-    log::info!("Loading TLS certificate: {}", cert_pem);
     let certs = load_certs(cert_pem)?;
-    log::info!("Loading TLS key: {}", key_pem);
     let key = load_private_key(key_pem)?;
 
-    log::info!("Building config");
     tokio_rustls::rustls::ServerConfig::builder()
         .with_safe_defaults()
         .with_no_client_auth()
