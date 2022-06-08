@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::Cell,
     collections::VecDeque,
     fmt,
@@ -18,6 +19,7 @@ use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use env::{
     query::{AccountId, QueryRequest},
+    tls::TlsServerConfig,
     IntPtr, IntRet, OcallError, Result, RetEncode,
 };
 use pink_sidevm_env as env;
@@ -27,6 +29,7 @@ use thread_local::ThreadLocal;
 use crate::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
     resource::{Resource, ResourceKeeper},
+    tls::{load_tls_config, TlsStream},
     VmId,
 };
 
@@ -339,30 +342,42 @@ impl env::OcallFuncs for State {
         Ok(())
     }
 
-    fn tcp_listen(&mut self, addr: &str, _backlog: i32) -> Result<i32> {
-        let std_listener = std::net::TcpListener::bind(addr).or(Err(OcallError::IoError))?;
+    fn tcp_listen(&mut self, addr: Cow<str>, tls_config: Option<TlsServerConfig>) -> Result<i32> {
+        let std_listener = std::net::TcpListener::bind(&*addr).or(Err(OcallError::IoError))?;
         std_listener
             .set_nonblocking(true)
             .or(Err(OcallError::IoError))?;
         let listener = TcpListener::from_std(std_listener).or(Err(OcallError::IoError))?;
-        self.resources.push(Resource::TcpListener(listener))
+        let tls_config = tls_config.map(load_tls_config).transpose()?.map(Arc::new);
+        self.resources.push(Resource::TcpListener {
+            listener,
+            tls_config,
+        })
     }
 
     fn tcp_accept(&mut self, waker_id: i32, tcp_res_id: i32) -> Result<(i32, String)> {
         let waker = GuestWaker::from_id(waker_id);
-        let (stream, remote_addr) = {
+        let (res, remote_addr) = {
             let res = self.resources.get_mut(tcp_res_id)?;
-            let listener = match res {
-                Resource::TcpListener(listener) => listener,
+            let (listener, tls_config) = match res {
+                Resource::TcpListener {
+                    listener,
+                    tls_config,
+                } => (listener, tls_config),
                 _ => return Err(OcallError::UnsupportedOperation),
             };
-            match get_task_cx(waker, |ct| listener.poll_accept(ct)) {
+            let (stream, addr) = match get_task_cx(waker, |ct| listener.poll_accept(ct)) {
                 Pending => return Err(OcallError::Pending),
                 Ready(result) => result.or(Err(OcallError::IoError))?,
-            }
+            };
+            let res = match tls_config {
+                Some(tls_config) => Resource::TlsStream(TlsStream::new(stream, tls_config.clone())),
+                None => Resource::TcpStream(stream),
+            };
+            (res, addr)
         };
         self.resources
-            .push(Resource::TcpStream { stream })
+            .push(res)
             .map(|res_id| (res_id, remote_addr.to_string()))
     }
 

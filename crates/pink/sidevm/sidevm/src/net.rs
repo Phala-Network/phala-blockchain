@@ -6,6 +6,8 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use env::tls::TlsServerConfig;
+
 use crate::env::{self, tasks, Result};
 use crate::{ocall, ResourceId};
 
@@ -55,7 +57,13 @@ impl TcpListener {
         // Side notes: could be used to probe enabled interfaces and occupied ports. We may
         // consider to introduce some manifest file to further limit the capability in the future
         let todo = "prevent local interface probing and port occupation";
-        let res_id = ResourceId(ocall::tcp_listen(addr.into(), 10)?);
+        let res_id = ResourceId(ocall::tcp_listen(addr.into(), None)?);
+        Ok(Self { res_id })
+    }
+
+    /// Bind and listen on the specified address for incoming TLS-enabled TCP connections.
+    pub async fn bind_tls(addr: &str, config: TlsServerConfig) -> Result<Self> {
+        let res_id = ResourceId(ocall::tcp_listen(addr.into(), Some(config))?);
         Ok(Self { res_id })
     }
 

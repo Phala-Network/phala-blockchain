@@ -1,24 +1,32 @@
+use futures::pin_mut;
 use pink_sidevm_env::{OcallError, Result};
 use std::future::Future;
 use std::io::ErrorKind;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll::*;
-use tokio::io::AsyncWrite as _;
-use tokio::net;
+use tokio::io::{AsyncRead, AsyncWrite as _};
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 use tokio::time::Sleep;
+use tokio_rustls::rustls::ServerConfig;
 use Resource::*;
 
 use crate::async_context::{get_task_cx, GuestWaker};
+use crate::tls::TlsStream;
 
 pub enum Resource {
     Sleep(Pin<Box<Sleep>>),
     ChannelRx(Receiver<Vec<u8>>),
     OneshotTx(Option<Sender<Vec<u8>>>),
-    TcpListener(net::TcpListener),
-    TcpStream { stream: net::TcpStream },
-    TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<net::TcpStream>> + Send>>),
+    TcpListener {
+        listener: TcpListener,
+        tls_config: Option<Arc<ServerConfig>>,
+    },
+    TcpStream(TcpStream),
+    TlsStream(TlsStream),
+    TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<TcpStream>> + Send>>),
 }
 
 impl Resource {
@@ -48,7 +56,7 @@ impl Resource {
                 let rv = poll_in_task_cx(waker, fut.as_mut());
                 match rv {
                     Pending => Err(OcallError::Pending),
-                    Ready(Ok(stream)) => Ok(Resource::TcpStream { stream }),
+                    Ready(Ok(stream)) => Ok(Resource::TcpStream(stream)),
                     Ready(Err(err)) => {
                         log::error!("Tcp connect error: {}", err);
                         Err(OcallError::IoError)
@@ -67,7 +75,7 @@ impl Resource {
                 Ready(_) => Ok(0),
                 Pending => Err(OcallError::Pending),
             },
-            TcpStream { stream, .. } => loop {
+            TcpStream(stream) => loop {
                 match stream.try_read(buf) {
                     Ok(sz) => break Ok(sz as _),
                     Err(err) => {
@@ -83,6 +91,15 @@ impl Resource {
                     }
                 }
             },
+            TlsStream(stream) => {
+                pin_mut!(stream);
+                let mut buf = tokio::io::ReadBuf::new(buf);
+                match get_task_cx(waker.clone(), |cx| stream.poll_read(cx, &mut buf)) {
+                    Pending => Err(OcallError::Pending),
+                    Ready(Err(_err)) => Err(OcallError::IoError),
+                    Ready(Ok(())) => Ok(buf.filled().len() as _),
+                }
+            }
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
@@ -90,7 +107,7 @@ impl Resource {
     pub(crate) fn poll_write(&mut self, waker_id: i32, buf: &[u8]) -> Result<u32> {
         let waker = GuestWaker::from_id(waker_id);
         match self {
-            TcpStream { stream, .. } => loop {
+            TcpStream(stream) => loop {
                 match stream.try_write(buf) {
                     Ok(sz) => break Ok(sz as _),
                     Err(err) => {
@@ -106,6 +123,14 @@ impl Resource {
                     }
                 }
             },
+            TlsStream(stream) => {
+                pin_mut!(stream);
+                match get_task_cx(waker.clone(), |cx| stream.poll_write(cx, buf)) {
+                    Pending => Err(OcallError::Pending),
+                    Ready(Err(_err)) => Err(OcallError::IoError),
+                    Ready(Ok(sz)) => Ok(sz as _),
+                }
+            }
             _ => Err(OcallError::UnsupportedOperation),
         }
     }
@@ -113,9 +138,17 @@ impl Resource {
     pub(crate) fn poll_shutdown(&mut self, waker_id: i32) -> Result<()> {
         let waker = GuestWaker::from_id(waker_id);
         match self {
-            TcpStream { stream, .. } => {
+            TcpStream(stream) => {
                 let stream = Pin::new(stream);
                 match get_task_cx(waker, |cx| stream.poll_shutdown(cx)) {
+                    Pending => Err(OcallError::Pending),
+                    Ready(Err(_err)) => Err(OcallError::IoError),
+                    Ready(Ok(())) => Ok(()),
+                }
+            }
+            TlsStream(stream) => {
+                pin_mut!(stream);
+                match get_task_cx(waker.clone(), |cx| stream.poll_shutdown(cx)) {
                     Pending => Err(OcallError::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
                     Ready(Ok(())) => Ok(()),
