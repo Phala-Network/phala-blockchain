@@ -1067,8 +1067,10 @@ async fn bridge(
         }
         // try bind worker endpoint
         if !args.no_bind {
-            try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await?;
-            flags.endpoint_registered = true;
+            // Here the reason we dont directly report errors when `try_bind_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+            if try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await.is_ok() {
+                flags.endpoint_registered = true;
+            };
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1204,8 +1206,10 @@ async fn bridge(
 
             if !args.no_bind {
                 if !flags.endpoint_registered {
-                    try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await?;
-                    flags.endpoint_registered = true;
+                    // Here the reason we dont directly report errors when `try_bind_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+                    if try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await.is_ok() {
+                        flags.endpoint_registered = true;
+                    };
                 }
             }
 
