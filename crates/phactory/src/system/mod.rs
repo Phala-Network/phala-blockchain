@@ -484,22 +484,21 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
+        origin: Option<&chain::AccountId>,
+        req: OpaqueQuery,
     ) -> Result<
         impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
         OpaqueError,
     > {
-        use pink::storage::Snapshot as _;
-
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        let storage = self
+        let storage = &mut self
             .contract_clusters
             .get_cluster_mut(&contract.cluster_id())
             .expect("BUG: contract cluster should always exists")
-            .storage
-            .snapshot();
+            .storage;
         let sidevm_handle = contract.sidevm_handle();
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
@@ -508,9 +507,8 @@ impl<Platform: pal::Platform> System<Platform> {
             storage,
             sidevm_handle,
         };
-        Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
-            contract.handle_query(origin, req, &mut context)
-        })
+        let response = contract.handle_query(origin, req, &mut context);
+        Ok(move |_origin: Option<&chain::AccountId>, _req: OpaqueQuery| response)
     }
 
     pub fn process_next_message(&mut self, block: &mut BlockInfo) -> anyhow::Result<bool> {

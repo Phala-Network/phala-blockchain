@@ -528,7 +528,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         // Dispatch
-        let call = self.system()?.make_query(&head.id)?;
+        let call = self.system()?.make_query(
+            &head.id,
+            accid_origin.as_ref(),
+            &data[data.len() - rest..],
+        )?;
 
         Ok(move || {
             // Encode response

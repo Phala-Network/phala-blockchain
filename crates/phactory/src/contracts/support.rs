@@ -30,10 +30,10 @@ pub struct NativeContext<'a, 'b> {
     pub self_id: ContractId,
 }
 
-pub struct QueryContext {
+pub struct QueryContext<'a> {
     pub block_number: BlockNumber,
     pub now_ms: u64,
-    pub storage: ::pink::Storage,
+    pub storage: &'a mut ::pink::Storage,
     pub sidevm_handle: Option<SidevmHandle>,
 }
 
