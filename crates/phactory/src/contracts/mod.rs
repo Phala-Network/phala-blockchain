@@ -12,7 +12,6 @@ use phala_mq::{MessageOrigin, SignedMessageChannel};
 pub mod assets;
 pub mod balances;
 pub mod btc_lottery;
-// pub mod diem;
 pub mod geolocation;
 pub mod pink;
 // pub mod substrate_kitties;
