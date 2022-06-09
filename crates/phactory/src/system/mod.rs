@@ -427,15 +427,13 @@ pub struct System<Platform> {
 }
 
 fn create_sidevm_service() -> Spawner {
-    let (run, spawner) = sidevm::service::service();
-    std::thread::spawn(move || {
-        run.blocking_run(|report| match report {
-            Report::VmTerminated { id, reason } => {
-                let id = hex_fmt::HexFmt(&id[..4]);
-                info!("Sidevm {id} terminated with reason: {reason:?}");
-            }
-        })
-    });
+    let (service, spawner) = sidevm::service::service();
+    spawner.spawn(service.run(|report| match report {
+        Report::VmTerminated { id, reason } => {
+            let id = hex_fmt::HexFmt(&id[..4]);
+            info!("Sidevm {id} terminated with reason: {reason:?}");
+        }
+    }));
     spawner
 }
 
