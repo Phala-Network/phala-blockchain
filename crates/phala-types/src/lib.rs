@@ -472,6 +472,8 @@ pub mod messaging {
         ///
         /// The origin cannot be Gatekeeper, else the leakage of old master key will further leak the following keys
         MasterKeyRotation(BatchRotateMasterKeyEvent),
+        /// MessageOrigin::Gatekeeper -> MessageOrigin::Worker
+        MasterKeyHistory(DispatchMasterKeyHistoryEvent),
     }
 
     impl KeyDistribution {
@@ -546,6 +548,13 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct DispatchMasterKeyHistoryEvent {
+        /// The target to dispatch master key
+        pub dest: WorkerPublicKey,
+        pub encrypted_master_keys: Vec<EncryptedKey>,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct BatchRotateMasterKeyEvent {
         pub rotation_id: u64,
         pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
@@ -592,6 +601,9 @@ pub mod messaging {
         PhalaLaunched,
         /// Fix the payout duration problem in unresponsive state
         UnrespFix,
+        /// This will change the master key sharing behavior of all the GKs
+        /// MUST be set before the first master key rotation
+        ShareMasterKeyHistory,
     }
 
     impl GatekeeperEvent {

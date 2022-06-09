@@ -35,10 +35,10 @@ use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
         AeadIV, BatchDispatchClusterKeyEvent, BatchRotateMasterKeyEvent, ClusterOperation,
-        Condition, DispatchMasterKeyEvent, EncryptedKey, GatekeeperChange, GatekeeperLaunch,
-        HeartbeatChallenge, KeyDistribution, MiningReportEvent, NewGatekeeperEvent,
-        PRuntimeManagementEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent,
-        WorkerClusterReport, WorkerContractReport, WorkerEvent,
+        Condition, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
+        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent,
+        SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerKeyChallenge, WorkerKeyChallengePayload, WorkerPublicKey,
 };
@@ -1032,6 +1032,13 @@ impl<Platform: pal::Platform> System<Platform> {
                     );
                 };
             }
+            KeyDistribution::MasterKeyHistory(dispatch_master_key_history_event) => {
+                if let Err(err) =
+                    self.process_master_key_history(origin, dispatch_master_key_history_event)
+                {
+                    error!("Failed to process master key history event: {:?}", err);
+                };
+            }
         }
     }
 
@@ -1252,6 +1259,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
+        // TODO.shelven: what if the key is not sent to me?
         let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
             .expect("Should never failed with valid ecdh key; qed.");
         let mut key_buff = encrypted_key.clone();
@@ -1278,6 +1286,32 @@ impl<Platform: pal::Platform> System<Platform> {
             info!("Gatekeeper: successfully decrypt received master key");
             self.init_master_key(master_pair, true);
         }
+        Ok(())
+    }
+
+    fn process_master_key_history(
+        &mut self,
+        origin: MessageOrigin,
+        event: DispatchMasterKeyHistoryEvent,
+    ) -> Result<(), TransactionError> {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return Err(TransactionError::BadOrigin);
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if my_pubkey == event.dest {
+            let master_key_history: Vec<sr25519::Pair> = event
+                .encrypted_master_keys
+                .iter()
+                .map(|key| self.decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv))
+                .collect();
+            let master_key = master_key_history
+                .last()
+                .expect("the master key history should not be empty");
+            self.init_master_key(master_key.clone(), true);
+        }
+
         Ok(())
     }
 

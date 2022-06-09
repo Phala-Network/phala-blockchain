@@ -10,10 +10,10 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        BatchRotateMasterKeyEvent, ClusterOperation, EncryptedKey, GatekeeperEvent,
-        KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
-        RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent,
-        WorkerEventWithKey,
+        BatchRotateMasterKeyEvent, ClusterOperation, DispatchMasterKeyHistoryEvent, EncryptedKey,
+        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        RandomNumber, RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent,
+        WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -107,10 +107,16 @@ impl WorkerInfo {
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Gatekeeper<MsgChan> {
+    /// The current master key in use
     #[serde(with = "more::key_bytes")]
     master_key: sr25519::Pair,
+    /// This will be switched once when the first master key is uploaded
     master_pubkey_on_chain: bool,
+    /// Unregistered GK will sync all the GK messages silently
     registered_on_chain: bool,
+    #[serde(with = "more::vec_key_bytes")]
+    master_key_history: Vec<sr25519::Pair>,
+    share_all_master_keys: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     cluster_events: TypedReceiver<ClusterEvent>,
@@ -130,11 +136,14 @@ where
         egress: MsgChan,
     ) -> Self {
         egress.set_dummy(true);
+        let master_key_history = vec![master_key.clone()];
 
         Self {
             master_key,
             master_pubkey_on_chain: false,
             registered_on_chain: false,
+            master_key_history,
+            share_all_master_keys: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
             cluster_events: recv_mq.subscribe_bound(),
@@ -181,8 +190,9 @@ where
                 master_pubkey,
             });
 
-        self.master_key = new_master_key;
+        self.master_key = new_master_key.clone();
         self.egress.set_signer(self.master_key.clone().into());
+        self.master_key_history.push(new_master_key);
     }
 
     pub fn master_pubkey_uploaded(&mut self) {
@@ -190,6 +200,19 @@ where
     }
 
     pub fn share_master_key(
+        &mut self,
+        pubkey: &WorkerPublicKey,
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: chain::BlockNumber,
+    ) {
+        if self.share_all_master_keys {
+            self.share_master_key_history(pubkey, ecdh_pubkey, block_number);
+        } else {
+            self.share_latest_master_key(pubkey, ecdh_pubkey, block_number);
+        }
+    }
+
+    pub fn share_latest_master_key(
         &mut self,
         pubkey: &WorkerPublicKey,
         ecdh_pubkey: &EcdhPublicKey,
@@ -210,6 +233,32 @@ where
                 encrypted_key.encrypted_key,
                 encrypted_key.iv,
             ));
+    }
+
+    pub fn share_master_key_history(
+        &mut self,
+        pubkey: &WorkerPublicKey,
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: chain::BlockNumber,
+    ) {
+        info!("Gatekeeper: try dispatch all historical master keys");
+        let master_keys: Vec<Sr25519SecretKey> = self
+            .master_key_history
+            .iter()
+            .map(|key| key.dump_secret_key())
+            .collect();
+        let encrypted_master_keys = master_keys
+            .iter()
+            .map(|key| {
+                self.encrypt_key_to(&[b"master_key_sharing"], ecdh_pubkey, key, block_number)
+            })
+            .collect();
+        self.egress.push_message(&KeyDistribution::MasterKeyHistory(
+            DispatchMasterKeyHistoryEvent {
+                dest: pubkey.clone(),
+                encrypted_master_keys,
+            },
+        ));
     }
 
     pub fn process_master_key_rotation(
@@ -294,6 +343,9 @@ where
             }
             GatekeeperEvent::UnrespFix => {
                 // Handled by MiningEconomics
+            }
+            GatekeeperEvent::ShareMasterKeyHistory => {
+                self.share_all_master_keys = true;
             }
         }
     }
@@ -1025,6 +1077,9 @@ where
                 if origin.is_pallet() {
                     self.state.unresp_fix = true;
                 }
+            }
+            GatekeeperEvent::ShareMasterKeyHistory => {
+                // Handled by Gatekeeper.
             }
         }
     }

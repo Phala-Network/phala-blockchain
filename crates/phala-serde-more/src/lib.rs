@@ -11,3 +11,6 @@ pub mod option_key_bytes;
 
 #[cfg(feature = "crypto")]
 pub mod pubkey_bytes;
+
+#[cfg(feature = "crypto")]
+pub mod vec_key_bytes;

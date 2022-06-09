@@ -355,6 +355,17 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// This will change the master key sharing behavior of all the GKs
+		/// MUST be set before the first master key rotation
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn enable_master_key_history_sharing(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			use phala_types::messaging::GatekeeperEvent;
+			Self::push_message(GatekeeperEvent::ShareMasterKeyHistory {});
+			Ok(())
+		}
+
 		/// Rotate the master key
 		///
 		/// # Arguments
