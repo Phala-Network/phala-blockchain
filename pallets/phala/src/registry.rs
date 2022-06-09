@@ -367,10 +367,6 @@ pub mod pallet {
 		}
 
 		/// Rotate the master key
-		///
-		/// # Arguments
-		///
-		/// * `lead_gatekeeper` - The gatekeeper to generate the new key
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
