@@ -7,6 +7,7 @@ use std::task::{Context, Poll};
 use futures::ready;
 use pink_sidevm_env::tls::TlsServerConfig;
 use pink_sidevm_env::OcallError;
+use rustls_pemfile::Item;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio_rustls::server::TlsStream as TokioTlsStream;
@@ -106,10 +107,11 @@ fn load_certs(pem_str: &str) -> Result<Vec<rustls::Certificate>, OcallError> {
 }
 
 fn load_private_key(pem_str: &str) -> Result<rustls::PrivateKey, OcallError> {
-    let keys = rustls_pemfile::pkcs8_private_keys(&mut pem_str.as_bytes())
-        .or(Err(OcallError::InvalidParameter))?;
-    if keys.len() != 1 {
-        return Err(OcallError::InvalidParameter);
-    }
-    Ok(rustls::PrivateKey(keys[0].clone()))
+    let keys =
+        rustls_pemfile::read_all(&mut pem_str.as_bytes()).or(Err(OcallError::InvalidParameter))?;
+    let key = match &keys[..] {
+        [Item::RSAKey(key) | Item::PKCS8Key(key) | Item::ECKey(key)] => key,
+        _ => return Err(OcallError::InvalidParameter),
+    };
+    Ok(rustls::PrivateKey(key.clone()))
 }
