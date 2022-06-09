@@ -44,36 +44,6 @@ where
     }
 }
 
-impl<H, KF, T, M> PartialEq<MemoryDB<H, KF, T, M>> for MemoryDB<H, KF, T, M>
-where
-    H: KeyHasher,
-    KF: KeyFunction<H>,
-    <KF as KeyFunction<H>>::Key: Eq + MaybeDebug,
-    T: Eq + MaybeDebug,
-    M: MemTracker<T> + PartialEq,
-{
-    fn eq(&self, other: &MemoryDB<H, KF, T, M>) -> bool {
-        for a in self.data.iter() {
-            match other.data.get(&a.0) {
-                Some(v) if v != a.1 => return false,
-                None => return false,
-                _ => (),
-            }
-        }
-        true
-    }
-}
-
-impl<H, KF, T, M> Eq for MemoryDB<H, KF, T, M>
-where
-    H: KeyHasher,
-    KF: KeyFunction<H>,
-    <KF as KeyFunction<H>>::Key: Eq + MaybeDebug,
-    T: Eq + MaybeDebug,
-    M: MemTracker<T> + Eq,
-{
-}
-
 pub trait KeyFunction<H: KeyHasher> {
     type Key: Send + Sync + Clone + hash::Hash + Eq;
 
@@ -137,43 +107,6 @@ pub fn prefixed_key<H: KeyHasher>(key: &H::Out, prefix: Prefix) -> Vec<u8> {
     prefixed_key.extend_from_slice(prefix.0);
     if let Some(last) = prefix.1 {
         prefixed_key.push(last);
-    }
-    prefixed_key.extend_from_slice(key.as_ref());
-    prefixed_key
-}
-
-/// Key function that concatenates prefix and hash.
-/// This is doing useless computation and should only be
-/// used for legacy purpose.
-/// It shall be remove in the future.
-#[derive(Clone, Debug)]
-#[deprecated(since = "0.22.0")]
-pub struct LegacyPrefixedKey<H: KeyHasher>(PhantomData<H>);
-
-#[allow(deprecated)]
-impl<H: KeyHasher> KeyFunction<H> for LegacyPrefixedKey<H> {
-    type Key = Vec<u8>;
-
-    fn key(hash: &H::Out, prefix: Prefix) -> Vec<u8> {
-        legacy_prefixed_key::<H>(hash, prefix)
-    }
-}
-
-/// Legacy method for db using previous version of prefix encoding.
-/// Only for trie radix 16 trie.
-#[deprecated(since = "0.22.0")]
-pub fn legacy_prefixed_key<H: KeyHasher>(key: &H::Out, prefix: Prefix) -> Vec<u8> {
-    let mut prefixed_key = Vec::with_capacity(key.as_ref().len() + prefix.0.len() + 1);
-    if let Some(last) = prefix.1 {
-        let mut prev = 0x01u8;
-        for i in prefix.0.iter() {
-            prefixed_key.push((prev << 4) + (*i >> 4));
-            prev = *i;
-        }
-        prefixed_key.push((prev << 4) + (last >> 4));
-    } else {
-        prefixed_key.push(0);
-        prefixed_key.extend_from_slice(prefix.0);
     }
     prefixed_key.extend_from_slice(key.as_ref());
     prefixed_key
