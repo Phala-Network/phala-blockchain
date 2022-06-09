@@ -265,26 +265,6 @@ where
     }
 
     /// Clear all data from the database.
-    ///
-    /// # Examples
-    /// ```rust
-    /// extern crate hash_db;
-    /// extern crate keccak_hasher;
-    /// extern crate memory_db;
-    ///
-    /// use hash_db::{Hasher, HashDB, EMPTY_PREFIX};
-    /// use keccak_hasher::KeccakHasher;
-    /// use memory_db::{MemoryDB, HashKey};
-    ///
-    /// fn main() {
-    ///   let mut m = MemoryDB::<KeccakHasher, HashKey<_>, Vec<u8>>::default();
-    ///   let hello_bytes = "Hello world!".as_bytes();
-    ///   let hash = m.insert(EMPTY_PREFIX, hello_bytes);
-    ///   assert!(m.contains(&hash, EMPTY_PREFIX));
-    ///   m.clear();
-    ///   assert!(!m.contains(&hash, EMPTY_PREFIX));
-    /// }
-    /// ```
     pub fn clear(&mut self) {
         self.malloc_tracker.on_clear();
         self.data.clear();
@@ -798,7 +778,7 @@ mod tests {
         }
         assert_eq!(
             malloc_size(&db),
-            crate::size_of_hash_map(&db.data)
+            super::size_of_hash_map(&db.data)
                 + malloc_size(&db.null_node_data)
                 + malloc_size(&db.hashed_null_node)
         );
