@@ -2,7 +2,7 @@
 
 pub use self::pallet::*;
 
-use frame_support::{traits::Currency, BoundedVec};
+use frame_support::traits::Currency;
 use sp_runtime::traits::Zero;
 
 type BalanceOf<T> =
@@ -613,7 +613,7 @@ pub mod pallet {
 			staker: T::AccountId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let mut pool_info = Self::ensure_pool(pid)?;
+			let pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
@@ -664,7 +664,7 @@ pub mod pallet {
 			staker: T::AccountId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let mut pool_info = Self::ensure_pool(pid)?;
+			let pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			let mut whitelist =
 				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
@@ -841,7 +841,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-			/// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+			// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.owner == who,
