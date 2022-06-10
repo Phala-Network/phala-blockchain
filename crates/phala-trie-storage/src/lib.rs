@@ -1,9 +1,10 @@
-#![no_std]
-
 extern crate alloc;
 
 #[cfg(feature = "serde")]
 pub mod ser;
+
+mod memdb;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -15,7 +16,10 @@ use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
+use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, TrieMut};
+
+pub use memdb::GenericMemoryDB as MemoryDB;
+
 
 use sp_trie::HashDBT as _;
 
@@ -31,7 +35,8 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
-pub struct TrieStorage<H: Hasher>(TrieBackend<MemoryDB<H>, H>);
+pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
+pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>);
 
 impl<H: Hasher> Default for TrieStorage<H>
 where

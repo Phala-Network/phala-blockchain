@@ -16,6 +16,9 @@ sp-io   = { path = "../../substrate/primitives/io", default-features = false, fe
 sp-state-machine = { path = "../../substrate/primitives/state-machine", default-features = false }
 
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"], optional = true }
+hash-db = "0.15.2"
+im = "15"
+parity-util-mem = "0.11.0"
 
 [dev-dependencies]
 sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false }
@@ -24,6 +27,7 @@ hash256-std-hasher = { version = "0.15", default-features = false }
 hex = "0.4"
 serde_json = "1.0"
 impl-serde = "0.3"
+keccak-hasher = "0.15.3"
 
 [features]
 default = ["serde"]

@@ -3,14 +3,23 @@ use crate::{
     types::{AccountId, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
-use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
+use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 mod backend;
 
-pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
+pub type InMemoryBackend = phala_trie_storage::InMemoryBackend<Hashing>;
+
+pub fn new_in_memory_backend() -> InMemoryBackend {
+    let db = MemoryDB::default();
+    // V1 is same as V0 for an empty trie.
+    sp_state_machine::TrieBackend::new(
+        db,
+        sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>(),
+    )
+}
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction);
@@ -18,7 +27,9 @@ pub trait CommitTransaction: StorageBackend<Hashing> {
 
 impl CommitTransaction for InMemoryBackend {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction) {
-        self.apply_transaction(root, transaction);
+        let mut storage = sp_std::mem::replace(self, new_in_memory_backend()).into_storage();
+        storage.consolidate(transaction);
+        *self = sp_state_machine::TrieBackend::new(storage, root);
     }
 }
 
@@ -26,7 +37,6 @@ pub trait Snapshot {
     fn snapshot(&self) -> Self;
 }
 
-#[derive(Default)]
 pub struct Storage<Backend> {
     backend: Backend,
 }
