@@ -426,6 +426,8 @@ pub struct System<Platform> {
     // Gatekeeper
     #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
+    #[serde(with = "more::vec_key_bytes")]
+    master_key_history: Vec<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -470,7 +472,13 @@ impl<Platform: pal::Platform> System<Platform> {
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key.0, &platform);
+        let master_key_history =
+            master_key::try_unseal(sealing_path.clone(), &identity_key.0, &platform);
+        let master_key = if master_key_history.len() == 0 {
+            None
+        } else {
+            Some(master_key_history.first().expect("checked; qed").clone())
+        };
 
         System {
             platform,
@@ -491,6 +499,7 @@ impl<Platform: pal::Platform> System<Platform> {
             last_challenge: None,
             worker_state: WorkerState::new(pubkey),
             master_key,
+            master_key_history,
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
@@ -755,23 +764,36 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    /// Only the first master key possessed by the gk needs to be sealed
-    fn init_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
+    /// Update sealing keys if the received history is longer than existing one
+    ///
+    /// Only restart if the flag is set and the master key is changed
+    fn handle_master_key_history(
+        &mut self,
+        master_key_history: Vec<sr25519::Pair>,
+        need_restart: bool,
+    ) {
+        if master_key_history.len() <= self.master_key_history.len() {
+            return;
+        }
+
+        master_key::seal(
+            self.sealing_path.clone(),
+            &master_key_history,
+            &self.identity_key,
+            &self.platform,
+        );
+        self.master_key_history = master_key_history;
+
+        let first_key = self.master_key_history.first().expect("check; qed");
         if self.master_key.is_none() {
-            master_key::seal(
-                self.sealing_path.clone(),
-                &master_key,
-                &self.identity_key,
-                &self.platform,
-            );
-            self.master_key = Some(master_key);
+            self.master_key = Some(first_key.clone());
 
             if need_restart {
                 crate::maybe_remove_checkpoints(&self.storage_path);
-                panic!("Received master key, please restart pRuntime and pherry");
+                panic!(
+                    "Received master key, please restart pRuntime and pherry to sync as Gatekeeper"
+                );
             }
-        } else if let Some(my_master_key) = &self.master_key {
-            assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
         }
     }
 
@@ -886,7 +908,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 // generate master key as the first gatekeeper
                 // no need to restart
                 let master_key = crate::new_sr25519_key();
-                self.init_master_key(master_key.clone(), false);
+                self.handle_master_key_history(vec![master_key.clone()], false);
             }
 
             let master_key = self.master_key.as_ref().expect("checked; qed.");
@@ -1284,7 +1306,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pair =
                 self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
-            self.init_master_key(master_pair, true);
+            self.handle_master_key_history(vec![master_pair], true);
         }
         Ok(())
     }
@@ -1306,10 +1328,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 .iter()
                 .map(|key| self.decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv))
                 .collect();
-            let master_key = master_key_history
-                .last()
-                .expect("the master key history should not be empty");
-            self.init_master_key(master_key.clone(), true);
+            self.handle_master_key_history(master_key_history, true);
         }
 
         Ok(())

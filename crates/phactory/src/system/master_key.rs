@@ -42,7 +42,7 @@ fn master_key_file_path(sealing_path: String) -> PathBuf {
 /// Seal master key seeds with signature to ensure integrity
 pub fn seal(
     sealing_path: String,
-    master_key_history: Vec<&sr25519::Pair>,
+    master_key_history: &Vec<sr25519::Pair>,
     identity_key: &sr25519::Pair,
     sys: &impl Sealing,
 ) {
