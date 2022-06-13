@@ -4,7 +4,7 @@ use std::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::sr25519;
 
-use phala_crypto::sr25519::{Persistence, Signature, Signing, Sr25519SecretKey};
+use phala_crypto::sr25519::{Signature, Signing, Sr25519SecretKey};
 
 use crate::pal::Sealing;
 
@@ -42,15 +42,13 @@ fn master_key_file_path(sealing_path: String) -> PathBuf {
 /// Seal master key seeds with signature to ensure integrity
 pub fn seal(
     sealing_path: String,
-    master_key_history: &Vec<sr25519::Pair>,
+    master_key_history: &Vec<Sr25519SecretKey>,
     identity_key: &sr25519::Pair,
     sys: &impl Sealing,
 ) {
-    let secrets: Vec<Sr25519SecretKey> = master_key_history
-        .into_iter()
-        .map(|master_key| master_key.dump_secret_key())
-        .collect();
-    let payload = MasterKeyHistory { secrets };
+    let payload = MasterKeyHistory {
+        secrets: master_key_history.clone(),
+    };
     let signature = identity_key.sign_data(&payload.encode());
 
     let data = MasterKeySeal::V2(PersistentMasterKeyHistory { payload, signature });
@@ -67,7 +65,7 @@ pub fn try_unseal(
     sealing_path: String,
     identity_key: &sr25519::Pair,
     sys: &impl Sealing,
-) -> Vec<sr25519::Pair> {
+) -> Vec<Sr25519SecretKey> {
     let filepath = master_key_file_path(sealing_path);
     info!("Unseal master key from {}", filepath.as_path().display());
     let sealed_data = match sys
@@ -103,7 +101,4 @@ pub fn try_unseal(
     };
 
     secrets
-        .into_iter()
-        .map(|secret| sr25519::Pair::restore_from_secret_key(&secret))
-        .collect()
 }

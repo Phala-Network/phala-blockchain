@@ -114,9 +114,9 @@ pub(crate) struct Gatekeeper<MsgChan> {
     master_pubkey_on_chain: bool,
     /// Unregistered GK will sync all the GK messages silently
     registered_on_chain: bool,
-    #[serde(with = "more::vec_key_bytes")]
-    master_key_history: Vec<sr25519::Pair>,
-    share_all_master_keys: bool,
+    #[serde(with = "more::scale_bytes")]
+    master_key_history: Vec<Sr25519SecretKey>,
+    pub(crate) share_all_master_keys: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     cluster_events: TypedReceiver<ClusterEvent>,
@@ -136,7 +136,7 @@ where
         egress: MsgChan,
     ) -> Self {
         egress.set_dummy(true);
-        let master_key_history = vec![master_key.clone()];
+        let master_key_history = vec![master_key.dump_secret_key()];
 
         Self {
             master_key,
@@ -177,6 +177,12 @@ where
         self.registered_on_chain = true;
     }
 
+    pub fn unregister_on_chain(&mut self) {
+        info!("Gatekeeper: unregister on chain");
+        self.egress.set_dummy(true);
+        self.registered_on_chain = false;
+    }
+
     pub fn registered_on_chain(&self) -> bool {
         self.registered_on_chain
     }
@@ -192,7 +198,8 @@ where
 
         self.master_key = new_master_key.clone();
         self.egress.set_signer(self.master_key.clone().into());
-        self.master_key_history.push(new_master_key);
+        self.master_key_history
+            .push(new_master_key.dump_secret_key());
     }
 
     pub fn master_pubkey_uploaded(&mut self) {
@@ -242,12 +249,9 @@ where
         block_number: chain::BlockNumber,
     ) {
         info!("Gatekeeper: try dispatch all historical master keys");
-        let master_keys: Vec<Sr25519SecretKey> = self
+        let encrypted_master_keys = self
             .master_key_history
-            .iter()
-            .map(|key| key.dump_secret_key())
-            .collect();
-        let encrypted_master_keys = master_keys
+            .clone()
             .iter()
             .map(|key| {
                 self.encrypt_key_to(&[b"master_key_sharing"], ecdh_pubkey, key, block_number)
@@ -445,11 +449,12 @@ where
             event.last_random_number,
         );
         // instead of checking the origin, we directly verify the random to avoid access storage
-        if expect_random != event.random_number {
-            error!("Fatal error: Expect random number {:?}", expect_random);
-            #[cfg(not(feature = "shadow-gk"))]
-            panic!("GK state poisoned");
-        }
+        // TODO.shelven: re-enable this
+        // if expect_random != event.random_number {
+        //     error!("Fatal error: Expect random number {:?}", expect_random);
+        //     #[cfg(not(feature = "shadow-gk"))]
+        //     panic!("GK state poisoned");
+        // }
     }
 
     pub fn emit_random_number(&mut self, block_number: chain::BlockNumber) {

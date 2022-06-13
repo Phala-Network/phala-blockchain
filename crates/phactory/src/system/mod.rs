@@ -24,7 +24,7 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
     ecdh::{self, EcdhKey},
-    sr25519::{Signing, KDF},
+    sr25519::{Persistence, Signing, Sr25519SecretKey, KDF},
 };
 use phala_mq::{
     traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
@@ -426,8 +426,10 @@ pub struct System<Platform> {
     // Gatekeeper
     #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
-    #[serde(with = "more::vec_key_bytes")]
-    master_key_history: Vec<sr25519::Pair>,
+    // All the master keys (including "future" ones) known to this worker
+    // Only the in-use part is synced to the gatekeeper
+    #[serde(with = "more::scale_bytes")]
+    master_key_history: Vec<Sr25519SecretKey>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -477,7 +479,8 @@ impl<Platform: pal::Platform> System<Platform> {
         let master_key = if master_key_history.len() == 0 {
             None
         } else {
-            Some(master_key_history.first().expect("checked; qed").clone())
+            let secret = master_key_history.first().expect("checked; qed");
+            Some(sr25519::Pair::restore_from_secret_key(&secret))
         };
 
         System {
@@ -764,12 +767,13 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    /// Update sealing keys if the received history is longer than existing one
+    /// Update sealing keys if the received history is longer than existing one. This will not affect the master key history
+    /// in `self.gatekeeper`.
     ///
     /// Only restart if the flag is set and the master key is changed
-    fn handle_master_key_history(
+    fn set_master_key_history(
         &mut self,
-        master_key_history: Vec<sr25519::Pair>,
+        master_key_history: Vec<Sr25519SecretKey>,
         need_restart: bool,
     ) {
         if master_key_history.len() <= self.master_key_history.len() {
@@ -786,7 +790,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let first_key = self.master_key_history.first().expect("check; qed");
         if self.master_key.is_none() {
-            self.master_key = Some(first_key.clone());
+            self.master_key = Some(sr25519::Pair::restore_from_secret_key(&first_key));
 
             if need_restart {
                 crate::maybe_remove_checkpoints(&self.storage_path);
@@ -795,6 +799,33 @@ impl<Platform: pal::Platform> System<Platform> {
                 );
             }
         }
+    }
+
+    // This will change `self.gatekeeper`'s master key history and sequence id since the gatekeeper will report the new
+    // master pubkey on-chain.
+    fn handle_new_master_key(&mut self, new_master_key: sr25519::Pair, rotation_id: u64) {
+        let new_secret = new_master_key.dump_secret_key();
+        if !self.master_key_history.contains(&new_secret) {
+            self.master_key_history.push(new_secret);
+            master_key::seal(
+                self.sealing_path.clone(),
+                &self.master_key_history,
+                &self.identity_key,
+                &self.platform,
+            );
+        }
+
+        self.master_key = Some(new_master_key.clone());
+        self.gatekeeper
+            .as_mut()
+            .expect("checked above; qed.")
+            .rotate_master_key(rotation_id, new_master_key);
+    }
+
+    fn master_key_cleanup(&mut self) {
+        self.gatekeeper = None;
+        self.master_key = None;
+        self.master_key_history = vec![];
     }
 
     fn init_gatekeeper(&mut self, block: &mut BlockInfo) {
@@ -908,7 +939,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 // generate master key as the first gatekeeper
                 // no need to restart
                 let master_key = crate::new_sr25519_key();
-                self.handle_master_key_history(vec![master_key.clone()], false);
+                self.set_master_key_history(vec![master_key.dump_secret_key()], false);
             }
 
             let master_key = self.master_key.as_ref().expect("checked; qed.");
@@ -1008,7 +1039,9 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    /// Remove self.gatekeeper and self.master_key
+    /// Turn gatekeeper to silent syncing. The real cleanup will happen in next key rotation since it will have no chance
+    /// to continuce syncing.
+    ///
     /// There is no meaning to remove the master_key.seal file
     fn process_remove_gatekeeper_event(
         &mut self,
@@ -1022,9 +1055,8 @@ impl<Platform: pal::Platform> System<Platform> {
         }
 
         let my_pubkey = self.identity_key.public();
-        if my_pubkey == event.pubkey {
-            self.gatekeeper = None;
-            self.master_key = None;
+        if my_pubkey == event.pubkey && self.gatekeeper.is_some() {
+            self.gatekeeper.as_mut().unwrap().unregister_on_chain();
         }
     }
 
@@ -1306,7 +1338,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pair =
                 self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
-            self.handle_master_key_history(vec![master_pair], true);
+            self.set_master_key_history(vec![master_pair.dump_secret_key()], true);
         }
         Ok(())
     }
@@ -1323,12 +1355,15 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
-            let master_key_history: Vec<sr25519::Pair> = event
+            let master_key_history: Vec<Sr25519SecretKey> = event
                 .encrypted_master_keys
                 .iter()
-                .map(|key| self.decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv))
+                .map(|key| {
+                    self.decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv)
+                        .dump_secret_key()
+                })
                 .collect();
-            self.handle_master_key_history(master_key_history, true);
+            self.set_master_key_history(master_key_history, true);
         }
 
         Ok(())
@@ -1378,13 +1413,39 @@ impl<Platform: pal::Platform> System<Platform> {
                 &encrypted_key.encrypted_key,
                 &encrypted_key.iv,
             );
-            info!("Worker: successfully decrypt received rotated master key");
 
-            self.master_key = Some(new_master_key.clone());
-            self.gatekeeper
-                .as_mut()
-                .expect("checked above; qed.")
-                .rotate_master_key(event.rotation_id, new_master_key);
+            info!("Worker: successfully decrypt received rotated master key");
+            self.handle_new_master_key(new_master_key, event.rotation_id);
+        } else if self.gatekeeper.is_some() {
+            // will be here in two situations
+            if self.master_key_history.last().unwrap()
+                == &self.master_key.as_ref().unwrap().dump_secret_key()
+            {
+                // 1. This is an unregistered GK whose master key is not outdated yet.
+                // Delete the gatekeeper and master_key since it cannot do silent syncing anymore
+                info!("Worker: master key rotation receiced, stop gatekeeper silent syncing");
+                self.master_key_cleanup();
+            } else {
+                // 2. This is a valid GK in syncing, the needed master key should already be dispatched in the "future".
+                // Tick the master key correspondingly
+                let current_master_key = self.master_key.as_ref().unwrap().dump_secret_key();
+                let current_idx = self
+                    .master_key_history
+                    .iter()
+                    .position(|key| key == &current_master_key)
+                    .expect("Corrupted master key history");
+                assert!(
+                    current_idx + 1 < self.master_key_history.len(),
+                    "Corrupted master key history"
+                );
+                let next_master_key = self.master_key_history[current_idx + 1];
+
+                info!("Worker: rotate master key with received master key history");
+                self.handle_new_master_key(
+                    sr25519::Pair::restore_from_secret_key(&next_master_key),
+                    event.rotation_id,
+                );
+            }
         }
         Ok(())
     }
@@ -1433,9 +1494,9 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn gatekeeper_status(&self) -> GatekeeperStatus {
-        let active = match &self.gatekeeper {
-            Some(gk) => gk.registered_on_chain(),
-            None => false,
+        let (active, share_master_key_history) = match &self.gatekeeper {
+            Some(gk) => (gk.registered_on_chain(), gk.share_all_master_keys),
+            None => (false, false),
         };
         let has_key = self.master_key.is_some();
         let role = match (has_key, active) {
@@ -1451,6 +1512,7 @@ impl<Platform: pal::Platform> System<Platform> {
         GatekeeperStatus {
             role: role.into(),
             master_public_key,
+            share_master_key_history,
         }
     }
 }
