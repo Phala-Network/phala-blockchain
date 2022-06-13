@@ -563,6 +563,9 @@ export namespace pruntime_rpc {
 
         /** GatekeeperStatus masterPublicKey */
         masterPublicKey?: (string|null);
+
+        /** GatekeeperStatus shareMasterKeyHistory */
+        shareMasterKeyHistory?: (boolean|null);
     }
 
     /** Represents a GatekeeperStatus. */
@@ -579,6 +582,9 @@ export namespace pruntime_rpc {
 
         /** GatekeeperStatus masterPublicKey. */
         public masterPublicKey: string;
+
+        /** GatekeeperStatus shareMasterKeyHistory. */
+        public shareMasterKeyHistory: boolean;
 
         /**
          * Creates a new GatekeeperStatus instance using the specified properties.

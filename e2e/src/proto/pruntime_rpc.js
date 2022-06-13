@@ -1285,6 +1285,7 @@ $root.pruntime_rpc = (function() {
          * @interface IGatekeeperStatus
          * @property {pruntime_rpc.GatekeeperRole|null} [role] GatekeeperStatus role
          * @property {string|null} [masterPublicKey] GatekeeperStatus masterPublicKey
+         * @property {boolean|null} [shareMasterKeyHistory] GatekeeperStatus shareMasterKeyHistory
          */
 
         /**
@@ -1319,6 +1320,14 @@ $root.pruntime_rpc = (function() {
         GatekeeperStatus.prototype.masterPublicKey = "";
 
         /**
+         * GatekeeperStatus shareMasterKeyHistory.
+         * @member {boolean} shareMasterKeyHistory
+         * @memberof pruntime_rpc.GatekeeperStatus
+         * @instance
+         */
+        GatekeeperStatus.prototype.shareMasterKeyHistory = false;
+
+        /**
          * Creates a new GatekeeperStatus instance using the specified properties.
          * @function create
          * @memberof pruntime_rpc.GatekeeperStatus
@@ -1346,6 +1355,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.role);
             if (message.masterPublicKey != null && Object.hasOwnProperty.call(message, "masterPublicKey"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.masterPublicKey);
+            if (message.shareMasterKeyHistory != null && Object.hasOwnProperty.call(message, "shareMasterKeyHistory"))
+                writer.uint32(/* id 3, wireType 0 =*/24).bool(message.shareMasterKeyHistory);
             return writer;
         };
 
@@ -1385,6 +1396,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 2:
                     message.masterPublicKey = reader.string();
+                    break;
+                case 3:
+                    message.shareMasterKeyHistory = reader.bool();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1433,6 +1447,9 @@ $root.pruntime_rpc = (function() {
             if (message.masterPublicKey != null && message.hasOwnProperty("masterPublicKey"))
                 if (!$util.isString(message.masterPublicKey))
                     return "masterPublicKey: string expected";
+            if (message.shareMasterKeyHistory != null && message.hasOwnProperty("shareMasterKeyHistory"))
+                if (typeof message.shareMasterKeyHistory !== "boolean")
+                    return "shareMasterKeyHistory: boolean expected";
             return null;
         };
 
@@ -1464,6 +1481,8 @@ $root.pruntime_rpc = (function() {
             }
             if (object.masterPublicKey != null)
                 message.masterPublicKey = String(object.masterPublicKey);
+            if (object.shareMasterKeyHistory != null)
+                message.shareMasterKeyHistory = Boolean(object.shareMasterKeyHistory);
             return message;
         };
 
@@ -1483,11 +1502,14 @@ $root.pruntime_rpc = (function() {
             if (options.defaults) {
                 object.role = options.enums === String ? "None" : 0;
                 object.masterPublicKey = "";
+                object.shareMasterKeyHistory = false;
             }
             if (message.role != null && message.hasOwnProperty("role"))
                 object.role = options.enums === String ? $root.pruntime_rpc.GatekeeperRole[message.role] : message.role;
             if (message.masterPublicKey != null && message.hasOwnProperty("masterPublicKey"))
                 object.masterPublicKey = message.masterPublicKey;
+            if (message.shareMasterKeyHistory != null && message.hasOwnProperty("shareMasterKeyHistory"))
+                object.shareMasterKeyHistory = message.shareMasterKeyHistory;
             return object;
         };
 
