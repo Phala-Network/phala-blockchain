@@ -7805,13 +7805,14 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "derive_more",
  "futures",
  "hyper",
  "log",
  "parity-scale-codec",
+ "pin-project 1.0.10",
  "pink-sidevm-env",
  "pink-sidevm-logger",
  "pink-sidevm-macro",
