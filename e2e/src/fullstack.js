@@ -142,7 +142,7 @@ describe('A full stack', function () {
                 return info.registered;
             }, 4 * 6000), 'not registered in time');
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
@@ -185,7 +185,7 @@ describe('A full stack', function () {
                 return info.registered;
             }, 4 * 6000), 'not registered in time');
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
@@ -254,7 +254,7 @@ describe('A full stack', function () {
                 alice,
             );
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
@@ -283,7 +283,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'not enable master key history sharing');
         });
 
-        it('can register and un-reg a temp gk', async function () {
+        it('can register and un-reg gatekeeper4', async function () {
             // Register worker4 as Gatekeeper
             const info = await pruntime[3].getInfo();
             await assert.txAccepted(
@@ -308,7 +308,7 @@ describe('A full stack', function () {
                 return info.registered;
             }, 4 * 6000), 'not registered in time');
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
@@ -379,11 +379,60 @@ describe('A full stack', function () {
             }, 4 * 6000), 'on-chain master key not updated');
         });
 
-        it('will kill unregistered temp gk', async function () {
+        it('will kill unregistered gatekeeper', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[3].getInfo();
                 return info.gatekeeper.role == 0;
             }, 4 * 6000), 'outdated gatekeeper not remove');
+        });
+
+        it('can re-register the gatekeeper4 after rotation', async function () {
+            // Register worker4 as Gatekeeper
+            const info = await pruntime[3].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.forceRegisterWorker(
+                        hex(info.publicKey),
+                        hex(info.ecdhPublicKey),
+                        null,
+                    )
+                ),
+                alice,
+            );
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                return info.registered;
+            }, 4 * 6000), 'not registered in time');
+
+            // Check if the on-chain role is Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+                return gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not registered as gatekeeper');
+
+            assert.isTrue(
+                await cluster.waitWorkerExitAndRestart(3, 10 * 6000),
+                'worker4 restart timeout'
+            );
+
+            // Ensure it is up-to-date
+            const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
+            let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
+            seqStart = seqStart.unwrap().toNumber();
+            assert.isTrue(await checkUntil(async () => {
+                let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
+                seq = seq.unwrap().toNumber();
+                return seq >= seqStart + 1;
+            }, 500 * 6000), 'ingress stale');
         });
     });
 
@@ -413,7 +462,7 @@ describe('A full stack', function () {
                 return info.registered;
             }, 4 * 6000), 'not registered in time');
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[2].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
