@@ -24,6 +24,7 @@ mod args_stack;
 mod ocall_def;
 pub mod tasks;
 pub mod query;
+pub mod tls;
 
 cfg_if::cfg_if! {
     if #[cfg(all(not(test), any(target_pointer_width = "32", feature = "host")))] {

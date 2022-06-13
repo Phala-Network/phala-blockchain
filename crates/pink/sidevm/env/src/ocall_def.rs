@@ -1,5 +1,7 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
+use crate::tls::TlsServerConfig;
+use std::borrow::Cow;
 
 /// All ocall definitions for pink Sidevm.
 #[pink_sidevm_macro::ocall]
@@ -58,19 +60,21 @@ pub trait OcallFuncs {
 
     /// Create a TCP socket, bind to given address and listen to incoming connections.
     ///
-    /// The backlog argument defines the maximum length to which the queue of pending connections
-    /// for sockfd may grow.
-    ///
+    /// If `tls_config` is not `None`, then the socket will be TLS encrypted.
     /// Invoke tcp_accept on the returned resource_id to accept incoming connections.
-    #[ocall(id = 210)]
-    fn tcp_listen(addr: &str, backlog: i32) -> Result<i32>;
+    #[ocall(id = 210, encode_input)]
+    fn tcp_listen(addr: Cow<str>, tls_config: Option<TlsServerConfig>) -> Result<i32>;
 
     /// Accept incoming TCP connections.
-    #[ocall(id = 211)]
-    fn tcp_accept(waker_id: i32, resource_id: i32) -> Result<i32>;
+    #[ocall(id = 211, encode_output)]
+    fn tcp_accept(waker_id: i32, resource_id: i32) -> Result<(i32, String)>;
+
+    /// Accept incoming TCP connections without returning the remote address.
+    #[ocall(id = 212)]
+    fn tcp_accept_no_addr(waker_id: i32, resource_id: i32) -> Result<i32>;
 
     /// Initiate a TCP connection to a remote endpoint.
-    #[ocall(id = 212)]
+    #[ocall(id = 213)]
     fn tcp_connect(addr: &str) -> Result<i32>;
 
     /// Print log message.

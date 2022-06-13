@@ -4,6 +4,7 @@ pub mod instrument;
 mod resource;
 mod run;
 pub mod service;
+mod tls;
 
 pub use env::{CacheOps, DynCacheOps, OcallAborted, ShortId};
 
