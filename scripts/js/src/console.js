@@ -601,4 +601,52 @@ contract
         await printTxOrSend(call);
     }));
 
+
+const debug = program
+    .command('debug')
+    .description('debugging utilities');
+
+debug
+    .command('fsck')
+    .description('check blockchain database integrity')
+    .argument('<from>', 'the first block to check (number)')
+    .argument('<to>', 'the last block to check (number)')
+    .option('--early-stop', 'stop when encounting any error', false)
+    .option('--progress', 'show progress per 1000 blocks', false)
+    .action(run(async (from, to, opt) => {
+        const api = await useApi();
+        const { progress, earlyStop } = opt;
+
+        let prevHash = null;
+        for (let i = from; i <= to; i++) {
+            // Progress report
+            if (progress && i % 1000 == 0) {
+                console.log(`Scanning block ${i}`);
+            }
+
+            const hash = u8aToHex(await api.rpc.chain.getBlockHash(i));
+            const header = await api.rpc.chain.getHeader(hash);
+
+            let hasErr = false;
+            // Check hash(blockHeader) == hashKeyInDb
+            let blockHash = blake2AsHex(header.toU8a());
+            if (blockHash != hash) {
+                console.error(`[Block ${i}] hash of the block doesn't match the db key (actual hash = ${blockHash}, hash in db = ${hash})`);
+                hasErr = true;
+            }
+            // Check block.parentHash == parentHash
+            let hashPointer = u8aToHex(header.parentHash);
+            if (prevHash && prevHash != hashPointer) {
+                console.error(`[Block ${i}] prev_hash mismatch previous block! (actual block = ${prevHash}, field = ${hashPointer})`)
+                hasErr = true;
+            }
+            // Early stop
+            if (hasErr && earlyStop) {
+                break;
+            }
+            prevHash = hash;
+        }
+    }));
+
+
 program.parse(process.argv);
