@@ -1229,7 +1229,7 @@ pub mod pallet {
 				Self::maybe_settle_slash(pool_info, user_info);
 				// Overflow warning: remove_stake is carefully written to avoid precision error.
 				// (I hope so)
-				let (reduced, dust, actural_withdrawing_shares) = pool_info
+				let (reduced, dust, withdrawn_shares) = pool_info
 					.remove_stake(user_info, withdrawing_shares)
 					.expect("There are enough withdrawing_shares; qed.");
 				Self::ledger_reduce(&user_info.user, reduced, dust);
