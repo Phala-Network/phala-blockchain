@@ -15,18 +15,24 @@ codec = { package = "parity-scale-codec", version = "3.0", default-features = fa
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
 
 primitive-types = { version = "0.11.0", default-features = false, features = ["codec", "byteorder"] }
-frame-support = { default-features = false, path = "../../substrate/frame/support" }
-frame-system = { default-features = false, path = "../../substrate/frame/system" }
-pallet-randomness-collective-flip = { default-features = false, path = "../../substrate/frame/randomness-collective-flip"}
-sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
-sp-std = { default-features = false, path = "../../substrate/primitives/std" }
-sp-io = { default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { default-features = false, path = "../../substrate/primitives/core"}
-sp-application-crypto = { default-features = false, path = "../../substrate/primitives/application-crypto" }
-frame-benchmarking = { default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
 log = { version = "0.4.14", default-features = false }
 
-pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+
+# RMRK dependencies
+pallet-rmrk-core = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
+pallet-rmrk-equip = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
+pallet-rmrk-market = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
+rmrk-traits = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
 
 phala-types = { default-features = false, path = "../../crates/phala-types" }
 chrono = { version = "0.4", default-features = false }
@@ -46,9 +52,9 @@ webpki = { version = "0.22", default-features = false, features = ["alloc"] }
 webpki_wasm = { package = "webpki", path = "../../webpki", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-frame-support-test = { path = "../../substrate/frame/support/test" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
 assert_matches = "1.4.0"
-pallet-timestamp = { path = "../../substrate/frame/timestamp" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
 rand = "0.7.3"
 
 [features]
@@ -66,6 +72,10 @@ std = [
 	"pallet-balances/std",
 	"log/std",
 	"phala-types/enable_serde",
+	"pallet-rmrk-core/std",
+	"pallet-rmrk-equip/std",
+	"pallet-rmrk-market/std",
+	"rmrk-traits/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks"
