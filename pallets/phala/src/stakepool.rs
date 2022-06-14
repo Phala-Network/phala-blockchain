@@ -1140,18 +1140,19 @@ pub mod pallet {
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
 				let mut to_distribute = rewards - commission;
-				if is_nondust_balance(to_distribute) {
+				let distributed = if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
+					true
 				} else if to_distribute > Zero::zero() {
 					Self::deposit_event(Event::<T>::RewardDismissedDust {
 						pid: pool_info.pid,
 						amount: to_distribute,
 					});
-				}
-				if !is_nondust_balance(to_distribute) {
-					to_distribute = Zero::zero();
-				}
-				if to_distribute > Zero::zero() && commission > Zero::zero() {
+					false
+				} else {
+					false
+				};
+				if distributed || commission > Zero::zero() {
 					Self::deposit_event(Event::<T>::RewardReceived {
 						pid: pool_info.pid,
 						to_owner: commission,
@@ -1237,7 +1238,7 @@ pub mod pallet {
 					pid: pool_info.pid,
 					user: user_info.user.clone(),
 					amount: reduced,
-					shares: actural_withdrawing_shares,
+					shares: withdrawn_shares,
 				});
 			}
 			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
@@ -1317,7 +1318,7 @@ pub mod pallet {
 						pid: pool_info.pid,
 						user: user_info.user.clone(),
 						amount: reduced,
-						shares: actural_withdrawing_shares,
+						shares: withdrawn_shares,
 					});
 					// Update the pending reward after changing the staked amount
 					pool_info.reset_pending_reward(&mut user_info);
@@ -1706,7 +1707,7 @@ pub mod pallet {
 			// as well. It keeps the invariant:
 			//   pool.total_shares == sum(pool_user.shares)
 			let removed_shares = shares + shares_dust;
-			let total_shares = self.total_shares.checked_sub(&(removed_shares))?;
+			let total_shares = self.total_shares.checked_sub(&removed_shares)?;
 			debug_assert!(
 				extract_dust(total_shares).1 == Zero::zero(),
 				"total_shares should never have dust"
