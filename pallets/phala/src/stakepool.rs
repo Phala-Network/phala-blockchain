@@ -1306,7 +1306,7 @@ pub mod pallet {
 					// Actually remove the fulfilled withdraw request. Dust in the user shares is
 					// considered but it in the request is ignored.
 					Self::maybe_settle_slash(pool_info, &mut user_info);
-					let (reduced, dust, actural_withdrawing_shares) = pool_info
+					let (reduced, dust, withdrawn_shares) = pool_info
 						.remove_stake(&mut user_info, withdrawing_shares)
 						.expect("Remove only what we have; qed.");
 					let (shares, _) = extract_dust(withdraw.shares - withdrawing_shares);
