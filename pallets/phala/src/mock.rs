@@ -230,7 +230,7 @@ pub fn take_events() -> Vec<Event> {
 pub fn take_messages() -> Vec<Message> {
 	let messages = PhalaMq::messages();
 	println!("messages(): {:?}", messages);
-	mq::OutboundMessages::<Test>::kill();
+	mq::OutboundMessagesV2::<Test>::kill();
 	messages
 }
 

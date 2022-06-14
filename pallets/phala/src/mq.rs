@@ -42,9 +42,17 @@ pub mod pallet {
 	/// Outbound messages at the current block.
 	///
 	/// It will be cleared at the beginning of every block.
+	///
+	/// This entry is no longer used. Use OutboundMessagesV2 instead.
+	#[pallet::storage]
+	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>, ValueQuery>;
+
+	/// Outbound messages at the current block.
+	///
+	/// It will be cleared at the beginning of every block.
 	#[pallet::storage]
 	#[pallet::getter(fn messages)]
-	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>, ValueQuery>;
+	pub type OutboundMessagesV2<T> = StorageValue<_, Vec<Message>, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -131,7 +139,7 @@ pub mod pallet {
 			}
 			// Notify the off-chain components
 			if T::QueueNotifyConfig::should_push_message(&message) {
-				OutboundMessages::<T>::append(message);
+				OutboundMessagesV2::<T>::append(message);
 			}
 		}
 
@@ -163,6 +171,7 @@ pub mod pallet {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			// Clear the previously pushed offchain messages
 			OutboundMessages::<T>::kill();
+			OutboundMessagesV2::<T>::kill();
 
 			// Send out queued message from the previous block
 			if let Some(msgs) = QueuedOutboundMessage::<T>::take() {
