@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "pruntime"
-version = "0.1.0"
+version = "2.0.0"
 
 [profile.release]
 panic = "abort"
@@ -16,6 +16,7 @@ libc = "0.2"
 log = "0.4.14"
 num_cpus = "1.13"
 os_pipe = "1.0.0"
+version = "3.0.0"
 
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
 rocket_cors = "0.6.0-alpha1"

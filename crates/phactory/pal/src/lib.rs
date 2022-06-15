@@ -45,5 +45,15 @@ pub trait ProtectedFileSystem {
     fn create_protected_file(&self, path: impl AsRef<Path>, key: &[u8]) -> Result<Self::WriteFile, Self::IoError>;
 }
 
-pub trait Platform: Sealing + RA + Machine + MemoryStats + ProtectedFileSystem + Clone {}
-impl<T: Sealing + RA + Machine + MemoryStats + ProtectedFileSystem + Clone> Platform for T {}
+pub struct AppVersion {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+pub trait AppInfo {
+    fn app_version() -> AppVersion;
+}
+
+pub trait Platform: Sealing + RA + Machine + MemoryStats + ProtectedFileSystem + AppInfo + Clone {}
+impl<T: Sealing + RA + Machine + MemoryStats + ProtectedFileSystem + AppInfo + Clone> Platform for T {}
