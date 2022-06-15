@@ -1099,7 +1099,7 @@ async fn bridge(
         authory_set_state: None,
     };
 
-    loop {
+    for round in 0u64.. {
         // update the latest pRuntime state
         let info = pr.get_info(()).await?;
         info!("pRuntime get_info response: {:#?}", info);
@@ -1120,7 +1120,9 @@ async fn bridge(
         .await
         .ok();
 
-        if args.parachain && !args.disable_sync_waiting_paraheaders && info.waiting_for_paraheaders
+        if args.parachain
+            && !args.disable_sync_waiting_paraheaders
+            && (info.waiting_for_paraheaders || round == 0)
         {
             maybe_sync_waiting_parablocks(
                 &pr,
@@ -1264,6 +1266,7 @@ async fn bridge(
             continue;
         }
     }
+    Ok(())
 }
 
 fn preprocess_args(args: &mut Args) {
