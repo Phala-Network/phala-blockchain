@@ -156,6 +156,12 @@ where
             // 2. check header sequence
             for (i, header) in headers.iter().enumerate() {
                 if i > 0 && headers[i - 1].header.hash() != header.header.parent_hash {
+                    log::error!(
+                        "Parent hash of {} mismatch: actual={:?} expected={:?}",
+                        header.header.number,
+                        headers[i - 1].header.hash(),
+                        header.header.parent_hash
+                    );
                     return Err(Error::HeaderHashMismatch);
                 }
             }
@@ -377,6 +383,12 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         // 2. check header sequence
         for (i, header) in headers.iter().enumerate() {
             if i > 0 && headers[i - 1].hash() != header.parent_hash {
+                log::error!(
+                    "Parent hash of {} mismatch: actual={:?} expected={:?}",
+                    header.number,
+                    headers[i - 1].hash(),
+                    header.parent_hash
+                );
                 return Err(Error::HeaderHashMismatch);
             }
         }
