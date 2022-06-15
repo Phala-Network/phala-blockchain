@@ -234,6 +234,7 @@ pub struct Counters {
     pub next_header_number: chain::BlockNumber,
     pub next_para_header_number: chain::BlockNumber,
     pub next_block_number: chain::BlockNumber,
+    pub waiting_for_paraheaders: bool,
 }
 
 
@@ -258,6 +259,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
             next_block_number: self.sync_state.block_number_next,
             next_header_number: self.sync_state.header_number_next,
             next_para_header_number: 0,
+            waiting_for_paraheaders: false,
         }
     }
 
@@ -319,6 +321,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
             next_block_number: self.sync_state.block_number_next,
             next_header_number: self.sync_state.header_number_next,
             next_para_header_number: self.para_header_number_next,
+            waiting_for_paraheaders: self.last_relaychain_state_root.is_some(),
         }
     }
 
