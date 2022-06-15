@@ -2761,7 +2761,7 @@ dependencies = [
 [[package]]
 name = "fixed-macro"
 version = "1.1.1"
-source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+source = "git+https://github.com/kvinwang/fixed-macro#fe688ef1dbb350c67d4be00bb808f726439289dd"
 dependencies = [
  "fixed",
  "fixed-macro-impl",
@@ -2771,7 +2771,7 @@ dependencies = [
 [[package]]
 name = "fixed-macro-impl"
 version = "1.1.1"
-source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+source = "git+https://github.com/kvinwang/fixed-macro#fe688ef1dbb350c67d4be00bb808f726439289dd"
 dependencies = [
  "fixed",
  "paste",
@@ -2784,7 +2784,7 @@ dependencies = [
 [[package]]
 name = "fixed-macro-types"
 version = "1.1.1"
-source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+source = "git+https://github.com/kvinwang/fixed-macro#fe688ef1dbb350c67d4be00bb808f726439289dd"
 dependencies = [
  "fixed",
  "fixed-macro-impl",
