@@ -1120,6 +1120,23 @@ async fn bridge(
         .await
         .ok();
 
+        let next_headernum = if args.parachain {
+            info.para_headernum
+        } else {
+            info.headernum
+        };
+        if info.blocknum < next_headernum {
+            info!("blocks fall behind");
+            batch_sync_storage_changes(
+                &pr,
+                &para_api,
+                cache_client.as_ref(),
+                info.blocknum,
+                next_headernum - 1,
+                args.sync_blocks,
+            )
+            .await?;
+        }
         if args.parachain
             && !args.disable_sync_waiting_paraheaders
             && (info.waiting_for_paraheaders || round == 0)
