@@ -608,6 +608,22 @@ describe('A full stack', function () {
         });
     });
 
+    describe('Workerkey handover', () => {
+        it('can handover worker key', async function () {
+            await cluster.createKeyHandoverClusterProcesses();
+            await cluster.launchKeyHandoverAndWait();
+            const workers = cluster.key_handover_cluster.workers.map(w => w.api);
+
+            const server_info = await workers[0].getInfo();
+            assert.isTrue(await checkUntil(async () => {
+                // info.publicKey can be null since client worker will be initiated after the finish of server worker syncing
+                let info = await workers[1].getInfo();
+                return info.publicKey != null
+                    && hex(info.publicKey) == hex(server_info.publicKey);
+            }, 100 * 6000), 'key handover failed');
+        });
+    });
+
     describe.skip('Solo mining workflow', () => {
         let miner;
         before(function () {
@@ -855,6 +871,10 @@ class Cluster {
             workers.push({});
         }
         this.workers = workers;
+        this.key_handover_cluster = {
+            workers: [{}, {}],
+            relayer: {},
+        };
     }
 
     async start() {
@@ -870,7 +890,9 @@ class Cluster {
             ...this.workers.map(w => [
                 w.processPRuntime.kill('SIGKILL'),
                 w.processRelayer.kill()
-            ]).flat()
+            ]).flat(),
+            this.key_handover_cluster.relayer.processRelayer.kill(),
+            ...this.key_handover_cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
         ]);
     }
 
@@ -923,6 +945,53 @@ class Cluster {
         const key = '0'.repeat(63) + (i + 1).toString();
         w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
         w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+    }
+
+    async createKeyHandoverClusterProcesses() {
+        const cluster = this.key_handover_cluster;
+        const [...workerPorts] = await Promise.all([
+            ...cluster.workers.map(() => portfinder.getPortPromise({ port: 8000, stopPort: 9900 }))
+        ]);
+        cluster.workers.forEach((w, i) => w.port = workerPorts[i]);
+
+        const server = cluster.workers[0];
+        const client = cluster.workers[1];
+        server.processPRuntime = newPRuntime(server.port, this.tmpPath, `pruntime_key_server`);
+        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
+
+        const gasAccountKey = '//Fredie';
+        const key = '0'.repeat(62) + '10';
+        cluster.relayer.processRelayer = newRelayer(this.wsPort, server.port, this.tmpPath, gasAccountKey, key, `pruntime_key_relayer`, client.port);
+    }
+
+    async launchKeyHandoverAndWait() {
+        const cluster = this.key_handover_cluster;
+        await Promise.all([
+            ...cluster.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
+            waitRelayerOutput(cluster.relayer.processRelayer)
+        ]);
+
+        cluster.workers.forEach(w => {
+            w.api = new PRuntimeApi(`http://localhost:${w.port}`);
+        })
+    }
+
+    // Returns false if waiting is timeout; otherwise it restarts the pherry and the key handover client
+    async waitKeyHandoverClientExitAndRestart(timeout) {
+        const w = this.cluster.workers[1];
+        const succeed = await checkUntil(async () => {
+            return w.processPRuntime.stopped && w.processRelayer.stopped
+        }, timeout);
+        if (!succeed) {
+            return false;
+        }
+        const client = cluster.workers[1];
+        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
+        // connect the pherry to the new pRuntime and inject no key
+        cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
+        await waitPRuntimeOutput(client.processPRuntime);
+        await waitRelayerOutput(cluster.relayer.processRelayer);
+        return true;
     }
 
     async _launchAndWait() {
@@ -1006,16 +1075,24 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     ], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relayer') {
+function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'relayer', keyClientPort = '') {
+    const args = [
+        '--no-wait',
+        `--mnemonic=${gasAccountKey}`,
+        `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
+        `--pruntime-endpoint=http://localhost:${teePort}`,
+        '--dev-wait-block-ms=1000',
+    ];
+
+    if (key) {
+        args.push(`--inject-key=${key}`);
+    }
+    if (keyClientPort) {
+        args.push(`--next-pruntime-endpoint=http://localhost:${keyClientPort}`);
+    }
+
     return new Process([
-        pathRelayer, [
-            '--no-wait',
-            `--mnemonic=${gasAccountKey}`,
-            `--inject-key=${key}`,
-            `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-            `--pruntime-endpoint=http://localhost:${teePort}`,
-            '--dev-wait-block-ms=1000',
-        ]
+        pathRelayer, args
     ], { logPath: `${tmpPath}/${name}.log` });
 }
 
