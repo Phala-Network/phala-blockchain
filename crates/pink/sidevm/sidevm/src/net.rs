@@ -94,8 +94,13 @@ impl TcpStream {
     }
 
     /// Initiate a TCP connection to a remote host.
-    pub async fn connect(addr: &str) -> Result<Self> {
-        let res_id = ResourceId(ocall::tcp_connect(addr.into())?);
+    pub async fn connect(host: &str, port: u16, enable_tls: bool) -> Result<Self> {
+        let res_id = if enable_tls {
+            ocall::tcp_connect_tls(host.into(), port, env::tls::TlsClientConfig::V0)?
+        } else {
+            ocall::tcp_connect(host, port)?
+        };
+        let res_id = ResourceId(res_id);
         TcpConnector { res_id }.await
     }
 }
