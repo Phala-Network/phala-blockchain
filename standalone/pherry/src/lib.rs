@@ -31,7 +31,7 @@ use phactory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
     StorageProof,
 };
-use phactory_api::prpc::{self, InitRuntimeResponse};
+use phactory_api::prpc::{self, InitRuntimeResponse, PhactoryInfo};
 use phactory_api::pruntime_client;
 
 use clap::{AppSettings, Parser};
@@ -198,6 +198,12 @@ struct Args {
     #[clap(long, help = "Stop when synced to given parachain block")]
     #[clap(default_value_t = BlockNumber::MAX)]
     to_block: BlockNumber,
+
+    #[clap(
+        long,
+        help = "Disable syncing waiting parachain blocks in the beginning of each round"
+    )]
+    disable_sync_waiting_paraheaders: bool,
 }
 
 struct RunningFlags {
@@ -671,6 +677,74 @@ async fn get_finalized_header_with_paraid(
     Ok(Some((para_fin_header, header_proof)))
 }
 
+async fn maybe_sync_waiting_parablocks(
+    pr: &PrClient,
+    api: &RelaychainApi,
+    para_api: &ParachainApi,
+    cache_client: &Option<CacheClient>,
+    info: &PhactoryInfo,
+    batch_window: BlockNumber,
+) -> Result<()> {
+    let mut fin_header = None;
+    if let Some(cache) = &cache_client {
+        let mut cached_headers = cache
+            .get_headers(info.headernum - 1)
+            .await
+            .unwrap_or_default();
+        if cached_headers.len() == 1 {
+            fin_header = cached_headers
+                .remove(0)
+                .para_header
+                .map(|h| (h.fin_header_num, h.proof));
+        }
+    }
+    if fin_header.is_none() {
+        let last_header_hash = get_header_hash(&api.client, Some(info.headernum - 1)).await?;
+        fin_header = get_finalized_header(&api, &para_api, last_header_hash)
+            .await?
+            .map(|(h, proof)| (h.number, proof));
+    }
+    let (fin_header_num, proof) = match fin_header {
+        Some(num) => num,
+        None => {
+            return Err(anyhow!("The pRuntime is waiting for paraheaders, but pherry failed to get the fin_header_num"));
+        }
+    };
+
+    if fin_header_num > info.para_headernum - 1 {
+        info!(
+            "Syncing waiting para blocks from {} to {}",
+            info.para_headernum, fin_header_num
+        );
+        let hdr_synced_to = sync_parachain_header(
+            &pr,
+            &para_api,
+            cache_client.as_ref(),
+            fin_header_num,
+            info.para_headernum,
+            proof,
+        )
+        .await?;
+        if info.blocknum <= hdr_synced_to {
+            batch_sync_storage_changes(
+                &pr,
+                &para_api,
+                cache_client.as_ref(),
+                info.blocknum,
+                hdr_synced_to,
+                batch_window,
+            )
+            .await?;
+        }
+    } else {
+        info!(
+            "No more finalized para headers, fin_header_num={}, next_para_headernum={}",
+            fin_header_num, info.para_headernum
+        );
+    }
+    Ok(())
+}
+
 async fn sync_parachain_header(
     pr: &PrClient,
     para_api: &ParachainApi,
@@ -1025,7 +1099,7 @@ async fn bridge(
         authory_set_state: None,
     };
 
-    loop {
+    for round in 0u64.. {
         // update the latest pRuntime state
         let info = pr.get_info(()).await?;
         info!("pRuntime get_info response: {:#?}", info);
@@ -1045,6 +1119,38 @@ async fn bridge(
         })
         .await
         .ok();
+
+        let next_headernum = if args.parachain {
+            info.para_headernum
+        } else {
+            info.headernum
+        };
+        if info.blocknum < next_headernum {
+            info!("blocks fall behind");
+            batch_sync_storage_changes(
+                &pr,
+                &para_api,
+                cache_client.as_ref(),
+                info.blocknum,
+                next_headernum - 1,
+                args.sync_blocks,
+            )
+            .await?;
+        }
+        if args.parachain
+            && !args.disable_sync_waiting_paraheaders
+            && (info.waiting_for_paraheaders || round == 0)
+        {
+            maybe_sync_waiting_parablocks(
+                &pr,
+                &api,
+                &para_api,
+                &cache_client,
+                &info,
+                args.sync_blocks,
+            )
+            .await?;
+        }
 
         // Sync the relaychain and parachain data from the cache service as much as possible
         if let (true, Some(cache)) = (args.parachain, &cache_client) {
@@ -1177,6 +1283,7 @@ async fn bridge(
             continue;
         }
     }
+    Ok(())
 }
 
 fn preprocess_args(args: &mut Args) {
