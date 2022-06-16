@@ -23,6 +23,7 @@ pub enum TlsStream {
     ServerStreaming(ServerTlsStream<TcpStream>),
     ClientHandshaking(Connect<TcpStream>),
     ClientStreaming(ClientTlsStream<TcpStream>),
+    Closed,
 }
 
 impl From<ClientTlsStream<TcpStream>> for TlsStream {
@@ -77,7 +78,7 @@ impl AsyncRead for TlsStream {
         buf: &mut ReadBuf,
     ) -> Poll<io::Result<()>> {
         let me = self.get_mut();
-        macro_rules! poll_inner {
+        macro_rules! poll_handshake {
             ($inner: expr) => {
                 match ready!(Pin::new($inner).poll(cx)) {
                     Ok(mut stream) => {
@@ -85,15 +86,31 @@ impl AsyncRead for TlsStream {
                         *me = stream.into();
                         result
                     }
-                    Err(err) => Poll::Ready(Err(err)),
+                    Err(err) => {
+                        *me = Self::Closed;
+                        Poll::Ready(Err(err))
+                    }
                 }
             };
         }
+        macro_rules! poll_read {
+            ($stream: expr) => {{
+                let rv = Pin::new($stream).poll_read(cx, buf);
+                if let Poll::Ready(Err(_)) = &rv {
+                    *me = Self::Closed;
+                }
+                rv
+            }};
+        }
         match me {
-            Self::ClientHandshaking(connect) => poll_inner!(connect),
-            Self::ServerHandshaking(accept) => poll_inner!(accept),
-            Self::ClientStreaming(stream) => Pin::new(stream).poll_read(cx, buf),
-            Self::ServerStreaming(stream) => Pin::new(stream).poll_read(cx, buf),
+            Self::ClientHandshaking(connect) => poll_handshake!(connect),
+            Self::ServerHandshaking(accept) => poll_handshake!(accept),
+            Self::ClientStreaming(stream) => poll_read!(stream),
+            Self::ServerStreaming(stream) => poll_read!(stream),
+            Self::Closed => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Other,
+                "TlsStream is closed",
+            ))),
         }
     }
 }
@@ -105,7 +122,7 @@ impl AsyncWrite for TlsStream {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         let me = self.get_mut();
-        macro_rules! poll_inner {
+        macro_rules! poll_handshake {
             ($inner: expr) => {
                 match ready!(Pin::new($inner).poll(cx)) {
                     Ok(mut stream) => {
@@ -113,33 +130,83 @@ impl AsyncWrite for TlsStream {
                         *me = stream.into();
                         result
                     }
-                    Err(err) => Poll::Ready(Err(err)),
+                    Err(err) => {
+                        *me = Self::Closed;
+                        Poll::Ready(Err(err))
+                    }
                 }
             };
         }
+        macro_rules! poll_write {
+            ($stream: expr) => {{
+                let rv = Pin::new($stream).poll_write(cx, buf);
+                if let Poll::Ready(Err(_)) = &rv {
+                    *me = Self::Closed;
+                }
+                rv
+            }};
+        }
         match me {
-            Self::ClientHandshaking(connect) => poll_inner!(connect),
-            Self::ServerHandshaking(accept) => poll_inner!(accept),
-            Self::ClientStreaming(stream) => Pin::new(stream).poll_write(cx, buf),
-            Self::ServerStreaming(stream) => Pin::new(stream).poll_write(cx, buf),
+            Self::ClientHandshaking(connect) => poll_handshake!(connect),
+            Self::ServerHandshaking(accept) => poll_handshake!(accept),
+            Self::ClientStreaming(stream) => poll_write!(stream),
+            Self::ServerStreaming(stream) => poll_write!(stream),
+            Self::Closed => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Other,
+                "TlsStream is closed",
+            ))),
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match self.get_mut() {
+        let me = self.get_mut();
+        macro_rules! poll_flush {
+            ($stream: expr) => {{
+                let rv = Pin::new($stream).poll_flush(cx);
+                if let Poll::Ready(Err(_)) = &rv {
+                    *me = Self::Closed;
+                }
+                rv
+            }};
+        }
+        match me {
             Self::ClientHandshaking(_) => Poll::Ready(Ok(())),
             Self::ServerHandshaking(_) => Poll::Ready(Ok(())),
-            Self::ClientStreaming(stream) => Pin::new(stream).poll_flush(cx),
-            Self::ServerStreaming(stream) => Pin::new(stream).poll_flush(cx),
+            Self::ClientStreaming(stream) => poll_flush!(stream),
+            Self::ServerStreaming(stream) => poll_flush!(stream),
+            Self::Closed => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Other,
+                "TlsStream is closed",
+            ))),
         }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match self.get_mut() {
-            Self::ClientHandshaking(_) => Poll::Ready(Ok(())),
-            Self::ServerHandshaking(_) => Poll::Ready(Ok(())),
-            Self::ClientStreaming(stream) => Pin::new(stream).poll_shutdown(cx),
-            Self::ServerStreaming(stream) => Pin::new(stream).poll_shutdown(cx),
+        let me = self.get_mut();
+        macro_rules! poll_shutdown {
+            ($stream: expr) => {{
+                let rv = Pin::new($stream).poll_shutdown(cx);
+                if let Poll::Ready(_) = &rv {
+                    *me = Self::Closed;
+                }
+                rv
+            }};
+        }
+        match me {
+            Self::ClientHandshaking(_) => {
+                *me = Self::Closed;
+                Poll::Ready(Ok(()))
+            }
+            Self::ServerHandshaking(_) => {
+                *me = Self::Closed;
+                Poll::Ready(Ok(()))
+            }
+            Self::ClientStreaming(stream) => poll_shutdown!(stream),
+            Self::ServerStreaming(stream) => poll_shutdown!(stream),
+            Self::Closed => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Other,
+                "TlsStream is closed",
+            ))),
         }
     }
 }
