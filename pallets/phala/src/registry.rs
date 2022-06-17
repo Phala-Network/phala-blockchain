@@ -116,9 +116,21 @@ pub mod pallet {
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new Gatekeeper is enabled on the blockchain
-		GatekeeperAdded(WorkerPublicKey),
+		GatekeeperAdded {
+			pubkey: WorkerPublicKey
+		},
+		GatekeeperRemoved {
+			pubkey: WorkerPublicKey
+		},
+		WorkerAdded {
+			pubkey: WorkerPublicKey
+		},
+		WorkerUpdated {
+			pubkey: WorkerPublicKey
+		},
 	}
 
 	#[pallet::error]
@@ -204,6 +216,8 @@ pub mod pallet {
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
+			Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
+
 			Ok(())
 		}
 
@@ -258,6 +272,8 @@ pub mod pallet {
 					));
 				}
 			}
+
+			Self::deposit_event(Event::<T>::GatekeeperAdded { pubkey: gatekeeper });
 			Ok(())
 		}
 
@@ -324,6 +340,7 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
+						Self::deposit_event(Event::<T>::WorkerUpdated { pubkey });
 					}
 					None => {
 						// Case 2 - New worker register
@@ -343,6 +360,7 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
+						Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
 					}
 				}
 			});
