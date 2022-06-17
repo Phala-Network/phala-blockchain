@@ -312,6 +312,12 @@ pub mod pallet {
 						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
 						worker_info.last_updated = now;
 						worker_info.operator = pruntime_info.operator;
+						worker_info.runtime_version = pruntime_info.version;
+						worker_info.confidence_level = fields.confidence_level;
+						worker_info.features = pruntime_info.features;
+						// TODO: We should reset `initial_score` here, but we need ensure no breaking.
+						// worker_info.initial_score = None;
+
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
