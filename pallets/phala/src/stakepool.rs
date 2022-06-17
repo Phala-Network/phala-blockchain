@@ -1139,7 +1139,7 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
-				let mut to_distribute = rewards - commission;
+				let to_distribute = rewards - commission;
 				let distributed = if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
 					true
