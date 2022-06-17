@@ -3871,18 +3871,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http_req"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e6cd45a270dff33553602fd84beb02c89460ee32db638715f10d9060389fd6a"
-dependencies = [
- "rustls 0.19.1",
- "unicase",
- "webpki 0.21.4",
- "webpki-roots 0.21.1",
-]
-
-[[package]]
 name = "httparse"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8042,7 +8030,6 @@ dependencies = [
  "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.24)",
  "hex",
  "hex-literal",
- "http_req",
  "impl-serde",
  "insta",
  "log",
@@ -8063,6 +8050,8 @@ dependencies = [
  "pink-extension",
  "pretty_assertions 0.7.2",
  "pwasm-utils",
+ "reqwest",
+ "reqwest-proxy",
  "scale-info",
  "serde",
  "serde_json",
@@ -8158,6 +8147,7 @@ dependencies = [
  "thiserror",
  "thread_local",
  "tokio",
+ "tokio-proxy",
  "tokio-rustls 0.23.4",
  "wasm-instrument",
  "wasmer",
@@ -9102,9 +9092,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.10"
+version = "0.11.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46a1f7aa4f35e5e8b4160449f51afc758f0ce6454315a9fa7d0d113e958c41eb"
+checksum = "b75aa69a3f06bbcc66ede33af2af253c6f7a86b1ca0033f60c580a27074fbf92"
 dependencies = [
  "base64 0.13.0",
  "bytes 1.1.0",
@@ -9115,6 +9105,7 @@ dependencies = [
  "http",
  "http-body",
  "hyper",
+ "hyper-rustls",
  "hyper-tls",
  "ipnet",
  "js-sys",
@@ -9124,16 +9115,29 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite 0.2.9",
+ "rustls 0.20.6",
+ "rustls-pemfile",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls 0.23.4",
+ "tokio-socks",
+ "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots 0.22.3",
  "winreg 0.10.1",
+]
+
+[[package]]
+name = "reqwest-proxy"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
 ]
 
 [[package]]
@@ -13415,6 +13419,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-proxy"
+version = "0.1.0"
+source = "git+https://github.com/Phala-Network/tokio-proxy.git#e98d21a0ff7bf7a3bea413b2ee336b0d4da1e213"
+dependencies = [
+ "bytes 1.1.0",
+ "log",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "tokio-rustls"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13434,6 +13449,18 @@ dependencies = [
  "rustls 0.20.6",
  "tokio",
  "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tokio-socks"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51165dfa029d2a65969413a6cc96f354b86b464498702f174a4efa13608fd8c0"
+dependencies = [
+ "either",
+ "futures-util",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -13745,7 +13772,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.3",
- "rand 0.3.23",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
