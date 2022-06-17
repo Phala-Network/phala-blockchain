@@ -393,9 +393,7 @@ impl env::OcallFuncs for State {
             return Err(OcallError::InvalidParameter);
         }
         let host = host.to_owned();
-        let fut = async move {
-            tokio::net::TcpStream::connect((host.as_str(), port)).await
-        };
+        let fut = async move { tcp_connect((host.as_str(), port)).await };
         self.resources.push(Resource::TcpConnect(Box::pin(fut)))
     }
 
@@ -409,7 +407,7 @@ impl env::OcallFuncs for State {
             .try_into()
             .or(Err(OcallError::InvalidParameter))?;
         let fut = async move {
-            tokio::net::TcpStream::connect((host.as_str(), port))
+            tcp_connect((host.as_str(), port))
                 .await
                 .map(move |stream| TlsStream::connect(domain, stream))
         };
@@ -469,6 +467,15 @@ impl env::OcallFuncs for State {
             _ => return Err(OcallError::UnsupportedOperation),
         }
         Ok(())
+    }
+}
+
+async fn tcp_connect<A: tokio_proxy::ToSocketAddrsExt>(
+    addr: A,
+) -> std::io::Result<tokio::net::TcpStream> {
+    match std::env::var("all_proxy") {
+        Ok(proxy) if !proxy.trim().is_empty() => tokio_proxy::connect(addr, proxy).await,
+        _ => tokio::net::TcpStream::connect(addr).await,
     }
 }
 
