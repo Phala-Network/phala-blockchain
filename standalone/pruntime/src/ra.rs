@@ -14,11 +14,11 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
 
-    let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT);
+    let url: reqwest::Url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT).parse()?;
     info!("Getting RA report from {}", url);
     let mut res = reqwest::blocking::Client::builder()
         .timeout(timeout)
-        .env_proxy()
+        .env_proxy(url.domain().unwrap_or_default())
         .build()
         .context("Failed to create http client, maybe invalid IAS URI")?
         .post(url)

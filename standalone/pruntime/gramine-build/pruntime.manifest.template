@@ -16,6 +16,7 @@ LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 M_ARENA_MAX = "1"
 ROCKET_WORKERS = "8"
 all_proxy = { passthrough = true }
+i2p_proxy = { passthrough = true }
 
 [[fs.mounts]]
 type = "chroot"

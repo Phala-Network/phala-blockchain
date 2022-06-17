@@ -389,16 +389,16 @@ impl env::OcallFuncs for State {
     }
 
     fn tcp_connect(&mut self, host: &str, port: u16) -> Result<i32> {
-        if host.len() > 1024 {
+        if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
         }
         let host = host.to_owned();
-        let fut = async move { tcp_connect((host.as_str(), port)).await };
+        let fut = async move { tcp_connect(&host, port).await };
         self.resources.push(Resource::TcpConnect(Box::pin(fut)))
     }
 
     fn tcp_connect_tls(&mut self, host: String, port: u16, config: TlsClientConfig) -> Result<i32> {
-        if host.len() > 1024 {
+        if host.len() > 253 {
             return Err(OcallError::InvalidParameter);
         }
         let TlsClientConfig::V0 = config;
@@ -407,7 +407,7 @@ impl env::OcallFuncs for State {
             .try_into()
             .or(Err(OcallError::InvalidParameter))?;
         let fut = async move {
-            tcp_connect((host.as_str(), port))
+            tcp_connect(&host, port)
                 .await
                 .map(move |stream| TlsStream::connect(domain, stream))
         };
@@ -470,12 +470,27 @@ impl env::OcallFuncs for State {
     }
 }
 
-async fn tcp_connect<A: tokio_proxy::ToSocketAddrsExt>(
-    addr: A,
-) -> std::io::Result<tokio::net::TcpStream> {
-    match std::env::var("all_proxy") {
-        Ok(proxy) if !proxy.trim().is_empty() => tokio_proxy::connect(addr, proxy).await,
-        _ => tokio::net::TcpStream::connect(addr).await,
+async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpStream> {
+    fn get_proxy(key: &str) -> Option<String> {
+        std::env::var(key).ok().and_then(|uri| {
+            if uri.trim().is_empty() {
+                None
+            } else {
+                Some(uri)
+            }
+        })
+    }
+
+    let proxy_url = if host.ends_with(".i2p") {
+        get_proxy("i2p_proxy")
+    } else {
+        None
+    };
+
+    if let Some(proxy_url) = proxy_url.or(get_proxy("all_proxy")) {
+        tokio_proxy::connect((host, port), proxy_url).await
+    } else {
+        tokio::net::TcpStream::connect((host, port)).await
     }
 }
 

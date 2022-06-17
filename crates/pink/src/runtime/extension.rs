@@ -137,9 +137,14 @@ impl PinkExtBackend for CallInQuery {
         let elapsed = get_call_elapsed().ok_or(DispatchError::Other("Invalid exec env"))?;
         let timeout = Duration::from_secs(MAX_QUERY_TIME) - elapsed;
 
+        let url: reqwest::Url = request
+            .url
+            .parse()
+            .or(Err(DispatchError::Other("Invalid url")))?;
+
         let client = reqwest::blocking::Client::builder()
             .timeout(timeout)
-            .env_proxy()
+            .env_proxy(url.host_str().unwrap_or_default())
             .build()
             .or(Err(DispatchError::Other("Failed to create client")))?;
 
@@ -155,7 +160,7 @@ impl PinkExtBackend for CallInQuery {
         }
 
         let mut response = client
-            .request(method, request.url.as_str())
+            .request(method, url)
             .headers(headers)
             .send()
             .or(Err(DispatchError::Other("Failed to send request")))?;
@@ -271,19 +276,13 @@ impl PinkExtBackend for CallInQuery {
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
         let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE
-            .read()
-            .unwrap()
-            .get(contract, key.as_ref());
+        let value = GLOBAL_CACHE.read().unwrap().get(contract, key.as_ref());
         Ok(value)
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
         let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE
-            .write()
-            .unwrap()
-            .remove(contract, key.as_ref());
+        let value = GLOBAL_CACHE.write().unwrap().remove(contract, key.as_ref());
         Ok(value)
     }
 }
