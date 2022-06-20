@@ -849,7 +849,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+			// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.owner == who,
@@ -1139,7 +1139,7 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
-				let mut to_distribute = rewards - commission;
+				let to_distribute = rewards - commission;
 				let distributed = if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
 					true
