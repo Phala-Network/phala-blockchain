@@ -20,8 +20,9 @@ use serde::{Deserialize, Serialize};
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display)]
-#[derive(Serialize, Deserialize)]
+#[derive(
+    Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display, Serialize, Deserialize,
+)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
@@ -80,6 +81,14 @@ impl MessageOrigin {
     /// Returns if the origin is from a Pallet
     pub fn is_pallet(&self) -> bool {
         matches!(self, Self::Pallet(_))
+    }
+
+    /// Returns if we can trust the origin to not send us non-well-formed messages
+    pub fn always_well_formed(&self) -> bool {
+        matches!(
+            self,
+            Self::Pallet(_) | Self::Worker(_) | Self::Gatekeeper
+        )
     }
 
     /// Returns if the origin is from a Gatekeeper

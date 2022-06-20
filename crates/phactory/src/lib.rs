@@ -352,7 +352,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 }
 
-impl<P> Phactory<P> {
+impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
         if let Some(system) = &mut self.system {
@@ -554,7 +554,7 @@ impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Pl
     }
 }
 struct PhactoryLoader<Platform>(Phactory<Platform>);
-impl<'de, Platform: Serialize + DeserializeOwned> Deserialize<'de> for PhactoryLoader<Platform> {
+impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de> for PhactoryLoader<Platform> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut factory = Phactory::load_state(deserializer)?;
         factory

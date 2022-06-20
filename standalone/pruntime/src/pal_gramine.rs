@@ -1,10 +1,13 @@
 use log::info;
 use std::alloc::System;
 
-use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA};
+use phactory_pal::{
+    AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA,
+};
 use phala_allocator::StatSizeAllocator;
 use std::fs::File;
 use std::io::ErrorKind;
+use std::str::FromStr as _;
 
 use crate::ra;
 
@@ -119,6 +122,17 @@ impl MemoryStats for GraminePlatform {
             total_peak_used: 0,
             rust_used: stats.current_used,
             rust_peak_used: stats.peak_used,
+        }
+    }
+}
+
+impl AppInfo for GraminePlatform {
+    fn app_version() -> AppVersion {
+        let ver = version::Version::from_str(version::version!()).unwrap();
+        AppVersion {
+            major: ver.major,
+            minor: ver.minor,
+            patch: ver.patch,
         }
     }
 }
