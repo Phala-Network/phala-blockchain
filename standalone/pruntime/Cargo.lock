@@ -5027,7 +5027,7 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm-env"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "cfg-if",
  "derive_more",
@@ -5050,6 +5050,7 @@ dependencies = [
  "libc",
  "log",
  "loupe",
+ "once_cell",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "pink-sidevm-env",
@@ -5067,6 +5068,7 @@ dependencies = [
  "wasmer-engine-universal",
  "wasmer-tunables",
  "wasmer-wasi-types",
+ "webpki-roots 0.22.3",
 ]
 
 [[package]]
@@ -8795,6 +8797,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
 dependencies = [
  "webpki 0.21.4",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.22.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44d8de8415c823c8abd270ad483c6feeac771fad964890779f9a8cb24fbbc1bf"
+dependencies = [
+ "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
