@@ -727,12 +727,19 @@ impl<Platform: pal::Platform> System<Platform> {
         let my_pubkey = self.identity_key.public();
         // if the first gatekeeper reboots, it will possess the master key,
         // and should not re-generate it
-        if my_pubkey == event.pubkey && self.master_key.is_none() {
-            info!("Gatekeeper: generate master key as the first gatekeeper");
-            // generate master key as the first gatekeeper
-            // no need to restart
-            let master_key = crate::new_sr25519_key();
-            self.set_master_key(master_key.clone(), false);
+        if my_pubkey == event.pubkey {
+            if self.master_key.is_none() {
+                info!("Gatekeeper: generate master key as the first gatekeeper");
+                // generate master key as the first gatekeeper
+                // no need to restart
+                let master_key = crate::new_sr25519_key();
+                self.set_master_key(master_key.clone(), false);
+            }
+
+            let master_key = self
+                .master_key
+                .as_ref()
+                .expect("should never be none; qed.");
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
