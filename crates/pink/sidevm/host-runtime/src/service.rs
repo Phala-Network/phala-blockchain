@@ -94,6 +94,10 @@ impl ServiceRun {
                 }
             }
         }
+
+        // To avoid: panicked at 'Cannot drop a runtime in a context where blocking is not allowed.'
+        let handle = self.runtime.handle().clone();
+        handle.spawn_blocking(move || drop(self));
     }
 }
 
