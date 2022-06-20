@@ -7,6 +7,9 @@ pub struct InitArgs {
     /// The GK master key sealing path.
     pub sealing_path: String,
 
+    /// The PRuntime persistent data storing path
+    pub storage_path: String,
+
     /// The log filter string to pass to env_logger.
     pub log_filter: String,
 

@@ -25,6 +25,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         match Phactory::restore_from_checkpoint(
             &GraminePlatform,
             &args.sealing_path,
+            &args.storage_path,
             args.remove_corrupted_checkpoint,
         ) {
             Ok(Some(mut factory)) => {

@@ -83,16 +83,27 @@ async fn main() -> Result<(), rocket::Error> {
         libc::mallopt(libc::M_ARENA_MAX, 1);
     }
 
-    let runing_under_gramine = std::path::Path::new("/dev/attestation/user_report_data").exists();
-    let sealing_path = if runing_under_gramine {
+    let running_under_gramine = std::path::Path::new("/dev/attestation/user_report_data").exists();
+    let sealing_path;
+    let storage_path;
+    if running_under_gramine {
         // In gramine, the protected files are configured via manifest file. So we must not allow it to
-        // be changed at runtime for security reason. Thus hardcoded it to `/protected_files` here.
+        // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
         // Should keep it the same with the manifest config.
-        "/protected_files"
+        sealing_path = "/data/protected_files";
+        storage_path = "/data/storage_files";
     } else {
-        "./data"
+        sealing_path = "./data/protected_files";
+        storage_path = "./data/storage_files";
+
+        fn mkdir(dir: &str) {
+            if let Err(err) = std::fs::create_dir_all(dir) {
+                panic!("Failed to create {dir}: {err:?}");
+            }
+        }
+        mkdir(sealing_path);
+        mkdir(storage_path);
     }
-    .into();
 
     let args = Args::parse();
 
@@ -110,7 +121,8 @@ async fn main() -> Result<(), rocket::Error> {
     let init_args = {
         let args = args.clone();
         InitArgs {
-            sealing_path,
+            sealing_path: sealing_path.into(),
+            storage_path: storage_path.into(),
             log_filter: Default::default(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),

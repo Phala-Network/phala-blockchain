@@ -24,7 +24,9 @@ CARGO_ARGS += -vv
 endif
 
 PREFIX ?= ../bin
-PRUNTIME_SEAL_DIR ?= data
+PRUNTIME_DATA_DIR ?= data
+PRUNTIME_SEAL_DIR ?= ${PRUNTIME_DATA_DIR}/protected_files
+PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 
 .PHONY: all
 all: ${BIN_NAME} ${BIN_NAME}.manifest
@@ -46,6 +48,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Dra_client_spid=${IAS_SPID} \
 		-Dseal_dir=${PRUNTIME_SEAL_DIR} \
+		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_FILE}
