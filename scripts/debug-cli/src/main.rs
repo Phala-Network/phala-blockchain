@@ -369,7 +369,6 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         // BalancesTransfer<AccountId, Balance>,
         //AssetCommand<AccountId, Balance>,
         //Web3AnalyticsCommand,
-        //DiemCommand,
         // KittyEvent<AccountId, Hash>,
         SystemEvent,
         MiningReportEvent,

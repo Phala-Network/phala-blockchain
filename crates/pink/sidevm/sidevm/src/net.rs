@@ -2,8 +2,11 @@
 
 use std::future::Future;
 use std::io::Error;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use env::tls::TlsServerConfig;
 
 use crate::env::{self, tasks, Result};
 use crate::{ocall, ResourceId};
@@ -25,18 +28,24 @@ pub struct TcpStream {
     res_id: ResourceId,
 }
 
-struct Acceptor<'a> {
+/// Future returned by `TcpListener::accept`.
+pub struct Acceptor<'a> {
     listener: &'a TcpListener,
 }
 
 impl Future for Acceptor<'_> {
-    type Output = Result<TcpStream>;
+    type Output = Result<(TcpStream, SocketAddr)>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
         let waker_id = tasks::intern_waker(cx.waker().clone());
         match ocall::tcp_accept(waker_id, self.listener.res_id.0) {
-            Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
+            Ok((res_id, remote_addr)) => Poll::Ready(Ok((
+                TcpStream::new(ResourceId(res_id)),
+                remote_addr
+                    .parse()
+                    .expect("ocall::tcp_accept returned an invalid remote address"),
+            ))),
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
         }
@@ -49,13 +58,19 @@ impl TcpListener {
         // Side notes: could be used to probe enabled interfaces and occupied ports. We may
         // consider to introduce some manifest file to further limit the capability in the future
         let todo = "prevent local interface probing and port occupation";
-        let res_id = ResourceId(ocall::tcp_listen(addr.into(), 10)?);
+        let res_id = ResourceId(ocall::tcp_listen(addr.into(), None)?);
+        Ok(Self { res_id })
+    }
+
+    /// Bind and listen on the specified address for incoming TLS-enabled TCP connections.
+    pub async fn bind_tls(addr: &str, config: TlsServerConfig) -> Result<Self> {
+        let res_id = ResourceId(ocall::tcp_listen(addr.into(), Some(config))?);
         Ok(Self { res_id })
     }
 
     /// Accept a new incoming connection.
-    pub async fn accept(&self) -> Result<TcpStream> {
-        Acceptor { listener: self }.await
+    pub fn accept(&self) -> Acceptor {
+        Acceptor { listener: self }
     }
 }
 
@@ -80,16 +95,30 @@ impl TcpStream {
 
     /// Initiate a TCP connection to a remote host.
     pub async fn connect(addr: &str) -> Result<Self> {
-        let todo = "prevent local network probing";
         let res_id = ResourceId(ocall::tcp_connect(addr.into())?);
         TcpConnector { res_id }.await
     }
 }
 
 #[cfg(feature = "hyper")]
+pub use impl_hyper::{AddrIncoming, AddrStream};
+#[cfg(feature = "hyper")]
 mod impl_hyper {
     use super::*;
+    use env::OcallError;
     use hyper::server::accept::Accept;
+    use std::{io, task};
+
+    macro_rules! ready_ok {
+        ($poll: expr) => {
+            match $poll {
+                Poll::Ready(Ok(val)) => val,
+                Poll::Ready(Err(OcallError::EndOfFile)) => return Poll::Ready(None),
+                Poll::Ready(Err(err)) => return Poll::Ready(Some(Err(err))),
+                Poll::Pending => return Poll::Pending,
+            }
+        };
+    }
 
     impl Accept for TcpListener {
         type Conn = TcpStream;
@@ -100,14 +129,123 @@ mod impl_hyper {
             self: Pin<&mut Self>,
             cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-            let mut accept = Acceptor {
-                listener: self.get_mut(),
-            };
-            let x = Pin::new(&mut accept).poll(cx).map(Some);
-            log::info!("Poll accept = {:?}", x);
-            x
+            let (conn, _addr) = ready_ok!(Pin::new(&mut self.accept()).poll(cx));
+            Poll::Ready(Some(Ok(conn)))
         }
     }
+
+    impl TcpListener {
+        /// Convert the listener into another one that outputs AddrStreams.
+        pub fn into_addr_incoming(self) -> AddrIncoming {
+            AddrIncoming { listener: self }
+        }
+    }
+
+    /// A wrapper of  TcpListener that outputs AddrStreams.
+    pub struct AddrIncoming {
+        listener: TcpListener,
+    }
+
+    impl Accept for AddrIncoming {
+        type Conn = AddrStream;
+        type Error = env::OcallError;
+
+        fn poll_accept(
+            self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> task::Poll<Option<Result<Self::Conn, Self::Error>>> {
+            let (stream, remote_addr) = ready_ok!(Pin::new(&mut self.listener.accept()).poll(cx));
+            Poll::Ready(Some(Ok(AddrStream {
+                stream,
+                remote_addr,
+            })))
+        }
+    }
+
+    /// A wrapper of TcpStream that keep remote address.
+    #[pin_project::pin_project]
+    pub struct AddrStream {
+        #[pin]
+        stream: TcpStream,
+        remote_addr: SocketAddr,
+    }
+
+    impl AddrStream {
+        /// Get the remote address of the connection.
+        pub fn remote_addr(&self) -> SocketAddr {
+            self.remote_addr
+        }
+    }
+
+    #[cfg(feature = "tokio")]
+    const _: () = {
+        use tokio::io::{AsyncRead, AsyncWrite};
+        impl AsyncRead for AddrStream {
+            fn poll_read(
+                self: Pin<&mut Self>,
+                cx: &mut task::Context<'_>,
+                buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> task::Poll<io::Result<()>> {
+                self.project().stream.poll_read(cx, buf)
+            }
+        }
+
+        impl AsyncWrite for AddrStream {
+            fn poll_write(
+                self: Pin<&mut Self>,
+                cx: &mut task::Context<'_>,
+                buf: &[u8],
+            ) -> task::Poll<io::Result<usize>> {
+                self.project().stream.poll_write(cx, buf)
+            }
+
+            fn poll_flush(
+                self: Pin<&mut Self>,
+                cx: &mut task::Context<'_>,
+            ) -> task::Poll<io::Result<()>> {
+                self.project().stream.poll_flush(cx)
+            }
+
+            fn poll_shutdown(
+                self: Pin<&mut Self>,
+                cx: &mut task::Context<'_>,
+            ) -> task::Poll<io::Result<()>> {
+                self.project().stream.poll_shutdown(cx)
+            }
+        }
+    };
+
+    const _: () = {
+        use futures::{AsyncRead, AsyncWrite};
+
+        impl AsyncRead for AddrStream {
+            fn poll_read(
+                self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+                buf: &mut [u8],
+            ) -> Poll<io::Result<usize>> {
+                self.project().stream.poll_read(cx, buf)
+            }
+        }
+
+        impl AsyncWrite for AddrStream {
+            fn poll_write(
+                self: Pin<&mut Self>,
+                cx: &mut Context<'_>,
+                buf: &[u8],
+            ) -> Poll<io::Result<usize>> {
+                self.project().stream.poll_write(cx, buf)
+            }
+
+            fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+                self.project().stream.poll_flush(cx)
+            }
+
+            fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+                self.project().stream.poll_close(cx)
+            }
+        }
+    };
 }
 
 #[cfg(feature = "tokio")]

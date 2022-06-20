@@ -18,7 +18,12 @@ thread_local! {
     /// The id of the current polling task. Would be passed to each ocall.
     static CURRENT_TASK: std::cell::Cell<i32>  = Default::default();
     /// All async tasks in the sidevm guest.
-    static TASKS: RefCell<Tasks> = RefCell::new(vec![Some(unsafe { sidevm_main_future() })]);
+    static TASKS: RefCell<Tasks> = {
+        std::panic::set_hook(Box::new(|info| {
+            let _ = log::error!("{}", info);
+        }));
+        RefCell::new(vec![Some(unsafe { sidevm_main_future() })])
+    };
     /// New spawned tasks are pushed to this queue. Since tasks are always spawned from inside a
     /// running task which borrowing the TASKS, it can not be immediately pushed to the TASKS.
     static SPAWNING_TASKS: RefCell<Vec<TaskFuture>> = RefCell::new(vec![]);

@@ -13,16 +13,16 @@ codec = { package = "parity-scale-codec", version = "3.0", default-features = fa
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
 
 # primitives
-sp-std = { default-features = false, path = "../../substrate/primitives/std" }
-sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
-sp-io = { default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { default-features = false, path = "../../substrate/primitives/core" }
-sp-arithmetic = { default-features = false, path = "../../substrate/primitives/arithmetic" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
 # frame dependencies
-frame-support = { default-features = false, path = "../../substrate/frame/support" }
-frame-system = { default-features = false, path = "../../substrate/frame/system" }
-frame-benchmarking = { default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
 phala-types = { path = "../../crates/phala-types", default-features = false }
 phala-pallets = { path = "../phala", default-features = false }
@@ -31,8 +31,8 @@ hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3"
-pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
-pallet-timestamp = { path = "../../substrate/frame/timestamp" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
 [features]
 default = ["std"]

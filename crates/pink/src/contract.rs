@@ -14,6 +14,12 @@ type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate:
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
+impl Default for Storage {
+    fn default() -> Self {
+        Self::new(storage::new_in_memory_backend())
+    }
+}
+
 #[derive(Debug)]
 pub struct ExecError {
     pub source: DispatchError,
@@ -32,10 +38,7 @@ pub struct Contract {
 }
 
 impl Contract {
-    pub fn new_storage() -> Storage {
-        Storage::new(Default::default())
-    }
-
+    /// Create a new contract instance from existing address.
     pub fn from_address(address: AccountId) -> Self {
         Contract {
             address,

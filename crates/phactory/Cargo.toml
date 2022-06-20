@@ -41,10 +41,10 @@ phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
 pink = { path = "../pink" }
 
-sp-io                = { path = "../../substrate/primitives/io", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
-sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", features = ["disable_target_static_assertions"] }
-sp-runtime           = { path = "../../substrate/primitives/runtime" }
-sp-externalities     = { path = "../../substrate/primitives/externalities" }
+sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", features = ["disable_target_static_assertions"] }
+sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 parity-scale-codec   = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
@@ -62,22 +62,15 @@ derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.15", default-features = false, features = ["derive-codec"] }
-trie = { package = "sp-trie", path = "../../substrate/primitives/trie" }
-frame-system = { package = "frame-system", path = "../../substrate/frame/system" }
-sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
-sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto" }
-sp-core = { package = "sp-core", path = "../../substrate/primitives/core"}
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+frame-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24"}
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
-fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro.git" }
-
-# for diem
-# bcs = { path = "../../../diem/vendor/bcs", version = "0.1.2" }
-# diem-types = { path = "../../../diem/types", version = "0.1.0" }
-# diem-crypto = { path = "../../../diem/crypto/crypto", version = "0.1.0" }
-# move-core-types = { path = "../../../diem/language/move-core/types", version = "0.1.0" }
-# transaction-builder = { path = "../../../diem/language/transaction-builder", version = "0.1.0"}
+fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro" }
 
 # for network service
 surf = { version = "2.3.1", default-features = false, features = ["h1-client-rustls"] }

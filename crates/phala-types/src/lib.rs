@@ -161,39 +161,6 @@ pub mod messaging {
         SetConfiguration { skip_stat: bool },
     }
 
-    // Messages for diem
-
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum DiemCommand {
-        /// Sets the whitelisted accounts, in bcs encoded base64
-        AccountInfo {
-            account_info_b64: String,
-        },
-        /// Verifies a transactions
-        VerifyTransaction {
-            account_address: String,
-            transaction_with_proof_b64: String,
-        },
-        /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
-        /// once.
-        SetTrustedState {
-            trusted_state_b64: String,
-            chain_id: u8,
-        },
-        VerifyEpochProof {
-            ledger_info_with_signatures_b64: String,
-            epoch_change_proof_b64: String,
-        },
-
-        NewAccount {
-            seq_number: u64,
-        },
-        TransferXUS {
-            to: String,
-            amount: u64,
-        },
-    }
-
     // Messages for Kitties
 
     #[derive(Encode, Decode, Debug, TypeInfo)]

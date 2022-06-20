@@ -38,7 +38,7 @@ async fn main() {
                 }
             }
             stream = listener.accept() => {
-                let mut stream = BufReader::new(stream.unwrap());
+                let mut stream = BufReader::new(stream.unwrap().0);
 
                 info!("New imcomming connection");
                 // Spawn a new task to handle the new connection concurrently

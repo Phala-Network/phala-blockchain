@@ -134,8 +134,6 @@ async function estimateFeeOn(endpoint, callHex) {
     return info;
 }
 
-const CONTRACT_PDIEM = 5;
-
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
     .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
@@ -397,73 +395,6 @@ pruntime
         console.dir(r, {depth: 3});
     }))
 
-// pDiem related
-const pdiem = program
-    .command('pdiem')
-    .description('pDiem commands');
-
-pdiem
-    .command('balances')
-    .description('get a list of the account info and balances')
-    .action(run(async () => {
-        const pr = usePruntimeApi();
-        console.dir(await pr.query(CONTRACT_PDIEM, 'AccountData'), {depth: 3});
-    }));
-
-pdiem
-    .command('tx')
-    .description('get a list of the verified transactions')
-    .action(run(async () => {
-        const pr = usePruntimeApi();
-        console.dir(await pr.query(CONTRACT_PDIEM, 'VerifiedTransactions'), {depth: 3});
-    }));
-
-pdiem
-    .command('new-account')
-    .description('create a new diem subaccount for deposit')
-    .argument('<seq>', 'the sequence id of the VASP account')
-    .action(run(async (seq) => {
-        const api = await useApi();
-        const seqNumber = parseInt(seq);
-        const call = api.tx.phala.pushCommand(
-            CONTRACT_PDIEM,
-            JSON.stringify({
-                Plain: JSON.stringify({
-                    NewAccount: {
-                        seq_number: seqNumber
-                    }
-                })
-            })
-        );
-        await printTxOrSend(call);
-    }));
-
-pdiem
-    .command('withdraw')
-    .description('create a new diem subaccount for deposit')
-    .argument('<dest>', 'the withdrawal destination Diem account')
-    .argument('<amount>', 'the sequence id of the VASP account')
-    .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
-    .action(run(async (dest, amount, suri) => {
-        if (dest.toLowerCase().startsWith('0x')) {
-            throw new Error('<dest> must not start with "0x"');
-        }
-        const xusAmount = parseXUS(amount);
-        const api = await useApi();
-        const call = api.tx.phala.pushCommand(
-            CONTRACT_PDIEM,
-            JSON.stringify({
-                Plain: JSON.stringify({
-                    TransferXUS: {
-                        to: dest,
-                        amount: xusAmount,
-                    }
-                })
-            })
-        );
-        await printTxOrSend(call);
-    }));
-
 const xcmp = program
     .command('xcmp')
     .description('XCMP tools');
@@ -669,5 +600,53 @@ contract
         );
         await printTxOrSend(call);
     }));
+
+
+const debug = program
+    .command('debug')
+    .description('debugging utilities');
+
+debug
+    .command('fsck')
+    .description('check blockchain database integrity')
+    .argument('<from>', 'the first block to check (number)')
+    .argument('<to>', 'the last block to check (number)')
+    .option('--early-stop', 'stop when encounting any error', false)
+    .option('--progress', 'show progress per 1000 blocks', false)
+    .action(run(async (from, to, opt) => {
+        const api = await useApi();
+        const { progress, earlyStop } = opt;
+
+        let prevHash = null;
+        for (let i = from; i <= to; i++) {
+            // Progress report
+            if (progress && i % 1000 == 0) {
+                console.log(`Scanning block ${i}`);
+            }
+
+            const hash = u8aToHex(await api.rpc.chain.getBlockHash(i));
+            const header = await api.rpc.chain.getHeader(hash);
+
+            let hasErr = false;
+            // Check hash(blockHeader) == hashKeyInDb
+            let blockHash = blake2AsHex(header.toU8a());
+            if (blockHash != hash) {
+                console.error(`[Block ${i}] hash of the block doesn't match the db key (actual hash = ${blockHash}, hash in db = ${hash})`);
+                hasErr = true;
+            }
+            // Check block.parentHash == parentHash
+            let hashPointer = u8aToHex(header.parentHash);
+            if (prevHash && prevHash != hashPointer) {
+                console.error(`[Block ${i}] prev_hash mismatch previous block! (actual block = ${prevHash}, field = ${hashPointer})`)
+                hasErr = true;
+            }
+            // Early stop
+            if (hasErr && earlyStop) {
+                break;
+            }
+            prevHash = hash;
+        }
+    }));
+
 
 program.parse(process.argv);

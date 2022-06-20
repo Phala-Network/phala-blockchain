@@ -77,20 +77,23 @@ pub fn service() -> (ServiceRun, Spawner) {
 }
 
 impl ServiceRun {
-    pub fn blocking_run(mut self, mut event_handler: impl FnMut(Report)) {
-        self.runtime.block_on(async {
-            loop {
-                match self.report_rx.recv().await {
-                    None => {
-                        info!(target: "sidevm", "The report channel is closed. Exiting service thread.");
-                        break;
-                    }
-                    Some(report) => {
-                        event_handler(report);
-                    }
+    pub fn blocking_run(self, event_handler: impl FnMut(Report)) {
+        let handle = self.runtime.handle().clone();
+        handle.block_on(self.run(event_handler));
+    }
+
+    pub async fn run(mut self, mut event_handler: impl FnMut(Report)) {
+        loop {
+            match self.report_rx.recv().await {
+                None => {
+                    info!(target: "sidevm", "The report channel is closed. Exiting service.");
+                    break;
+                }
+                Some(report) => {
+                    event_handler(report);
                 }
             }
-        })
+        }
     }
 }
 

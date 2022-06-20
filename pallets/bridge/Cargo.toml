@@ -14,17 +14,17 @@ scale-info = { version = "2.0", default-features = false, features = ["derive"] 
 blake2-rfc = { version = "0.2.18", default-features = false }
 
 # primitives
-sp-std = { default-features = false, path = "../../substrate/primitives/std" }
-sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
-sp-io = { default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { default-features = false, path = "../../substrate/primitives/core" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
 # frame dependencies
-frame-support = { default-features = false, path = "../../substrate/frame/support" }
-frame-system = { default-features = false, path = "../../substrate/frame/system" }
-frame-benchmarking = { default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
-pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
 [features]
 default = ["std"]
