@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Context as _, Result};
-use http_req::request::{Method, Request};
-use log::{error, warn};
-use std::{convert::TryFrom, fs, time::Duration};
+use log::{error, warn, info};
+use std::{fs, time::Duration};
+
+use reqwest_proxy::EnvProxyBuilder as _;
 
 pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
@@ -13,22 +14,22 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
 
-    let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT);
-    let url = TryFrom::try_from(url.as_str()).context("Invalid IAS URI")?;
-    let res = Request::new(&url)
+    let url: reqwest::Url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT).parse()?;
+    info!("Getting RA report from {}", url);
+    let mut res = reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .env_proxy(url.domain().unwrap_or_default())
+        .build()
+        .context("Failed to create http client, maybe invalid IAS URI")?
+        .post(url)
         .header("Connection", "Close")
         .header("Content-Type", "application/json")
-        .header("Content-Length", &encoded_json.len())
         .header("Ocp-Apim-Subscription-Key", ias_key)
-        .method(Method::POST)
-        .body(encoded_json.as_bytes())
-        .timeout(timeout)
-        .connect_timeout(timeout)
-        .read_timeout(timeout)
-        .send(&mut res_body_buffer)
-        .context("Http request to IAS failed")?;
+        .body(encoded_json)
+        .send()
+        .context("Failed to send http request")?;
 
-    let status_code = u16::from(res.status_code());
+    let status_code = u16::from(res.status().as_u16());
     if status_code != 200 {
         let msg = match status_code {
             401 => "Unauthorized Failed to authenticate or authorize request.",
@@ -47,7 +48,7 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
         return Err(anyhow!(format!("Bad http status: {}", status_code)));
     }
 
-    let content_len = match res.content_len() {
+    let content_len = match res.content_length() {
         Some(len) => len,
         _ => {
             warn!("content_length not found");
@@ -59,17 +60,23 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
         return Err(anyhow!("Empty HTTP response"));
     }
 
-    let attn_report = String::from_utf8(res_body_buffer).context("Failed to decode attestation report")?;
+    res.copy_to(&mut res_body_buffer)
+        .context("Failed to read response body from IAS")?;
+
+    let attn_report =
+        String::from_utf8(res_body_buffer).context("Failed to decode attestation report")?;
     let sig = res
         .headers()
         .get("X-IASReport-Signature")
         .context("No header X-IASReport-Signature")?
-        .to_string();
+        .to_str()
+        .context("Failed to decode X-IASReport-Signature")?;
     let cert = res
         .headers()
         .get("X-IASReport-Signing-Certificate")
         .context("No header X-IASReport-Signing-Certificate")?
-        .to_string();
+        .to_str()
+        .context("Failed to decode X-IASReport-Signing-Certificate")?;
 
     // Remove %0A from cert, and only obtain the signing cert
     let cert = cert.replace("%0A", "");
@@ -78,7 +85,7 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
     let sig_cert = v[2].to_string();
 
     // len_num == 0
-    Ok((attn_report, sig, sig_cert))
+    Ok((attn_report, sig.into(), sig_cert))
 }
 
 pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {

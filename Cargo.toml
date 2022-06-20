@@ -66,6 +66,7 @@ members = [
 	"crates/pink/sidevm/sidevm",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
+	"crates/reqwest-proxy",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"scripts/toml-upgrade-version",
