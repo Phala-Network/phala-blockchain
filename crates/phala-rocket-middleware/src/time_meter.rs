@@ -24,7 +24,14 @@ impl Fairing for TimeMeter {
     async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
         let start_time = request.local_cache(|| StartTime(Instant::now()));
         let cost = start_time.0.elapsed().as_micros().to_string();
-        log::info!(target: "measuring", "{} {} cost {} microseconds", request.method(), request.uri(), cost);
+        log::info!(
+            target: "measuring",
+            "{} {} cost {} microseconds, status: {}",
+            request.method(),
+            request.uri(),
+            cost,
+            response.status().code
+        );
         response.set_raw_header("X-Cost-Time", cost);
     }
 }

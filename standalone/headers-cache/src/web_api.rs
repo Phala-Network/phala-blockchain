@@ -113,6 +113,7 @@ pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
                 get_storage_changes,
             ],
         )
+        .attach(phala_rocket_middleware::TimeMeter)
         .launch()
         .await?;
     Ok(())
