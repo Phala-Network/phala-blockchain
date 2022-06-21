@@ -7453,7 +7453,7 @@ dependencies = [
 [[package]]
 name = "tokio-proxy"
 version = "0.1.0"
-source = "git+https://github.com/Phala-Network/tokio-proxy.git#e98d21a0ff7bf7a3bea413b2ee336b0d4da1e213"
+source = "git+https://github.com/Phala-Network/tokio-proxy#e98d21a0ff7bf7a3bea413b2ee336b0d4da1e213"
 dependencies = [
  "bytes",
  "log",
