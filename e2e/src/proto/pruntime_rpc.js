@@ -573,6 +573,7 @@ $root.pruntime_rpc = (function() {
          * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
          * @property {number|Long|null} [numberOfClusters] PhactoryInfo numberOfClusters
          * @property {number|Long|null} [numberOfContracts] PhactoryInfo numberOfContracts
+         * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
          */
 
         /**
@@ -742,6 +743,14 @@ $root.pruntime_rpc = (function() {
          */
         PhactoryInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
+        /**
+         * PhactoryInfo waitingForParaheaders.
+         * @member {boolean} waitingForParaheaders
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.waitingForParaheaders = false;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
@@ -840,6 +849,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 19, wireType 0 =*/152).uint64(message.numberOfClusters);
             if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
                 writer.uint32(/* id 20, wireType 0 =*/160).uint64(message.numberOfContracts);
+            if (message.waitingForParaheaders != null && Object.hasOwnProperty.call(message, "waitingForParaheaders"))
+                writer.uint32(/* id 21, wireType 0 =*/168).bool(message.waitingForParaheaders);
             return writer;
         };
 
@@ -930,6 +941,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 20:
                     message.numberOfContracts = reader.uint64();
+                    break;
+                case 21:
+                    message.waitingForParaheaders = reader.bool();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1034,6 +1048,9 @@ $root.pruntime_rpc = (function() {
             if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
                 if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
                     return "numberOfContracts: integer|Long expected";
+            if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
+                if (typeof message.waitingForParaheaders !== "boolean")
+                    return "waitingForParaheaders: boolean expected";
             return null;
         };
 
@@ -1128,6 +1145,8 @@ $root.pruntime_rpc = (function() {
                     message.numberOfContracts = object.numberOfContracts;
                 else if (typeof object.numberOfContracts === "object")
                     message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
+            if (object.waitingForParaheaders != null)
+                message.waitingForParaheaders = Boolean(object.waitingForParaheaders);
             return message;
         };
 
@@ -1181,6 +1200,7 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.numberOfContracts = options.longs === String ? "0" : 0;
+                object.waitingForParaheaders = false;
             }
             if (message.initialized != null && message.hasOwnProperty("initialized"))
                 object.initialized = message.initialized;
@@ -1244,6 +1264,8 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
                 else
                     object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
+            if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
+                object.waitingForParaheaders = message.waitingForParaheaders;
             return object;
         };
 
@@ -6617,8 +6639,6 @@ $root.pruntime_rpc = (function() {
          * @memberof pruntime_rpc
          * @interface IChallengeClient
          * @property {Uint8Array|null} [encodedChallenge] ChallengeClient encodedChallenge
-         * @property {Uint8Array|null} [runtimeInfoHash] ChallengeClient runtimeInfoHash
-         * @property {Uint8Array|null} [encodedPublicKey] ChallengeClient encodedPublicKey
          * @property {Uint8Array|null} [encodedEcdhPublicKey] ChallengeClient encodedEcdhPublicKey
          */
 
@@ -6644,22 +6664,6 @@ $root.pruntime_rpc = (function() {
          * @instance
          */
         ChallengeClient.prototype.encodedChallenge = $util.newBuffer([]);
-
-        /**
-         * ChallengeClient runtimeInfoHash.
-         * @member {Uint8Array} runtimeInfoHash
-         * @memberof pruntime_rpc.ChallengeClient
-         * @instance
-         */
-        ChallengeClient.prototype.runtimeInfoHash = $util.newBuffer([]);
-
-        /**
-         * ChallengeClient encodedPublicKey.
-         * @member {Uint8Array} encodedPublicKey
-         * @memberof pruntime_rpc.ChallengeClient
-         * @instance
-         */
-        ChallengeClient.prototype.encodedPublicKey = $util.newBuffer([]);
 
         /**
          * ChallengeClient encodedEcdhPublicKey.
@@ -6695,12 +6699,8 @@ $root.pruntime_rpc = (function() {
                 writer = $Writer.create();
             if (message.encodedChallenge != null && Object.hasOwnProperty.call(message, "encodedChallenge"))
                 writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedChallenge);
-            if (message.runtimeInfoHash != null && Object.hasOwnProperty.call(message, "runtimeInfoHash"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.runtimeInfoHash);
-            if (message.encodedPublicKey != null && Object.hasOwnProperty.call(message, "encodedPublicKey"))
-                writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.encodedPublicKey);
             if (message.encodedEcdhPublicKey != null && Object.hasOwnProperty.call(message, "encodedEcdhPublicKey"))
-                writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.encodedEcdhPublicKey);
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedEcdhPublicKey);
             return writer;
         };
 
@@ -6739,12 +6739,6 @@ $root.pruntime_rpc = (function() {
                     message.encodedChallenge = reader.bytes();
                     break;
                 case 2:
-                    message.runtimeInfoHash = reader.bytes();
-                    break;
-                case 3:
-                    message.encodedPublicKey = reader.bytes();
-                    break;
-                case 4:
                     message.encodedEcdhPublicKey = reader.bytes();
                     break;
                 default:
@@ -6785,12 +6779,6 @@ $root.pruntime_rpc = (function() {
             if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
                 if (!(message.encodedChallenge && typeof message.encodedChallenge.length === "number" || $util.isString(message.encodedChallenge)))
                     return "encodedChallenge: buffer expected";
-            if (message.runtimeInfoHash != null && message.hasOwnProperty("runtimeInfoHash"))
-                if (!(message.runtimeInfoHash && typeof message.runtimeInfoHash.length === "number" || $util.isString(message.runtimeInfoHash)))
-                    return "runtimeInfoHash: buffer expected";
-            if (message.encodedPublicKey != null && message.hasOwnProperty("encodedPublicKey"))
-                if (!(message.encodedPublicKey && typeof message.encodedPublicKey.length === "number" || $util.isString(message.encodedPublicKey)))
-                    return "encodedPublicKey: buffer expected";
             if (message.encodedEcdhPublicKey != null && message.hasOwnProperty("encodedEcdhPublicKey"))
                 if (!(message.encodedEcdhPublicKey && typeof message.encodedEcdhPublicKey.length === "number" || $util.isString(message.encodedEcdhPublicKey)))
                     return "encodedEcdhPublicKey: buffer expected";
@@ -6814,16 +6802,6 @@ $root.pruntime_rpc = (function() {
                     $util.base64.decode(object.encodedChallenge, message.encodedChallenge = $util.newBuffer($util.base64.length(object.encodedChallenge)), 0);
                 else if (object.encodedChallenge.length)
                     message.encodedChallenge = object.encodedChallenge;
-            if (object.runtimeInfoHash != null)
-                if (typeof object.runtimeInfoHash === "string")
-                    $util.base64.decode(object.runtimeInfoHash, message.runtimeInfoHash = $util.newBuffer($util.base64.length(object.runtimeInfoHash)), 0);
-                else if (object.runtimeInfoHash.length)
-                    message.runtimeInfoHash = object.runtimeInfoHash;
-            if (object.encodedPublicKey != null)
-                if (typeof object.encodedPublicKey === "string")
-                    $util.base64.decode(object.encodedPublicKey, message.encodedPublicKey = $util.newBuffer($util.base64.length(object.encodedPublicKey)), 0);
-                else if (object.encodedPublicKey.length)
-                    message.encodedPublicKey = object.encodedPublicKey;
             if (object.encodedEcdhPublicKey != null)
                 if (typeof object.encodedEcdhPublicKey === "string")
                     $util.base64.decode(object.encodedEcdhPublicKey, message.encodedEcdhPublicKey = $util.newBuffer($util.base64.length(object.encodedEcdhPublicKey)), 0);
@@ -6854,20 +6832,6 @@ $root.pruntime_rpc = (function() {
                         object.encodedChallenge = $util.newBuffer(object.encodedChallenge);
                 }
                 if (options.bytes === String)
-                    object.runtimeInfoHash = "";
-                else {
-                    object.runtimeInfoHash = [];
-                    if (options.bytes !== Array)
-                        object.runtimeInfoHash = $util.newBuffer(object.runtimeInfoHash);
-                }
-                if (options.bytes === String)
-                    object.encodedPublicKey = "";
-                else {
-                    object.encodedPublicKey = [];
-                    if (options.bytes !== Array)
-                        object.encodedPublicKey = $util.newBuffer(object.encodedPublicKey);
-                }
-                if (options.bytes === String)
                     object.encodedEcdhPublicKey = "";
                 else {
                     object.encodedEcdhPublicKey = [];
@@ -6877,10 +6841,6 @@ $root.pruntime_rpc = (function() {
             }
             if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
                 object.encodedChallenge = options.bytes === String ? $util.base64.encode(message.encodedChallenge, 0, message.encodedChallenge.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedChallenge) : message.encodedChallenge;
-            if (message.runtimeInfoHash != null && message.hasOwnProperty("runtimeInfoHash"))
-                object.runtimeInfoHash = options.bytes === String ? $util.base64.encode(message.runtimeInfoHash, 0, message.runtimeInfoHash.length) : options.bytes === Array ? Array.prototype.slice.call(message.runtimeInfoHash) : message.runtimeInfoHash;
-            if (message.encodedPublicKey != null && message.hasOwnProperty("encodedPublicKey"))
-                object.encodedPublicKey = options.bytes === String ? $util.base64.encode(message.encodedPublicKey, 0, message.encodedPublicKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedPublicKey) : message.encodedPublicKey;
             if (message.encodedEcdhPublicKey != null && message.hasOwnProperty("encodedEcdhPublicKey"))
                 object.encodedEcdhPublicKey = options.bytes === String ? $util.base64.encode(message.encodedEcdhPublicKey, 0, message.encodedEcdhPublicKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEcdhPublicKey) : message.encodedEcdhPublicKey;
             return object;
@@ -7126,6 +7086,7 @@ $root.pruntime_rpc = (function() {
          * Properties of a GetWorkerKeyResponse.
          * @memberof pruntime_rpc
          * @interface IGetWorkerKeyResponse
+         * @property {Uint8Array|null} [encodedGenesisBlockHash] GetWorkerKeyResponse encodedGenesisBlockHash
          * @property {Uint8Array|null} [encodedEncryptedKey] GetWorkerKeyResponse encodedEncryptedKey
          */
 
@@ -7143,6 +7104,14 @@ $root.pruntime_rpc = (function() {
                     if (properties[keys[i]] != null)
                         this[keys[i]] = properties[keys[i]];
         }
+
+        /**
+         * GetWorkerKeyResponse encodedGenesisBlockHash.
+         * @member {Uint8Array} encodedGenesisBlockHash
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @instance
+         */
+        GetWorkerKeyResponse.prototype.encodedGenesisBlockHash = $util.newBuffer([]);
 
         /**
          * GetWorkerKeyResponse encodedEncryptedKey.
@@ -7190,8 +7159,10 @@ $root.pruntime_rpc = (function() {
         GetWorkerKeyResponse.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
+            if (message.encodedGenesisBlockHash != null && Object.hasOwnProperty.call(message, "encodedGenesisBlockHash"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedGenesisBlockHash);
             if (message.encodedEncryptedKey != null && Object.hasOwnProperty.call(message, "encodedEncryptedKey"))
-                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedEncryptedKey);
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedEncryptedKey);
             return writer;
         };
 
@@ -7227,6 +7198,9 @@ $root.pruntime_rpc = (function() {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
                 case 1:
+                    message.encodedGenesisBlockHash = reader.bytes();
+                    break;
+                case 2:
                     message.encodedEncryptedKey = reader.bytes();
                     break;
                 default:
@@ -7265,6 +7239,9 @@ $root.pruntime_rpc = (function() {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             var properties = {};
+            if (message.encodedGenesisBlockHash != null && message.hasOwnProperty("encodedGenesisBlockHash"))
+                if (!(message.encodedGenesisBlockHash && typeof message.encodedGenesisBlockHash.length === "number" || $util.isString(message.encodedGenesisBlockHash)))
+                    return "encodedGenesisBlockHash: buffer expected";
             if (message.encodedEncryptedKey != null && message.hasOwnProperty("encodedEncryptedKey")) {
                 properties._encodedEncryptedKey = 1;
                 if (!(message.encodedEncryptedKey && typeof message.encodedEncryptedKey.length === "number" || $util.isString(message.encodedEncryptedKey)))
@@ -7285,6 +7262,11 @@ $root.pruntime_rpc = (function() {
             if (object instanceof $root.pruntime_rpc.GetWorkerKeyResponse)
                 return object;
             var message = new $root.pruntime_rpc.GetWorkerKeyResponse();
+            if (object.encodedGenesisBlockHash != null)
+                if (typeof object.encodedGenesisBlockHash === "string")
+                    $util.base64.decode(object.encodedGenesisBlockHash, message.encodedGenesisBlockHash = $util.newBuffer($util.base64.length(object.encodedGenesisBlockHash)), 0);
+                else if (object.encodedGenesisBlockHash.length)
+                    message.encodedGenesisBlockHash = object.encodedGenesisBlockHash;
             if (object.encodedEncryptedKey != null)
                 if (typeof object.encodedEncryptedKey === "string")
                     $util.base64.decode(object.encodedEncryptedKey, message.encodedEncryptedKey = $util.newBuffer($util.base64.length(object.encodedEncryptedKey)), 0);
@@ -7306,6 +7288,16 @@ $root.pruntime_rpc = (function() {
             if (!options)
                 options = {};
             var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.encodedGenesisBlockHash = "";
+                else {
+                    object.encodedGenesisBlockHash = [];
+                    if (options.bytes !== Array)
+                        object.encodedGenesisBlockHash = $util.newBuffer(object.encodedGenesisBlockHash);
+                }
+            if (message.encodedGenesisBlockHash != null && message.hasOwnProperty("encodedGenesisBlockHash"))
+                object.encodedGenesisBlockHash = options.bytes === String ? $util.base64.encode(message.encodedGenesisBlockHash, 0, message.encodedGenesisBlockHash.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedGenesisBlockHash) : message.encodedGenesisBlockHash;
             if (message.encodedEncryptedKey != null && message.hasOwnProperty("encodedEncryptedKey")) {
                 object.encodedEncryptedKey = options.bytes === String ? $util.base64.encode(message.encodedEncryptedKey, 0, message.encodedEncryptedKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEncryptedKey) : message.encodedEncryptedKey;
                 if (options.oneofs)

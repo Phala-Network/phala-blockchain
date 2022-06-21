@@ -400,6 +400,9 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo numberOfContracts */
         numberOfContracts?: (number|Long|null);
+
+        /** PhactoryInfo waitingForParaheaders */
+        waitingForParaheaders?: (boolean|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -467,6 +470,9 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo numberOfContracts. */
         public numberOfContracts: (number|Long);
+
+        /** PhactoryInfo waitingForParaheaders. */
+        public waitingForParaheaders: boolean;
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";
@@ -2707,12 +2713,6 @@ export namespace pruntime_rpc {
         /** ChallengeClient encodedChallenge */
         encodedChallenge?: (Uint8Array|null);
 
-        /** ChallengeClient runtimeInfoHash */
-        runtimeInfoHash?: (Uint8Array|null);
-
-        /** ChallengeClient encodedPublicKey */
-        encodedPublicKey?: (Uint8Array|null);
-
         /** ChallengeClient encodedEcdhPublicKey */
         encodedEcdhPublicKey?: (Uint8Array|null);
     }
@@ -2728,12 +2728,6 @@ export namespace pruntime_rpc {
 
         /** ChallengeClient encodedChallenge. */
         public encodedChallenge: Uint8Array;
-
-        /** ChallengeClient runtimeInfoHash. */
-        public runtimeInfoHash: Uint8Array;
-
-        /** ChallengeClient encodedPublicKey. */
-        public encodedPublicKey: Uint8Array;
 
         /** ChallengeClient encodedEcdhPublicKey. */
         public encodedEcdhPublicKey: Uint8Array;
@@ -2908,6 +2902,9 @@ export namespace pruntime_rpc {
     /** Properties of a GetWorkerKeyResponse. */
     interface IGetWorkerKeyResponse {
 
+        /** GetWorkerKeyResponse encodedGenesisBlockHash */
+        encodedGenesisBlockHash?: (Uint8Array|null);
+
         /** GetWorkerKeyResponse encodedEncryptedKey */
         encodedEncryptedKey?: (Uint8Array|null);
     }
@@ -2920,6 +2917,9 @@ export namespace pruntime_rpc {
          * @param [properties] Properties to set
          */
         constructor(properties?: pruntime_rpc.IGetWorkerKeyResponse);
+
+        /** GetWorkerKeyResponse encodedGenesisBlockHash. */
+        public encodedGenesisBlockHash: Uint8Array;
 
         /** GetWorkerKeyResponse encodedEncryptedKey. */
         public encodedEncryptedKey?: (Uint8Array|null);
