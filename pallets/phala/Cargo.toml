@@ -27,6 +27,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 log = { version = "0.4.14", default-features = false }
 
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
+pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
 
 # RMRK dependencies
 pallet-rmrk-core = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
@@ -70,6 +71,7 @@ std = [
 	"sp-core/full_crypto",
 	"frame-benchmarking/std",
 	"pallet-balances/std",
+	"pallet-uniques/std",
 	"log/std",
 	"phala-types/enable_serde",
 	"pallet-rmrk-core/std",

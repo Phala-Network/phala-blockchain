@@ -7643,6 +7643,7 @@ dependencies = [
  "pallet-rmrk-equip",
  "pallet-rmrk-market",
  "pallet-timestamp",
+ "pallet-uniques",
  "parity-scale-codec",
  "phala-types",
  "primitive-types",

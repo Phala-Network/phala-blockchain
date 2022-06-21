@@ -11,6 +11,10 @@ type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
+pub use pallet_rmrk_core::types::*;
+pub use pallet_rmrk_market;
+pub use rmrk_traits::primitives::*;
+
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
@@ -33,15 +37,21 @@ pub mod pallet {
 			UnixTime, WithdrawReasons,
 		},
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{pallet_prelude::*, Origin};
+
 	use scale_info::TypeInfo;
 	use sp_runtime::{
-		traits::{Saturating, TrailingZeroInput, Zero},
+		traits::{CheckedSub, Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec};
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
+
+	use pallet_rmrk_core::BoundedCollectionSymbolOf;
+	use pallet_rmrk_core::*;
+
+	pub use rmrk_traits::primitives::*;
 
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
@@ -52,6 +62,14 @@ pub mod pallet {
 	impl Get<u32> for DescMaxLen {
 		fn get() -> u32 {
 			400
+		}
+	}
+
+	pub struct ContributeListMaxLen;
+
+	impl Get<u32> for ContributeListMaxLen {
+		fn get() -> u32 {
+			2000
 		}
 	}
 	/// The functions to manage user's native currency lock in the Balances pallet
@@ -70,7 +88,9 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + registry::Config + mining::Config {
+	pub trait Config:
+		frame_system::Config + registry::Config + mining::Config + pallet_rmrk_core::Config
+	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 
@@ -171,6 +191,11 @@ pub mod pallet {
 	#[pallet::getter(fn pool_descriptions)]
 	pub type PoolDescriptions<T: Config> =
 		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, super::DescMaxLen>>;
+
+	/// Mapping for the collection_id of the pool which is used to generate nftid
+	#[pallet::storage]
+	#[pallet::getter(fn pool_collections)]
+	pub type PoolCollections<T: Config> = StorageMap<_, Twox64Concat, u64, CollectionId>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -395,18 +420,25 @@ pub mod pallet {
 		ExceedMaxDescriptionLen,
 		/// Withdraw queue is not empty so that we can't restart mining
 		WithdrawQueueNotEmpty,
+		/// Stakepool's collection_id isn't founded
+		MissCollectionId,
+		/// Create Nft failed
+		CreateNftFailed,
+		/// Burn Nft failed
+		BurnNftFailed,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
-		BalanceOf<T>: FixedPointConvert + Display,
+		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
+			let owner = ensure_signed(origin.clone())?;
 
 			let pid = PoolCount::<T>::get();
 			StakePools::<T>::insert(
@@ -426,6 +458,23 @@ pub mod pallet {
 				},
 			);
 			PoolCount::<T>::put(pid + 1);
+
+			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
+				(String::from("stakepool-collection-symbol"))
+					.as_bytes()
+					.to_vec()
+					.try_into()
+					.unwrap();
+			let meta: BoundedVec<u8, <T as pallet_uniques::Config>::StringLimit> =
+				(String::from("stakepool-collection-phala:") + pid.to_string().as_str())
+					.as_bytes()
+					.to_vec()
+					.try_into()
+					.unwrap();
+			pallet_rmrk_core::Pallet::<T>::create_collection(origin, meta, None, symbol)?;
+			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
+			PoolCollections::<T>::insert(pid, collection_id);
+
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
 
 			Ok(())
@@ -710,10 +759,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn check_and_maybe_force_withdraw(
-			origin: OriginFor<T>,
-			pid: u64,
-		)  -> DispatchResult {
+		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
 			ensure_signed(origin)?;
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
@@ -724,7 +770,8 @@ pub mod pallet {
 			let mut releasing_stake = Zero::zero();
 			for worker in pool.cd_workers.iter() {
 				let miner: T::AccountId = pool_sub_account(pid, &worker);
-				let stakes: BalanceOf<T> = mining::pallet::Stakes::<T>::get(&miner).expect("workers have no stakes recorded; qed.");
+				let stakes: BalanceOf<T> = mining::pallet::Stakes::<T>::get(&miner)
+					.expect("workers have no stakes recorded; qed.");
 				// TODO(mingxuan): handle slash
 				releasing_stake += stakes;
 			}
@@ -732,7 +779,7 @@ pub mod pallet {
 				for worker in pool.workers.iter() {
 					let miner: T::AccountId = pool_sub_account(pid, &worker);
 					// TODO: avoid stop mining multiple times?
-					Self::do_stop_mining(&(pool.owner), pid, worker.clone());		
+					Self::do_stop_mining(&(pool.owner), pid, worker.clone());
 				}
 			}
 			Ok(())
@@ -773,23 +820,16 @@ pub mod pallet {
 				Error::<T>::PoolBankrupt
 			);
 
-			let info_key = (pid, who.clone());
-			// Create a new user_info if the staker hasn't have contributed to the pool before
-			let mut user_info = match Self::pool_stakers(&info_key) {
-				Some(mut user_info) => {
-					Self::maybe_settle_slash(&pool_info, &mut user_info);
-					user_info
-				}
-				None => UserStakeInfo {
-					user: who.clone(),
-					locked: Zero::zero(),
-					shares: Zero::zero(),
-				},
-			};
-			let shares = pool_info.add_stake(&mut user_info, a);
+			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
+				.ok_or(Error::<T>::MissCollectionId)?;
+			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), pool_info.pid.clone())?;
+			let mut nft = Self::get_NftAttr(collection_id, nft_id)?;
 
-			// Persist
-			PoolStakers::<T>::insert(&info_key, &user_info);
+			Self::maybe_settle_nft_slash(&pool_info, &mut nft, who.clone());
+
+			let shares =
+				Self::add_stake_and_nft(&mut pool_info, who.clone(), collection_id, amount);
+
 			// Lock the funds
 			Self::ledger_accrue(&who, a);
 
@@ -826,21 +866,22 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let info_key = (pid, who.clone());
-			let mut user_info =
-				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
-
-			ensure!(
-				is_nondust_balance(shares) && shares <= user_info.shares,
-				Error::<T>::InvalidWithdrawalAmount
-			);
-			// TODO(hangyin): consider the amounts in the withdraw request
-			// https://github.com/Phala-Network/phala-blockchain/issues/490
 
 			let mut pool_info = Self::ensure_pool(pid)?;
-			Self::try_withdraw(&mut pool_info, &mut user_info, shares);
 
-			PoolStakers::<T>::insert(&info_key, &user_info);
+			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
+				.ok_or(Error::<T>::MissCollectionId)?;
+			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), pool_info.pid.clone())?;
+			let mut nft = Self::get_NftAttr(collection_id, nft_id)?;
+
+			Self::try_withdraw(&mut pool_info, &mut nft, nft_id, who.clone(), shares);
+
+			ensure!(
+				is_nondust_balance(shares) && shares <= nft.shares,
+				Error::<T>::InvalidWithdrawalAmount
+			);
+
+			Self::set_NftAttr(pool_info.pid.clone(), collection_id, nft_id, &nft);
 			StakePools::<T>::insert(&pid, &pool_info);
 
 			Ok(())
@@ -929,6 +970,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		pub fn do_start_mining(
 			owner: &T::AccountId,
@@ -999,6 +1041,172 @@ pub mod pallet {
 			Ok((orig_stake, slashed))
 		}
 
+		fn add_stake_and_nft(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			userid: T::AccountId,
+			collection_id: CollectionId,
+			amount: BalanceOf<T>,
+		) -> BalanceOf<T> {
+			let shares = match pool_info.share_price() {
+				Some(price) if price != fp!(0) => bdiv(amount, &price),
+				_ => amount, // adding new stake (share price = 1)
+			};
+			Self::mint_and_lock_pool_nft(pool_info.pid.clone(), userid.clone(), shares, amount);
+			pool_info.total_shares += shares;
+			pool_info.total_stake.saturating_accrue(amount);
+			pool_info.free_stake.saturating_accrue(amount);
+			shares
+		}
+
+		fn remove_stake_and_burn_nft(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			userid: T::AccountId,
+			shares: BalanceOf<T>,
+			nft_id: NftId,
+			nft: &mut NftAttr<BalanceOf<T>>,
+		) -> Option<(BalanceOf<T>, BalanceOf<T>, BalanceOf<T>)> {
+			let price = pool_info.share_price()?;
+			let amount = bmul(shares, &price);
+
+			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())?;
+			let nft_id =
+				Self::merge_or_init_nft_for_staker(userid.clone(), pool_info.pid.clone()).ok()?;
+			let mut nft = Self::get_NftAttr(collection_id, nft_id).ok()?;
+
+			let amount = amount.min(pool_info.free_stake).min(nft.stakes);
+
+			let user_shares = nft.shares.checked_sub(&shares)?;
+			let (user_shares, shares_dust) = extract_dust(user_shares);
+			let user_locked = nft.stakes.checked_sub(&amount)?;
+			let (user_locked, user_dust) = extract_dust(user_locked);
+
+			let removed_shares = shares + shares_dust;
+			let total_shares = pool_info.total_shares.checked_sub(&removed_shares)?;
+
+			let (total_stake, _) = extract_dust(pool_info.total_stake - amount);
+			if total_stake > Zero::zero() {
+				pool_info.free_stake -= amount;
+				pool_info.total_stake -= amount;
+			} else {
+				pool_info.free_stake = Zero::zero();
+				pool_info.total_stake = Zero::zero();
+			}
+			pool_info.total_shares = total_shares;
+			nft.shares = user_shares;
+			nft.stakes = user_locked;
+
+			Some((amount, user_dust, removed_shares))
+		}
+
+		#[frame_support::transactional]
+		fn mint_and_lock_pool_nft(
+			pid: u64,
+			contributer: T::AccountId,
+			shares: BalanceOf<T>,
+			stakes: BalanceOf<T>,
+		) -> Result<NftId, DispatchError> {
+			let pool_info = Self::ensure_pool(pid)?;
+			let collection_id =
+				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissCollectionId)?;
+			let collection_info = pallet_rmrk_core::Collections::<T>::get(collection_id)
+				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
+			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(collection_id);
+
+			pallet_rmrk_core::Pallet::<T>::mint_nft(
+				Origin::<T>::Signed(pool_info.owner.clone()).into(),
+				contributer,
+				collection_id,
+				None,
+				None,
+				collection_info.metadata.clone(),
+				true,
+			)?;
+
+			let attr = NftAttr { shares, stakes };
+			Self::set_NftAttr(pid, collection_id, nft_id, &attr)?;
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), true);
+			Ok(nft_id)
+		}
+
+		#[frame_support::transactional]
+		fn unlock_and_burn_nft(pid: u64, nft_id: NftId) -> DispatchResult {
+			let pool_info = Self::ensure_pool(pid)?;
+			let collection_id =
+				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissCollectionId)?;
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), false);
+			pallet_rmrk_core::Pallet::<T>::burn_nft(
+				Origin::<T>::Signed(pool_info.owner.clone()).into(),
+				collection_id,
+				nft_id,
+			)?;
+
+			Ok(())
+		}
+
+		#[frame_support::transactional]
+		fn merge_or_init_nft_for_staker(
+			staker: T::AccountId,
+			pid: u64,
+		) -> Result<NftId, DispatchError> {
+			let pool_info = Self::ensure_pool(pid)?;
+			let collection_id =
+				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissCollectionId)?;
+			let nftid_arr: Vec<NftId> =
+				pallet_rmrk_core::Nfts::<T>::iter_key_prefix(collection_id).collect();
+			let mut total_stakes: BalanceOf<T> = Zero::zero();
+			let mut total_shares: BalanceOf<T> = Zero::zero();
+			for nftid in &nftid_arr {
+				let nft = pallet_rmrk_core::Nfts::<T>::get(collection_id, nftid)
+					.ok_or(pallet_rmrk_core::Error::<T>::NoAvailableNftId)?;
+				if nft.owner
+					!= rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(staker.clone())
+				{
+					continue;
+				}
+
+				let property: NftAttr<BalanceOf<T>> = Self::get_NftAttr(collection_id, *nftid)?;
+				total_stakes += property.stakes;
+				total_shares += property.shares;
+				Self::unlock_and_burn_nft(pid, *nftid)?;
+			}
+
+			Self::mint_and_lock_pool_nft(pid, staker, total_shares, total_stakes)
+		}
+
+		fn get_NftAttr(
+			collection_id: CollectionId,
+			nft_id: NftId,
+		) -> Result<NftAttr<BalanceOf<T>>, DispatchError> {
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> =
+				("key").as_bytes().to_vec().try_into().unwrap();
+			let raw_value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+				pallet_rmrk_core::Pallet::<T>::properties((collection_id, Some(nft_id), key))
+					.ok_or(Error::<T>::MissCollectionId)?;
+			Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail.qed")
+		}
+
+		fn set_NftAttr(
+			pid: u64,
+			collection_id: CollectionId,
+			nft_id: NftId,
+			nft_attr: &NftAttr<BalanceOf<T>>,
+		) -> DispatchResult {
+			let pool_info = Self::ensure_pool(pid)?;
+			let attr_bit = (*nft_attr).encode();
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> =
+				("key").as_bytes().to_vec().try_into().unwrap();
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+				attr_bit.try_into().unwrap();
+			pallet_uniques::Pallet::<T>::set_attribute(
+				Origin::<T>::Signed(pool_info.owner.clone()).into(),
+				collection_id,
+				Some(nft_id),
+				key,
+				value,
+			)?;
+			Ok(())
+		}
+
 		/// Adds up the newly received reward to `reward_acc`
 		fn handle_pool_new_reward(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
@@ -1058,7 +1266,7 @@ pub mod pallet {
 
 			// With the worker being cleaned, those stake now are free
 			pool_info.free_stake.saturating_accrue(returned);
-			
+
 			Self::try_process_withdraw_queue(&mut pool_info);
 			StakePools::<T>::insert(&pid, &pool_info);
 		}
@@ -1076,7 +1284,9 @@ pub mod pallet {
 		/// 2. The pool must has shares and stake (or it can cause division by zero error)
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
-			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			nft_id: NftId,
+			userid: T::AccountId,
 			shares: BalanceOf<T>,
 		) {
 			let free_shares = match pool_info.share_price() {
@@ -1096,16 +1306,22 @@ pub mod pallet {
 			let (queued_shares, _) = extract_dust(queued_shares);
 			// Try withdraw immediately if we can
 			if withdrawing_shares > Zero::zero() {
-				Self::maybe_settle_slash(pool_info, user_info);
+				Self::maybe_settle_nft_slash(pool_info, nft, userid.clone());
+
 				// Overflow warning: remove_stake is carefully written to avoid precision error.
 				// (I hope so)
-				let (reduced, dust, withdrawn_shares) = pool_info
-					.remove_stake(user_info, withdrawing_shares)
-					.expect("There are enough withdrawing_shares; qed.");
-				Self::ledger_reduce(&user_info.user, reduced, dust);
+				let (reduced, dust, withdrawn_shares) = Self::remove_stake_and_burn_nft(
+					pool_info,
+					userid.clone(),
+					withdrawing_shares,
+					nft_id,
+					nft,
+				)
+				.expect("There are enough withdrawing_shares; qed.");
+				Self::ledger_reduce(&userid, reduced, dust);
 				Self::deposit_event(Event::<T>::Withdrawal {
 					pid: pool_info.pid,
-					user: user_info.user.clone(),
+					user: userid.clone(),
 					amount: reduced,
 					shares: withdrawn_shares,
 				});
@@ -1116,20 +1332,20 @@ pub mod pallet {
 				// Remove the existing withdraw request in the queue if there is any.
 				pool_info
 					.withdraw_queue
-					.retain(|withdraw| withdraw.user != user_info.user);
+					.retain(|withdraw| withdraw.user != userid);
 				// Push the request
 				let now = <T as registry::Config>::UnixTime::now()
 					.as_secs()
 					.saturated_into::<u64>();
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
-					user: user_info.user.clone(),
+					user: userid.clone(),
 					shares: queued_shares,
 					start_time: now,
 				});
 				Self::maybe_add_withdraw_queue(now, pool_info.pid);
 				Self::deposit_event(Event::<T>::WithdrawalQueued {
 					pid: pool_info.pid,
-					user: user_info.user.clone(),
+					user: userid.clone(),
 					shares: queued_shares,
 				});
 			}
@@ -1147,6 +1363,32 @@ pub mod pallet {
 			while is_nondust_balance(pool_info.free_stake) {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
+
+					let collection_id = match PoolCollections::<T>::get(pool_info.pid.clone()) {
+						Some(id) => id,
+						None => {
+							pool_info.withdraw_queue.pop_front();
+							continue;
+						}
+					};
+					let nft_id = match Self::merge_or_init_nft_for_staker(
+						withdraw.user.clone(),
+						pool_info.pid.clone(),
+					) {
+						Ok(id) => id,
+						Err(_) => {
+							pool_info.withdraw_queue.pop_front();
+							continue;
+						}
+					};
+					let mut nft = match Self::get_NftAttr(collection_id, nft_id) {
+						Ok(instance) => instance,
+						Err(_) => {
+							pool_info.withdraw_queue.pop_front();
+							continue;
+						}
+					};
+
 					let info_key = (pool_info.pid, withdraw.user.clone());
 					let mut user_info = match Self::pool_stakers(&info_key) {
 						Some(user) => user,
@@ -1172,21 +1414,26 @@ pub mod pallet {
 					);
 					// Actually remove the fulfilled withdraw request. Dust in the user shares is
 					// considered but it in the request is ignored.
-					Self::maybe_settle_slash(pool_info, &mut user_info);
-					let (reduced, dust, withdrawn_shares) = pool_info
-						.remove_stake(&mut user_info, withdrawing_shares)
-						.expect("Remove only what we have; qed.");
+					Self::maybe_settle_nft_slash(pool_info, &mut nft, withdraw.user.clone());
+					let (reduced, dust, withdrawn_shares) = Self::remove_stake_and_burn_nft(
+						pool_info,
+						withdraw.user.clone(),
+						withdrawing_shares,
+						nft_id,
+						&mut nft,
+					)
+					.expect("Remove only what we have; qed.");
 					let (shares, _) = extract_dust(withdraw.shares - withdrawing_shares);
 					withdraw.shares = shares;
 					// Withdraw the funds
-					Self::ledger_reduce(&user_info.user, reduced, dust);
+					Self::ledger_reduce(&withdraw.user, reduced, dust);
 					Self::deposit_event(Event::<T>::Withdrawal {
 						pid: pool_info.pid,
-						user: user_info.user.clone(),
+						user: withdraw.user.clone(),
 						amount: reduced,
 						shares: withdrawn_shares,
 					});
-					PoolStakers::<T>::insert(&info_key, &user_info);
+					Self::set_NftAttr(pool_info.pid.clone(), collection_id, nft_id, &nft);
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
 					if withdraw.shares == Zero::zero() {
@@ -1266,23 +1513,23 @@ pub mod pallet {
 			});
 		}
 
-		fn maybe_settle_slash(
+		fn maybe_settle_nft_slash(
 			pool: &PoolInfo<T::AccountId, BalanceOf<T>>,
-			user: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
 		) {
-			match pool.settle_slash(user) {
+			match pool.settle_nft_slash(nft) {
 				// We don't slash on dust, because the share price is just unstable.
 				Some(slashed) if is_nondust_balance(slashed) => {
-					let (imbalance, _remaining) =
-						<T as Config>::Currency::slash(&user.user, slashed);
+					let (imbalance, _remaining) = <T as Config>::Currency::slash(&userid, slashed);
 					let actual_slashed = imbalance.peek();
 					T::OnSlashed::on_unbalanced(imbalance);
 					// Dust is not considered because it's already merged into the slash if
 					// presents.
-					Self::ledger_reduce(&user.user, actual_slashed, Zero::zero());
+					Self::ledger_reduce(&userid, actual_slashed, Zero::zero());
 					Self::deposit_event(Event::<T>::SlashSettled {
 						pid: pool.pid,
-						user: user.user.clone(),
+						user: userid.clone(),
 						amount: actual_slashed,
 					});
 				}
@@ -1300,6 +1547,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
@@ -1330,6 +1578,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Usually called on worker force unbinding (force == true), but it's also possible
@@ -1350,6 +1599,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {}
 	}
@@ -1358,6 +1608,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
@@ -1441,106 +1692,6 @@ pub mod pallet {
 	where
 		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
-		/// Adds some stake to a user.
-		///
-		/// No dirty slash allowed. Usually it doesn't change the price of the share, unless the
-		/// share price is zero (all slashed), which is a really a disrupting case that we don't
-		/// even bother to deal with.
-		fn add_stake(
-			&mut self,
-			user: &mut UserStakeInfo<AccountId, Balance>,
-			amount: Balance,
-		) -> Balance {
-			debug_assert!(is_nondust_balance(amount));
-			self.assert_slash_clean(user);
-			// Calcuate shares to add
-			let shares = match self.share_price() {
-				Some(price) if price != fp!(0) => bdiv(amount, &price),
-				_ => amount, // adding new stake (share price = 1)
-			};
-			// Add the stake
-			user.shares.saturating_accrue(shares);
-			user.locked.saturating_accrue(amount);
-			// Update self
-			self.total_shares += shares;
-			self.total_stake.saturating_accrue(amount);
-			self.free_stake.saturating_accrue(amount);
-			shares
-		}
-
-		/// Removes some shares from a user and returns the removed stake amount.
-		///
-		/// This function can deal with fixed point precision issue (I hope so). However it also
-		/// requires:
-		///
-		/// - There's no dirty slash
-		/// - `shares` mustn't exceed the user shares.
-		///
-		/// It returns `None` and makes no change if there's any error. Otherwise it returns a
-		/// tuple with the amount of the actual removed stake, and potentially the dust stake to
-		/// remove.
-		fn remove_stake(
-			&mut self,
-			user: &mut UserStakeInfo<AccountId, Balance>,
-			shares: Balance,
-		) -> Option<(Balance, Balance, Balance)> {
-			debug_assert!(is_nondust_balance(shares));
-			self.assert_slash_clean(user);
-
-			// It's tricky to deal with the fixed point precision loss. Generally we drop the dust
-			// shares, because shares are just a virtual value representing the ownership of a
-			// pool. However for balances, even the dust of 1 pico PHA must be absorbed.
-			//
-			// In StakePool, all the balances are PHA locked in user's account. Therefore once we
-			// want to absorb some dust, we have to withdraw the funds from the users' stake, and
-			// deposit it to the Treasury.
-			let price = self.share_price()?;
-			let amount = bmul(shares, &price);
-			// In case `amount` is a little bit larger than `free_stake` or `user.locked`. Note
-			// that it should never really exceed `user.locked` because we ask the caller to ensure
-			// the share to remove is not greater than user's shares.
-			let amount = amount.min(self.free_stake).min(user.locked);
-			// Remove shares and stake from the user record
-			let user_shares = user.shares.checked_sub(&shares)?;
-			let (user_shares, shares_dust) = extract_dust(user_shares);
-			let user_locked = user.locked.checked_sub(&amount)?;
-			let (user_locked, user_dust) = extract_dust(user_locked);
-			// Whenver we remove dust shares in user's account, we remove it in the total_shares
-			// as well. It keeps the invariant:
-			//   pool.total_shares == sum(pool_user.shares)
-			let removed_shares = shares + shares_dust;
-			let total_shares = self.total_shares.checked_sub(&removed_shares)?;
-			debug_assert!(
-				extract_dust(total_shares).1 == Zero::zero(),
-				"total_shares should never have dust"
-			);
-			// Apply updates
-			//
-			// Note that ideally we should maintain the invariant:
-			//   pool.total_stake == sum(pool_user.stake)
-			//
-			// When we extracted some dust, we should also deduct it from the total_stake. However,
-			// the invariant will be broken anyway when a pool got any slash settled. For example,
-			// when the total stake got slashed by 1 pico-PHA, the sum of pool users' stake will
-			// be always larger than total_stake.
-			//
-			// So we'd rather just don't deduct the the removed dust at all. Instead, we drop the
-			// dust in pool.total_stake after the user stake is removed. In other words, we always
-			// drop the dust in total_stake without more bookkeeping.
-			let (total_stake, _) = extract_dust(self.total_stake - amount);
-			if total_stake > Zero::zero() {
-				self.free_stake -= amount;
-				self.total_stake -= amount;
-			} else {
-				self.free_stake = Zero::zero();
-				self.total_stake = Zero::zero();
-			}
-			self.total_shares = total_shares;
-			user.shares = user_shares;
-			user.locked = user_locked;
-			Some((amount, user_dust, removed_shares))
-		}
-
 		/// Slashes the pool with dust removed.
 		fn slash(&mut self, amount: Balance) {
 			debug_assert!(
@@ -1563,7 +1714,7 @@ pub mod pallet {
 		}
 
 		/// Asserts there's no dirty slash (in debug profile only)
-		fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
+		pub fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
 			debug_assert!(
 				self.total_shares == Zero::zero()
 				// Due to the unstable fixed point share price, we cannot compare them directly
@@ -1594,8 +1745,28 @@ pub mod pallet {
 			Some(locked - new_locked)
 		}
 
+		/// Settles the pending slash for a pool user.
+		///
+		/// The slash is
+		///
+		/// Returns the slashed amount if succeeded, otherwise None.
+		fn settle_nft_slash(&self, nft: &mut NftAttr<Balance>) -> Option<Balance> {
+			let price = self.share_price()?;
+			let locked = nft.stakes;
+			let new_locked = bmul(nft.shares, &price);
+			// Double check the new_locked won't exceed the original locked
+			let new_locked = new_locked.min(locked);
+			// When only dust remaining in the pool, we include the dust in the slash amount
+			let (new_locked, _) = extract_dust(new_locked);
+			nft.stakes = new_locked;
+			// The actual slashed amount. Usually slash will only cause the share price decreasing.
+			// However in some edge case (i.e. the pool got slashed to 0 and then new contribution
+			// added), the locked amount may even become larger
+			Some(locked - new_locked)
+		}
+
 		/// Returns the price of one share, or None if no share at all.
-		fn share_price(&self) -> Option<FixedPoint> {
+		pub fn share_price(&self) -> Option<FixedPoint> {
 			self.total_stake
 				.to_fixed()
 				.checked_div(self.total_shares.to_fixed())
@@ -1623,7 +1794,12 @@ pub mod pallet {
 		}
 
 		/// Returns if the pool has expired withdrawal requests
-		fn has_expired_withdrawal(&self, now: u64, grace_period: u64, releasing_stake: Balance) -> bool {
+		fn has_expired_withdrawal(
+			&self,
+			now: u64,
+			grace_period: u64,
+			releasing_stake: Balance,
+		) -> bool {
 			debug_assert!(
 				self.free_stake == Zero::zero(),
 				"We really don't want to have free stake and withdraw requests at the same time"
@@ -1651,6 +1827,14 @@ pub mod pallet {
 			}
 			false
 		}
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
+	pub struct NftAttr<Balance> {
+		/// Shares that the Nft contains
+		pub shares: Balance,
+		/// the stakes of Shares at the moment Nft created or transfered
+		pub stakes: Balance,
 	}
 
 	/// A user's staking info
@@ -2053,7 +2237,7 @@ pub mod pallet {
 					0,
 					800 * DOLLARS
 				));
-				elapse_seconds(864000);				
+				elapse_seconds(864000);
 				assert_ok!(PhalaStakePool::stop_mining(
 					Origin::signed(1),
 					0,
@@ -2071,7 +2255,7 @@ pub mod pallet {
 					0,
 					500 * DOLLARS
 				));
-				elapse_seconds(864000);	
+				elapse_seconds(864000);
 				assert_ok!(PhalaStakePool::check_and_maybe_force_withdraw(
 					Origin::signed(3),
 					0
@@ -2334,8 +2518,8 @@ pub mod pallet {
 				assert_eq!(pool.total_stake, 250000000000000);
 				let mut staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let mut staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				PhalaStakePool::maybe_settle_slash(&pool, &mut staker1);
-				PhalaStakePool::maybe_settle_slash(&pool, &mut staker2);
+				//PhalaStakePool::maybe_settle_slash(&pool, &mut staker1);
+				//PhalaStakePool::maybe_settle_slash(&pool, &mut staker2);
 				StakePools::<Test>::insert(0, pool);
 				PoolStakers::<Test>::insert((0, 1), staker1);
 				PoolStakers::<Test>::insert((0, 2), staker2);
