@@ -76,13 +76,7 @@ where
     S: Serializer,
 {
     let root = trie.root();
-    let kvs: Vec<_> = trie
-        .backend_storage()
-        .clone()
-        .drain()
-        .into_iter()
-        .map(|it| it.1)
-        .collect();
+    let kvs: im::HashMap<_, _> = trie.backend_storage().clone().drain();
     (root, kvs).serialize(serializer)
 }
 
@@ -94,13 +88,9 @@ where
     H::Out: Codec + Deserialize<'de>,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
-    let mut mdb = MemoryDB::default();
-    for value in kvs {
-        for _ in 0..value.1 {
-            mdb.insert((&[], None), &value.0);
-        }
-    }
+    let (root, kvs): (H::Out, im::HashMap<_, (Vec<u8>, i32)>) =
+        Deserialize::deserialize(deserializer)?;
+    let mdb = MemoryDB::from_inner(kvs);
     let backend = TrieBackend::new(mdb, root);
     Ok(backend)
 }

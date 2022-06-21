@@ -184,6 +184,14 @@ where
         }
     }
 
+    /// Create a new `MemoryDB` from a given inner hash map.
+    pub fn from_inner(data: HashMap<KF::Key, (T, i32)>) -> Self {
+        MemoryDB {
+            data,
+            ..Default::default()
+        }
+    }
+
     /// Create a new instance of `Self`.
     pub fn new(data: &[u8]) -> Self {
         Self::from_null_node(data, data.into())
