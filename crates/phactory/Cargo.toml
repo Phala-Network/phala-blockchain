@@ -102,3 +102,4 @@ default = [
     "sp-io/disable_allocator",
 ]
 shadow-gk = []
+gk-stat = []
