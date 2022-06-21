@@ -761,6 +761,7 @@ pub struct WorkerKeyChallengePayload<BlockNumber> {
     // The challenge is only considered valid within 150 blocks (~30 min)
     pub block_number: BlockNumber,
     pub now: u64,
+    pub dev_mode: bool,
     pub nonce: [u8; 32],
 }
 

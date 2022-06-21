@@ -12,7 +12,7 @@ const { types, typeAlias } = require('./utils/typeoverride');
 
 const { Process, TempDir } = require('./utils/pm');
 const { PRuntimeApi } = require('./utils/pruntime');
-const { checkUntil, skipSlowTest } = require('./utils');
+const { checkUntil, skipSlowTest, sleep } = require('./utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
@@ -109,7 +109,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Gatekeeper', () => {
+    describe.skip('Gatekeeper', () => {
         it('pre-mines blocks', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getInfo();
@@ -159,7 +159,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Gatekeeper2', () => {
+    describe.skip('Gatekeeper2', () => {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
@@ -269,7 +269,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Master Key Rotation', () => {
+    describe.skip('Master Key Rotation', () => {
         it('can enable master key history sharing', async function () {
             await assert.txAccepted(
                 api.tx.sudo.sudo(
@@ -436,7 +436,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Gatekeeper3 after rotation', () => {
+    describe.skip('Gatekeeper3 after rotation', () => {
         it('can be registered after rotation', async function () {
             // Register worker3 as Gatekeeper
             const info = await pruntime[2].getInfo();
@@ -515,7 +515,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Cluster & Contract', () => {
+    describe.skip('Cluster & Contract', () => {
         let wasmFile = './res/flipper.wasm';
         let codeHash = hex('0x5b1f7f0b85908c168c0d0ca65efae0e916455bf527b8589d3e655311ec7b1f2c');
         let initSelector = hex('0xed4b9d1b'); // for default() function
@@ -610,17 +610,23 @@ describe('A full stack', function () {
 
     describe('Workerkey handover', () => {
         it('can handover worker key', async function () {
-            await cluster.createKeyHandoverClusterProcesses();
             await cluster.launchKeyHandoverAndWait();
-            const workers = cluster.key_handover_cluster.workers.map(w => w.api);
 
+            const workers = cluster.key_handover_cluster.workers.map(w => w.api);
             const server_info = await workers[0].getInfo();
+
+            assert.isTrue(await checkUntil(async () => {
+                const dataDir = "data";
+                return fs.existsSync(`${tmpPath}/pruntime_key_client/${dataDir}/runtime-data.seal`);
+            }, 6000), 'key not received');
+
+            await cluster.restartKeyHandoverClient();
             assert.isTrue(await checkUntil(async () => {
                 // info.publicKey can be null since client worker will be initiated after the finish of server worker syncing
                 let info = await workers[1].getInfo();
                 return info.publicKey != null
                     && hex(info.publicKey) == hex(server_info.publicKey);
-            }, 100 * 6000), 'key handover failed');
+            }, 6000), 'key handover failed');
         });
     });
 
@@ -947,8 +953,9 @@ class Cluster {
         w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
     }
 
-    async createKeyHandoverClusterProcesses() {
+    async launchKeyHandoverAndWait() {
         const cluster = this.key_handover_cluster;
+
         const [...workerPorts] = await Promise.all([
             ...cluster.workers.map(() => portfinder.getPortPromise({ port: 8001, stopPort: 9900 }))
         ]);
@@ -962,10 +969,7 @@ class Cluster {
         const gasAccountKey = '//Fredie';
         const key = '0'.repeat(62) + '10';
         cluster.relayer.processRelayer = newRelayer(this.wsPort, server.port, this.tmpPath, gasAccountKey, key, `pruntime_key_relayer`, client.port);
-    }
 
-    async launchKeyHandoverAndWait() {
-        const cluster = this.key_handover_cluster;
         await Promise.all([
             ...cluster.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
             waitRelayerOutput(cluster.relayer.processRelayer)
@@ -974,6 +978,31 @@ class Cluster {
         cluster.workers.forEach(w => {
             w.api = new PRuntimeApi(`http://localhost:${w.port}`);
         })
+    }
+
+    async restartKeyHandoverClient() {
+        const cluster = this.key_handover_cluster;
+
+        await Promise.all([
+            cluster.relayer.processRelayer.kill(),
+            ...cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
+        ]);
+        await checkUntil(async () => {
+            return cluster.workers[1].processPRuntime.stopped && cluster.relayer.processRelayer.stopped
+        }, 6000);
+
+        const client = cluster.workers[1];
+        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
+
+        const gasAccountKey = '//Fredie';
+        cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
+
+        await Promise.all([
+            waitPRuntimeOutput(client.processPRuntime),
+            waitRelayerOutput(cluster.relayer.processRelayer)
+        ]);
+
+        client.api = new PRuntimeApi(`http://localhost:${client.port}`);
     }
 
     // Returns false if waiting is timeout; otherwise it restarts the pherry and the key handover client

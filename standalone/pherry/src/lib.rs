@@ -1332,21 +1332,6 @@ async fn bridge(
                 let next_pr = pruntime_client::new_pruntime_client(
                     args.next_pruntime_endpoint.clone().unwrap(),
                 );
-                // init the next pRuntime to generate a temporary worker key for encrypted key handover
-                init_runtime(
-                    &Option::<headers_cache::Client>::None,
-                    &api,
-                    &para_api,
-                    &next_pr,
-                    true,
-                    false,
-                    &"",
-                    None,
-                    args.parachain,
-                    0,
-                )
-                .await?;
-
                 let challenge = pr.get_worker_key_challenge(()).await?;
                 let response = next_pr.handle_worker_key_challenge(challenge).await?;
                 let encrypted_key = pr.get_worker_key(response).await?;

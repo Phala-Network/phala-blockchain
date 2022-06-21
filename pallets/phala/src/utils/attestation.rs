@@ -97,6 +97,28 @@ fn extend_mrenclave(
 	t_mrenclave
 }
 
+pub fn extract_mrenclave(ra_report: &[u8]) -> Result<Vec<u8>, Error> {
+	let parsed_report: serde_json::Value =
+		serde_json::from_slice(ra_report).or(Err(Error::InvalidReport))?;
+
+	// Extract quote fields
+	let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
+		.as_str()
+		.ok_or(Error::UnknownQuoteBodyFormat)?;
+	let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
+	let mr_enclave = &quote_body[112..144];
+	let mr_signer = &quote_body[176..208];
+	let isv_prod_id = &quote_body[304..306];
+	let isv_svn = &quote_body[306..308];
+
+	Ok(extend_mrenclave(
+		mr_enclave,
+		mr_signer,
+		isv_prod_id,
+		isv_svn,
+	))
+}
+
 pub fn validate_ias_report(
 	report: &[u8],
 	signature: &[u8],
