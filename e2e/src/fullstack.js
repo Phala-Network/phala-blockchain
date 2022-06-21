@@ -109,7 +109,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Gatekeeper', () => {
+    describe('Gatekeeper', () => {
         it('pre-mines blocks', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getInfo();
@@ -159,7 +159,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Gatekeeper2', () => {
+    describe('Gatekeeper2', () => {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
@@ -269,7 +269,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Master Key Rotation', () => {
+    describe('Master Key Rotation', () => {
         it('can enable master key history sharing', async function () {
             await assert.txAccepted(
                 api.tx.sudo.sudo(
@@ -436,7 +436,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Gatekeeper3 after rotation', () => {
+    describe('Gatekeeper3 after rotation', () => {
         it('can be registered after rotation', async function () {
             // Register worker3 as Gatekeeper
             const info = await pruntime[2].getInfo();
@@ -515,7 +515,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Cluster & Contract', () => {
+    describe('Cluster & Contract', () => {
         let wasmFile = './res/flipper.wasm';
         let codeHash = hex('0x5b1f7f0b85908c168c0d0ca65efae0e916455bf527b8589d3e655311ec7b1f2c');
         let initSelector = hex('0xed4b9d1b'); // for default() function
