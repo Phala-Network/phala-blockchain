@@ -3674,6 +3674,7 @@ dependencies = [
  "env_logger",
  "log",
  "parity-scale-codec",
+ "phala-rocket-middleware",
  "pherry",
  "rocket",
  "rocksdb",
