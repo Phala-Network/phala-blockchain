@@ -238,6 +238,9 @@ where
     /// Consolidate all the entries of `other` into `self`.
     pub fn consolidate(&mut self, mut other: Self) {
         for (key, (value, rc)) in other.drain() {
+            if rc == 0 {
+                continue;
+            }
             match self.data.entry(key) {
                 Entry::Occupied(mut entry) => {
                     if entry.get().1 < 0 {
@@ -247,6 +250,11 @@ where
                     }
 
                     entry.get_mut().1 += rc;
+
+                    if entry.get().1 == 0 {
+                        let (value, _) = entry.remove();
+                        self.malloc_tracker.on_remove(&value);
+                    }
                 }
                 Entry::Vacant(entry) => {
                     self.malloc_tracker.on_insert(&value);
@@ -333,6 +341,10 @@ where
             Entry::Occupied(mut entry) => {
                 let &mut (_, ref mut rc) = entry.get_mut();
                 *rc -= 1;
+                if *rc == 0 {
+                    let (value, _) = entry.remove();
+                    self.malloc_tracker.on_remove(&value);
+                }
             }
             Entry::Vacant(entry) => {
                 let value = T::default();
@@ -433,6 +445,10 @@ where
             Entry::Occupied(mut entry) => {
                 let &mut (_, ref mut rc) = entry.get_mut();
                 *rc -= 1;
+                if *rc == 0 {
+                    let (value, _) = entry.remove();
+                    self.malloc_tracker.on_remove(&value);
+                }
             }
             Entry::Vacant(entry) => {
                 let value = T::default();
