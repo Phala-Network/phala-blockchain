@@ -1,9 +1,7 @@
 use log::info;
 use std::alloc::System;
 
-use phactory_pal::{
-    AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA,
-};
+use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
 use std::fs::File;
 use std::io::ErrorKind;
@@ -35,38 +33,6 @@ impl Sealing for GraminePlatform {
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
             other => other.map(Some),
         }
-    }
-}
-
-impl ProtectedFileSystem for GraminePlatform {
-    type IoError = std::io::Error;
-
-    type ReadFile = File;
-
-    type WriteFile = File;
-
-    fn open_protected_file(
-        &self,
-        path: impl AsRef<std::path::Path>,
-        _key: &[u8],
-    ) -> Result<Option<Self::ReadFile>, Self::IoError> {
-        let todo = "Kevin: Use the key to encrypt the file";
-        // We currently use the mrenclave protected fs to store the data, so no need to encrypt twice.
-        // Gramine has a plan to support set key for individual files. We can turn back to use the key
-        // once gramine finish the feature.
-
-        match std::fs::File::open(path) {
-            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
-            other => other.map(Some),
-        }
-    }
-
-    fn create_protected_file(
-        &self,
-        path: impl AsRef<std::path::Path>,
-        _key: &[u8],
-    ) -> Result<Self::WriteFile, Self::IoError> {
-        std::fs::File::create(path)
     }
 }
 
