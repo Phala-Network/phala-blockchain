@@ -3,7 +3,6 @@ use std::alloc::System;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
-use std::fs::File;
 use std::io::ErrorKind;
 use std::str::FromStr as _;
 

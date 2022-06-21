@@ -6,7 +6,8 @@ use im::{hashmap::Entry, HashMap};
 use parity_util_mem::{malloc_size, MallocSizeOf, MallocSizeOfOps};
 use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData, mem};
 
-use sp_state_machine::{backend::Consolidate, DBValue, DefaultError, TrieBackendStorage};
+use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
+use trie_db::DBValue;
 
 pub trait MaybeDebug: std::fmt::Debug {}
 impl<T: std::fmt::Debug> MaybeDebug for T {}
@@ -700,10 +701,7 @@ mod tests {
 
         main.consolidate(other);
 
-        assert_eq!(
-            main.raw(&remove_key, EMPTY_PREFIX).unwrap(),
-            (&"doggo".as_bytes().to_vec(), 0)
-        );
+        assert_eq!(main.raw(&remove_key, EMPTY_PREFIX), None);
         assert_eq!(
             main.raw(&insert_key, EMPTY_PREFIX).unwrap(),
             (&"arf".as_bytes().to_vec(), 2)

@@ -20,9 +20,6 @@ use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
 
-
-use sp_trie::HashDBT as _;
-
 /// Storage key.
 pub type StorageKey = Vec<u8>;
 
@@ -102,19 +99,9 @@ where
     H::Out: Codec,
 {
     let root = trie.root();
-    let kvs: Vec<_> = trie
+    let mdb = trie
         .backend_storage()
-        .clone()
-        .drain()
-        .into_iter()
-        .map(|it| it.1)
-        .collect();
-    let mut mdb = MemoryDB::default();
-    for value in kvs {
-        for _ in 0..value.1 {
-            mdb.insert((&[], None), &value.0);
-        }
-    }
+        .clone();
     TrieBackend::new(mdb, *root)
 }
 
