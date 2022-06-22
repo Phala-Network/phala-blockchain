@@ -1427,7 +1427,6 @@ pub mod pallet {
 						withdraw.user.clone(),
 						pool_info.pid.clone(),
 					).expect("merge nft should always success; qed.");
-					let mut nft = Self::get_nft_attr(collection_id, nft_id).expect("get nftattr should always success; qed.");
 					let mut withdraw_nft = Self::get_nft_attr(collection_id, withdraw.nft_id).expect("get nftattr should always success; qed.");
 					// Try to fulfill the withdraw requests as much as possible
 					let free_shares = if price == fp!(0) {
@@ -1448,13 +1447,10 @@ pub mod pallet {
 					Self::process_withdrawing_shares(
 						withdrawing_shares,
 						pool_info,
-						&mut nft,
+						&mut withdraw_nft,
 						nft_id,
 						withdraw.user.clone()
 					);
-					let (shares, _) = extract_dust(withdraw_nft.shares - withdrawing_shares);
-					withdraw_nft.shares = shares;
-					Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft).expect("set nftattr should always success; qed.");
 					Self::set_nft_attr(pool_info.pid.clone(), collection_id, withdraw.nft_id, &mut withdraw_nft).expect("set nftattr should always success; qed.");
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
