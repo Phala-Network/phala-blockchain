@@ -469,10 +469,10 @@ pub mod pallet {
 					.try_into()
 					.expect("create a bvec from string should never fail; qed.");
 			pallet_rmrk_core::Pallet::<T>::create_collection(
-				Origin::<T>::Signed(get_overlord_account()).into(), 
-				meta, 
-				None, 
-				symbol
+				Origin::<T>::Signed(get_overlord_account()).into(),
+				meta,
+				None,
+				symbol,
 			)?;
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 			PoolCollections::<T>::insert(pid, collection_id);
@@ -848,7 +848,8 @@ pub mod pallet {
 			}
 
 			// Persist
-			Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft).expect("set nft attr should always success; qed.");
+			Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft)
+				.expect("set nft attr should always success; qed.");
 			StakePools::<T>::insert(&pid, &pool_info);
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
@@ -885,7 +886,8 @@ pub mod pallet {
 				Error::<T>::InvalidWithdrawalAmount
 			);
 
-			Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft).expect("set nft attr should always success; qed.");
+			Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft)
+				.expect("set nft attr should always success; qed.");
 			StakePools::<T>::insert(&pid, &pool_info);
 
 			Ok(())
@@ -1055,7 +1057,8 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_and_lock_pool_nft(pool_info.pid.clone(), userid.clone(), shares, amount).expect("mint should always success; qed.");
+			Self::mint_and_lock_pool_nft(pool_info.pid.clone(), userid.clone(), shares, amount)
+				.expect("mint should always success; qed.");
 			pool_info.total_shares += shares;
 			pool_info.total_stake.saturating_accrue(amount);
 			pool_info.free_stake.saturating_accrue(amount);
@@ -1114,7 +1117,7 @@ pub mod pallet {
 			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(collection_id);
 
 			pallet_rmrk_core::Pallet::<T>::mint_nft(
-				Origin::<T>::Signed(get_overlord_account()).into(), 
+				Origin::<T>::Signed(get_overlord_account()).into(),
 				contributer,
 				collection_id,
 				None,
@@ -1157,7 +1160,7 @@ pub mod pallet {
 			let mut total_stakes: BalanceOf<T> = Zero::zero();
 			let mut total_shares: BalanceOf<T> = Zero::zero();
 			if nftid_arr.len() == 1 {
-				return Ok(nftid_arr[0])
+				return Ok(nftid_arr[0]);
 			}
 			for nftid in &nftid_arr {
 				let nft = pallet_rmrk_core::Nfts::<T>::get(collection_id, nftid)
@@ -1173,7 +1176,7 @@ pub mod pallet {
 				total_shares += property.shares;
 				Self::unlock_and_burn_nft(pid, *nftid)?;
 			}
-			
+
 			Self::mint_and_lock_pool_nft(pid, staker, total_shares, total_stakes)
 		}
 
@@ -1181,8 +1184,11 @@ pub mod pallet {
 			collection_id: CollectionId,
 			nft_id: NftId,
 		) -> Result<NftAttr<BalanceOf<T>>, DispatchError> {
-			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> =
-				("key").as_bytes().to_vec().try_into().expect("str coverts to bvec should never fail; qed.");
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = ("key")
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
 			let raw_value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				pallet_rmrk_core::Pallet::<T>::properties((collection_id, Some(nft_id), key))
 					.ok_or(Error::<T>::MissCollectionId)?;
@@ -1202,7 +1208,7 @@ pub mod pallet {
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				attr_bit.try_into().unwrap();
 			pallet_uniques::Pallet::<T>::set_attribute(
-				Origin::<T>::Signed(get_overlord_account()).into(), 
+				Origin::<T>::Signed(get_overlord_account()).into(),
 				collection_id,
 				Some(nft_id),
 				key,
@@ -1308,7 +1314,8 @@ pub mod pallet {
 			let (withdrawing_shares, _) = extract_dust(withdrawing_shares);
 			let queued_shares = shares - withdrawing_shares;
 			let (queued_shares, _) = extract_dust(queued_shares);
-			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone()).expect("pool collection_id should always be founded; qed.");
+			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
+				.expect("pool collection_id should always be founded; qed.");
 			// Try withdraw immediately if we can
 			if withdrawing_shares > Zero::zero() {
 				Self::process_withdrawing_shares(
@@ -1316,7 +1323,7 @@ pub mod pallet {
 					pool_info,
 					nft,
 					nft_id,
-					userid.clone()
+					userid.clone(),
 				);
 			}
 			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
@@ -1332,29 +1339,35 @@ pub mod pallet {
 				pool_info.withdraw_queue = new_withdraw_queue;
 				for withdrawinfo in &single_nft {
 					pallet_rmrk_core::Pallet::<T>::send(
-						Origin::<T>::Signed(get_overlord_account()).into(), 
+						Origin::<T>::Signed(get_overlord_account()).into(),
 						collection_id,
 						withdrawinfo.nft_id,
-						rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(withdrawinfo.user.clone())
-					).expect("transfer nft shares should always success; qed.");
-					break
+						rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(
+							withdrawinfo.user.clone(),
+						),
+					)
+					.expect("transfer nft shares should always success; qed.");
+					break;
 				}
 
-				let price = pool_info.share_price().expect("In withdraw case, price should always exists;");
+				let price = pool_info
+					.share_price()
+					.expect("In withdraw case, price should always exists;");
 
 				let split_nft_id = Self::mint_and_lock_pool_nft(
 					pool_info.pid,
 					get_overlord_account(),
 					queued_shares,
 					bdiv(queued_shares, &price),
-				).expect("mint nft should always success");
+				)
+				.expect("mint nft should always success");
 
 				Self::process_withdrawing_shares(
 					queued_shares,
 					pool_info,
 					nft,
 					nft_id,
-					userid.clone()
+					userid.clone(),
 				);
 				// Push the request
 				let now = <T as registry::Config>::UnixTime::now()
@@ -1411,7 +1424,6 @@ pub mod pallet {
 				None => return,
 			};
 
-
 			while is_nondust_balance(pool_info.free_stake) {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
@@ -1426,8 +1438,10 @@ pub mod pallet {
 					let nft_id = Self::merge_or_init_nft_for_staker(
 						withdraw.user.clone(),
 						pool_info.pid.clone(),
-					).expect("merge nft should always success; qed.");
-					let mut withdraw_nft = Self::get_nft_attr(collection_id, withdraw.nft_id).expect("get nftattr should always success; qed.");
+					)
+					.expect("merge nft should always success; qed.");
+					let mut withdraw_nft = Self::get_nft_attr(collection_id, withdraw.nft_id)
+						.expect("get nftattr should always success; qed.");
 					// Try to fulfill the withdraw requests as much as possible
 					let free_shares = if price == fp!(0) {
 						withdraw_nft.shares // 100% slashed
@@ -1449,9 +1463,15 @@ pub mod pallet {
 						pool_info,
 						&mut withdraw_nft,
 						nft_id,
-						withdraw.user.clone()
+						withdraw.user.clone(),
 					);
-					Self::set_nft_attr(pool_info.pid.clone(), collection_id, withdraw.nft_id, &mut withdraw_nft).expect("set nftattr should always success; qed.");
+					Self::set_nft_attr(
+						pool_info.pid.clone(),
+						collection_id,
+						withdraw.nft_id,
+						&mut withdraw_nft,
+					)
+					.expect("set nftattr should always success; qed.");
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
 					if withdraw_nft.shares == Zero::zero() {
@@ -1499,8 +1519,10 @@ pub mod pallet {
 			};
 			let mut budget = pool_info.free_stake + releasing_stake;
 			for request in &pool_info.withdraw_queue {
-				let collection_id = PoolCollections::<T>::get(pool_info.pid.clone()).expect("get pool collection_id should always success; qed.");
-				let withdraw_nft = Self::get_nft_attr(collection_id, request.nft_id).expect("get nftattr should always success; qed.");
+				let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
+					.expect("get pool collection_id should always success; qed.");
+				let withdraw_nft = Self::get_nft_attr(collection_id, request.nft_id)
+					.expect("get nftattr should always success; qed.");
 				let amount = bmul(withdraw_nft.shares, &price);
 				if amount > budget {
 					// Run out of budget, let's check if the request is still in the grace period
@@ -1836,7 +1858,6 @@ pub mod pallet {
 		fn remove_cd_worker(&mut self, worker: &WorkerPublicKey) {
 			self.cd_workers.retain(|w| w != worker);
 		}
-
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
