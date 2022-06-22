@@ -8,8 +8,8 @@ use std::{env, thread};
 use clap::{AppSettings, Parser};
 use log::{error, info};
 
-use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory::BlockNumber;
+use phactory_api::ecall_args::{git_revision, InitArgs};
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
@@ -44,11 +44,11 @@ struct Args {
 
     /// Listening port of HTTP
     #[clap(long)]
-    port: Option<String>,
+    port: Option<u16>,
 
     /// Listening port of HTTP (with access control)
     #[clap(long)]
-    port_acl: Option<u16>,
+    public_port: Option<u16>,
 
     /// Disable checkpoint
     #[clap(long)]
@@ -105,11 +105,13 @@ async fn main() -> Result<(), rocket::Error> {
     }
 
     if let Some(port) = &args.port {
-        env::set_var("ROCKET_PORT", port);
+        env::set_var("ROCKET_PORT", port.to_string());
     }
 
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
-    env_logger::Builder::from_env(env).format_timestamp_micros().init();
+    env_logger::Builder::from_env(env)
+        .format_timestamp_micros()
+        .init();
 
     let init_args = {
         let args = args.clone();
@@ -150,7 +152,7 @@ async fn main() -> Result<(), rocket::Error> {
 
     let mut servers = vec![];
 
-    if args.clone().port_acl.is_some() {
+    if args.clone().public_port.is_some() {
         let args_clone = args.clone();
         let server_acl = rocket::tokio::spawn(async move {
             api_server::rocket_acl(&args_clone)

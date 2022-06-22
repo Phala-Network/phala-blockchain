@@ -1,6 +1,7 @@
 use std::str;
 
 use rocket::data::Data;
+use rocket::data::{Limits, ToByteUnit};
 use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
@@ -8,7 +9,6 @@ use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::Phase;
 use rocket::{get, post, routes};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
-use rocket::data::{Limits, ToByteUnit};
 
 use colored::Colorize as _;
 use log::{debug, error, info};
@@ -142,7 +142,7 @@ async fn prpc_proxy(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
 #[post("/<method>", data = "<data>")]
 async fn prpc_proxy_acl(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
-    let permitted_method: [&str; 1] = ["contract_query"];
+    let permitted_method: [&str; 2] = ["contract_query", "get_info"];
     if !permitted_method.contains(&&method[..]) {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);
@@ -232,27 +232,26 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
     server
 }
 
-// api endpoint with access control, will be exposed to the public
+/// api endpoint with access control, will be exposed to the public
 pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase>> {
-    let port_acl: u16 = if args.port_acl.is_some() {
-        args.port_acl.expect("port_acl should be set")
+    let public_port: u16 = if args.public_port.is_some() {
+        args.public_port.expect("public_port should be set")
     } else {
         return None;
     };
 
     let figment = rocket::Config::figment()
         .merge(("address", "0.0.0.0"))
-        .merge(("port", port_acl))
+        .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(figment)
-        .mount(
-            "/",
-            proxy_routes![
-                (get, "/get_info", get_info, actions::ACTION_GET_INFO),
-                (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
-            ],
-        );
+    let mut server_acl = rocket::custom(figment).mount(
+        "/",
+        proxy_routes![
+            (get, "/get_info", get_info, actions::ACTION_GET_INFO),
+            (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
+        ],
+    );
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
 
@@ -264,6 +263,6 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
             .attach(cors_options().to_cors().expect("To not fail"))
             .manage(cors_options().to_cors().expect("To not fail"));
     }
-    
+
     Some(server_acl)
 }

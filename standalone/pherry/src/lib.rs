@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
 use sp_runtime::generic::Era;
 use std::cmp;
+use std::convert::TryInto;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -68,10 +69,7 @@ struct Args {
     #[clap(long, help = "Skip registering the worker.")]
     no_register: bool,
 
-    #[clap(
-        long, 
-        help = "Skip binding the worker endpoint."
-    )]
+    #[clap(long, help = "Skip binding the worker endpoint.")]
     no_bind: bool,
 
     #[clap(
@@ -901,7 +899,8 @@ async fn init_runtime(
     Ok(resp)
 }
 
-async fn bind_worker_endpoint(
+async fn update_worker_endpoint(
+    pubkey: &Vec<u8>,
     para_api: &ParachainApi,
     encoded_versioned_endpoint: Vec<u8>,
     signature: Vec<u8>,
@@ -915,29 +914,45 @@ async fn bind_worker_endpoint(
     let ret = para_api
         .tx()
         .phala_registry()
-        .bind_worker_endpoint(versioned_endpoint, signature)?
+        .update_worker_endpoint(
+            phaxt::khala::runtime_types::sp_core::sr25519::Public(
+                pubkey
+                    .clone()
+                    .try_into()
+                    .expect("public key should be able to convert to [u8; 32]"),
+            ),
+            versioned_endpoint,
+            signature,
+        )?
         .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {
         error!("FailedToCallBindWorkerEndpoint: {:?}", ret);
-        return Err(anyhow!("failed to call bind_worker_endpoint"));
+        return Err(anyhow!("failed to call update_worker_endpoint"));
     }
     signer.increment_nonce();
     Ok(())
 }
 
-async fn try_bind_worker_endpoint(
+async fn try_update_worker_endpoint(
+    pubkey: &Vec<u8>,
     pr: &PrClient,
     para_api: &ParachainApi,
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<()> {
-    let info = pr
-        .get_endpoint_info(())
-        .await?;
+    let info = pr.get_endpoint_info(()).await?;
     if let Some(signature) = info.signature {
         info!("Binding worker's endpoint...");
-        bind_worker_endpoint(&para_api, info.encoded_versioned_endpoint, signature, signer, args).await?;
+        update_worker_endpoint(
+            &pubkey,
+            &para_api,
+            info.encoded_versioned_endpoint,
+            signature,
+            signer,
+            args,
+        )
+        .await?;
         return Ok(());
     };
 
@@ -1140,12 +1155,15 @@ async fn bridge(
             flags.worker_registered = true;
         }
         // try bind worker endpoint
-        if !args.no_bind {
-            // Here the reason we dont directly report errors when `try_bind_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-            match try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await {
+        if !args.no_bind && info.public_key.is_some() {
+            let public_key = hex::decode(&info.public_key.expect("public_key should be set"))
+                .expect("public_key should be hex");
+            // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+            match try_update_worker_endpoint(&public_key, &pr, &para_api, &mut signer, &args).await
+            {
                 Ok(_) => {
                     flags.endpoint_registered = true;
-                },
+                }
                 Err(e) => {
                     error!("FailedToCallBindWorkerEndpoint: {:?}", e);
                 }
@@ -1316,12 +1334,23 @@ async fn bridge(
             }
 
             if !args.no_bind {
-                if !flags.endpoint_registered {
-                    // Here the reason we dont directly report errors when `try_bind_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-                    match try_bind_worker_endpoint(&pr, &para_api, &mut signer, &args).await {
+                if !flags.endpoint_registered && info.public_key.is_some() {
+                    let public_key =
+                        hex::decode(&info.public_key.expect("public_key should be set"))
+                            .expect("public_key should be hex");
+                    // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+                    match try_update_worker_endpoint(
+                        &public_key,
+                        &pr,
+                        &para_api,
+                        &mut signer,
+                        &args,
+                    )
+                    .await
+                    {
                         Ok(_) => {
                             flags.endpoint_registered = true;
-                        },
+                        }
                         Err(e) => {
                             error!("FailedToCallBindWorkerEndpoint: {:?}", e);
                         }

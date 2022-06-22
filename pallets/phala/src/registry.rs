@@ -27,9 +27,9 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo, VersionedWorkerEndpoint,
-		worker_endpoint_v1::{ WorkerEndpoint }
+		worker_endpoint_v1::WorkerEndpoint,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
+		VersionedWorkerEndpoint, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -119,7 +119,7 @@ pub mod pallet {
 	/// Mapping from worker pubkey to Phala Network identity
 	#[pallet::storage]
 	pub type Endpoints<T: Config> =
-	StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
+		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
 
 	#[pallet::event]
 	pub enum Event<T: Config> {
@@ -356,9 +356,10 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn bind_worker_endpoint(
+		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
-			versioned_endpoint: VersionedWorkerEndpoint,
+			pubkey: WorkerPublicKey,
+			versioned_endpoints: VersionedWorkerEndpoint,
 			signature: Vec<u8>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -367,18 +368,7 @@ pub mod pallet {
 			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
-			let encoded_data = versioned_endpoint.clone().encode();
-
-			let pubkey = match versioned_endpoint.clone() {
-				VersionedWorkerEndpoint::V1(endpoint) => match endpoint {
-					WorkerEndpoint::I2P(i2p_endpoint) => {
-						i2p_endpoint.pubkey
-					}
-					WorkerEndpoint::Http(http_endpoint) => {
-						http_endpoint.pubkey
-					}
-				},
-			};
+			let encoded_data = versioned_endpoints.clone().encode();
 
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &pubkey),
@@ -386,7 +376,7 @@ pub mod pallet {
 			);
 
 			Endpoints::<T>::mutate(pubkey, |v| {
-				*v = Some(versioned_endpoint);
+				*v = Some(versioned_endpoints);
 			});
 
 			Ok(())

@@ -126,18 +126,18 @@ pub fn init_prouter_conf(
     }
 
     let address = conf
-        .section(Some("httpproxy"))
-        .expect("httpproxy should exist")
+        .section(Some("socksproxy"))
+        .expect("socksproxy should exist")
         .get("address")
-        .expect("httpproxy.address should exist");
+        .expect("socksproxy.address should exist");
     let port = conf
-        .section(Some("httpproxy"))
-        .expect("httpproxy should exist")
+        .section(Some("socksproxy"))
+        .expect("socksproxy should exist")
         .get("port")
-        .expect("httpproxy.port should exist");
+        .expect("socksproxy.port should exist");
     conf.write_to_file(conf_path.clone())?;
 
-    Ok((conf_path, format!("http://{}:{}", address, port)))
+    Ok((conf_path, format!("{}:{}", address, port)))
 }
 
 pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {

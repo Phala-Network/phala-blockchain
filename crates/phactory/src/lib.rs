@@ -47,17 +47,17 @@ use phala_crypto::{
 use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
-use phala_types::{WorkerRegistrationInfo, VersionedWorkerEndpoint};
+use phala_types::{VersionedWorkerEndpoint, WorkerRegistrationInfo};
 use std::time::Instant;
 use types::Error;
 
+pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::dispatch_prpc_request;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
-pub use chain::BlockNumber;
 
 pub mod benchmark;
 
@@ -213,7 +213,7 @@ enum RuntimeDataSeal {
 }
 
 #[derive(Clone)]
-struct EndpointInfo {
+struct SignedEndpointInfo {
     versioned_endpoint: VersionedWorkerEndpoint,
     signature: Option<Vec<u8>>,
 }
@@ -230,7 +230,7 @@ pub struct Phactory<Platform> {
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
     #[serde(skip)]
-    endpoint_info: Option<EndpointInfo>,
+    endpoint_info: Option<SignedEndpointInfo>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,

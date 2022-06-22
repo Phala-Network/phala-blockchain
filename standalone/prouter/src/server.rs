@@ -1,150 +1,179 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context};
+use fast_socks5::{
+    client::{self, Socks5Stream},
+    server::{Config, SimpleUserPassword, Socks5Server, Socks5Socket},
+    util::target_addr::TargetAddr,
+    Result, SocksError,
+};
 use log::{debug, error, info};
 
-use rocket::config::Limits;
-use rocket::http::Method;
-use rocket_contrib::json::Json;
-use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
-use std::io::Read;
+use std::convert::TryInto;
+use std::io::ErrorKind;
+use std::net::ToSocketAddrs;
+use structopt::StructOpt;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::task;
+use tokio_stream::StreamExt;
 
 use phala_types::EndpointType;
 
+use binascii::b32decode;
+
 use crate::translator;
-use crate::types;
 
-use rocket::post;
-
-struct PRouterState {
-    local_proxy: String,
-    para_api: super::SharedParachainApi,
-}
-
-fn cors_options() -> CorsOptions {
-    let allowed_origins = AllowedOrigins::all();
-    let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
-        .into_iter()
-        .map(From::from)
-        .collect();
-
-    // You can also deserialize this
-    rocket_cors::CorsOptions {
-        allowed_origins,
-        allowed_methods,
-        allowed_headers: AllowedHeaders::all(),
-        allow_credentials: true,
-        ..Default::default()
-    }
-}
-
-fn send_data(
-    target_endpoint_type: EndpointType,
-    target_endpoint: &Vec<u8>,
-    path: &String,
-    method: &types::PRouterRequestMethod,
-    data: &Vec<u8>,
-    local_proxy: &String,
-) -> Result<Vec<u8>> {
-    let mut endpoint_str = String::from_utf8_lossy(target_endpoint).into_owned();
-
-    let mut client_builder = reqwest::blocking::Client::builder();
-    if matches!(EndpointType::I2P, target_endpoint_type) {
-        client_builder = client_builder.proxy(reqwest::Proxy::http(local_proxy)?);
-    }
-    let client = client_builder.build()?;
-    let target_endpoint_url = format!("{}{}", endpoint_str, path);
-
-    debug!(
-        "PRouter send data to {}, method: {:?}",
-        &target_endpoint_url, &method
-    );
-
-    let mut res = match method {
-        types::PRouterRequestMethod::GET => client.get(target_endpoint_url).send()?,
-        types::PRouterRequestMethod::POST => {
-            client.post(target_endpoint_url).body(data.clone()).send()?
-        }
-    };
-
-    if res.status().is_success() {
-        let mut msg = Vec::new();
-        res.read_to_end(&mut msg)?;
-        Ok(msg)
-    } else {
-        Err(anyhow::Error::msg(res.status()))
-    }
-}
-
-// by posting to this endpoint, data will be routed to the target endpoint
-#[post("/json/send_data", format = "json", data = "<prouter_send_json>")]
-fn json_send_data(
-    prouter_state: rocket::State<PRouterState>,
-    prouter_send_json: Json<types::PRouterSendJsonRequest>,
-) -> Json<types::PRouterSendJsonResponse> {
-    debug!("{:?}", &prouter_send_json);
-    let Json(prouter_send_data) = prouter_send_json;
-    let mut response = types::PRouterSendJsonResponse {
-        status: 0,
-        msg: Default::default(),
-    };
-
-    let para_api = prouter_state.para_api.lock().unwrap();
-    // TODO(soptq): Query storage from the chain RPC might be slow sometime, which might impact the performance of our i2p data transfer speed.
-    match translator::block_get_endpoint_info_by_pubkey(
-        &mut para_api.as_ref().expect("guaranteed to be initialized"),
-        prouter_send_data.target_pubkey,
-    )
-    .ok_or(anyhow!("Failed to fetch on-chain storage"))
-    {
-        Ok((endpoint_type, endpoint)) => {
-            match send_data(
-                endpoint_type,
-                &endpoint,
-                &prouter_send_data.path,
-                &prouter_send_data.method,
-                &prouter_send_data.data,
-                &prouter_state.local_proxy,
-            ) {
-                Ok(msg) => {
-                    response.msg = msg;
-                }
-                Err(e) => {
-                    error!("send_data error: {}", e);
-                    response.status = 1;
-                }
-            }
-        }
-        Err(e) => {
-            error!("json_send_data error: {}", e);
-            response.status = 1;
-        }
-    }
-
-    Json(response)
-}
-
-pub fn rocket(
+pub async fn spawn_socks_server(
     local_proxy: String,
     para_api: super::SharedParachainApi,
     server_address: String,
     server_port: u16,
-) -> rocket::Rocket {
-    let cfg = rocket::config::Config::build(rocket::config::Environment::active().unwrap())
-        .address(server_address)
-        .port(server_port)
-        .limits(Limits::new().limit("json", 104857600))
-        .expect("Config should be build with no erros");
+) -> Result<()> {
+    let mut config = Config::default();
+    config.set_dns_resolve(false);
+    config.set_transfer_data(false);
 
-    let prouter_state = PRouterState {
-        local_proxy,
-        para_api,
-    };
+    let mut listener = Socks5Server::bind(format!("{}:{}", &server_address, &server_port)).await?;
+    listener.set_config(config);
 
-    let server = rocket::custom(cfg)
-        .manage(prouter_state)
-        .mount("/", rocket::routes!(json_send_data));
-    info!("Allow CORS");
-    server
-        .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
-        .attach(cors_options().to_cors().expect("To not fail"))
-        .manage(cors_options().to_cors().expect("To not fail"))
+    let mut incoming = listener.incoming();
+
+    info!(
+        "Listen for socks connections @ {}:{}, using proxy @ {}",
+        &server_address, &server_port, &local_proxy
+    );
+
+    while let Some(socket_res) = incoming.next().await {
+        match socket_res {
+            Ok(socket) => {
+                let proxy_addr = local_proxy.clone();
+                let para_api = para_api.clone();
+                task::spawn(async move {
+                    if let Err(err) = handle_socket(socket, proxy_addr, para_api).await {
+                        error!("socket handle error = {:#}", err);
+                    }
+                });
+            }
+            Err(err) => {
+                error!("accept error = {:#}", err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_socket<T>(
+    socket: Socks5Socket<T>,
+    proxy_addr: String,
+    para_api: super::SharedParachainApi,
+) -> Result<()>
+where
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    // upgrade socket to SOCKS5 proxy
+    let mut socks5_socket = socket
+        .upgrade_to_socks5()
+        .await
+        .context("upgrade incoming socket to socks5")?;
+
+    let unresolved_target_addr = socks5_socket
+        .target_addr()
+        .context("find unresolved target address for incoming socket")?;
+
+    debug!(
+        "incoming request for target address: {}",
+        unresolved_target_addr
+    );
+
+    let (target_addr, target_port) =
+        resolve_domain(unresolved_target_addr.clone(), para_api.clone()).await?;
+
+    debug!(
+        "incoming request resolved target address to: {}:{}",
+        target_addr, target_port
+    );
+
+    // connect to downstream proxy
+    let mut stream = Socks5Stream::connect(
+        proxy_addr,
+        target_addr,
+        target_port,
+        client::Config::default(),
+    )
+    .await
+    .context("connect to downstream proxy for incoming socket")?;
+
+    // copy data between our incoming client and the used downstream proxy
+    match tokio::io::copy_bidirectional(&mut stream, &mut socks5_socket).await {
+        Ok(res) => {
+            info!("socket transfer closed ({}, {})", res.0, res.1);
+            Ok(())
+        }
+        Err(err) => match err.kind() {
+            ErrorKind::NotConnected => {
+                info!("socket transfer closed by client");
+                Ok(())
+            }
+            ErrorKind::ConnectionReset => {
+                info!("socket transfer closed by downstream proxy");
+                Ok(())
+            }
+            _ => Err(SocksError::Other(anyhow!(
+                "socket transfer error: {:#}",
+                err
+            ))),
+        },
+    }
+}
+
+async fn resolve_domain(
+    target_addr: TargetAddr,
+    para_api: super::SharedParachainApi,
+) -> Result<(String, u16)> {
+    match target_addr {
+        TargetAddr::Ip(ip) => Ok((ip.ip().to_string(), ip.port())),
+        TargetAddr::Domain(domain, port) => {
+            debug!("Attempt to resolve the domain {}", &domain);
+            // if it ends with `.i2p`, it is a I2P domain
+            if domain.ends_with(".i2p") {
+                // if it ends with `phala.i2p`, it is a phala domain
+                if domain.ends_with("phala.i2p") {
+                    let b32_pubkey = domain.split(".").collect::<Vec<&str>>()[0];
+                    debug!("Attempt to resolve encoded phala domain {}", &domain);
+                    let mut output_buffer = [0u8; 64];
+                    let decoded_pubkey = b32decode(&b32_pubkey.as_bytes(), &mut output_buffer)
+                        .map_err(|e| anyhow!("Failed to decode the pubkey"))
+                        .context("Decode phala domain")?;
+                    let mut endpoint_str = String::new();
+                    {
+                        let para_api = para_api.lock().unwrap();
+                        let endpoint = translator::block_get_endpoint_info_by_pubkey(
+                            &mut para_api.as_ref().expect("guaranteed to be initialized"),
+                            decoded_pubkey
+                                .try_into()
+                                .map_err(|e| anyhow!("Failed to convert pubkey to endpoint: {}", e))
+                                .expect("guaranteed to be a valid pubkey"),
+                            EndpointType::I2P,
+                        )
+                        .ok_or(anyhow!("Failed to fetch on-chain storage"))
+                        .context("Fetch on-chain storage")?;
+                        endpoint_str = String::from_utf8_lossy(&endpoint).into_owned();
+                    }
+                    let endpoint_url = endpoint_str.split(":").collect::<Vec<&str>>()[0];
+                    let endpoint_port = endpoint_str.split(":").collect::<Vec<&str>>()[1];
+                    debug!("Resolved phala domain {}:{}", &endpoint_url, &endpoint_port);
+
+                    return Ok((
+                        endpoint_url.to_string(),
+                        endpoint_port
+                            .parse::<u16>()
+                            .ok()
+                            .expect("guaranteed to be a valid port"),
+                    ));
+                };
+                return Ok((domain, port));
+            };
+
+            Ok((domain, port))
+        }
+    }
 }

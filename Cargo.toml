@@ -28,9 +28,9 @@ exclude = [
 	"ring",
 	"native-nostd-hasher",
 	"standalone/pruntime",
-	"standalone/prouter",
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
+	"standalone/prouter",
 ]
 
 members = [

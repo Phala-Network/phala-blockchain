@@ -3,9 +3,9 @@ extern crate alloc;
 
 pub mod contract;
 
-use alloc::vec::Vec;
 use alloc::str::FromStr;
 use alloc::string::ParseError;
+use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
 use scale_info::TypeInfo;
@@ -683,7 +683,7 @@ impl FromStr for EndpointType {
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub enum VersionedWorkerEndpoint {
-    V1(worker_endpoint_v1::WorkerEndpoint)
+    V1(Vec<worker_endpoint_v1::WorkerEndpoint>),
 }
 
 pub mod worker_endpoint_v1 {
@@ -695,13 +695,12 @@ pub mod worker_endpoint_v1 {
 
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub enum WorkerEndpoint {
-        I2P(PhalaEndpointInfo),
-        Http(PhalaEndpointInfo)
+        I2P(EndpointInfo),
+        Http(EndpointInfo),
     }
 
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-    pub struct PhalaEndpointInfo {
-        pub pubkey: WorkerPublicKey,
+    pub struct EndpointInfo {
         pub endpoint: Vec<u8>,
     }
 }

@@ -13,13 +13,17 @@ fn main() -> std::io::Result<()> {
         .env("USE_STATIC", "yes")
         .arg("wrapper")
         .current_dir(&i2pd_directory)
-        .status().expect("i2pd should be compiled with no error");
+        .status()
+        .expect("i2pd should be compiled with no error");
 
     // Link i2pd library
     // #cgo CXXFLAGS: -I${SRCDIR}/../i18n -I${SRCDIR}/../libi2pd_client -I${SRCDIR}/../libi2pd -g -Wall -Wextra -Wno-unused-parameter -pedantic -Wno-psabi -fPIC -D__AES__ -maes
     // #cgo LDFLAGS: -L${SRCDIR}/../ -l:libi2pd.a -l:libi2pdlang.a -latomic -lcrypto -lssl -lz -lboost_system -lboost_date_time -lboost_filesystem -lboost_program_options -lpthread -lstdc++
     println!("cargo:rustc-link-search=native=/usr/lib/");
-    println!("cargo:rustc-link-search=native={}/", &i2pd_directory.display());
+    println!(
+        "cargo:rustc-link-search=native={}/",
+        &i2pd_directory.display()
+    );
 
     println!("cargo:rustc-link-lib=static=i2pdwrapper");
     println!("cargo:rustc-link-lib=static=i2pd");

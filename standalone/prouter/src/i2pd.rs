@@ -391,8 +391,8 @@ impl I2pd {
             return Err(anyhow!("The ident returned from C is corrupted"));
         }
 
-        let ident = string_from_c_char(buf.as_ptr())
-            .expect("The ident returned from C is corrupted");
+        let ident =
+            string_from_c_char(buf.as_ptr()).expect("The ident returned from C is corrupted");
 
         Ok(TunnelInfo("HTTP Proxy".to_string(), ident))
     }
@@ -408,8 +408,8 @@ impl I2pd {
             return Err(anyhow!("The ident returned from C is corrupted"));
         }
 
-        let ident = string_from_c_char(buf.as_ptr())
-            .expect("The ident returned from C is corrupted");
+        let ident =
+            string_from_c_char(buf.as_ptr()).expect("The ident returned from C is corrupted");
 
         Ok(TunnelInfo("SOCKS Proxy".to_string(), ident))
     }

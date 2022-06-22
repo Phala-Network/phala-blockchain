@@ -1,10 +1,10 @@
 #![feature(decl_macro)]
+#![feature(async_closure)]
 
 mod config;
 mod i2pd;
 mod server;
 mod translator;
-mod types;
 mod utils;
 
 use std::sync::{Arc, Mutex};
@@ -495,17 +495,16 @@ async fn main() {
         .expect("prouter_main should be ok");
     let server_address = args.server_address.clone();
     let server_port = args.server_port.clone();
-    let _rocket = thread::Builder::new()
-        .name("rocket".into())
-        .spawn(move || {
-            server::rocket(local_proxy, para_api.clone(), server_address, server_port).launch();
-        })
-        .expect("Failed to launch Rocket");
-    match prouter_daemon(&args, &i2pd).await {
-        Ok(()) => {
-            std::process::exit(0);
-        }
-        Err(e) => panic!("Fetal error: {:?}", e),
+
+    select! {
+        _ = server::spawn_socks_server(local_proxy, para_api.clone(), server_address, server_port) => {},
+        ret = prouter_daemon(&args, &i2pd) => {
+            match ret {
+                Ok(_) => {
+                    std::process::exit(0);
+                },
+                Err(e) => panic!("Fetal error: {:?}", e),
+            }
+        },
     };
-    let _ = _rocket.join();
 }
