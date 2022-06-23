@@ -1094,7 +1094,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .map_err(from_display)?;
         let iv = crate::generate_random_iv();
         let (ecdh_pubkey, encrypted_key) = key_share::encrypt_key_to(
-            (*my_identity_key).clone(),
+            &my_identity_key,
             &[b"worker_key_handover"],
             &ecdh_pubkey.0,
             &my_identity_key.dump_secret_key(),

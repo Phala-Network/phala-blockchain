@@ -2,7 +2,7 @@ use super::{TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_fat::ClusterRegistryEvent;
 use chain::pallet_registry::GKRegistryEvent;
 use phala_crypto::{
-    aead, ecdh,
+    aead, key_share,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
 };
 use phala_mq::{traits::MessageChannel, MessageDispatcher, Sr25519Signer};
@@ -168,7 +168,7 @@ where
         let hash = hashing::blake2_256(buf.as_ref());
         hash[0..12]
             .try_into()
-            .expect("should never fail given correct length; qed;")
+            .expect("should never fail given correct length; qed.")
     }
 
     pub fn register_on_chain(&mut self) {
@@ -278,7 +278,7 @@ where
             .into_iter()
             .map(|gk_identity| {
                 let encrypted_key = self.encrypt_key_to(
-                    &[b"cluster_key_sharing"],
+                    &[b"master_key_sharing"],
                     &gk_identity.ecdh_pubkey,
                     &secret_key,
                     block.block_number,
@@ -367,22 +367,18 @@ where
         secret_key: &Sr25519SecretKey,
         block_number: chain::BlockNumber,
     ) -> EncryptedKey {
-        let derived_key = self
-            .master_key
-            .derive_sr25519_pair(key_derive_info)
-            .expect("should not fail with valid info; qed.");
-        let my_ecdh_key = derived_key
-            .derive_ecdh_key()
-            .expect("ecdh key derivation should never failed with valid master key; qed.");
-        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
-            .expect("should never fail with valid ecdh key; qed.");
         let iv = self.generate_iv(block_number);
-        let mut data = secret_key.to_vec();
-        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
-
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_key_to(
+            &self.master_key,
+            key_derive_info,
+            &ecdh_pubkey.0,
+            secret_key,
+            &iv,
+        )
+        .expect("should never fail with valid master key; qed.");
         EncryptedKey {
-            ecdh_pubkey: sr25519::Public(my_ecdh_key.public()),
-            encrypted_key: data,
+            ecdh_pubkey: sr25519::Public(ecdh_pubkey),
+            encrypted_key,
             iv,
         }
     }

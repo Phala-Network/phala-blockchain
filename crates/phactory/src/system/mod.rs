@@ -22,8 +22,8 @@ use chain::pallet_registry::RegistryEvent;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
-    aead,
-    ecdh::{self, EcdhKey},
+    ecdh::EcdhKey,
+    key_share,
     sr25519::{Persistence, Signing, Sr25519SecretKey, KDF},
 };
 use phala_mq::{
@@ -1296,6 +1296,8 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     /// Decrypt the key encrypted by `encrypt_key_to()`
+    ///
+    /// This function could panic a lot, thus should only handle data from other pRuntimes.
     fn decrypt_key_from(
         &self,
         ecdh_pubkey: &EcdhPublicKey,
@@ -1306,13 +1308,8 @@ impl<Platform: pal::Platform> System<Platform> {
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
-        // TODO.shelven: what if the key is not sent to me?
-        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
-            .expect("Should never failed with valid ecdh key; qed.");
-        let mut key_buff = encrypted_key.clone();
-        let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])
-            .expect("Failed to decrypt dispatched key");
-        sr25519::Pair::from_seed_slice(secret_key).expect("Key seed must be correct; qed.")
+        key_share::decrypt_key_from(&my_ecdh_key, &ecdh_pubkey.0, &encrypted_key, &iv)
+            .expect("Failed to decrypt dispatched key")
     }
 
     /// Process encrypted master key from mq

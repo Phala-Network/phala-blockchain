@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use sp_core::{sr25519, Pair};
 
 pub fn encrypt_key_to(
-    my_key: sr25519::Pair,
+    my_key: &sr25519::Pair,
     key_derive_info: &[&[u8]],
     ecdh_pubkey: &EcdhPublicKey,
     secret_key: &Sr25519SecretKey,
