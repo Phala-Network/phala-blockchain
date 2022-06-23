@@ -17,9 +17,16 @@ struct PersistentMasterKey {
     signature: Signature,
 }
 
+#[derive(Debug, Encode, Decode, PartialEq, Clone)]
+pub struct RotatedMasterKey {
+    pub rotation_id: u64,
+    pub block_height: chain::BlockNumber,
+    pub secret: Sr25519SecretKey,
+}
+
 #[derive(Debug, Encode, Decode, Clone)]
 struct MasterKeyHistory {
-    secrets: Vec<Sr25519SecretKey>,
+    rotations: Vec<RotatedMasterKey>,
 }
 
 #[derive(Debug, Encode, Decode, Clone)]
@@ -42,12 +49,12 @@ fn master_key_file_path(sealing_path: String) -> PathBuf {
 /// Seal master key seeds with signature to ensure integrity
 pub fn seal(
     sealing_path: String,
-    master_key_history: &Vec<Sr25519SecretKey>,
+    master_key_history: &Vec<RotatedMasterKey>,
     identity_key: &sr25519::Pair,
     sys: &impl Sealing,
 ) {
     let payload = MasterKeyHistory {
-        secrets: master_key_history.clone(),
+        rotations: master_key_history.clone(),
     };
     let signature = identity_key.sign_data(&payload.encode());
 
@@ -67,7 +74,7 @@ pub fn try_unseal(
     sealing_path: String,
     identity_key: &sr25519::Pair,
     sys: &impl Sealing,
-) -> Vec<Sr25519SecretKey> {
+) -> Vec<RotatedMasterKey> {
     let filepath = master_key_file_path(sealing_path);
     info!("Unseal master key from {}", filepath.as_path().display());
     let sealed_data = match sys
@@ -91,14 +98,18 @@ pub fn try_unseal(
                 identity_key.verify_data(&data.signature, &data.secret),
                 "Broken sealed master key"
             );
-            vec![data.secret]
+            vec![RotatedMasterKey {
+                rotation_id: 0,
+                block_height: 0,
+                secret: data.secret,
+            }]
         }
         MasterKeySeal::V2(data) => {
             assert!(
                 identity_key.verify_data(&data.signature, &data.payload.encode()),
                 "Broken sealed master key history"
             );
-            data.payload.secrets
+            data.payload.rotations
         }
     };
 

@@ -462,9 +462,11 @@ pub mod messaging {
     }
 
     // Messages: Distribution of master key and contract keys
-    bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
+    bind_topic!(KeyDistribution<BlockNumber>, b"phala/gatekeeper/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum KeyDistribution {
+    pub enum KeyDistribution<BlockNumber> {
+        /// Legacy single master key sharing, use `MasterKeyHistory` after we enable master key rotation
+        ///
         /// MessageOrigin::Gatekeeper -> MessageOrigin::Worker
         MasterKeyDistribution(DispatchMasterKeyEvent),
         // TODO.shelven: a better way for real large batch key distribution
@@ -473,16 +475,16 @@ pub mod messaging {
         /// The origin cannot be Gatekeeper, else the leakage of old master key will further leak the following keys
         MasterKeyRotation(BatchRotateMasterKeyEvent),
         /// MessageOrigin::Gatekeeper -> MessageOrigin::Worker
-        MasterKeyHistory(DispatchMasterKeyHistoryEvent),
+        MasterKeyHistory(DispatchMasterKeyHistoryEvent<BlockNumber>),
     }
 
-    impl KeyDistribution {
+    impl<BlockNumber> KeyDistribution<BlockNumber> {
         pub fn master_key_distribution(
             dest: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
-        ) -> KeyDistribution {
+        ) -> KeyDistribution<BlockNumber> {
             KeyDistribution::MasterKeyDistribution(DispatchMasterKeyEvent {
                 dest,
                 ecdh_pubkey,
@@ -548,10 +550,10 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub struct DispatchMasterKeyHistoryEvent {
+    pub struct DispatchMasterKeyHistoryEvent<BlockNumber> {
         /// The target to dispatch master key
         pub dest: WorkerPublicKey,
-        pub encrypted_master_keys: Vec<EncryptedKey>,
+        pub encrypted_master_key_history: Vec<(u64, BlockNumber, EncryptedKey)>,
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]

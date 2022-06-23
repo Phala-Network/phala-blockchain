@@ -1093,7 +1093,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .decode_ecdh_public_key()
             .map_err(from_display)?;
         let iv = crate::generate_random_iv();
-        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_key_to(
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
             &my_identity_key,
             &[b"worker_key_handover"],
             &ecdh_pubkey.0,
@@ -1234,7 +1234,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .tmp_ecdh_key
             .as_ref()
             .ok_or_else(|| from_display("Ecdh key not initialized"))?;
-        let secret = key_share::decrypt_key_from(
+        let secret = key_share::decrypt_secret_from(
             my_ecdh_key,
             &encrypted_key.ecdh_pubkey.0,
             &encrypted_key.encrypted_key,
@@ -1245,7 +1245,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         // only seal if the key is successfully updated
         let genesis_block_hash = payload.decode_genesis_block_hash().map_err(from_display)?;
         phactory
-            .save_runtime_data(genesis_block_hash, secret, dev_mode)
+            .save_runtime_data(
+                genesis_block_hash,
+                sr25519::Pair::restore_from_secret_key(&secret),
+                dev_mode,
+            )
             .map_err(from_display)?;
 
         Ok(true)

@@ -101,7 +101,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
-	// The rotation counter, it always equals to the latest rotation id.
+	// The rotation counter starting from 1, it always equals to the latest rotation id.
 	#[pallet::storage]
 	pub type RotationCounter<T> = StorageValue<_, u64, ValueQuery>;
 
@@ -389,9 +389,8 @@ pub mod pallet {
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let rotation_id = RotationCounter::<T>::mutate(|counter| {
-				let rotation_id = *counter;
 				*counter += 1;
-				rotation_id
+				*counter
 			});
 
 			MasterKeyRotationLock::<T>::put(Some(rotation_id));

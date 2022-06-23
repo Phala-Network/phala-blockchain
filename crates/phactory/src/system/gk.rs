@@ -1,4 +1,4 @@
-use super::{TransactionError, TypedReceiver, WorkerState};
+use super::{RotatedMasterKey, TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_fat::ClusterRegistryEvent;
 use chain::pallet_registry::GKRegistryEvent;
 use phala_crypto::{
@@ -115,7 +115,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     /// Unregistered GK will sync all the GK messages silently
     registered_on_chain: bool,
     #[serde(with = "more::scale_bytes")]
-    master_key_history: Vec<Sr25519SecretKey>,
+    master_key_history: Vec<RotatedMasterKey>,
     pub(crate) share_all_master_keys: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
@@ -136,7 +136,11 @@ where
         egress: MsgChan,
     ) -> Self {
         egress.set_dummy(true);
-        let master_key_history = vec![master_key.dump_secret_key()];
+        let master_key_history = vec![RotatedMasterKey {
+            rotation_id: 0,
+            block_height: 0,
+            secret: master_key.dump_secret_key(),
+        }];
 
         Self {
             master_key,
@@ -187,19 +191,27 @@ where
         self.registered_on_chain
     }
 
-    pub fn rotate_master_key(&mut self, rotation_id: u64, new_master_key: sr25519::Pair) {
-        // sign the RotatedMasterPubkey event with old master key
+    /// Append the rotated key to Gatekeeper's master key history and update the master key and Gatekeeper mq
+    ///
+    /// The rotation id must be in order.
+    pub fn rotate_master_key(&mut self, rotated_master_key: RotatedMasterKey) {
+        assert!(
+            rotated_master_key.rotation_id == self.master_key_history.len() as u64,
+            "Gatekeeper master key history corrupted"
+        );
+
+        let new_master_key = sr25519::Pair::restore_from_secret_key(&rotated_master_key.secret);
+        // send the RotatedMasterPubkey event with old master key
         let master_pubkey = new_master_key.public();
         self.egress
             .push_message(&GKRegistryEvent::RotatedMasterPubkey {
-                rotation_id,
+                rotation_id: rotated_master_key.rotation_id,
                 master_pubkey,
             });
 
         self.master_key = new_master_key.clone();
         self.egress.set_signer(self.master_key.clone().into());
-        self.master_key_history
-            .push(new_master_key.dump_secret_key());
+        self.master_key_history.push(rotated_master_key);
     }
 
     pub fn master_pubkey_uploaded(&mut self) {
@@ -233,13 +245,14 @@ where
             &master_key,
             block_number,
         );
-        self.egress
-            .push_message(&KeyDistribution::master_key_distribution(
+        self.egress.push_message(
+            &KeyDistribution::<chain::BlockNumber>::master_key_distribution(
                 *pubkey,
                 encrypted_key.ecdh_pubkey,
                 encrypted_key.encrypted_key,
                 encrypted_key.iv,
-            ));
+            ),
+        );
     }
 
     pub fn share_master_key_history(
@@ -249,18 +262,27 @@ where
         block_number: chain::BlockNumber,
     ) {
         info!("Gatekeeper: try dispatch all historical master keys");
-        let encrypted_master_keys = self
+        let encrypted_master_key_history = self
             .master_key_history
             .clone()
             .iter()
             .map(|key| {
-                self.encrypt_key_to(&[b"master_key_sharing"], ecdh_pubkey, key, block_number)
+                (
+                    key.rotation_id,
+                    key.block_height,
+                    self.encrypt_key_to(
+                        &[b"master_key_sharing"],
+                        ecdh_pubkey,
+                        &key.secret,
+                        block_number,
+                    ),
+                )
             })
             .collect();
         self.egress.push_message(&KeyDistribution::MasterKeyHistory(
             DispatchMasterKeyHistoryEvent {
                 dest: pubkey.clone(),
-                encrypted_master_keys,
+                encrypted_master_key_history,
             },
         ));
     }
@@ -295,12 +317,16 @@ where
         let data_to_sign = event.data_be_signed();
         event.sig = identity_key.sign(&data_to_sign).0.to_vec();
         self.egress
-            .push_message(&KeyDistribution::MasterKeyRotation(event));
+            .push_message(&KeyDistribution::<chain::BlockNumber>::MasterKeyRotation(
+                event,
+            ));
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
         if !self.master_pubkey_on_chain {
-            info!("Gatekeeper: not handling the messages because Gatekeeper has not launched on chain");
+            info!(
+                "Gatekeeper: not handle the messages because Gatekeeper has not launched on chain"
+            );
             return;
         }
 
@@ -368,7 +394,7 @@ where
         block_number: chain::BlockNumber,
     ) -> EncryptedKey {
         let iv = self.generate_iv(block_number);
-        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_key_to(
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
             &self.master_key,
             key_derive_info,
             &ecdh_pubkey.0,

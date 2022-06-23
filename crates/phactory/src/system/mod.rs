@@ -19,12 +19,13 @@ use crate::contracts;
 use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
+pub use master_key::RotatedMasterKey;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     ecdh::EcdhKey,
     key_share,
-    sr25519::{Persistence, Signing, Sr25519SecretKey, KDF},
+    sr25519::{Persistence, Signing, KDF},
 };
 use phala_mq::{
     traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
@@ -413,7 +414,7 @@ pub struct System<Platform> {
     pruntime_management_events: TypedReceiver<PRuntimeManagementEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
-    key_distribution_events: TypedReceiver<KeyDistribution>,
+    key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
     cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
@@ -429,7 +430,7 @@ pub struct System<Platform> {
     // All the master keys (including "future" ones) known to this worker
     // Only the in-use part is synced to the gatekeeper
     #[serde(with = "more::scale_bytes")]
-    master_key_history: Vec<Sr25519SecretKey>,
+    master_key_history: Vec<RotatedMasterKey>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -479,8 +480,10 @@ impl<Platform: pal::Platform> System<Platform> {
         let master_key = if master_key_history.len() == 0 {
             None
         } else {
-            let secret = master_key_history.first().expect("checked; qed");
-            Some(sr25519::Pair::restore_from_secret_key(&secret))
+            let first_rotation = master_key_history.first().expect("checked; qed.");
+            Some(sr25519::Pair::restore_from_secret_key(
+                &first_rotation.secret,
+            ))
         };
 
         System {
@@ -766,7 +769,7 @@ impl<Platform: pal::Platform> System<Platform> {
     /// Only restart if the flag is set and the master key is changed
     fn set_master_key_history(
         &mut self,
-        master_key_history: Vec<Sr25519SecretKey>,
+        master_key_history: Vec<RotatedMasterKey>,
         need_restart: bool,
     ) {
         if master_key_history.len() <= self.master_key_history.len() {
@@ -781,9 +784,11 @@ impl<Platform: pal::Platform> System<Platform> {
         );
         self.master_key_history = master_key_history;
 
-        let first_key = self.master_key_history.first().expect("check; qed");
+        let first_master_key = self.master_key_history.first().expect("check; qed.");
         if self.master_key.is_none() {
-            self.master_key = Some(sr25519::Pair::restore_from_secret_key(&first_key));
+            self.master_key = Some(sr25519::Pair::restore_from_secret_key(
+                &first_master_key.secret,
+            ));
 
             if need_restart {
                 crate::maybe_remove_checkpoints(&self.storage_path);
@@ -796,10 +801,13 @@ impl<Platform: pal::Platform> System<Platform> {
 
     // This will change `self.gatekeeper`'s master key history and sequence id since the gatekeeper will report the new
     // master pubkey on-chain.
-    fn handle_new_master_key(&mut self, new_master_key: sr25519::Pair, rotation_id: u64) {
-        let new_secret = new_master_key.dump_secret_key();
-        if !self.master_key_history.contains(&new_secret) {
-            self.master_key_history.push(new_secret);
+    fn handle_new_master_key(&mut self, rotated_master_key: RotatedMasterKey) {
+        if !self.master_key_history.contains(&rotated_master_key) {
+            assert!(
+                rotated_master_key.rotation_id == self.master_key_history.len() as u64,
+                "Master key history corrupted"
+            );
+            self.master_key_history.push(rotated_master_key.clone());
             master_key::seal(
                 self.sealing_path.clone(),
                 &self.master_key_history,
@@ -808,11 +816,12 @@ impl<Platform: pal::Platform> System<Platform> {
             );
         }
 
-        self.master_key = Some(new_master_key.clone());
+        let new_master_key = sr25519::Pair::restore_from_secret_key(&rotated_master_key.secret);
+        self.master_key = Some(new_master_key);
         self.gatekeeper
             .as_mut()
-            .expect("checked above; qed.")
-            .rotate_master_key(rotation_id, new_master_key);
+            .expect("checked; qed.")
+            .rotate_master_key(rotated_master_key);
     }
 
     fn master_key_cleanup(&mut self) {
@@ -875,7 +884,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
             GatekeeperLaunch::RotateMasterKey(rotate_master_key_event) => {
-                info!("Master key rotation req in block {}", block.block_number);
+                info!(
+                    "Master key rotation req round {} in block {}",
+                    rotate_master_key_event.rotation_id, block.block_number
+                );
                 self.process_master_key_rotation(block, origin, rotate_master_key_event);
             }
             GatekeeperLaunch::MasterPubkeyRotated(master_pubkey_event) => {
@@ -932,7 +944,14 @@ impl<Platform: pal::Platform> System<Platform> {
                 // generate master key as the first gatekeeper
                 // no need to restart
                 let master_key = crate::new_sr25519_key();
-                self.set_master_key_history(vec![master_key.dump_secret_key()], false);
+                self.set_master_key_history(
+                    vec![RotatedMasterKey {
+                        rotation_id: 0,
+                        block_height: 0,
+                        secret: master_key.dump_secret_key(),
+                    }],
+                    false,
+                );
             }
 
             let master_key = self.master_key.as_ref().expect("checked; qed.");
@@ -1057,7 +1076,7 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: KeyDistribution,
+        event: KeyDistribution<chain::BlockNumber>,
     ) {
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
@@ -1308,8 +1327,10 @@ impl<Platform: pal::Platform> System<Platform> {
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
-        key_share::decrypt_key_from(&my_ecdh_key, &ecdh_pubkey.0, &encrypted_key, &iv)
-            .expect("Failed to decrypt dispatched key")
+        let secret =
+            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, &encrypted_key, &iv)
+                .expect("Failed to decrypt dispatched key");
+        sr25519::Pair::restore_from_secret_key(&secret)
     }
 
     /// Process encrypted master key from mq
@@ -1328,7 +1349,14 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pair =
                 self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
-            self.set_master_key_history(vec![master_pair.dump_secret_key()], true);
+            self.set_master_key_history(
+                vec![RotatedMasterKey {
+                    rotation_id: 0,
+                    block_height: 0,
+                    secret: master_pair.dump_secret_key(),
+                }],
+                true,
+            );
         }
         Ok(())
     }
@@ -1336,7 +1364,7 @@ impl<Platform: pal::Platform> System<Platform> {
     fn process_master_key_history(
         &mut self,
         origin: MessageOrigin,
-        event: DispatchMasterKeyHistoryEvent,
+        event: DispatchMasterKeyHistoryEvent<chain::BlockNumber>,
     ) -> Result<(), TransactionError> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -1345,12 +1373,15 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
-            let master_key_history: Vec<Sr25519SecretKey> = event
-                .encrypted_master_keys
+            let master_key_history: Vec<RotatedMasterKey> = event
+                .encrypted_master_key_history
                 .iter()
-                .map(|key| {
-                    self.decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv)
-                        .dump_secret_key()
+                .map(|(rotation_id, block_height, key)| RotatedMasterKey {
+                    rotation_id: *rotation_id,
+                    block_height: *block_height,
+                    secret: self
+                        .decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv)
+                        .dump_secret_key(),
                 })
                 .collect();
             self.set_master_key_history(master_key_history, true);
@@ -1383,6 +1414,7 @@ impl<Platform: pal::Platform> System<Platform> {
         if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
             return Err(TransactionError::BadSenderSignature.into());
         }
+        // valid master key but from a non-GK
         if !chain_state::is_gatekeeper(&event.sender, block.storage) {
             error!("Fatal error: Forged batch master key rotation {:?}", event);
             return Err(TransactionError::MasterKeyLeakage);
@@ -1405,36 +1437,39 @@ impl<Platform: pal::Platform> System<Platform> {
             );
 
             info!("Worker: successfully decrypt received rotated master key");
-            self.handle_new_master_key(new_master_key, event.rotation_id);
+            self.handle_new_master_key(RotatedMasterKey {
+                rotation_id: event.rotation_id,
+                block_height: self.block_number,
+                secret: new_master_key.dump_secret_key(),
+            });
         } else if self.gatekeeper.is_some() {
             // will be here in two situations
-            if self.master_key_history.last().unwrap()
-                == &self.master_key.as_ref().unwrap().dump_secret_key()
-            {
-                // 1. This is an unregistered GK whose master key is not outdated yet.
-                // Delete the gatekeeper and master_key since it cannot do silent syncing anymore
-                info!("Worker: master key rotation receiced, stop gatekeeper silent syncing");
+            if self.master_key_history.len() as u64 == event.rotation_id {
+                assert!(
+                    self.master_key_history.last().expect("checked; qed").secret
+                        == self
+                            .master_key
+                            .as_ref()
+                            .expect("should not be None with valid gatekeeper; qed")
+                            .dump_secret_key(),
+                    "Corrupted master key history in unregistered gatekeeper"
+                );
+                // 1. This is an unregistered GK whose master key is not outdated yet, it 's still sliently syncing. It
+                // cannot do silent syncing anymore since it does not know the rotated key.
+                // Delete the gatekeeper and master_key
+                info!("Worker: master key rotation received, stop unregistered gatekeeper silent syncing and cleanup");
                 self.master_key_cleanup();
             } else {
-                // 2. This is a valid GK in syncing, the needed master key should already be dispatched in the "future".
+                // 2. This is a valid GK in syncing, the needed master key should already be dispatched before the restart
+                // of this pRuntime.
                 // Tick the master key correspondingly
-                let current_master_key = self.master_key.as_ref().unwrap().dump_secret_key();
-                let current_idx = self
-                    .master_key_history
-                    .iter()
-                    .position(|key| key == &current_master_key)
-                    .expect("Corrupted master key history");
                 assert!(
-                    current_idx + 1 < self.master_key_history.len(),
-                    "Corrupted master key history"
+                    event.rotation_id < self.master_key_history.len() as u64,
+                    "Insufficient master key history"
                 );
-                let next_master_key = self.master_key_history[current_idx + 1];
-
+                let next_master_key = self.master_key_history[event.rotation_id as usize].clone();
                 info!("Worker: rotate master key with received master key history");
-                self.handle_new_master_key(
-                    sr25519::Pair::restore_from_secret_key(&next_master_key),
-                    event.rotation_id,
-                );
+                self.handle_new_master_key(next_master_key);
             }
         }
         Ok(())

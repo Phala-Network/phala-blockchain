@@ -4,9 +4,10 @@ use crate::sr25519::{Sr25519SecretKey, KDF};
 use crate::CryptoError;
 
 use alloc::vec::Vec;
-use sp_core::{sr25519, Pair};
+use core::convert::TryInto;
+use sp_core::sr25519;
 
-pub fn encrypt_key_to(
+pub fn encrypt_secret_to(
     my_key: &sr25519::Pair,
     key_derive_info: &[&[u8]],
     ecdh_pubkey: &EcdhPublicKey,
@@ -22,14 +23,16 @@ pub fn encrypt_key_to(
     Ok((my_ecdh_key.public(), data))
 }
 
-pub fn decrypt_key_from(
+pub fn decrypt_secret_from(
     my_ecdh_key: &EcdhKey,
     ecdh_pubkey: &EcdhPublicKey,
     encrypted_key: &Vec<u8>,
     iv: &IV,
-) -> Result<sr25519::Pair, CryptoError> {
+) -> Result<Sr25519SecretKey, CryptoError> {
     let secret = ecdh::agree(my_ecdh_key, ecdh_pubkey)?;
     let mut key_buff = encrypted_key.clone();
     let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])?;
-    sr25519::Pair::from_seed_slice(secret_key).map_err(|_| CryptoError::Sr25519InvalidSecret)
+    secret_key
+        .try_into()
+        .map_err(|_| CryptoError::Sr25519InvalidSecret)
 }
