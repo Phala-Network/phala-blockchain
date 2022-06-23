@@ -273,6 +273,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.args = args;
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
+            system.storage_path = self.args.storage_path.clone();
             system.geoip_city_db = self.args.geoip_city_db.clone();
         }
     }
@@ -378,7 +379,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         info!("Checkpoint saved to {}", checkpoint_file);
         self.last_checkpoint = Instant::now();
         remove_outdated_checkpoints(
-            &self.args.sealing_path,
+            &self.args.storage_path,
             self.args.max_checkpoint_files,
             current_block,
         )?;

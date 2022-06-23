@@ -396,6 +396,7 @@ pub struct System<Platform> {
     platform: Platform,
     // Configuration
     pub(crate) sealing_path: String,
+    pub(crate) storage_path: String,
     enable_geoprobing: bool,
     pub(crate) geoip_city_db: String,
     // Messageing
@@ -444,6 +445,7 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
         platform: Platform,
         sealing_path: String,
+        storage_path: String,
         enable_geoprobing: bool,
         geoip_city_db: String,
         identity_key: sr25519::Pair,
@@ -463,6 +465,7 @@ impl<Platform: pal::Platform> System<Platform> {
         System {
             platform,
             sealing_path,
+            storage_path,
             enable_geoprobing,
             geoip_city_db,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
@@ -685,7 +688,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.master_key = Some(master_key);
 
             if need_restart {
-                crate::maybe_remove_checkpoints(&self.sealing_path);
+                crate::maybe_remove_checkpoints(&self.storage_path);
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
