@@ -275,6 +275,16 @@ fn test_signing() {
 }
 
 #[test]
+fn test_logging() {
+    env_logger::init();
+    test_with_wasm(
+        include_bytes!("./fixtures/logging.wasm"),
+        hex!("ed4b9d1b"),
+        hex!("928b2036"),
+    );
+}
+
+#[test]
 fn test_use_cache() {
     test_with_wasm(
         include_bytes!("./fixtures/use_cache/use_cache.wasm"),
