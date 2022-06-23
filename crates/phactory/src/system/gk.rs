@@ -465,18 +465,31 @@ where
             return;
         };
 
-        let expect_random = next_random_number(
-            &self.master_key,
-            event.block_number,
-            event.last_random_number,
-        );
+        // determine which master key to use
+        // the random number may be generated with the latest master key or last key that was just rotated
+        let master_key = if self
+            .master_key_history
+            .last()
+            .expect("at least one key in gk; qed")
+            .block_height
+            > event.block_number
+        {
+            let len = self.master_key_history.len();
+            assert!(len >= 2, "no proper key for random generation");
+            let secret = self.master_key_history[len - 2].secret;
+            sr25519::Pair::restore_from_secret_key(&secret)
+        } else {
+            self.master_key.clone()
+        };
+
+        let expect_random =
+            next_random_number(&master_key, event.block_number, event.last_random_number);
         // instead of checking the origin, we directly verify the random to avoid access storage
-        // TODO.shelven: re-enable this
-        // if expect_random != event.random_number {
-        //     error!("Fatal error: Expect random number {:?}", expect_random);
-        //     #[cfg(not(feature = "shadow-gk"))]
-        //     panic!("GK state poisoned");
-        // }
+        if expect_random != event.random_number {
+            error!("Fatal error: Expect random number {:?}", expect_random);
+            #[cfg(not(feature = "shadow-gk"))]
+            panic!("GK state poisoned");
+        }
     }
 
     pub fn emit_random_number(&mut self, block_number: chain::BlockNumber) {
