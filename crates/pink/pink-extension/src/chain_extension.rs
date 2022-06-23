@@ -1,13 +1,13 @@
-use alloc::vec::Vec;
 use alloc::borrow::Cow;
-use ink_lang as ink;
+use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
+use ink_lang as ink;
 
 pub use http_request::{HttpRequest, HttpResponse};
-pub use signing::{SigType, SignArgs, VerifyArgs, PublicKeyForArgs};
+pub use signing::{PublicKeyForArgs, SigType, SignArgs, VerifyArgs};
 
 mod http_request;
-mod signing;
+pub mod signing;
 
 #[cfg(feature = "std")]
 pub mod test;

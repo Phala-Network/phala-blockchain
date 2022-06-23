@@ -1,8 +1,8 @@
 {
   "source": {
-    "hash": "0x923b8823f4ebb23e3e95d64a099ddefc7100b83a81f010bda71aac46f06f89c6",
-    "language": "ink! 3.0.0-rc8",
-    "compiler": "rustc 1.58.0-nightly"
+    "hash": "0x37ac85ea1ae3bdb1d9bf94936ce5f19860c5936d57a30b836e7cb23993a7d218",
+    "language": "ink! 3.3.0",
+    "compiler": "rustc 1.61.0-nightly"
   },
   "contract": {
     "name": "signing",
