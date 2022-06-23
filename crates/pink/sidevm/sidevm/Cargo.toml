@@ -4,7 +4,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 edition = "2021"
 name = "pink-sidevm"
-version = "0.1.6"
+version = "0.1.7"
 
 [dependencies]
 pink-sidevm-env = { version = "0.1.1", path = "../env" }
@@ -13,7 +13,7 @@ pink-sidevm-macro = { version = "0.1.0", path = "../macro" }
 log = "0.4.16"
 derive_more = "0.99"
 
-hyper = { version = "0.14.18", features = ["server"], optional = true }
+hyper = { version = "0.14.18", features = ["server", "client"], optional = true }
 tokio = { version = "1", optional = true }
 futures = "0.3"
 scale = { version = "3", package = "parity-scale-codec" }

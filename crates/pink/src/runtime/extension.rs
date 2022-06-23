@@ -1,5 +1,6 @@
 use std::borrow::Cow;
-use std::{convert::TryFrom, time::Duration};
+use std::str::FromStr;
+use std::time::Duration;
 
 use frame_support::log::error;
 use pallet_contracts::chain_extension::{
@@ -14,6 +15,9 @@ use pink_extension::{
     },
     dispatch_ext_call, PinkEvent,
 };
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::Method;
+use reqwest_proxy::EnvProxyBuilder;
 use scale::{Decode, Encode};
 use sp_core::{ByteArray, Pair};
 use sp_runtime::DispatchError;
@@ -126,51 +130,61 @@ struct CallInQuery {
 impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        let uri = http_req::uri::Uri::try_from(request.url.as_str())
-            .or(Err(DispatchError::Other("Invalid URL")))?;
-
-        let mut req = http_req::request::Request::new(&uri);
-        for (key, value) in &request.headers {
-            req.header(key, value);
-        }
-
-        match request.method.as_str() {
-            "GET" => {
-                req.method(http_req::request::Method::GET);
-            }
-            "POST" => {
-                req.method(http_req::request::Method::POST)
-                    .body(request.body.as_slice());
-                req.header("Content-Length", &request.body.len());
-            }
-            _ => {
-                return Err(DispatchError::Other("Unsupported method"));
-            }
-        };
-
         // Hardcoded limitations for now
         const MAX_QUERY_TIME: u64 = 10; // seconds
         const MAX_BODY_SIZE: usize = 1024 * 256; // 256KB
 
         let elapsed = get_call_elapsed().ok_or(DispatchError::Other("Invalid exec env"))?;
         let timeout = Duration::from_secs(MAX_QUERY_TIME) - elapsed;
-        req.timeout(Some(timeout));
 
-        let mut body = Vec::new();
-        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+        let url: reqwest::Url = request
+            .url
+            .parse()
+            .or(Err(DispatchError::Other("Invalid url")))?;
 
-        let response = req
-            .send(&mut writer)
+        let client = reqwest::blocking::Client::builder()
+            .timeout(timeout)
+            .env_proxy(url.host_str().unwrap_or_default())
+            .build()
+            .or(Err(DispatchError::Other("Failed to create client")))?;
+
+        let method: Method = FromStr::from_str(request.method.as_str())
+            .or(Err(DispatchError::Other("Invalid HTTP method")))?;
+        let mut headers = HeaderMap::new();
+        for (key, value) in &request.headers {
+            let key = HeaderName::from_str(key.as_str())
+                .or(Err(DispatchError::Other("Invalid HTTP header key")))?;
+            let value = HeaderValue::from_str(value)
+                .or(Err(DispatchError::Other("Invalid HTTP header value")))?;
+            headers.insert(key, value);
+        }
+
+        let mut response = client
+            .request(method, url)
+            .headers(headers)
+            .send()
             .or(Err(DispatchError::Other("Failed to send request")))?;
 
         let headers: Vec<_> = response
             .headers()
             .iter()
-            .map(|(k, v)| (k.to_string(), v.to_owned()))
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
             .collect();
+
+        let mut body = Vec::new();
+        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+
+        response
+            .copy_to(&mut writer)
+            .or(Err(DispatchError::Other("Failed to copy response body")))?;
+
         let response = HttpResponse {
-            status_code: response.status_code().into(),
-            reason_phrase: response.reason().into(),
+            status_code: response.status().as_u16(),
+            reason_phrase: response
+                .status()
+                .canonical_reason()
+                .unwrap_or_default()
+                .into(),
             body,
             headers,
         };
@@ -262,19 +276,13 @@ impl PinkExtBackend for CallInQuery {
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
         let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE
-            .read()
-            .unwrap()
-            .get(contract, key.as_ref());
+        let value = GLOBAL_CACHE.read().unwrap().get(contract, key.as_ref());
         Ok(value)
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
         let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE
-            .write()
-            .unwrap()
-            .remove(contract, key.as_ref());
+        let value = GLOBAL_CACHE.write().unwrap().remove(contract, key.as_ref());
         Ok(value)
     }
 }

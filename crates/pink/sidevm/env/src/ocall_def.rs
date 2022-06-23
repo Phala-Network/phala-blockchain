@@ -1,6 +1,6 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
-use crate::tls::TlsServerConfig;
+use crate::tls::{TlsServerConfig, TlsClientConfig};
 use std::borrow::Cow;
 
 /// All ocall definitions for pink Sidevm.
@@ -75,7 +75,11 @@ pub trait OcallFuncs {
 
     /// Initiate a TCP connection to a remote endpoint.
     #[ocall(id = 213)]
-    fn tcp_connect(addr: &str) -> Result<i32>;
+    fn tcp_connect(host: &str, port: u16) -> Result<i32>;
+
+    /// Initiate a TLS/TCP connection to a remote endpoint.
+    #[ocall(id = 214, encode_input)]
+    fn tcp_connect_tls(host: String, port: u16, config: TlsClientConfig) -> Result<i32>;
 
     /// Print log message.
     #[ocall(id = 220)]

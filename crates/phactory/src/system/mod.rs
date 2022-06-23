@@ -34,9 +34,10 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
-        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
+        AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, Condition,
+        DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
+        SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -400,6 +401,7 @@ pub struct System<Platform> {
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
+    pruntime_management_events: TypedReceiver<PRuntimeManagementEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
@@ -424,6 +426,7 @@ pub struct System<Platform> {
     // Cached for query
     block_number: BlockNumber,
     now_ms: u64,
+    retired_versions: Vec<Condition>,
 }
 
 fn create_sidevm_service() -> Spawner {
@@ -449,6 +452,9 @@ impl<Platform: pal::Platform> System<Platform> {
         recv_mq: &mut MessageDispatcher,
         contracts: ContractsKeeper,
     ) -> Self {
+        // Trigger panic early if platform is not properly implemented.
+        let _ = Platform::app_version();
+
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
@@ -461,6 +467,7 @@ impl<Platform: pal::Platform> System<Platform> {
             geoip_city_db,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
+            pruntime_management_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
@@ -476,6 +483,7 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             sidevm_spawner: create_sidevm_service(),
+            retired_versions: vec![],
         }
     }
 
@@ -515,9 +523,15 @@ impl<Platform: pal::Platform> System<Platform> {
         let ok = phala_mq::select_ignore_errors! {
             (event, origin) = self.system_events => {
                 if !origin.is_pallet() {
-                    anyhow::bail!("Invalid SystemEvent sender: {:?}", origin);
+                    anyhow::bail!("Invalid SystemEvent sender: {}", origin);
                 }
                 self.process_system_event(block, &event);
+            },
+            (event, origin) = self.pruntime_management_events => {
+                if !origin.is_pallet() {
+                    anyhow::bail!("Invalid pRuntime management event sender: {}", origin);
+                }
+                self.process_pruntime_management_event(event);
             },
             (event, origin) = self.gatekeeper_launch_events => {
                 self.process_gatekeeper_launch_event(block, origin, event);
@@ -632,6 +646,34 @@ impl<Platform: pal::Platform> System<Platform> {
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
     }
 
+    fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
+        match event {
+            PRuntimeManagementEvent::RetirePRuntime(condition) => {
+                self.retired_versions.push(condition.clone());
+                self.check_retirement();
+            }
+        }
+    }
+
+    fn check_retirement(&mut self) {
+        let cur_ver = Platform::app_version();
+        for condition in self.retired_versions.iter() {
+            let should_retire = match *condition {
+                Condition::VersionLessThan(major, minor, patch) => {
+                    (cur_ver.major, cur_ver.minor, cur_ver.patch) < (major, minor, patch)
+                }
+                Condition::VersionIs(major, minor, patch) => {
+                    (cur_ver.major, cur_ver.minor, cur_ver.patch) == (major, minor, patch)
+                }
+            };
+
+            if should_retire {
+                error!("This pRuntime is outdated. Please update to the latest version.");
+                std::process::abort();
+            }
+        }
+    }
+
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
             master_key::seal(
@@ -727,12 +769,19 @@ impl<Platform: pal::Platform> System<Platform> {
         let my_pubkey = self.identity_key.public();
         // if the first gatekeeper reboots, it will possess the master key,
         // and should not re-generate it
-        if my_pubkey == event.pubkey && self.master_key.is_none() {
-            info!("Gatekeeper: generate master key as the first gatekeeper");
-            // generate master key as the first gatekeeper
-            // no need to restart
-            let master_key = crate::new_sr25519_key();
-            self.set_master_key(master_key.clone(), false);
+        if my_pubkey == event.pubkey {
+            if self.master_key.is_none() {
+                info!("Gatekeeper: generate master key as the first gatekeeper");
+                // generate master key as the first gatekeeper
+                // no need to restart
+                let master_key = crate::new_sr25519_key();
+                self.set_master_key(master_key.clone(), false);
+            }
+
+            let master_key = self
+                .master_key
+                .as_ref()
+                .expect("should never be none; qed.");
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
@@ -934,9 +983,9 @@ impl<Platform: pal::Platform> System<Platform> {
                             (BALANCES => balances::Balances::new()),
                             (ASSETS => assets::Assets::new()),
                             (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.to_raw_vec()))),
-                            (GEOLOCATION => geolocation::Geolocation::new()),
-                            (GUESS_NUMBER => guess_number::GuessNumber::new()),
-                            (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
+                            // (GEOLOCATION => geolocation::Geolocation::new()),
+                            (GUESS_NUMBER => guess_number::GuessNumber::new())
+                            // (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
                         };
 
                         let message = ContractRegistryEvent::PubkeyAvailable {
@@ -1105,9 +1154,10 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 }
 
-impl<P> System<P> {
+impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.check_retirement();
         Ok(())
     }
 }

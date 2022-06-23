@@ -26,7 +26,9 @@ fn main() {
         "Attestation",
         "AttestationReport",
         "TokenomicInfo",
+        "TokenomicStat",
         "WorkerState",
+        "WorkerStat",
         "BenchState",
         "MiningState",
     ] {

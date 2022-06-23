@@ -8,11 +8,13 @@ async fn main() {
     sidevm::logger::Logger::with_max_level(log::Level::Trace).init();
     sidevm::ocall::enable_ocall_trace(true).unwrap();
 
-    let address = "example.com:80";
+    let host = "example.com";
+    // let port = 80;
+    let port = 443;
 
-    info!("Connecting to {}", address);
+    info!("Connecting to {host}:{port}");
 
-    let stream = sidevm::net::TcpStream::connect(address).await.unwrap();
+    let stream = sidevm::net::TcpStream::connect(host, port, port == 443).await.unwrap();
     let mut stream = BufReader::new(stream);
     info!("Sending request");
     stream

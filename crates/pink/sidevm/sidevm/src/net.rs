@@ -19,7 +19,7 @@ pub struct TcpListener {
 /// A resource pointing to a connecting TCP socket.
 #[derive(Debug)]
 pub struct TcpConnector {
-    res_id: ResourceId,
+    res: Result<ResourceId, env::OcallError>,
 }
 
 /// A connected TCP socket.
@@ -80,7 +80,12 @@ impl Future for TcpConnector {
     fn poll(self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
         use env::OcallError;
 
-        match ocall::poll_res(env::tasks::intern_waker(ctx.waker().clone()), self.res_id.0) {
+        let res_id = match &self.get_mut().res {
+            Ok(res_id) => res_id,
+            Err(err) => return Poll::Ready(Err(*err)),
+        };
+
+        match ocall::poll_res(env::tasks::intern_waker(ctx.waker().clone()), res_id.0) {
             Ok(res_id) => Poll::Ready(Ok(TcpStream::new(ResourceId(res_id)))),
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => Poll::Ready(Err(err)),
@@ -94,19 +99,26 @@ impl TcpStream {
     }
 
     /// Initiate a TCP connection to a remote host.
-    pub async fn connect(addr: &str) -> Result<Self> {
-        let res_id = ResourceId(ocall::tcp_connect(addr.into())?);
-        TcpConnector { res_id }.await
+    pub fn connect(host: &str, port: u16, enable_tls: bool) -> TcpConnector {
+        let res = if enable_tls {
+            ocall::tcp_connect_tls(host.into(), port, env::tls::TlsClientConfig::V0)
+        } else {
+            ocall::tcp_connect(host, port)
+        };
+        let res = res.map(|res_id| ResourceId(res_id));
+        TcpConnector { res }
     }
 }
 
 #[cfg(feature = "hyper")]
-pub use impl_hyper::{AddrIncoming, AddrStream};
+pub use impl_hyper::{AddrIncoming, AddrStream, HttpConnector};
 #[cfg(feature = "hyper")]
 mod impl_hyper {
     use super::*;
     use env::OcallError;
+    use hyper::client::connect::{Connected, Connection};
     use hyper::server::accept::Accept;
+    use hyper::{service::Service, Uri};
     use std::{io, task};
 
     macro_rules! ready_ok {
@@ -134,10 +146,47 @@ mod impl_hyper {
         }
     }
 
+    impl Connection for TcpStream {
+        fn connected(&self) -> Connected {
+            Connected::new()
+        }
+    }
+
     impl TcpListener {
         /// Convert the listener into another one that outputs AddrStreams.
         pub fn into_addr_incoming(self) -> AddrIncoming {
             AddrIncoming { listener: self }
+        }
+    }
+
+    /// An HTTP/HTTPS Connector for hyper working under sidevm.
+    #[derive(Clone, Default, Debug)]
+    pub struct HttpConnector;
+
+    impl HttpConnector {
+        /// Create a new HttpConnector.
+        pub fn new() -> Self {
+            Self
+        }
+    }
+
+    impl Service<Uri> for HttpConnector {
+        type Response = TcpStream;
+        type Error = OcallError;
+        type Future = TcpConnector;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, dst: Uri) -> Self::Future {
+            let is_https = dst.scheme_str() == Some("https");
+            let host = dst
+                .host()
+                .unwrap_or("")
+                .trim_matches(|c| c == '[' || c == ']');
+            let port = dst.port_u16().unwrap_or(if is_https { 443 } else { 80 });
+            TcpStream::connect(host, port, is_https)
         }
     }
 

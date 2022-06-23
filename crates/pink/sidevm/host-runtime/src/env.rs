@@ -19,7 +19,7 @@ use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use env::{
     query::{AccountId, QueryRequest},
-    tls::TlsServerConfig,
+    tls::{TlsClientConfig, TlsServerConfig},
     IntPtr, IntRet, OcallError, Result, RetEncode,
 };
 use pink_sidevm_env as env;
@@ -371,7 +371,9 @@ impl env::OcallFuncs for State {
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             };
             let res = match tls_config {
-                Some(tls_config) => Resource::TlsStream(TlsStream::new(stream, tls_config.clone())),
+                Some(tls_config) => {
+                    Resource::TlsStream(TlsStream::accept(stream, tls_config.clone()))
+                }
                 None => Resource::TcpStream(stream),
             };
             (res, addr)
@@ -386,9 +388,30 @@ impl env::OcallFuncs for State {
             .map(|(res_id, _)| res_id)
     }
 
-    fn tcp_connect(&mut self, addr: &str) -> Result<i32> {
-        let fut = tokio::net::TcpStream::connect(addr.to_string());
+    fn tcp_connect(&mut self, host: &str, port: u16) -> Result<i32> {
+        if host.len() > 253 {
+            return Err(OcallError::InvalidParameter);
+        }
+        let host = host.to_owned();
+        let fut = async move { tcp_connect(&host, port).await };
         self.resources.push(Resource::TcpConnect(Box::pin(fut)))
+    }
+
+    fn tcp_connect_tls(&mut self, host: String, port: u16, config: TlsClientConfig) -> Result<i32> {
+        if host.len() > 253 {
+            return Err(OcallError::InvalidParameter);
+        }
+        let TlsClientConfig::V0 = config;
+        let domain = host
+            .as_str()
+            .try_into()
+            .or(Err(OcallError::InvalidParameter))?;
+        let fut = async move {
+            tcp_connect(&host, port)
+                .await
+                .map(move |stream| TlsStream::connect(domain, stream))
+        };
+        self.resources.push(Resource::TlsConnect(Box::pin(fut)))
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
@@ -444,6 +467,30 @@ impl env::OcallFuncs for State {
             _ => return Err(OcallError::UnsupportedOperation),
         }
         Ok(())
+    }
+}
+
+async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpStream> {
+    fn get_proxy(key: &str) -> Option<String> {
+        std::env::var(key).ok().and_then(|uri| {
+            if uri.trim().is_empty() {
+                None
+            } else {
+                Some(uri)
+            }
+        })
+    }
+
+    let proxy_url = if host.ends_with(".i2p") {
+        get_proxy("i2p_proxy")
+    } else {
+        None
+    };
+
+    if let Some(proxy_url) = proxy_url.or(get_proxy("all_proxy")) {
+        tokio_proxy::connect((host, port), proxy_url).await
+    } else {
+        tokio::net::TcpStream::connect((host, port)).await
     }
 }
 

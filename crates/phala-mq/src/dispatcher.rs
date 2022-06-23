@@ -134,7 +134,18 @@ impl<T: Decode> TypedReceiver<T> {
             None => return Ok(None),
             Some(m) => m,
         };
-        let typed = Decode::decode(&mut &msg.payload[..])?;
+        let typed = match Decode::decode(&mut &msg.payload[..]) {
+            Ok(msg) => msg,
+            Err(err) => {
+                if msg.sender.always_well_formed() {
+                    panic!(
+                        "Failed to decode critical mq message, please upgrade the pRuntime client"
+                    );
+                } else {
+                    return Err(TypedReceiveError::CodecError(err));
+                }
+            }
+        };
         Ok(Some((sn, typed, msg.sender)))
     }
 
