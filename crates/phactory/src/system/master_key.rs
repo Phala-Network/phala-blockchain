@@ -54,6 +54,8 @@ pub fn seal(
     let data = MasterKeySeal::V2(PersistentMasterKeyHistory { payload, signature });
     let filepath = master_key_file_path(sealing_path);
     info!("Seal master key to {}", filepath.as_path().display());
+    // TODO.shelven: seal with identity key so the newly handovered pRuntime do not need to do an extra sync to get master
+    // key
     sys.seal_data(filepath, &data.encode())
         .expect("Seal master key failed");
 }
