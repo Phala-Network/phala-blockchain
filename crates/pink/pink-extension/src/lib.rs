@@ -12,6 +12,7 @@ pub use pink_extension_macro::contract;
 
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
+pub mod logger;
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 

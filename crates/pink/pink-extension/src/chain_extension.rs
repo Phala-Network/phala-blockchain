@@ -80,6 +80,10 @@ pub trait PinkExt {
     /// command context.
     #[ink(extension = 0xff000009, handle_status = false, returns_result = false)]
     fn cache_remove(args: &[u8]) -> Option<Vec<u8>>;
+
+    /// Print log message.
+    #[ink(extension = 0xff00000a, handle_status = false, returns_result = false)]
+    fn log(level: u8, message: &str);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
