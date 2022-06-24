@@ -1204,6 +1204,7 @@ pub mod pallet {
 				("key").as_bytes().to_vec().try_into().unwrap();
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				attr_bit.try_into().unwrap();
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), false);
 			pallet_rmrk_core::Pallet::<T>::set_property(
 				Origin::<T>::Signed(get_overlord_account()).into(),
 				collection_id,
@@ -1211,6 +1212,7 @@ pub mod pallet {
 				key,
 				value,
 			)?;
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), true);
 			Ok(())
 		}
 
@@ -2064,6 +2066,42 @@ pub mod pallet {
 				assert_eq!(
 					nft_attr.stakes,
 					0 * DOLLARS
+				);
+			});
+		}
+
+		#[test]
+		fn test_set_nft_attr() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				let mut cid1 = PhalaStakePool::pool_collections(0).unwrap();
+				assert_eq!(cid1, 0);
+				assert_ok!(PhalaStakePool::mint_and_lock_pool_nft(
+					0,
+					1,
+					1000 * DOLLARS,
+					1000 * DOLLARS
+				));
+				let mut nft_attr = PhalaStakePool::get_nft_attr(0, 0).unwrap();
+				nft_attr.shares = 5000 * DOLLARS;
+				nft_attr.stakes = 5000 * DOLLARS;
+				assert_ok!(
+					PhalaStakePool::set_nft_attr(0, 
+						0, 
+						0,
+						&nft_attr,
+					)
+				);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, 0).unwrap();
+				assert_eq!(
+					nft_attr.shares,
+					5000 * DOLLARS
+				);
+				assert_eq!(
+					nft_attr.stakes,
+					5000 * DOLLARS
 				);
 			});
 		}
