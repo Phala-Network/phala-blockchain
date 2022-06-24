@@ -14,6 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
 
+
 primitive-types = { version = "0.11.0", default-features = false, features = ["codec", "byteorder"] }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
@@ -30,10 +31,10 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "p
 pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23", default-features = false }
 
 # RMRK dependencies
-pallet-rmrk-core = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
-pallet-rmrk-equip = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
-pallet-rmrk-market = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
-rmrk-traits = { version = "0.0.1", git = "https://github.com/Phala-Network/rmrk-substrate", default-features = false, branch = "polkadot-v0.9.23" }
+pallet-rmrk-core = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test1" }
+pallet-rmrk-equip = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test1" }
+pallet-rmrk-market = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test1" }
+rmrk-traits = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test1" }
 
 phala-types = { default-features = false, path = "../../crates/phala-types" }
 chrono = { version = "0.4", default-features = false }
