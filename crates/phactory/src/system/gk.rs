@@ -1263,6 +1263,8 @@ mod tokenomic {
             self.v -= slash;
             self.v_deductible = fp!(0);
 
+            #[cfg(not(feature = "gk-stat"))]
+            let _ = block_number;
             #[cfg(feature = "gk-stat")]
             {
                 self.stat.last_slash = slash;

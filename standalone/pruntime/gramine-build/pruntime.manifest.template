@@ -15,6 +15,7 @@ insecure__allow_eventfd = true
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 MALLOC_ARENA_MAX = "1"
 ROCKET_WORKERS = "8"
+RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
 i2p_proxy = { passthrough = true }
 

@@ -34,10 +34,6 @@ struct Args {
     #[clap(long)]
     enable_kick_api: bool,
 
-    /// Log filter passed to env_logger
-    #[clap(long, default_value = "INFO")]
-    log_filter: String,
-
     /// Listening IP address of HTTP
     #[clap(long)]
     address: Option<String>,
@@ -115,7 +111,7 @@ async fn main() -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port);
     }
 
-    let env = env_logger::Env::default().default_filter_or(&args.log_filter);
+    let env = env_logger::Env::default().default_filter_or("info");
     env_logger::Builder::from_env(env).format_timestamp_micros().init();
 
     let init_args = {
@@ -123,7 +119,6 @@ async fn main() -> Result<(), rocket::Error> {
         InitArgs {
             sealing_path: sealing_path.into(),
             storage_path: storage_path.into(),
-            log_filter: Default::default(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
             git_revision: git_revision(),
