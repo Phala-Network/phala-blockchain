@@ -20,9 +20,6 @@ use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
 
-
-use sp_trie::HashDBT as _;
-
 /// Storage key.
 pub type StorageKey = Vec<u8>;
 
@@ -76,13 +73,7 @@ where
     S: Serializer,
 {
     let root = trie.root();
-    let kvs: Vec<_> = trie
-        .backend_storage()
-        .clone()
-        .drain()
-        .into_iter()
-        .map(|it| it.1)
-        .collect();
+    let kvs: im::HashMap<_, _> = trie.backend_storage().clone().drain();
     (root, kvs).serialize(serializer)
 }
 
@@ -94,13 +85,9 @@ where
     H::Out: Codec + Deserialize<'de>,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
-    let mut mdb = MemoryDB::default();
-    for value in kvs {
-        for _ in 0..value.1 {
-            mdb.insert((&[], None), &value.0);
-        }
-    }
+    let (root, kvs): (H::Out, im::HashMap<_, (Vec<u8>, i32)>) =
+        Deserialize::deserialize(deserializer)?;
+    let mdb = MemoryDB::from_inner(kvs);
     let backend = TrieBackend::new(mdb, root);
     Ok(backend)
 }
@@ -112,19 +99,9 @@ where
     H::Out: Codec,
 {
     let root = trie.root();
-    let kvs: Vec<_> = trie
+    let mdb = trie
         .backend_storage()
-        .clone()
-        .drain()
-        .into_iter()
-        .map(|it| it.1)
-        .collect();
-    let mut mdb = MemoryDB::default();
-    for value in kvs {
-        for _ in 0..value.1 {
-            mdb.insert((&[], None), &value.0);
-        }
-    }
+        .clone();
     TrieBackend::new(mdb, *root)
 }
 
@@ -174,12 +151,7 @@ where
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
     }
 
-    pub fn purge(&mut self) {
-        let root = *self.0.root();
-        let mut storage = core::mem::take(self).0.into_storage();
-        storage.purge();
-        let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
-    }
+    pub fn purge(&mut self) {}
 
     /// Return the state root hash
     pub fn root(&self) -> &H::Out {
