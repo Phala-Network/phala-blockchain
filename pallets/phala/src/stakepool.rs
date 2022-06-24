@@ -851,6 +851,7 @@ pub mod pallet {
 			Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft)
 				.expect("set nft attr should always success; qed.");
 			StakePools::<T>::insert(&pid, &pool_info);
+			Self::merge_or_init_nft_for_staker(who.clone(), pid)?;
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
@@ -2103,6 +2104,51 @@ pub mod pallet {
 					nft_attr.stakes,
 					5000 * DOLLARS
 				);
+			});
+		}
+
+		#[test]
+		fn test_contibute() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					50 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					50 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					30 * DOLLARS
+				));
+				
+				let mut nftid_arr: Vec<NftId> =
+				pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 80 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 80 * DOLLARS);
+				let mut nftid_arr: Vec<NftId> =
+				pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 50 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 50 * DOLLARS);
 			});
 		}
 
