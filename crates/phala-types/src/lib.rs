@@ -717,6 +717,7 @@ pub mod worker_endpoint_v1 {
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub struct EndpointInfo {
         pub endpoint: Vec<u8>,
+        pub block_time: u64,
     }
 }
 

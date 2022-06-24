@@ -152,7 +152,7 @@ async fn main() -> Result<(), rocket::Error> {
 
     let mut servers = vec![];
 
-    if args.clone().public_port.is_some() {
+    if args.public_port.is_some() {
         let args_clone = args.clone();
         let server_acl = rocket::tokio::spawn(async move {
             api_server::rocket_acl(&args_clone)

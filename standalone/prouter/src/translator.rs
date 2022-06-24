@@ -7,11 +7,11 @@ use phaxt::khala::runtime_types::phala_types::{
 use phala_types::EndpointType;
 
 pub async fn get_endpoint_info_by_pubkey(
-    api: &mut &ParachainApi,
+    api: &ParachainApi,
     pubkey: [u8; 32],
     endpoint_type: EndpointType,
 ) -> Option<Vec<u8>> {
-    let endpoint_storage_iter = &mut api
+    let mut endpoint_storage_iter = api
         .storage()
         .phala_registry()
         .endpoints_iter(None)
@@ -43,7 +43,7 @@ pub async fn get_endpoint_info_by_pubkey(
 }
 
 pub fn block_get_endpoint_info_by_pubkey(
-    api: &mut &ParachainApi,
+    api: &ParachainApi,
     pubkey: [u8; 32],
     endpoint_type: EndpointType,
 ) -> Option<Vec<u8>> {

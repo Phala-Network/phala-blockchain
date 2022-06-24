@@ -388,7 +388,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			// validate the signature
+			// Validate the signature
 			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;

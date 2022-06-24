@@ -147,7 +147,7 @@ async fn resolve_domain(
                     {
                         let para_api = para_api.lock().unwrap();
                         let endpoint = translator::block_get_endpoint_info_by_pubkey(
-                            &mut para_api.as_ref().expect("guaranteed to be initialized"),
+                            para_api.as_ref().expect("guaranteed to be initialized"),
                             decoded_pubkey
                                 .try_into()
                                 .map_err(|e| anyhow!("Failed to convert pubkey to endpoint: {}", e))

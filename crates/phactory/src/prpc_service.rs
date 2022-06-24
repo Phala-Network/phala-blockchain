@@ -661,7 +661,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         endpoint_type: EndpointType,
         endpoint: Vec<u8>,
     ) -> RpcResult<pb::InitEndpointResponse> {
-        let endpoint_info = EndpointInfo { endpoint };
+        let state = self
+            .runtime_state
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+
+        let now_ms = state
+            .chain_storage
+            .timestamp_now()
+            .ok_or_else(|| from_display("No timestamp found in block"))?;
+
+        let block_time = now_ms / 1000;
+        let endpoint_info = EndpointInfo {
+            endpoint,
+            block_time,
+        };
 
         let wrapped_endpoint = match endpoint_type {
             EndpointType::I2P => WorkerEndpoint::I2P(endpoint_info),

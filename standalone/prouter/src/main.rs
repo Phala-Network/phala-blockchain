@@ -1,4 +1,3 @@
-#![feature(decl_macro)]
 #![feature(async_closure)]
 
 mod config;
@@ -352,36 +351,13 @@ pub async fn prouter_daemon(args: &Args, i2pd: &I2pd) -> Result<()> {
     Ok(())
 }
 
-pub async fn prouter_main(args: &Args, para_api: SharedParachainApi) -> Result<(String, I2pd)> {
+pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
     let mut i2pd = I2pd::new("PRouter".parse()?);
     let mut local_proxy: String = Default::default();
     {
         let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
-        let mut para_api = para_api.lock().unwrap();
         let endpoint: Vec<u8>;
-        let mut no_bind: bool = false;
-
-        // Connect to substrate
-        if !args.no_pnode {
-            let para_uri: &str = &args.substrate_ws_endpoint;
-            *para_api = Some(subxt_connect(para_uri).await?.into());
-            info!("Connected to parachain node at: {}", para_uri);
-
-            if !args.no_wait {
-                // Don't start our worker until the substrate node is synced
-                info!("Waiting for substrate to sync blocks...");
-                wait_until_synced(
-                    &para_api
-                        .as_ref()
-                        .expect("ParaApi should be initialized here")
-                        .client,
-                )
-                .await?;
-                info!("Substrate sync blocks done");
-            }
-        } else {
-            no_bind = true;
-        }
+        let mut no_bind: bool = args.no_pnode;
 
         // connect to pruntime (need pruntime to be initialized first)
         if !args.no_pruntime {
@@ -489,8 +465,29 @@ async fn main() {
 
     let args = Args::from_args();
     check_args(&args).expect("Args should be valid");
-    let para_api: SharedParachainApi = Arc::new(Mutex::new(None));
-    let (local_proxy, i2pd) = prouter_main(&args, para_api.clone())
+
+    let para_api: SharedParachainApi = if args.no_pnode {
+        Arc::new(Mutex::new(None))
+    } else {
+        let para_uri: &str = &args.substrate_ws_endpoint;
+        let connected_para_api: ParachainApi = subxt_connect(para_uri)
+            .await
+            .expect("should connect to parachain")
+            .into();
+        info!("Connected to parachain node at: {}", para_uri);
+        if !args.no_wait {
+            // Don't start the router until the substrate node is synced
+            info!("Waiting for substrate to sync blocks...");
+            wait_until_synced(&connected_para_api.client)
+                .await
+                .expect("should wait for sync");
+            info!("Substrate sync blocks done");
+        }
+
+        Arc::new(Mutex::new(Some(connected_para_api)))
+    };
+
+    let (local_proxy, i2pd) = prouter_main(&args)
         .await
         .expect("prouter_main should be ok");
     let server_address = args.server_address.clone();
