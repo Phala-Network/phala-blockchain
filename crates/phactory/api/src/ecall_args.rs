@@ -10,9 +10,6 @@ pub struct InitArgs {
     /// The PRuntime persistent data storing path
     pub storage_path: String,
 
-    /// The log filter string to pass to env_logger.
-    pub log_filter: String,
-
     /// Whether start to benchmark at start.
     pub init_bench: bool,
 
