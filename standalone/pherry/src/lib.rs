@@ -132,7 +132,7 @@ struct Args {
     fetch_blocks: u32,
 
     #[clap(
-        default_value = "10",
+        default_value = "4",
         long = "sync-blocks",
         help = "The batch size to sync blocks to pRuntime."
     )]

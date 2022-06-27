@@ -203,7 +203,7 @@ describe('A full stack', function () {
             );
             const dataDir = "data";
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime1/${dataDir}/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime1/${dataDir}/protected_files/master_key.seal`),
                 'master key not received'
             );
         });

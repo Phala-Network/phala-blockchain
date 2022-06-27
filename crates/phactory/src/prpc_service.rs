@@ -381,6 +381,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let system = system::System::new(
             self.platform.clone(),
             self.args.sealing_path.clone(),
+            self.args.storage_path.clone(),
             false,
             self.args.geoip_city_db.clone(),
             identity_key,

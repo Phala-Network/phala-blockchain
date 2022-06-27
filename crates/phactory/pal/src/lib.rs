@@ -36,15 +36,6 @@ pub trait Machine {
     fn cpu_feature_level(&self) -> u32;
 }
 
-pub trait ProtectedFileSystem {
-    type IoError: ErrorType;
-    type ReadFile: std::io::Read;
-    type WriteFile: std::io::Write;
-
-    fn open_protected_file(&self, path: impl AsRef<Path>, key: &[u8]) -> Result<Option<Self::ReadFile>, Self::IoError>;
-    fn create_protected_file(&self, path: impl AsRef<Path>, key: &[u8]) -> Result<Self::WriteFile, Self::IoError>;
-}
-
 pub struct AppVersion {
     pub major: u32,
     pub minor: u32,
@@ -55,5 +46,5 @@ pub trait AppInfo {
     fn app_version() -> AppVersion;
 }
 
-pub trait Platform: Sealing + RA + Machine + MemoryStats + ProtectedFileSystem + AppInfo + Clone {}
-impl<T: Sealing + RA + Machine + MemoryStats + ProtectedFileSystem + AppInfo + Clone> Platform for T {}
+pub trait Platform: Sealing + RA + Machine + MemoryStats + AppInfo + Clone {}
+impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + Clone> Platform for T {}
