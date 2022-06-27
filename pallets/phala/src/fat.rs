@@ -100,6 +100,10 @@ pub mod pallet {
 			uploader: H256,
 			hash: H256,
 		},
+		CodeUploadFailed {
+			cluster: ContractClusterId,
+			uploader: H256,
+		},
 		Instantiating {
 			contract: ContractId,
 			cluster: ContractClusterId,
@@ -341,6 +345,15 @@ pub mod pallet {
 						cluster: cluster_id,
 						uploader,
 						hash,
+					});
+				}
+				WorkerContractReport::CodeUploadFailed {
+					cluster_id,
+					uploader,
+				} => {
+					Self::deposit_event(Event::CodeUploadFailed {
+						cluster: cluster_id,
+						uploader,
 					});
 				}
 				WorkerContractReport::ContractInstantiated {
