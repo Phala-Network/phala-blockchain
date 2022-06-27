@@ -913,10 +913,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
-                let hash = cluster
-                    .upload_code(origin.clone(), code)
-                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
-                let uploader = phala_types::messaging::AccountId(origin.into());
+                let uploader = phala_types::messaging::AccountId(origin.clone().into());
+                let hash = cluster.upload_code(origin, code).map_err(|err| {
+                    let message = WorkerContractReport::CodeUploadFailed {
+                        cluster_id,
+                        uploader,
+                    };
+                    self.egress.push_message(&message);
+                    anyhow!("Failed to upload code: {:?}", err)
+                })?;
                 let message = WorkerContractReport::CodeUploaded {
                     cluster_id,
                     uploader,
