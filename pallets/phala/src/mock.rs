@@ -6,7 +6,7 @@ use crate::{
 use frame_support::{
 	pallet_prelude::ConstU32,
 	parameter_types,
-	traits::{GenesisBuild, OnFinalize, OnInitialize, AsEnsureOriginWithArg},
+	traits::{AsEnsureOriginWithArg, GenesisBuild, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
