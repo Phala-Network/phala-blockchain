@@ -126,16 +126,16 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A new Gatekeeper is enabled on the blockchain
 		GatekeeperAdded {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 		GatekeeperRemoved {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 		WorkerAdded {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 		WorkerUpdated {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 	}
 
@@ -177,6 +177,8 @@ pub mod pallet {
 		// Additional
 		UnknownCluster,
 		NotImplemented,
+		// PRouter related
+		InvalidEndpointBlockTime,
 	}
 
 	#[pallet::call]
@@ -400,10 +402,63 @@ pub mod pallet {
 			);
 
 			Endpoints::<T>::mutate(pubkey, |v| {
-				*v = Some(versioned_endpoints);
-			});
+				match &v {
+					Some(versioned_endpoints_chain) => {
+						match (&versioned_endpoints_chain, &&versioned_endpoints) {
+							(
+								&VersionedWorkerEndpoint::V1(endpoints_chain),
+								&VersionedWorkerEndpoint::V1(endpoints),
+							) => {
+								for endpoint_chain in endpoints_chain {
+									for endpoint in endpoints {
+										match (&endpoint_chain, &&endpoint) {
+											(
+												&WorkerEndpoint::I2P(i2p_endpoint_chain),
+												&WorkerEndpoint::I2P(i2p_endpoint),
+											) => {
+												if i2p_endpoint_chain.block_time
+													> i2p_endpoint.block_time
+												{
+													return Err(
+														Error::<T>::InvalidEndpointBlockTime.into(),
+													);
+												}
+												if i2p_endpoint_chain.block_time
+													== i2p_endpoint.block_time
+												{
+													return Ok(());
+												}
+											}
+											(
+												&WorkerEndpoint::Http(http_endpoint_chain),
+												&WorkerEndpoint::Http(http_endpoint),
+											) => {
+												if http_endpoint_chain.block_time
+													> http_endpoint.block_time
+												{
+													return Err(
+														Error::<T>::InvalidEndpointBlockTime.into(),
+													);
+												}
+												if http_endpoint_chain.block_time
+													== http_endpoint.block_time
+												{
+													return Ok(());
+												}
+											}
+											_ => {}
+										}
+									}
+								}
+							}
+						}
+					}
+					None => {}
+				}
 
-			Ok(())
+				*v = Some(versioned_endpoints);
+				Ok(())
+			})
 		}
 
 		/// Registers a pruntime binary to [`PRuntimeAllowList`]
