@@ -285,6 +285,11 @@ impl PinkExtBackend for CallInQuery {
         let value = GLOBAL_CACHE.write().unwrap().remove(contract, key.as_ref());
         Ok(value)
     }
+
+    fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
+        log(&self.address, level, message);
+        Ok(())
+    }
 }
 
 struct CallInCommand {
@@ -358,6 +363,23 @@ impl PinkExtBackend for CallInCommand {
         );
         Ok(None)
     }
+
+    fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
+        log(&self.as_in_query.address, level, message);
+        Ok(())
+    }
+}
+
+fn log(address: &AccountId, level: u8, message: Cow<str>) {
+    let level = match level {
+        1 => log::Level::Error,
+        2 => log::Level::Warn,
+        3 => log::Level::Info,
+        4 => log::Level::Debug,
+        5 => log::Level::Trace,
+        _ => log::Level::Error,
+    };
+    log::log!(target: "pink", level, "[{}] {}", address, message);
 }
 
 struct LimitedWriter<W> {

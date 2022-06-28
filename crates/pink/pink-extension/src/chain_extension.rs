@@ -1,13 +1,13 @@
-use alloc::vec::Vec;
 use alloc::borrow::Cow;
-use ink_lang as ink;
+use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
+use ink_lang as ink;
 
 pub use http_request::{HttpRequest, HttpResponse};
-pub use signing::{SigType, SignArgs, VerifyArgs, PublicKeyForArgs};
+pub use signing::{PublicKeyForArgs, SigType, SignArgs, VerifyArgs};
 
 mod http_request;
-mod signing;
+pub mod signing;
 
 #[cfg(feature = "std")]
 pub mod test;
@@ -80,6 +80,10 @@ pub trait PinkExt {
     /// command context.
     #[ink(extension = 0xff000009, handle_status = false, returns_result = false)]
     fn cache_remove(args: &[u8]) -> Option<Vec<u8>>;
+
+    /// Print log message.
+    #[ink(extension = 0xff00000a, handle_status = false, returns_result = false)]
+    fn log(level: u8, message: &str);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

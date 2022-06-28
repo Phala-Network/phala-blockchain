@@ -1,10 +1,12 @@
 [package]
-name = "pink-extension"
-version = "0.1.8"
-edition = "2018"
-description = "Phala's ink! for writing fat contracts"
-license = "Apache-2.0"
-keywords = ["fat-contract", "pink", "ink"]
+name = "logging"
+version = "0.1.0"
+authors = ["[your_name] <[your_email]>"]
+edition = "2021"
+rust-version = "1.56.1"
+
+# workaround for https://github.com/rust-lang/cargo/issues/6745
+[workspace]
 
 [dependencies]
 ink_primitives = { version = "3.1.0", default-features = false }
@@ -15,14 +17,19 @@ ink_lang = { version = "3.1.0", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0", default-features = false, features = ["derive"], optional = true }
-pink-extension-macro = { version = "0.1.2", path = "./macro" }
-log = "0.4.17"
 
-[dev-dependencies]
-insta = "1.7.2"
+pink-extension = { version = "0.1.0", path = "../../pink-extension", default-features = false }
+
+[lib]
+name = "logging"
+path = "lib.rs"
+crate-type = [
+	# Used for normal contract Wasm blobs.
+	"cdylib",
+]
 
 [features]
-default = ["std", "runtime_utils"]
+default = ["std"]
 std = [
     "ink_metadata/std",
     "ink_env/std",
@@ -30,6 +37,6 @@ std = [
     "ink_primitives/std",
     "scale/std",
     "scale-info/std",
+    "pink-extension/std",
 ]
-runtime_utils = ["std"]
 ink-as-dependency = []

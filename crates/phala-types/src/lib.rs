@@ -589,6 +589,10 @@ pub mod messaging {
             uploader: AccountId,
             hash: H256,
         },
+        CodeUploadFailed {
+            cluster_id: ContractClusterId,
+            uploader: AccountId,
+        },
         ContractInstantiated {
             id: ContractId,
             cluster_id: ContractClusterId,
