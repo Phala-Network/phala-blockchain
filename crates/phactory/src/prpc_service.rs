@@ -666,23 +666,23 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
 
-        let now_ms = state
+        let block_time = state
             .chain_storage
             .timestamp_now()
             .ok_or_else(|| from_display("No timestamp found in block"))?;
 
-        let block_time = now_ms / 1000;
-        let endpoint_info = EndpointInfo {
-            endpoint,
-            block_time,
+        let endpoint_info = match endpoint_type {
+            EndpointType::I2P => EndpointInfo {
+                endpoint: WorkerEndpoint::I2P(endpoint),
+                block_time
+            },
+            EndpointType::Http => EndpointInfo {
+                endpoint: WorkerEndpoint::Http(endpoint),
+                block_time,
+            }
         };
 
-        let wrapped_endpoint = match endpoint_type {
-            EndpointType::I2P => WorkerEndpoint::I2P(endpoint_info),
-            EndpointType::Http => WorkerEndpoint::Http(endpoint_info),
-        };
-
-        let versioned_endpoint = VersionedWorkerEndpoint::V1(vec![wrapped_endpoint]);
+        let versioned_endpoint = VersionedWorkerEndpoint::V1(vec![endpoint_info]);
 
         let resp = pb::InitEndpointResponse::new(versioned_endpoint.clone(), None);
 

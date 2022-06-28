@@ -698,7 +698,7 @@ impl FromStr for EndpointType {
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub enum VersionedWorkerEndpoint {
-    V1(Vec<worker_endpoint_v1::WorkerEndpoint>),
+    V1(Vec<worker_endpoint_v1::EndpointInfo>),
 }
 
 pub mod worker_endpoint_v1 {
@@ -710,13 +710,13 @@ pub mod worker_endpoint_v1 {
 
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub enum WorkerEndpoint {
-        I2P(EndpointInfo),
-        Http(EndpointInfo),
+        I2P(Vec<u8>),
+        Http(Vec<u8>),
     }
 
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub struct EndpointInfo {
-        pub endpoint: Vec<u8>,
+        pub endpoint: WorkerEndpoint,
         pub block_time: u64,
     }
 }

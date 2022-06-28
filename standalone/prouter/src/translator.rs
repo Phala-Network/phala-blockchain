@@ -22,15 +22,15 @@ pub async fn get_endpoint_info_by_pubkey(
         match versioned_endpoint_info {
             VersionedWorkerEndpoint::V1(endpoints_info) => {
                 for endpoint_info in endpoints_info {
-                    match endpoint_info {
-                        WorkerEndpoint::I2P(endpoint_info) => {
+                    match endpoint_info.endpoint {
+                        WorkerEndpoint::I2P(endpoint) => {
                             if matches!(endpoint_type, EndpointType::I2P) && key.0 == pubkey {
-                                return Some(endpoint_info.endpoint);
+                                return Some(endpoint);
                             }
                         }
-                        WorkerEndpoint::Http(endpoint_info) => {
+                        WorkerEndpoint::Http(endpoint) => {
                             if matches!(endpoint_type, EndpointType::I2P) && key.0 == pubkey {
-                                return Some(endpoint_info.endpoint);
+                                return Some(endpoint);
                             }
                         }
                     }

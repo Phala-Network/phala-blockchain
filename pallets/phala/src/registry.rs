@@ -401,64 +401,25 @@ pub mod pallet {
 				Error::<T>::InvalidSignature
 			);
 
-			Endpoints::<T>::mutate(pubkey, |v| {
-				match &v {
-					Some(versioned_endpoints_chain) => {
-						match (&versioned_endpoints_chain, &&versioned_endpoints) {
-							(
-								&VersionedWorkerEndpoint::V1(endpoints_chain),
-								&VersionedWorkerEndpoint::V1(endpoints),
-							) => {
-								for endpoint_chain in endpoints_chain {
-									for endpoint in endpoints {
-										match (&endpoint_chain, &&endpoint) {
-											(
-												&WorkerEndpoint::I2P(i2p_endpoint_chain),
-												&WorkerEndpoint::I2P(i2p_endpoint),
-											) => {
-												if i2p_endpoint_chain.block_time
-													> i2p_endpoint.block_time
-												{
-													return Err(
-														Error::<T>::InvalidEndpointBlockTime.into(),
-													);
-												}
-												if i2p_endpoint_chain.block_time
-													== i2p_endpoint.block_time
-												{
-													return Ok(());
-												}
-											}
-											(
-												&WorkerEndpoint::Http(http_endpoint_chain),
-												&WorkerEndpoint::Http(http_endpoint),
-											) => {
-												if http_endpoint_chain.block_time
-													> http_endpoint.block_time
-												{
-													return Err(
-														Error::<T>::InvalidEndpointBlockTime.into(),
-													);
-												}
-												if http_endpoint_chain.block_time
-													== http_endpoint.block_time
-												{
-													return Ok(());
-												}
-											}
-											_ => {}
-										}
-									}
-								}
-							}
-						}
+			// Validate the time
+			let expiration = 4 * 60 * 60 * 1000; // 4 hours
+			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+			match &versioned_endpoints {
+				VersionedWorkerEndpoint::V1(endpoints) => {
+					for endpoint in endpoints {
+						ensure!(
+							endpoint.block_time <= now + expiration,
+							Error::<T>::InvalidEndpointBlockTime
+						);
 					}
-					None => {}
 				}
+			}
 
+			Endpoints::<T>::mutate(pubkey, |v| {
 				*v = Some(versioned_endpoints);
-				Ok(())
-			})
+			});
+
+			Ok(())
 		}
 
 		/// Registers a pruntime binary to [`PRuntimeAllowList`]
