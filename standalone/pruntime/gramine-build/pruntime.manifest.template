@@ -45,9 +45,12 @@ debug = false
 nonpie_binary = true
 enclave_size = "2G"
 thread_num = 32
-remote_attestation = "epid"
+remote_attestation = "{{ ra_method }}"
+
+{% if ra_method == "epid" %}
 ra_client_linkable = true
 ra_client_spid = "{{ ra_client_spid }}"
+{% endif %}
 
 trusted_files = [
   "file:{{ libos }}",
