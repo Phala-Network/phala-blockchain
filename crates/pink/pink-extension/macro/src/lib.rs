@@ -4,10 +4,29 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
-use syn::{parse_macro_input, spanned::Spanned, Result, Type};
+use syn::{
+    parse::Parse, parse_macro_input, punctuated::Punctuated, spanned::Spanned, Result, Token, Type,
+};
 use unzip3::Unzip3 as _;
 
 use ink_lang_ir::{ChainExtension, HexLiteral as _, ImplItem, Selector};
+
+#[derive(Debug, PartialEq, Eq)]
+struct MetaNameValue {
+    name: syn::Ident,
+    eq_token: syn::token::Eq,
+    value: syn::Path,
+}
+
+impl Parse for MetaNameValue {
+    fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+        Ok(Self {
+            name: input.parse()?,
+            eq_token: input.parse()?,
+            value: input.parse()?,
+        })
+    }
+}
 
 /// A drop-in replacement for `ink_lang::contract` with pink-specific feature extensions.
 ///
@@ -114,9 +133,36 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
             }
         }
     }
+
+    let mut inner = None;
+
+    let attrs = std::mem::take(&mut module.attrs);
+    for attr in attrs.into_iter() {
+        if !attr.path.is_ident("pink") {
+            module.attrs.push(attr);
+            continue;
+        }
+
+        let args: Punctuated<MetaNameValue, Token![,]> =
+            attr.parse_args_with(Punctuated::parse_terminated)?;
+        for arg in args.into_iter() {
+            if arg.name.to_string() == "inner" {
+                inner = Some(arg.value);
+            }
+        }
+    }
+
     let crate_ink_lang = find_crate_name("ink_lang")?;
+    let inner_contract = match inner {
+        Some(inner) => quote! {
+            #inner
+        },
+        None => quote! {
+            #crate_ink_lang::contract
+        },
+    };
     Ok(quote! {
-        #[#crate_ink_lang::contract(#config)]
+        #[#inner_contract(#config)]
         #module
     })
 }
