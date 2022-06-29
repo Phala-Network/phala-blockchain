@@ -24,9 +24,10 @@ path = "/lib"
 uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
-type = "chroot"
 path = "/data/protected_files"
 uri = "file:{{ seal_dir }}"
+type = "encrypted"
+key_name = "_sgx_mrenclave"
 
 [[fs.mounts]]
 type = "chroot"
@@ -44,7 +45,7 @@ debug = false
 nonpie_binary = true
 enclave_size = "2G"
 thread_num = 32
-remote_attestation = true
+remote_attestation = "epid"
 ra_client_linkable = true
 ra_client_spid = "{{ ra_client_spid }}"
 
@@ -60,8 +61,3 @@ allowed_files = [
   "file:Rocket.toml",
   "file:{{ storage_dir }}/",
 ]
-
-protected_mrenclave_files = [
-    "file:{{ seal_dir }}/"
-]
-
