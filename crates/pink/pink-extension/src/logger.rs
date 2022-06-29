@@ -1,7 +1,7 @@
 //! Logger for Pink contracts.
 
 use core::sync::atomic::{AtomicBool, Ordering};
-pub use log::{self, Level};
+pub use log::{self, LevelFilter as Level};
 use log::{Log, Metadata, Record};
 
 /// A logger working inside a Pink contract.
@@ -17,7 +17,7 @@ impl Logger {
 
     /// Install the logger as the global logger.
     pub fn init(&'static self) {
-        log::set_max_level(self.max_level.to_level_filter());
+        log::set_max_level(self.max_level);
         log::set_logger(self).unwrap();
     }
 }
@@ -29,6 +29,7 @@ impl Log for Logger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
+            use log::Level;
             let message = alloc::format!("{}", record.args());
             let level = match record.level() {
                 Level::Error => 1,

@@ -9,7 +9,7 @@ use sidevm::{logger::Logger, ocall};
 
 #[sidevm::main]
 async fn main() {
-    Logger::with_max_level(log::Level::Trace).init();
+    Logger::with_max_level(log::LevelFilter::Trace).init();
     ocall::enable_ocall_trace(true).unwrap();
     info!("creating channel...");
     let (tx, mut rx) = channel(100);

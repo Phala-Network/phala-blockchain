@@ -7967,7 +7967,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -8075,7 +8075,7 @@ dependencies = [
 
 [[package]]
 name = "pink-sidevm-logger"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "log",
  "pink-sidevm-env",

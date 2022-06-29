@@ -5,7 +5,7 @@ use futures::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[sidevm::main]
 async fn main() {
-    sidevm::logger::Logger::with_max_level(log::Level::Trace).init();
+    sidevm::logger::Logger::with_max_level(log::LevelFilter::Trace).init();
     sidevm::ocall::enable_ocall_trace(true).unwrap();
 
     let host = "example.com";
