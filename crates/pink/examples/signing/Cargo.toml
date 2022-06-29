@@ -20,6 +20,9 @@ scale-info = { version = "2.0", default-features = false, features = ["derive"],
 
 pink-extension = { version = "0.1.0", path = "../../pink-extension", default-features = false }
 
+[dev-dependencies]
+pink-extension-runtime = { version = "0.1.0", path = "../../pink-extension-runtime" }
+
 [lib]
 name = "signing"
 path = "lib.rs"

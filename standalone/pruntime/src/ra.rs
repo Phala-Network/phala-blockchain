@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context as _, Result};
 use log::{error, warn, info};
 use std::{fs, time::Duration};
 
-use reqwest_proxy::EnvProxyBuilder as _;
+use reqwest_env_proxy::EnvProxyBuilder as _;
 
 pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");

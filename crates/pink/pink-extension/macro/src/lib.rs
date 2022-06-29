@@ -336,10 +336,12 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 use super::test::MockExtension;
             }
         };
+        let mut reg_expressions: Vec<TokenStream2> = Default::default();
         for m in extension.iter_methods() {
             let name = m.ident().to_string();
             let fname = "mock_".to_owned() + &name;
             let fname = Ident::new(&fname, Span::call_site());
+            let origin_fname = Ident::new(&name, Span::call_site());
             let id = Literal::u32_unsuffixed(m.id().into_u32());
             let input_types: Vec<Type> = m.inputs().map(|arg| (*arg.ty).clone()).collect();
             let input_types_cow: Vec<Type> = input_types
@@ -389,7 +391,26 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                         );
                     }
                 });
+            reg_expressions.push(syn::parse_quote! {
+                ink_env::test::register_chain_extension(
+                    MockExtension::<_, _, _, #id>::new(
+                        move |(#(#input_args),*): (#(#input_types_cow),*)| ext_impl.#origin_fname(#(#input_args),*).unwrap()
+                    ),
+                );
+            });
         }
+
+        let backend_trait_ident = &backend_trait.ident;
+        mod_item
+            .content
+            .as_mut()
+            .unwrap()
+            .1
+            .push(syn::parse_quote! {
+                pub fn mock_all_with<E: core::fmt::Debug, I: #backend_trait_ident<Error=E>>(ext_impl: &'static I) {
+                    #(#reg_expressions)*
+                }
+            });
         mod_item
     };
 
