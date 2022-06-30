@@ -10,15 +10,12 @@ pub struct QueryRequest {
 }
 
 #[derive(Encode, Decode)]
+#[non_exhaustive]
 pub enum SystemMessage {
     PinkLog {
         in_query: bool,
         from: AccountId,
         level: u8,
         message: String,
-    },
-    PinkEvent {
-        from: AccountId,
-        payload: Vec<u8>,
     },
 }

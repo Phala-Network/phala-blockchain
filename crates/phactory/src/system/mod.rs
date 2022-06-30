@@ -933,6 +933,11 @@ impl<Platform: pal::Platform> System<Platform> {
                             cluster_id
                         )
                     })?;
+                info!(
+                    "Set log receiver for cluster {}: {:?}",
+                    hex_fmt::HexFmt(cluster_id),
+                    log_receiver
+                );
                 cluster.config.log_receiver = Some(log_receiver);
             }
         }
