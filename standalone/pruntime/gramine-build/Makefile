@@ -1,3 +1,5 @@
+GEN_GRAMINE_SGX_TOKEN ?=1
+
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
 
@@ -31,7 +33,10 @@ PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 .PHONY: all
 all: ${BIN_NAME} ${BIN_NAME}.manifest
 ifeq ($(SGX),1)
-all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig ${BIN_NAME}.token
+all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
+ifeq ($(GEN_GRAMINE_SGX_TOKEN),1)
+all: ${BIN_NAME}.token
+endif
 endif
 
 .PHONY: ${BIN_FILE}
@@ -81,7 +86,9 @@ dist: all
 ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
+ifeq ($(GEN_GRAMINE_SGX_TOKEN),1)
 	cp ${BIN_NAME}.token ${PREFIX}/
+endif
 endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
