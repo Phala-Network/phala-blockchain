@@ -1,6 +1,6 @@
 //! Multi-producer, single-consumer channel implementation.
 use pink_sidevm_env::{
-    query::{AccountId, QueryRequest},
+    messages::{AccountId, QueryRequest},
     OcallError,
 };
 

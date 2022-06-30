@@ -5,7 +5,7 @@ use sp_core::hashing;
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{Contracts, ExecSideEffects, System, Timestamp},
+    runtime::{BoxedEventCallbacks, Contracts, ExecSideEffects, System, Timestamp},
     storage,
     types::{AccountId, BlockNumber, Hash, GAS_LIMIT},
 };
@@ -63,6 +63,7 @@ impl Contract {
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
+        callbacks: Option<BoxedEventCallbacks>,
     ) -> Result<(Self, ExecSideEffects), ExecError> {
         if origin == AccountId::new(Default::default()) {
             return Err(ExecError {
@@ -71,45 +72,46 @@ impl Contract {
             });
         }
 
-        let (address, effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
-            System::set_block_number(block_number);
-            Timestamp::set_timestamp(now);
+        let (address, effects) =
+            storage.execute_with(false, callbacks, move || -> Result<_, ExecError> {
+                System::set_block_number(block_number);
+                Timestamp::set_timestamp(now);
 
-            let result = Contracts::bare_instantiate(
-                origin.clone(),
-                0,
-                GAS_LIMIT,
-                None,
-                pallet_contracts_primitives::Code::Existing(code_hash),
-                input_data,
-                salt.clone(),
-                true,
-            );
-            log::info!("Contract instantiation result: {:?}", &result);
-            match result.result {
-                Err(err) => {
-                    return Err(ExecError {
-                        source: err,
-                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                    });
-                }
-                Ok(rv) => {
-                    if rv.result.did_revert() {
+                let result = Contracts::bare_instantiate(
+                    origin.clone(),
+                    0,
+                    GAS_LIMIT,
+                    None,
+                    pallet_contracts_primitives::Code::Existing(code_hash),
+                    input_data,
+                    salt.clone(),
+                    true,
+                );
+                log::info!("Contract instantiation result: {:?}", &result);
+                match result.result {
+                    Err(err) => {
                         return Err(ExecError {
-                            source: DispatchError::Other("Contract reverted"),
+                            source: err,
                             message: String::from_utf8_lossy(&result.debug_message).to_string(),
                         });
                     }
+                    Ok(rv) => {
+                        if rv.result.did_revert() {
+                            return Err(ExecError {
+                                source: DispatchError::Other("Contract reverted"),
+                                message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                            });
+                        }
+                    }
                 }
-            }
-            let preimage = contract_id_preimage(
-                origin.as_ref(),
-                code_hash.as_ref(),
-                cluster_id.as_ref(),
-                salt.as_ref(),
-            );
-            Ok(AccountId::from(hashing::blake2_256(&preimage)))
-        });
+                let preimage = contract_id_preimage(
+                    origin.as_ref(),
+                    code_hash.as_ref(),
+                    cluster_id.as_ref(),
+                    salt.as_ref(),
+                );
+                Ok(AccountId::from(hashing::blake2_256(&preimage)))
+            });
         Ok((Self::from_address(address?), effects))
     }
 
@@ -137,6 +139,7 @@ impl Contract {
             salt,
             block_number,
             now,
+            None,
         )
     }
 
@@ -154,6 +157,7 @@ impl Contract {
         rollback: bool,
         block_number: BlockNumber,
         now: u64,
+        callbacks: Option<BoxedEventCallbacks>,
     ) -> (ContractExecResult, ExecSideEffects) {
         if origin == AccountId::new(Default::default()) {
             return (
@@ -167,7 +171,15 @@ impl Contract {
                 ExecSideEffects::default(),
             );
         }
-        self.unchecked_bare_call(storage, origin, input_data, rollback, block_number, now)
+        self.unchecked_bare_call(
+            storage,
+            origin,
+            input_data,
+            rollback,
+            block_number,
+            now,
+            callbacks,
+        )
     }
 
     fn unchecked_bare_call(
@@ -178,9 +190,10 @@ impl Contract {
         rollback: bool,
         block_number: BlockNumber,
         now: u64,
+        callbacks: Option<BoxedEventCallbacks>,
     ) -> (ContractExecResult, ExecSideEffects) {
         let addr = self.address.clone();
-        storage.execute_with(rollback, move || {
+        storage.execute_with(rollback, callbacks, move || {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
             Contracts::bare_call(origin, addr, 0, GAS_LIMIT, None, input_data, true)
@@ -203,7 +216,7 @@ impl Contract {
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
         let (result, effects) =
-            self.bare_call(storage, origin, input_data, rollback, block_number, now);
+            self.bare_call(storage, origin, input_data, rollback, block_number, now, None);
         let mut rv = transpose_contract_result(&result)?;
         Ok((
             Decode::decode(&mut rv).map_err(|_| ExecError {
@@ -220,6 +233,7 @@ impl Contract {
         storage: &mut Storage,
         block_number: BlockNumber,
         now: u64,
+        callbacks: Option<BoxedEventCallbacks>,
     ) -> Result<ExecSideEffects, ExecError> {
         if let Some(selector) = self.hooks.on_block_end {
             let mut input_data = vec![];
@@ -232,6 +246,7 @@ impl Contract {
                 false,
                 block_number,
                 now,
+                callbacks,
             );
             let _ = transpose_contract_result(&result)?;
             Ok(effects)

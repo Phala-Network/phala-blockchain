@@ -5,7 +5,7 @@ mod side_tasks;
 use crate::{
     benchmark,
     contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv},
-    pink::{cluster::ClusterKeeper, Pink},
+    pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
@@ -43,7 +43,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
-use sidevm::service::{Report, Spawner};
+use sidevm::service::{CommandSender, Report, Spawner};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -490,6 +490,30 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
+    pub fn get_system_message_receiver(
+        &mut self,
+        cluster_id: &ContractId,
+    ) -> Option<CommandSender> {
+        let receiver_contract_id = self
+            .contract_clusters
+            .get_cluster_mut(cluster_id)
+            .expect("BUG: contract cluster should always exists")
+            .config
+            .log_receiver
+            .as_ref()?;
+        self.contracts
+            .get(receiver_contract_id)?
+            .get_system_message_receiver()
+    }
+
+    pub fn get_system_message_receiver_for_contract_id(
+        &mut self,
+        contract_id: &ContractId,
+    ) -> Option<CommandSender> {
+        let cluster_id = self.contracts.get(contract_id)?.cluster_id();
+        self.get_system_message_receiver(&cluster_id)
+    }
+
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
@@ -503,9 +527,10 @@ impl<Platform: pal::Platform> System<Platform> {
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
+        let cluster_id = contract.cluster_id();
         let storage = self
             .contract_clusters
-            .get_cluster_mut(&contract.cluster_id())
+            .get_cluster_mut(&cluster_id)
             .expect("BUG: contract cluster should always exists")
             .storage
             .snapshot();
@@ -516,6 +541,7 @@ impl<Platform: pal::Platform> System<Platform> {
             now_ms: self.now_ms,
             storage,
             sidevm_handle,
+            log_sender: self.get_system_message_receiver(&cluster_id),
         };
         Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
             contract.handle_query(origin, req, &mut context)
@@ -598,6 +624,7 @@ impl<Platform: pal::Platform> System<Platform> {
             // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
             // availabe for next command.
             loop {
+                let log_sender = self.get_system_message_receiver_for_contract_id(&key);
                 let contract = match self.contracts.get_mut(&key) {
                     None => continue 'outer,
                     Some(v) => v,
@@ -606,6 +633,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let mut env = ExecuteEnv {
                     block: block,
                     contract_clusters: &mut self.contract_clusters,
+                    log_sender,
                 };
                 let result = match contract.process_next_message(&mut env) {
                     Some(result) => result,
@@ -621,13 +649,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     &self.sidevm_spawner,
                 );
             }
-            let mut env = ExecuteEnv {
-                block: block,
-                contract_clusters: &mut self.contract_clusters,
-            };
+            let log_sender = self.get_system_message_receiver_for_contract_id(&key);
             let contract = match self.contracts.get_mut(&key) {
                 None => continue 'outer,
                 Some(v) => v,
+            };
+            let mut env = ExecuteEnv {
+                block: block,
+                contract_clusters: &mut self.contract_clusters,
+                log_sender,
             };
             let result = contract.on_block_end(&mut env);
             let cluster_id = contract.cluster_id();
@@ -1023,6 +1053,8 @@ impl<Platform: pal::Platform> System<Platform> {
                         };
                         cluster_mq.push_message(&message);
 
+                        let log_sender = self.get_system_message_receiver(&cluster_id);
+
                         let effects = self
                             .contract_clusters
                             .instantiate_contract(
@@ -1033,6 +1065,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                 contract_info.salt,
                                 block.block_number,
                                 block.now_ms,
+                                ContractEventCallback::from_log_sender(&log_sender),
                             )
                             .with_context(|| format!("Contract deployer: {:?}", deployer))?;
 

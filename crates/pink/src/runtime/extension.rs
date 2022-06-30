@@ -201,6 +201,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
+        super::emit_log(&self.address, level, message.as_ref().into());
         DefaultPinkExtension::new(self).log(level, message)
     }
 }

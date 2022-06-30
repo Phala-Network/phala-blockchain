@@ -3,9 +3,9 @@ use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
-use pink::runtime::ExecSideEffects;
+use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use runtime::{AccountId, BlockNumber, Hash};
-use sidevm::service::Command as SidevmCommand;
+use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 
 use super::contract_address_to_id;
 
@@ -49,6 +49,7 @@ impl Pink {
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
+        callbacks: Option<BoxedEventCallbacks>,
     ) -> Result<(Self, ExecSideEffects)> {
         let (instance, effects) = pink::Contract::new(
             storage,
@@ -59,6 +60,7 @@ impl Pink {
             salt,
             block_number,
             now,
+            callbacks,
         )
         .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
         Ok((
@@ -112,6 +114,7 @@ impl contracts::NativeContract for Pink {
                     true,
                     context.block_number,
                     context.now_ms,
+                    ContractEventCallback::from_log_sender(&context.log_sender),
                 );
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
@@ -172,6 +175,7 @@ impl contracts::NativeContract for Pink {
                     false,
                     context.block.block_number,
                     context.block.now_ms,
+                    ContractEventCallback::from_log_sender(&context.log_sender),
                 );
 
                 let ret = pink::transpose_contract_result(&result).map_err(|err| {
@@ -191,7 +195,12 @@ impl contracts::NativeContract for Pink {
             .expect("Pink cluster should always exists!");
         let effects = self
             .instance
-            .on_block_end(storage, context.block.block_number, context.block.now_ms)
+            .on_block_end(
+                storage,
+                context.block.block_number,
+                context.block.now_ms,
+                ContractEventCallback::from_log_sender(&context.log_sender),
+            )
             .map_err(|err| {
                 log::error!("Pink [{:?}] on_block_end exec error: {:?}", self.id(), err);
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
@@ -221,7 +230,7 @@ pub mod cluster {
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use pink::{
-        runtime::ExecSideEffects,
+        runtime::{BoxedEventCallbacks, ExecSideEffects},
         types::{AccountId, Hash},
     };
     use runtime::BlockNumber;
@@ -249,6 +258,7 @@ pub mod cluster {
             salt: Vec<u8>,
             block_number: BlockNumber,
             now: u64,
+            callbacks: Option<BoxedEventCallbacks>,
         ) -> Result<ExecSideEffects> {
             let cluster = self
                 .get_cluster_mut(&cluster_id)
@@ -262,6 +272,7 @@ pub mod cluster {
                 salt,
                 block_number,
                 now,
+                callbacks,
             )?;
             Ok(effects)
         }
@@ -287,6 +298,7 @@ pub mod cluster {
                     storage: Default::default(),
                     contracts: Default::default(),
                     key: cluster_key.clone(),
+                    config: Default::default(),
                 };
                 let seed_key = cluster_key
                     .derive_sr25519_pair(&[b"ink key derivation seed"])
@@ -298,12 +310,18 @@ pub mod cluster {
         }
     }
 
+    #[derive(Serialize, Deserialize, Default)]
+    pub struct ClusterConfig {
+        pub log_receiver: Option<ContractId>,
+    }
+
     #[derive(Serialize, Deserialize)]
     pub struct Cluster {
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
         #[serde(with = "more::key_bytes")]
         key: sr25519::Pair,
+        pub config: ClusterConfig,
     }
 
     impl Cluster {
@@ -330,6 +348,38 @@ pub mod cluster {
             code: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
             self.storage.upload_code(origin, code)
+        }
+    }
+}
+
+pub(crate) struct ContractEventCallback {
+    log_sender: CommandSender,
+}
+
+impl ContractEventCallback {
+    pub fn new(log_sender: CommandSender) -> Self {
+        ContractEventCallback { log_sender }
+    }
+
+    pub fn from_log_sender(log_sender: &Option<CommandSender>) -> Option<BoxedEventCallbacks> {
+        Some(Box::new(ContractEventCallback::new(
+            log_sender.as_ref().cloned()?,
+        )))
+    }
+}
+
+impl pink::runtime::EventCallbacks for ContractEventCallback {
+    fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String) {
+        if let Err(_) =
+            self.log_sender
+                .try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
+                    in_query,
+                    from: contract.clone().into(),
+                    level,
+                    message,
+                }))
+        {
+            error!("Pink emit_log failed");
         }
     }
 }

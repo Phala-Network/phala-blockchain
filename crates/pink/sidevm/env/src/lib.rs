@@ -23,7 +23,7 @@ pub use tasks::spawn;
 mod args_stack;
 mod ocall_def;
 pub mod tasks;
-pub mod query;
+pub mod messages;
 pub mod tls;
 
 cfg_if::cfg_if! {
