@@ -463,6 +463,26 @@ impl env::OcallFuncs for State {
         }
         Ok(())
     }
+
+    fn create_input_channel(&mut self, ch: env::InputChannel) -> Result<i32> {
+        use env::InputChannel::*;
+        macro_rules! create_channel {
+            ($field: expr) => {{
+                if $field.is_some() {
+                    return Err(OcallError::AlreadyExists);
+                }
+                let (tx, rx) = tokio::sync::mpsc::channel(20);
+                let res = self.resources.push(Resource::ChannelRx(rx))?;
+                $field = Some(tx);
+                Ok(res)
+            }};
+        }
+        match ch {
+            GeneralMessage => create_channel!(self.message_tx),
+            SystemMessage => create_channel!(self.sys_message_tx),
+            Query => create_channel!(self.query_tx),
+        }
+    }
 }
 
 async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpStream> {

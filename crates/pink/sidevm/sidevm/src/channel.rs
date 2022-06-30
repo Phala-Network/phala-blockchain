@@ -1,7 +1,7 @@
 //! Multi-producer, single-consumer channel implementation.
 use pink_sidevm_env::{
-    messages::{AccountId, QueryRequest},
-    OcallError,
+    messages::{AccountId, QueryRequest, SystemMessage},
+    InputChannel, OcallError,
 };
 
 use super::{ocall, ResourceId};
@@ -11,6 +11,8 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+
+use lazy_static::lazy_static;
 
 /// A query from an external RPC request.
 pub struct Query {
@@ -23,7 +25,7 @@ pub struct Query {
 }
 
 /// A message from ink! to the side VM.
-pub type Message = Vec<u8>;
+pub type GeneralMessage = Vec<u8>;
 
 /// Sender end of a oneshot channel connected to host-side.
 pub struct OneshotSender {
@@ -67,14 +69,32 @@ impl<T> Receiver<T> {
     }
 }
 
-impl Future for Next<'_, Message> {
-    type Output = Option<Message>;
+impl Future for Next<'_, GeneralMessage> {
+    type Output = Option<GeneralMessage>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let waker_id = crate::env::tasks::intern_waker(cx.waker().clone());
         match ocall::poll(waker_id, self.ch.res_id.0) {
             Ok(msg) => Poll::Ready(Some(msg)),
             Err(OcallError::EndOfFile) => Poll::Ready(None), // tx dropped
+            Err(OcallError::Pending) => Poll::Pending,
+            Err(err) => panic!("unexpected error: {:?}", err),
+        }
+    }
+}
+
+impl Future for Next<'_, SystemMessage> {
+    type Output = Option<SystemMessage>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let waker_id = crate::env::tasks::intern_waker(cx.waker().clone());
+        match ocall::poll(waker_id, self.ch.res_id.0) {
+            Ok(msg) => {
+                let message =
+                    SystemMessage::decode(&mut &msg[..]).expect("Failed to decode SystemMessage");
+                Poll::Ready(Some(message))
+            }
+            Err(OcallError::EndOfFile) => Poll::Ready(None), // The tx dropped
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => panic!("unexpected error: {:?}", err),
         }
@@ -104,17 +124,34 @@ impl Future for Next<'_, Query> {
     }
 }
 
+macro_rules! singleton_channel {
+    ($ch: ident) => {{
+        lazy_static! {
+            static ref RX: Receiver<$ch> = {
+                let res_id = ocall::create_input_channel(InputChannel::$ch)
+                    .expect("Failed to create input channel");
+                Receiver::new(ResourceId(res_id))
+            };
+        }
+        &*RX
+    }};
+}
+
 /// The Pink standard input messages channel. Think of it as a stdin of a normal process.
 ///
 /// When the sidevm instance is being killed, the tx in the runtime is droped while the instance is
 /// running. At this time the rx-end might receive a None which indicate the tx-end has been closed.
-pub fn input_messages() -> &'static Receiver<Message> {
-    static MSG_RX: Receiver<Message> = Receiver::new(ResourceId(0));
-    &MSG_RX
+pub fn input_messages() -> &'static Receiver<GeneralMessage> {
+    singleton_channel!(GeneralMessage)
+}
+
+/// Receive system messages such as log messages from other contracts if this contract was set as
+/// log receiver in the cluster.
+pub fn incoming_system_messages() -> &'static Receiver<SystemMessage> {
+    singleton_channel!(SystemMessage)
 }
 
 /// Queries from RPC channel.
 pub fn incoming_queries() -> &'static Receiver<Query> {
-    static QUERY_RX: Receiver<Query> = Receiver::new(ResourceId(1));
-    &QUERY_RX
+    singleton_channel!(Query)
 }
