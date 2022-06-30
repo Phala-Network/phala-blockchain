@@ -34,10 +34,10 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, Condition,
-        DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
-        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
-        SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
+        AeadIV, BatchDispatchClusterKeyEvent, ClusterOperation, Condition, DispatchMasterKeyEvent,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
+        NewGatekeeperEvent, PRuntimeManagementEvent, SystemEvent, WorkerClusterReport,
+        WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -406,7 +406,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    cluster_key_distribution_events: TypedReceiver<ClusterKeyDistribution<chain::BlockNumber>>,
+    cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -572,7 +572,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.process_key_distribution_event(block, origin, event);
             },
             (event, origin) = self.cluster_key_distribution_events => {
-                self.process_cluster_key_distribution_event(block, origin, event);
+                self.process_cluster_operation_event(block, origin, event)?;
             },
             (event, origin) = self.contract_operation_events => {
                 self.process_contract_operation_event(block, origin, event)?
@@ -902,14 +902,14 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_cluster_key_distribution_event(
+    fn process_cluster_operation_event(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ClusterKeyDistribution<chain::BlockNumber>,
-    ) {
+        event: ClusterOperation<chain::BlockNumber>,
+    ) -> Result<()> {
         match event {
-            ClusterKeyDistribution::Batch(event) => {
+            ClusterOperation::DispatchKeys(event) => {
                 let cluster = event.cluster;
                 if let Err(err) = self.process_cluster_key_distribution(block, origin, event) {
                     error!(
@@ -920,7 +920,23 @@ impl<Platform: pal::Platform> System<Platform> {
                     self.egress.push_message(&message);
                 }
             }
+            ClusterOperation::SetLogReceiver {
+                cluster: cluster_id,
+                log_receiver,
+            } => {
+                let cluster = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id)
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "Failed to set log receiver for cluster {}: no such cluster",
+                            cluster_id
+                        )
+                    })?;
+                cluster.config.log_receiver = Some(log_receiver);
+            }
         }
+        Ok(())
     }
 
     fn process_contract_operation_event(
