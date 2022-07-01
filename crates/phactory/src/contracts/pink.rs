@@ -178,13 +178,23 @@ impl contracts::NativeContract for Pink {
                     ContractEventCallback::from_log_sender(&context.log_sender),
                 );
 
-                let ret = pink::transpose_contract_result(&result).map_err(|err| {
+                if let Some(log_sender) = &context.log_sender {
+                    if let Err(_) = log_sender.try_send(SidevmCommand::PushSystemMessage(
+                        SystemMessage::PinkMessageOutput {
+                            origin: origin.clone().into(),
+                            contract: self.instance.address.clone().into(),
+                            block_number: context.block.block_number,
+                            output: result.result.encode(),
+                        },
+                    )) {
+                        error!("Pink emit message output to log receiver failed");
+                    }
+                }
+
+                let _ = pink::transpose_contract_result(&result).map_err(|err| {
                     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                     TransactionError::Other(format!("Call contract method failed: {:?}", err))
                 })?;
-
-                // TODO.kevin: store the output to some where.
-                let _ = ret;
                 Ok(effects)
             }
         }

@@ -19,7 +19,13 @@ pub enum SystemMessage {
         message: String,
     },
     PinkEvent {
-        from: AccountId,
+        contract: AccountId,
         payload: Vec<u8>,
+    },
+    PinkMessageOutput {
+        origin: AccountId,
+        contract: AccountId,
+        block_number: u32,
+        output: Vec<u8>,
     },
 }

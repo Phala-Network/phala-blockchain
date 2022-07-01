@@ -1368,10 +1368,10 @@ pub fn apply_pink_side_effects(
     }
 
     if let Some(log_sender) = log_sender {
-        for (from, payload) in effects.ink_events.into_iter() {
+        for (contract, payload) in effects.ink_events.into_iter() {
             if let Err(_) =
                 log_sender.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
-                    from: from.into(),
+                    contract: contract.into(),
                     payload,
                 }))
             {
