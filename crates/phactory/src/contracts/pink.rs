@@ -115,7 +115,7 @@ impl contracts::NativeContract for Pink {
                     context.block_number,
                     context.now_ms,
                     ContractEventCallback::from_log_sender(
-                        &context.log_sender,
+                        &context.log_handler,
                         context.block_number,
                     ),
                 );
@@ -179,13 +179,13 @@ impl contracts::NativeContract for Pink {
                     context.block.block_number,
                     context.block.now_ms,
                     ContractEventCallback::from_log_sender(
-                        &context.log_sender,
+                        &context.log_handler,
                         context.block.block_number,
                     ),
                 );
 
-                if let Some(log_sender) = &context.log_sender {
-                    if let Err(_) = log_sender.try_send(SidevmCommand::PushSystemMessage(
+                if let Some(log_handler) = &context.log_handler {
+                    if let Err(_) = log_handler.try_send(SidevmCommand::PushSystemMessage(
                         SystemMessage::PinkMessageOutput {
                             origin: origin.clone().into(),
                             contract: self.instance.address.clone().into(),
@@ -193,7 +193,7 @@ impl contracts::NativeContract for Pink {
                             output: result.result.encode(),
                         },
                     )) {
-                        error!("Pink emit message output to log receiver failed");
+                        error!("Pink emit message output to log handler failed");
                     }
                 }
 
@@ -216,7 +216,7 @@ impl contracts::NativeContract for Pink {
                 context.block.block_number,
                 context.block.now_ms,
                 ContractEventCallback::from_log_sender(
-                    &context.log_sender,
+                    &context.log_handler,
                     context.block.block_number,
                 ),
             )
@@ -331,7 +331,7 @@ pub mod cluster {
 
     #[derive(Serialize, Deserialize, Default)]
     pub struct ClusterConfig {
-        pub log_receiver: Option<ContractId>,
+        pub log_handler: Option<ContractId>,
     }
 
     #[derive(Serialize, Deserialize)]
@@ -372,24 +372,24 @@ pub mod cluster {
 }
 
 pub(crate) struct ContractEventCallback {
-    log_sender: CommandSender,
+    log_handler: CommandSender,
     block_number: BlockNumber,
 }
 
 impl ContractEventCallback {
-    pub fn new(log_sender: CommandSender, block_number: BlockNumber) -> Self {
+    pub fn new(log_handler: CommandSender, block_number: BlockNumber) -> Self {
         ContractEventCallback {
-            log_sender,
+            log_handler,
             block_number,
         }
     }
 
     pub fn from_log_sender(
-        log_sender: &Option<CommandSender>,
+        log_handler: &Option<CommandSender>,
         block_number: BlockNumber,
     ) -> Option<BoxedEventCallbacks> {
         Some(Box::new(ContractEventCallback::new(
-            log_sender.as_ref().cloned()?,
+            log_handler.as_ref().cloned()?,
             block_number,
         )))
     }
@@ -398,7 +398,7 @@ impl ContractEventCallback {
 impl pink::runtime::EventCallbacks for ContractEventCallback {
     fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String) {
         if let Err(_) =
-            self.log_sender
+            self.log_handler
                 .try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
                     block_number: self.block_number,
                     timestamp_ms: std::time::SystemTime::now()

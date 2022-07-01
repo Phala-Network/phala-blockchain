@@ -126,7 +126,7 @@ pub mod pallet {
 		},
 		ClusterSetLogReceiver {
 			cluster: ContractClusterId,
-			log_receiver: ContractId,
+			log_handler: ContractId,
 		},
 	}
 
@@ -264,10 +264,10 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn cluster_set_log_receiver(
+		pub fn cluster_set_log_handler(
 			origin: OriginFor<T>,
 			cluster: ContractClusterId,
-			log_receiver: ContractId,
+			log_handler: ContractId,
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
 			let cluster_info = Clusters::<T>::get(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
@@ -278,11 +278,11 @@ pub mod pallet {
 
 			Self::push_message(ClusterOperation::<T::BlockNumber>::SetLogReceiver {
 				cluster,
-				log_receiver,
+				log_handler,
 			});
 			Self::deposit_event(Event::ClusterSetLogReceiver {
 				cluster,
-				log_receiver,
+				log_handler,
 			});
 			Ok(())
 		}

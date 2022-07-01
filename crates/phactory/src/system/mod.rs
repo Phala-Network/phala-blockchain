@@ -490,28 +490,28 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn get_system_message_receiver(
+    pub fn get_system_message_handler(
         &mut self,
         cluster_id: &ContractId,
     ) -> Option<CommandSender> {
-        let receiver_contract_id = self
+        let handler_contract_id = self
             .contract_clusters
             .get_cluster_mut(cluster_id)
             .expect("BUG: contract cluster should always exists")
             .config
-            .log_receiver
+            .log_handler
             .as_ref()?;
         self.contracts
-            .get(receiver_contract_id)?
-            .get_system_message_receiver()
+            .get(handler_contract_id)?
+            .get_system_message_handler()
     }
 
-    pub fn get_system_message_receiver_for_contract_id(
+    pub fn get_system_message_handler_for_contract_id(
         &mut self,
         contract_id: &ContractId,
     ) -> Option<CommandSender> {
         let cluster_id = self.contracts.get(contract_id)?.cluster_id();
-        self.get_system_message_receiver(&cluster_id)
+        self.get_system_message_handler(&cluster_id)
     }
 
     pub fn make_query(
@@ -541,7 +541,7 @@ impl<Platform: pal::Platform> System<Platform> {
             now_ms: self.now_ms,
             storage,
             sidevm_handle,
-            log_sender: self.get_system_message_receiver(&cluster_id),
+            log_handler: self.get_system_message_handler(&cluster_id),
         };
         Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
             contract.handle_query(origin, req, &mut context)
@@ -624,7 +624,7 @@ impl<Platform: pal::Platform> System<Platform> {
             // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
             // availabe for next command.
             loop {
-                let log_sender = self.get_system_message_receiver_for_contract_id(&key);
+                let log_handler = self.get_system_message_handler_for_contract_id(&key);
                 let contract = match self.contracts.get_mut(&key) {
                     None => continue 'outer,
                     Some(v) => v,
@@ -633,7 +633,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let mut env = ExecuteEnv {
                     block: block,
                     contract_clusters: &mut self.contract_clusters,
-                    log_sender: log_sender.clone(),
+                    log_handler: log_handler.clone(),
                 };
                 let result = match contract.process_next_message(&mut env) {
                     Some(result) => result,
@@ -647,10 +647,10 @@ impl<Platform: pal::Platform> System<Platform> {
                     block,
                     &self.egress,
                     &self.sidevm_spawner,
-                    log_sender,
+                    log_handler,
                 );
             }
-            let log_sender = self.get_system_message_receiver_for_contract_id(&key);
+            let log_handler = self.get_system_message_handler_for_contract_id(&key);
             let contract = match self.contracts.get_mut(&key) {
                 None => continue 'outer,
                 Some(v) => v,
@@ -658,7 +658,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let mut env = ExecuteEnv {
                 block: block,
                 contract_clusters: &mut self.contract_clusters,
-                log_sender: log_sender.clone(),
+                log_handler: log_handler.clone(),
             };
             let result = contract.on_block_end(&mut env);
             let cluster_id = contract.cluster_id();
@@ -670,7 +670,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 block,
                 &self.egress,
                 &self.sidevm_spawner,
-                log_sender,
+                log_handler,
             );
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
@@ -924,16 +924,16 @@ impl<Platform: pal::Platform> System<Platform> {
             }
             ClusterOperation::SetLogReceiver {
                 cluster: cluster_id,
-                log_receiver,
+                log_handler,
             } => {
                 let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
                 if let Some(cluster) = cluster {
                     info!(
-                        "Set log receiver for cluster {}: {:?}",
+                        "Set log handler for cluster {}: {:?}",
                         hex_fmt::HexFmt(cluster_id),
-                        log_receiver
+                        log_handler
                     );
-                    cluster.config.log_receiver = Some(log_receiver);
+                    cluster.config.log_handler = Some(log_handler);
                 }
             }
         }
@@ -1070,7 +1070,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         };
                         cluster_mq.push_message(&message);
 
-                        let log_sender = self.get_system_message_receiver(&cluster_id);
+                        let log_handler = self.get_system_message_handler(&cluster_id);
 
                         let effects = self
                             .contract_clusters
@@ -1083,7 +1083,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                 block.block_number,
                                 block.now_ms,
                                 ContractEventCallback::from_log_sender(
-                                    &log_sender,
+                                    &log_handler,
                                     block.block_number,
                                 ),
                             )
@@ -1101,7 +1101,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             block,
                             &self.egress,
                             &self.sidevm_spawner,
-                            log_sender,
+                            log_handler,
                         );
                     }
                 }
@@ -1232,7 +1232,7 @@ pub fn handle_contract_command_result(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
     spawner: &Spawner,
-    log_sender: Option<CommandSender>,
+    log_handler: Option<CommandSender>,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1252,7 +1252,7 @@ pub fn handle_contract_command_result(
         Some(cluster) => cluster,
     };
     apply_pink_side_effects(
-        effects, cluster_id, contracts, cluster, block, egress, spawner, log_sender,
+        effects, cluster_id, contracts, cluster, block, egress, spawner, log_handler,
     );
 }
 
@@ -1264,7 +1264,7 @@ pub fn apply_pink_side_effects(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
     spawner: &Spawner,
-    log_sender: Option<CommandSender>,
+    log_handler: Option<CommandSender>,
 ) {
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1364,17 +1364,17 @@ pub fn apply_pink_side_effects(
         }
     }
 
-    if let Some(log_sender) = log_sender {
+    if let Some(log_handler) = log_handler {
         for (contract, topics, payload) in effects.ink_events.into_iter() {
             if let Err(_) =
-                log_sender.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
+                log_handler.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
                     contract: contract.into(),
                     block_number: block.block_number,
                     payload,
                     topics: topics.into_iter().map(Into::into).collect(),
                 }))
             {
-                warn!("Cluster [{cluster_id}] emit ink event to log receiver failed");
+                warn!("Cluster [{cluster_id}] emit ink event to log handler failed");
             }
         }
     }
@@ -1506,7 +1506,7 @@ mod tests {
         let mut env = ExecuteEnv {
             block: &mut block_info,
             contract_clusters: &mut &mut keeper,
-            log_sender: None,
+            log_handler: None,
         };
 
         for contract in contracts.values_mut() {

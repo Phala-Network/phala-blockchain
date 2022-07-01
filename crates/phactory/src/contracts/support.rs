@@ -20,7 +20,7 @@ use phala_serde_more as more;
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
     pub contract_clusters: &'a mut ClusterKeeper,
-    pub log_sender: Option<CommandSender>,
+    pub log_handler: Option<CommandSender>,
 }
 
 pub struct NativeContext<'a, 'b> {
@@ -29,7 +29,7 @@ pub struct NativeContext<'a, 'b> {
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
     pub contract_clusters: &'a mut ClusterKeeper,
     pub self_id: ContractId,
-    pub log_sender: Option<CommandSender>,
+    pub log_handler: Option<CommandSender>,
 }
 
 pub struct QueryContext {
@@ -37,7 +37,7 @@ pub struct QueryContext {
     pub now_ms: u64,
     pub storage: ::pink::Storage,
     pub sidevm_handle: Option<SidevmHandle>,
-    pub log_sender: Option<CommandSender>,
+    pub log_handler: Option<CommandSender>,
 }
 
 impl NativeContext<'_, '_> {
@@ -214,7 +214,7 @@ impl FatContract {
             secret_mq,
             contract_clusters: &mut env.contract_clusters,
             self_id: self.id(),
-            log_sender: env.log_sender.clone(),
+            log_handler: env.log_handler.clone(),
         };
 
         phala_mq::select! {
@@ -238,7 +238,7 @@ impl FatContract {
             secret_mq,
             contract_clusters: &mut env.contract_clusters,
             self_id: self.id(),
-            log_sender: env.log_sender.clone(),
+            log_handler: env.log_handler.clone(),
         };
         self.contract.on_block_end(&mut context)
     }
@@ -351,7 +351,7 @@ impl FatContract {
         Ok(())
     }
 
-    pub(crate) fn get_system_message_receiver(&self) -> Option<CommandSender> {
+    pub(crate) fn get_system_message_handler(&self) -> Option<CommandSender> {
         let guard = self.sidevm_info.as_ref()?.handle.lock().unwrap();
         match &*guard {
             SidevmHandle::Terminated(_) => None,

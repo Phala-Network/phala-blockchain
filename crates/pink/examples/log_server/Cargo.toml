@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "log_receiver"
+name = "log_server"
 version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2018"
@@ -23,7 +23,7 @@ pink-extension = { version = "0.1.0", path = "../../pink-extension", default-fea
 run_shell = "0.1"
 
 [lib]
-name = "log_receiver"
+name = "log_server"
 path = "lib.rs"
 crate-type = [
     # Used for normal contract Wasm blobs.

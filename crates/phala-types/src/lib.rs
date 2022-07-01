@@ -458,7 +458,7 @@ pub mod messaging {
         SetLogReceiver {
             cluster: ContractClusterId,
             /// The id of the contract to receive the ink logs.
-            log_receiver: AccountId,
+            log_handler: AccountId,
         },
     }
 

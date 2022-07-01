@@ -141,8 +141,8 @@ pub fn input_messages() -> &'static Receiver<GeneralMessage> {
     singleton_channel!(GeneralMessage)
 }
 
-/// Receive system messages such as log messages from other contracts if this contract was set as
-/// log receiver in the cluster.
+/// Receive system messages such as log messages from other contracts if this contract has been set
+/// as log handler in the cluster.
 pub fn incoming_system_messages() -> &'static Receiver<SystemMessage> {
     singleton_channel!(SystemMessage)
 }
