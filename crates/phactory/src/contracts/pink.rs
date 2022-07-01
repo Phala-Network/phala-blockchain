@@ -114,7 +114,10 @@ impl contracts::NativeContract for Pink {
                     true,
                     context.block_number,
                     context.now_ms,
-                    ContractEventCallback::from_log_sender(&context.log_sender),
+                    ContractEventCallback::from_log_sender(
+                        &context.log_sender,
+                        context.block_number,
+                    ),
                 );
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
@@ -175,7 +178,10 @@ impl contracts::NativeContract for Pink {
                     false,
                     context.block.block_number,
                     context.block.now_ms,
-                    ContractEventCallback::from_log_sender(&context.log_sender),
+                    ContractEventCallback::from_log_sender(
+                        &context.log_sender,
+                        context.block.block_number,
+                    ),
                 );
 
                 if let Some(log_sender) = &context.log_sender {
@@ -209,7 +215,10 @@ impl contracts::NativeContract for Pink {
                 storage,
                 context.block.block_number,
                 context.block.now_ms,
-                ContractEventCallback::from_log_sender(&context.log_sender),
+                ContractEventCallback::from_log_sender(
+                    &context.log_sender,
+                    context.block.block_number,
+                ),
             )
             .map_err(|err| {
                 log::error!("Pink [{:?}] on_block_end exec error: {:?}", self.id(), err);
@@ -364,16 +373,24 @@ pub mod cluster {
 
 pub(crate) struct ContractEventCallback {
     log_sender: CommandSender,
+    block_number: BlockNumber,
 }
 
 impl ContractEventCallback {
-    pub fn new(log_sender: CommandSender) -> Self {
-        ContractEventCallback { log_sender }
+    pub fn new(log_sender: CommandSender, block_number: BlockNumber) -> Self {
+        ContractEventCallback {
+            log_sender,
+            block_number,
+        }
     }
 
-    pub fn from_log_sender(log_sender: &Option<CommandSender>) -> Option<BoxedEventCallbacks> {
+    pub fn from_log_sender(
+        log_sender: &Option<CommandSender>,
+        block_number: BlockNumber,
+    ) -> Option<BoxedEventCallbacks> {
         Some(Box::new(ContractEventCallback::new(
             log_sender.as_ref().cloned()?,
+            block_number,
         )))
     }
 }
@@ -383,8 +400,13 @@ impl pink::runtime::EventCallbacks for ContractEventCallback {
         if let Err(_) =
             self.log_sender
                 .try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
+                    block_number: self.block_number,
+                    timestamp_ms: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as _,
                     in_query,
-                    from: contract.clone().into(),
+                    contract: contract.clone().into(),
                     level,
                     message,
                 }))

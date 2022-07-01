@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use std::fmt::Write;
 use std::rc::Rc;
 
+use chrono::{TimeZone, Utc};
 use hyper::{Body, Request, Response};
 use log::{error, info};
 
@@ -101,17 +102,20 @@ async fn main() {
         };
         match message {
             SystemMessage::PinkLog {
-                in_query: _,
-                from,
+                block_number,
+                contract,
+                in_query,
+                timestamp_ms,
                 level,
                 message,
             } => {
+                let mode = if in_query { "query" } else { "command" };
+                let ts = Utc.timestamp_millis(timestamp_ms as _);
+                let ts = ts.format("%Y-%m-%dT%H:%M:%S.%.3f");
+                let contract_id = hex_fmt::HexFmt(contract);
                 writeln!(
                     app.log_buffer.borrow_mut(),
-                    "[{}][{}] {}",
-                    hex_fmt::HexFmt(from),
-                    level,
-                    message
+                    "[{ts}][{block_number}][cid={contract_id}][{mode}][lvl={level}] {message}",
                 )
                 .expect("write log to buffer failed");
             }

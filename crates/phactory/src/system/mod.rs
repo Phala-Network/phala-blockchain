@@ -1082,7 +1082,10 @@ impl<Platform: pal::Platform> System<Platform> {
                                 contract_info.salt,
                                 block.block_number,
                                 block.now_ms,
-                                ContractEventCallback::from_log_sender(&log_sender),
+                                ContractEventCallback::from_log_sender(
+                                    &log_sender,
+                                    block.block_number,
+                                ),
                             )
                             .with_context(|| format!("Contract deployer: {:?}", deployer))?;
 
@@ -1362,11 +1365,13 @@ pub fn apply_pink_side_effects(
     }
 
     if let Some(log_sender) = log_sender {
-        for (contract, payload) in effects.ink_events.into_iter() {
+        for (contract, topics, payload) in effects.ink_events.into_iter() {
             if let Err(_) =
                 log_sender.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
                     contract: contract.into(),
+                    block_number: block.block_number,
                     payload,
+                    topics: topics.into_iter().map(Into::into).collect(),
                 }))
             {
                 warn!("Cluster [{cluster_id}] emit ink event to log receiver failed");
