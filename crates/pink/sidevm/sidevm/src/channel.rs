@@ -5,7 +5,7 @@ use pink_sidevm_env::{
 };
 
 use super::{ocall, ResourceId};
-use scale::Decode;
+use scale::{Decode, Error as CodecError};
 use std::{
     future::Future,
     pin::Pin,
@@ -84,16 +84,12 @@ impl Future for Next<'_, GeneralMessage> {
 }
 
 impl Future for Next<'_, SystemMessage> {
-    type Output = Option<SystemMessage>;
+    type Output = Option<Result<SystemMessage, CodecError>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let waker_id = crate::env::tasks::intern_waker(cx.waker().clone());
         match ocall::poll(waker_id, self.ch.res_id.0) {
-            Ok(msg) => {
-                let message =
-                    SystemMessage::decode(&mut &msg[..]).expect("Failed to decode SystemMessage");
-                Poll::Ready(Some(message))
-            }
+            Ok(msg) => Poll::Ready(Some(SystemMessage::decode(&mut &msg[..]))),
             Err(OcallError::EndOfFile) => Poll::Ready(None), // The tx dropped
             Err(OcallError::Pending) => Poll::Pending,
             Err(err) => panic!("unexpected error: {:?}", err),

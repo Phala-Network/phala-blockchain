@@ -93,7 +93,11 @@ async fn main() {
                 info!("Input message channel closed");
                 break;
             }
-            Some(message) => message,
+            Some(Ok(message)) => message,
+            Some(Err(e)) => {
+                error!("Decode system message failed: {}", e);
+                continue;
+            }
         };
         match message {
             SystemMessage::PinkLog {
