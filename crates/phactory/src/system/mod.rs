@@ -926,21 +926,15 @@ impl<Platform: pal::Platform> System<Platform> {
                 cluster: cluster_id,
                 log_receiver,
             } => {
-                let cluster = self
-                    .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "Failed to set log receiver for cluster {}: no such cluster",
-                            cluster_id
-                        )
-                    })?;
-                info!(
-                    "Set log receiver for cluster {}: {:?}",
-                    hex_fmt::HexFmt(cluster_id),
-                    log_receiver
-                );
-                cluster.config.log_receiver = Some(log_receiver);
+                let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
+                if let Some(cluster) = cluster {
+                    info!(
+                        "Set log receiver for cluster {}: {:?}",
+                        hex_fmt::HexFmt(cluster_id),
+                        log_receiver
+                    );
+                    cluster.config.log_receiver = Some(log_receiver);
+                }
             }
         }
         Ok(())
