@@ -18,4 +18,8 @@ pub enum SystemMessage {
         level: u8,
         message: String,
     },
+    PinkEvent {
+        from: AccountId,
+        payload: Vec<u8>,
+    },
 }

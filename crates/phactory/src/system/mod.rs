@@ -43,7 +43,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
-use sidevm::service::{CommandSender, Report, Spawner};
+use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -633,7 +633,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let mut env = ExecuteEnv {
                     block: block,
                     contract_clusters: &mut self.contract_clusters,
-                    log_sender,
+                    log_sender: log_sender.clone(),
                 };
                 let result = match contract.process_next_message(&mut env) {
                     Some(result) => result,
@@ -647,6 +647,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     block,
                     &self.egress,
                     &self.sidevm_spawner,
+                    log_sender,
                 );
             }
             let log_sender = self.get_system_message_receiver_for_contract_id(&key);
@@ -657,7 +658,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let mut env = ExecuteEnv {
                 block: block,
                 contract_clusters: &mut self.contract_clusters,
-                log_sender,
+                log_sender: log_sender.clone(),
             };
             let result = contract.on_block_end(&mut env);
             let cluster_id = contract.cluster_id();
@@ -669,6 +670,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 block,
                 &self.egress,
                 &self.sidevm_spawner,
+                log_sender,
             );
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
@@ -1102,6 +1104,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             block,
                             &self.egress,
                             &self.sidevm_spawner,
+                            log_sender,
                         );
                     }
                 }
@@ -1232,6 +1235,7 @@ pub fn handle_contract_command_result(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
     spawner: &Spawner,
+    log_sender: Option<CommandSender>,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1251,7 +1255,7 @@ pub fn handle_contract_command_result(
         Some(cluster) => cluster,
     };
     apply_pink_side_effects(
-        effects, cluster_id, contracts, cluster, block, egress, spawner,
+        effects, cluster_id, contracts, cluster, block, egress, spawner, log_sender,
     );
 }
 
@@ -1263,6 +1267,7 @@ pub fn apply_pink_side_effects(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
     spawner: &Spawner,
+    log_sender: Option<CommandSender>,
 ) {
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1358,6 +1363,19 @@ pub fn apply_pink_side_effects(
             }
             PinkEvent::CacheOp(op) => {
                 pink::local_cache::local_cache_op(&address, op);
+            }
+        }
+    }
+
+    if let Some(log_sender) = log_sender {
+        for (from, payload) in effects.ink_events.into_iter() {
+            if let Err(_) =
+                log_sender.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
+                    from: from.into(),
+                    payload,
+                }))
+            {
+                warn!("Cluster [{cluster_id}] emit ink event to log receiver failed");
             }
         }
     }
@@ -1480,6 +1498,7 @@ mod tests {
             &mut block_info,
             &egress,
             &spawner,
+            None,
         );
 
         insta::assert_display_snapshot!(contracts.len());

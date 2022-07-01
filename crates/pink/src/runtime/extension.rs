@@ -28,6 +28,7 @@ use crate::local_cache::GLOBAL_CACHE;
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
     pub pink_events: Vec<(AccountId, PinkEvent)>,
+    pub ink_events: Vec<(AccountId, Vec<u8>)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
 }
 
@@ -66,6 +67,8 @@ pub fn get_side_effects() -> ExecSideEffects {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
+                    } else {
+                        result.ink_events.push((address, data));
                     }
                 }
                 _ => (),
