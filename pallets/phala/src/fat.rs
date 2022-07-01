@@ -269,10 +269,10 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			log_receiver: ContractId,
 		) -> DispatchResult {
-			let deployer = ensure_signed(origin)?;
+			let origin = ensure_signed(origin)?;
 			let cluster_info = Clusters::<T>::get(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
-				check_cluster_permission::<T>(&deployer, &cluster_info),
+				origin == cluster_info.owner,
 				Error::<T>::ClusterPermissionDenied
 			);
 
