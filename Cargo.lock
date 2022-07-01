@@ -8014,6 +8014,7 @@ dependencies = [
  "derive_more",
  "futures",
  "hyper",
+ "lazy_static",
  "log",
  "parity-scale-codec",
  "pin-project 1.0.10",
