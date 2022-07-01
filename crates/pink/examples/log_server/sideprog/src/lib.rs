@@ -111,7 +111,7 @@ async fn main() {
             } => {
                 let mode = if in_query { "query" } else { "command" };
                 let ts = Utc.timestamp_millis(timestamp_ms as _);
-                let ts = ts.format("%Y-%m-%dT%H:%M:%S.%.3f");
+                let ts = ts.format("%Y-%m-%dT%H:%M:%S%.3f");
                 let contract_id = hex_fmt::HexFmt(contract);
                 writeln!(
                     app.log_buffer.borrow_mut(),
