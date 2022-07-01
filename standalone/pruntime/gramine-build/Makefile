@@ -1,5 +1,3 @@
-GEN_GRAMINE_SGX_TOKEN ?=1
-
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
 
@@ -12,6 +10,9 @@ GRAMINE_LOG_LEVEL = error
 USE_MUSL ?= 0
 
 BIN_NAME = pruntime
+
+DATA_DIRS = data/protected_files \
+            data/storage_files
 
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
@@ -34,9 +35,6 @@ PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 all: ${BIN_NAME} ${BIN_NAME}.manifest
 ifeq ($(SGX),1)
 all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
-ifeq ($(GEN_GRAMINE_SGX_TOKEN),1)
-all: ${BIN_NAME}.token
-endif
 endif
 
 .PHONY: ${BIN_FILE}
@@ -47,7 +45,6 @@ ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
 
 ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
-	mkdir -p data
 	gramine-manifest \
 		-Dinstall_dir=$(INSTALL_DIR) \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
@@ -56,7 +53,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
 		$< $@
 
-${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_FILE}
+${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME}
 	@test -s $(SGX_SIGNER_KEY) || \
 	    { echo "SGX signer private key was not found, please specify SGX_SIGNER_KEY!"; exit 1; }
 	gramine-sgx-sign \
@@ -70,10 +67,20 @@ ${BIN_NAME}.token: ${BIN_NAME}.sig
 	gramine-sgx-get-token \
 		--output $@ --sig $<
 
+.PHONY: token
+token: ${BIN_NAME}.token
+
+.PHONY: dirs
+dirs: ${DATA_DIRS}
+
+${DATA_DIRS}:
+	mkdir -p $@
+
 .PHONY: clean
 clean:
 	$(RM) *.token *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
 	$(RM) -rf ../target
+	$(RM) -rf data
 
 .PHONY: distclean
 distclean: clean
@@ -86,18 +93,14 @@ dist: all
 ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
-ifeq ($(GEN_GRAMINE_SGX_TOKEN),1)
-	cp ${BIN_NAME}.token ${PREFIX}/
-endif
 endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
-run: all
+.PHONY: run
+run: all token
+	make dirs
 ifeq ($(SGX),1)
-	rm -rf data
-	mkdir -p data
 	gramine-sgx pruntime
 else
-	mkdir -p data
 	gramine-direct pruntime
 endif
