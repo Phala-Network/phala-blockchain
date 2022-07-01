@@ -1477,6 +1477,7 @@ mod tests {
                 Default::default(),
                 1,
                 1,
+                None,
             )
             .unwrap();
         insta::assert_debug_snapshot!(effects);
@@ -1506,6 +1507,7 @@ mod tests {
         let mut env = ExecuteEnv {
             block: &mut block_info,
             contract_clusters: &mut &mut keeper,
+            log_sender: None,
         };
 
         for contract in contracts.values_mut() {

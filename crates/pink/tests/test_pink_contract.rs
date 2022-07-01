@@ -237,7 +237,7 @@ fn test_on_block_end() {
         }
     }
 
-    let effects = contract.on_block_end(&mut storage, 1, 1).unwrap();
+    let effects = contract.on_block_end(&mut storage, 1, 1, None).unwrap();
 
     insta::assert_debug_snapshot!(effects);
 }
@@ -293,7 +293,6 @@ fn test_use_cache() {
     );
 }
 
-
 #[test]
 fn test_start_sidevm() {
     test_with_wasm(
@@ -302,4 +301,3 @@ fn test_start_sidevm() {
         hex!("928b2036"),
     );
 }
-
