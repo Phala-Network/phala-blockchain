@@ -75,7 +75,7 @@ ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
 
 ${LIBOS}:
 	mkdir -p ${RUNTIME_DIR}
-	cp -rfLT ${GRAMINE_RUNTIME_DIR} ${RUNTIME_DIR}/lib
+	rsync -r --no-links ${GRAMINE_RUNTIME_DIR}/ ${RUNTIME_DIR}/lib
 ifeq ($(USE_MUSL),0)
 	cp -rfL ${HOST_LIBC_DIR}/libgcc_s.so.1 ${RUNTIME_DIR}/lib/
 endif
