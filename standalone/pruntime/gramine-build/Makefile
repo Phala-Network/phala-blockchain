@@ -18,9 +18,9 @@ GRAMINE_DIR ?= $(shell ./gramine-dir libs)
 GRAMINE_LIBOS ?= $(shell ./gramine-dir libos)
 GRAMINE_RUNTIME_DIR ?= $(shell ./gramine-dir runtime)
 
-CRUNTIME = cruntime
+RUNTIME_DIR = cruntime
 LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
-LIBOS ?= ${CRUNTIME}/${LIBOS_BASENAME}
+LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
@@ -59,7 +59,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dra_client_spid=${IAS_SPID} \
 		-Dseal_dir=${PRUNTIME_SEAL_DIR} \
 		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
-		-Dlibdir=${CRUNTIME}/lib/ \
+		-Dlibdir=${RUNTIME_DIR}/lib/ \
 		-Dlibos=${LIBOS} \
 		$< $@
 
@@ -72,14 +72,14 @@ ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
 		--output $@
 
 ${LIBOS}:
-	mkdir -p ${CRUNTIME}
-	cp -rfLT ${GRAMINE_RUNTIME_DIR} ${CRUNTIME}/lib
-	mkdir -p ${CRUNTIME}/lib/x86_64-linux-gnu/
+	mkdir -p ${RUNTIME_DIR}
+	cp -rfLT ${GRAMINE_RUNTIME_DIR} ${RUNTIME_DIR}/lib
+	mkdir -p ${RUNTIME_DIR}/lib/x86_64-linux-gnu/
 	for f in "libssl.so.1.1" "libcrypto.so.1.1" "libgcc_s.so.1"; do \
-		cp -rfL /lib/x86_64-linux-gnu/$$f ${CRUNTIME}/lib/x86_64-linux-gnu/; \
+		cp -rfL /lib/x86_64-linux-gnu/$$f ${RUNTIME_DIR}/lib/x86_64-linux-gnu/; \
 	done
-	cp -rfL ${GRAMINE_DIR}/sgx ${CRUNTIME}/
-	cp -rfL ${GRAMINE_LIBOS} ${CRUNTIME}/
+	cp -rfL ${GRAMINE_DIR}/sgx ${RUNTIME_DIR}/
+	cp -rfL ${GRAMINE_LIBOS} ${RUNTIME_DIR}/
 
 ${BIN_NAME}.sig: ${BIN_NAME}.manifest.sgx
 
@@ -101,7 +101,7 @@ clean:
 	$(RM) *.token *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
 	$(RM) -rf ../target
 	$(RM) -rf data
-	$(RM) -rf ${CRUNTIME}
+	$(RM) -rf ${RUNTIME_DIR}
 
 .PHONY: distclean
 distclean: clean
@@ -114,7 +114,7 @@ dist: all
 ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
-	cp -rfL ${CRUNTIME} ${PREFIX}/
+	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
 endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
