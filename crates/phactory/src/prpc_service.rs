@@ -396,6 +396,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
+            rt_data.trusted_sk,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
@@ -421,6 +422,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         let skip_ra = self.skip_ra;
+        let validated_identity_key = self.system()?.validated_identity_key();
 
         let mut cached_resp = self
             .runtime_info
@@ -436,7 +438,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             cached_resp.encoded_runtime_info = runtime_info.encode();
         }
 
-        if !skip_ra {
+        // never generate RA report for a potentially injected identity key
+        // else he is able to fake a Secure Worker
+        if !skip_ra && validated_identity_key {
             if let Some(cached_attestation) = &cached_resp.attestation {
                 const MAX_ATTESTATION_AGE: u64 = 60 * 60;
                 if refresh_ra
@@ -1197,7 +1201,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     }
 
     fn receive_worker_key(&mut self, request: pb::GetWorkerKeyResponse) -> RpcResult<bool> {
-        let phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory();
         let payload = request
             .payload
             .ok_or_else(|| from_display("Encrypted WorkerKey not found"))?;
@@ -1248,9 +1252,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .save_runtime_data(
                 genesis_block_hash,
                 sr25519::Pair::restore_from_secret_key(&secret),
+                false, // we are not sure whether this key is injected
                 dev_mode,
             )
             .map_err(from_display)?;
+        // clear cached RA report to prevent replay
+        phactory.runtime_info = None;
 
         Ok(true)
     }
