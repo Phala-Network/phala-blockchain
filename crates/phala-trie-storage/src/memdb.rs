@@ -708,7 +708,7 @@ mod tests {
         );
         assert_eq!(
             main.raw(&negative_remove_key, EMPTY_PREFIX).unwrap(),
-            (&"negative".as_bytes().to_vec(), -2),
+            (&"".as_bytes().to_vec(), -2),
         );
     }
 

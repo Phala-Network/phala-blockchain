@@ -132,24 +132,35 @@ impl Config for PinkRuntime {
     type RelaxedMaxCodeLen = RelaxedMaxCodeLen;
 }
 
-
 #[derive(Clone, Copy)]
 pub enum CallMode {
     Query,
     Command,
 }
 
+pub trait EventCallbacks {
+    fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String);
+}
+
+pub type BoxedEventCallbacks = Box<dyn EventCallbacks>;
+
 struct CallInfo {
     mode: CallMode,
     start_at: Instant,
+    callbacks: Option<BoxedEventCallbacks>,
 }
 
 environmental::environmental!(call_info: CallInfo);
 
-pub fn using_mode<T>(mode: CallMode, f: impl FnOnce() -> T) -> T {
+pub fn using_mode<T>(
+    mode: CallMode,
+    callbacks: Option<BoxedEventCallbacks>,
+    f: impl FnOnce() -> T,
+) -> T {
     let mut info = CallInfo {
         mode,
         start_at: Instant::now(),
+        callbacks,
     };
     call_info::using(&mut info, f)
 }
@@ -160,6 +171,14 @@ pub fn get_call_mode() -> Option<CallMode> {
 
 pub fn get_call_elapsed() -> Option<Duration> {
     call_info::with(|info| info.start_at.elapsed())
+}
+
+pub fn emit_log(id: &AccountId, level: u8, msg: String) {
+    call_info::with(|info| {
+        if let Some(callbacks) = &info.callbacks {
+            callbacks.emit_log(id, matches!(info.mode, CallMode::Query), level, msg);
+        }
+    });
 }
 
 #[cfg(test)]

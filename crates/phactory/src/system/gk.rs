@@ -9,7 +9,7 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        ClusterKeyDistribution, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        ClusterOperation, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
         SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
@@ -328,7 +328,7 @@ where
                     })
                     .collect();
                 self.egress
-                    .push_message(&ClusterKeyDistribution::batch_distribution(
+                    .push_message(&ClusterOperation::batch_distribution(
                         secret_keys,
                         cluster,
                         0,

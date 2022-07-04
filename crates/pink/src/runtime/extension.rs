@@ -16,6 +16,7 @@ use pink_extension::{
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
+use sp_core::H256;
 use sp_runtime::DispatchError;
 
 use crate::{
@@ -28,6 +29,7 @@ use crate::local_cache::GLOBAL_CACHE;
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
     pub pink_events: Vec<(AccountId, PinkEvent)>,
+    pub ink_events: Vec<(AccountId, Vec<H256>, Vec<u8>)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
 }
 
@@ -54,10 +56,9 @@ pub fn get_side_effects() -> ExecSideEffects {
                     contract: address,
                     data,
                 } => {
-                    if event.topics.len() != 1 {
-                        continue;
-                    }
-                    if event.topics[0].0 == pink_extension::PinkEvent::event_topic() {
+                    if event.topics.len() == 1
+                        && event.topics[0].0 == pink_extension::PinkEvent::event_topic()
+                    {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
                                 result.pink_events.push((address, event));
@@ -66,6 +67,8 @@ pub fn get_side_effects() -> ExecSideEffects {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
+                    } else {
+                        result.ink_events.push((address, event.topics, data));
                     }
                 }
                 _ => (),
@@ -201,6 +204,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
+        super::emit_log(&self.address, level, message.as_ref().into());
         DefaultPinkExtension::new(self).log(level, message)
     }
 }

@@ -13,14 +13,14 @@ pub mod pallet {
 	use crate::{mq::MessageOriginInfo, registry};
 	// Re-export
 	pub use crate::attestation::{Attestation, IasValidator};
-
 	use phala_types::{
 		contract::messaging::{ClusterEvent, ContractOperation},
 		contract::{
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
 		messaging::{
-			bind_topic, DecodedMessage, MessageOrigin, WorkerClusterReport, WorkerContractReport,
+			bind_topic, ClusterOperation, DecodedMessage, MessageOrigin, WorkerClusterReport,
+			WorkerContractReport,
 		},
 		ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
@@ -123,6 +123,10 @@ pub mod pallet {
 			contract: ContractId,
 			cluster: ContractClusterId,
 			deployer: H256,
+		},
+		ClusterSetLogReceiver {
+			cluster: ContractClusterId,
+			log_handler: ContractId,
 		},
 	}
 
@@ -256,6 +260,30 @@ pub mod pallet {
 				deployer: contract_info.deployer,
 			});
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn cluster_set_log_handler(
+			origin: OriginFor<T>,
+			cluster: ContractClusterId,
+			log_handler: ContractId,
+		) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let cluster_info = Clusters::<T>::get(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				origin == cluster_info.owner,
+				Error::<T>::ClusterPermissionDenied
+			);
+
+			Self::push_message(ClusterOperation::<T::BlockNumber>::SetLogReceiver {
+				cluster,
+				log_handler,
+			});
+			Self::deposit_event(Event::ClusterSetLogReceiver {
+				cluster,
+				log_handler,
+			});
 			Ok(())
 		}
 	}

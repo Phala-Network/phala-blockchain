@@ -23,7 +23,7 @@ pub use tasks::spawn;
 mod args_stack;
 mod ocall_def;
 pub mod tasks;
-pub mod query;
+pub mod messages;
 pub mod tls;
 
 cfg_if::cfg_if! {
@@ -67,8 +67,8 @@ pub enum OcallError {
     GasExhausted = 13,
     /// The gas is not enough for current poll.
     Stifled = 14,
-    /// Reserved for future use
-    Reserved15 = 15,
+    /// The create resource is already exists.
+    AlreadyExists = 15,
     /// Reserved for future use
     Reserved16 = 16,
     /// Reserved for future use
