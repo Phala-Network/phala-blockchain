@@ -25,9 +25,11 @@ LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
 CARGO_ARGS = --target x86_64-unknown-linux-musl
+HOST_LIBC_DIR = /lib/x86_64-linux-musl
 else
 BIN_FILE = ../target/release/${BIN_NAME}
 CARGO_ARGS =
+HOST_LIBC_DIR = /lib/x86_64-linux-gnu
 endif
 
 ifeq ($(V),1)
@@ -74,10 +76,9 @@ ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
 ${LIBOS}:
 	mkdir -p ${RUNTIME_DIR}
 	cp -rfLT ${GRAMINE_RUNTIME_DIR} ${RUNTIME_DIR}/lib
-	mkdir -p ${RUNTIME_DIR}/lib/x86_64-linux-gnu/
-	for f in "libssl.so.1.1" "libcrypto.so.1.1" "libgcc_s.so.1"; do \
-		cp -rfL /lib/x86_64-linux-gnu/$$f ${RUNTIME_DIR}/lib/x86_64-linux-gnu/; \
-	done
+ifeq ($(USE_MUSL),0)
+	cp -rfL ${HOST_LIBC_DIR}/libgcc_s.so.1 ${RUNTIME_DIR}/lib/
+endif
 	cp -rfL ${GRAMINE_DIR}/sgx ${RUNTIME_DIR}/
 	cp -rfL ${GRAMINE_LIBOS} ${RUNTIME_DIR}/
 
