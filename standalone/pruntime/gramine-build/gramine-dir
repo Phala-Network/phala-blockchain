@@ -1,0 +1,33 @@
+#!/usr/bin/python3
+
+from argparse import ArgumentParser
+
+from graminelibos.gen_jinja_env import make_env
+
+
+parser = ArgumentParser()
+parser.add_argument("dirtype", default="libs", help="libs, runtime, libos or sgx")
+
+
+def get_libs_dir(dirtype):
+    tmpl_vars = make_env().globals["gramine"]
+    if dirtype == "libs":
+        return tmpl_vars["pkglibdir"]
+    elif dirtype == "runtime":
+        return tmpl_vars["runtimedir"]()
+    elif dirtype == "libos":
+        return tmpl_vars["libos"]
+    elif dirtype == "sgx":
+        return get_libs_dir("libs") / "sgx"
+    else:
+        return None
+
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    path = get_libs_dir(args.dirtype)
+    if path is None:
+        print("Invalid dirtype")
+        parser.print_help()
+        exit(1)
+    print(path)

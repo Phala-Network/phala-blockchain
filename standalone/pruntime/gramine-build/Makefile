@@ -14,6 +14,14 @@ BIN_NAME = pruntime
 DATA_DIRS = data/protected_files \
             data/storage_files
 
+GRAMINE_DIR ?= $(shell ./gramine-dir libs)
+GRAMINE_LIBOS ?= $(shell ./gramine-dir libos)
+GRAMINE_RUNTIME_DIR ?= $(shell ./gramine-dir runtime)
+
+CRUNTIME = cruntime
+LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
+LIBOS ?= ${CRUNTIME}/${LIBOS_BASENAME}
+
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
 CARGO_ARGS = --target x86_64-unknown-linux-musl
@@ -51,15 +59,27 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dra_client_spid=${IAS_SPID} \
 		-Dseal_dir=${PRUNTIME_SEAL_DIR} \
 		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
+		-Dlibdir=${CRUNTIME}/lib/ \
+		-Dlibos=${LIBOS} \
 		$< $@
 
-${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME}
+${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
 	@test -s $(SGX_SIGNER_KEY) || \
 	    { echo "SGX signer private key was not found, please specify SGX_SIGNER_KEY!"; exit 1; }
 	gramine-sgx-sign \
 		--key $(SGX_SIGNER_KEY) \
 		--manifest $< \
 		--output $@
+
+${LIBOS}:
+	mkdir -p ${CRUNTIME}
+	cp -rfLT ${GRAMINE_RUNTIME_DIR} ${CRUNTIME}/lib
+	mkdir -p ${CRUNTIME}/lib/x86_64-linux-gnu/
+	for f in "libssl.so.1.1" "libcrypto.so.1.1" "libgcc_s.so.1"; do \
+		cp -rfL /lib/x86_64-linux-gnu/$$f ${CRUNTIME}/lib/x86_64-linux-gnu/; \
+	done
+	cp -rfL ${GRAMINE_DIR}/sgx ${CRUNTIME}/
+	cp -rfL ${GRAMINE_LIBOS} ${CRUNTIME}/
 
 ${BIN_NAME}.sig: ${BIN_NAME}.manifest.sgx
 
@@ -81,6 +101,7 @@ clean:
 	$(RM) *.token *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
 	$(RM) -rf ../target
 	$(RM) -rf data
+	$(RM) -rf ${CRUNTIME}
 
 .PHONY: distclean
 distclean: clean
@@ -93,6 +114,8 @@ dist: all
 ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
+	cp -rfL ${CRUNTIME} ${PREFIX}/
+	cp gramine-sgx ${PREFIX}/
 endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
@@ -100,7 +123,7 @@ endif
 run: all token
 	make dirs
 ifeq ($(SGX),1)
-	gramine-sgx pruntime
+	./gramine-sgx pruntime
 else
 	gramine-direct pruntime
 endif
