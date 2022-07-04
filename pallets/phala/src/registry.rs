@@ -116,9 +116,21 @@ pub mod pallet {
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new Gatekeeper is enabled on the blockchain
-		GatekeeperAdded(WorkerPublicKey),
+		GatekeeperAdded {
+			pubkey: WorkerPublicKey
+		},
+		GatekeeperRemoved {
+			pubkey: WorkerPublicKey
+		},
+		WorkerAdded {
+			pubkey: WorkerPublicKey
+		},
+		WorkerUpdated {
+			pubkey: WorkerPublicKey
+		},
 	}
 
 	#[pallet::error]
@@ -204,6 +216,8 @@ pub mod pallet {
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
+			Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
+
 			Ok(())
 		}
 
@@ -258,6 +272,8 @@ pub mod pallet {
 					));
 				}
 			}
+
+			Self::deposit_event(Event::<T>::GatekeeperAdded { pubkey: gatekeeper });
 			Ok(())
 		}
 
@@ -312,12 +328,19 @@ pub mod pallet {
 						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
 						worker_info.last_updated = now;
 						worker_info.operator = pruntime_info.operator;
+						worker_info.runtime_version = pruntime_info.version;
+						worker_info.confidence_level = fields.confidence_level;
+						worker_info.features = pruntime_info.features;
+						// TODO: We should reset `initial_score` here, but we need ensure no breaking.
+						// worker_info.initial_score = None;
+
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
 								confidence_level: fields.confidence_level,
 							}),
 						));
+						Self::deposit_event(Event::<T>::WorkerUpdated { pubkey });
 					}
 					None => {
 						// Case 2 - New worker register
@@ -337,6 +360,7 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
+						Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
 					}
 				}
 			});

@@ -49,9 +49,10 @@ impl WasmRun {
         }
         .engine();
         let base = BaseTunables {
-            static_memory_bound: Pages(0x10),
-            static_memory_offset_guard_size: 0x1000,
-            dynamic_memory_offset_guard_size: 0x1000,
+            // Always use dynamic heap memory to save memory
+            static_memory_bound: Pages(0),
+            static_memory_offset_guard_size: 0,
+            dynamic_memory_offset_guard_size: page_size::get() as _,
         };
         let tunables = LimitingTunables::new(base, Pages(max_pages));
         let store = Store::new_with_tunables(&engine, tunables);

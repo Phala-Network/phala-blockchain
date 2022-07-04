@@ -114,6 +114,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             headernum: counters.next_header_number,
             para_headernum: counters.next_para_header_number,
             blocknum: counters.next_block_number,
+            waiting_for_paraheaders: counters.waiting_for_paraheaders,
             state_root,
             dev_mode,
             pending_messages: pending_messages as _,
@@ -379,6 +380,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let system = system::System::new(
             self.platform.clone(),
             self.args.sealing_path.clone(),
+            self.args.storage_path.clone(),
             false,
             self.args.geoip_city_db.clone(),
             identity_key,

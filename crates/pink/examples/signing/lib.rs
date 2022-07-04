@@ -7,7 +7,8 @@ use pink_extension as pink;
 #[pink::contract(env=PinkEnvironment)]
 mod signing {
     use super::pink;
-    use pink::{PinkEnvironment, sign, verify, derive_sr25519_key, get_public_key, chain_extension::SigType};
+    use pink::PinkEnvironment;
+    use pink::chain_extension::signing as sig;
 
     #[ink(storage)]
     pub struct Signing {}
@@ -20,14 +21,29 @@ mod signing {
 
         #[ink(message)]
         pub fn test(&self) {
-            let privkey = derive_sr25519_key!(b"a spoon of salt");
-            let pubkey = get_public_key!(&privkey, SigType::Sr25519);
+            use sig::SigType;
+
+            let privkey = sig::derive_sr25519_key(b"a spoon of salt");
+            let pubkey = sig::get_public_key(&privkey, SigType::Sr25519);
             let message = b"hello world";
-            let signature = sign!(message, &privkey, SigType::Sr25519);
-            let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
+            let signature = sig::sign(message, &privkey, SigType::Sr25519);
+            let pass = sig::verify(message, &pubkey, &signature, SigType::Sr25519);
             assert!(pass);
-            let pass = verify!(b"Fake", &pubkey, &signature, SigType::Sr25519);
+            let pass = sig::verify(b"Fake", &pubkey, &signature, SigType::Sr25519);
             assert!(!pass);
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use ink_lang as ink;
+        #[ink::test]
+        fn it_works() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+
+            let contract = Signing::default();
+            contract.test();
         }
     }
 }

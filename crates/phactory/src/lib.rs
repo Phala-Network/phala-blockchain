@@ -20,7 +20,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::path::PathBuf;
+use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
 
@@ -51,13 +51,13 @@ use phala_types::WorkerRegistrationInfo;
 use std::time::Instant;
 use types::Error;
 
+pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::dispatch_prpc_request;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
-pub use chain::BlockNumber;
 
 pub mod benchmark;
 
@@ -273,6 +273,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.args = args;
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
+            system.storage_path = self.args.storage_path.clone();
             system.geoip_city_db = self.args.geoip_city_db.clone();
         }
     }
@@ -352,7 +353,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 }
 
-impl<P> Phactory<P> {
+impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
         if let Some(system) = &mut self.system {
@@ -364,29 +365,21 @@ impl<P> Phactory<P> {
 
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     pub fn take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
-        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
-            key.dump_secret_key().to_vec()
-        } else {
-            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
-        };
-
+        let key = self
+            .system
+            .as_ref()
+            .context("Take checkpoint failed, runtime is not ready")?
+            .identity_key
+            .dump_secret_key();
         info!("Taking checkpoint...");
-        let checkpoint_file = checkpoint_filename_for(current_block, &self.args.sealing_path);
-        {
-            // Do serialization
-            let file = self
-                .platform
-                .create_protected_file(&checkpoint_file, &key)
-                .map_err(|err| anyhow!("{:?}", err))
-                .context("Failed to create protected file")?;
-
-            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))
-                .context("Failed to write checkpoint")?;
-        }
+        let checkpoint_file = checkpoint_filename_for(current_block, &self.args.storage_path);
+        let file = File::create(&checkpoint_file).context("Failed to create checkpoint file")?;
+        self.take_checkpoint_to_writer(&key, file)
+            .context("Take checkpoint to writer failed")?;
         info!("Checkpoint saved to {}", checkpoint_file);
         self.last_checkpoint = Instant::now();
         remove_outdated_checkpoints(
-            &self.args.sealing_path,
+            &self.args.storage_path,
             self.args.max_checkpoint_files,
             current_block,
         )?;
@@ -395,13 +388,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub fn take_checkpoint_to_writer<W: std::io::Write>(
         &mut self,
+        key: &[u8],
         writer: W,
     ) -> anyhow::Result<()> {
-        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
-            key.dump_secret_key().to_vec()
-        } else {
-            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
-        };
         let key128 = derive_key_for_checkpoint(&key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
@@ -416,6 +405,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
+        storage_path: &str,
         remove_corrupted_checkpoint: bool,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
@@ -423,15 +413,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             other => other.context("Failed to load persistent data")?,
         };
         let files =
-            glob_checkpoint_files_sorted(sealing_path).context("Glob checkpoint files failed")?;
+            glob_checkpoint_files_sorted(storage_path).context("Glob checkpoint files failed")?;
         if files.is_empty() {
             return Ok(None);
         }
         let (_block, ckpt_filename) = &files[0];
 
-        let file = match platform.open_protected_file(&ckpt_filename, &runtime_data.sk) {
-            Ok(Some(file)) => file,
-            Ok(None) => {
+        let file = match File::open(&ckpt_filename) {
+            Ok(file) => file,
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => {
                 // This should never happen unless it was removed just after the glob.
                 anyhow::bail!("Checkpoint file {:?} is not found", ckpt_filename);
             }
@@ -453,8 +443,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        let loader: PhactoryLoader<_> = match serde_cbor::de::from_reader(file) {
-            Ok(loader) => loader,
+        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file) {
+            Ok(state) => {
+                info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
+                Ok(Some(state))
+            }
             Err(_err /*Don't leak it into the log*/) => {
                 error!("Failed to load checkpoint file {:?}", ckpt_filename);
                 if remove_corrupted_checkpoint {
@@ -464,18 +457,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 }
                 anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
             }
-        };
-        info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
-        return Ok(Some(loader.0));
+        }
     }
 
     pub fn restore_from_checkpoint_reader<R: std::io::Read>(
-        platform: &Platform,
-        sealing_path: &str,
+        key: &[u8],
         reader: R,
     ) -> anyhow::Result<Self> {
-        let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
-        let key128 = derive_key_for_checkpoint(&runtime_data.sk);
+        let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
         let loader: PhactoryLoader<_> =
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
@@ -554,7 +543,7 @@ impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Pl
     }
 }
 struct PhactoryLoader<Platform>(Phactory<Platform>);
-impl<'de, Platform: Serialize + DeserializeOwned> Deserialize<'de> for PhactoryLoader<Platform> {
+impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de> for PhactoryLoader<Platform> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut factory = Phactory::load_state(deserializer)?;
         factory

@@ -1,7 +1,7 @@
 ---
 source: crates/pink/tests/test_pink_contract.rs
+assertion_line: 242
 expression: effects
-
 ---
 ExecSideEffects {
     pink_events: [
@@ -24,5 +24,6 @@ ExecSideEffects {
             ),
         ),
     ],
+    ink_events: [],
     instantiated: [],
 }

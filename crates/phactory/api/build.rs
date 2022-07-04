@@ -26,7 +26,9 @@ fn main() {
         "Attestation",
         "AttestationReport",
         "TokenomicInfo",
+        "TokenomicStat",
         "WorkerState",
+        "WorkerStat",
         "BenchState",
         "MiningState",
     ] {
@@ -35,6 +37,10 @@ fn main() {
             "#[cfg_attr(feature = \"serde\", derive(::serde::Serialize, ::serde::Deserialize))]",
         )
     }
+    builder = builder.field_attribute(
+        "InitRuntimeResponse.attestation",
+        "#[cfg_attr(feature = \"serde\", serde(skip, default))]",
+    );
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();

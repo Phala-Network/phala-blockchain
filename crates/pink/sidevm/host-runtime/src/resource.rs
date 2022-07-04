@@ -27,6 +27,7 @@ pub enum Resource {
     TcpStream(TcpStream),
     TlsStream(TlsStream),
     TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<TcpStream>> + Send>>),
+    TlsConnect(Pin<Box<dyn Future<Output = std::io::Result<TlsStream>> + Send>>),
 }
 
 impl Resource {
@@ -59,6 +60,17 @@ impl Resource {
                     Ready(Ok(stream)) => Ok(Resource::TcpStream(stream)),
                     Ready(Err(err)) => {
                         log::error!("Tcp connect error: {}", err);
+                        Err(OcallError::IoError)
+                    }
+                }
+            }
+            TlsConnect(fut) => {
+                let rv = poll_in_task_cx(waker, fut.as_mut());
+                match rv {
+                    Pending => Err(OcallError::Pending),
+                    Ready(Ok(stream)) => Ok(Resource::TlsStream(stream)),
+                    Ready(Err(err)) => {
+                        log::error!("Tls connect error: {}", err);
                         Err(OcallError::IoError)
                     }
                 }

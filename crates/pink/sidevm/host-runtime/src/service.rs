@@ -2,8 +2,8 @@ use crate::env::DynCacheOps;
 use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
-use log::{debug, error, info, warn};
-use pink_sidevm_env::query::AccountId;
+use log::{debug, error, info, trace, warn};
+use pink_sidevm_env::messages::AccountId;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use tokio::{
@@ -12,6 +12,7 @@ use tokio::{
     task::JoinHandle,
 };
 
+pub use pink_sidevm_env::messages::SystemMessage;
 pub type CommandSender = Sender<Command>;
 
 #[derive(Debug)]
@@ -42,7 +43,9 @@ pub enum Command {
     Stop,
     // Send a sidevm message to the instance.
     PushMessage(Vec<u8>),
-    // Push a sidevm message to the instance.
+    // Send a sidevm system message to the instance.
+    PushSystemMessage(SystemMessage),
+    // Push a query from RPC to the instance.
     PushQuery {
         origin: Option<AccountId>,
         payload: Vec<u8>,
@@ -94,6 +97,10 @@ impl ServiceRun {
                 }
             }
         }
+
+        // To avoid: panicked at 'Cannot drop a runtime in a context where blocking is not allowed.'
+        let handle = self.runtime.handle().clone();
+        handle.spawn_blocking(move || drop(self));
     }
 }
 
@@ -115,6 +122,24 @@ impl Spawner {
         let spawner = self.runtime_handle.clone();
         let handle = self.runtime_handle.spawn(async move {
             let vmid = ShortId(&id);
+            macro_rules! spawn_push_msg {
+                ($expr: expr, $level: ident, $msg: expr) => {
+                    $level!(target: "sidevm", "[{vmid}] Pushing {} to sidevm", $msg);
+                    let push = match $expr {
+                        None => {
+                            $level!(target: "sidevm", "[{vmid}] Doesn't accept {}", $msg);
+                            continue;
+                        },
+                        Some(v) => v,
+                    };
+                    spawner.spawn(async move {
+                        let vmid = ShortId(&id);
+                        if let Err(e) = push.await {
+                            error!(target: "sidevm", "[{vmid}] Failed to push {} to sidevm: {}", $msg, e);
+                        }
+                    });
+                };
+            }
             loop {
                 tokio::select! {
                     cmd = cmd_rx.recv() => {
@@ -128,24 +153,13 @@ impl Spawner {
                                 break ExitReason::Stopped;
                             }
                             Some(Command::PushMessage(msg)) => {
-                                debug!(target: "sidevm", "[{vmid}] Sending message to sidevm.");
-                                let push = env.push_message(msg);
-                                spawner.spawn(async move {
-                                    let vmid = ShortId(&id);
-                                    if let Err(e) = push.await {
-                                        error!(target: "sidevm", "[{vmid}] Failed to send message to sidevm: {}", e);
-                                    }
-                                });
+                                spawn_push_msg!(env.push_message(msg), debug, "message");
+                            }
+                            Some(Command::PushSystemMessage(msg)) => {
+                                spawn_push_msg!(env.push_system_message(msg), trace, "system message");
                             }
                             Some(Command::PushQuery{ origin, payload, reply_tx }) => {
-                                debug!(target: "sidevm", "[{vmid}] Pushing query to sidevm.");
-                                let push = env.push_query(origin, payload, reply_tx);
-                                spawner.spawn(async move {
-                                    let vmid = ShortId(&id);
-                                    if let Err(e) = push.await {
-                                        error!(target: "sidevm", "[{vmid}] Failed to push query to sidevm: {}", e);
-                                    }
-                                });
+                                spawn_push_msg!(env.push_query(origin, payload, reply_tx), debug, "query");
                             }
                         }
                     }

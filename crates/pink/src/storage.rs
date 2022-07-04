@@ -1,5 +1,5 @@
 use crate::{
-    runtime::ExecSideEffects,
+    runtime::{BoxedEventCallbacks, ExecSideEffects},
     types::{AccountId, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
@@ -65,6 +65,7 @@ where
     pub fn execute_with<R>(
         &mut self,
         rollback: bool,
+        callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
         let backend = self.backend.as_trie_backend().expect("No trie backend?");
@@ -80,7 +81,7 @@ where
             } else {
                 crate::runtime::CallMode::Command
             };
-            let r = crate::runtime::using_mode(mode, f);
+            let r = crate::runtime::using_mode(mode, callbacks, f);
             (r, crate::runtime::get_side_effects())
         });
         overlay
@@ -113,13 +114,13 @@ where
     }
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
-        self.execute_with(false, || {
+        self.execute_with(false, None, || {
             crate::runtime::Pink::set_cluster_id(cluster_id);
         });
     }
 
     pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
-        self.execute_with(false, || {
+        self.execute_with(false, None, || {
             crate::runtime::Pink::set_key_seed(seed);
         });
     }
@@ -129,7 +130,7 @@ where
         account: AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        self.execute_with(false, || {
+        self.execute_with(false, None, || {
             crate::runtime::Contracts::bare_upload_code(account, code, None)
         })
         .0

@@ -34,10 +34,6 @@ struct Args {
     #[clap(long)]
     enable_kick_api: bool,
 
-    /// Log filter passed to env_logger
-    #[clap(long, default_value = "INFO")]
-    log_filter: String,
-
     /// Listening IP address of HTTP
     #[clap(long)]
     address: Option<String>,
@@ -83,16 +79,27 @@ async fn main() -> Result<(), rocket::Error> {
         libc::mallopt(libc::M_ARENA_MAX, 1);
     }
 
-    let runing_under_gramine = std::path::Path::new("/dev/attestation/user_report_data").exists();
-    let sealing_path = if runing_under_gramine {
+    let running_under_gramine = std::path::Path::new("/dev/attestation/user_report_data").exists();
+    let sealing_path;
+    let storage_path;
+    if running_under_gramine {
         // In gramine, the protected files are configured via manifest file. So we must not allow it to
-        // be changed at runtime for security reason. Thus hardcoded it to `/protected_files` here.
+        // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
         // Should keep it the same with the manifest config.
-        "/protected_files"
+        sealing_path = "/data/protected_files";
+        storage_path = "/data/storage_files";
     } else {
-        "./data"
+        sealing_path = "./data/protected_files";
+        storage_path = "./data/storage_files";
+
+        fn mkdir(dir: &str) {
+            if let Err(err) = std::fs::create_dir_all(dir) {
+                panic!("Failed to create {dir}: {err:?}");
+            }
+        }
+        mkdir(sealing_path);
+        mkdir(storage_path);
     }
-    .into();
 
     let args = Args::parse();
 
@@ -104,14 +111,14 @@ async fn main() -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port);
     }
 
-    let env = env_logger::Env::default().default_filter_or(&args.log_filter);
+    let env = env_logger::Env::default().default_filter_or("info");
     env_logger::Builder::from_env(env).format_timestamp_micros().init();
 
     let init_args = {
         let args = args.clone();
         InitArgs {
-            sealing_path,
-            log_filter: Default::default(),
+            sealing_path: sealing_path.into(),
+            storage_path: storage_path.into(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
             git_revision: git_revision(),
@@ -154,22 +161,26 @@ async fn main() -> Result<(), rocket::Error> {
     Ok(())
 }
 
+#[cfg(not(target_os = "linux"))]
+fn set_thread_idle_policy() {}
+
+#[cfg(target_os = "linux")]
 fn set_thread_idle_policy() {
     let param = libc::sched_param {
         sched_priority: 0,
-        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        #[cfg(target_env = "musl")]
         sched_ss_low_priority: 0,
-        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        #[cfg(target_env = "musl")]
         sched_ss_repl_period: libc::timespec {
             tv_sec: 0,
             tv_nsec: 0,
         },
-        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        #[cfg(target_env = "musl")]
         sched_ss_init_budget: libc::timespec {
             tv_sec: 0,
             tv_nsec: 0,
         },
-        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        #[cfg(target_env = "musl")]
         sched_ss_max_repl: 0,
     };
 

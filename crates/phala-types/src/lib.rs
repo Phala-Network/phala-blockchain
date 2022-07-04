@@ -293,6 +293,21 @@ pub mod messaging {
         }
     }
 
+    bind_topic!(PRuntimeManagementEvent, b"phala/pruntime/management");
+    #[derive(Encode, Decode, Debug, TypeInfo)]
+    pub enum PRuntimeManagementEvent {
+        RetirePRuntime(Condition),
+    }
+
+    #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+    #[derive(Encode, Decode, Debug, TypeInfo, Clone)]
+    pub enum Condition {
+        /// pRuntimes of version less than given version will be retired.
+        VersionLessThan(u32, u32, u32),
+        /// pRuntimes of version equal to given version will be retired.
+        VersionIs(u32, u32, u32),
+    }
+
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq, TypeInfo)]
     pub struct HeartbeatChallenge {
         pub seed: U256,
@@ -434,20 +449,26 @@ pub mod messaging {
     }
 
     // TODO.shelven: merge this into KeyDistribution
-    bind_topic!(ClusterKeyDistribution<BlockNumber>, b"phala/cluster/key");
+    bind_topic!(ClusterOperation<BlockNumber>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum ClusterKeyDistribution<BlockNumber> {
+    pub enum ClusterOperation<BlockNumber> {
         // TODO.shelven: a better way for real large batch key distribution
-        Batch(BatchDispatchClusterKeyEvent<BlockNumber>),
+        DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
+        /// Set the contract to receive the ink logs inside given cluster.
+        SetLogReceiver {
+            cluster: ContractClusterId,
+            /// The id of the contract to receive the ink logs.
+            log_handler: AccountId,
+        },
     }
 
-    impl<BlockNumber> ClusterKeyDistribution<BlockNumber> {
+    impl<BlockNumber> ClusterOperation<BlockNumber> {
         pub fn batch_distribution(
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             expiration: BlockNumber,
-        ) -> ClusterKeyDistribution<BlockNumber> {
-            ClusterKeyDistribution::Batch(BatchDispatchClusterKeyEvent {
+        ) -> ClusterOperation<BlockNumber> {
+            ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
                 expiration,
@@ -571,6 +592,10 @@ pub mod messaging {
             cluster_id: ContractClusterId,
             uploader: AccountId,
             hash: H256,
+        },
+        CodeUploadFailed {
+            cluster_id: ContractClusterId,
+            uploader: AccountId,
         },
         ContractInstantiated {
             id: ContractId,

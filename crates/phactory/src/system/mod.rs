@@ -5,7 +5,7 @@ mod side_tasks;
 use crate::{
     benchmark,
     contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv},
-    pink::{cluster::ClusterKeeper, Pink},
+    pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
@@ -34,15 +34,16 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
+        AeadIV, BatchDispatchClusterKeyEvent, ClusterOperation, Condition, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
+        NewGatekeeperEvent, PRuntimeManagementEvent, SystemEvent, WorkerClusterReport,
+        WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
-use sidevm::service::{Report, Spawner};
+use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
@@ -395,15 +396,17 @@ pub struct System<Platform> {
     platform: Platform,
     // Configuration
     pub(crate) sealing_path: String,
+    pub(crate) storage_path: String,
     enable_geoprobing: bool,
     pub(crate) geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
+    pruntime_management_events: TypedReceiver<PRuntimeManagementEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    cluster_key_distribution_events: TypedReceiver<ClusterKeyDistribution<chain::BlockNumber>>,
+    cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -424,6 +427,7 @@ pub struct System<Platform> {
     // Cached for query
     block_number: BlockNumber,
     now_ms: u64,
+    retired_versions: Vec<Condition>,
 }
 
 fn create_sidevm_service() -> Spawner {
@@ -441,6 +445,7 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
         platform: Platform,
         sealing_path: String,
+        storage_path: String,
         enable_geoprobing: bool,
         geoip_city_db: String,
         identity_key: sr25519::Pair,
@@ -449,6 +454,9 @@ impl<Platform: pal::Platform> System<Platform> {
         recv_mq: &mut MessageDispatcher,
         contracts: ContractsKeeper,
     ) -> Self {
+        // Trigger panic early if platform is not properly implemented.
+        let _ = Platform::app_version();
+
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
@@ -457,10 +465,12 @@ impl<Platform: pal::Platform> System<Platform> {
         System {
             platform,
             sealing_path,
+            storage_path,
             enable_geoprobing,
             geoip_city_db,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
+            pruntime_management_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
@@ -476,7 +486,32 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             sidevm_spawner: create_sidevm_service(),
+            retired_versions: vec![],
         }
+    }
+
+    pub fn get_system_message_handler(
+        &mut self,
+        cluster_id: &ContractId,
+    ) -> Option<CommandSender> {
+        let handler_contract_id = self
+            .contract_clusters
+            .get_cluster_mut(cluster_id)
+            .expect("BUG: contract cluster should always exists")
+            .config
+            .log_handler
+            .as_ref()?;
+        self.contracts
+            .get(handler_contract_id)?
+            .get_system_message_handler()
+    }
+
+    pub fn get_system_message_handler_for_contract_id(
+        &mut self,
+        contract_id: &ContractId,
+    ) -> Option<CommandSender> {
+        let cluster_id = self.contracts.get(contract_id)?.cluster_id();
+        self.get_system_message_handler(&cluster_id)
     }
 
     pub fn make_query(
@@ -492,9 +527,10 @@ impl<Platform: pal::Platform> System<Platform> {
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
+        let cluster_id = contract.cluster_id();
         let storage = self
             .contract_clusters
-            .get_cluster_mut(&contract.cluster_id())
+            .get_cluster_mut(&cluster_id)
             .expect("BUG: contract cluster should always exists")
             .storage
             .snapshot();
@@ -505,6 +541,7 @@ impl<Platform: pal::Platform> System<Platform> {
             now_ms: self.now_ms,
             storage,
             sidevm_handle,
+            log_handler: self.get_system_message_handler(&cluster_id),
         };
         Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
             contract.handle_query(origin, req, &mut context)
@@ -515,9 +552,15 @@ impl<Platform: pal::Platform> System<Platform> {
         let ok = phala_mq::select_ignore_errors! {
             (event, origin) = self.system_events => {
                 if !origin.is_pallet() {
-                    anyhow::bail!("Invalid SystemEvent sender: {:?}", origin);
+                    anyhow::bail!("Invalid SystemEvent sender: {}", origin);
                 }
                 self.process_system_event(block, &event);
+            },
+            (event, origin) = self.pruntime_management_events => {
+                if !origin.is_pallet() {
+                    anyhow::bail!("Invalid pRuntime management event sender: {}", origin);
+                }
+                self.process_pruntime_management_event(event);
             },
             (event, origin) = self.gatekeeper_launch_events => {
                 self.process_gatekeeper_launch_event(block, origin, event);
@@ -529,7 +572,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.process_key_distribution_event(block, origin, event);
             },
             (event, origin) = self.cluster_key_distribution_events => {
-                self.process_cluster_key_distribution_event(block, origin, event);
+                self.process_cluster_operation_event(block, origin, event)?;
             },
             (event, origin) = self.contract_operation_events => {
                 self.process_contract_operation_event(block, origin, event)?
@@ -581,6 +624,7 @@ impl<Platform: pal::Platform> System<Platform> {
             // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
             // availabe for next command.
             loop {
+                let log_handler = self.get_system_message_handler_for_contract_id(&key);
                 let contract = match self.contracts.get_mut(&key) {
                     None => continue 'outer,
                     Some(v) => v,
@@ -589,6 +633,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let mut env = ExecuteEnv {
                     block: block,
                     contract_clusters: &mut self.contract_clusters,
+                    log_handler: log_handler.clone(),
                 };
                 let result = match contract.process_next_message(&mut env) {
                     Some(result) => result,
@@ -602,15 +647,18 @@ impl<Platform: pal::Platform> System<Platform> {
                     block,
                     &self.egress,
                     &self.sidevm_spawner,
+                    log_handler,
                 );
             }
-            let mut env = ExecuteEnv {
-                block: block,
-                contract_clusters: &mut self.contract_clusters,
-            };
+            let log_handler = self.get_system_message_handler_for_contract_id(&key);
             let contract = match self.contracts.get_mut(&key) {
                 None => continue 'outer,
                 Some(v) => v,
+            };
+            let mut env = ExecuteEnv {
+                block: block,
+                contract_clusters: &mut self.contract_clusters,
+                log_handler: log_handler.clone(),
             };
             let result = contract.on_block_end(&mut env);
             let cluster_id = contract.cluster_id();
@@ -622,6 +670,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 block,
                 &self.egress,
                 &self.sidevm_spawner,
+                log_handler,
             );
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
@@ -630,6 +679,34 @@ impl<Platform: pal::Platform> System<Platform> {
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
         self.worker_state
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
+    }
+
+    fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
+        match event {
+            PRuntimeManagementEvent::RetirePRuntime(condition) => {
+                self.retired_versions.push(condition.clone());
+                self.check_retirement();
+            }
+        }
+    }
+
+    fn check_retirement(&mut self) {
+        let cur_ver = Platform::app_version();
+        for condition in self.retired_versions.iter() {
+            let should_retire = match *condition {
+                Condition::VersionLessThan(major, minor, patch) => {
+                    (cur_ver.major, cur_ver.minor, cur_ver.patch) < (major, minor, patch)
+                }
+                Condition::VersionIs(major, minor, patch) => {
+                    (cur_ver.major, cur_ver.minor, cur_ver.patch) == (major, minor, patch)
+                }
+            };
+
+            if should_retire {
+                error!("This pRuntime is outdated. Please update to the latest version.");
+                std::process::abort();
+            }
+        }
     }
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
@@ -643,7 +720,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.master_key = Some(master_key);
 
             if need_restart {
-                crate::maybe_remove_checkpoints(&self.sealing_path);
+                crate::maybe_remove_checkpoints(&self.storage_path);
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
@@ -727,12 +804,19 @@ impl<Platform: pal::Platform> System<Platform> {
         let my_pubkey = self.identity_key.public();
         // if the first gatekeeper reboots, it will possess the master key,
         // and should not re-generate it
-        if my_pubkey == event.pubkey && self.master_key.is_none() {
-            info!("Gatekeeper: generate master key as the first gatekeeper");
-            // generate master key as the first gatekeeper
-            // no need to restart
-            let master_key = crate::new_sr25519_key();
-            self.set_master_key(master_key.clone(), false);
+        if my_pubkey == event.pubkey {
+            if self.master_key.is_none() {
+                info!("Gatekeeper: generate master key as the first gatekeeper");
+                // generate master key as the first gatekeeper
+                // no need to restart
+                let master_key = crate::new_sr25519_key();
+                self.set_master_key(master_key.clone(), false);
+            }
+
+            let master_key = self
+                .master_key
+                .as_ref()
+                .expect("should never be none; qed.");
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
@@ -820,14 +904,14 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_cluster_key_distribution_event(
+    fn process_cluster_operation_event(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ClusterKeyDistribution<chain::BlockNumber>,
-    ) {
+        event: ClusterOperation<chain::BlockNumber>,
+    ) -> Result<()> {
         match event {
-            ClusterKeyDistribution::Batch(event) => {
+            ClusterOperation::DispatchKeys(event) => {
                 let cluster = event.cluster;
                 if let Err(err) = self.process_cluster_key_distribution(block, origin, event) {
                     error!(
@@ -838,7 +922,22 @@ impl<Platform: pal::Platform> System<Platform> {
                     self.egress.push_message(&message);
                 }
             }
+            ClusterOperation::SetLogReceiver {
+                cluster: cluster_id,
+                log_handler,
+            } => {
+                let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
+                if let Some(cluster) = cluster {
+                    info!(
+                        "Set log handler for cluster {}: {:?}",
+                        hex_fmt::HexFmt(cluster_id),
+                        log_handler
+                    );
+                    cluster.config.log_handler = Some(log_handler);
+                }
+            }
         }
+        Ok(())
     }
 
     fn process_contract_operation_event(
@@ -861,10 +960,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
-                let hash = cluster
-                    .upload_code(origin.clone(), code)
-                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
-                let uploader = phala_types::messaging::AccountId(origin.into());
+                let uploader = phala_types::messaging::AccountId(origin.clone().into());
+                let hash = cluster.upload_code(origin, code).map_err(|err| {
+                    let message = WorkerContractReport::CodeUploadFailed {
+                        cluster_id,
+                        uploader,
+                    };
+                    self.egress.push_message(&message);
+                    anyhow!("Failed to upload code: {:?}", err)
+                })?;
                 let message = WorkerContractReport::CodeUploaded {
                     cluster_id,
                     uploader,
@@ -934,9 +1038,9 @@ impl<Platform: pal::Platform> System<Platform> {
                             (BALANCES => balances::Balances::new()),
                             (ASSETS => assets::Assets::new()),
                             (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.to_raw_vec()))),
-                            (GEOLOCATION => geolocation::Geolocation::new()),
-                            (GUESS_NUMBER => guess_number::GuessNumber::new()),
-                            (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
+                            // (GEOLOCATION => geolocation::Geolocation::new()),
+                            (GUESS_NUMBER => guess_number::GuessNumber::new())
+                            // (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
                         };
 
                         let message = ContractRegistryEvent::PubkeyAvailable {
@@ -966,6 +1070,8 @@ impl<Platform: pal::Platform> System<Platform> {
                         };
                         cluster_mq.push_message(&message);
 
+                        let log_handler = self.get_system_message_handler(&cluster_id);
+
                         let effects = self
                             .contract_clusters
                             .instantiate_contract(
@@ -976,6 +1082,10 @@ impl<Platform: pal::Platform> System<Platform> {
                                 contract_info.salt,
                                 block.block_number,
                                 block.now_ms,
+                                ContractEventCallback::from_log_sender(
+                                    &log_handler,
+                                    block.block_number,
+                                ),
                             )
                             .with_context(|| format!("Contract deployer: {:?}", deployer))?;
 
@@ -991,6 +1101,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             block,
                             &self.egress,
                             &self.sidevm_spawner,
+                            log_handler,
                         );
                     }
                 }
@@ -1105,9 +1216,10 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 }
 
-impl<P> System<P> {
+impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.check_retirement();
         Ok(())
     }
 }
@@ -1120,6 +1232,7 @@ pub fn handle_contract_command_result(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
     spawner: &Spawner,
+    log_handler: Option<CommandSender>,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1139,7 +1252,7 @@ pub fn handle_contract_command_result(
         Some(cluster) => cluster,
     };
     apply_pink_side_effects(
-        effects, cluster_id, contracts, cluster, block, egress, spawner,
+        effects, cluster_id, contracts, cluster, block, egress, spawner, log_handler,
     );
 }
 
@@ -1151,6 +1264,7 @@ pub fn apply_pink_side_effects(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
     spawner: &Spawner,
+    log_handler: Option<CommandSender>,
 ) {
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1246,6 +1360,21 @@ pub fn apply_pink_side_effects(
             }
             PinkEvent::CacheOp(op) => {
                 pink::local_cache::local_cache_op(&address, op);
+            }
+        }
+    }
+
+    if let Some(log_handler) = log_handler {
+        for (contract, topics, payload) in effects.ink_events.into_iter() {
+            if let Err(_) =
+                log_handler.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
+                    contract: contract.into(),
+                    block_number: block.block_number,
+                    payload,
+                    topics: topics.into_iter().map(Into::into).collect(),
+                }))
+            {
+                warn!("Cluster [{cluster_id}] emit ink event to log handler failed");
             }
         }
     }
@@ -1347,6 +1476,7 @@ mod tests {
                 Default::default(),
                 1,
                 1,
+                None,
             )
             .unwrap();
         insta::assert_debug_snapshot!(effects);
@@ -1368,6 +1498,7 @@ mod tests {
             &mut block_info,
             &egress,
             &spawner,
+            None,
         );
 
         insta::assert_display_snapshot!(contracts.len());
@@ -1375,6 +1506,7 @@ mod tests {
         let mut env = ExecuteEnv {
             block: &mut block_info,
             contract_clusters: &mut &mut keeper,
+            log_handler: None,
         };
 
         for contract in contracts.values_mut() {

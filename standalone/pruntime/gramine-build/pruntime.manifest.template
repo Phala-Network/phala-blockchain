@@ -13,8 +13,11 @@ insecure__allow_eventfd = true
 
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
-M_ARENA_MAX = "1"
+MALLOC_ARENA_MAX = "1"
 ROCKET_WORKERS = "8"
+RUST_LOG = { passthrough = true }
+all_proxy = { passthrough = true }
+i2p_proxy = { passthrough = true }
 
 [[fs.mounts]]
 type = "chroot"
@@ -28,8 +31,13 @@ uri = "file:/lib/x86_64-linux-gnu"
 
 [[fs.mounts]]
 type = "chroot"
-path = "/protected_files"
+path = "/data/protected_files"
 uri = "file:{{ seal_dir }}"
+
+[[fs.mounts]]
+type = "chroot"
+path = "/data/storage_files"
+uri = "file:{{ storage_dir }}"
 
 [[fs.mounts]]
 type = "chroot"
@@ -57,9 +65,10 @@ allowed_files = [
   "file:/etc/hosts",
   "file:/etc/resolv.conf",
   "file:Rocket.toml",
+  "file:{{ storage_dir }}/",
 ]
 
 protected_mrenclave_files = [
-    "file:{{ seal_dir }}"
+    "file:{{ seal_dir }}/"
 ]
 

@@ -94,6 +94,7 @@ mod sender {
 
 mod receiver {
     use super::Payload;
+    use anyhow::bail;
     use core::marker::PhantomData;
     use parity_scale_codec::Decode;
     use phactory_api::crypto::ecdh;
@@ -101,10 +102,16 @@ mod receiver {
     use serde::{Deserialize, Serialize};
     pub type SecretReceiver<Msg> = PeelingReceiver<Msg, Payload<Msg>, SecretPeeler<Msg>>;
 
+    #[derive(Debug)]
+    pub enum PeelError {
+        CodecError,
+        CryptoError,
+    }
+
     pub trait Peeler {
         type Wrp;
         type Msg;
-        fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error>;
+        fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, PeelError>;
     }
 
     pub struct PlainPeeler<T>(PhantomData<T>);
@@ -112,7 +119,7 @@ mod receiver {
     impl<T> Peeler for PlainPeeler<T> {
         type Wrp = T;
         type Msg = T;
-        fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error> {
+        fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, PeelError> {
             Ok(msg)
         }
     }
@@ -136,16 +143,14 @@ mod receiver {
     impl<T: Decode> Peeler for SecretPeeler<T> {
         type Wrp = Payload<T>;
         type Msg = T;
-        fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error> {
+        fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, PeelError> {
             match msg {
                 Payload::Plain(msg) => Ok(msg),
                 Payload::Encrypted(msg) => {
-                    let data = msg.decrypt(&self.ecdh_key).map_err(|err| {
-                        anyhow::anyhow!("SecretPeeler decrypt message failed: {:?}", err)
-                    })?;
-                    let msg = Decode::decode(&mut &data[..])
-                        .map_err(|_| anyhow::anyhow!("SCALE decode decrypted data failed"))?;
-                    Ok(msg)
+                    let data = msg
+                        .decrypt(&self.ecdh_key)
+                        .or(Err(PeelError::CryptoError))?;
+                    Decode::decode(&mut &data[..]).or(Err(PeelError::CodecError))
                 }
             }
         }
@@ -195,7 +200,19 @@ mod receiver {
                 Some(x) => x,
                 None => return Ok(None),
             };
-            let msg = self.peeler.peel(msg)?;
+            let msg = match self.peeler.peel(msg) {
+                Ok(msg) => msg,
+                Err(PeelError::CodecError) => {
+                    if origin.always_well_formed() {
+                        panic!("Failed to decode critical mq message, please upgrade the pRuntime client");
+                    } else {
+                        bail!("Failed to decode the mq message");
+                    }
+                }
+                Err(PeelError::CryptoError) => {
+                    bail!("Failed to decrypt the mq message");
+                }
+            };
             Ok(Some((seq, msg, origin)))
         }
 

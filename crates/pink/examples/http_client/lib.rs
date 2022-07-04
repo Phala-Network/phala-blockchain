@@ -5,6 +5,7 @@ use pink_extension as pink;
 
 
 #[pink::contract(env=PinkEnvironment)]
+#[pink(inner=ink_lang::contract)]
 mod http_client {
     use super::pink;
     use pink::{PinkEnvironment, http_post, http_get};

@@ -9,7 +9,7 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        ClusterKeyDistribution, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        ClusterOperation, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
         SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
@@ -61,6 +61,15 @@ fn get_cluster_key(master_key: &sr25519::Pair, cluster: &ContractClusterId) -> s
         .expect("should not fail with valid info")
 }
 
+#[cfg(feature = "gk-stat")]
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct WorkerStat {
+    last_heartbeat_for_block: chain::BlockNumber,
+    last_heartbeat_at_block: chain::BlockNumber,
+    last_gk_responsive_event: i32,
+    last_gk_responsive_event_at_block: chain::BlockNumber,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorkerInfo {
     state: WorkerState,
@@ -68,10 +77,8 @@ pub struct WorkerInfo {
     unresponsive: bool,
     tokenomic: TokenomicInfo,
     heartbeat_flag: bool,
-    last_heartbeat_for_block: chain::BlockNumber,
-    last_heartbeat_at_block: chain::BlockNumber,
-    last_gk_responsive_event: i32,
-    last_gk_responsive_event_at_block: chain::BlockNumber,
+    #[cfg(feature = "gk-stat")]
+    stat: WorkerStat,
 }
 
 impl WorkerInfo {
@@ -82,10 +89,8 @@ impl WorkerInfo {
             unresponsive: false,
             tokenomic: Default::default(),
             heartbeat_flag: false,
-            last_heartbeat_for_block: 0,
-            last_heartbeat_at_block: 0,
-            last_gk_responsive_event: 0,
-            last_gk_responsive_event_at_block: 0,
+            #[cfg(feature = "gk-stat")]
+            stat: Default::default(),
         }
     }
 
@@ -323,7 +328,7 @@ where
                     })
                     .collect();
                 self.egress
-                    .push_message(&ClusterKeyDistribution::batch_distribution(
+                    .push_message(&ClusterOperation::batch_distribution(
                         secret_keys,
                         cluster,
                         0,
@@ -464,6 +469,18 @@ fn test_restore_phala_launched() {
     assert!(!state.phala_launched);
 }
 
+#[cfg(feature = "gk-stat")]
+impl From<&WorkerStat> for pb::WorkerStat {
+    fn from(stat: &WorkerStat) -> Self {
+        Self {
+            last_heartbeat_for_block: stat.last_heartbeat_for_block,
+            last_heartbeat_at_block: stat.last_heartbeat_at_block,
+            last_gk_responsive_event: stat.last_gk_responsive_event,
+            last_gk_responsive_event_at_block: stat.last_gk_responsive_event_at_block,
+        }
+    }
+}
+
 impl From<&WorkerInfo> for pb::WorkerState {
     fn from(info: &WorkerInfo) -> Self {
         pb::WorkerState {
@@ -484,10 +501,10 @@ impl From<&WorkerInfo> for pb::WorkerState {
                     start_time: state.start_time,
                 }),
             waiting_heartbeats: info.waiting_heartbeats.iter().copied().collect(),
-            last_heartbeat_for_block: info.last_heartbeat_for_block,
-            last_heartbeat_at_block: info.last_heartbeat_at_block,
-            last_gk_responsive_event: info.last_gk_responsive_event,
-            last_gk_responsive_event_at_block: info.last_gk_responsive_event_at_block,
+            #[cfg(feature = "gk-stat")]
+            stat: Some((&info.stat).into()),
+            #[cfg(not(feature = "gk-stat"))]
+            stat: None,
             tokenomic_info: Some(info.tokenomic.clone().into()),
         }
     }
@@ -650,9 +667,13 @@ where
                     self.report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
-                    worker_info.last_gk_responsive_event =
-                        pb::ResponsiveEvent::ExitUnresponsive as _;
-                    worker_info.last_gk_responsive_event_at_block = self.block.block_number;
+                    #[cfg(feature = "gk-stat")]
+                    {
+                        worker_info.stat.last_gk_responsive_event =
+                            pb::ResponsiveEvent::ExitUnresponsive as _;
+                        worker_info.stat.last_gk_responsive_event_at_block =
+                            self.block.block_number;
+                    }
                     self.event_listener
                         .on_finance_event(FinanceEvent::ExitUnresponsive, worker_info);
                 }
@@ -669,9 +690,14 @@ where
                     );
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
-                    worker_info.last_gk_responsive_event =
-                        pb::ResponsiveEvent::EnterUnresponsive as _;
-                    worker_info.last_gk_responsive_event_at_block = self.block.block_number;
+
+                    #[cfg(feature = "gk-stat")]
+                    {
+                        worker_info.stat.last_gk_responsive_event =
+                            pb::ResponsiveEvent::EnterUnresponsive as _;
+                        worker_info.stat.last_gk_responsive_event_at_block =
+                            self.block.block_number;
+                    }
                     self.event_listener
                         .on_finance_event(FinanceEvent::EnterUnresponsive, worker_info);
                 }
@@ -724,8 +750,12 @@ where
                         return;
                     }
                 };
-                worker_info.last_heartbeat_at_block = self.block.block_number;
-                worker_info.last_heartbeat_for_block = challenge_block;
+
+                #[cfg(feature = "gk-stat")]
+                {
+                    worker_info.stat.last_heartbeat_at_block = self.block.block_number;
+                    worker_info.stat.last_heartbeat_for_block = challenge_block;
+                }
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
                     error!(target: "mining", "Fatal error: Unexpected heartbeat {:?}", event);
@@ -870,14 +900,8 @@ where
                                 p_instant: FixedPoint::from_num(*init_p),
                                 confidence_level: prev.confidence_level,
 
-                                last_payout: fp!(0),
-                                last_payout_at_block: 0,
-                                total_payout: fp!(0),
-                                total_payout_count: 0,
-                                last_slash: fp!(0),
-                                last_slash_at_block: 0,
-                                total_slash: fp!(0),
-                                total_slash_count: 0,
+                                #[cfg(feature = "gk-stat")]
+                                stat: Default::default(),
                             };
                             self.event_listener
                                 .on_finance_event(FinanceEvent::MiningStart, worker);
@@ -1013,6 +1037,23 @@ mod tokenomic {
         }
     }
 
+    #[cfg(feature = "gk-stat")]
+    #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
+    pub struct TokenomicStat {
+        #[serde(with = "serde_fp")]
+        pub last_payout: FixedPoint,
+        pub last_payout_at_block: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
+        pub total_payout: FixedPoint,
+        pub total_payout_count: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
+        pub last_slash: FixedPoint,
+        pub last_slash_at_block: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
+        pub total_slash: FixedPoint,
+        pub total_slash_count: chain::BlockNumber,
+    }
+
     #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
     pub struct TokenomicInfo {
         #[serde(with = "serde_fp")]
@@ -1031,18 +1072,24 @@ mod tokenomic {
         pub p_instant: FixedPoint,
         pub confidence_level: u8,
 
-        #[serde(with = "serde_fp")]
-        pub last_payout: FixedPoint,
-        pub last_payout_at_block: chain::BlockNumber,
-        #[serde(with = "serde_fp")]
-        pub total_payout: FixedPoint,
-        pub total_payout_count: chain::BlockNumber,
-        #[serde(with = "serde_fp")]
-        pub last_slash: FixedPoint,
-        pub last_slash_at_block: chain::BlockNumber,
-        #[serde(with = "serde_fp")]
-        pub total_slash: FixedPoint,
-        pub total_slash_count: chain::BlockNumber,
+        #[cfg(feature = "gk-stat")]
+        pub stat: TokenomicStat,
+    }
+
+    #[cfg(feature = "gk-stat")]
+    impl From<TokenomicStat> for super::pb::TokenomicStat {
+        fn from(stat: TokenomicStat) -> Self {
+            Self {
+                last_payout: stat.last_payout.to_string(),
+                last_payout_at_block: stat.last_payout_at_block,
+                last_slash: stat.last_slash.to_string(),
+                last_slash_at_block: stat.last_slash_at_block,
+                total_payout: stat.total_payout.to_string(),
+                total_payout_count: stat.total_payout_count,
+                total_slash: stat.total_slash.to_string(),
+                total_slash_count: stat.total_slash_count,
+            }
+        }
     }
 
     impl From<TokenomicInfo> for super::pb::TokenomicInfo {
@@ -1059,14 +1106,10 @@ mod tokenomic {
                 p_bench: info.p_bench.to_string(),
                 p_instant: info.p_instant.to_string(),
                 confidence_level: info.confidence_level as _,
-                last_payout: info.last_payout.to_string(),
-                last_payout_at_block: info.last_payout_at_block,
-                last_slash: info.last_slash.to_string(),
-                last_slash_at_block: info.last_slash_at_block,
-                total_payout: info.total_payout.to_string(),
-                total_payout_count: info.total_payout_count,
-                total_slash: info.total_slash.to_string(),
-                total_slash_count: info.total_slash_count,
+                #[cfg(feature = "gk-stat")]
+                stat: Some(info.stat.into()),
+                #[cfg(not(feature = "gk-stat"))]
+                stat: None,
             }
         }
     }
@@ -1192,11 +1235,13 @@ mod tokenomic {
             self.v_update_at = now_ms;
             self.v_update_block = block_number;
 
-            // stats
-            self.last_payout = actual_payout;
-            self.last_payout_at_block = block_number;
-            self.total_payout += actual_payout;
-            self.total_payout_count += 1;
+            #[cfg(feature = "gk-stat")]
+            {
+                self.stat.last_payout = actual_payout;
+                self.stat.last_payout_at_block = block_number;
+                self.stat.total_payout += actual_payout;
+                self.stat.total_payout_count += 1;
+            }
 
             (actual_payout, actual_treasury)
         }
@@ -1206,9 +1251,11 @@ mod tokenomic {
             self.v_update_at = now_ms;
             self.v_update_block = block_number;
 
-            // stats
-            self.last_payout = fp!(0);
-            self.last_payout_at_block = block_number;
+            #[cfg(feature = "gk-stat")]
+            {
+                self.stat.last_payout = fp!(0);
+                self.stat.last_payout_at_block = block_number;
+            }
         }
 
         pub fn update_v_slash(&mut self, params: &Params, block_number: chain::BlockNumber) {
@@ -1216,11 +1263,15 @@ mod tokenomic {
             self.v -= slash;
             self.v_deductible = fp!(0);
 
-            // stats
-            self.last_slash = slash;
-            self.last_slash_at_block = block_number;
-            self.total_slash += slash;
-            self.total_slash_count += 1;
+            #[cfg(not(feature = "gk-stat"))]
+            let _ = block_number;
+            #[cfg(feature = "gk-stat")]
+            {
+                self.stat.last_slash = slash;
+                self.stat.last_slash_at_block = block_number;
+                self.stat.total_slash += slash;
+                self.stat.total_slash_count += 1;
+            }
         }
 
         pub fn share(&self) -> FixedPoint {

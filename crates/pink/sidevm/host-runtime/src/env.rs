@@ -18,8 +18,8 @@ use tokio::{
 use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 
 use env::{
-    query::{AccountId, QueryRequest},
-    tls::TlsServerConfig,
+    messages::{AccountId, QueryRequest, SystemMessage},
+    tls::{TlsClientConfig, TlsServerConfig},
     IntPtr, IntRet, OcallError, Result, RetEncode,
 };
 use pink_sidevm_env as env;
@@ -129,8 +129,9 @@ struct State {
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
-    message_tx: Sender<Vec<u8>>,
-    query_tx: Sender<Vec<u8>>,
+    message_tx: Option<Sender<Vec<u8>>>,
+    query_tx: Option<Sender<Vec<u8>>>,
+    sys_message_tx: Option<Sender<Vec<u8>>>,
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
     cache_ops: DynCacheOps,
@@ -156,11 +157,6 @@ pub struct Env {
 
 impl Env {
     fn new(id: VmId, cache_ops: DynCacheOps) -> Self {
-        let (message_tx, message_rx) = tokio::sync::mpsc::channel(100);
-        let (query_tx, query_rx) = tokio::sync::mpsc::channel(10);
-        let mut resources = ResourceKeeper::default();
-        let _ = resources.push(Resource::ChannelRx(message_rx));
-        let _ = resources.push(Resource::ChannelRx(query_rx));
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
@@ -168,11 +164,12 @@ impl Env {
                     id,
                     gas: 0,
                     gas_to_breath: 0,
-                    resources,
+                    resources: Default::default(),
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
-                    message_tx,
-                    query_tx,
+                    message_tx: None,
+                    sys_message_tx: None,
+                    query_tx: None,
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
                     cache_ops,
@@ -194,9 +191,18 @@ impl Env {
     pub fn push_message(
         &self,
         message: Vec<u8>,
-    ) -> impl Future<Output = Result<(), SendError<Vec<u8>>>> {
-        let tx = self.inner.lock().unwrap().state.message_tx.clone();
-        async move { tx.send(message).await }
+    ) -> Option<impl Future<Output = Result<(), SendError<Vec<u8>>>>> {
+        let tx = self.inner.lock().unwrap().state.message_tx.clone()?;
+        Some(async move { tx.send(message).await })
+    }
+
+    /// Push a pink system message into the Sidevm instance.
+    pub fn push_system_message(
+        &self,
+        message: SystemMessage,
+    ) -> Option<impl Future<Output = Result<(), SendError<Vec<u8>>>>> {
+        let tx = self.inner.lock().unwrap().state.sys_message_tx.clone()?;
+        Some(async move { tx.send(message.encode()).await })
     }
 
     /// Push a contract query to the Sidevm instance.
@@ -205,14 +211,14 @@ impl Env {
         origin: Option<AccountId>,
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
-    ) -> impl Future<Output = anyhow::Result<()>> + 'static {
+    ) -> Option<impl Future<Output = anyhow::Result<()>>> {
         let mut env_guard = self.inner.lock().unwrap();
         let reply_tx = env_guard
             .state
             .resources
             .push(Resource::OneshotTx(Some(reply_tx)));
-        let tx = env_guard.state.query_tx.clone();
-        async move {
+        let tx = env_guard.state.query_tx.clone()?;
+        Some(async move {
             let query = QueryRequest {
                 origin,
                 payload,
@@ -220,18 +226,7 @@ impl Env {
             };
             tx.send(query.encode()).await?;
             Ok(())
-        }
-    }
-
-    /// The blocking version of `push_message`.
-    #[allow(dead_code)]
-    pub fn blocking_push_message(&self, message: Vec<u8>) -> Result<(), SendError<Vec<u8>>> {
-        self.inner
-            .lock()
-            .unwrap()
-            .state
-            .message_tx
-            .blocking_send(message)
+        })
     }
 
     pub fn set_gas(&self, gas: u128) {
@@ -371,7 +366,9 @@ impl env::OcallFuncs for State {
                 Ready(result) => result.or(Err(OcallError::IoError))?,
             };
             let res = match tls_config {
-                Some(tls_config) => Resource::TlsStream(TlsStream::new(stream, tls_config.clone())),
+                Some(tls_config) => {
+                    Resource::TlsStream(TlsStream::accept(stream, tls_config.clone()))
+                }
                 None => Resource::TcpStream(stream),
             };
             (res, addr)
@@ -386,9 +383,30 @@ impl env::OcallFuncs for State {
             .map(|(res_id, _)| res_id)
     }
 
-    fn tcp_connect(&mut self, addr: &str) -> Result<i32> {
-        let fut = tokio::net::TcpStream::connect(addr.to_string());
+    fn tcp_connect(&mut self, host: &str, port: u16) -> Result<i32> {
+        if host.len() > 253 {
+            return Err(OcallError::InvalidParameter);
+        }
+        let host = host.to_owned();
+        let fut = async move { tcp_connect(&host, port).await };
         self.resources.push(Resource::TcpConnect(Box::pin(fut)))
+    }
+
+    fn tcp_connect_tls(&mut self, host: String, port: u16, config: TlsClientConfig) -> Result<i32> {
+        if host.len() > 253 {
+            return Err(OcallError::InvalidParameter);
+        }
+        let TlsClientConfig::V0 = config;
+        let domain = host
+            .as_str()
+            .try_into()
+            .or(Err(OcallError::InvalidParameter))?;
+        let fut = async move {
+            tcp_connect(&host, port)
+                .await
+                .map(move |stream| TlsStream::connect(domain, stream))
+        };
+        self.resources.push(Resource::TlsConnect(Box::pin(fut)))
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
@@ -444,6 +462,50 @@ impl env::OcallFuncs for State {
             _ => return Err(OcallError::UnsupportedOperation),
         }
         Ok(())
+    }
+
+    fn create_input_channel(&mut self, ch: env::InputChannel) -> Result<i32> {
+        use env::InputChannel::*;
+        macro_rules! create_channel {
+            ($field: expr) => {{
+                if $field.is_some() {
+                    return Err(OcallError::AlreadyExists);
+                }
+                let (tx, rx) = tokio::sync::mpsc::channel(20);
+                let res = self.resources.push(Resource::ChannelRx(rx))?;
+                $field = Some(tx);
+                Ok(res)
+            }};
+        }
+        match ch {
+            GeneralMessage => create_channel!(self.message_tx),
+            SystemMessage => create_channel!(self.sys_message_tx),
+            Query => create_channel!(self.query_tx),
+        }
+    }
+}
+
+async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpStream> {
+    fn get_proxy(key: &str) -> Option<String> {
+        std::env::var(key).ok().and_then(|uri| {
+            if uri.trim().is_empty() {
+                None
+            } else {
+                Some(uri)
+            }
+        })
+    }
+
+    let proxy_url = if host.ends_with(".i2p") {
+        get_proxy("i2p_proxy")
+    } else {
+        None
+    };
+
+    if let Some(proxy_url) = proxy_url.or(get_proxy("all_proxy")) {
+        tokio_proxy::connect((host, port), proxy_url).await
+    } else {
+        tokio::net::TcpStream::connect((host, port)).await
     }
 }
 
