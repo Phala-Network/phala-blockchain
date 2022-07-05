@@ -2,8 +2,7 @@
 entrypoint = "pruntime"
 
 [loader]
-preload = "file:{{ gramine.libos }}" # for compatibility with v1.0
-entrypoint = "file:{{ gramine.libos }}"
+entrypoint = "file:{{ libos }}"
 log_level = "{{ log_level }}"
 argv0_override = "pruntime"
 insecure__use_cmdline_argv = true
@@ -22,12 +21,7 @@ i2p_proxy = { passthrough = true }
 [[fs.mounts]]
 type = "chroot"
 path = "/lib"
-uri = "file:{{ gramine.runtimedir() }}"
-
-[[fs.mounts]]
-type = "chroot"
-path = "/lib/x86_64-linux-gnu"
-uri = "file:/lib/x86_64-linux-gnu"
+uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
 type = "chroot"
@@ -55,10 +49,9 @@ ra_client_linkable = true
 ra_client_spid = "{{ ra_client_spid }}"
 
 trusted_files = [
-  "file:{{ gramine.libos }}",
+  "file:{{ libos }}",
   "file:pruntime",
-  "file:{{ gramine.runtimedir() }}/",
-  "file:/lib/x86_64-linux-gnu/",
+  "file:{{ libdir }}",
 ]
 
 allowed_files = [
