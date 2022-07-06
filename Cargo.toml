@@ -22,11 +22,9 @@ overflow-checks = true
 resolver = "2"
 
 exclude = [
-	"substrate",
 	"subxt",
-	"webpki",
-	"ring",
-	"native-nostd-hasher",
+	"vendor/webpki",
+	"vendor/ring",
 	"standalone/pruntime",
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
@@ -68,6 +66,7 @@ members = [
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
+	"crates/native-nostd-hasher",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"scripts/toml-upgrade-version",
