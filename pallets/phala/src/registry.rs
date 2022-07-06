@@ -50,9 +50,9 @@ pub mod pallet {
 		},
 	}
 
-	bind_topic!(GKRegistryEvent, b"^phala/registry/gk_event");
+	bind_topic!(GatekeeperRegistryEvent, b"^phala/registry/gk_event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
-	pub enum GKRegistryEvent {
+	pub enum GatekeeperRegistryEvent {
 		RotatedMasterPubkey {
 			rotation_id: u64,
 			master_pubkey: MasterPublicKey,
@@ -142,7 +142,7 @@ pub mod pallet {
 
 	/// The effective height of pRuntime binary
 	#[pallet::storage]
-	pub type PRuntimeTimestamp<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, T::BlockNumber>;
+	pub type PRuntimeAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, T::BlockNumber>;
 
 	/// Allow list of relaychain genesis
 	///
@@ -341,18 +341,15 @@ pub mod pallet {
 			let rotating = MasterKeyRotationLock::<T>::get();
 			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
-			let gatekeepers = Gatekeeper::<T>::get();
+			let mut gatekeepers = Gatekeeper::<T>::get();
 			ensure!(
 				gatekeepers.contains(&gatekeeper),
 				Error::<T>::InvalidGatekeeper
 			);
 			ensure!(gatekeepers.len() > 1, Error::<T>::LastGatekeeper);
 
-			let filtered: Vec<_> = gatekeepers
-				.into_iter()
-				.filter(|g| *g != gatekeeper)
-				.collect();
-			Gatekeeper::<T>::put(filtered);
+			gatekeepers.retain(|g| *g != gatekeeper);
+			Gatekeeper::<T>::put(gatekeepers);
 			Self::push_message(GatekeeperChange::gatekeeper_unregistered(gatekeeper));
 			Ok(())
 		}
@@ -364,7 +361,7 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			use phala_types::messaging::GatekeeperEvent;
-			Self::push_message(GatekeeperEvent::ShareMasterKeyHistory {});
+			Self::push_message(GatekeeperEvent::ShareMasterKeyHistory);
 			Ok(())
 		}
 
@@ -545,7 +542,7 @@ pub mod pallet {
 			PRuntimeAllowList::<T>::put(allowlist);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			PRuntimeTimestamp::<T>::insert(&pruntime_hash, &now);
+			PRuntimeAddedAt::<T>::insert(&pruntime_hash, &now);
 
 			Ok(())
 		}
@@ -557,19 +554,16 @@ pub mod pallet {
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let allowlist = PRuntimeAllowList::<T>::get();
+			let mut allowlist = PRuntimeAllowList::<T>::get();
 			ensure!(
 				allowlist.contains(&pruntime_hash),
 				Error::<T>::PRuntimeNotFound
 			);
 
-			let filtered: Vec<_> = allowlist
-				.into_iter()
-				.filter(|h| *h != pruntime_hash)
-				.collect();
-			PRuntimeAllowList::<T>::put(filtered);
+			allowlist.retain(|h| *h != pruntime_hash);
+			PRuntimeAllowList::<T>::put(allowlist);
 
-			PRuntimeTimestamp::<T>::remove(&pruntime_hash);
+			PRuntimeAddedAt::<T>::remove(&pruntime_hash);
 
 			Ok(())
 		}
@@ -606,17 +600,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
+			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
 			ensure!(
 				allowlist.contains(&genesis_block_hash),
 				Error::<T>::GenesisBlockHashNotFound
 			);
 
-			let filtered: Vec<_> = allowlist
-				.into_iter()
-				.filter(|h| *h != genesis_block_hash)
-				.collect();
-			RelaychainGenesisBlockHashAllowList::<T>::put(filtered);
+			allowlist.retain(|h| *h != genesis_block_hash);
+			RelaychainGenesisBlockHashAllowList::<T>::put(allowlist);
 
 			Ok(())
 		}
@@ -722,13 +713,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_gk_message_received(message: DecodedMessage<GKRegistryEvent>) -> DispatchResult {
+		pub fn on_gk_message_received(
+			message: DecodedMessage<GatekeeperRegistryEvent>,
+		) -> DispatchResult {
 			if !message.sender.is_gatekeeper() {
 				return Err(Error::<T>::InvalidSender.into());
 			}
 
 			match message.payload {
-				GKRegistryEvent::RotatedMasterPubkey {
+				GatekeeperRegistryEvent::RotatedMasterPubkey {
 					rotation_id,
 					master_pubkey,
 				} => {
@@ -985,7 +978,7 @@ pub mod pallet {
 					Error::<Test>::PRuntimeAlreadyExists
 				);
 				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 1);
-				assert!(PRuntimeTimestamp::<Test>::contains_key(&sample));
+				assert!(PRuntimeAddedAt::<Test>::contains_key(&sample));
 				assert_ok!(PhalaRegistry::remove_pruntime(
 					Origin::root(),
 					sample.clone()
@@ -995,7 +988,7 @@ pub mod pallet {
 					Error::<Test>::PRuntimeNotFound
 				);
 				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 0);
-				assert!(!PRuntimeTimestamp::<Test>::contains_key(&sample));
+				assert!(!PRuntimeAddedAt::<Test>::contains_key(&sample));
 			});
 		}
 

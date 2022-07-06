@@ -1,6 +1,6 @@
 use super::{RotatedMasterKey, TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_fat::ClusterRegistryEvent;
-use chain::pallet_registry::GKRegistryEvent;
+use chain::pallet_registry::GatekeeperRegistryEvent;
 use phala_crypto::{
     aead, key_share,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
@@ -36,6 +36,8 @@ pub use tokenomic::{FixedPoint, TokenomicInfo};
 ///
 /// WARNING: this interval need to be large enough considering the latency of mq
 const VRF_INTERVAL: u32 = 5;
+
+const MASTER_KEY_SHARING_SALT: &[u8] = b"master_key_sharing";
 
 // pesudo_random_number = blake2_256(last_random_number, block_number, derived_master_key)
 //
@@ -204,7 +206,7 @@ where
         // send the RotatedMasterPubkey event with old master key
         let master_pubkey = new_master_key.public();
         self.egress
-            .push_message(&GKRegistryEvent::RotatedMasterPubkey {
+            .push_message(&GatekeeperRegistryEvent::RotatedMasterPubkey {
                 rotation_id: rotated_master_key.rotation_id,
                 master_pubkey,
             });
@@ -240,7 +242,7 @@ where
         info!("Gatekeeper: try dispatch master key");
         let master_key = self.master_key.dump_secret_key();
         let encrypted_key = self.encrypt_key_to(
-            &[b"master_key_sharing"],
+            &[MASTER_KEY_SHARING_SALT],
             ecdh_pubkey,
             &master_key,
             block_number,
@@ -271,7 +273,7 @@ where
                     key.rotation_id,
                     key.block_height,
                     self.encrypt_key_to(
-                        &[b"master_key_sharing"],
+                        &[MASTER_KEY_SHARING_SALT],
                         ecdh_pubkey,
                         &key.secret,
                         block_number,
@@ -289,7 +291,7 @@ where
 
     pub fn process_master_key_rotation(
         &mut self,
-        block: &mut BlockInfo,
+        block: &BlockInfo,
         event: RotateMasterKeyEvent,
         identity_key: sr25519::Pair,
     ) {
@@ -300,7 +302,7 @@ where
             .into_iter()
             .map(|gk_identity| {
                 let encrypted_key = self.encrypt_key_to(
-                    &[b"master_key_sharing"],
+                    &[MASTER_KEY_SHARING_SALT],
                     &gk_identity.ecdh_pubkey,
                     &secret_key,
                     block.block_number,

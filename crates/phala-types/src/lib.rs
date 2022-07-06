@@ -441,8 +441,8 @@ pub mod messaging {
     bind_topic!(GatekeeperChange, b"phala/gatekeeper/change");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum GatekeeperChange {
-        GatekeeperRegistered(NewGatekeeperEvent),
-        GatekeeperUnregistered(RemoveGatekeeperEvent),
+        Registered(NewGatekeeperEvent),
+        Unregistered(RemoveGatekeeperEvent),
     }
 
     impl GatekeeperChange {
@@ -450,14 +450,14 @@ pub mod messaging {
             pubkey: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
         ) -> GatekeeperChange {
-            GatekeeperChange::GatekeeperRegistered(NewGatekeeperEvent {
+            GatekeeperChange::Registered(NewGatekeeperEvent {
                 pubkey,
                 ecdh_pubkey,
             })
         }
 
         pub fn gatekeeper_unregistered(pubkey: WorkerPublicKey) -> GatekeeperChange {
-            GatekeeperChange::GatekeeperUnregistered(RemoveGatekeeperEvent { pubkey })
+            GatekeeperChange::Unregistered(RemoveGatekeeperEvent { pubkey })
         }
     }
 

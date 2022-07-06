@@ -877,8 +877,13 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         info!("Incoming gatekeeper launch event: {:?}", event);
         match event {
-            GatekeeperLaunch::FirstGatekeeper(new_gatekeeper_event) => {
-                self.process_first_gatekeeper_event(block, origin, new_gatekeeper_event)
+            GatekeeperLaunch::FirstGatekeeper(event) => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    return;
+                }
+
+                self.process_first_gatekeeper_event(block, origin, event)
             }
             GatekeeperLaunch::MasterPubkeyOnChain(_) => {
                 if !origin.is_pallet() {
@@ -894,25 +899,27 @@ impl<Platform: pal::Platform> System<Platform> {
                     gatekeeper.master_pubkey_uploaded();
                 }
             }
-            GatekeeperLaunch::RotateMasterKey(rotate_master_key_event) => {
+            GatekeeperLaunch::RotateMasterKey(event) => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    return;
+                }
+
                 info!(
                     "Master key rotation req round {} in block {}",
-                    rotate_master_key_event.rotation_id, block.block_number
+                    event.rotation_id, block.block_number
                 );
-                self.process_master_key_rotation(block, origin, rotate_master_key_event);
+                self.process_master_key_rotation(block, origin, event);
             }
-            GatekeeperLaunch::MasterPubkeyRotated(master_pubkey_event) => {
+            GatekeeperLaunch::MasterPubkeyRotated(event) => {
                 if !origin.is_pallet() {
-                    error!(
-                        "Invalid origin {:?} sent a {:?}",
-                        origin, master_pubkey_event
-                    );
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
                     return;
                 }
 
                 info!(
                     "Rotated Master Pubkey {} on chain in block {}",
-                    hex::encode(master_pubkey_event.master_pubkey),
+                    hex::encode(event.master_pubkey),
                     block.block_number
                 );
             }
@@ -929,14 +936,9 @@ impl<Platform: pal::Platform> System<Platform> {
     fn process_first_gatekeeper_event(
         &mut self,
         block: &mut BlockInfo,
-        origin: MessageOrigin,
+        _origin: MessageOrigin,
         event: NewGatekeeperEvent,
     ) {
-        if !origin.is_pallet() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        }
-
         // double check the first gatekeeper is valid on chain
         if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
             error!(
@@ -1002,11 +1004,6 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: MessageOrigin,
         event: RotateMasterKeyEvent,
     ) {
-        if !origin.is_pallet() {
-            error!("Invalid origin {:?} requires a master key rotation", origin);
-            return;
-        }
-
         if let Some(gatekeeper) = &mut self.gatekeeper {
             info!("Gatekeeper：Rotate master key");
             gatekeeper.process_master_key_rotation(block, event, self.identity_key.0.clone());
@@ -1021,11 +1018,11 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         info!("Incoming gatekeeper change event: {:?}", event);
         match event {
-            GatekeeperChange::GatekeeperRegistered(new_gatekeeper_event) => {
-                self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
+            GatekeeperChange::Registered(event) => {
+                self.process_new_gatekeeper_event(block, origin, event)
             }
-            GatekeeperChange::GatekeeperUnregistered(remove_gatekeeper_event) => {
-                self.process_remove_gatekeeper_event(block, origin, remove_gatekeeper_event)
+            GatekeeperChange::Unregistered(event) => {
+                self.process_remove_gatekeeper_event(block, origin, event)
             }
         }
     }
@@ -1090,29 +1087,21 @@ impl<Platform: pal::Platform> System<Platform> {
         event: KeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
-                if let Err(err) =
-                    self.process_master_key_distribution(origin, dispatch_master_key_event)
-                {
+            KeyDistribution::MasterKeyDistribution(event) => {
+                if let Err(err) = self.process_master_key_distribution(origin, event) {
                     error!("Failed to process master key distribution event: {:?}", err);
                 };
             }
-            KeyDistribution::MasterKeyRotation(batch_rotate_master_key_event) => {
-                if let Err(err) = self.process_batch_rotate_master_key(
-                    block,
-                    origin,
-                    batch_rotate_master_key_event,
-                ) {
+            KeyDistribution::MasterKeyRotation(event) => {
+                if let Err(err) = self.process_batch_rotate_master_key(block, origin, event) {
                     error!(
                         "Failed to process batch master key rotation event: {:?}",
                         err
                     );
                 };
             }
-            KeyDistribution::MasterKeyHistory(dispatch_master_key_history_event) => {
-                if let Err(err) =
-                    self.process_master_key_history(origin, dispatch_master_key_history_event)
-                {
+            KeyDistribution::MasterKeyHistory(event) => {
+                if let Err(err) = self.process_master_key_history(origin, event) {
                     error!("Failed to process master key history event: {:?}", err);
                 };
             }
@@ -1403,7 +1392,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
     /// Decrypt the rotated master key
     ///
-    /// The new master key takes effect immediately after the GKRegistryEvent::RotatedMasterPubkey is sent
+    /// The new master key takes effect immediately after the GatekeeperRegistryEvent::RotatedMasterPubkey is sent
     ///
     /// ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain pubkey
     /// is updated, which may cause problem in the future.
@@ -1800,7 +1789,7 @@ pub mod chain_state {
         runtime_hash: &Vec<u8>,
     ) -> Option<chain::BlockNumber> {
         let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeTimestamp", runtime_hash);
+            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
         chain_storage.get_decoded(&key).unwrap_or(None)
     }
 }
