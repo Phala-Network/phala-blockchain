@@ -6179,6 +6179,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "page_size"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebde548fbbf1ea81a99b128872779c437752fb99f217c45245e1a61dcd9edcd"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "pallet-authority-discovery"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.24#814752f60ab8cce7e2ece3ce0c1b10799b4eab28"
@@ -6698,7 +6708,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-core"
 version = "0.0.1"
-source = "git+https://github.com/Index0011/rmrk-substrate?branch=test1#ef000a0f16b4b3ca89e7dc9a3d6cbfdff4615da6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6716,7 +6726,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-equip"
 version = "0.0.1"
-source = "git+https://github.com/Index0011/rmrk-substrate?branch=test1#ef000a0f16b4b3ca89e7dc9a3d6cbfdff4615da6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6735,7 +6745,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-market"
 version = "0.0.1"
-source = "git+https://github.com/Index0011/rmrk-substrate?branch=test1#ef000a0f16b4b3ca89e7dc9a3d6cbfdff4615da6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -9164,7 +9174,7 @@ dependencies = [
 [[package]]
 name = "rmrk-traits"
 version = "0.0.1"
-source = "git+https://github.com/Index0011/rmrk-substrate?branch=test1#ef000a0f16b4b3ca89e7dc9a3d6cbfdff4615da6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",

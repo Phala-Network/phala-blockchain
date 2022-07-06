@@ -5,9 +5,7 @@ use frame_support::{
 };
 use log;
 
-pub use pallet_rmrk_core::types::*;
-pub use pallet_rmrk_market;
-pub use rmrk_traits::primitives::*;
+use rmrk_traits::primitives::{NftId, CollectionId};
 
 type MiningBalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
