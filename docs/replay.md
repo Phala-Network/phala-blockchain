@@ -32,11 +32,9 @@ OPTIONS:
 
 To persist the tokenomic event logs to a PostgreSQL compatible database. TimescaleDB is recommended to optimize the performance.
 
-
-
 <details>
   <summary>Recommended database DDL</summary>
-  
+
   ```sql
   DROP TABLE IF EXISTS "worker_finance_events";
   CREATE TABLE "worker_finance_events" (
@@ -59,7 +57,7 @@ To persist the tokenomic event logs to a PostgreSQL compatible database. Timesca
               chunk_time_interval := interval '7 days'
   );
   ```
-  
+
 </details>
 
 To enable the log persistent, set the db url when starting the program:
@@ -92,21 +90,71 @@ select block,time,event,v,payout from worker_finance_events where pubkey = '\xa4
 
 ## State API
 
-The `replay` program exposes a restful api to query the instant state of a worker. Sample query:
+The `replay` program exposes a restful api to query the instant state of a worker.
+
+### Individual worker state: `/worker-state/{worker-hex}`
 
 ```
-curl localhost:9988/worker-state/a436ab8f34f73f45b019248bb39b981cd118134afb897fa3c6a4437525ebeb1b | jq
+curl localhost:8080/worker-state/a436ab8f34f73f45b019248bb39b981cd118134afb897fa3c6a4437525ebeb1b | jq
 {
-  "benchmarking": false,
-  "current_block": 466583,
-  "last_heartbeat_at_block": 466491,
-  "last_heartbeat_for_block": 466485,
-  "mining": true,
-  "p_init": "2694",
-  "p_instant": "2882.06203191890875802024",
-  "unresponsive": false,
-  "v": "22492.7475177576747557379",
-  "v_init": "22642.44447670198867727826",
-  "waiting_heartbeats": []
+  "current_block": 1923017,
+  "total_share": "220881180.46708255354315042496",
+  "worker": {
+    "bench_state": null,
+    "last_gk_responsive_event": 2,
+    "last_gk_responsive_event_at_block": 752935,
+    "last_heartbeat_at_block": 755816,
+    "last_heartbeat_for_block": 755810,
+    "mining_state": null,
+    "registered": true,
+    "tokenomic_info": {
+      "challenge_time_last": 1637270568284,
+      "confidence_level": 4,
+      "iteration_last": 746024802,
+      "last_payout": "1.0162706988123152853",
+      "last_payout_at_block": 755816,
+      "last_slash": "0",
+      "last_slash_at_block": 752934,
+      "p_bench": "2694",
+      "p_instant": "2856.98914310795503394445",
+      "share": "26976.0464485024567693472",
+      "total_payout": "935.2622122582099377903",
+      "total_payout_count": 574,
+      "total_slash": "364.28754149867309771783",
+      "total_slash_count": 21205,
+      "v": "26585.9243090089038156205",
+      "v_deductible": "56.3328490597386410558",
+      "v_init": "22642.44447670198867727826",
+      "v_update_at": 1637270640553,
+      "v_update_block": 755816
+    },
+    "unresponsive": false,
+    "waiting_heartbeats": []
+  }
+}
+```
+
+### List all the workers states: `/workers`
+
+```
+curl localhost:8080/workers | jq
+{
+  "current_block": 1923021,
+  "total_share": "220889860.56347126257605850697",
+  "worker": {
+    "0x00003800565e748fb0212e44de3732c2176096c4a79cf12b6fea27b580003849": {
+      ...(same as "worker-state")
+    },
+    ...
+  }
+}
+```
+
+### Gatekeeper memory usage estimation: `/meminfo`
+
+```
+curl localhost:8080/meminfo | jq
+{
+  "storage_size": 33051597
 }
 ```
