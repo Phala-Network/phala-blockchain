@@ -683,7 +683,7 @@ pub struct WorkerRegistrationInfo<AccountId> {
     pub operator: Option<AccountId>,
 }
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo, Hash)]
 pub enum EndpointType {
     I2P = 0,
     Http,
@@ -701,8 +701,16 @@ impl FromStr for EndpointType {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub enum VersionedWorkerEndpoint {
+pub enum VersionedWorkerEndpoints {
     V1(Vec<worker_endpoint_v1::EndpointInfo>),
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct SignedWorkerEndpoint {
+    pub pubkey: WorkerPublicKey,
+    pub versioned_endpoints: VersionedWorkerEndpoints,
+    pub signature: Vec<u8>,
+    pub signing_time: u64,
 }
 
 pub mod worker_endpoint_v1 {
@@ -721,7 +729,6 @@ pub mod worker_endpoint_v1 {
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub struct EndpointInfo {
         pub endpoint: WorkerEndpoint,
-        pub block_time: u64,
     }
 }
 

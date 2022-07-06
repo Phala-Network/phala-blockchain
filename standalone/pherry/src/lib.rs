@@ -904,25 +904,29 @@ async fn update_worker_endpoint(
     para_api: &ParachainApi,
     encoded_versioned_endpoint: Vec<u8>,
     signature: Vec<u8>,
+    signing_time: u64,
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<()> {
     chain_client::update_signer_nonce(para_api, signer).await?;
-    let versioned_endpoint = Decode::decode(&mut &encoded_versioned_endpoint[..])
+    let versioned_endpoints = Decode::decode(&mut &encoded_versioned_endpoint[..])
         .map_err(|_| anyhow!("Decode versioned endpoint failed"))?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
         .tx()
         .phala_registry()
         .update_worker_endpoint(
-            phaxt::khala::runtime_types::sp_core::sr25519::Public(
-                pubkey
-                    .clone()
-                    .try_into()
-                    .expect("public key should be able to convert to [u8; 32]"),
-            ),
-            versioned_endpoint,
-            signature,
+            phaxt::khala::runtime_types::phala_types::SignedWorkerEndpoint {
+                pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public(
+                    pubkey
+                        .clone()
+                        .try_into()
+                        .expect("public key should be able to convert to [u8; 32]"),
+                ),
+                versioned_endpoints,
+                signature,
+                signing_time,
+            },
         )?
         .sign_and_submit_then_watch(signer, params)
         .await;
@@ -942,13 +946,18 @@ async fn try_update_worker_endpoint(
     args: &Args,
 ) -> Result<()> {
     let info = pr.get_endpoint_info(()).await?;
-    if let Some(signature) = info.signature {
+    if let (signature, signing_time) = (
+        info.signature.ok_or(anyhow!("No endpoint signature"))?,
+        info.signing_time
+            .ok_or(anyhow!("No endpoint signing_time"))?,
+    ) {
         info!("Binding worker's endpoint...");
         update_worker_endpoint(
             &pubkey,
             &para_api,
-            info.encoded_versioned_endpoint,
+            info.encoded_versioned_endpoints,
             signature,
+            signing_time,
             signer,
             args,
         )

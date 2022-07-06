@@ -28,8 +28,8 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		worker_endpoint_v1::WorkerEndpoint,
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		VersionedWorkerEndpoint, WorkerPublicKey, WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, SignedWorkerEndpoint,
+		VersionedWorkerEndpoints, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -119,7 +119,7 @@ pub mod pallet {
 	/// Mapping from worker pubkey to Phala Network identity
 	#[pallet::storage]
 	pub type Endpoints<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
+		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -384,40 +384,33 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
-			pubkey: WorkerPublicKey,
-			versioned_endpoints: VersionedWorkerEndpoint,
-			signature: Vec<u8>,
+			signed_endpoint: SignedWorkerEndpoint,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Validate the signature
-			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
+			ensure!(
+				signed_endpoint.signature.len() == 64,
+				Error::<T>::InvalidSignatureLength
+			);
+			let sig = sp_core::sr25519::Signature::try_from(signed_endpoint.signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
-			let encoded_data = versioned_endpoints.clone().encode();
+			let encoded_data = signed_endpoint.versioned_endpoints.encode();
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &pubkey),
+				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &signed_endpoint.pubkey),
 				Error::<T>::InvalidSignature
 			);
 
 			// Validate the time
 			let expiration = 4 * 60 * 60 * 1000; // 4 hours
 			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
-			match &versioned_endpoints {
-				VersionedWorkerEndpoint::V1(endpoints) => {
-					for endpoint in endpoints {
-						ensure!(
-							endpoint.block_time <= now + expiration,
-							Error::<T>::InvalidEndpointBlockTime
-						);
-					}
-				}
-			}
+			ensure!(
+				signed_endpoint.signing_time + expiration <= now,
+				Error::<T>::InvalidEndpointBlockTime
+			);
 
-			Endpoints::<T>::mutate(pubkey, |v| {
-				*v = Some(versioned_endpoints);
-			});
+			Endpoints::<T>::insert(signed_endpoint.pubkey, signed_endpoint.versioned_endpoints);
 
 			Ok(())
 		}

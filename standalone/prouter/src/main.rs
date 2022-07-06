@@ -434,11 +434,11 @@ pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
         // 4. register endpoint to pRuntime
         if !no_bind {
             info!("Binding Endpoint: {}", String::from_utf8_lossy(&endpoint));
-            let init_endpoint_request =
-                prpc::InitEndpointRequest::new(args.endpoint_type.clone(), endpoint.clone());
+            let add_endpoint_request =
+                prpc::AddEndpointRequest::new(args.endpoint_type.clone(), endpoint.clone());
             pr.as_ref()
                 .expect("guaranteed to be initialized")
-                .init_endpoint(init_endpoint_request)
+                .add_endpoint(add_endpoint_request)
                 .await?;
         }
     }

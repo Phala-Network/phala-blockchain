@@ -23,6 +23,7 @@ use crate::light_validation::LightValidation;
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
+use std::collections::HashMap;
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -47,7 +48,7 @@ use phala_crypto::{
 use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
-use phala_types::{VersionedWorkerEndpoint, WorkerRegistrationInfo};
+use phala_types::{VersionedWorkerEndpoints, WorkerRegistrationInfo, EndpointType};
 use std::time::Instant;
 use types::Error;
 
@@ -213,9 +214,11 @@ enum RuntimeDataSeal {
 }
 
 #[derive(Clone)]
-struct SignedEndpointInfo {
-    versioned_endpoint: VersionedWorkerEndpoint,
+struct SignedEndpointCache {
+    endpoints: HashMap<EndpointType, Vec<u8>>,
+    versioned_endpoints: VersionedWorkerEndpoints,
     signature: Option<Vec<u8>>,
+    signing_time: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -230,7 +233,7 @@ pub struct Phactory<Platform> {
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
     #[serde(skip)]
-    endpoint_info: Option<SignedEndpointInfo>,
+    endpoint_cache: Option<SignedEndpointCache>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
@@ -255,7 +258,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
-            endpoint_info: None,
+            endpoint_cache: None,
             side_task_man: Default::default(),
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
