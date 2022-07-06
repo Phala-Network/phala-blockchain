@@ -93,15 +93,12 @@ pallet-vesting = { default-features = false, git = "https://github.com/paritytec
 
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
 
-native-nostd-hasher = { path = "../../crates/native-nostd-hasher", optional = true }
-
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", optional = true }
 
 [features]
 default = ["std", "include-wasm", "sp-sandbox"]
 include-wasm = ["substrate-wasm-builder"]
-native-nostd = ["native-nostd-hasher"]
 with-tracing = ["frame-executive/with-tracing"]
 std = [
 	"sp-authority-discovery/std",

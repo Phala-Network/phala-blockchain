@@ -66,7 +66,7 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	generic, impl_opaque_keys,
 	traits::{
-		self, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys,
+		self, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys, BlakeTwo256,
 		SaturatedConversion, StaticLookup,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -78,13 +78,13 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use pallet_balances::Call as BalancesCall;
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -109,11 +109,6 @@ pub use phala_pallets::{
 	pallet_fat,
 	puppets,
 };
-
-#[cfg(not(feature = "native-nostd-hasher"))]
-type Hasher = sp_runtime::traits::BlakeTwo256;
-#[cfg(feature = "native-nostd-hasher")]
-type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -224,10 +219,10 @@ impl frame_system::Config for Runtime {
 	type Index = Index;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
-	type Hashing = Hasher;
+	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = Indices;
-	type Header = generic::Header<BlockNumber, Hasher>;
+	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type Version = Version;
@@ -345,7 +340,7 @@ impl pallet_proxy::Config for Runtime {
 	type MaxProxies = MaxProxies;
 	type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
 	type MaxPending = MaxPending;
-	type CallHasher = Hasher;
+	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
@@ -1345,7 +1340,7 @@ construct_runtime!(
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
 /// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, Hasher>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification

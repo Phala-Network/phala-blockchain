@@ -5686,17 +5686,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "native-nostd-hasher"
-version = "3.0.0"
-dependencies = [
- "hash-db",
- "hash256-std-hasher",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.24)",
- "sp-runtime",
- "sp-trie",
-]
-
-[[package]]
 name = "native-tls"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7601,7 +7590,6 @@ dependencies = [
  "frame-try-runtime",
  "hex-literal",
  "log",
- "native-nostd-hasher",
  "node-primitives",
  "pallet-authority-discovery",
  "pallet-authorship",
