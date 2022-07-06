@@ -1001,7 +1001,7 @@ impl<Platform: pal::Platform> System<Platform> {
     fn process_master_key_rotation(
         &mut self,
         block: &mut BlockInfo,
-        origin: MessageOrigin,
+        _origin: MessageOrigin,
         event: RotateMasterKeyEvent,
     ) {
         if let Some(gatekeeper) = &mut self.gatekeeper {
@@ -1519,9 +1519,9 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn gatekeeper_status(&self) -> GatekeeperStatus {
-        let (active, share_master_key_history) = match &self.gatekeeper {
-            Some(gk) => (gk.registered_on_chain(), gk.share_all_master_keys),
-            None => (false, false),
+        let active = match &self.gatekeeper {
+            Some(gk) => gk.registered_on_chain(),
+            None => false,
         };
         let has_key = self.master_key.is_some();
         let role = match (has_key, active) {
@@ -1537,7 +1537,6 @@ impl<Platform: pal::Platform> System<Platform> {
         GatekeeperStatus {
             role: role.into(),
             master_public_key,
-            share_master_key_history,
         }
     }
 }

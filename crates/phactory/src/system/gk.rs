@@ -118,7 +118,6 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     #[serde(with = "more::scale_bytes")]
     master_key_history: Vec<RotatedMasterKey>,
-    pub(crate) share_all_master_keys: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     cluster_events: TypedReceiver<ClusterEvent>,
@@ -149,7 +148,6 @@ where
             master_pubkey_on_chain: false,
             registered_on_chain: false,
             master_key_history,
-            share_all_master_keys: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
             cluster_events: recv_mq.subscribe_bound(),
@@ -226,7 +224,7 @@ where
         ecdh_pubkey: &EcdhPublicKey,
         block_number: chain::BlockNumber,
     ) {
-        if self.share_all_master_keys {
+        if self.master_key_history.len() > 1 {
             self.share_master_key_history(pubkey, ecdh_pubkey, block_number);
         } else {
             self.share_latest_master_key(pubkey, ecdh_pubkey, block_number);
@@ -375,9 +373,6 @@ where
             }
             GatekeeperEvent::UnrespFix => {
                 // Handled by MiningEconomics
-            }
-            GatekeeperEvent::ShareMasterKeyHistory => {
-                self.share_all_master_keys = true;
             }
         }
     }
@@ -1119,9 +1114,6 @@ where
                 if origin.is_pallet() {
                     self.state.unresp_fix = true;
                 }
-            }
-            GatekeeperEvent::ShareMasterKeyHistory => {
-                // Handled by Gatekeeper.
             }
         }
     }

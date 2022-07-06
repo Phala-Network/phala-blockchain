@@ -603,9 +603,6 @@ pub mod messaging {
         PhalaLaunched,
         /// Fix the payout duration problem in unresponsive state
         UnrespFix,
-        /// This will change the master key sharing behavior of all the GKs
-        /// MUST be set before the first master key rotation
-        ShareMasterKeyHistory,
     }
 
     impl GatekeeperEvent {

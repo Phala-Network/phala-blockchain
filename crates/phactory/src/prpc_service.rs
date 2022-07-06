@@ -106,7 +106,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 gatekeeper_status = pb::GatekeeperStatus {
                     role: pb::GatekeeperRole::None.into(),
                     master_public_key: Default::default(),
-                    share_master_key_history: Default::default(),
                 };
                 number_of_clusters = 0;
                 number_of_contracts = 0;

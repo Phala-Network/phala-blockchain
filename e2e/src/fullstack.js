@@ -270,19 +270,6 @@ describe('A full stack', function () {
     });
 
     describe('Master Key Rotation', () => {
-        it('can enable master key history sharing', async function () {
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.enableMasterKeyHistorySharing()
-                ),
-                alice,
-            );
-            assert.isTrue(await checkUntil(async () => {
-                const info = await pruntime[0].getInfo();
-                return info.gatekeeper.shareMasterKeyHistory;
-            }, 4 * 6000), 'not enable master key history sharing');
-        });
-
         it('can register and un-reg gatekeeper4', async function () {
             // Register worker4 as Gatekeeper
             const info = await pruntime[3].getInfo();
