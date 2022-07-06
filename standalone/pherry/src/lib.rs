@@ -900,34 +900,20 @@ async fn init_runtime(
 }
 
 async fn update_worker_endpoint(
-    pubkey: &Vec<u8>,
     para_api: &ParachainApi,
-    encoded_versioned_endpoint: Vec<u8>,
+    encoded_signed_endpoint: Vec<u8>,
     signature: Vec<u8>,
-    signing_time: u64,
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<()> {
     chain_client::update_signer_nonce(para_api, signer).await?;
-    let versioned_endpoints = Decode::decode(&mut &encoded_versioned_endpoint[..])
-        .map_err(|_| anyhow!("Decode versioned endpoint failed"))?;
+    let signed_endpoint = Decode::decode(&mut &encoded_signed_endpoint[..])
+        .map_err(|_| anyhow!("Decode signed endpoint failed"))?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
         .tx()
         .phala_registry()
-        .update_worker_endpoint(
-            phaxt::khala::runtime_types::phala_types::SignedWorkerEndpoint {
-                pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public(
-                    pubkey
-                        .clone()
-                        .try_into()
-                        .expect("public key should be able to convert to [u8; 32]"),
-                ),
-                versioned_endpoints,
-                signature,
-                signing_time,
-            },
-        )?
+        .update_worker_endpoint(signed_endpoint, signature)?
         .sign_and_submit_then_watch(signer, params)
         .await;
     if ret.is_err() {
@@ -939,25 +925,18 @@ async fn update_worker_endpoint(
 }
 
 async fn try_update_worker_endpoint(
-    pubkey: &Vec<u8>,
     pr: &PrClient,
     para_api: &ParachainApi,
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<()> {
     let info = pr.get_endpoint_info(()).await?;
-    if let (signature, signing_time) = (
-        info.signature.ok_or(anyhow!("No endpoint signature"))?,
-        info.signing_time
-            .ok_or(anyhow!("No endpoint signing_time"))?,
-    ) {
+    if let signature = info.signature.ok_or(anyhow!("No endpoint signature"))? {
         info!("Binding worker's endpoint...");
         update_worker_endpoint(
-            &pubkey,
             &para_api,
-            info.encoded_versioned_endpoints,
+            info.encoded_signed_endpoint,
             signature,
-            signing_time,
             signer,
             args,
         )
@@ -1168,7 +1147,7 @@ async fn bridge(
             let public_key = hex::decode(&info.public_key.expect("public_key should be set"))
                 .expect("public_key should be hex");
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-            match try_update_worker_endpoint(&public_key, &pr, &para_api, &mut signer, &args).await
+            match try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await
             {
                 Ok(_) => {
                     flags.endpoint_registered = true;
@@ -1349,7 +1328,6 @@ async fn bridge(
                             .expect("public_key should be hex");
                     // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
                     match try_update_worker_endpoint(
-                        &public_key,
                         &pr,
                         &para_api,
                         &mut signer,

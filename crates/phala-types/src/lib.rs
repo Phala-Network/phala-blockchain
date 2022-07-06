@@ -709,7 +709,6 @@ pub enum VersionedWorkerEndpoints {
 pub struct SignedWorkerEndpoint {
     pub pubkey: WorkerPublicKey,
     pub versioned_endpoints: VersionedWorkerEndpoints,
-    pub signature: Vec<u8>,
     pub signing_time: u64,
 }
 

@@ -385,15 +385,16 @@ pub mod pallet {
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
 			signed_endpoint: SignedWorkerEndpoint,
+			signature: Vec<u8>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Validate the signature
 			ensure!(
-				signed_endpoint.signature.len() == 64,
+				signature.len() == 64,
 				Error::<T>::InvalidSignatureLength
 			);
-			let sig = sp_core::sr25519::Signature::try_from(signed_endpoint.signature.as_slice())
+			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = signed_endpoint.versioned_endpoints.encode();
 

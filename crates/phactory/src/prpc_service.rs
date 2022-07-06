@@ -9,7 +9,9 @@ use pb::{
 };
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
-use phala_types::{contract, EndpointType, VersionedWorkerEndpoints, WorkerPublicKey};
+use phala_types::{
+    contract, EndpointType, SignedWorkerEndpoint, VersionedWorkerEndpoints, WorkerPublicKey,
+};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -661,7 +663,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         endpoint_type: EndpointType,
         endpoint: Vec<u8>,
-    ) -> RpcResult<pb::EndpointResponse> {
+    ) -> RpcResult<pb::GetEndpointResponse> {
         let endpoints = if self.endpoint_cache.is_some() {
             // update the endpoints instead of inserting
             let mut endpoint_cache = self
@@ -678,7 +680,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             endpoints
         };
 
+        self.refresh_endpoint_signing_time(endpoints)
+    }
+
+    fn refresh_endpoint_signing_time(
+        &mut self,
+        endpoints: HashMap<EndpointType, Vec<u8>>,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        let state = self
+            .runtime_state
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let block_time: u64 = state
+            .chain_storage
+            .timestamp_now()
+            .ok_or_else(|| from_display("No timestamp found in block"))?;
+        let public_key = self
+            .system
+            .as_ref()
+            .map(|state| state.identity_key.public())
+            .expect("public_key should be set");
         let mut endpoints_info = Vec::<EndpointInfo>::new();
+
         for (endpoint_type, endpoint) in endpoints.iter() {
             let endpoint_info = match endpoint_type {
                 EndpointType::I2P => EndpointInfo {
@@ -686,25 +709,29 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 },
                 EndpointType::Http => EndpointInfo {
                     endpoint: WorkerEndpoint::Http(endpoint.clone()),
-                }
+                },
             };
             endpoints_info.push(endpoint_info);
         }
 
         let versioned_endpoints = VersionedWorkerEndpoints::V1(endpoints_info);
-        let resp = pb::EndpointResponse::new(versioned_endpoints.clone(), None, None);
+        let signed_endpoint = SignedWorkerEndpoint {
+            pubkey: public_key,
+            versioned_endpoints,
+            signing_time: block_time,
+        };
+        let resp = pb::GetEndpointResponse::new(signed_endpoint.clone(), None);
 
         self.endpoint_cache = Some(SignedEndpointCache {
             endpoints,
-            versioned_endpoints,
+            signed_endpoint,
             signature: None,
-            signing_time: None,
         });
 
         Ok(resp)
     }
 
-    fn get_endpoint_info(&mut self) -> RpcResult<pb::EndpointResponse> {
+    fn get_endpoint_info(&mut self) -> RpcResult<pb::GetEndpointResponse> {
         if self.system.is_none() {
             return Err(from_display("Runtime not initialized"));
         }
@@ -718,51 +745,32 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .clone()
             .expect("SignedEndpointInfo should be initialized");
 
-        let (signature, signing_time) = if endpoint_cache.signature.is_none() || endpoint_cache.signing_time.is_none() {
-            let state = self
-                .runtime_state
-                .as_mut()
-                .ok_or_else(|| from_display("Runtime not initialized"))?;
-            let block_time: u64 = state
-                .chain_storage
-                .timestamp_now()
-                .ok_or_else(|| from_display("No timestamp found in block"))?;
+        let signature = if endpoint_cache.signature.is_none() {
             let signature = self
                 .system
                 .as_ref()
                 .expect("Runtime should be initialized")
                 .identity_key
                 .clone()
-                .sign(&endpoint_cache.versioned_endpoints.encode())
+                .sign(&endpoint_cache.signed_endpoint.encode())
                 .encode();
             self.endpoint_cache = Some(SignedEndpointCache {
                 endpoints: endpoint_cache.endpoints.clone(),
-                versioned_endpoints: endpoint_cache.versioned_endpoints.clone(),
+                signed_endpoint: endpoint_cache.signed_endpoint.clone(),
                 signature: Some(signature.clone()),
-                signing_time: Some(block_time),
             });
 
-            (signature, block_time)
+            signature
         } else {
-            let signature = endpoint_cache
+            endpoint_cache
                 .signature
                 .as_ref()
                 .expect("Signature should be existed")
-                .clone();
-            let signing_time = endpoint_cache
-                .signing_time
-                .as_ref()
-                .expect("Signing time should be existed")
-                .clone();
-
-            (signature, signing_time)
+                .clone()
         };
 
-        let resp = pb::EndpointResponse::new(
-            endpoint_cache.versioned_endpoints.clone(),
-            Some(signature),
-            Some(signing_time)
-        );
+        let resp =
+            pb::GetEndpointResponse::new(endpoint_cache.signed_endpoint.clone(), Some(signature));
 
         Ok(resp)
     }
@@ -927,12 +935,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     fn add_endpoint(
         &mut self,
         request: pb::AddEndpointRequest,
-    ) -> RpcResult<pb::EndpointResponse> {
+    ) -> RpcResult<pb::GetEndpointResponse> {
         self.lock_phactory()
             .add_endpoint(request.decode_endpoint_type()?, request.endpoint)
     }
 
-    fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::EndpointResponse> {
+    fn refresh_endpoint_signing_time(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
+        let mut phactory = self.lock_phactory();
+        let endpoints = phactory
+            .endpoint_cache
+            .as_ref()
+            .ok_or(from_display("Endpoint cache not initialized"))?
+            .endpoints
+            .clone();
+
+        phactory.refresh_endpoint_signing_time(endpoints)
+    }
+
+    fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
         self.lock_phactory().get_endpoint_info()
     }
 
