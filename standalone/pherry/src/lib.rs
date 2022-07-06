@@ -1338,9 +1338,9 @@ async fn bridge(
                 worker_key_handover_done = next_pr.receive_worker_key(encrypted_key).await?;
 
                 if worker_key_handover_done {
-                    info!("Worker key handover done, the new pRuntime is ready to go");
+                    panic!("Worker key handover done, the new pRuntime is ready to go");
                 } else {
-                    info!("Worker key handover failed, will retry after next syncing batch");
+                    panic!("Worker key handover failed, will retry after next syncing batch");
                 }
             }
 
