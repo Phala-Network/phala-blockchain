@@ -101,7 +101,8 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
-	// The rotation counter starting from 1, it always equals to the latest rotation id.
+	/// The rotation counter starting from 1, it always equals to the latest rotation id.
+	/// The totation id 0 is reserved for the first master key before we introduce the rotation.
 	#[pallet::storage]
 	pub type RotationCounter<T> = StorageValue<_, u64, ValueQuery>;
 
@@ -172,6 +173,14 @@ pub mod pallet {
 		},
 		WorkerUpdated {
 			pubkey: WorkerPublicKey,
+		},
+		MasterKeyRotated {
+			rotation_id: u64,
+			master_pubkey: MasterPublicKey,
+		},
+		MasterKeyRotationFailed {
+			rotation_lock: Option<u64>,
+			gatekeeper_rotation_id: u64,
 		},
 	}
 
@@ -716,11 +725,19 @@ pub mod pallet {
 				} => {
 					let rotating = MasterKeyRotationLock::<T>::get();
 					if rotating.is_none() || rotating.unwrap() != rotation_id {
+						Self::deposit_event(Event::<T>::MasterKeyRotationFailed {
+							rotation_lock: rotating,
+							gatekeeper_rotation_id: rotation_id,
+						});
 						return Err(Error::<T>::InvalidRotatedMasterPubkey.into());
 					}
 
 					GatekeeperMasterPubkey::<T>::put(master_pubkey);
 					MasterKeyRotationLock::<T>::put(Option::<u64>::None);
+					Self::deposit_event(Event::<T>::MasterKeyRotated {
+						rotation_id,
+						master_pubkey,
+					});
 					Self::push_message(GatekeeperLaunch::master_pubkey_rotated(master_pubkey));
 				}
 			}
