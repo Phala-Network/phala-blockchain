@@ -19,15 +19,12 @@
 extern crate alloc;
 
 pub mod blake2 {
-    use sp_core::Hasher;
-    use hash256_std_hasher::Hash256StdHasher;
     use sp_core::hash::H256;
-    use sp_trie::{TrieConfiguration, trie_types::Layout};
-    use sp_runtime::traits::Hash;
-    use alloc::vec::Vec;
+    use hash256_std_hasher::Hash256StdHasher;
+    use hash_db::Hasher;
 
     /// Concrete implementation of Hasher using Blake2b 256-bit hashes
-    #[derive(Debug, Clone, Eq, PartialEq)]
+    #[derive(Debug)]
     pub struct Blake2Hasher;
 
     impl Hasher for Blake2Hasher {
@@ -37,18 +34,6 @@ pub mod blake2 {
 
         fn hash(x: &[u8]) -> Self::Out {
             sp_core::hashing::blake2_256(x).into()
-        }
-    }
-
-    impl Hash for Blake2Hasher {
-        type Output = H256;
-
-        fn ordered_trie_root(input: Vec<Vec<u8>>) -> Self::Output {
-            Layout::<Self>::ordered_trie_root(input)
-        }
-
-        fn trie_root(input: Vec<(Vec<u8>, Vec<u8>)>) -> Self::Output {
-            Layout::<Self>::trie_root(input)
         }
     }
 }

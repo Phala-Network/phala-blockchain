@@ -5689,6 +5689,7 @@ dependencies = [
 name = "native-nostd-hasher"
 version = "3.0.0"
 dependencies = [
+ "hash-db",
  "hash256-std-hasher",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.24)",
  "sp-runtime",
