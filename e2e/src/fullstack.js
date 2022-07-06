@@ -982,27 +982,15 @@ class Cluster {
 
     async restartKeyHandoverClient() {
         const cluster = this.key_handover_cluster;
-
-        await Promise.all([
-            cluster.relayer.processRelayer.kill(),
-            ...cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
-        ]);
         await checkUntil(async () => {
-            return cluster.workers[1].processPRuntime.stopped && cluster.relayer.processRelayer.stopped
+            return cluster.relayer.processRelayer.stopped
         }, 6000);
 
         const client = cluster.workers[1];
-        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
-
         const gasAccountKey = '//Fredie';
         cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
 
-        await Promise.all([
-            waitPRuntimeOutput(client.processPRuntime),
-            waitRelayerOutput(cluster.relayer.processRelayer)
-        ]);
-
-        client.api = new PRuntimeApi(`http://localhost:${client.port}`);
+        await waitRelayerOutput(cluster.relayer.processRelayer);
     }
 
     // Returns false if waiting is timeout; otherwise it restarts the pherry and the key handover client
