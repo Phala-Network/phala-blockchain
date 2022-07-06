@@ -11,7 +11,6 @@ type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
-
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
@@ -41,15 +40,17 @@ pub mod pallet {
 		traits::{CheckedSub, Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec, str};
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, str, vec};
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 
-	pub use rmrk_traits::primitives::{NftId, CollectionId};
+	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
 	const MAX_WHITELIST_LEN: u32 = 100;
+
+	const NFT_PROPERTY_KEY: &str = "stake-info";
 
 	pub struct DescMaxLen;
 
@@ -67,7 +68,6 @@ pub mod pallet {
 		}
 	}
 
-	const NFT_PROPERTY_KEY: &str = "stake-info";
 	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
@@ -128,12 +128,6 @@ pub mod pallet {
 	#[pallet::getter(fn stake_pools)]
 	pub type StakePools<T: Config> =
 		StorageMap<_, Twox64Concat, u64, PoolInfo<T::AccountId, BalanceOf<T>>>;
-
-	/// Mapping from (pid, staker) to UserStakeInfo
-	#[pallet::storage]
-	#[pallet::getter(fn pool_stakers)]
-	pub type PoolStakers<T: Config> =
-		StorageMap<_, Twox64Concat, (u64, T::AccountId), UserStakeInfo<T::AccountId, BalanceOf<T>>>;
 
 	/// The number of total pools
 	#[pallet::storage]
@@ -413,10 +407,6 @@ pub mod pallet {
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
 		MissCollectionId,
-		/// Create Nft failed
-		CreateNftFailed,
-		/// Burn Nft failed
-		BurnNftFailed,
 		/// CheckSub less than zero
 		CheckSubLessThanZero,
 	}
@@ -451,10 +441,11 @@ pub mod pallet {
 			);
 			PoolCount::<T>::put(pid + 1);
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
+			#[cfg(not(feature = "std"))]
+			use alloc::format;
 			#[cfg(feature = "std")]
-            use std::format;
-            #[cfg(not(feature = "std"))]
-            use alloc::format;
+			use std::format;
+			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 				format!("STAKEPOOL-{}", pid)
 					.as_bytes()
@@ -751,7 +742,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// This function doesn't guarantee no-op when there's error.
+		/// Let any user to launch a stakepool withdraw. Then check if the pool need to be forced shutdown.
+		///
+		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
+		/// Note: This function doesn't guarantee no-op when there's error.
 		#[pallet::weight(0)]
 		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -817,6 +811,9 @@ pub mod pallet {
 			let collection_id =
 				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissCollectionId)?;
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
+			// The nft instance must be wrote to Nft storage at the end of the function
+			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
+			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft = Self::get_nft_attr(collection_id, nft_id)?;
 
 			Self::maybe_settle_nft_slash(&pool_info, &mut nft, who.clone());
@@ -865,6 +862,9 @@ pub mod pallet {
 			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
 				.ok_or(Error::<T>::MissCollectionId)?;
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
+			// The nft instance must be wrote to Nft storage at the end of the function
+			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
+			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft = Self::get_nft_attr(collection_id, nft_id)?;
 			let in_queue_shares = match pool_info
 				.withdraw_queue
@@ -1045,6 +1045,7 @@ pub mod pallet {
 			Ok((orig_stake, slashed))
 		}
 
+		/// Mint a new nft in the Pool's collection and store some shares in it
 		pub fn add_stake_to_new_nft(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			userid: T::AccountId,
@@ -1055,14 +1056,21 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_nft(pool_info.pid.clone(), userid.clone(), shares, amount, collection_id)
-				.expect("mint should always success; qed.");
+			Self::mint_nft(
+				pool_info.pid.clone(),
+				userid.clone(),
+				shares,
+				amount,
+				collection_id,
+			)
+			.expect("mint should always success; qed.");
 			pool_info.total_shares += shares;
 			pool_info.total_stake += amount;
 			pool_info.free_stake += amount;
 			shares
 		}
 
+		/// Remove some stakes from nft when withdraw or process_withdraw_queue called.
 		pub fn remove_stake_from_nft(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			shares: BalanceOf<T>,
@@ -1137,6 +1145,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Merge multiple nfts belong to one user in the pool.
 		#[frame_support::transactional]
 		pub fn merge_or_init_nft_for_staker(
 			staker: T::AccountId,
@@ -1187,7 +1196,7 @@ pub mod pallet {
 			nft_attr: &NftAttr<BalanceOf<T>>,
 		) -> DispatchResult {
 			let encode_attr = nft_attr.encode();
-			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = NFT_PROPERTY_KEY			
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = NFT_PROPERTY_KEY
 				.as_bytes()
 				.to_vec()
 				.try_into()
@@ -1311,14 +1320,9 @@ pub mod pallet {
 				.share_price()
 				.expect("In withdraw case, price should always exists;");
 			let amount = bmul(shares, &price);
-			let split_nft_id = Self::mint_nft(
-				pool_info.pid,
-				pallet_id(),
-				shares,
-				amount,
-				collection_id,
-			)
-			.expect("mint nft should always success");
+			let split_nft_id =
+				Self::mint_nft(pool_info.pid, pallet_id(), shares, amount, collection_id)
+					.expect("mint nft should always success");
 			nft.shares = nft
 				.shares
 				.checked_sub(&shares)
@@ -1357,12 +1361,9 @@ pub mod pallet {
 
 			// Overflow warning: remove_stake is carefully written to avoid precision error.
 			// (I hope so)
-			let (reduced, dust, withdrawn_shares) = Self::remove_stake_from_nft(
-				pool_info,
-				withdrawing_shares,
-				nft,
-			)
-			.expect("There are enough withdrawing_shares; qed.");
+			let (reduced, dust, withdrawn_shares) =
+				Self::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
+					.expect("There are enough withdrawing_shares; qed.");
 			Self::ledger_reduce(&userid, reduced, dust);
 			Self::deposit_event(Event::<T>::Withdrawal {
 				pid: pool_info.pid,
@@ -1428,7 +1429,8 @@ pub mod pallet {
 					// queue
 					if withdraw_nft.shares == Zero::zero() {
 						pool_info.withdraw_queue.pop_front();
-						Self::burn_nft(collection_id, withdraw.nft_id).expect("burn nft should always success");
+						Self::burn_nft(collection_id, withdraw.nft_id)
+							.expect("burn nft should always success");
 					} else {
 						*pool_info
 							.withdraw_queue
@@ -2027,11 +2029,8 @@ pub mod pallet {
 				let mut nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
 				let mut pool = PhalaStakePool::stake_pools(0).unwrap();
 				assert_eq!(pool.share_price().unwrap(), 1);
-				match PhalaStakePool::remove_stake_from_nft(
-					&mut pool,
-					40 * DOLLARS,
-					&mut nft_attr,
-				) {
+				match PhalaStakePool::remove_stake_from_nft(&mut pool, 40 * DOLLARS, &mut nft_attr)
+				{
 					Some((amout, user_dust, removed_shares)) => return,
 					_ => panic!(),
 				}

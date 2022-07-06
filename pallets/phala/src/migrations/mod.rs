@@ -5,7 +5,7 @@ use frame_support::{
 };
 use log;
 
-use rmrk_traits::primitives::{NftId, CollectionId};
+use rmrk_traits::primitives::{CollectionId, NftId};
 
 type MiningBalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
