@@ -48,7 +48,7 @@ use phala_crypto::{
 use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
-use phala_types::{WorkerRegistrationInfo, EndpointType, SignedWorkerEndpoint};
+use phala_types::{WorkerRegistrationInfo, EndpointType, WorkerEndpointPayload};
 use std::time::Instant;
 use types::Error;
 
@@ -216,7 +216,7 @@ enum RuntimeDataSeal {
 #[derive(Clone)]
 struct SignedEndpointCache {
     endpoints: HashMap<EndpointType, Vec<u8>>,
-    signed_endpoint: SignedWorkerEndpoint,
+    endpoint_payload: WorkerEndpointPayload,
     signature: Option<Vec<u8>>,
 }
 

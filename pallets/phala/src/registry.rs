@@ -27,8 +27,7 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		worker_endpoint_v1::WorkerEndpoint,
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, SignedWorkerEndpoint,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerEndpointPayload,
 		VersionedWorkerEndpoints, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
@@ -178,7 +177,7 @@ pub mod pallet {
 		UnknownCluster,
 		NotImplemented,
 		// PRouter related
-		InvalidEndpointBlockTime,
+		InvalidEndpointSigningTime,
 	}
 
 	#[pallet::call]
@@ -384,7 +383,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
-			signed_endpoint: SignedWorkerEndpoint,
+			endpoint_payload: WorkerEndpointPayload,
 			signature: Vec<u8>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -396,10 +395,10 @@ pub mod pallet {
 			);
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
-			let encoded_data = signed_endpoint.versioned_endpoints.encode();
+			let encoded_data = endpoint_payload.encode();
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &signed_endpoint.pubkey),
+				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &endpoint_payload.pubkey),
 				Error::<T>::InvalidSignature
 			);
 
@@ -407,11 +406,14 @@ pub mod pallet {
 			let expiration = 4 * 60 * 60 * 1000; // 4 hours
 			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
 			ensure!(
-				signed_endpoint.signing_time + expiration <= now,
-				Error::<T>::InvalidEndpointBlockTime
+				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
+				Error::<T>::InvalidEndpointSigningTime
 			);
 
-			Endpoints::<T>::insert(signed_endpoint.pubkey, signed_endpoint.versioned_endpoints);
+			// Validate the public key
+			ensure!(Workers::<T>::contains_key(&endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
+
+			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint_payload.versioned_endpoints);
 
 			Ok(())
 		}

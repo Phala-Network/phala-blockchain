@@ -706,7 +706,7 @@ pub enum VersionedWorkerEndpoints {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct SignedWorkerEndpoint {
+pub struct WorkerEndpointPayload {
     pub pubkey: WorkerPublicKey,
     pub versioned_endpoints: VersionedWorkerEndpoints,
     pub signing_time: u64,

@@ -10,7 +10,7 @@ use pb::{
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, EndpointType, SignedWorkerEndpoint, VersionedWorkerEndpoints, WorkerPublicKey,
+    contract, EndpointType, WorkerEndpointPayload, VersionedWorkerEndpoints, WorkerPublicKey,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -715,16 +715,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
 
         let versioned_endpoints = VersionedWorkerEndpoints::V1(endpoints_info);
-        let signed_endpoint = SignedWorkerEndpoint {
+        let endpoint_payload = WorkerEndpointPayload {
             pubkey: public_key,
             versioned_endpoints,
             signing_time: block_time,
         };
-        let resp = pb::GetEndpointResponse::new(signed_endpoint.clone(), None);
+        let resp = pb::GetEndpointResponse::new(endpoint_payload.clone(), None);
 
         self.endpoint_cache = Some(SignedEndpointCache {
             endpoints,
-            signed_endpoint,
+            endpoint_payload,
             signature: None,
         });
 
@@ -752,11 +752,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .expect("Runtime should be initialized")
                 .identity_key
                 .clone()
-                .sign(&endpoint_cache.signed_endpoint.encode())
+                .sign(&endpoint_cache.endpoint_payload.encode())
                 .encode();
             self.endpoint_cache = Some(SignedEndpointCache {
                 endpoints: endpoint_cache.endpoints.clone(),
-                signed_endpoint: endpoint_cache.signed_endpoint.clone(),
+                endpoint_payload: endpoint_cache.endpoint_payload.clone(),
                 signature: Some(signature.clone()),
             });
 
@@ -770,7 +770,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         let resp =
-            pb::GetEndpointResponse::new(endpoint_cache.signed_endpoint.clone(), Some(signature));
+            pb::GetEndpointResponse::new(endpoint_cache.endpoint_payload.clone(), Some(signature));
 
         Ok(resp)
     }

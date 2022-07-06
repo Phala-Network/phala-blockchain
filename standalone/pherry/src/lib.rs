@@ -901,13 +901,13 @@ async fn init_runtime(
 
 async fn update_worker_endpoint(
     para_api: &ParachainApi,
-    encoded_signed_endpoint: Vec<u8>,
+    encoded_endpoint_payload: Vec<u8>,
     signature: Vec<u8>,
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<()> {
     chain_client::update_signer_nonce(para_api, signer).await?;
-    let signed_endpoint = Decode::decode(&mut &encoded_signed_endpoint[..])
+    let signed_endpoint = Decode::decode(&mut &encoded_endpoint_payload[..])
         .map_err(|_| anyhow!("Decode signed endpoint failed"))?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
     let ret = para_api
@@ -935,7 +935,7 @@ async fn try_update_worker_endpoint(
         info!("Binding worker's endpoint...");
         update_worker_endpoint(
             &para_api,
-            info.encoded_signed_endpoint,
+            info.encoded_endpoint_payload,
             signature,
             signer,
             args,
@@ -1144,8 +1144,6 @@ async fn bridge(
         }
         // try bind worker endpoint
         if !args.no_bind && info.public_key.is_some() {
-            let public_key = hex::decode(&info.public_key.expect("public_key should be set"))
-                .expect("public_key should be hex");
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
             match try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await
             {
@@ -1323,9 +1321,6 @@ async fn bridge(
 
             if !args.no_bind {
                 if !flags.endpoint_registered && info.public_key.is_some() {
-                    let public_key =
-                        hex::decode(&info.public_key.expect("public_key should be set"))
-                            .expect("public_key should be hex");
                     // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
                     match try_update_worker_endpoint(
                         &pr,
