@@ -1,7 +1,11 @@
+use crate::{
+    chain_client,
+    types::{ParachainApi, PrClient, SrSigner},
+    Args,
+};
 use anyhow::{anyhow, Result};
-use log::{error, info};
-use crate::{chain_client, Args, types::{ParachainApi, SrSigner, PrClient}};
 use codec::Decode;
+use log::{error, info};
 
 async fn update_worker_endpoint(
     para_api: &ParachainApi,
@@ -35,18 +39,14 @@ pub async fn try_update_worker_endpoint(
     args: &Args,
 ) -> Result<()> {
     let info = pr.get_endpoint_info(()).await?;
-    if let signature = info.signature.ok_or(anyhow!("No endpoint signature"))? {
-        info!("Binding worker's endpoint...");
-        update_worker_endpoint(
-            &para_api,
-            info.encoded_endpoint_payload,
-            signature,
-            signer,
-            args,
-        )
-            .await?;
-        return Ok(());
-    };
-
-    Err(anyhow!("No endpoint signature"))
+    let signature = info.signature.ok_or(anyhow!("No endpoint signature"))?;
+    info!("Binding worker's endpoint...");
+    update_worker_endpoint(
+        &para_api,
+        info.encoded_endpoint_payload,
+        signature,
+        signer,
+        args,
+    )
+    .await
 }
