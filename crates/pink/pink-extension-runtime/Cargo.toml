@@ -1,0 +1,17 @@
+[package]
+description = "Mock pink chain extension for Phala pink contract"
+homepage = "https://github.com/Phala-Network/phala-blockchain"
+license = "Apache-2.0"
+name = "pink-extension-runtime"
+version = "0.1.1"
+edition = "2021"
+
+
+[dependencies]
+pink-extension = { version = "0.1", path = "../pink-extension" }
+reqwest-env-proxy = { version = "0.1", path = "../../reqwest-env-proxy" }
+sp-core = { version = "6" }
+sp-runtime-interface = { version = "6", features = ["disable_target_static_assertions"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks", "blocking"] }
+log = "0.4"
+ring = "0.16"

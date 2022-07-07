@@ -94,8 +94,7 @@ the _current_ rustc.
     export IAS_SPID=your_spid
     export IAS_API_KEY=your_api_key_in_hex
     cd standalone/pruntime/gramine-build
-    make
-    gramine-sgx pruntime
+    make run
     ```
 
 4. Run pherry (node and pRuntime required):

@@ -142,9 +142,10 @@ jobs:
           toolchain: nightly-2022-04-01
           override: true
           target: wasm32-unknown-unknown
+          components: rustfmt
       - uses: actions/checkout@v2
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Run cargo tests
-        run: cargo test -vv verbose --workspace --exclude node-executor --exclude phala-node
+        run: cargo test -vv --workspace --exclude node-executor --exclude phala-node

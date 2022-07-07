@@ -451,20 +451,26 @@ pub mod messaging {
     }
 
     // TODO.shelven: merge this into KeyDistribution
-    bind_topic!(ClusterKeyDistribution<BlockNumber>, b"phala/cluster/key");
+    bind_topic!(ClusterOperation<BlockNumber>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum ClusterKeyDistribution<BlockNumber> {
+    pub enum ClusterOperation<BlockNumber> {
         // TODO.shelven: a better way for real large batch key distribution
-        Batch(BatchDispatchClusterKeyEvent<BlockNumber>),
+        DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
+        /// Set the contract to receive the ink logs inside given cluster.
+        SetLogReceiver {
+            cluster: ContractClusterId,
+            /// The id of the contract to receive the ink logs.
+            log_handler: AccountId,
+        },
     }
 
-    impl<BlockNumber> ClusterKeyDistribution<BlockNumber> {
+    impl<BlockNumber> ClusterOperation<BlockNumber> {
         pub fn batch_distribution(
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             expiration: BlockNumber,
-        ) -> ClusterKeyDistribution<BlockNumber> {
-            ClusterKeyDistribution::Batch(BatchDispatchClusterKeyEvent {
+        ) -> ClusterOperation<BlockNumber> {
+            ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
                 expiration,

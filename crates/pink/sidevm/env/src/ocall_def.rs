@@ -1,6 +1,6 @@
 use super::*;
 use crate::args_stack::{I32Convertible, RetDecode, StackedArgs};
-use crate::tls::{TlsServerConfig, TlsClientConfig};
+use crate::tls::{TlsClientConfig, TlsServerConfig};
 use std::borrow::Cow;
 
 /// All ocall definitions for pink Sidevm.
@@ -102,4 +102,33 @@ pub trait OcallFuncs {
     /// Returns the previous value if it existed.
     #[ocall(id = 233, encode_output)]
     fn local_cache_remove(key: &[u8]) -> Result<Option<Vec<u8>>>;
+
+    /// Create input channel
+    #[ocall(id = 240, encode_output)]
+    fn create_input_channel(ch: InputChannel) -> Result<i32>;
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputChannel {
+    /// Input channel for system messages such as receiving log events from other contracts.
+    SystemMessage = 1,
+    /// Input channel for general messages pushed from pink contract part of this fat contract.
+    GeneralMessage = 2,
+    /// Input channel for queries from external RPC requests.
+    Query = 3,
+}
+
+impl I32Convertible for InputChannel {
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn from_i32(i: i32) -> Result<Self> {
+        match i {
+            1 => Ok(InputChannel::SystemMessage),
+            2 => Ok(InputChannel::GeneralMessage),
+            3 => Ok(InputChannel::Query),
+            _ => Err(OcallError::InvalidParameter),
+        }
+    }
 }

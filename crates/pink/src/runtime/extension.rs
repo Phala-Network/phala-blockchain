@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::str::FromStr;
 use std::time::Duration;
 
 use frame_support::log::error;
@@ -10,16 +9,14 @@ use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::CacheOp;
 use pink_extension::{
     chain_extension::{
-        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
+        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SignArgs,
         StorageQuotaExceeded, VerifyArgs,
     },
     dispatch_ext_call, PinkEvent,
 };
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use reqwest::Method;
-use reqwest_proxy::EnvProxyBuilder;
+use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
-use sp_core::{ByteArray, Pair};
+use sp_core::H256;
 use sp_runtime::DispatchError;
 
 use crate::{
@@ -32,6 +29,7 @@ use crate::local_cache::GLOBAL_CACHE;
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
     pub pink_events: Vec<(AccountId, PinkEvent)>,
+    pub ink_events: Vec<(AccountId, Vec<H256>, Vec<u8>)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
 }
 
@@ -58,10 +56,9 @@ pub fn get_side_effects() -> ExecSideEffects {
                     contract: address,
                     data,
                 } => {
-                    if event.topics.len() != 1 {
-                        continue;
-                    }
-                    if event.topics[0].0 == pink_extension::PinkEvent::event_topic() {
+                    if event.topics.len() == 1
+                        && event.topics[0].0 == pink_extension::PinkEvent::event_topic()
+                    {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
                                 result.pink_events.push((address, event));
@@ -70,6 +67,8 @@ pub fn get_side_effects() -> ExecSideEffects {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
+                    } else {
+                        result.ink_events.push((address, event.topics, data));
                     }
                 }
                 _ => (),
@@ -127,99 +126,30 @@ struct CallInQuery {
     address: AccountId,
 }
 
+impl PinkRuntimeEnv for CallInQuery {
+    type AccountId = AccountId;
+
+    fn address(&self) -> &Self::AccountId {
+        &self.address
+    }
+
+    fn call_elapsed(&self) -> Option<Duration> {
+        get_call_elapsed()
+    }
+}
+
 impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        // Hardcoded limitations for now
-        const MAX_QUERY_TIME: u64 = 10; // seconds
-        const MAX_BODY_SIZE: usize = 1024 * 256; // 256KB
-
-        let elapsed = get_call_elapsed().ok_or(DispatchError::Other("Invalid exec env"))?;
-        let timeout = Duration::from_secs(MAX_QUERY_TIME) - elapsed;
-
-        let url: reqwest::Url = request
-            .url
-            .parse()
-            .or(Err(DispatchError::Other("Invalid url")))?;
-
-        let client = reqwest::blocking::Client::builder()
-            .timeout(timeout)
-            .env_proxy(url.host_str().unwrap_or_default())
-            .build()
-            .or(Err(DispatchError::Other("Failed to create client")))?;
-
-        let method: Method = FromStr::from_str(request.method.as_str())
-            .or(Err(DispatchError::Other("Invalid HTTP method")))?;
-        let mut headers = HeaderMap::new();
-        for (key, value) in &request.headers {
-            let key = HeaderName::from_str(key.as_str())
-                .or(Err(DispatchError::Other("Invalid HTTP header key")))?;
-            let value = HeaderValue::from_str(value)
-                .or(Err(DispatchError::Other("Invalid HTTP header value")))?;
-            headers.insert(key, value);
-        }
-
-        let mut response = client
-            .request(method, url)
-            .headers(headers)
-            .send()
-            .or(Err(DispatchError::Other("Failed to send request")))?;
-
-        let headers: Vec<_> = response
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
-            .collect();
-
-        let mut body = Vec::new();
-        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
-
-        response
-            .copy_to(&mut writer)
-            .or(Err(DispatchError::Other("Failed to copy response body")))?;
-
-        let response = HttpResponse {
-            status_code: response.status().as_u16(),
-            reason_phrase: response
-                .status()
-                .canonical_reason()
-                .unwrap_or_default()
-                .into(),
-            body,
-            headers,
-        };
-        Ok(response)
+        DefaultPinkExtension::new(self).http_request(request)
     }
 
     fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
-        macro_rules! sign_with {
-            ($sigtype:ident) => {{
-                let pair = sp_core::$sigtype::Pair::from_seed_slice(&args.key)
-                    .or(Err(DispatchError::Other("Invalid key")))?;
-                let signature = pair.sign(&args.message);
-                let signature: &[u8] = signature.as_ref();
-                signature.to_vec()
-            }};
-        }
-
-        Ok(match args.sigtype {
-            SigType::Sr25519 => sign_with!(sr25519),
-            SigType::Ed25519 => sign_with!(ed25519),
-            SigType::Ecdsa => sign_with!(ecdsa),
-        })
+        DefaultPinkExtension::new(self).sign(args)
     }
 
     fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
-        macro_rules! verify_with {
-            ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
-            }};
-        }
-        Ok(match args.sigtype {
-            SigType::Sr25519 => verify_with!(sr25519),
-            SigType::Ed25519 => verify_with!(ed25519),
-            SigType::Ecdsa => verify_with!(ecdsa),
-        })
+        DefaultPinkExtension::new(self).verify(args)
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
@@ -236,20 +166,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
-        macro_rules! public_key_with {
-            ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::from_seed_slice(&args.key)
-                    .or(Err(DispatchError::Other("Invalid key")))?
-                    .public()
-                    .to_raw_vec()
-            }};
-        }
-        let pubkey = match args.sigtype {
-            SigType::Ed25519 => public_key_with!(ed25519),
-            SigType::Sr25519 => public_key_with!(sr25519),
-            SigType::Ecdsa => public_key_with!(ecdsa),
-        };
-        Ok(pubkey)
+        DefaultPinkExtension::new(self).get_public_key(args)
     }
 
     fn cache_set(
@@ -287,8 +204,8 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
-        log(&self.address, level, message);
-        Ok(())
+        super::emit_log(&self.address, level, message.as_ref().into());
+        DefaultPinkExtension::new(self).log(level, message)
     }
 }
 
@@ -365,53 +282,6 @@ impl PinkExtBackend for CallInCommand {
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
-        log(&self.as_in_query.address, level, message);
-        Ok(())
-    }
-}
-
-fn log(address: &AccountId, level: u8, message: Cow<str>) {
-    let level = match level {
-        1 => log::Level::Error,
-        2 => log::Level::Warn,
-        3 => log::Level::Info,
-        4 => log::Level::Debug,
-        5 => log::Level::Trace,
-        _ => log::Level::Error,
-    };
-    log::log!(target: "pink", level, "[{}] {}", address, message);
-}
-
-struct LimitedWriter<W> {
-    writer: W,
-    written: usize,
-    limit: usize,
-}
-
-impl<W> LimitedWriter<W> {
-    fn new(writer: W, limit: usize) -> Self {
-        Self {
-            writer,
-            written: 0,
-            limit,
-        }
-    }
-}
-
-impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if self.written + buf.len() > self.limit {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Buffer limit exceeded",
-            ));
-        }
-        let wlen = self.writer.write(buf)?;
-        self.written += wlen;
-        Ok(wlen)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.writer.flush()
+        self.as_in_query.log(level, message)
     }
 }

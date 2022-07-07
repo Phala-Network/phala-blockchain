@@ -1,7 +1,7 @@
 ---
 source: crates/phactory/src/system/mod.rs
+assertion_line: 1483
 expression: effects
-
 ---
 ExecSideEffects {
     pink_events: [
@@ -12,6 +12,7 @@ ExecSideEffects {
             ),
         ),
     ],
+    ink_events: [],
     instantiated: [
         (
             0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),

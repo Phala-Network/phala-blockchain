@@ -33,4 +33,17 @@ mod signing {
             assert!(!pass);
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use ink_lang as ink;
+        #[ink::test]
+        fn it_works() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+
+            let contract = Signing::default();
+            contract.test();
+        }
+    }
 }
