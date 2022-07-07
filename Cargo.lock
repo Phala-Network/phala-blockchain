@@ -7449,6 +7449,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-fair-queue"
+version = "0.1.0"
+dependencies = [
+ "rbtree",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
@@ -8730,6 +8739,12 @@ dependencies = [
  "crossbeam-utils",
  "num_cpus",
 ]
+
+[[package]]
+name = "rbtree"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c30302bfb88dd71dce9b3577ab7f607a246ecee387717e937d49466a6d4d4760"
 
 [[package]]
 name = "rdrand"
