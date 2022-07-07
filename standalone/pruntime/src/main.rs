@@ -8,8 +8,8 @@ use std::{env, thread};
 use clap::{AppSettings, Parser};
 use log::{error, info};
 
-use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory::BlockNumber;
+use phactory_api::ecall_args::{git_revision, InitArgs};
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
@@ -40,7 +40,11 @@ struct Args {
 
     /// Listening port of HTTP
     #[clap(long)]
-    port: Option<String>,
+    port: Option<u16>,
+
+    /// Listening port of HTTP (with access control)
+    #[clap(long)]
+    public_port: Option<u16>,
 
     /// Disable checkpoint
     #[clap(long)]
@@ -108,7 +112,7 @@ async fn main() -> Result<(), rocket::Error> {
     }
 
     if let Some(port) = &args.port {
-        env::set_var("ROCKET_PORT", port);
+        env::set_var("ROCKET_PORT", port.to_string());
     }
 
     let env = env_logger::Env::default().default_filter_or("info");
@@ -151,10 +155,31 @@ async fn main() -> Result<(), rocket::Error> {
             .expect("Failed to launch benchmark thread");
     }
 
-    let _: rocket::Rocket<rocket::Ignite> = api_server::rocket(&args)
-        .launch()
-        .await
-        .expect("Failed to launch API server");
+    let mut servers = vec![];
+
+    if args.public_port.is_some() {
+        let args_clone = args.clone();
+        let server_acl = rocket::tokio::spawn(async move {
+            api_server::rocket_acl(&args_clone)
+                .expect("should not failed as port is provided")
+                .launch()
+                .await
+                .expect("Failed to launch API server");
+        });
+        servers.push(server_acl);
+    }
+
+    let server_internal = rocket::tokio::spawn(async move {
+        api_server::rocket(&args)
+            .launch()
+            .await
+            .expect("Failed to launch API server");
+    });
+    servers.push(server_internal);
+
+    for server in servers {
+        server.await.expect("Failed to launch server");
+    }
 
     info!("pRuntime quited");
 

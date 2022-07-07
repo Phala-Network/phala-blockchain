@@ -28,6 +28,7 @@ exclude = [
 	"standalone/pruntime",
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
+	"standalone/prouter",
 ]
 
 members = [

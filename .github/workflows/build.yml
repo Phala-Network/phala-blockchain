@@ -49,7 +49,7 @@ jobs:
           submodules: 'true'
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
-      - name: Build pRuntime
+      - name: Build pruntime
         run: make V=1 dist -C ./standalone/pruntime/gramine-build/
       - name: Save pruntime binaries
         uses: actions/upload-artifact@v2
@@ -59,6 +59,31 @@ jobs:
             ./standalone/pruntime/bin/pruntime
             ./standalone/pruntime/bin/pruntime.manifest
             ./standalone/pruntime/bin/Rocket.toml
+
+  build-prouter:
+    name: Build prouter
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-04-01
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+      - uses: ./.github/actions/install_toolchain
+      - name: Install prouter dependencies
+        run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc
+      - name: Build prouter
+        run: cd ./standalone/prouter/ && cargo build -vv
+      - name: Save prouter binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: prouter-binaries
+          path: |
+            ./standalone/prouter/target/release/prouter
 
   e2e-test:
     name: Run E2E tests

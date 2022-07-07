@@ -27,8 +27,8 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerEndpointPayload,
+		VersionedWorkerEndpoints, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -115,21 +115,26 @@ pub mod pallet {
 	pub type RelaychainGenesisBlockHashAllowList<T: Config> =
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
+	/// Mapping from worker pubkey to Phala Network identity
+	#[pallet::storage]
+	pub type Endpoints<T: Config> =
+		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new Gatekeeper is enabled on the blockchain
 		GatekeeperAdded {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 		GatekeeperRemoved {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 		WorkerAdded {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 		WorkerUpdated {
-			pubkey: WorkerPublicKey
+			pubkey: WorkerPublicKey,
 		},
 	}
 
@@ -171,6 +176,8 @@ pub mod pallet {
 		// Additional
 		UnknownCluster,
 		NotImplemented,
+		// PRouter related
+		InvalidEndpointSigningTime,
 	}
 
 	#[pallet::call]
@@ -370,6 +377,44 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn update_worker_endpoint(
+			origin: OriginFor<T>,
+			endpoint_payload: WorkerEndpointPayload,
+			signature: Vec<u8>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// Validate the signature
+			ensure!(
+				signature.len() == 64,
+				Error::<T>::InvalidSignatureLength
+			);
+			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
+				.or(Err(Error::<T>::MalformedSignature))?;
+			let encoded_data = endpoint_payload.encode();
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &encoded_data, &endpoint_payload.pubkey),
+				Error::<T>::InvalidSignature
+			);
+
+			// Validate the time
+			let expiration = 4 * 60 * 60 * 1000; // 4 hours
+			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+			ensure!(
+				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
+				Error::<T>::InvalidEndpointSigningTime
+			);
+
+			// Validate the public key
+			ensure!(Workers::<T>::contains_key(&endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
+
+			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint_payload.versioned_endpoints);
+
 			Ok(())
 		}
 

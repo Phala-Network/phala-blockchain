@@ -1,7 +1,7 @@
 use std::str;
 
 use rocket::data::Data;
-use rocket::data::ToByteUnit;
+use rocket::data::{Limits, ToByteUnit};
 use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
@@ -139,6 +139,18 @@ async fn prpc_proxy(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
     }
 }
 
+#[post("/<method>", data = "<data>")]
+async fn prpc_proxy_acl(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
+    info!("prpc_acl: request {}:", method);
+    let permitted_method: [&str; 2] = ["contract_query", "get_info"];
+    if !permitted_method.contains(&&method[..]) {
+        error!("prpc_acl: access denied");
+        return Custom(Status::Forbidden, vec![]);
+    }
+
+    prpc_proxy(method, data).await
+}
+
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
@@ -218,4 +230,39 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
     }
 
     server
+}
+
+/// api endpoint with access control, will be exposed to the public
+pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase>> {
+    let public_port: u16 = if args.public_port.is_some() {
+        args.public_port.expect("public_port should be set")
+    } else {
+        return None;
+    };
+
+    let figment = rocket::Config::figment()
+        .merge(("address", "0.0.0.0"))
+        .merge(("port", public_port))
+        .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
+
+    let mut server_acl = rocket::custom(figment).mount(
+        "/",
+        proxy_routes![
+            (get, "/get_info", get_info, actions::ACTION_GET_INFO),
+            (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
+        ],
+    );
+
+    server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
+
+    if args.allow_cors {
+        info!("Allow CORS");
+
+        server_acl = server_acl
+            .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+            .attach(cors_options().to_cors().expect("To not fail"))
+            .manage(cors_options().to_cors().expect("To not fail"));
+    }
+
+    Some(server_acl)
 }

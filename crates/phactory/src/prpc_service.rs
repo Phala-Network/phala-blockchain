@@ -8,7 +8,10 @@ use pb::{
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
-use phala_types::{contract, WorkerPublicKey};
+use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
+use phala_types::{
+    contract, EndpointType, WorkerEndpointPayload, VersionedWorkerEndpoints, WorkerPublicKey,
+};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -655,6 +658,122 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.side_task_man.poll(&context);
         Ok(())
     }
+
+    fn add_endpoint(
+        &mut self,
+        endpoint_type: EndpointType,
+        endpoint: Vec<u8>,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        let endpoints = if self.endpoint_cache.is_some() {
+            // update the endpoints instead of inserting
+            let mut endpoint_cache = self
+                .endpoint_cache
+                .clone()
+                .expect("SignedEndpointCache should be initialized");
+
+            endpoint_cache.endpoints.insert(endpoint_type, endpoint);
+
+            endpoint_cache.endpoints
+        } else {
+            let mut endpoints = HashMap::new();
+            endpoints.insert(endpoint_type, endpoint);
+            endpoints
+        };
+
+        self.refresh_endpoint_signing_time(endpoints)
+    }
+
+    fn refresh_endpoint_signing_time(
+        &mut self,
+        endpoints: HashMap<EndpointType, Vec<u8>>,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        let state = self
+            .runtime_state
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let block_time: u64 = state
+            .chain_storage
+            .timestamp_now()
+            .ok_or_else(|| from_display("No timestamp found in block"))?;
+        let public_key = self
+            .system
+            .as_ref()
+            .map(|state| state.identity_key.public())
+            .expect("public_key should be set");
+        let mut endpoints_info = Vec::<EndpointInfo>::new();
+
+        for (endpoint_type, endpoint) in endpoints.iter() {
+            let endpoint_info = match endpoint_type {
+                EndpointType::I2P => EndpointInfo {
+                    endpoint: WorkerEndpoint::I2P(endpoint.clone()),
+                },
+                EndpointType::Http => EndpointInfo {
+                    endpoint: WorkerEndpoint::Http(endpoint.clone()),
+                },
+            };
+            endpoints_info.push(endpoint_info);
+        }
+
+        let versioned_endpoints = VersionedWorkerEndpoints::V1(endpoints_info);
+        let endpoint_payload = WorkerEndpointPayload {
+            pubkey: public_key,
+            versioned_endpoints,
+            signing_time: block_time,
+        };
+        let resp = pb::GetEndpointResponse::new(endpoint_payload.clone(), None);
+
+        self.endpoint_cache = Some(SignedEndpointCache {
+            endpoints,
+            endpoint_payload,
+            signature: None,
+        });
+
+        Ok(resp)
+    }
+
+    fn get_endpoint_info(&mut self) -> RpcResult<pb::GetEndpointResponse> {
+        if self.system.is_none() {
+            return Err(from_display("Runtime not initialized"));
+        }
+
+        if self.endpoint_cache.is_none() {
+            return Err(from_display("No endpoint"));
+        }
+
+        let endpoint_cache = self
+            .endpoint_cache
+            .clone()
+            .expect("SignedEndpointInfo should be initialized");
+
+        let signature = if endpoint_cache.signature.is_none() {
+            let signature = self
+                .system
+                .as_ref()
+                .expect("Runtime should be initialized")
+                .identity_key
+                .clone()
+                .sign(&endpoint_cache.endpoint_payload.encode())
+                .encode();
+            self.endpoint_cache = Some(SignedEndpointCache {
+                endpoints: endpoint_cache.endpoints.clone(),
+                endpoint_payload: endpoint_cache.endpoint_payload.clone(),
+                signature: Some(signature.clone()),
+            });
+
+            signature
+        } else {
+            endpoint_cache
+                .signature
+                .as_ref()
+                .expect("Signature should be existed")
+                .clone()
+        };
+
+        let resp =
+            pb::GetEndpointResponse::new(endpoint_cache.endpoint_payload.clone(), Some(signature));
+
+        Ok(resp)
+    }
 }
 
 pub fn dispatch_prpc_request<Platform>(
@@ -811,6 +930,42 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .worker_state(&pubkey)
             .ok_or_else(|| from_display("Worker not found"))?;
         Ok(state)
+    }
+
+    fn add_endpoint(
+        &mut self,
+        request: pb::AddEndpointRequest,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        self.lock_phactory()
+            .add_endpoint(request.decode_endpoint_type()?, request.endpoint)
+    }
+
+    fn refresh_endpoint_signing_time(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
+        let mut phactory = self.lock_phactory();
+        let endpoints = phactory
+            .endpoint_cache
+            .as_ref()
+            .ok_or(from_display("Endpoint cache not initialized"))?
+            .endpoints
+            .clone();
+
+        phactory.refresh_endpoint_signing_time(endpoints)
+    }
+
+    fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
+        self.lock_phactory().get_endpoint_info()
+    }
+
+    fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
+        let mut phactory = self.lock_phactory();
+        let system = phactory.system()?;
+        let derive_key = system
+            .identity_key
+            .derive_sr25519_pair(&[b"PhalaI2PKey"])
+            .expect("should not fail with valid key");
+        Ok(pb::DerivePhalaI2pKeyResponse {
+            phala_i2p_key: derive_key.dump_secret_key().to_vec(),
+        })
     }
 
     fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {

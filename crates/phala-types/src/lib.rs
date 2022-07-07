@@ -3,6 +3,8 @@ extern crate alloc;
 
 pub mod contract;
 
+use alloc::str::FromStr;
+use alloc::string::ParseError;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
@@ -685,6 +687,54 @@ pub struct WorkerRegistrationInfo<AccountId> {
     pub genesis_block_hash: H256,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo, Hash)]
+pub enum EndpointType {
+    I2P = 0,
+    Http,
+}
+
+impl FromStr for EndpointType {
+    type Err = ParseError;
+    fn from_str(endpoint_type: &str) -> Result<Self, Self::Err> {
+        match endpoint_type {
+            "i2p" => Ok(EndpointType::I2P),
+            "http" => Ok(EndpointType::Http),
+            _ => Ok(EndpointType::I2P), // default to I2P
+        }
+    }
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub enum VersionedWorkerEndpoints {
+    V1(Vec<worker_endpoint_v1::EndpointInfo>),
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct WorkerEndpointPayload {
+    pub pubkey: WorkerPublicKey,
+    pub versioned_endpoints: VersionedWorkerEndpoints,
+    pub signing_time: u64,
+}
+
+pub mod worker_endpoint_v1 {
+    use alloc::vec::Vec;
+    use codec::{Decode, Encode};
+    use core::fmt::Debug;
+    use scale_info::TypeInfo;
+    use sp_core::sr25519::Public as WorkerPublicKey;
+
+    #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+    pub enum WorkerEndpoint {
+        I2P(Vec<u8>),
+        Http(Vec<u8>),
+    }
+
+    #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+    pub struct EndpointInfo {
+        pub endpoint: WorkerEndpoint,
+    }
 }
 
 #[derive(Encode, Decode, Debug, Default, TypeInfo)]

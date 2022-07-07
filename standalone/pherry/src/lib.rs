@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
 use sp_runtime::generic::Era;
 use std::cmp;
+use std::convert::TryInto;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -17,6 +18,7 @@ mod error;
 mod msg_sync;
 mod notify_client;
 mod prefetcher;
+mod endpoint;
 
 pub mod chain_client;
 pub mod headers_cache;
@@ -46,7 +48,7 @@ use notify_client::NotifyClient;
     author
 )]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
-struct Args {
+pub struct Args {
     #[clap(
         long,
         help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
@@ -67,6 +69,9 @@ struct Args {
 
     #[clap(long, help = "Skip registering the worker.")]
     no_register: bool,
+
+    #[clap(long, help = "Skip binding the worker endpoint.")]
+    no_bind: bool,
 
     #[clap(
         long,
@@ -208,6 +213,7 @@ struct Args {
 
 struct RunningFlags {
     worker_registered: bool,
+    endpoint_registered: bool,
     restart_failure_count: u32,
 }
 
@@ -1089,6 +1095,19 @@ async fn bridge(
             try_register_worker(&pr, &para_api, &mut signer, operator, &args).await?;
             flags.worker_registered = true;
         }
+        // Try bind worker endpoint
+        if !args.no_bind && info.public_key.is_some() {
+            // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await
+            {
+                Ok(_) => {
+                    flags.endpoint_registered = true;
+                }
+                Err(e) => {
+                    error!("FailedToCallBindWorkerEndpoint: {:?}", e);
+                }
+            }
+        }
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -1252,6 +1271,28 @@ async fn bridge(
                     flags.worker_registered = true;
                 }
             }
+
+            if !args.no_bind {
+                if !flags.endpoint_registered && info.public_key.is_some() {
+                    // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+                    match endpoint::try_update_worker_endpoint(
+                        &pr,
+                        &para_api,
+                        &mut signer,
+                        &args,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            flags.endpoint_registered = true;
+                        }
+                        Err(e) => {
+                            error!("FailedToCallBindWorkerEndpoint: {:?}", e);
+                        }
+                    }
+                }
+            }
+
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -1384,6 +1425,7 @@ pub async fn pherry_main() {
 
     let mut flags = RunningFlags {
         worker_registered: false,
+        endpoint_registered: false,
         restart_failure_count: 0,
     };
 
