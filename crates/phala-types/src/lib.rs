@@ -723,7 +723,6 @@ pub mod worker_endpoint_v1 {
     use codec::{Decode, Encode};
     use core::fmt::Debug;
     use scale_info::TypeInfo;
-    use sp_core::sr25519::Public as WorkerPublicKey;
 
     #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
     pub enum WorkerEndpoint {
