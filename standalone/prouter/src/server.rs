@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context};
 use fast_socks5::{
     client::{self, Socks5Stream},
-    server::{Config, SimpleUserPassword, Socks5Server, Socks5Socket},
+    server::{Config, Socks5Server, Socks5Socket},
     util::target_addr::TargetAddr,
     Result, SocksError,
 };
@@ -9,8 +9,6 @@ use log::{debug, error, info};
 
 use std::convert::TryInto;
 use std::io::ErrorKind;
-use std::net::ToSocketAddrs;
-use structopt::StructOpt;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::task;
 use tokio_stream::StreamExt;

@@ -1,7 +1,8 @@
 use phaxt::ParachainApi;
 
-use phaxt::khala::runtime_types::phala_types::{
-    worker_endpoint_v1::WorkerEndpoint, VersionedWorkerEndpoints,
+use phaxt::khala::runtime_types::{
+    phala_types::{worker_endpoint_v1::WorkerEndpoint, VersionedWorkerEndpoints},
+    sp_core::sr25519::Public,
 };
 
 use phala_types::EndpointType;
@@ -11,19 +12,15 @@ pub async fn get_endpoint_info_by_pubkey(
     pubkey: [u8; 32],
     endpoint_type: EndpointType,
 ) -> Option<Vec<u8>> {
-    let mut endpoint_storage_iter = api
+    let endpoint_storage = api
         .storage()
         .phala_registry()
-        .endpoints_iter(None)
+        .endpoints(&Public(pubkey), None)
         .await
         .ok()?;
 
-    while let Some((key, versioned_endpoint_info)) = endpoint_storage_iter.next().await.ok()? {
-        if key.0 != pubkey {
-            continue;
-        }
-
-        match versioned_endpoint_info {
+    if let Some(versioned_endpoint) = endpoint_storage {
+        match versioned_endpoint {
             VersionedWorkerEndpoints::V1(endpoints_info) => {
                 for endpoint_info in endpoints_info {
                     match endpoint_info.endpoint {

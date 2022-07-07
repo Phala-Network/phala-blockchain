@@ -7,7 +7,6 @@ mod translator;
 mod utils;
 
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use anyhow::{anyhow, Context, Result};
 use log::{error, info, warn};

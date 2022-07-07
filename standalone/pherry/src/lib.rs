@@ -18,6 +18,7 @@ mod error;
 mod msg_sync;
 mod notify_client;
 mod prefetcher;
+mod endpoint;
 
 pub mod chain_client;
 pub mod headers_cache;
@@ -47,7 +48,7 @@ use notify_client::NotifyClient;
     author
 )]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
-struct Args {
+pub struct Args {
     #[clap(
         long,
         help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
@@ -899,54 +900,6 @@ async fn init_runtime(
     Ok(resp)
 }
 
-async fn update_worker_endpoint(
-    para_api: &ParachainApi,
-    encoded_endpoint_payload: Vec<u8>,
-    signature: Vec<u8>,
-    signer: &mut SrSigner,
-    args: &Args,
-) -> Result<()> {
-    chain_client::update_signer_nonce(para_api, signer).await?;
-    let signed_endpoint = Decode::decode(&mut &encoded_endpoint_payload[..])
-        .map_err(|_| anyhow!("Decode signed endpoint failed"))?;
-    let params = mk_params(para_api, args.longevity, args.tip).await?;
-    let ret = para_api
-        .tx()
-        .phala_registry()
-        .update_worker_endpoint(signed_endpoint, signature)?
-        .sign_and_submit_then_watch(signer, params)
-        .await;
-    if ret.is_err() {
-        error!("FailedToCallBindWorkerEndpoint: {:?}", ret);
-        return Err(anyhow!("failed to call update_worker_endpoint"));
-    }
-    signer.increment_nonce();
-    Ok(())
-}
-
-async fn try_update_worker_endpoint(
-    pr: &PrClient,
-    para_api: &ParachainApi,
-    signer: &mut SrSigner,
-    args: &Args,
-) -> Result<()> {
-    let info = pr.get_endpoint_info(()).await?;
-    if let signature = info.signature.ok_or(anyhow!("No endpoint signature"))? {
-        info!("Binding worker's endpoint...");
-        update_worker_endpoint(
-            &para_api,
-            info.encoded_endpoint_payload,
-            signature,
-            signer,
-            args,
-        )
-        .await?;
-        return Ok(());
-    };
-
-    Err(anyhow!("No endpoint signature"))
-}
-
 async fn register_worker(
     para_api: &ParachainApi,
     encoded_runtime_info: Vec<u8>,
@@ -1142,10 +1095,10 @@ async fn bridge(
             try_register_worker(&pr, &para_api, &mut signer, operator, &args).await?;
             flags.worker_registered = true;
         }
-        // try bind worker endpoint
+        // Try bind worker endpoint
         if !args.no_bind && info.public_key.is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-            match try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await
+            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await
             {
                 Ok(_) => {
                     flags.endpoint_registered = true;
@@ -1322,7 +1275,7 @@ async fn bridge(
             if !args.no_bind {
                 if !flags.endpoint_registered && info.public_key.is_some() {
                     // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-                    match try_update_worker_endpoint(
+                    match endpoint::try_update_worker_endpoint(
                         &pr,
                         &para_api,
                         &mut signer,
