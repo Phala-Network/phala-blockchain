@@ -22,11 +22,9 @@ overflow-checks = true
 resolver = "2"
 
 exclude = [
-	"substrate",
 	"subxt",
-	"webpki",
-	"ring",
-	"native-nostd-hasher",
+	"vendor/webpki",
+	"vendor/ring",
 	"standalone/pruntime",
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",

@@ -49,7 +49,7 @@ fixed-sqrt = { version = "0.2", default-features = false }
 webpki = { version = "0.22", default-features = false, features = ["alloc"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-webpki_wasm = { package = "webpki", path = "../../webpki", default-features = false, features = ["alloc"] }
+webpki_wasm = { package = "webpki", path = "../../vendor/webpki", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
