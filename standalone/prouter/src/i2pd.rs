@@ -7,7 +7,7 @@ use std::mem;
 use std::os::raw::{c_char, c_uchar};
 use std::path::PathBuf;
 
-const BUFFER_SIZE: usize = 64;
+const BUFFER_SIZE: usize = 256;
 
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
