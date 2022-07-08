@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, Weak};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use rbtree::RBTree;
 use thiserror::Error;
@@ -44,12 +44,16 @@ impl<FlowId: FlowIdType> FairQueue<FlowId> {
         let rx = self.inner.lock().unwrap().acquire(flow_id, weight)?;
         rx.await.or(Err(AcquireError::Canceled))
     }
+
+    pub fn purge_inactive_flows(&self, duration: Duration) {
+        self.inner.lock().unwrap().purge_inactive_flows(duration);
+    }
 }
 
-#[derive(Default)]
 struct Flow {
     previous_finish_tag: VirtualTime,
     cost_avg: VirtualTime,
+    recent_active_time: Instant,
 }
 
 struct Request<FlowId: FlowIdType> {
@@ -105,7 +109,11 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
         flow_id: FlowId,
         weight: u32,
     ) -> Result<Receiver<ServingGuard<FlowId>>, AcquireError> {
-        let flow = self.flows.entry(flow_id.clone()).or_insert(Flow::default());
+        let flow = self.flows.entry(flow_id.clone()).or_insert_with(|| Flow {
+            previous_finish_tag: 0,
+            cost_avg: 0,
+            recent_active_time: Instant::now(),
+        });
 
         let start_tag = self.virtual_time.max(flow.previous_finish_tag);
         let cost = flow.cost_avg / weight as VirtualTime;
@@ -175,6 +183,12 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
         // and would further try to pickup next request.
         let _ = request.start_signal.send(guard);
     }
+
+    fn purge_inactive_flows(&mut self, duration: Duration) {
+        let now = Instant::now();
+        self.flows
+            .retain(|_, flow| now.duration_since(flow.recent_active_time) < duration);
+    }
 }
 
 #[cfg(test)]
@@ -202,7 +216,7 @@ mod test {
     }
 
     async fn sleep_ms(t: u64) {
-        tokio::time::sleep(std::time::Duration::from_millis(t)).await;
+        tokio::time::sleep(Duration::from_millis(t)).await;
     }
 
     #[tokio::test]
