@@ -40,7 +40,7 @@ pub mod pallet {
 		traits::{CheckedSub, Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, str, vec};
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec};
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 
