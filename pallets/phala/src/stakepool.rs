@@ -346,7 +346,7 @@ pub mod pallet {
 		/// The worker doesn't have a valid benchmark when adding to the pool
 		BenchmarkMissing,
 		/// The worker is already added to the pool
-		WorkerExists,
+		WorkerAlreadyStopped,
 		/// The target worker is not in the pool
 		WorkerDoesNotExist,
 		/// The worker is already added to another pool
@@ -407,8 +407,8 @@ pub mod pallet {
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
 		MissCollectionId,
-		/// CheckSub less than zero
-		CheckSubLessThanZero,
+		/// CheckSub less than zero, indicate share amount is invalid
+		InvalidShareToWithdraw,
 	}
 
 	#[pallet::call]
@@ -499,7 +499,7 @@ pub mod pallet {
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// make sure worker has not been not added
 			let workers = &mut pool_info.workers;
-			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExists);
+			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerAlreadyStopped);
 			// too many workers may cause performance regression
 			ensure!(
 				workers.len() + 1 <= T::MaxPoolWorkers::get() as usize,
@@ -763,11 +763,12 @@ pub mod pallet {
 				// TODO(mingxuan): handle slash
 				releasing_stake += stakes;
 			}
+			StakePools::<T>::insert(pid, &pool);
 			if Self::has_expired_withdrawal(&pool, now, grace_period, releasing_stake) {
 				for worker in pool.workers.iter() {
 					let miner: T::AccountId = pool_sub_account(pid, &worker);
 					if !pool.cd_workers.contains(&worker) {
-						Self::do_stop_mining(&(pool.owner), pid, worker.clone())?;
+						Self::do_stop_mining(&pool.owner, pid, worker.clone())?;
 					}
 				}
 			}
@@ -815,7 +816,7 @@ pub mod pallet {
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft = Self::get_nft_attr(collection_id, nft_id)?;
-
+			// NFT should always settled befroe adding/ removing.
 			Self::maybe_settle_nft_slash(&pool_info, &mut nft, who.clone());
 
 			let shares =
@@ -859,8 +860,8 @@ pub mod pallet {
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
-			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
-				.ok_or(Error::<T>::MissCollectionId)?;
+			let collection_id =
+				PoolCollections::<T>::get(pool_info.pid).ok_or(Error::<T>::MissCollectionId)?;
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
@@ -883,7 +884,7 @@ pub mod pallet {
 				Error::<T>::InvalidWithdrawalAmount
 			);
 			Self::try_withdraw(&mut pool_info, &mut nft, nft_id, who.clone(), shares)?;
-			Self::set_nft_attr(pool_info.pid.clone(), collection_id, nft_id, &nft)
+			Self::set_nft_attr(pool_info.pid, collection_id, nft_id, &nft)
 				.expect("set nft attr should always success; qed.");
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
 			StakePools::<T>::insert(&pid, &pool_info);
@@ -1008,7 +1009,7 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
 			ensure!(Self::mining_enabled(), Error::<T>::FeatureNotEnabled);
-			let pool_info = Self::ensure_pool(pid)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(&pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// check whether we have add this worker
@@ -1018,12 +1019,11 @@ pub mod pallet {
 			);
 			ensure!(
 				!pool_info.cd_workers.contains(&worker),
-				Error::<T>::WorkerExists
+				Error::<T>::WorkerAlreadyStopped
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			// Mining::stop_mining will notify us how much it will release by `on_stopped`
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
-			let mut pool_info = Self::ensure_pool(pid)?;
 			pool_info.cd_workers.push(worker.clone());
 			StakePools::<T>::insert(&pid, &pool_info);
 			Ok(())
@@ -1056,14 +1056,8 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_nft(
-				pool_info.pid.clone(),
-				userid.clone(),
-				shares,
-				amount,
-				collection_id,
-			)
-			.expect("mint should always success; qed.");
+			Self::mint_nft(pool_info.pid, userid.clone(), shares, amount, collection_id)
+				.expect("mint should always success; qed.");
 			pool_info.total_shares += shares;
 			pool_info.total_stake += amount;
 			pool_info.free_stake += amount;
@@ -1297,7 +1291,7 @@ pub mod pallet {
 			userid: T::AccountId,
 			shares: BalanceOf<T>,
 		) -> DispatchResult {
-			let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
+			let collection_id = PoolCollections::<T>::get(pool_info.pid)
 				.expect("pool collection_id should always be founded; qed.");
 			// Remove the existing withdraw request in the queue if there is any.
 			let (in_queue_nfts, new_withdraw_queue): (VecDeque<_>, VecDeque<_>) = pool_info
@@ -1326,11 +1320,11 @@ pub mod pallet {
 			nft.shares = nft
 				.shares
 				.checked_sub(&shares)
-				.ok_or(Error::<T>::CheckSubLessThanZero)?;
+				.ok_or(Error::<T>::InvalidShareToWithdraw)?;
 			nft.stakes = nft
 				.stakes
 				.checked_sub(&amount)
-				.ok_or(Error::<T>::CheckSubLessThanZero)?;
+				.ok_or(Error::<T>::InvalidShareToWithdraw)?;
 			// Push the request
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
@@ -1350,7 +1344,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn do_withdrawing_shares(
+		fn do_withdraw_shares(
 			withdrawing_shares: BalanceOf<T>,
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			nft: &mut NftAttr<BalanceOf<T>>,
@@ -1386,7 +1380,7 @@ pub mod pallet {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 
-					let collection_id = match PoolCollections::<T>::get(pool_info.pid.clone()) {
+					let collection_id = match PoolCollections::<T>::get(pool_info.pid) {
 						Some(id) => id,
 						None => {
 							pool_info.withdraw_queue.pop_front();
@@ -1411,7 +1405,7 @@ pub mod pallet {
 					);
 					// Actually remove the fulfilled withdraw request. Dust in the user shares is
 					// considered but it in the request is ignored.
-					Self::do_withdrawing_shares(
+					Self::do_withdraw_shares(
 						withdrawing_shares,
 						pool_info,
 						&mut withdraw_nft,
@@ -1427,7 +1421,9 @@ pub mod pallet {
 					.expect("set nftattr should always success; qed.");
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
-					if withdraw_nft.shares == Zero::zero() {
+					if withdraw_nft.shares == Zero::zero()
+						|| !is_nondust_balance(withdraw_nft.shares)
+					{
 						pool_info.withdraw_queue.pop_front();
 						Self::burn_nft(collection_id, withdraw.nft_id)
 							.expect("burn nft should always success");
@@ -1470,7 +1466,7 @@ pub mod pallet {
 			};
 			let mut budget = pool_info.free_stake + releasing_stake;
 			for request in &pool_info.withdraw_queue {
-				let collection_id = PoolCollections::<T>::get(pool_info.pid.clone())
+				let collection_id = PoolCollections::<T>::get(pool_info.pid)
 					.expect("get pool collection_id should always success; qed.");
 				let withdraw_nft = Self::get_nft_attr(collection_id, request.nft_id)
 					.expect("get nftattr should always success; qed.");
@@ -1541,7 +1537,7 @@ pub mod pallet {
 					Self::ledger_reduce(&userid, actual_slashed, Zero::zero());
 					Self::deposit_event(Event::<T>::SlashSettled {
 						pid: pool.pid,
-						user: userid.clone(),
+						user: userid,
 						amount: actual_slashed,
 					});
 				}
@@ -1661,7 +1657,7 @@ pub mod pallet {
 	where
 		T: Encode + Decode,
 	{
-		(b"stakepool/")
+		(b"stakepool")
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
