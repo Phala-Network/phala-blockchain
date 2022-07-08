@@ -426,12 +426,6 @@ pub struct System<Platform> {
     last_challenge: Option<WorkerKeyChallengePayload<chain::BlockNumber>>,
     worker_state: WorkerState,
     // Gatekeeper
-    #[serde(with = "more::option_key_bytes")]
-    master_key: Option<sr25519::Pair>,
-    // All the master keys (including "future" ones) known to this worker
-    // Only the in-use part is synced to the gatekeeper
-    #[serde(with = "more::scale_bytes")]
-    master_key_history: Vec<RotatedMasterKey>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -477,16 +471,6 @@ impl<Platform: pal::Platform> System<Platform> {
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key_history =
-            master_key::try_unseal(sealing_path.clone(), &identity_key.0, &platform);
-        let master_key = if master_key_history.len() == 0 {
-            None
-        } else {
-            let first_rotation = master_key_history.first().expect("checked; qed.");
-            Some(sr25519::Pair::restore_from_secret_key(
-                &first_rotation.secret,
-            ))
-        };
 
         System {
             platform,
@@ -507,8 +491,6 @@ impl<Platform: pal::Platform> System<Platform> {
             trusted_identity_key,
             last_challenge: None,
             worker_state: WorkerState::new(pubkey),
-            master_key,
-            master_key_history,
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
@@ -568,7 +550,7 @@ impl<Platform: pal::Platform> System<Platform> {
         challenge: &WorkerKeyChallenge<chain::BlockNumber>,
     ) -> bool {
         if self.last_challenge.is_none()
-            || self.last_challenge.as_ref().unwrap() != &challenge.payload
+            || self.last_challenge.as_ref().expect("checked; qed;") != &challenge.payload
         {
             info!("Unknown challenge: {:?}", challenge);
             return false;
@@ -774,97 +756,62 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    /// Update sealing keys if the received history is longer than existing one. This will not affect the master key history
-    /// in `self.gatekeeper`.
+    /// Update local sealed master keys if the received history is longer than existing one.
     ///
-    /// Only restart if the flag is set and the master key is changed
-    fn set_master_key_history(
-        &mut self,
-        master_key_history: Vec<RotatedMasterKey>,
-        need_restart: bool,
-    ) {
-        if master_key_history.len() <= self.master_key_history.len() {
-            return;
-        }
-
-        master_key::seal(
-            self.sealing_path.clone(),
-            &master_key_history,
-            &self.identity_key,
-            &self.platform,
-        );
-        self.master_key_history = master_key_history;
-
-        let first_master_key = self.master_key_history.first().expect("check; qed.");
-        if self.master_key.is_none() {
-            self.master_key = Some(sr25519::Pair::restore_from_secret_key(
-                &first_master_key.secret,
-            ));
-
-            if need_restart {
-                crate::maybe_remove_checkpoints(&self.storage_path);
-                panic!(
-                    "Received master key, please restart pRuntime and pherry to sync as Gatekeeper"
-                );
-            }
-        }
-    }
-
-    // This will change `self.gatekeeper`'s master key history and sequence id since the gatekeeper will report the new
-    // master pubkey on-chain.
-    fn handle_new_master_key(&mut self, rotated_master_key: RotatedMasterKey) {
-        if !self.master_key_history.contains(&rotated_master_key) {
-            assert!(
-                rotated_master_key.rotation_id == self.master_key_history.len() as u64,
-                "Master key history corrupted"
-            );
-            self.master_key_history.push(rotated_master_key.clone());
+    /// Panic if `self.gatekeeper` is None since it implies a need for resync from the start as gk
+    fn set_master_key_history(&mut self, master_key_history: Vec<RotatedMasterKey>) {
+        if self.gatekeeper.is_none() {
             master_key::seal(
                 self.sealing_path.clone(),
-                &self.master_key_history,
+                &master_key_history,
+                &self.identity_key,
+                &self.platform,
+            );
+            crate::maybe_remove_checkpoints(&self.sealing_path);
+            panic!("Received master key, please restart pRuntime and pherry to sync as Gatekeeper");
+        }
+
+        if self
+            .gatekeeper
+            .as_mut()
+            .expect("checked; qed.")
+            .set_master_key_history(&master_key_history)
+        {
+            master_key::seal(
+                self.sealing_path.clone(),
+                &master_key_history,
                 &self.identity_key,
                 &self.platform,
             );
         }
-
-        let new_master_key = sr25519::Pair::restore_from_secret_key(&rotated_master_key.secret);
-        self.master_key = Some(new_master_key);
-        self.gatekeeper
-            .as_mut()
-            .expect("checked; qed.")
-            .rotate_master_key(rotated_master_key);
     }
 
-    fn master_key_cleanup(&mut self) {
-        self.gatekeeper = None;
-        self.master_key = None;
-        self.master_key_history = vec![];
-    }
-
-    fn init_gatekeeper(&mut self, block: &mut BlockInfo) {
-        assert!(
-            self.master_key.is_some(),
-            "Gatekeeper initialization without master key"
-        );
+    fn init_gatekeeper(
+        &mut self,
+        block: &mut BlockInfo,
+        master_key_history: Vec<RotatedMasterKey>,
+    ) {
         assert!(
             self.gatekeeper.is_none(),
             "Duplicated gatekeeper initialization"
         );
+        assert!(
+            master_key_history.len() > 0,
+            "Init gatekeeper with no master key"
+        );
 
+        let master_key = sr25519::Pair::restore_from_secret_key(
+            &master_key_history
+                .first()
+                .expect("empty master key history")
+                .secret,
+        );
         let gatekeeper = gk::Gatekeeper::new(
-            self.master_key
-                .as_ref()
-                .expect("checked master key above; qed.")
-                .clone(),
+            master_key_history,
             block.recv_mq,
-            block.send_mq.channel(
-                MessageOrigin::Gatekeeper,
-                self.master_key
-                    .as_ref()
-                    .expect("checked master key above; qed.")
-                    .clone()
-                    .into(),
-            ),
+            block
+                .send_mq
+                .channel(MessageOrigin::Gatekeeper, master_key.into()),
         );
         self.gatekeeper = Some(gatekeeper);
     }
@@ -885,7 +832,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
                 self.process_first_gatekeeper_event(block, origin, event)
             }
-            GatekeeperLaunch::MasterPubkeyOnChain(_) => {
+            GatekeeperLaunch::MasterPubkeyOnChain(event) => {
                 if !origin.is_pallet() {
                     error!("Invalid origin {:?} sent a {:?}", origin, event);
                     return;
@@ -896,7 +843,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     block.block_number
                 );
                 if let Some(gatekeeper) = &mut self.gatekeeper {
-                    gatekeeper.master_pubkey_uploaded();
+                    gatekeeper.master_pubkey_uploaded(event.master_pubkey);
                 }
             }
             GatekeeperLaunch::RotateMasterKey(event) => {
@@ -909,7 +856,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     "Master key rotation req round {} in block {}",
                     event.rotation_id, block.block_number
                 );
-                self.process_master_key_rotation(block, origin, event);
+                self.process_master_key_rotation_request(block, origin, event);
             }
             GatekeeperLaunch::MasterPubkeyRotated(event) => {
                 if !origin.is_pallet() {
@@ -927,18 +874,18 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     /// Generate the master key if this is the first gatekeeper
-    ///
-    /// ATTENTION: the first gk cannot resume if its original master_key.seal is lost,
-    /// since there is no tx recorded on-chain that shares the key to itself
-    ///
-    /// Solution: always unregister the first gk after the second gk receives the key,
-    /// thank god we only need to do this once for each blockchain
     fn process_first_gatekeeper_event(
         &mut self,
         block: &mut BlockInfo,
         _origin: MessageOrigin,
         event: NewGatekeeperEvent,
     ) {
+        // ATTENTION: the first gk cannot resume if its original master_key.seal is lost,
+        // since there is no tx recorded on-chain that shares the key to itself
+        //
+        // Solution: always unregister the first gk after the second gk receives the key,
+        // thank god we only need to do this once for each blockchain
+
         // double check the first gatekeeper is valid on chain
         if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
             error!(
@@ -948,26 +895,35 @@ impl<Platform: pal::Platform> System<Platform> {
             panic!("System state poisoned");
         }
 
+        let mut master_key_history = master_key::try_unseal(
+            self.sealing_path.clone(),
+            &self.identity_key.0,
+            &self.platform,
+        );
         let my_pubkey = self.identity_key.public();
-        // if the first gatekeeper reboots, it will possess the master key,
-        // and should not re-generate it
         if my_pubkey == event.pubkey {
-            if self.master_key.is_none() {
+            // if the first gatekeeper reboots, it will possess the master key, and should not re-generate it
+            if master_key_history.len() == 0 {
                 info!("Gatekeeper: generate master key as the first gatekeeper");
-                // generate master key as the first gatekeeper
-                // no need to restart
+                // generate master key as the first gatekeeper, no need to restart
                 let master_key = crate::new_sr25519_key();
-                self.set_master_key_history(
-                    vec![RotatedMasterKey {
-                        rotation_id: 0,
-                        block_height: 0,
-                        secret: master_key.dump_secret_key(),
-                    }],
-                    false,
+                master_key_history.push(RotatedMasterKey {
+                    rotation_id: 0,
+                    block_height: 0,
+                    secret: master_key.dump_secret_key(),
+                });
+                // manually seal the first master key for the first gk
+                master_key::seal(
+                    self.sealing_path.clone(),
+                    &master_key_history,
+                    &self.identity_key,
+                    &self.platform,
                 );
             }
 
-            let master_key = self.master_key.as_ref().expect("checked; qed.");
+            let master_key = sr25519::Pair::restore_from_secret_key(
+                &master_key_history.first().expect("checked; qed.").secret,
+            );
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
@@ -979,15 +935,17 @@ impl<Platform: pal::Platform> System<Platform> {
             self.egress.push_message(&master_pubkey);
         }
 
-        if self.master_key.is_some() {
+        // other gatekeepers will has keys after key sharing and reboot
+        // init the gatekeeper if there is any master key to start slient syncing
+        if master_key_history.len() > 0 {
             info!("Init gatekeeper in block {}", block.block_number);
-            self.init_gatekeeper(block);
+            self.init_gatekeeper(block, master_key_history);
         }
 
         if my_pubkey == event.pubkey {
             self.gatekeeper
                 .as_mut()
-                .expect("gatekeeper must be initializaed here; qed.")
+                .expect("gatekeeper must be initializaed; qed.")
                 .register_on_chain();
         }
     }
@@ -998,7 +956,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ///
     /// The generated master key will be shared to all the gatekeepers (include this one), and only then will they really
     /// update the master key on-chain.
-    fn process_master_key_rotation(
+    fn process_master_key_rotation_request(
         &mut self,
         block: &mut BlockInfo,
         _origin: MessageOrigin,
@@ -1006,7 +964,11 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         if let Some(gatekeeper) = &mut self.gatekeeper {
             info!("Gatekeeper：Rotate master key");
-            gatekeeper.process_master_key_rotation(block, event, self.identity_key.0.clone());
+            gatekeeper.process_master_key_rotation_request(
+                block,
+                event,
+                self.identity_key.0.clone(),
+            );
         }
     }
 
@@ -1076,7 +1038,10 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.pubkey && self.gatekeeper.is_some() {
-            self.gatekeeper.as_mut().unwrap().unregister_on_chain();
+            self.gatekeeper
+                .as_mut()
+                .expect("checked; qed.")
+                .unregister_on_chain();
         }
     }
 
@@ -1349,14 +1314,11 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pair =
                 self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
-            self.set_master_key_history(
-                vec![RotatedMasterKey {
-                    rotation_id: 0,
-                    block_height: 0,
-                    secret: master_pair.dump_secret_key(),
-                }],
-                true,
-            );
+            self.set_master_key_history(vec![RotatedMasterKey {
+                rotation_id: 0,
+                block_height: 0,
+                secret: master_pair.dump_secret_key(),
+            }]);
         }
         Ok(())
     }
@@ -1384,28 +1346,27 @@ impl<Platform: pal::Platform> System<Platform> {
                         .dump_secret_key(),
                 })
                 .collect();
-            self.set_master_key_history(master_key_history, true);
+            self.set_master_key_history(master_key_history);
         }
-
         Ok(())
     }
 
     /// Decrypt the rotated master key
     ///
     /// The new master key takes effect immediately after the GatekeeperRegistryEvent::RotatedMasterPubkey is sent
-    ///
-    /// ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain pubkey
-    /// is updated, which may cause problem in the future.
     fn process_batch_rotate_master_key(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
         event: BatchRotateMasterKeyEvent,
     ) -> Result<(), TransactionError> {
+        // ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain pubkey
+        // is updated, which may cause problem in the future.
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return Err(TransactionError::BadOrigin.into());
         }
+
         // check the event sender identity and signature to ensure it's not forged with a leaked master key and really from
         // a gatekeeper
         let data = event.data_be_signed();
@@ -1414,63 +1375,62 @@ impl<Platform: pal::Platform> System<Platform> {
         if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
             return Err(TransactionError::BadSenderSignature.into());
         }
-        // valid master key but from a non-GK
+        // valid master key but from a non-gk
         if !chain_state::is_gatekeeper(&event.sender, block.storage) {
             error!("Fatal error: Forged batch master key rotation {:?}", event);
             return Err(TransactionError::MasterKeyLeakage);
         }
 
         let my_pubkey = self.identity_key.public();
-        if event.secret_keys.contains_key(&my_pubkey) {
-            if self.gatekeeper.is_none() {
+        // for normal worker
+        if self.gatekeeper.is_none() {
+            if event.secret_keys.contains_key(&my_pubkey) {
                 panic!(
                     "Batch rotate master key to a normal worker {:?}",
                     &my_pubkey
                 );
             }
+            return Ok(());
+        }
 
+        // for gatekeeper (both active or unregistered)
+        if event.secret_keys.contains_key(&my_pubkey) {
             let encrypted_key = &event.secret_keys[&my_pubkey];
             let new_master_key = self.decrypt_key_from(
                 &encrypted_key.ecdh_pubkey,
                 &encrypted_key.encrypted_key,
                 &encrypted_key.iv,
             );
-
             info!("Worker: successfully decrypt received rotated master key");
-            self.handle_new_master_key(RotatedMasterKey {
+            let gatekeeper = self.gatekeeper.as_mut().expect("checked; qed.");
+            if gatekeeper.append_master_key(RotatedMasterKey {
                 rotation_id: event.rotation_id,
                 block_height: self.block_number,
                 secret: new_master_key.dump_secret_key(),
-            });
-        } else if self.gatekeeper.is_some() {
-            // will be here in two situations
-            if self.master_key_history.len() as u64 == event.rotation_id {
-                assert!(
-                    self.master_key_history.last().expect("checked; qed").secret
-                        == self
-                            .master_key
-                            .as_ref()
-                            .expect("should not be None with valid gatekeeper; qed")
-                            .dump_secret_key(),
-                    "Corrupted master key history in unregistered gatekeeper"
+            }) {
+                master_key::seal(
+                    self.sealing_path.clone(),
+                    &gatekeeper.master_key_history(),
+                    &self.identity_key,
+                    &self.platform,
                 );
-                // 1. This is an unregistered GK whose master key is not outdated yet, it 's still sliently syncing. It
-                // cannot do silent syncing anymore since it does not know the rotated key.
-                // Delete the gatekeeper and master_key
-                info!("Worker: master key rotation received, stop unregistered gatekeeper silent syncing and cleanup");
-                self.master_key_cleanup();
-            } else {
-                // 2. This is a valid GK in syncing, the needed master key should already be dispatched before the restart
-                // of this pRuntime.
-                // Tick the master key correspondingly
-                assert!(
-                    event.rotation_id < self.master_key_history.len() as u64,
-                    "Insufficient master key history"
-                );
-                let next_master_key = self.master_key_history[event.rotation_id as usize].clone();
-                info!("Worker: rotate master key with received master key history");
-                self.handle_new_master_key(next_master_key);
             }
+        }
+
+        if self
+            .gatekeeper
+            .as_mut()
+            .expect("checked; qed.")
+            .switch_master_key(event.rotation_id, self.block_number)
+        {
+            // This is a valid GK in syncing, the needed master key should already be dispatched before the restart this
+            // pRuntime.
+            info!("Worker: rotate master key with received master key history");
+        } else {
+            // This is an unregistered GK whose master key is not outdated yet, it 's still sliently syncing. It cannot
+            // do silent syncing anymore since it does not know the rotated key.
+            info!("Worker: master key rotation received, stop unregistered gatekeeper silent syncing and cleanup");
+            self.gatekeeper = None;
         }
         Ok(())
     }
@@ -1519,20 +1479,20 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn gatekeeper_status(&self) -> GatekeeperStatus {
+        let has_gatekeeper = self.gatekeeper.is_some();
         let active = match &self.gatekeeper {
             Some(gk) => gk.registered_on_chain(),
             None => false,
         };
-        let has_key = self.master_key.is_some();
-        let role = match (has_key, active) {
+        let role = match (has_gatekeeper, active) {
             (true, true) => GatekeeperRole::Active,
             (true, false) => GatekeeperRole::Dummy,
             _ => GatekeeperRole::None,
         };
         let master_public_key = self
-            .master_key
+            .gatekeeper
             .as_ref()
-            .map(|k| hex::encode(&k.public()))
+            .map(|gk| hex::encode(&gk.master_pubkey()))
             .unwrap_or_default();
         GatekeeperStatus {
             role: role.into(),

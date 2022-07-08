@@ -132,16 +132,17 @@ where
     MsgChan: MessageChannel<Signer = Sr25519Signer> + Clone,
 {
     pub fn new(
-        master_key: sr25519::Pair,
+        master_key_history: Vec<RotatedMasterKey>,
         recv_mq: &mut MessageDispatcher,
         egress: MsgChan,
     ) -> Self {
+        let master_key = sr25519::Pair::restore_from_secret_key(
+            &master_key_history
+                .first()
+                .expect("empty master key history")
+                .secret,
+        );
         egress.set_dummy(true);
-        let master_key_history = vec![RotatedMasterKey {
-            rotation_id: 0,
-            block_height: 0,
-            secret: master_key.dump_secret_key(),
-        }];
 
         Self {
             master_key,
@@ -191,31 +192,73 @@ where
         self.registered_on_chain
     }
 
-    /// Append the rotated key to Gatekeeper's master key history and update the master key and Gatekeeper mq
-    ///
-    /// The rotation id must be in order.
-    pub fn rotate_master_key(&mut self, rotated_master_key: RotatedMasterKey) {
+    pub fn master_pubkey_uploaded(&mut self, master_pubkey: sr25519::Public) {
         assert!(
-            rotated_master_key.rotation_id == self.master_key_history.len() as u64,
-            "Gatekeeper master key history corrupted"
+            self.master_key.public() == master_pubkey,
+            "local and on-chain master key mismatch"
         );
+        self.master_pubkey_on_chain = true;
+    }
 
-        let new_master_key = sr25519::Pair::restore_from_secret_key(&rotated_master_key.secret);
+    pub fn master_pubkey(&self) -> sr25519::Public {
+        self.master_key.public()
+    }
+
+    pub fn master_key_history(&self) -> &Vec<RotatedMasterKey> {
+        &self.master_key_history
+    }
+
+    /// Return whether the history is really updated
+    pub fn set_master_key_history(&mut self, master_key_history: &Vec<RotatedMasterKey>) -> bool {
+        if master_key_history.len() <= self.master_key_history.len() {
+            return false;
+        }
+        self.master_key_history = master_key_history.clone();
+        true
+    }
+
+    /// Append the rotated key to Gatekeeper's master key history, return whether the history is really updated
+    pub fn append_master_key(&mut self, rotated_master_key: RotatedMasterKey) -> bool {
+        if !self.master_key_history.contains(&rotated_master_key) {
+            // the rotation id must be in order
+            assert!(
+                rotated_master_key.rotation_id == self.master_key_history.len() as u64,
+                "Gatekeeper Master key history corrupted"
+            );
+            self.master_key_history.push(rotated_master_key.clone());
+            return true;
+        }
+        false
+    }
+
+    /// Update the master key and Gatekeeper mq
+    pub fn switch_master_key(
+        &mut self,
+        rotation_id: u64,
+        block_height: chain::BlockNumber,
+    ) -> bool {
+        let raw_key = self.master_key_history.get(rotation_id as usize);
+        if raw_key.is_none() {
+            return false;
+        }
+
+        let raw_key = raw_key.expect("checked; qed.");
+        assert!(
+            raw_key.rotation_id == rotation_id && raw_key.block_height == block_height,
+            "Gatekeeper Master key history corrupted"
+        );
+        let new_master_key = sr25519::Pair::restore_from_secret_key(&raw_key.secret);
         // send the RotatedMasterPubkey event with old master key
         let master_pubkey = new_master_key.public();
         self.egress
             .push_message(&GatekeeperRegistryEvent::RotatedMasterPubkey {
-                rotation_id: rotated_master_key.rotation_id,
+                rotation_id: raw_key.rotation_id,
                 master_pubkey,
             });
 
         self.master_key = new_master_key.clone();
         self.egress.set_signer(self.master_key.clone().into());
-        self.master_key_history.push(rotated_master_key);
-    }
-
-    pub fn master_pubkey_uploaded(&mut self) {
-        self.master_pubkey_on_chain = true;
+        true
     }
 
     pub fn share_master_key(
@@ -287,7 +330,7 @@ where
         ));
     }
 
-    pub fn process_master_key_rotation(
+    pub fn process_master_key_rotation_request(
         &mut self,
         block: &BlockInfo,
         event: RotateMasterKeyEvent,
