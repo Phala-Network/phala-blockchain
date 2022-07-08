@@ -1036,7 +1036,6 @@ pub mod pallet {
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let (orig_stake, slashed) =
 				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
-			let pool_info = Self::ensure_pool(pid)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
 			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
 			let mut pool_info = Self::ensure_pool(pid)?;
