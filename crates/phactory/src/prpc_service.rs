@@ -843,9 +843,32 @@ pub struct RpcService<'a, Platform> {
     phactory: &'a Mutex<Phactory<Platform>>,
 }
 
-impl<Platform> RpcService<'_, Platform> {
+impl<Platform: pal::Platform> RpcService<'_, Platform> {
     fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
         self.phactory.lock().unwrap()
+    }
+
+    fn create_attestation_report_on(&self, data: &[u8]) -> RpcResult<pb::Attestation> {
+        let phactory = self.lock_phactory();
+        let (attn_report, sig, cert) = match phactory.platform.create_attestation_report(&data) {
+            Ok(r) => r,
+            Err(e) => {
+                let message = format!("Failed to create attestation report: {:?}", e);
+                error!("{}", message);
+                return Err(from_display(message));
+            }
+        };
+        Ok(pb::Attestation {
+            version: 1,
+            provider: "SGX".to_string(),
+            payload: Some(pb::AttestationReport {
+                report: attn_report,
+                signature: base64::decode(sig).map_err(from_display)?,
+                signing_cert: base64::decode_config(cert, base64::STANDARD)
+                    .map_err(from_display)?,
+            }),
+            timestamp: now(),
+        })
     }
 }
 
@@ -1119,32 +1142,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         let payload =
             pb::EncryptedWorkerKey::new(genesis_block_hash, dev_mode, Some(encrypted_key));
         let payload_hash = sp_core::hashing::blake2_256(&payload.encode());
-
-        let mut attestation = None;
-        if !dev_mode {
-            let (attn_report, sig, cert) =
-                match phactory.platform.create_attestation_report(&payload_hash) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        let message = format!("Failed to create attestation report: {:?}", e);
-                        error!("{}", message);
-                        return Err(from_display(message));
-                    }
-                };
-            attestation = Some(pb::Attestation {
-                version: 1,
-                provider: "SGX".to_string(),
-                payload: Some(pb::AttestationReport {
-                    report: attn_report,
-                    signature: base64::decode(sig).map_err(from_display)?,
-                    signing_cert: base64::decode_config(cert, base64::STANDARD)
-                        .map_err(from_display)?,
-                }),
-                timestamp: now(),
-            });
-        } else {
+        let attestation = if dev_mode {
             info!("Omit RA report in workerkey response in dev mode");
-        }
+            None
+        } else {
+            Some(self.create_attestation_report_on(&payload_hash)?)
+        };
 
         Ok(pb::GetWorkerKeyResponse {
             payload: Some(payload),
@@ -1171,32 +1174,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         let challenge = request.decode_challenge().map_err(from_display)?;
         let payload = pb::ChallengeClient::new(challenge.clone(), ecdh_public_key);
         let payload_hash = sp_core::hashing::blake2_256(&payload.encode());
-
-        let mut attestation = None;
-        if !challenge.payload.dev_mode {
-            let (attn_report, sig, cert) =
-                match phactory.platform.create_attestation_report(&payload_hash) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        let message = format!("Failed to create attestation report: {:?}", e);
-                        error!("{}", message);
-                        return Err(from_display(message));
-                    }
-                };
-            attestation = Some(pb::Attestation {
-                version: 1,
-                provider: "SGX".to_string(),
-                payload: Some(pb::AttestationReport {
-                    report: attn_report,
-                    signature: base64::decode(sig).map_err(from_display)?,
-                    signing_cert: base64::decode_config(cert, base64::STANDARD)
-                        .map_err(from_display)?,
-                }),
-                timestamp: now(),
-            });
-        } else {
+        let attestation = if challenge.payload.dev_mode {
             info!("Omit RA report in challenge response in dev mode");
-        }
+            None
+        } else {
+            Some(self.create_attestation_report_on(&payload_hash)?)
+        };
 
         Ok(pb::WorkerKeyChallengeResponse {
             payload: Some(payload),
