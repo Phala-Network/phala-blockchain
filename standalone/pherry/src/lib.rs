@@ -1033,7 +1033,6 @@ async fn bridge(
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    let mut worker_key_handover_done = false;
 
     // Try to initialize pRuntime and register on-chain
     let info = pr.get_info(()).await?;
@@ -1328,20 +1327,11 @@ async fn bridge(
             info!("Waiting for new blocks");
 
             // Launch key handover if required only when the old pRuntime is up-to-date
-            if args.next_pruntime_endpoint.is_some() && !worker_key_handover_done {
+            if args.next_pruntime_endpoint.is_some() {
                 let next_pr = pruntime_client::new_pruntime_client(
                     args.next_pruntime_endpoint.clone().unwrap(),
                 );
-                let challenge = pr.get_worker_key_challenge(()).await?;
-                let response = next_pr.handle_worker_key_challenge(challenge).await?;
-                let encrypted_key = pr.get_worker_key(response).await?;
-                worker_key_handover_done = next_pr.receive_worker_key(encrypted_key).await?;
-
-                if worker_key_handover_done {
-                    panic!("Worker key handover done, the new pRuntime is ready to go");
-                } else {
-                    panic!("Worker key handover failed, will retry after next syncing batch");
-                }
+                handover_worker_key(&pr, &next_pr).await?;
             }
 
             sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
@@ -1524,4 +1514,17 @@ async fn sync_with_cached_headers(
         }
     }
     Ok(())
+}
+
+/// This function panics intentionally no matter succeed or fail
+async fn handover_worker_key(server: &PrClient, client: &PrClient) -> Result<()> {
+    let challenge = server.get_worker_key_challenge(()).await?;
+    let response = client.handle_worker_key_challenge(challenge).await?;
+    let encrypted_key = server.get_worker_key(response).await?;
+    let success = client.receive_worker_key(encrypted_key).await?;
+    if success {
+        panic!("Worker key handover done, the new pRuntime is ready to go");
+    } else {
+        panic!("Worker key handover failed, will retry after next syncing batch");
+    }
 }
