@@ -20,9 +20,7 @@ pub mod pallet {
 	use crate::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
 	// Re-export
-	pub use crate::attestation::{
-		extract_mrenclave, Attestation, AttestationValidator, IasValidator,
-	};
+	pub use crate::attestation::{Attestation, AttestationValidator, IasValidator, IasFields};
 
 	use phala_types::{
 		messaging::{

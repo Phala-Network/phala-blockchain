@@ -4,7 +4,7 @@ use std::sync::{Mutex, MutexGuard};
 use crate::system::{chain_state, System};
 
 use super::*;
-use chain::pallet_registry::{extract_mrenclave, Attestation, AttestationValidator, IasValidator};
+use chain::pallet_registry::{Attestation, AttestationValidator, IasFields, IasValidator};
 use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
@@ -1065,8 +1065,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
                 .payload
                 .as_ref()
                 .ok_or_else(|| from_display("My RA report not found"))?;
-            let my_mrenclave = extract_mrenclave(&my_attn_report.report.as_bytes().to_vec())
-                .map_err(|_| from_display("Invalid RA report"))?;
+            let (my_ias_fields, _) =
+                IasFields::from_ias_report(&my_attn_report.report.as_bytes().to_vec())
+                    .map_err(|_| from_display("Invalid RA report"))?;
+            let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp =
                 chain_state::get_pruntime_timestamp(&runtime_state.chain_storage, &my_mrenclave)
@@ -1078,9 +1080,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
                     ra_report,
                     signature: _,
                     raw_signing_cert: _,
-                } => extract_mrenclave(&ra_report),
-            }
-            .map_err(|_| from_display("Invalid received RA report"))?;
+                } => {
+                    let (ias_fields, _) = IasFields::from_ias_report(&ra_report)
+                        .map_err(|_| from_display("Invalid received RA report"))?;
+                    ias_fields.extend_mrenclave()
+                }
+            };
             let req_runtime_timestamp =
                 chain_state::get_pruntime_timestamp(&runtime_state.chain_storage, &mrenclave)
                     .ok_or_else(|| from_display("Invalid req pRuntime"))?;
