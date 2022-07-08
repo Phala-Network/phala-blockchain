@@ -52,7 +52,7 @@ impl<FlowId: FlowIdType> FairQueue<FlowId> {
 
 struct Flow {
     previous_finish_tag: VirtualTime,
-    cost_avg: VirtualTime,
+    average_cost: VirtualTime,
     recent_active_time: Instant,
 }
 
@@ -70,12 +70,12 @@ pub struct ServingGuard<FlowId: FlowIdType> {
 
 impl<FlowId: FlowIdType> Drop for ServingGuard<FlowId> {
     fn drop(&mut self) {
-        let cost = self.start_time.elapsed().as_micros() as VirtualTime;
+        let actual_cost = self.start_time.elapsed().as_micros() as VirtualTime;
         self.queue
             .inner
             .lock()
             .unwrap()
-            .release(&self.flow_id, cost);
+            .release(&self.flow_id, actual_cost);
     }
 }
 
@@ -111,12 +111,12 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
     ) -> Result<Receiver<ServingGuard<FlowId>>, AcquireError> {
         let flow = self.flows.entry(flow_id.clone()).or_insert_with(|| Flow {
             previous_finish_tag: 0,
-            cost_avg: 0,
+            average_cost: 0,
             recent_active_time: Instant::now(),
         });
 
         let start_tag = self.virtual_time.max(flow.previous_finish_tag);
-        let cost = flow.cost_avg / weight as VirtualTime;
+        let cost = flow.average_cost / weight as VirtualTime;
         let finish_tag = start_tag + cost.max(1);
         flow.previous_finish_tag = finish_tag;
 
@@ -153,7 +153,7 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
 
     fn release(&mut self, flow: &FlowId, actual_cost: VirtualTime) {
         if let Some(flow) = self.flows.get_mut(flow) {
-            flow.cost_avg = (flow.cost_avg * 4 + actual_cost) / 5;
+            flow.average_cost = (flow.average_cost * 4 + actual_cost) / 5;
         }
         self.serving -= 1;
         self.try_pickup_next();
