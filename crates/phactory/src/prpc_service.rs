@@ -472,8 +472,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     payload: Some(pb::AttestationReport {
                         report: attn_report,
                         signature: base64::decode(sig).map_err(from_display)?,
-                        signing_cert: base64::decode_config(cert, base64::STANDARD)
-                            .map_err(from_display)?,
+                        signing_cert: base64::decode(cert).map_err(from_display)?,
                     }),
                     timestamp: now(),
                 });
@@ -864,8 +863,7 @@ impl<Platform: pal::Platform> RpcService<'_, Platform> {
             payload: Some(pb::AttestationReport {
                 report: attn_report,
                 signature: base64::decode(sig).map_err(from_display)?,
-                signing_cert: base64::decode_config(cert, base64::STANDARD)
-                    .map_err(from_display)?,
+                signing_cert: base64::decode(cert).map_err(from_display)?,
             }),
             timestamp: now(),
         })
@@ -1038,11 +1036,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         let challenge_client = request
             .payload
             .ok_or_else(|| from_display("Challenge response not found"))?;
-        let payload_hash = sp_core::hashing::blake2_256(&challenge_client.encode());
         let now_ms = system.now_ms;
         let block_number = system.block_number;
         let mut attestation = None;
         if !dev_mode {
+            let payload_hash = sp_core::hashing::blake2_256(&challenge_client.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
@@ -1074,7 +1072,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
             return Err(from_display("Outdated challenge"));
         }
-        // 4. verify runtime timestamp
+        // 4. verify pruntime launch date
         if !dev_mode {
             let runtime_info = phactory
                 .runtime_info
@@ -1094,7 +1092,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp =
-                chain_state::get_pruntime_timestamp(&runtime_state.chain_storage, &my_mrenclave)
+                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &my_mrenclave)
                     .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
 
             let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
@@ -1110,9 +1108,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
                 }
             };
             let req_runtime_timestamp =
-                chain_state::get_pruntime_timestamp(&runtime_state.chain_storage, &mrenclave)
-                    .ok_or_else(|| from_display("Invalid req pRuntime"))?;
-            if my_runtime_timestamp > req_runtime_timestamp {
+                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
+                    .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            if my_runtime_timestamp >= req_runtime_timestamp {
                 return Err(from_display("No handover for old pRuntime"));
             }
         } else {
@@ -1165,11 +1163,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
 
         // generate and save tmp key only for key handover encryption
         let tmp_key = crate::new_sr25519_key();
-        let tmp_ecdh_key = tmp_key
+        let handover_ecdh_key = tmp_key
             .derive_ecdh_key()
             .expect("should never fail with valid key; qed");
-        let ecdh_public_key = phala_types::EcdhPublicKey(tmp_ecdh_key.public());
-        phactory.tmp_ecdh_key = Some(tmp_ecdh_key);
+        let ecdh_public_key = phala_types::EcdhPublicKey(handover_ecdh_key.public());
+        phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
         let payload = pb::ChallengeClient::new(challenge.clone(), ecdh_public_key);
@@ -1222,7 +1220,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
 
         let encrypted_key = encrypted_key.expect("checked; qed");
         let my_ecdh_key = phactory
-            .tmp_ecdh_key
+            .handover_ecdh_key
             .as_ref()
             .ok_or_else(|| from_display("Ecdh key not initialized"))?;
         let secret = key_share::decrypt_secret_from(
@@ -1245,6 +1243,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .map_err(from_display)?;
         // clear cached RA report to prevent replay
         phactory.runtime_info = None;
+        phactory.handover_ecdh_key = None;
 
         Ok(true)
     }

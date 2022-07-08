@@ -248,7 +248,7 @@ pub struct Phactory<Platform> {
 
     // tmp key for WorkerKey handover encryption
     #[serde(skip)]
-    pub(crate) tmp_ecdh_key: Option<EcdhKey>,
+    pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
     #[serde(skip)]
     #[serde(default = "Instant::now")]
@@ -272,7 +272,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             system: None,
             endpoint_cache: None,
             side_task_man: Default::default(),
-            tmp_ecdh_key: None,
+            handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
         }

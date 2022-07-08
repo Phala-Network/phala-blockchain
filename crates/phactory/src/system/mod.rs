@@ -822,22 +822,17 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: MessageOrigin,
         event: GatekeeperLaunch,
     ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
         info!("Incoming gatekeeper launch event: {:?}", event);
         match event {
             GatekeeperLaunch::FirstGatekeeper(event) => {
-                if !origin.is_pallet() {
-                    error!("Invalid origin {:?} sent a {:?}", origin, event);
-                    return;
-                }
-
                 self.process_first_gatekeeper_event(block, origin, event)
             }
             GatekeeperLaunch::MasterPubkeyOnChain(event) => {
-                if !origin.is_pallet() {
-                    error!("Invalid origin {:?} sent a {:?}", origin, event);
-                    return;
-                }
-
                 info!(
                     "Gatekeeper launches on chain in block {}",
                     block.block_number
@@ -847,11 +842,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
             GatekeeperLaunch::RotateMasterKey(event) => {
-                if !origin.is_pallet() {
-                    error!("Invalid origin {:?} sent a {:?}", origin, event);
-                    return;
-                }
-
                 info!(
                     "Master key rotation req round {} in block {}",
                     event.rotation_id, block.block_number
@@ -859,11 +849,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.process_master_key_rotation_request(block, origin, event);
             }
             GatekeeperLaunch::MasterPubkeyRotated(event) => {
-                if !origin.is_pallet() {
-                    error!("Invalid origin {:?} sent a {:?}", origin, event);
-                    return;
-                }
-
                 info!(
                     "Rotated Master Pubkey {} on chain in block {}",
                     hex::encode(event.master_pubkey),
@@ -1743,7 +1728,7 @@ pub mod chain_state {
     }
 
     /// Return `None` if given pruntime hash is not allowed on-chain
-    pub fn get_pruntime_timestamp(
+    pub fn get_pruntime_added_at(
         chain_storage: &Storage,
         runtime_hash: &Vec<u8>,
     ) -> Option<chain::BlockNumber> {
