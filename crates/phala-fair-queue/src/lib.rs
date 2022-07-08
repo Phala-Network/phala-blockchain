@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Instant;
 
 use rbtree::RBTree;
 use thiserror::Error;
 use tokio::sync::oneshot::{channel, Receiver, Sender};
-use tokio::sync::Mutex;
 
 pub type VirtualTime = u128;
 
@@ -41,7 +40,8 @@ impl<FlowId: FlowIdType> FairQueue<FlowId> {
         flow_id: FlowId,
         weight: u32,
     ) -> Result<ServingGuard<FlowId>, AcquireError> {
-        let rx = self.inner.lock().await.acquire(flow_id, weight)?;
+        // Don't merge the following 2 lines of code into one line or you would get a deadlock.
+        let rx = self.inner.lock().unwrap().acquire(flow_id, weight)?;
         rx.await.or(Err(AcquireError::Canceled))
     }
 }
@@ -67,22 +67,11 @@ pub struct ServingGuard<FlowId: FlowIdType> {
 impl<FlowId: FlowIdType> Drop for ServingGuard<FlowId> {
     fn drop(&mut self) {
         let cost = self.start_time.elapsed().as_micros() as VirtualTime;
-        let flow_id = self.flow_id.clone();
-        let queue = self.queue.clone();
-        // According to the doc of `spawn`:
-        // There is no guarantee that a spawned task will execute to completion.
-        // When a runtime is shutdown, all outstanding tasks are dropped,
-        // regardless of the lifecycle of that task.
-        //
-        // The queue slot would leak if the current runtime shutdown unexpectly.
-        // However, we currently only use this queue inside the contect of rocket runtime.
-        // So it could not be a big problem.
-        //
-        // This can be solved by using std::sync::Mutex instead of the tokio::sync::Mutex.
-        // The drawback is
-        tokio::task::spawn(async move {
-            queue.inner.lock().await.release(&flow_id, cost);
-        });
+        self.queue
+            .inner
+            .lock()
+            .unwrap()
+            .release(&self.flow_id, cost);
     }
 }
 
