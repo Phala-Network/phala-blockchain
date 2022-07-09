@@ -907,7 +907,7 @@ class Cluster {
     async _reservePorts() {
         const [wsPort, ...workerPorts] = await Promise.all([
             portfinder.getPortPromise({ port: 9944 }),
-            ...this.workers.map(() => portfinder.getPortPromise({ port: 8001, stopPort: 9900 }))
+            ...this.workers.map((w, i) => portfinder.getPortPromise({ port: 8100 + i * 10 }))
         ]);
         this.wsPort = wsPort;
         this.workers.forEach((w, i) => w.port = workerPorts[i]);
@@ -944,7 +944,7 @@ class Cluster {
         const cluster = this.key_handover_cluster;
 
         const [...workerPorts] = await Promise.all([
-            ...cluster.workers.map(() => portfinder.getPortPromise({ port: 8001, stopPort: 9900 }))
+            ...cluster.workers.map((w, i) => portfinder.getPortPromise({ port: 8200 + i * 10 }))
         ]);
         cluster.workers.forEach((w, i) => w.port = workerPorts[i]);
 
