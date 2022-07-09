@@ -13,11 +13,11 @@ use phaxt::{subxt, RpcClient};
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 
+mod endpoint;
 mod error;
 mod msg_sync;
 mod notify_client;
 mod prefetcher;
-mod endpoint;
 
 pub mod chain_client;
 pub mod headers_cache;
@@ -1103,8 +1103,7 @@ async fn bridge(
         // Try bind worker endpoint
         if !args.no_bind && info.public_key.is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await
-            {
+            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await {
                 Ok(_) => {
                     flags.endpoint_registered = true;
                 }
@@ -1280,13 +1279,8 @@ async fn bridge(
             if !args.no_bind {
                 if !flags.endpoint_registered && info.public_key.is_some() {
                     // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-                    match endpoint::try_update_worker_endpoint(
-                        &pr,
-                        &para_api,
-                        &mut signer,
-                        &args,
-                    )
-                    .await
+                    match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args)
+                        .await
                     {
                         Ok(_) => {
                             flags.endpoint_registered = true;
@@ -1516,15 +1510,11 @@ async fn sync_with_cached_headers(
     Ok(())
 }
 
-/// This function panics intentionally no matter succeed or fail
+/// This function panics intentionally after the worker key handover finishes
 async fn handover_worker_key(server: &PrClient, client: &PrClient) -> Result<()> {
-    let challenge = server.get_worker_key_challenge(()).await?;
-    let response = client.handle_worker_key_challenge(challenge).await?;
-    let encrypted_key = server.get_worker_key(response).await?;
-    let success = client.receive_worker_key(encrypted_key).await?;
-    if success {
-        panic!("Worker key handover done, the new pRuntime is ready to go");
-    } else {
-        panic!("Worker key handover failed, will retry after next syncing batch");
-    }
+    let challenge = server.handover_create_challenge(()).await?;
+    let response = client.handover_accept_challenge(challenge).await?;
+    let encrypted_key = server.handover_start(response).await?;
+    client.handover_receive(encrypted_key).await?;
+    panic!("Worker key handover done, the new pRuntime is ready to go");
 }

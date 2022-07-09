@@ -41,7 +41,7 @@ use phala_types::{
         NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent,
         SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
-    EcdhPublicKey, WorkerKeyChallenge, WorkerKeyChallengePayload, WorkerPublicKey,
+    EcdhPublicKey, HandoverChallenge, HandoverChallengePayload, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -423,7 +423,7 @@ pub struct System<Platform> {
     pub(crate) ecdh_key: EcdhKey,
     pub(crate) trusted_identity_key: bool,
     #[serde(skip)]
-    last_challenge: Option<WorkerKeyChallengePayload<chain::BlockNumber>>,
+    last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
     worker_state: WorkerState,
     // Gatekeeper
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
@@ -533,24 +533,25 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn get_worker_key_challenge(
         &mut self,
         dev_mode: bool,
-    ) -> WorkerKeyChallenge<chain::BlockNumber> {
-        let payload = WorkerKeyChallengePayload {
+    ) -> HandoverChallenge<chain::BlockNumber> {
+        let payload = HandoverChallengePayload {
             block_number: self.block_number,
             now: self.now_ms,
             dev_mode,
             nonce: crate::generate_random_info(),
         };
-        self.last_challenge = Some(payload.clone());
         let signature = self.identity_key.sign_data(&payload.encode());
-        WorkerKeyChallenge { payload, signature }
+        let challenge = HandoverChallenge { payload, signature };
+        self.last_challenge = Some(challenge.clone());
+        challenge
     }
 
     pub fn verify_worker_key_challenge(
         &mut self,
-        challenge: &WorkerKeyChallenge<chain::BlockNumber>,
+        challenge: &HandoverChallenge<chain::BlockNumber>,
     ) -> bool {
         if self.last_challenge.is_none()
-            || self.last_challenge.as_ref().expect("checked; qed;") != &challenge.payload
+            || *self.last_challenge.as_ref().expect("checked; qed;") != *challenge
         {
             info!("Unknown challenge: {:?}", challenge);
             return false;

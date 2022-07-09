@@ -467,7 +467,7 @@ describe('A full stack', function () {
             );
             const dataDir = "data";
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime2/${dataDir}/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime2/${dataDir}/protected_files/master_key.seal`),
                 'master key not received'
             );
         });
@@ -604,7 +604,7 @@ describe('A full stack', function () {
 
             assert.isTrue(await checkUntil(async () => {
                 const dataDir = "data";
-                return fs.existsSync(`${tmpPath}/pruntime_key_client/${dataDir}/runtime-data.seal`);
+                return fs.existsSync(`${tmpPath}/pruntime_key_client/${dataDir}/protected_files/runtime-data.seal`);
             }, 6000), 'key not received');
 
             await cluster.restartKeyHandoverClient();

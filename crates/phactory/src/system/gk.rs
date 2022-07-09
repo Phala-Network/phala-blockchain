@@ -231,7 +231,7 @@ where
         false
     }
 
-    /// Update the master key and Gatekeeper mq
+    /// Update the master key and Gatekeeper mq, return whether the key switch succeeds
     pub fn switch_master_key(
         &mut self,
         rotation_id: u64,

@@ -17,8 +17,8 @@ use phala_crypto::{
 };
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, messaging::EncryptedKey, EndpointType, VersionedWorkerEndpoints,
-    WorkerEndpointPayload, WorkerPublicKey,
+    contract, messaging::EncryptedKey, ChallengeHandler, EncryptedWorkerKey, EndpointType,
+    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -783,15 +783,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         Ok(resp)
     }
-
-    fn get_worker_key_challenge(&mut self) -> RpcResult<pb::WorkerKeyChallenge> {
-        let system = self
-            .system
-            .as_mut()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let challenge = system.get_worker_key_challenge();
-        Ok(pb::WorkerKeyChallenge::new(challenge))
-    }
 }
 
 pub fn dispatch_prpc_request<Platform>(
@@ -1015,32 +1006,32 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
 
     // WorkerKey Handover Server
 
-    fn get_worker_key_challenge(&mut self, _request: ()) -> RpcResult<pb::WorkerKeyChallenge> {
+    fn handover_create_challenge(&mut self, _request: ()) -> RpcResult<pb::HandoverChallenge> {
         let mut phactory = self.lock_phactory();
         let dev_mode = phactory.dev_mode;
         let system = phactory.system()?;
         let challenge = system.get_worker_key_challenge(dev_mode);
-        Ok(pb::WorkerKeyChallenge::new(challenge))
+        Ok(pb::HandoverChallenge::new(challenge))
     }
 
-    fn get_worker_key(
+    fn handover_start(
         &mut self,
-        request: pb::WorkerKeyChallengeResponse,
-    ) -> RpcResult<pb::GetWorkerKeyResponse> {
+        request: pb::HandoverChallengeResponse,
+    ) -> RpcResult<pb::HandoverWorkerKey> {
         let mut phactory = self.lock_phactory();
         let dev_mode = phactory.dev_mode;
         let system = phactory.system()?;
         let my_identity_key = system.identity_key.clone();
 
         // 1. verify RA report
-        let challenge_client = request
-            .payload
-            .ok_or_else(|| from_display("Challenge response not found"))?;
+        let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
         let now_ms = system.now_ms;
         let block_number = system.block_number;
-        let mut attestation = None;
-        if !dev_mode {
-            let payload_hash = sp_core::hashing::blake2_256(&challenge_client.encode());
+        let attestation = if dev_mode {
+            info!("Skip RA report check in dev mode");
+            None
+        } else {
+            let payload_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
@@ -1057,12 +1048,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             // malicious workers.
             IasValidator::validate(&attn_to_validate, &payload_hash, now_ms, false, vec![])
                 .map_err(|_| from_display("Invalid RA report"))?;
-            attestation = Some(attn_to_validate);
-        } else {
-            info!("Skip RA report check in dev mode");
-        }
+            Some(attn_to_validate)
+        };
         // 2. verify challenge validity to prevent replay attack
-        let challenge = challenge_client.decode_challenge().map_err(from_display)?;
+        let challenge = challenge_handler.challenge;
         if !system.verify_worker_key_challenge(&challenge) {
             return Err(from_display("Invalid challenge"));
         }
@@ -1118,9 +1107,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         }
 
         // Share the key with attestation
-        let ecdh_pubkey = challenge_client
-            .decode_ecdh_public_key()
-            .map_err(from_display)?;
+        let ecdh_pubkey = challenge_handler.ecdh_pubkey;
         let iv = crate::generate_random_iv();
         let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
             &my_identity_key,
@@ -1137,64 +1124,68 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         };
         let runtime_state = phactory.runtime_state()?;
         let genesis_block_hash = runtime_state.genesis_block_hash;
-        let payload =
-            pb::EncryptedWorkerKey::new(genesis_block_hash, dev_mode, Some(encrypted_key));
-        let payload_hash = sp_core::hashing::blake2_256(&payload.encode());
+        let encrypted_worker_key = EncryptedWorkerKey {
+            genesis_block_hash,
+            dev_mode,
+            encrypted_key,
+        };
+        let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
         let attestation = if dev_mode {
             info!("Omit RA report in workerkey response in dev mode");
             None
         } else {
-            Some(self.create_attestation_report_on(&payload_hash)?)
+            Some(self.create_attestation_report_on(&worker_key_hash)?)
         };
 
-        Ok(pb::GetWorkerKeyResponse {
-            payload: Some(payload),
+        Ok(pb::HandoverWorkerKey::new(
+            encrypted_worker_key,
             attestation,
-        })
+        ))
     }
 
     // WorkerKey Handover Client
 
-    fn handle_worker_key_challenge(
+    fn handover_accept_challenge(
         &mut self,
-        request: pb::WorkerKeyChallenge,
-    ) -> RpcResult<pb::WorkerKeyChallengeResponse> {
+        request: pb::HandoverChallenge,
+    ) -> RpcResult<pb::HandoverChallengeResponse> {
         let mut phactory = self.lock_phactory();
 
         // generate and save tmp key only for key handover encryption
-        let tmp_key = crate::new_sr25519_key();
-        let handover_ecdh_key = tmp_key
+        let handover_key = crate::new_sr25519_key();
+        let handover_ecdh_key = handover_key
             .derive_ecdh_key()
-            .expect("should never fail with valid key; qed");
-        let ecdh_public_key = phala_types::EcdhPublicKey(handover_ecdh_key.public());
+            .expect("should never fail with valid key; qed.");
+        let ecdh_pubkey = phala_types::EcdhPublicKey(handover_ecdh_key.public());
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
-        let payload = pb::ChallengeClient::new(challenge.clone(), ecdh_public_key);
-        let payload_hash = sp_core::hashing::blake2_256(&payload.encode());
+        let challenge_handler = ChallengeHandler {
+            challenge: challenge.clone(),
+            ecdh_pubkey,
+        };
+        let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
         let attestation = if challenge.payload.dev_mode {
             info!("Omit RA report in challenge response in dev mode");
             None
         } else {
-            Some(self.create_attestation_report_on(&payload_hash)?)
+            Some(self.create_attestation_report_on(&handler_hash)?)
         };
 
-        Ok(pb::WorkerKeyChallengeResponse {
-            payload: Some(payload),
+        Ok(pb::HandoverChallengeResponse::new(
+            challenge_handler,
             attestation,
-        })
+        ))
     }
 
-    fn receive_worker_key(&mut self, request: pb::GetWorkerKeyResponse) -> RpcResult<bool> {
+    fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
         let mut phactory = self.lock_phactory();
-        let payload = request
-            .payload
-            .ok_or_else(|| from_display("Encrypted WorkerKey not found"))?;
-        let dev_mode = payload.dev_mode;
+        let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
 
+        let dev_mode = encrypted_worker_key.dev_mode;
         // verify RA report
         if !dev_mode {
-            let payload_hash = sp_core::hashing::blake2_256(&payload.encode());
+            let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
@@ -1206,19 +1197,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
                 signature: payload.signature,
                 raw_signing_cert: payload.signing_cert,
             };
-            IasValidator::validate(&attn_to_validate, &payload_hash, now(), false, vec![])
+            IasValidator::validate(&attn_to_validate, &worker_key_hash, now(), false, vec![])
                 .map_err(|_| from_display("Invalid RA report"))?;
         } else {
             info!("Skip RA report check in dev mode");
         }
 
-        let encrypted_key = payload.decode_encrypted_key().map_err(from_display)?;
-        if encrypted_key.is_none() {
-            info!("Receive empty key handover");
-            return Ok(false);
-        }
-
-        let encrypted_key = encrypted_key.expect("checked; qed");
+        let encrypted_key = encrypted_worker_key.encrypted_key;
         let my_ecdh_key = phactory
             .handover_ecdh_key
             .as_ref()
@@ -1232,19 +1217,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         .map_err(from_debug)?;
 
         // only seal if the key is successfully updated
-        let genesis_block_hash = payload.decode_genesis_block_hash().map_err(from_display)?;
         phactory
             .save_runtime_data(
-                genesis_block_hash,
+                encrypted_worker_key.genesis_block_hash,
                 sr25519::Pair::restore_from_secret_key(&secret),
                 false, // we are not sure whether this key is injected
                 dev_mode,
             )
             .map_err(from_display)?;
-        // clear cached RA report to prevent replay
+
+        // clear cached RA report and handover ecdh key to prevent replay
         phactory.runtime_info = None;
         phactory.handover_ecdh_key = None;
-
-        Ok(true)
+        Ok(())
     }
 }

@@ -756,7 +756,7 @@ pub struct WorkerIdentity {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct WorkerKeyChallengePayload<BlockNumber> {
+pub struct HandoverChallengePayload<BlockNumber> {
     // The challenge is only considered valid within 150 blocks (~30 min)
     pub block_number: BlockNumber,
     pub now: u64,
@@ -766,10 +766,23 @@ pub struct WorkerKeyChallengePayload<BlockNumber> {
 
 /// One-time Challenge for WorkerKey handover
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct WorkerKeyChallenge<BlockNumber> {
-    pub payload: WorkerKeyChallengePayload<BlockNumber>,
+pub struct HandoverChallenge<BlockNumber> {
+    pub payload: HandoverChallengePayload<BlockNumber>,
     // Signature on encoded challenge payload
     pub signature: Sr25519Signature,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct ChallengeHandler<BlockNumber> {
+    pub challenge: HandoverChallenge<BlockNumber>,
+    pub ecdh_pubkey: EcdhPublicKey,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct EncryptedWorkerKey {
+    pub genesis_block_hash: H256,
+    pub dev_mode: bool,
+    pub encrypted_key: messaging::EncryptedKey,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
