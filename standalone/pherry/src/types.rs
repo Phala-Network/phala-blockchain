@@ -10,7 +10,7 @@ pub use phaxt::{self, *};
 pub use subxt::rpc::NumberOrHex;
 
 pub type PrClient = pruntime_client::PRuntimeClient;
-pub type SrSigner = subxt::PairSigner<phaxt::Config, sr25519::Pair>;
+pub type SrSigner = subxt::PairSigner<Config, sr25519::Pair>;
 
 pub type SignedBlock<Hdr, Ext> = SpSignedBlock<sp_runtime::generic::Block<Hdr, Ext>>;
 
