@@ -550,16 +550,15 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         challenge: &HandoverChallenge<chain::BlockNumber>,
     ) -> bool {
-        if self.last_challenge.is_none()
-            || *self.last_challenge.as_ref().expect("checked; qed;") != *challenge
-        {
+        let challenge_match = if self.last_challenge.as_ref() != Some(challenge) {
             info!("Unknown challenge: {:?}", challenge);
-            return false;
-        }
+            false
+        } else {
+            true
+        };
         // Clear used one-time challenge
         self.last_challenge = None;
-        self.identity_key
-            .verify_data(&challenge.signature, &challenge.payload.encode())
+        challenge_match
     }
 
     pub fn make_query(
@@ -797,7 +796,7 @@ impl<Platform: pal::Platform> System<Platform> {
             "Duplicated gatekeeper initialization"
         );
         assert!(
-            master_key_history.len() > 0,
+            !master_key_history.is_empty(),
             "Init gatekeeper with no master key"
         );
 
@@ -889,7 +888,7 @@ impl<Platform: pal::Platform> System<Platform> {
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.pubkey {
             // if the first gatekeeper reboots, it will possess the master key, and should not re-generate it
-            if master_key_history.len() == 0 {
+            if master_key_history.is_empty() {
                 info!("Gatekeeper: generate master key as the first gatekeeper");
                 // generate master key as the first gatekeeper, no need to restart
                 let master_key = crate::new_sr25519_key();
@@ -923,7 +922,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
         // other gatekeepers will has keys after key sharing and reboot
         // init the gatekeeper if there is any master key to start slient syncing
-        if master_key_history.len() > 0 {
+        if !master_key_history.is_empty() {
             info!("Init gatekeeper in block {}", block.block_number);
             self.init_gatekeeper(block, master_key_history);
         }
