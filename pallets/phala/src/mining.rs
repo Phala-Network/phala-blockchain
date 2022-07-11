@@ -288,7 +288,11 @@ pub mod pallet {
 		/// - [`NextSessionId`] for the miner is incremented
 		/// - [`Stakes`] for the miner is updated
 		/// - [`OnlineMiners`] is incremented
-		MinerStarted { miner: T::AccountId },
+		MinerStarted { 
+			miner: T::AccountId,
+			init_v: u128,
+			init_p: u32,
+		},
 		/// Miner stops mining.
 		///
 		/// Affected states:
@@ -363,6 +367,11 @@ pub mod pallet {
 			v: u128,
 			payout: u128,
 		},
+		/// Benchmark Updated
+		BenchmarkUpdated {
+			miner: T::AccountId,
+			p_instant: u32,
+		}
 	}
 
 	#[pallet::error]
@@ -586,6 +595,10 @@ pub mod pallet {
 							.benchmark
 							.update(now, iterations, challenge_time_sec)
 							.expect("Benchmark report must be valid; qed.");
+						Self::deposit_event(Event::<T>::BenchmarkUpdated { 
+							miner: miner.clone(),
+							p_instant: miner_info.benchmark.p_instant,
+						});
 						Miners::<T>::insert(&miner, miner_info);
 					}
 				};
@@ -886,7 +899,11 @@ pub mod pallet {
 					init_p: p,
 				},
 			));
-			Self::deposit_event(Event::<T>::MinerStarted { miner });
+			Self::deposit_event(Event::<T>::MinerStarted { 
+				miner,
+				init_v: ve.to_bits(),
+				init_p: p,
+			 });
 			Ok(())
 		}
 
