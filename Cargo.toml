@@ -29,6 +29,7 @@ exclude = [
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
 	"standalone/prouter",
+	"standalone/replay",
 ]
 
 members = [
@@ -37,7 +38,7 @@ members = [
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
-	"standalone/replay",
+	# "standalone/replay",
 	"standalone/headers-cache",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
@@ -72,3 +73,6 @@ members = [
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
+
+[patch.crates-io]
+rocksdb = { version = "0.18", git = "https://github.com/rust-rocksdb/rust-rocksdb" } # Avoid zstd-sys conflicts

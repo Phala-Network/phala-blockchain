@@ -100,6 +100,7 @@ parameter_types! {
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const RelaxedMaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const TransactionByteFee: u64 = 0;
+    pub const MaxStorageKeyLen: u32 = 128;
 
     pub DefaultSchedule: Schedule<PinkRuntime> = Default::default();
 }
@@ -130,6 +131,7 @@ impl Config for PinkRuntime {
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
     type RelaxedMaxCodeLen = RelaxedMaxCodeLen;
+    type MaxStorageKeyLen = MaxStorageKeyLen;
 }
 
 #[derive(Clone, Copy)]
