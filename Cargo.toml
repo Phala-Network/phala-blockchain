@@ -29,7 +29,6 @@ exclude = [
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
 	"standalone/prouter",
-	"standalone/replay",
 ]
 
 members = [
@@ -38,7 +37,7 @@ members = [
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
-	# "standalone/replay",
+	"standalone/replay",
 	"standalone/headers-cache",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
