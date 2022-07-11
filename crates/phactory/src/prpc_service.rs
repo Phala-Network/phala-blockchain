@@ -18,9 +18,8 @@ use phala_crypto::{
 };
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
-    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
-    contract, EndpointType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
+    messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
+    contract, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -479,7 +478,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
-    ) -> RpcResult<impl FnOnce() -> RpcResult<pb::ContractQueryResponse>> {
+    ) -> RpcResult<impl Future<Output = impl FnOnce() -> RpcResult<pb::ContractQueryResponse>>>
+    {
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
@@ -529,24 +529,35 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Dispatch
         let call = self.system()?.make_query(&head.id)?;
 
-        Ok(move || {
-            // Encode response
-            let response = contract::ContractQueryResponse {
-                nonce: head.nonce,
-                result: contract::Data(call(accid_origin.as_ref(), &data[data.len() - rest..])?),
-            };
-            let response_data = response.encode();
+        let dispatch_queue = self.query_dispatch_queue.clone();
 
-            // Encrypt
-            let encrypted_resp = crypto::EncryptedData::encrypt(
-                &ecdh_key,
-                &encrypted_req.pubkey,
-                crate::generate_random_iv(),
-                &response_data,
-            )
-            .map_err(from_debug)?;
+        Ok(async move {
+            let guard = dispatch_queue.acquire(head.id, 1).await;
 
-            Ok(pb::ContractQueryResponse::new(encrypted_resp))
+            move || {
+                let _guard = guard.map_err(|e| from_display(format!("{:?}", e)))?;
+
+                // Encode response
+                let response = contract::ContractQueryResponse {
+                    nonce: head.nonce,
+                    result: contract::Data(call(
+                        accid_origin.as_ref(),
+                        &data[data.len() - rest..],
+                    )?),
+                };
+                let response_data = response.encode();
+
+                // Encrypt
+                let encrypted_resp = crypto::EncryptedData::encrypt(
+                    &ecdh_key,
+                    &encrypted_req.pubkey,
+                    crate::generate_random_iv(),
+                    &response_data,
+                )
+                .map_err(from_debug)?;
+
+                Ok(pb::ContractQueryResponse::new(encrypted_resp))
+            }
         })
     }
 
@@ -786,12 +797,6 @@ impl<Platform: pal::Platform> RpcService<Platform> {
     }
 }
 
-impl<Platform> RpcService<Platform> {
-    pub fn lock_phactory(&self) -> MutexGuard<Phactory<Platform>> {
-        self.phactory.lock().unwrap()
-    }
-}
-
 impl<Platform> RpcService<Platform>
 where
     Platform: pal::Platform + Serialize + DeserializeOwned,
@@ -834,17 +839,10 @@ where
             };
             (code, data)
         }
-    };
-
-    (code, data)
+    }
 }
 
-pub struct RpcService<'a, Platform> {
-    output_buf_len: usize,
-    phactory: &'a Mutex<Phactory<Platform>>,
-}
-
-impl<Platform: pal::Platform> RpcService<'_, Platform> {
+impl<Platform: pal::Platform> RpcService<Platform> {
     fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
         self.phactory.lock().unwrap()
     }
@@ -948,7 +946,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        let do_query = self.lock_phactory().contract_query(request)?;
+        let make_query_fut = self.lock_phactory().contract_query(request)?;
+        let do_query = make_query_fut.await;
         do_query()
     }
 

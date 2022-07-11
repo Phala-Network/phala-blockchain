@@ -45,12 +45,13 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, ContractId};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::{EndpointType, WorkerEndpointPayload, WorkerRegistrationInfo};
 use std::time::Instant;
 use types::Error;
+use phala_fair_queue::FairQueue;
 
 pub use chain::BlockNumber;
 pub use contracts::pink;
@@ -256,6 +257,16 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default)]
     last_storage_purge_at: chain::BlockNumber,
+    #[serde(skip)]
+    #[serde(default = "default_fair_queue")]
+    query_dispatch_queue: FairQueue<ContractId>,
+}
+
+fn default_fair_queue() -> FairQueue<ContractId> {
+    const FAIR_QUEUE_BACKLOG: usize = 32;
+    const FAIR_QUEUE_THREADS: u32 = 8;
+
+    FairQueue::new(FAIR_QUEUE_BACKLOG, FAIR_QUEUE_THREADS)
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -275,6 +286,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
+            query_dispatch_queue: default_fair_queue(),
         }
     }
 
