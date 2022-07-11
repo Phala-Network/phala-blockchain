@@ -20,10 +20,10 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
+use std::collections::HashMap;
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
-use std::collections::HashMap;
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -48,13 +48,13 @@ use phala_crypto::{
 use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
-use phala_types::{WorkerRegistrationInfo, EndpointType, WorkerEndpointPayload};
+use phala_types::{EndpointType, WorkerEndpointPayload, WorkerRegistrationInfo};
 use std::time::Instant;
 use types::Error;
 
 pub use chain::BlockNumber;
 pub use contracts::pink;
-pub use prpc_service::dispatch_prpc_request;
+pub use prpc_service::RpcService;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;

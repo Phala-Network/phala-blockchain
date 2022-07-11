@@ -26,7 +26,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
 
 # for pruntime_client
-async-trait = { version = "0.1.51", optional = true }
+async-trait = "0.1"
 anyhow = { version = "1.0.43", optional = true }
 log = { version = "0.4.14" }
 reqwest = { version = "0.11.4", optional = true }
@@ -56,7 +56,6 @@ std = [
 
 sgx = []
 pruntime-client = [
-    "async-trait",
     "anyhow",
     "reqwest",
 ]
