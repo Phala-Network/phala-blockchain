@@ -773,7 +773,7 @@ pub struct HandoverChallenge<BlockNumber> {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct ChallengeHandler<BlockNumber> {
+pub struct ChallengeHandlerInfo<BlockNumber> {
     pub challenge: HandoverChallenge<BlockNumber>,
     pub ecdh_pubkey: EcdhPublicKey,
 }

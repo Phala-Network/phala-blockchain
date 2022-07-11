@@ -17,7 +17,7 @@ use phala_crypto::{
 };
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, messaging::EncryptedKey, ChallengeHandler, EncryptedWorkerKey, EndpointType,
+    contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
 
@@ -1160,7 +1160,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
-        let challenge_handler = ChallengeHandler {
+        let challenge_handler = ChallengeHandlerInfo {
             challenge: challenge.clone(),
             ecdh_pubkey,
         };

@@ -20,7 +20,7 @@ pub mod pallet {
 	use crate::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
 	// Re-export
-	pub use crate::attestation::{Attestation, AttestationValidator, IasValidator, IasFields};
+	pub use crate::attestation::{Attestation, AttestationValidator, IasFields, IasValidator};
 
 	use phala_types::{
 		messaging::{
@@ -220,7 +220,7 @@ pub mod pallet {
 		// Additional
 		UnknownCluster,
 		NotImplemented,
-		LastGatekeeper,
+		CannotRemoveLastGatekeeper,
 		MasterKeyInRotation,
 		InvalidRotatedMasterPubkey,
 		// PRouter related
@@ -353,7 +353,10 @@ pub mod pallet {
 				gatekeepers.contains(&gatekeeper),
 				Error::<T>::InvalidGatekeeper
 			);
-			ensure!(gatekeepers.len() > 1, Error::<T>::LastGatekeeper);
+			ensure!(
+				gatekeepers.len() > 1,
+				Error::<T>::CannotRemoveLastGatekeeper
+			);
 
 			gatekeepers.retain(|g| *g != gatekeeper);
 			Gatekeeper::<T>::put(gatekeepers);
