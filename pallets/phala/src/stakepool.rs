@@ -208,7 +208,11 @@ pub mod pallet {
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
 		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
 		///   [`MinerBindings`](mining::pallet::MinerBindings))
-		PoolWorkerAdded { pid: u64, worker: WorkerPublicKey },
+		PoolWorkerAdded { 
+			pid: u64, 
+			worker: WorkerPublicKey,
+			miner: T::AccountId,
+		},
 		/// Someone contributed to a pool
 		///
 		/// Affected states:
@@ -335,6 +339,12 @@ pub mod pallet {
 			to_owner: BalanceOf<T>,
 			to_stakers: BalanceOf<T>,
 		},
+		/// The amount of stakes for a worker to start mine
+		MiningStarted {
+			pid: u64,
+			worker: WorkerPublicKey,
+			amount: BalanceOf<T>,
+		}
 	}
 
 	#[pallet::error]
@@ -505,7 +515,7 @@ pub mod pallet {
 			// the lifecycle of the preimage should be the same with the miner record,
 			// current implementation we don't delete miner records even its no longer in-use,
 			// so we won't delete preimages for now.
-			SubAccountPreimages::<T>::insert(miner, (pid, pubkey));
+			SubAccountPreimages::<T>::insert(miner.clone(), (pid, pubkey));
 
 			// update worker vector
 			workers.push(pubkey);
@@ -514,6 +524,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PoolWorkerAdded {
 				pid,
 				worker: pubkey,
+				miner,
 			});
 
 			Ok(())
@@ -1086,10 +1097,15 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
+			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake.clone())?;
 			pool_info.free_stake -= stake;
 			StakePools::<T>::insert(&pid, &pool_info);
-
+			Self::deposit_event(Event::<T>::MiningStarted {
+				pid,
+				worker: worker,
+				amount: stake,
+			});
+			
 			Ok(())
 		}
 		fn do_stop_mining(
