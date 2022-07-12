@@ -10,6 +10,7 @@ mod http_client {
     use super::pink;
     use pink::{PinkEnvironment, http_post, http_get};
     use alloc::vec::Vec;
+    use alloc::string::String;
 
     #[ink(storage)]
     pub struct HttpClient {}
@@ -29,6 +30,12 @@ mod http_client {
         #[ink(message)]
         pub fn post_data(&self) -> (u16, Vec<u8>) {
             let resposne = http_post!("https://example.com", b"payload".to_vec());
+            (resposne.status_code, resposne.body)
+        }
+
+        #[ink(message)]
+        pub fn proxy(&self, url: String) -> (u16, Vec<u8>) {
+            let resposne = http_get!(&url);
             (resposne.status_code, resposne.body)
         }
     }
