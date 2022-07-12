@@ -13,7 +13,7 @@ async fn update_worker_endpoint(
     signature: Vec<u8>,
     signer: &mut SrSigner,
     args: &Args,
-) -> Result<()> {
+) -> Result<bool> {
     chain_client::update_signer_nonce(para_api, signer).await?;
     let signed_endpoint = Decode::decode(&mut &encoded_endpoint_payload[..])
         .map_err(|_| anyhow!("Decode signed endpoint failed"))?;
@@ -29,7 +29,7 @@ async fn update_worker_endpoint(
         return Err(anyhow!("failed to call update_worker_endpoint"));
     }
     signer.increment_nonce();
-    Ok(())
+    Ok(true)
 }
 
 pub async fn try_update_worker_endpoint(
@@ -37,11 +37,11 @@ pub async fn try_update_worker_endpoint(
     para_api: &ParachainApi,
     signer: &mut SrSigner,
     args: &Args,
-) -> Result<()> {
+) -> Result<bool> {
     let info = pr.get_endpoint_info(()).await?;
     if info.encoded_endpoint_payload.is_none() {
         // Early return if no endpoint payload is available
-        return Ok(());
+        return Ok(false);
     }
     let encoded_endpoint_payload = info
         .encoded_endpoint_payload

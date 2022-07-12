@@ -1282,8 +1282,8 @@ async fn bridge(
                     match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args)
                         .await
                     {
-                        Ok(_) => {
-                            flags.endpoint_registered = true;
+                        Ok(registered) => {
+                            flags.endpoint_registered = registered;
                         }
                         Err(e) => {
                             error!("FailedToCallBindWorkerEndpoint: {:?}", e);
