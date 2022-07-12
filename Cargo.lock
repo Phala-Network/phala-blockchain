@@ -6761,62 +6761,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-rmrk-core"
-version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.26#7d69ae1b0584e10d0263a6ac58cffd4f18ee940c"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "pallet-uniques",
- "parity-scale-codec",
- "rmrk-traits",
- "scale-info",
- "serde",
- "sp-runtime",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
-]
-
-[[package]]
-name = "pallet-rmrk-equip"
-version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.26#7d69ae1b0584e10d0263a6ac58cffd4f18ee940c"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "pallet-rmrk-core",
- "pallet-uniques",
- "parity-scale-codec",
- "rmrk-traits",
- "scale-info",
- "serde",
- "sp-runtime",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
-]
-
-[[package]]
-name = "pallet-rmrk-market"
-version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.26#7d69ae1b0584e10d0263a6ac58cffd4f18ee940c"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "pallet-rmrk-core",
- "pallet-uniques",
- "parity-scale-codec",
- "rmrk-traits",
- "scale-info",
- "serde",
- "sp-runtime",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
-]
-
-[[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#ee3eb8f2448cc1bb978c5d1564febd351c128bb0"
@@ -7023,21 +6967,6 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
-]
-
-[[package]]
-name = "pallet-uniques"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26#ee3eb8f2448cc1bb978c5d1564febd351c128bb0"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
  "sp-runtime",
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
 ]
@@ -7740,15 +7669,11 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-randomness-collective-flip",
- "pallet-rmrk-core",
- "pallet-rmrk-equip",
- "pallet-rmrk-market",
  "pallet-timestamp",
  "parity-scale-codec",
  "phala-types",
  "primitive-types",
  "rand 0.7.3",
- "rmrk-traits",
  "scale-info",
  "serde_json",
  "sp-application-crypto",
@@ -9212,22 +9137,6 @@ dependencies = [
  "byteorder",
  "rmp",
  "serde",
-]
-
-[[package]]
-name = "rmrk-traits"
-version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.26#7d69ae1b0584e10d0263a6ac58cffd4f18ee940c"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-runtime",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
 ]
 
 [[package]]
