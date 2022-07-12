@@ -17,7 +17,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
@@ -41,7 +41,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
@@ -67,7 +67,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
@@ -92,7 +92,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
       - uses: actions/checkout@v2
@@ -139,7 +139,7 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
           components: rustfmt

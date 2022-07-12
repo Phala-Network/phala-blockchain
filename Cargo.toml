@@ -72,3 +72,6 @@ members = [
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
+
+[patch.crates-io]
+rocksdb = { version = "0.18", git = "https://github.com/rust-rocksdb/rust-rocksdb" } # Avoid zstd-sys conflicts

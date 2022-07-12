@@ -21,20 +21,20 @@ rand = "0.8.4"
 clap = { version = "3", features = ["derive"] }
 
 async-trait = "0.1.49"
-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "frame-system" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "sp-rpc" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "sc-rpc-api" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "sp-runtime" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", package = "frame-system" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", package = "sp-rpc" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", package = "sc-rpc-api" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", package = "sp-runtime" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
 codec = { package = 'parity-scale-codec', version = "3.0" }
 scale-info = { version = '2.0' }
 
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+sp-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }

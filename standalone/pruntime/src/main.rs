@@ -160,20 +160,22 @@ async fn main() -> Result<(), rocket::Error> {
     if args.public_port.is_some() {
         let args_clone = args.clone();
         let server_acl = rocket::tokio::spawn(async move {
-            api_server::rocket_acl(&args_clone)
+            let _rocket = api_server::rocket_acl(&args_clone)
                 .expect("should not failed as port is provided")
                 .launch()
                 .await
                 .expect("Failed to launch API server");
+            ()
         });
         servers.push(server_acl);
     }
 
     let server_internal = rocket::tokio::spawn(async move {
-        api_server::rocket(&args)
+        let _rocket = api_server::rocket(&args)
             .launch()
             .await
             .expect("Failed to launch API server");
+        ()
     });
     servers.push(server_internal);
 
