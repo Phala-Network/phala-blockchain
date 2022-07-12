@@ -4335,6 +4335,7 @@ dependencies = [
  "async-executor",
  "async-io",
  "async-std",
+ "async-trait",
  "base64 0.13.0",
  "bit-vec",
  "bitcoin",
@@ -4364,6 +4365,7 @@ dependencies = [
  "phactory-pal",
  "phala-async-executor",
  "phala-crypto",
+ "phala-fair-queue",
  "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
@@ -4401,6 +4403,7 @@ dependencies = [
 name = "phactory-api"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "base64 0.13.0",
  "derive_more",
  "frame-system",
@@ -4457,6 +4460,15 @@ dependencies = [
  "sp-application-crypto",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
  "typenum",
+]
+
+[[package]]
+name = "phala-fair-queue"
+version = "0.1.0"
+dependencies = [
+ "rbtree",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -5311,6 +5323,12 @@ dependencies = [
  "crossbeam-utils",
  "num_cpus",
 ]
+
+[[package]]
+name = "rbtree"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c30302bfb88dd71dce9b3577ab7f607a246ecee387717e937d49466a6d4d4760"
 
 [[package]]
 name = "rdrand"
