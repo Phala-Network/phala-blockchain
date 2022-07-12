@@ -262,13 +262,13 @@ $root.pruntime_rpc = (function() {
          * @function getRuntimeInfo
          * @memberof pruntime_rpc.PhactoryAPI
          * @instance
-         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} request GetRuntimeInfoRequest message or plain object
          * @param {pruntime_rpc.PhactoryAPI.GetRuntimeInfoCallback} callback Node-style callback called with the error, if any, and InitRuntimeResponse
          * @returns {undefined}
          * @variation 1
          */
         Object.defineProperty(PhactoryAPI.prototype.getRuntimeInfo = function getRuntimeInfo(request, callback) {
-            return this.rpcCall(getRuntimeInfo, $root.google.protobuf.Empty, $root.pruntime_rpc.InitRuntimeResponse, request, callback);
+            return this.rpcCall(getRuntimeInfo, $root.pruntime_rpc.GetRuntimeInfoRequest, $root.pruntime_rpc.InitRuntimeResponse, request, callback);
         }, "name", { value: "GetRuntimeInfo" });
 
         /**
@@ -276,7 +276,7 @@ $root.pruntime_rpc = (function() {
          * @function getRuntimeInfo
          * @memberof pruntime_rpc.PhactoryAPI
          * @instance
-         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} request GetRuntimeInfoRequest message or plain object
          * @returns {Promise<pruntime_rpc.InitRuntimeResponse>} Promise
          * @variation 2
          */
@@ -380,6 +380,171 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#echo}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef EchoCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.EchoMessage} [response] EchoMessage
+         */
+
+        /**
+         * Calls Echo.
+         * @function echo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IEchoMessage} request EchoMessage message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.EchoCallback} callback Node-style callback called with the error, if any, and EchoMessage
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.echo = function echo(request, callback) {
+            return this.rpcCall(echo, $root.pruntime_rpc.EchoMessage, $root.pruntime_rpc.EchoMessage, request, callback);
+        }, "name", { value: "Echo" });
+
+        /**
+         * Calls Echo.
+         * @function echo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IEchoMessage} request EchoMessage message or plain object
+         * @returns {Promise<pruntime_rpc.EchoMessage>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getWorkerKeyChallenge}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetWorkerKeyChallengeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.WorkerKeyChallenge} [response] WorkerKeyChallenge
+         */
+
+        /**
+         * Calls GetWorkerKeyChallenge.
+         * @function getWorkerKeyChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetWorkerKeyChallengeCallback} callback Node-style callback called with the error, if any, and WorkerKeyChallenge
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getWorkerKeyChallenge = function getWorkerKeyChallenge(request, callback) {
+            return this.rpcCall(getWorkerKeyChallenge, $root.google.protobuf.Empty, $root.pruntime_rpc.WorkerKeyChallenge, request, callback);
+        }, "name", { value: "GetWorkerKeyChallenge" });
+
+        /**
+         * Calls GetWorkerKeyChallenge.
+         * @function getWorkerKeyChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.WorkerKeyChallenge>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getWorkerKey}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetWorkerKeyCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetWorkerKeyResponse} [response] GetWorkerKeyResponse
+         */
+
+        /**
+         * Calls GetWorkerKey.
+         * @function getWorkerKey
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IWorkerKeyChallengeResponse} request WorkerKeyChallengeResponse message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetWorkerKeyCallback} callback Node-style callback called with the error, if any, and GetWorkerKeyResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getWorkerKey = function getWorkerKey(request, callback) {
+            return this.rpcCall(getWorkerKey, $root.pruntime_rpc.WorkerKeyChallengeResponse, $root.pruntime_rpc.GetWorkerKeyResponse, request, callback);
+        }, "name", { value: "GetWorkerKey" });
+
+        /**
+         * Calls GetWorkerKey.
+         * @function getWorkerKey
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IWorkerKeyChallengeResponse} request WorkerKeyChallengeResponse message or plain object
+         * @returns {Promise<pruntime_rpc.GetWorkerKeyResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#handleWorkerKeyChallenge}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef HandleWorkerKeyChallengeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.WorkerKeyChallengeResponse} [response] WorkerKeyChallengeResponse
+         */
+
+        /**
+         * Calls HandleWorkerKeyChallenge.
+         * @function handleWorkerKeyChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IWorkerKeyChallenge} request WorkerKeyChallenge message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.HandleWorkerKeyChallengeCallback} callback Node-style callback called with the error, if any, and WorkerKeyChallengeResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.handleWorkerKeyChallenge = function handleWorkerKeyChallenge(request, callback) {
+            return this.rpcCall(handleWorkerKeyChallenge, $root.pruntime_rpc.WorkerKeyChallenge, $root.pruntime_rpc.WorkerKeyChallengeResponse, request, callback);
+        }, "name", { value: "HandleWorkerKeyChallenge" });
+
+        /**
+         * Calls HandleWorkerKeyChallenge.
+         * @function handleWorkerKeyChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IWorkerKeyChallenge} request WorkerKeyChallenge message or plain object
+         * @returns {Promise<pruntime_rpc.WorkerKeyChallengeResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#receiveWorkerKey}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef ReceiveWorkerKeyCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.BoolValue} [response] BoolValue
+         */
+
+        /**
+         * Calls ReceiveWorkerKey.
+         * @function receiveWorkerKey
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IGetWorkerKeyResponse} request GetWorkerKeyResponse message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.ReceiveWorkerKeyCallback} callback Node-style callback called with the error, if any, and BoolValue
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.receiveWorkerKey = function receiveWorkerKey(request, callback) {
+            return this.rpcCall(receiveWorkerKey, $root.pruntime_rpc.GetWorkerKeyResponse, $root.google.protobuf.BoolValue, request, callback);
+        }, "name", { value: "ReceiveWorkerKey" });
+
+        /**
+         * Calls ReceiveWorkerKey.
+         * @function receiveWorkerKey
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IGetWorkerKeyResponse} request GetWorkerKeyResponse message or plain object
+         * @returns {Promise<google.protobuf.BoolValue>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -402,6 +567,13 @@ $root.pruntime_rpc = (function() {
          * @property {number|Long|null} [pendingMessages] PhactoryInfo pendingMessages
          * @property {number|Long|null} [score] PhactoryInfo score
          * @property {pruntime_rpc.IGatekeeperStatus|null} [gatekeeper] PhactoryInfo gatekeeper
+         * @property {string|null} [version] PhactoryInfo version
+         * @property {string|null} [gitRevision] PhactoryInfo gitRevision
+         * @property {number|Long|null} [runningSideTasks] PhactoryInfo runningSideTasks
+         * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
+         * @property {number|Long|null} [numberOfClusters] PhactoryInfo numberOfClusters
+         * @property {number|Long|null} [numberOfContracts] PhactoryInfo numberOfContracts
+         * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
          */
 
         /**
@@ -523,6 +695,62 @@ $root.pruntime_rpc = (function() {
          */
         PhactoryInfo.prototype.gatekeeper = null;
 
+        /**
+         * PhactoryInfo version.
+         * @member {string} version
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.version = "";
+
+        /**
+         * PhactoryInfo gitRevision.
+         * @member {string} gitRevision
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.gitRevision = "";
+
+        /**
+         * PhactoryInfo runningSideTasks.
+         * @member {number|Long} runningSideTasks
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.runningSideTasks = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * PhactoryInfo memoryUsage.
+         * @member {pruntime_rpc.IMemoryUsage|null|undefined} memoryUsage
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.memoryUsage = null;
+
+        /**
+         * PhactoryInfo numberOfClusters.
+         * @member {number|Long} numberOfClusters
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.numberOfClusters = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * PhactoryInfo numberOfContracts.
+         * @member {number|Long} numberOfContracts
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * PhactoryInfo waitingForParaheaders.
+         * @member {boolean} waitingForParaheaders
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.waitingForParaheaders = false;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
@@ -609,6 +837,20 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 13, wireType 0 =*/104).uint64(message.score);
             if (message.gatekeeper != null && Object.hasOwnProperty.call(message, "gatekeeper"))
                 $root.pruntime_rpc.GatekeeperStatus.encode(message.gatekeeper, writer.uint32(/* id 14, wireType 2 =*/114).fork()).ldelim();
+            if (message.version != null && Object.hasOwnProperty.call(message, "version"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.version);
+            if (message.gitRevision != null && Object.hasOwnProperty.call(message, "gitRevision"))
+                writer.uint32(/* id 16, wireType 2 =*/130).string(message.gitRevision);
+            if (message.runningSideTasks != null && Object.hasOwnProperty.call(message, "runningSideTasks"))
+                writer.uint32(/* id 17, wireType 0 =*/136).uint64(message.runningSideTasks);
+            if (message.memoryUsage != null && Object.hasOwnProperty.call(message, "memoryUsage"))
+                $root.pruntime_rpc.MemoryUsage.encode(message.memoryUsage, writer.uint32(/* id 18, wireType 2 =*/146).fork()).ldelim();
+            if (message.numberOfClusters != null && Object.hasOwnProperty.call(message, "numberOfClusters"))
+                writer.uint32(/* id 19, wireType 0 =*/152).uint64(message.numberOfClusters);
+            if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
+                writer.uint32(/* id 20, wireType 0 =*/160).uint64(message.numberOfContracts);
+            if (message.waitingForParaheaders != null && Object.hasOwnProperty.call(message, "waitingForParaheaders"))
+                writer.uint32(/* id 21, wireType 0 =*/168).bool(message.waitingForParaheaders);
             return writer;
         };
 
@@ -681,6 +923,27 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 14:
                     message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.decode(reader, reader.uint32());
+                    break;
+                case 15:
+                    message.version = reader.string();
+                    break;
+                case 16:
+                    message.gitRevision = reader.string();
+                    break;
+                case 17:
+                    message.runningSideTasks = reader.uint64();
+                    break;
+                case 18:
+                    message.memoryUsage = $root.pruntime_rpc.MemoryUsage.decode(reader, reader.uint32());
+                    break;
+                case 19:
+                    message.numberOfClusters = reader.uint64();
+                    break;
+                case 20:
+                    message.numberOfContracts = reader.uint64();
+                    break;
+                case 21:
+                    message.waitingForParaheaders = reader.bool();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -765,6 +1028,29 @@ $root.pruntime_rpc = (function() {
                 if (error)
                     return "gatekeeper." + error;
             }
+            if (message.version != null && message.hasOwnProperty("version"))
+                if (!$util.isString(message.version))
+                    return "version: string expected";
+            if (message.gitRevision != null && message.hasOwnProperty("gitRevision"))
+                if (!$util.isString(message.gitRevision))
+                    return "gitRevision: string expected";
+            if (message.runningSideTasks != null && message.hasOwnProperty("runningSideTasks"))
+                if (!$util.isInteger(message.runningSideTasks) && !(message.runningSideTasks && $util.isInteger(message.runningSideTasks.low) && $util.isInteger(message.runningSideTasks.high)))
+                    return "runningSideTasks: integer|Long expected";
+            if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage")) {
+                var error = $root.pruntime_rpc.MemoryUsage.verify(message.memoryUsage);
+                if (error)
+                    return "memoryUsage." + error;
+            }
+            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
+                if (!$util.isInteger(message.numberOfClusters) && !(message.numberOfClusters && $util.isInteger(message.numberOfClusters.low) && $util.isInteger(message.numberOfClusters.high)))
+                    return "numberOfClusters: integer|Long expected";
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
+                    return "numberOfContracts: integer|Long expected";
+            if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
+                if (typeof message.waitingForParaheaders !== "boolean")
+                    return "waitingForParaheaders: boolean expected";
             return null;
         };
 
@@ -823,6 +1109,44 @@ $root.pruntime_rpc = (function() {
                     throw TypeError(".pruntime_rpc.PhactoryInfo.gatekeeper: object expected");
                 message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.fromObject(object.gatekeeper);
             }
+            if (object.version != null)
+                message.version = String(object.version);
+            if (object.gitRevision != null)
+                message.gitRevision = String(object.gitRevision);
+            if (object.runningSideTasks != null)
+                if ($util.Long)
+                    (message.runningSideTasks = $util.Long.fromValue(object.runningSideTasks)).unsigned = true;
+                else if (typeof object.runningSideTasks === "string")
+                    message.runningSideTasks = parseInt(object.runningSideTasks, 10);
+                else if (typeof object.runningSideTasks === "number")
+                    message.runningSideTasks = object.runningSideTasks;
+                else if (typeof object.runningSideTasks === "object")
+                    message.runningSideTasks = new $util.LongBits(object.runningSideTasks.low >>> 0, object.runningSideTasks.high >>> 0).toNumber(true);
+            if (object.memoryUsage != null) {
+                if (typeof object.memoryUsage !== "object")
+                    throw TypeError(".pruntime_rpc.PhactoryInfo.memoryUsage: object expected");
+                message.memoryUsage = $root.pruntime_rpc.MemoryUsage.fromObject(object.memoryUsage);
+            }
+            if (object.numberOfClusters != null)
+                if ($util.Long)
+                    (message.numberOfClusters = $util.Long.fromValue(object.numberOfClusters)).unsigned = true;
+                else if (typeof object.numberOfClusters === "string")
+                    message.numberOfClusters = parseInt(object.numberOfClusters, 10);
+                else if (typeof object.numberOfClusters === "number")
+                    message.numberOfClusters = object.numberOfClusters;
+                else if (typeof object.numberOfClusters === "object")
+                    message.numberOfClusters = new $util.LongBits(object.numberOfClusters.low >>> 0, object.numberOfClusters.high >>> 0).toNumber(true);
+            if (object.numberOfContracts != null)
+                if ($util.Long)
+                    (message.numberOfContracts = $util.Long.fromValue(object.numberOfContracts)).unsigned = true;
+                else if (typeof object.numberOfContracts === "string")
+                    message.numberOfContracts = parseInt(object.numberOfContracts, 10);
+                else if (typeof object.numberOfContracts === "number")
+                    message.numberOfContracts = object.numberOfContracts;
+                else if (typeof object.numberOfContracts === "object")
+                    message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
+            if (object.waitingForParaheaders != null)
+                message.waitingForParaheaders = Boolean(object.waitingForParaheaders);
             return message;
         };
 
@@ -858,6 +1182,25 @@ $root.pruntime_rpc = (function() {
                 } else
                     object.score = options.longs === String ? "0" : 0;
                 object.gatekeeper = null;
+                object.version = "";
+                object.gitRevision = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.runningSideTasks = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.runningSideTasks = options.longs === String ? "0" : 0;
+                object.memoryUsage = null;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfClusters = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfClusters = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfContracts = options.longs === String ? "0" : 0;
+                object.waitingForParaheaders = false;
             }
             if (message.initialized != null && message.hasOwnProperty("initialized"))
                 object.initialized = message.initialized;
@@ -900,6 +1243,29 @@ $root.pruntime_rpc = (function() {
                     object.score = options.longs === String ? $util.Long.prototype.toString.call(message.score) : options.longs === Number ? new $util.LongBits(message.score.low >>> 0, message.score.high >>> 0).toNumber(true) : message.score;
             if (message.gatekeeper != null && message.hasOwnProperty("gatekeeper"))
                 object.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.toObject(message.gatekeeper, options);
+            if (message.version != null && message.hasOwnProperty("version"))
+                object.version = message.version;
+            if (message.gitRevision != null && message.hasOwnProperty("gitRevision"))
+                object.gitRevision = message.gitRevision;
+            if (message.runningSideTasks != null && message.hasOwnProperty("runningSideTasks"))
+                if (typeof message.runningSideTasks === "number")
+                    object.runningSideTasks = options.longs === String ? String(message.runningSideTasks) : message.runningSideTasks;
+                else
+                    object.runningSideTasks = options.longs === String ? $util.Long.prototype.toString.call(message.runningSideTasks) : options.longs === Number ? new $util.LongBits(message.runningSideTasks.low >>> 0, message.runningSideTasks.high >>> 0).toNumber(true) : message.runningSideTasks;
+            if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage"))
+                object.memoryUsage = $root.pruntime_rpc.MemoryUsage.toObject(message.memoryUsage, options);
+            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
+                if (typeof message.numberOfClusters === "number")
+                    object.numberOfClusters = options.longs === String ? String(message.numberOfClusters) : message.numberOfClusters;
+                else
+                    object.numberOfClusters = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfClusters) : options.longs === Number ? new $util.LongBits(message.numberOfClusters.low >>> 0, message.numberOfClusters.high >>> 0).toNumber(true) : message.numberOfClusters;
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (typeof message.numberOfContracts === "number")
+                    object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
+                else
+                    object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
+            if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
+                object.waitingForParaheaders = message.waitingForParaheaders;
             return object;
         };
 
@@ -941,6 +1307,7 @@ $root.pruntime_rpc = (function() {
          * @interface IGatekeeperStatus
          * @property {pruntime_rpc.GatekeeperRole|null} [role] GatekeeperStatus role
          * @property {string|null} [masterPublicKey] GatekeeperStatus masterPublicKey
+         * @property {boolean|null} [shareMasterKeyHistory] GatekeeperStatus shareMasterKeyHistory
          */
 
         /**
@@ -975,6 +1342,14 @@ $root.pruntime_rpc = (function() {
         GatekeeperStatus.prototype.masterPublicKey = "";
 
         /**
+         * GatekeeperStatus shareMasterKeyHistory.
+         * @member {boolean} shareMasterKeyHistory
+         * @memberof pruntime_rpc.GatekeeperStatus
+         * @instance
+         */
+        GatekeeperStatus.prototype.shareMasterKeyHistory = false;
+
+        /**
          * Creates a new GatekeeperStatus instance using the specified properties.
          * @function create
          * @memberof pruntime_rpc.GatekeeperStatus
@@ -1002,6 +1377,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.role);
             if (message.masterPublicKey != null && Object.hasOwnProperty.call(message, "masterPublicKey"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.masterPublicKey);
+            if (message.shareMasterKeyHistory != null && Object.hasOwnProperty.call(message, "shareMasterKeyHistory"))
+                writer.uint32(/* id 3, wireType 0 =*/24).bool(message.shareMasterKeyHistory);
             return writer;
         };
 
@@ -1041,6 +1418,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 2:
                     message.masterPublicKey = reader.string();
+                    break;
+                case 3:
+                    message.shareMasterKeyHistory = reader.bool();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1089,6 +1469,9 @@ $root.pruntime_rpc = (function() {
             if (message.masterPublicKey != null && message.hasOwnProperty("masterPublicKey"))
                 if (!$util.isString(message.masterPublicKey))
                     return "masterPublicKey: string expected";
+            if (message.shareMasterKeyHistory != null && message.hasOwnProperty("shareMasterKeyHistory"))
+                if (typeof message.shareMasterKeyHistory !== "boolean")
+                    return "shareMasterKeyHistory: boolean expected";
             return null;
         };
 
@@ -1120,6 +1503,8 @@ $root.pruntime_rpc = (function() {
             }
             if (object.masterPublicKey != null)
                 message.masterPublicKey = String(object.masterPublicKey);
+            if (object.shareMasterKeyHistory != null)
+                message.shareMasterKeyHistory = Boolean(object.shareMasterKeyHistory);
             return message;
         };
 
@@ -1139,11 +1524,14 @@ $root.pruntime_rpc = (function() {
             if (options.defaults) {
                 object.role = options.enums === String ? "None" : 0;
                 object.masterPublicKey = "";
+                object.shareMasterKeyHistory = false;
             }
             if (message.role != null && message.hasOwnProperty("role"))
                 object.role = options.enums === String ? $root.pruntime_rpc.GatekeeperRole[message.role] : message.role;
             if (message.masterPublicKey != null && message.hasOwnProperty("masterPublicKey"))
                 object.masterPublicKey = message.masterPublicKey;
+            if (message.shareMasterKeyHistory != null && message.hasOwnProperty("shareMasterKeyHistory"))
+                object.shareMasterKeyHistory = message.shareMasterKeyHistory;
             return object;
         };
 
@@ -1159,6 +1547,280 @@ $root.pruntime_rpc = (function() {
         };
 
         return GatekeeperStatus;
+    })();
+
+    pruntime_rpc.MemoryUsage = (function() {
+
+        /**
+         * Properties of a MemoryUsage.
+         * @memberof pruntime_rpc
+         * @interface IMemoryUsage
+         * @property {number|Long|null} [rustUsed] MemoryUsage rustUsed
+         * @property {number|Long|null} [rustPeakUsed] MemoryUsage rustPeakUsed
+         * @property {number|Long|null} [totalPeakUsed] MemoryUsage totalPeakUsed
+         */
+
+        /**
+         * Constructs a new MemoryUsage.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a MemoryUsage.
+         * @implements IMemoryUsage
+         * @constructor
+         * @param {pruntime_rpc.IMemoryUsage=} [properties] Properties to set
+         */
+        function MemoryUsage(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * MemoryUsage rustUsed.
+         * @member {number|Long} rustUsed
+         * @memberof pruntime_rpc.MemoryUsage
+         * @instance
+         */
+        MemoryUsage.prototype.rustUsed = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryUsage rustPeakUsed.
+         * @member {number|Long} rustPeakUsed
+         * @memberof pruntime_rpc.MemoryUsage
+         * @instance
+         */
+        MemoryUsage.prototype.rustPeakUsed = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * MemoryUsage totalPeakUsed.
+         * @member {number|Long} totalPeakUsed
+         * @memberof pruntime_rpc.MemoryUsage
+         * @instance
+         */
+        MemoryUsage.prototype.totalPeakUsed = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * Creates a new MemoryUsage instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {pruntime_rpc.IMemoryUsage=} [properties] Properties to set
+         * @returns {pruntime_rpc.MemoryUsage} MemoryUsage instance
+         */
+        MemoryUsage.create = function create(properties) {
+            return new MemoryUsage(properties);
+        };
+
+        /**
+         * Encodes the specified MemoryUsage message. Does not implicitly {@link pruntime_rpc.MemoryUsage.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {pruntime_rpc.IMemoryUsage} message MemoryUsage message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MemoryUsage.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.rustUsed != null && Object.hasOwnProperty.call(message, "rustUsed"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.rustUsed);
+            if (message.rustPeakUsed != null && Object.hasOwnProperty.call(message, "rustPeakUsed"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint64(message.rustPeakUsed);
+            if (message.totalPeakUsed != null && Object.hasOwnProperty.call(message, "totalPeakUsed"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint64(message.totalPeakUsed);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified MemoryUsage message, length delimited. Does not implicitly {@link pruntime_rpc.MemoryUsage.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {pruntime_rpc.IMemoryUsage} message MemoryUsage message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        MemoryUsage.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a MemoryUsage message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.MemoryUsage} MemoryUsage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MemoryUsage.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.MemoryUsage();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.rustUsed = reader.uint64();
+                    break;
+                case 2:
+                    message.rustPeakUsed = reader.uint64();
+                    break;
+                case 3:
+                    message.totalPeakUsed = reader.uint64();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a MemoryUsage message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.MemoryUsage} MemoryUsage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        MemoryUsage.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a MemoryUsage message.
+         * @function verify
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        MemoryUsage.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.rustUsed != null && message.hasOwnProperty("rustUsed"))
+                if (!$util.isInteger(message.rustUsed) && !(message.rustUsed && $util.isInteger(message.rustUsed.low) && $util.isInteger(message.rustUsed.high)))
+                    return "rustUsed: integer|Long expected";
+            if (message.rustPeakUsed != null && message.hasOwnProperty("rustPeakUsed"))
+                if (!$util.isInteger(message.rustPeakUsed) && !(message.rustPeakUsed && $util.isInteger(message.rustPeakUsed.low) && $util.isInteger(message.rustPeakUsed.high)))
+                    return "rustPeakUsed: integer|Long expected";
+            if (message.totalPeakUsed != null && message.hasOwnProperty("totalPeakUsed"))
+                if (!$util.isInteger(message.totalPeakUsed) && !(message.totalPeakUsed && $util.isInteger(message.totalPeakUsed.low) && $util.isInteger(message.totalPeakUsed.high)))
+                    return "totalPeakUsed: integer|Long expected";
+            return null;
+        };
+
+        /**
+         * Creates a MemoryUsage message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.MemoryUsage} MemoryUsage
+         */
+        MemoryUsage.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.MemoryUsage)
+                return object;
+            var message = new $root.pruntime_rpc.MemoryUsage();
+            if (object.rustUsed != null)
+                if ($util.Long)
+                    (message.rustUsed = $util.Long.fromValue(object.rustUsed)).unsigned = true;
+                else if (typeof object.rustUsed === "string")
+                    message.rustUsed = parseInt(object.rustUsed, 10);
+                else if (typeof object.rustUsed === "number")
+                    message.rustUsed = object.rustUsed;
+                else if (typeof object.rustUsed === "object")
+                    message.rustUsed = new $util.LongBits(object.rustUsed.low >>> 0, object.rustUsed.high >>> 0).toNumber(true);
+            if (object.rustPeakUsed != null)
+                if ($util.Long)
+                    (message.rustPeakUsed = $util.Long.fromValue(object.rustPeakUsed)).unsigned = true;
+                else if (typeof object.rustPeakUsed === "string")
+                    message.rustPeakUsed = parseInt(object.rustPeakUsed, 10);
+                else if (typeof object.rustPeakUsed === "number")
+                    message.rustPeakUsed = object.rustPeakUsed;
+                else if (typeof object.rustPeakUsed === "object")
+                    message.rustPeakUsed = new $util.LongBits(object.rustPeakUsed.low >>> 0, object.rustPeakUsed.high >>> 0).toNumber(true);
+            if (object.totalPeakUsed != null)
+                if ($util.Long)
+                    (message.totalPeakUsed = $util.Long.fromValue(object.totalPeakUsed)).unsigned = true;
+                else if (typeof object.totalPeakUsed === "string")
+                    message.totalPeakUsed = parseInt(object.totalPeakUsed, 10);
+                else if (typeof object.totalPeakUsed === "number")
+                    message.totalPeakUsed = object.totalPeakUsed;
+                else if (typeof object.totalPeakUsed === "object")
+                    message.totalPeakUsed = new $util.LongBits(object.totalPeakUsed.low >>> 0, object.totalPeakUsed.high >>> 0).toNumber(true);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a MemoryUsage message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.MemoryUsage
+         * @static
+         * @param {pruntime_rpc.MemoryUsage} message MemoryUsage
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        MemoryUsage.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.rustUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.rustUsed = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.rustPeakUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.rustPeakUsed = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.totalPeakUsed = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.totalPeakUsed = options.longs === String ? "0" : 0;
+            }
+            if (message.rustUsed != null && message.hasOwnProperty("rustUsed"))
+                if (typeof message.rustUsed === "number")
+                    object.rustUsed = options.longs === String ? String(message.rustUsed) : message.rustUsed;
+                else
+                    object.rustUsed = options.longs === String ? $util.Long.prototype.toString.call(message.rustUsed) : options.longs === Number ? new $util.LongBits(message.rustUsed.low >>> 0, message.rustUsed.high >>> 0).toNumber(true) : message.rustUsed;
+            if (message.rustPeakUsed != null && message.hasOwnProperty("rustPeakUsed"))
+                if (typeof message.rustPeakUsed === "number")
+                    object.rustPeakUsed = options.longs === String ? String(message.rustPeakUsed) : message.rustPeakUsed;
+                else
+                    object.rustPeakUsed = options.longs === String ? $util.Long.prototype.toString.call(message.rustPeakUsed) : options.longs === Number ? new $util.LongBits(message.rustPeakUsed.low >>> 0, message.rustPeakUsed.high >>> 0).toNumber(true) : message.rustPeakUsed;
+            if (message.totalPeakUsed != null && message.hasOwnProperty("totalPeakUsed"))
+                if (typeof message.totalPeakUsed === "number")
+                    object.totalPeakUsed = options.longs === String ? String(message.totalPeakUsed) : message.totalPeakUsed;
+                else
+                    object.totalPeakUsed = options.longs === String ? $util.Long.prototype.toString.call(message.totalPeakUsed) : options.longs === Number ? new $util.LongBits(message.totalPeakUsed.low >>> 0, message.totalPeakUsed.high >>> 0).toNumber(true) : message.totalPeakUsed;
+            return object;
+        };
+
+        /**
+         * Converts this MemoryUsage to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.MemoryUsage
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        MemoryUsage.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return MemoryUsage;
     })();
 
     pruntime_rpc.SyncedTo = (function() {
@@ -2902,6 +3564,237 @@ $root.pruntime_rpc = (function() {
         return InitRuntimeRequest;
     })();
 
+    pruntime_rpc.GetRuntimeInfoRequest = (function() {
+
+        /**
+         * Properties of a GetRuntimeInfoRequest.
+         * @memberof pruntime_rpc
+         * @interface IGetRuntimeInfoRequest
+         * @property {boolean|null} [forceRefreshRa] GetRuntimeInfoRequest forceRefreshRa
+         * @property {Uint8Array|null} [encodedOperator] GetRuntimeInfoRequest encodedOperator
+         */
+
+        /**
+         * Constructs a new GetRuntimeInfoRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetRuntimeInfoRequest.
+         * @implements IGetRuntimeInfoRequest
+         * @constructor
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest=} [properties] Properties to set
+         */
+        function GetRuntimeInfoRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetRuntimeInfoRequest forceRefreshRa.
+         * @member {boolean} forceRefreshRa
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         */
+        GetRuntimeInfoRequest.prototype.forceRefreshRa = false;
+
+        /**
+         * GetRuntimeInfoRequest encodedOperator.
+         * @member {Uint8Array|null|undefined} encodedOperator
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         */
+        GetRuntimeInfoRequest.prototype.encodedOperator = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        /**
+         * GetRuntimeInfoRequest _encodedOperator.
+         * @member {"encodedOperator"|undefined} _encodedOperator
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         */
+        Object.defineProperty(GetRuntimeInfoRequest.prototype, "_encodedOperator", {
+            get: $util.oneOfGetter($oneOfFields = ["encodedOperator"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * Creates a new GetRuntimeInfoRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest instance
+         */
+        GetRuntimeInfoRequest.create = function create(properties) {
+            return new GetRuntimeInfoRequest(properties);
+        };
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} message GetRuntimeInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetRuntimeInfoRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.forceRefreshRa != null && Object.hasOwnProperty.call(message, "forceRefreshRa"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.forceRefreshRa);
+            if (message.encodedOperator != null && Object.hasOwnProperty.call(message, "encodedOperator"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedOperator);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetRuntimeInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetRuntimeInfoRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetRuntimeInfoRequest} message GetRuntimeInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetRuntimeInfoRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetRuntimeInfoRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.forceRefreshRa = reader.bool();
+                    break;
+                case 2:
+                    message.encodedOperator = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetRuntimeInfoRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetRuntimeInfoRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetRuntimeInfoRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetRuntimeInfoRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            var properties = {};
+            if (message.forceRefreshRa != null && message.hasOwnProperty("forceRefreshRa"))
+                if (typeof message.forceRefreshRa !== "boolean")
+                    return "forceRefreshRa: boolean expected";
+            if (message.encodedOperator != null && message.hasOwnProperty("encodedOperator")) {
+                properties._encodedOperator = 1;
+                if (!(message.encodedOperator && typeof message.encodedOperator.length === "number" || $util.isString(message.encodedOperator)))
+                    return "encodedOperator: buffer expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetRuntimeInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetRuntimeInfoRequest} GetRuntimeInfoRequest
+         */
+        GetRuntimeInfoRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetRuntimeInfoRequest)
+                return object;
+            var message = new $root.pruntime_rpc.GetRuntimeInfoRequest();
+            if (object.forceRefreshRa != null)
+                message.forceRefreshRa = Boolean(object.forceRefreshRa);
+            if (object.encodedOperator != null)
+                if (typeof object.encodedOperator === "string")
+                    $util.base64.decode(object.encodedOperator, message.encodedOperator = $util.newBuffer($util.base64.length(object.encodedOperator)), 0);
+                else if (object.encodedOperator.length)
+                    message.encodedOperator = object.encodedOperator;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetRuntimeInfoRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @static
+         * @param {pruntime_rpc.GetRuntimeInfoRequest} message GetRuntimeInfoRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetRuntimeInfoRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.forceRefreshRa = false;
+            if (message.forceRefreshRa != null && message.hasOwnProperty("forceRefreshRa"))
+                object.forceRefreshRa = message.forceRefreshRa;
+            if (message.encodedOperator != null && message.hasOwnProperty("encodedOperator")) {
+                object.encodedOperator = options.bytes === String ? $util.base64.encode(message.encodedOperator, 0, message.encodedOperator.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedOperator) : message.encodedOperator;
+                if (options.oneofs)
+                    object._encodedOperator = "encodedOperator";
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetRuntimeInfoRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetRuntimeInfoRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetRuntimeInfoRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetRuntimeInfoRequest;
+    })();
+
     pruntime_rpc.InitRuntimeResponse = (function() {
 
         /**
@@ -4188,7 +5081,7 @@ $root.pruntime_rpc = (function() {
          * Properties of a Signature.
          * @memberof pruntime_rpc
          * @interface ISignature
-         * @property {Uint8Array|null} [origin] Signature origin
+         * @property {pruntime_rpc.ICertificate|null} [signedBy] Signature signedBy
          * @property {pruntime_rpc.SignatureType|null} [signatureType] Signature signatureType
          * @property {Uint8Array|null} [signature] Signature signature
          */
@@ -4209,12 +5102,12 @@ $root.pruntime_rpc = (function() {
         }
 
         /**
-         * Signature origin.
-         * @member {Uint8Array} origin
+         * Signature signedBy.
+         * @member {pruntime_rpc.ICertificate|null|undefined} signedBy
          * @memberof pruntime_rpc.Signature
          * @instance
          */
-        Signature.prototype.origin = $util.newBuffer([]);
+        Signature.prototype.signedBy = null;
 
         /**
          * Signature signatureType.
@@ -4256,8 +5149,8 @@ $root.pruntime_rpc = (function() {
         Signature.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
-            if (message.origin != null && Object.hasOwnProperty.call(message, "origin"))
-                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.origin);
+            if (message.signedBy != null && Object.hasOwnProperty.call(message, "signedBy"))
+                $root.pruntime_rpc.Certificate.encode(message.signedBy, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
             if (message.signatureType != null && Object.hasOwnProperty.call(message, "signatureType"))
                 writer.uint32(/* id 2, wireType 0 =*/16).int32(message.signatureType);
             if (message.signature != null && Object.hasOwnProperty.call(message, "signature"))
@@ -4297,7 +5190,7 @@ $root.pruntime_rpc = (function() {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
                 case 1:
-                    message.origin = reader.bytes();
+                    message.signedBy = $root.pruntime_rpc.Certificate.decode(reader, reader.uint32());
                     break;
                 case 2:
                     message.signatureType = reader.int32();
@@ -4340,9 +5233,11 @@ $root.pruntime_rpc = (function() {
         Signature.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
-            if (message.origin != null && message.hasOwnProperty("origin"))
-                if (!(message.origin && typeof message.origin.length === "number" || $util.isString(message.origin)))
-                    return "origin: buffer expected";
+            if (message.signedBy != null && message.hasOwnProperty("signedBy")) {
+                var error = $root.pruntime_rpc.Certificate.verify(message.signedBy);
+                if (error)
+                    return "signedBy." + error;
+            }
             if (message.signatureType != null && message.hasOwnProperty("signatureType"))
                 switch (message.signatureType) {
                 default:
@@ -4350,6 +5245,9 @@ $root.pruntime_rpc = (function() {
                 case 0:
                 case 1:
                 case 2:
+                case 3:
+                case 4:
+                case 5:
                     break;
                 }
             if (message.signature != null && message.hasOwnProperty("signature"))
@@ -4370,11 +5268,11 @@ $root.pruntime_rpc = (function() {
             if (object instanceof $root.pruntime_rpc.Signature)
                 return object;
             var message = new $root.pruntime_rpc.Signature();
-            if (object.origin != null)
-                if (typeof object.origin === "string")
-                    $util.base64.decode(object.origin, message.origin = $util.newBuffer($util.base64.length(object.origin)), 0);
-                else if (object.origin.length)
-                    message.origin = object.origin;
+            if (object.signedBy != null) {
+                if (typeof object.signedBy !== "object")
+                    throw TypeError(".pruntime_rpc.Signature.signedBy: object expected");
+                message.signedBy = $root.pruntime_rpc.Certificate.fromObject(object.signedBy);
+            }
             switch (object.signatureType) {
             case "Ed25519":
             case 0:
@@ -4387,6 +5285,18 @@ $root.pruntime_rpc = (function() {
             case "Ecdsa":
             case 2:
                 message.signatureType = 2;
+                break;
+            case "Ed25519WrapBytes":
+            case 3:
+                message.signatureType = 3;
+                break;
+            case "Sr25519WrapBytes":
+            case 4:
+                message.signatureType = 4;
+                break;
+            case "EcdsaWrapBytes":
+            case 5:
+                message.signatureType = 5;
                 break;
             }
             if (object.signature != null)
@@ -4411,13 +5321,7 @@ $root.pruntime_rpc = (function() {
                 options = {};
             var object = {};
             if (options.defaults) {
-                if (options.bytes === String)
-                    object.origin = "";
-                else {
-                    object.origin = [];
-                    if (options.bytes !== Array)
-                        object.origin = $util.newBuffer(object.origin);
-                }
+                object.signedBy = null;
                 object.signatureType = options.enums === String ? "Ed25519" : 0;
                 if (options.bytes === String)
                     object.signature = "";
@@ -4427,8 +5331,8 @@ $root.pruntime_rpc = (function() {
                         object.signature = $util.newBuffer(object.signature);
                 }
             }
-            if (message.origin != null && message.hasOwnProperty("origin"))
-                object.origin = options.bytes === String ? $util.base64.encode(message.origin, 0, message.origin.length) : options.bytes === Array ? Array.prototype.slice.call(message.origin) : message.origin;
+            if (message.signedBy != null && message.hasOwnProperty("signedBy"))
+                object.signedBy = $root.pruntime_rpc.Certificate.toObject(message.signedBy, options);
             if (message.signatureType != null && message.hasOwnProperty("signatureType"))
                 object.signatureType = options.enums === String ? $root.pruntime_rpc.SignatureType[message.signatureType] : message.signatureType;
             if (message.signature != null && message.hasOwnProperty("signature"))
@@ -4450,6 +5354,230 @@ $root.pruntime_rpc = (function() {
         return Signature;
     })();
 
+    pruntime_rpc.Certificate = (function() {
+
+        /**
+         * Properties of a Certificate.
+         * @memberof pruntime_rpc
+         * @interface ICertificate
+         * @property {Uint8Array|null} [encodedBody] Certificate encodedBody
+         * @property {pruntime_rpc.ISignature|null} [signature] Certificate signature
+         */
+
+        /**
+         * Constructs a new Certificate.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a Certificate.
+         * @implements ICertificate
+         * @constructor
+         * @param {pruntime_rpc.ICertificate=} [properties] Properties to set
+         */
+        function Certificate(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * Certificate encodedBody.
+         * @member {Uint8Array} encodedBody
+         * @memberof pruntime_rpc.Certificate
+         * @instance
+         */
+        Certificate.prototype.encodedBody = $util.newBuffer([]);
+
+        /**
+         * Certificate signature.
+         * @member {pruntime_rpc.ISignature|null|undefined} signature
+         * @memberof pruntime_rpc.Certificate
+         * @instance
+         */
+        Certificate.prototype.signature = null;
+
+        /**
+         * Creates a new Certificate instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {pruntime_rpc.ICertificate=} [properties] Properties to set
+         * @returns {pruntime_rpc.Certificate} Certificate instance
+         */
+        Certificate.create = function create(properties) {
+            return new Certificate(properties);
+        };
+
+        /**
+         * Encodes the specified Certificate message. Does not implicitly {@link pruntime_rpc.Certificate.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {pruntime_rpc.ICertificate} message Certificate message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Certificate.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedBody != null && Object.hasOwnProperty.call(message, "encodedBody"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedBody);
+            if (message.signature != null && Object.hasOwnProperty.call(message, "signature"))
+                $root.pruntime_rpc.Signature.encode(message.signature, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified Certificate message, length delimited. Does not implicitly {@link pruntime_rpc.Certificate.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {pruntime_rpc.ICertificate} message Certificate message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        Certificate.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a Certificate message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.Certificate} Certificate
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Certificate.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.Certificate();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedBody = reader.bytes();
+                    break;
+                case 2:
+                    message.signature = $root.pruntime_rpc.Signature.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a Certificate message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.Certificate} Certificate
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        Certificate.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a Certificate message.
+         * @function verify
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        Certificate.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedBody != null && message.hasOwnProperty("encodedBody"))
+                if (!(message.encodedBody && typeof message.encodedBody.length === "number" || $util.isString(message.encodedBody)))
+                    return "encodedBody: buffer expected";
+            if (message.signature != null && message.hasOwnProperty("signature")) {
+                var error = $root.pruntime_rpc.Signature.verify(message.signature);
+                if (error)
+                    return "signature." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a Certificate message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.Certificate} Certificate
+         */
+        Certificate.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.Certificate)
+                return object;
+            var message = new $root.pruntime_rpc.Certificate();
+            if (object.encodedBody != null)
+                if (typeof object.encodedBody === "string")
+                    $util.base64.decode(object.encodedBody, message.encodedBody = $util.newBuffer($util.base64.length(object.encodedBody)), 0);
+                else if (object.encodedBody.length)
+                    message.encodedBody = object.encodedBody;
+            if (object.signature != null) {
+                if (typeof object.signature !== "object")
+                    throw TypeError(".pruntime_rpc.Certificate.signature: object expected");
+                message.signature = $root.pruntime_rpc.Signature.fromObject(object.signature);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a Certificate message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.Certificate
+         * @static
+         * @param {pruntime_rpc.Certificate} message Certificate
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        Certificate.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.encodedBody = "";
+                else {
+                    object.encodedBody = [];
+                    if (options.bytes !== Array)
+                        object.encodedBody = $util.newBuffer(object.encodedBody);
+                }
+                object.signature = null;
+            }
+            if (message.encodedBody != null && message.hasOwnProperty("encodedBody"))
+                object.encodedBody = options.bytes === String ? $util.base64.encode(message.encodedBody, 0, message.encodedBody.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedBody) : message.encodedBody;
+            if (message.signature != null && message.hasOwnProperty("signature"))
+                object.signature = $root.pruntime_rpc.Signature.toObject(message.signature, options);
+            return object;
+        };
+
+        /**
+         * Converts this Certificate to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.Certificate
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        Certificate.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return Certificate;
+    })();
+
     /**
      * SignatureType enum.
      * @name pruntime_rpc.SignatureType
@@ -4457,12 +5585,18 @@ $root.pruntime_rpc = (function() {
      * @property {number} Ed25519=0 Ed25519 value
      * @property {number} Sr25519=1 Sr25519 value
      * @property {number} Ecdsa=2 Ecdsa value
+     * @property {number} Ed25519WrapBytes=3 Ed25519WrapBytes value
+     * @property {number} Sr25519WrapBytes=4 Sr25519WrapBytes value
+     * @property {number} EcdsaWrapBytes=5 EcdsaWrapBytes value
      */
     pruntime_rpc.SignatureType = (function() {
         var valuesById = {}, values = Object.create(valuesById);
         values[valuesById[0] = "Ed25519"] = 0;
         values[valuesById[1] = "Sr25519"] = 1;
         values[valuesById[2] = "Ecdsa"] = 2;
+        values[valuesById[3] = "Ed25519WrapBytes"] = 3;
+        values[valuesById[4] = "Sr25519WrapBytes"] = 4;
+        values[valuesById[5] = "EcdsaWrapBytes"] = 5;
         return values;
     })();
 
@@ -4873,6 +6007,7 @@ $root.pruntime_rpc = (function() {
          * @property {number|null} [lastHeartbeatAtBlock] WorkerState lastHeartbeatAtBlock
          * @property {pruntime_rpc.ResponsiveEvent|null} [lastGkResponsiveEvent] WorkerState lastGkResponsiveEvent
          * @property {number|null} [lastGkResponsiveEventAtBlock] WorkerState lastGkResponsiveEventAtBlock
+         * @property {pruntime_rpc.ITokenomicInfo|null} [tokenomicInfo] WorkerState tokenomicInfo
          */
 
         /**
@@ -4964,6 +6099,14 @@ $root.pruntime_rpc = (function() {
         WorkerState.prototype.lastGkResponsiveEventAtBlock = 0;
 
         /**
+         * WorkerState tokenomicInfo.
+         * @member {pruntime_rpc.ITokenomicInfo|null|undefined} tokenomicInfo
+         * @memberof pruntime_rpc.WorkerState
+         * @instance
+         */
+        WorkerState.prototype.tokenomicInfo = null;
+
+        /**
          * Creates a new WorkerState instance using the specified properties.
          * @function create
          * @memberof pruntime_rpc.WorkerState
@@ -5009,6 +6152,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 8, wireType 0 =*/64).int32(message.lastGkResponsiveEvent);
             if (message.lastGkResponsiveEventAtBlock != null && Object.hasOwnProperty.call(message, "lastGkResponsiveEventAtBlock"))
                 writer.uint32(/* id 9, wireType 0 =*/72).uint32(message.lastGkResponsiveEventAtBlock);
+            if (message.tokenomicInfo != null && Object.hasOwnProperty.call(message, "tokenomicInfo"))
+                $root.pruntime_rpc.TokenomicInfo.encode(message.tokenomicInfo, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
             return writer;
         };
 
@@ -5076,6 +6221,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 9:
                     message.lastGkResponsiveEventAtBlock = reader.uint32();
+                    break;
+                case 10:
+                    message.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.decode(reader, reader.uint32());
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -5153,6 +6301,11 @@ $root.pruntime_rpc = (function() {
             if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
                 if (!$util.isInteger(message.lastGkResponsiveEventAtBlock))
                     return "lastGkResponsiveEventAtBlock: integer expected";
+            if (message.tokenomicInfo != null && message.hasOwnProperty("tokenomicInfo")) {
+                var error = $root.pruntime_rpc.TokenomicInfo.verify(message.tokenomicInfo);
+                if (error)
+                    return "tokenomicInfo." + error;
+            }
             return null;
         };
 
@@ -5209,6 +6362,11 @@ $root.pruntime_rpc = (function() {
             }
             if (object.lastGkResponsiveEventAtBlock != null)
                 message.lastGkResponsiveEventAtBlock = object.lastGkResponsiveEventAtBlock >>> 0;
+            if (object.tokenomicInfo != null) {
+                if (typeof object.tokenomicInfo !== "object")
+                    throw TypeError(".pruntime_rpc.WorkerState.tokenomicInfo: object expected");
+                message.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.fromObject(object.tokenomicInfo);
+            }
             return message;
         };
 
@@ -5236,6 +6394,7 @@ $root.pruntime_rpc = (function() {
                 object.lastHeartbeatAtBlock = 0;
                 object.lastGkResponsiveEvent = options.enums === String ? "NoEvent" : 0;
                 object.lastGkResponsiveEventAtBlock = 0;
+                object.tokenomicInfo = null;
             }
             if (message.registered != null && message.hasOwnProperty("registered"))
                 object.registered = message.registered;
@@ -5258,6 +6417,8 @@ $root.pruntime_rpc = (function() {
                 object.lastGkResponsiveEvent = options.enums === String ? $root.pruntime_rpc.ResponsiveEvent[message.lastGkResponsiveEvent] : message.lastGkResponsiveEvent;
             if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
                 object.lastGkResponsiveEventAtBlock = message.lastGkResponsiveEventAtBlock;
+            if (message.tokenomicInfo != null && message.hasOwnProperty("tokenomicInfo"))
+                object.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.toObject(message.tokenomicInfo, options);
             return object;
         };
 
@@ -5273,6 +6434,890 @@ $root.pruntime_rpc = (function() {
         };
 
         return WorkerState;
+    })();
+
+    pruntime_rpc.WorkerKeyChallenge = (function() {
+
+        /**
+         * Properties of a WorkerKeyChallenge.
+         * @memberof pruntime_rpc
+         * @interface IWorkerKeyChallenge
+         * @property {Uint8Array|null} [encodedChallenge] WorkerKeyChallenge encodedChallenge
+         */
+
+        /**
+         * Constructs a new WorkerKeyChallenge.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a WorkerKeyChallenge.
+         * @implements IWorkerKeyChallenge
+         * @constructor
+         * @param {pruntime_rpc.IWorkerKeyChallenge=} [properties] Properties to set
+         */
+        function WorkerKeyChallenge(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WorkerKeyChallenge encodedChallenge.
+         * @member {Uint8Array} encodedChallenge
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @instance
+         */
+        WorkerKeyChallenge.prototype.encodedChallenge = $util.newBuffer([]);
+
+        /**
+         * Creates a new WorkerKeyChallenge instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {pruntime_rpc.IWorkerKeyChallenge=} [properties] Properties to set
+         * @returns {pruntime_rpc.WorkerKeyChallenge} WorkerKeyChallenge instance
+         */
+        WorkerKeyChallenge.create = function create(properties) {
+            return new WorkerKeyChallenge(properties);
+        };
+
+        /**
+         * Encodes the specified WorkerKeyChallenge message. Does not implicitly {@link pruntime_rpc.WorkerKeyChallenge.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {pruntime_rpc.IWorkerKeyChallenge} message WorkerKeyChallenge message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WorkerKeyChallenge.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedChallenge != null && Object.hasOwnProperty.call(message, "encodedChallenge"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedChallenge);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WorkerKeyChallenge message, length delimited. Does not implicitly {@link pruntime_rpc.WorkerKeyChallenge.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {pruntime_rpc.IWorkerKeyChallenge} message WorkerKeyChallenge message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WorkerKeyChallenge.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WorkerKeyChallenge message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.WorkerKeyChallenge} WorkerKeyChallenge
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WorkerKeyChallenge.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerKeyChallenge();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedChallenge = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WorkerKeyChallenge message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.WorkerKeyChallenge} WorkerKeyChallenge
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WorkerKeyChallenge.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WorkerKeyChallenge message.
+         * @function verify
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WorkerKeyChallenge.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
+                if (!(message.encodedChallenge && typeof message.encodedChallenge.length === "number" || $util.isString(message.encodedChallenge)))
+                    return "encodedChallenge: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a WorkerKeyChallenge message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.WorkerKeyChallenge} WorkerKeyChallenge
+         */
+        WorkerKeyChallenge.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.WorkerKeyChallenge)
+                return object;
+            var message = new $root.pruntime_rpc.WorkerKeyChallenge();
+            if (object.encodedChallenge != null)
+                if (typeof object.encodedChallenge === "string")
+                    $util.base64.decode(object.encodedChallenge, message.encodedChallenge = $util.newBuffer($util.base64.length(object.encodedChallenge)), 0);
+                else if (object.encodedChallenge.length)
+                    message.encodedChallenge = object.encodedChallenge;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WorkerKeyChallenge message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @static
+         * @param {pruntime_rpc.WorkerKeyChallenge} message WorkerKeyChallenge
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WorkerKeyChallenge.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.encodedChallenge = "";
+                else {
+                    object.encodedChallenge = [];
+                    if (options.bytes !== Array)
+                        object.encodedChallenge = $util.newBuffer(object.encodedChallenge);
+                }
+            if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
+                object.encodedChallenge = options.bytes === String ? $util.base64.encode(message.encodedChallenge, 0, message.encodedChallenge.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedChallenge) : message.encodedChallenge;
+            return object;
+        };
+
+        /**
+         * Converts this WorkerKeyChallenge to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.WorkerKeyChallenge
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WorkerKeyChallenge.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return WorkerKeyChallenge;
+    })();
+
+    pruntime_rpc.ChallengeClient = (function() {
+
+        /**
+         * Properties of a ChallengeClient.
+         * @memberof pruntime_rpc
+         * @interface IChallengeClient
+         * @property {Uint8Array|null} [encodedChallenge] ChallengeClient encodedChallenge
+         * @property {Uint8Array|null} [encodedEcdhPublicKey] ChallengeClient encodedEcdhPublicKey
+         */
+
+        /**
+         * Constructs a new ChallengeClient.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ChallengeClient.
+         * @implements IChallengeClient
+         * @constructor
+         * @param {pruntime_rpc.IChallengeClient=} [properties] Properties to set
+         */
+        function ChallengeClient(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ChallengeClient encodedChallenge.
+         * @member {Uint8Array} encodedChallenge
+         * @memberof pruntime_rpc.ChallengeClient
+         * @instance
+         */
+        ChallengeClient.prototype.encodedChallenge = $util.newBuffer([]);
+
+        /**
+         * ChallengeClient encodedEcdhPublicKey.
+         * @member {Uint8Array} encodedEcdhPublicKey
+         * @memberof pruntime_rpc.ChallengeClient
+         * @instance
+         */
+        ChallengeClient.prototype.encodedEcdhPublicKey = $util.newBuffer([]);
+
+        /**
+         * Creates a new ChallengeClient instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {pruntime_rpc.IChallengeClient=} [properties] Properties to set
+         * @returns {pruntime_rpc.ChallengeClient} ChallengeClient instance
+         */
+        ChallengeClient.create = function create(properties) {
+            return new ChallengeClient(properties);
+        };
+
+        /**
+         * Encodes the specified ChallengeClient message. Does not implicitly {@link pruntime_rpc.ChallengeClient.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {pruntime_rpc.IChallengeClient} message ChallengeClient message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ChallengeClient.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedChallenge != null && Object.hasOwnProperty.call(message, "encodedChallenge"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedChallenge);
+            if (message.encodedEcdhPublicKey != null && Object.hasOwnProperty.call(message, "encodedEcdhPublicKey"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedEcdhPublicKey);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ChallengeClient message, length delimited. Does not implicitly {@link pruntime_rpc.ChallengeClient.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {pruntime_rpc.IChallengeClient} message ChallengeClient message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ChallengeClient.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ChallengeClient message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ChallengeClient} ChallengeClient
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ChallengeClient.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ChallengeClient();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedChallenge = reader.bytes();
+                    break;
+                case 2:
+                    message.encodedEcdhPublicKey = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ChallengeClient message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ChallengeClient} ChallengeClient
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ChallengeClient.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ChallengeClient message.
+         * @function verify
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ChallengeClient.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
+                if (!(message.encodedChallenge && typeof message.encodedChallenge.length === "number" || $util.isString(message.encodedChallenge)))
+                    return "encodedChallenge: buffer expected";
+            if (message.encodedEcdhPublicKey != null && message.hasOwnProperty("encodedEcdhPublicKey"))
+                if (!(message.encodedEcdhPublicKey && typeof message.encodedEcdhPublicKey.length === "number" || $util.isString(message.encodedEcdhPublicKey)))
+                    return "encodedEcdhPublicKey: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a ChallengeClient message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ChallengeClient} ChallengeClient
+         */
+        ChallengeClient.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ChallengeClient)
+                return object;
+            var message = new $root.pruntime_rpc.ChallengeClient();
+            if (object.encodedChallenge != null)
+                if (typeof object.encodedChallenge === "string")
+                    $util.base64.decode(object.encodedChallenge, message.encodedChallenge = $util.newBuffer($util.base64.length(object.encodedChallenge)), 0);
+                else if (object.encodedChallenge.length)
+                    message.encodedChallenge = object.encodedChallenge;
+            if (object.encodedEcdhPublicKey != null)
+                if (typeof object.encodedEcdhPublicKey === "string")
+                    $util.base64.decode(object.encodedEcdhPublicKey, message.encodedEcdhPublicKey = $util.newBuffer($util.base64.length(object.encodedEcdhPublicKey)), 0);
+                else if (object.encodedEcdhPublicKey.length)
+                    message.encodedEcdhPublicKey = object.encodedEcdhPublicKey;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ChallengeClient message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ChallengeClient
+         * @static
+         * @param {pruntime_rpc.ChallengeClient} message ChallengeClient
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ChallengeClient.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.encodedChallenge = "";
+                else {
+                    object.encodedChallenge = [];
+                    if (options.bytes !== Array)
+                        object.encodedChallenge = $util.newBuffer(object.encodedChallenge);
+                }
+                if (options.bytes === String)
+                    object.encodedEcdhPublicKey = "";
+                else {
+                    object.encodedEcdhPublicKey = [];
+                    if (options.bytes !== Array)
+                        object.encodedEcdhPublicKey = $util.newBuffer(object.encodedEcdhPublicKey);
+                }
+            }
+            if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
+                object.encodedChallenge = options.bytes === String ? $util.base64.encode(message.encodedChallenge, 0, message.encodedChallenge.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedChallenge) : message.encodedChallenge;
+            if (message.encodedEcdhPublicKey != null && message.hasOwnProperty("encodedEcdhPublicKey"))
+                object.encodedEcdhPublicKey = options.bytes === String ? $util.base64.encode(message.encodedEcdhPublicKey, 0, message.encodedEcdhPublicKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEcdhPublicKey) : message.encodedEcdhPublicKey;
+            return object;
+        };
+
+        /**
+         * Converts this ChallengeClient to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ChallengeClient
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ChallengeClient.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ChallengeClient;
+    })();
+
+    pruntime_rpc.WorkerKeyChallengeResponse = (function() {
+
+        /**
+         * Properties of a WorkerKeyChallengeResponse.
+         * @memberof pruntime_rpc
+         * @interface IWorkerKeyChallengeResponse
+         * @property {pruntime_rpc.IChallengeClient|null} [payload] WorkerKeyChallengeResponse payload
+         * @property {pruntime_rpc.IAttestation|null} [attestation] WorkerKeyChallengeResponse attestation
+         */
+
+        /**
+         * Constructs a new WorkerKeyChallengeResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a WorkerKeyChallengeResponse.
+         * @implements IWorkerKeyChallengeResponse
+         * @constructor
+         * @param {pruntime_rpc.IWorkerKeyChallengeResponse=} [properties] Properties to set
+         */
+        function WorkerKeyChallengeResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WorkerKeyChallengeResponse payload.
+         * @member {pruntime_rpc.IChallengeClient|null|undefined} payload
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @instance
+         */
+        WorkerKeyChallengeResponse.prototype.payload = null;
+
+        /**
+         * WorkerKeyChallengeResponse attestation.
+         * @member {pruntime_rpc.IAttestation|null|undefined} attestation
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @instance
+         */
+        WorkerKeyChallengeResponse.prototype.attestation = null;
+
+        /**
+         * Creates a new WorkerKeyChallengeResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {pruntime_rpc.IWorkerKeyChallengeResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.WorkerKeyChallengeResponse} WorkerKeyChallengeResponse instance
+         */
+        WorkerKeyChallengeResponse.create = function create(properties) {
+            return new WorkerKeyChallengeResponse(properties);
+        };
+
+        /**
+         * Encodes the specified WorkerKeyChallengeResponse message. Does not implicitly {@link pruntime_rpc.WorkerKeyChallengeResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {pruntime_rpc.IWorkerKeyChallengeResponse} message WorkerKeyChallengeResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WorkerKeyChallengeResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.payload != null && Object.hasOwnProperty.call(message, "payload"))
+                $root.pruntime_rpc.ChallengeClient.encode(message.payload, writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            if (message.attestation != null && Object.hasOwnProperty.call(message, "attestation"))
+                $root.pruntime_rpc.Attestation.encode(message.attestation, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WorkerKeyChallengeResponse message, length delimited. Does not implicitly {@link pruntime_rpc.WorkerKeyChallengeResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {pruntime_rpc.IWorkerKeyChallengeResponse} message WorkerKeyChallengeResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WorkerKeyChallengeResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WorkerKeyChallengeResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.WorkerKeyChallengeResponse} WorkerKeyChallengeResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WorkerKeyChallengeResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerKeyChallengeResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.payload = $root.pruntime_rpc.ChallengeClient.decode(reader, reader.uint32());
+                    break;
+                case 2:
+                    message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WorkerKeyChallengeResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.WorkerKeyChallengeResponse} WorkerKeyChallengeResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WorkerKeyChallengeResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WorkerKeyChallengeResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WorkerKeyChallengeResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.payload != null && message.hasOwnProperty("payload")) {
+                var error = $root.pruntime_rpc.ChallengeClient.verify(message.payload);
+                if (error)
+                    return "payload." + error;
+            }
+            if (message.attestation != null && message.hasOwnProperty("attestation")) {
+                var error = $root.pruntime_rpc.Attestation.verify(message.attestation);
+                if (error)
+                    return "attestation." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a WorkerKeyChallengeResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.WorkerKeyChallengeResponse} WorkerKeyChallengeResponse
+         */
+        WorkerKeyChallengeResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.WorkerKeyChallengeResponse)
+                return object;
+            var message = new $root.pruntime_rpc.WorkerKeyChallengeResponse();
+            if (object.payload != null) {
+                if (typeof object.payload !== "object")
+                    throw TypeError(".pruntime_rpc.WorkerKeyChallengeResponse.payload: object expected");
+                message.payload = $root.pruntime_rpc.ChallengeClient.fromObject(object.payload);
+            }
+            if (object.attestation != null) {
+                if (typeof object.attestation !== "object")
+                    throw TypeError(".pruntime_rpc.WorkerKeyChallengeResponse.attestation: object expected");
+                message.attestation = $root.pruntime_rpc.Attestation.fromObject(object.attestation);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WorkerKeyChallengeResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @static
+         * @param {pruntime_rpc.WorkerKeyChallengeResponse} message WorkerKeyChallengeResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WorkerKeyChallengeResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.payload = null;
+                object.attestation = null;
+            }
+            if (message.payload != null && message.hasOwnProperty("payload"))
+                object.payload = $root.pruntime_rpc.ChallengeClient.toObject(message.payload, options);
+            if (message.attestation != null && message.hasOwnProperty("attestation"))
+                object.attestation = $root.pruntime_rpc.Attestation.toObject(message.attestation, options);
+            return object;
+        };
+
+        /**
+         * Converts this WorkerKeyChallengeResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.WorkerKeyChallengeResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WorkerKeyChallengeResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return WorkerKeyChallengeResponse;
+    })();
+
+    pruntime_rpc.GetWorkerKeyResponse = (function() {
+
+        /**
+         * Properties of a GetWorkerKeyResponse.
+         * @memberof pruntime_rpc
+         * @interface IGetWorkerKeyResponse
+         * @property {Uint8Array|null} [encodedGenesisBlockHash] GetWorkerKeyResponse encodedGenesisBlockHash
+         * @property {Uint8Array|null} [encodedEncryptedKey] GetWorkerKeyResponse encodedEncryptedKey
+         */
+
+        /**
+         * Constructs a new GetWorkerKeyResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetWorkerKeyResponse.
+         * @implements IGetWorkerKeyResponse
+         * @constructor
+         * @param {pruntime_rpc.IGetWorkerKeyResponse=} [properties] Properties to set
+         */
+        function GetWorkerKeyResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetWorkerKeyResponse encodedGenesisBlockHash.
+         * @member {Uint8Array} encodedGenesisBlockHash
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @instance
+         */
+        GetWorkerKeyResponse.prototype.encodedGenesisBlockHash = $util.newBuffer([]);
+
+        /**
+         * GetWorkerKeyResponse encodedEncryptedKey.
+         * @member {Uint8Array|null|undefined} encodedEncryptedKey
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @instance
+         */
+        GetWorkerKeyResponse.prototype.encodedEncryptedKey = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        /**
+         * GetWorkerKeyResponse _encodedEncryptedKey.
+         * @member {"encodedEncryptedKey"|undefined} _encodedEncryptedKey
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @instance
+         */
+        Object.defineProperty(GetWorkerKeyResponse.prototype, "_encodedEncryptedKey", {
+            get: $util.oneOfGetter($oneOfFields = ["encodedEncryptedKey"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * Creates a new GetWorkerKeyResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {pruntime_rpc.IGetWorkerKeyResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetWorkerKeyResponse} GetWorkerKeyResponse instance
+         */
+        GetWorkerKeyResponse.create = function create(properties) {
+            return new GetWorkerKeyResponse(properties);
+        };
+
+        /**
+         * Encodes the specified GetWorkerKeyResponse message. Does not implicitly {@link pruntime_rpc.GetWorkerKeyResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {pruntime_rpc.IGetWorkerKeyResponse} message GetWorkerKeyResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetWorkerKeyResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedGenesisBlockHash != null && Object.hasOwnProperty.call(message, "encodedGenesisBlockHash"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedGenesisBlockHash);
+            if (message.encodedEncryptedKey != null && Object.hasOwnProperty.call(message, "encodedEncryptedKey"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedEncryptedKey);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetWorkerKeyResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetWorkerKeyResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {pruntime_rpc.IGetWorkerKeyResponse} message GetWorkerKeyResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetWorkerKeyResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetWorkerKeyResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetWorkerKeyResponse} GetWorkerKeyResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetWorkerKeyResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetWorkerKeyResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedGenesisBlockHash = reader.bytes();
+                    break;
+                case 2:
+                    message.encodedEncryptedKey = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetWorkerKeyResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetWorkerKeyResponse} GetWorkerKeyResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetWorkerKeyResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetWorkerKeyResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetWorkerKeyResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            var properties = {};
+            if (message.encodedGenesisBlockHash != null && message.hasOwnProperty("encodedGenesisBlockHash"))
+                if (!(message.encodedGenesisBlockHash && typeof message.encodedGenesisBlockHash.length === "number" || $util.isString(message.encodedGenesisBlockHash)))
+                    return "encodedGenesisBlockHash: buffer expected";
+            if (message.encodedEncryptedKey != null && message.hasOwnProperty("encodedEncryptedKey")) {
+                properties._encodedEncryptedKey = 1;
+                if (!(message.encodedEncryptedKey && typeof message.encodedEncryptedKey.length === "number" || $util.isString(message.encodedEncryptedKey)))
+                    return "encodedEncryptedKey: buffer expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetWorkerKeyResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetWorkerKeyResponse} GetWorkerKeyResponse
+         */
+        GetWorkerKeyResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetWorkerKeyResponse)
+                return object;
+            var message = new $root.pruntime_rpc.GetWorkerKeyResponse();
+            if (object.encodedGenesisBlockHash != null)
+                if (typeof object.encodedGenesisBlockHash === "string")
+                    $util.base64.decode(object.encodedGenesisBlockHash, message.encodedGenesisBlockHash = $util.newBuffer($util.base64.length(object.encodedGenesisBlockHash)), 0);
+                else if (object.encodedGenesisBlockHash.length)
+                    message.encodedGenesisBlockHash = object.encodedGenesisBlockHash;
+            if (object.encodedEncryptedKey != null)
+                if (typeof object.encodedEncryptedKey === "string")
+                    $util.base64.decode(object.encodedEncryptedKey, message.encodedEncryptedKey = $util.newBuffer($util.base64.length(object.encodedEncryptedKey)), 0);
+                else if (object.encodedEncryptedKey.length)
+                    message.encodedEncryptedKey = object.encodedEncryptedKey;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetWorkerKeyResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @static
+         * @param {pruntime_rpc.GetWorkerKeyResponse} message GetWorkerKeyResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetWorkerKeyResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.encodedGenesisBlockHash = "";
+                else {
+                    object.encodedGenesisBlockHash = [];
+                    if (options.bytes !== Array)
+                        object.encodedGenesisBlockHash = $util.newBuffer(object.encodedGenesisBlockHash);
+                }
+            if (message.encodedGenesisBlockHash != null && message.hasOwnProperty("encodedGenesisBlockHash"))
+                object.encodedGenesisBlockHash = options.bytes === String ? $util.base64.encode(message.encodedGenesisBlockHash, 0, message.encodedGenesisBlockHash.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedGenesisBlockHash) : message.encodedGenesisBlockHash;
+            if (message.encodedEncryptedKey != null && message.hasOwnProperty("encodedEncryptedKey")) {
+                object.encodedEncryptedKey = options.bytes === String ? $util.base64.encode(message.encodedEncryptedKey, 0, message.encodedEncryptedKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEncryptedKey) : message.encodedEncryptedKey;
+                if (options.oneofs)
+                    object._encodedEncryptedKey = "encodedEncryptedKey";
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetWorkerKeyResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetWorkerKeyResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetWorkerKeyResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetWorkerKeyResponse;
     })();
 
     pruntime_rpc.BenchState = (function() {
@@ -5767,6 +7812,202 @@ $root.pruntime_rpc = (function() {
         return MiningState;
     })();
 
+    pruntime_rpc.EchoMessage = (function() {
+
+        /**
+         * Properties of an EchoMessage.
+         * @memberof pruntime_rpc
+         * @interface IEchoMessage
+         * @property {Uint8Array|null} [echoMsg] EchoMessage echoMsg
+         */
+
+        /**
+         * Constructs a new EchoMessage.
+         * @memberof pruntime_rpc
+         * @classdesc Represents an EchoMessage.
+         * @implements IEchoMessage
+         * @constructor
+         * @param {pruntime_rpc.IEchoMessage=} [properties] Properties to set
+         */
+        function EchoMessage(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * EchoMessage echoMsg.
+         * @member {Uint8Array} echoMsg
+         * @memberof pruntime_rpc.EchoMessage
+         * @instance
+         */
+        EchoMessage.prototype.echoMsg = $util.newBuffer([]);
+
+        /**
+         * Creates a new EchoMessage instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {pruntime_rpc.IEchoMessage=} [properties] Properties to set
+         * @returns {pruntime_rpc.EchoMessage} EchoMessage instance
+         */
+        EchoMessage.create = function create(properties) {
+            return new EchoMessage(properties);
+        };
+
+        /**
+         * Encodes the specified EchoMessage message. Does not implicitly {@link pruntime_rpc.EchoMessage.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {pruntime_rpc.IEchoMessage} message EchoMessage message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EchoMessage.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.echoMsg != null && Object.hasOwnProperty.call(message, "echoMsg"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.echoMsg);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified EchoMessage message, length delimited. Does not implicitly {@link pruntime_rpc.EchoMessage.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {pruntime_rpc.IEchoMessage} message EchoMessage message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        EchoMessage.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an EchoMessage message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.EchoMessage} EchoMessage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EchoMessage.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.EchoMessage();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.echoMsg = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an EchoMessage message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.EchoMessage} EchoMessage
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        EchoMessage.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an EchoMessage message.
+         * @function verify
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        EchoMessage.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.echoMsg != null && message.hasOwnProperty("echoMsg"))
+                if (!(message.echoMsg && typeof message.echoMsg.length === "number" || $util.isString(message.echoMsg)))
+                    return "echoMsg: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates an EchoMessage message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.EchoMessage} EchoMessage
+         */
+        EchoMessage.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.EchoMessage)
+                return object;
+            var message = new $root.pruntime_rpc.EchoMessage();
+            if (object.echoMsg != null)
+                if (typeof object.echoMsg === "string")
+                    $util.base64.decode(object.echoMsg, message.echoMsg = $util.newBuffer($util.base64.length(object.echoMsg)), 0);
+                else if (object.echoMsg.length)
+                    message.echoMsg = object.echoMsg;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an EchoMessage message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.EchoMessage
+         * @static
+         * @param {pruntime_rpc.EchoMessage} message EchoMessage
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        EchoMessage.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.echoMsg = "";
+                else {
+                    object.echoMsg = [];
+                    if (options.bytes !== Array)
+                        object.echoMsg = $util.newBuffer(object.echoMsg);
+                }
+            if (message.echoMsg != null && message.hasOwnProperty("echoMsg"))
+                object.echoMsg = options.bytes === String ? $util.base64.encode(message.echoMsg, 0, message.echoMsg.length) : options.bytes === Array ? Array.prototype.slice.call(message.echoMsg) : message.echoMsg;
+            return object;
+        };
+
+        /**
+         * Converts this EchoMessage to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.EchoMessage
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        EchoMessage.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return EchoMessage;
+    })();
+
     /**
      * ResponsiveEvent enum.
      * @name pruntime_rpc.ResponsiveEvent
@@ -5781,6 +8022,632 @@ $root.pruntime_rpc = (function() {
         values[valuesById[1] = "EnterUnresponsive"] = 1;
         values[valuesById[2] = "ExitUnresponsive"] = 2;
         return values;
+    })();
+
+    pruntime_rpc.TokenomicInfo = (function() {
+
+        /**
+         * Properties of a TokenomicInfo.
+         * @memberof pruntime_rpc
+         * @interface ITokenomicInfo
+         * @property {string|null} [v] TokenomicInfo v
+         * @property {string|null} [vInit] TokenomicInfo vInit
+         * @property {string|null} [vDeductible] TokenomicInfo vDeductible
+         * @property {string|null} [share] TokenomicInfo share
+         * @property {number|Long|null} [vUpdateAt] TokenomicInfo vUpdateAt
+         * @property {number|null} [vUpdateBlock] TokenomicInfo vUpdateBlock
+         * @property {number|Long|null} [iterationLast] TokenomicInfo iterationLast
+         * @property {number|Long|null} [challengeTimeLast] TokenomicInfo challengeTimeLast
+         * @property {string|null} [pBench] TokenomicInfo pBench
+         * @property {string|null} [pInstant] TokenomicInfo pInstant
+         * @property {number|null} [confidenceLevel] TokenomicInfo confidenceLevel
+         * @property {string|null} [lastPayout] TokenomicInfo lastPayout
+         * @property {number|null} [lastPayoutAtBlock] TokenomicInfo lastPayoutAtBlock
+         * @property {string|null} [totalPayout] TokenomicInfo totalPayout
+         * @property {number|null} [totalPayoutCount] TokenomicInfo totalPayoutCount
+         * @property {string|null} [lastSlash] TokenomicInfo lastSlash
+         * @property {number|null} [lastSlashAtBlock] TokenomicInfo lastSlashAtBlock
+         * @property {string|null} [totalSlash] TokenomicInfo totalSlash
+         * @property {number|null} [totalSlashCount] TokenomicInfo totalSlashCount
+         */
+
+        /**
+         * Constructs a new TokenomicInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a TokenomicInfo.
+         * @implements ITokenomicInfo
+         * @constructor
+         * @param {pruntime_rpc.ITokenomicInfo=} [properties] Properties to set
+         */
+        function TokenomicInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * TokenomicInfo v.
+         * @member {string} v
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.v = "";
+
+        /**
+         * TokenomicInfo vInit.
+         * @member {string} vInit
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.vInit = "";
+
+        /**
+         * TokenomicInfo vDeductible.
+         * @member {string} vDeductible
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.vDeductible = "";
+
+        /**
+         * TokenomicInfo share.
+         * @member {string} share
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.share = "";
+
+        /**
+         * TokenomicInfo vUpdateAt.
+         * @member {number|Long} vUpdateAt
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.vUpdateAt = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * TokenomicInfo vUpdateBlock.
+         * @member {number} vUpdateBlock
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.vUpdateBlock = 0;
+
+        /**
+         * TokenomicInfo iterationLast.
+         * @member {number|Long} iterationLast
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.iterationLast = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * TokenomicInfo challengeTimeLast.
+         * @member {number|Long} challengeTimeLast
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.challengeTimeLast = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * TokenomicInfo pBench.
+         * @member {string} pBench
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.pBench = "";
+
+        /**
+         * TokenomicInfo pInstant.
+         * @member {string} pInstant
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.pInstant = "";
+
+        /**
+         * TokenomicInfo confidenceLevel.
+         * @member {number} confidenceLevel
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.confidenceLevel = 0;
+
+        /**
+         * TokenomicInfo lastPayout.
+         * @member {string} lastPayout
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.lastPayout = "";
+
+        /**
+         * TokenomicInfo lastPayoutAtBlock.
+         * @member {number} lastPayoutAtBlock
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.lastPayoutAtBlock = 0;
+
+        /**
+         * TokenomicInfo totalPayout.
+         * @member {string} totalPayout
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.totalPayout = "";
+
+        /**
+         * TokenomicInfo totalPayoutCount.
+         * @member {number} totalPayoutCount
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.totalPayoutCount = 0;
+
+        /**
+         * TokenomicInfo lastSlash.
+         * @member {string} lastSlash
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.lastSlash = "";
+
+        /**
+         * TokenomicInfo lastSlashAtBlock.
+         * @member {number} lastSlashAtBlock
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.lastSlashAtBlock = 0;
+
+        /**
+         * TokenomicInfo totalSlash.
+         * @member {string} totalSlash
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.totalSlash = "";
+
+        /**
+         * TokenomicInfo totalSlashCount.
+         * @member {number} totalSlashCount
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         */
+        TokenomicInfo.prototype.totalSlashCount = 0;
+
+        /**
+         * Creates a new TokenomicInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {pruntime_rpc.ITokenomicInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.TokenomicInfo} TokenomicInfo instance
+         */
+        TokenomicInfo.create = function create(properties) {
+            return new TokenomicInfo(properties);
+        };
+
+        /**
+         * Encodes the specified TokenomicInfo message. Does not implicitly {@link pruntime_rpc.TokenomicInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {pruntime_rpc.ITokenomicInfo} message TokenomicInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        TokenomicInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.v != null && Object.hasOwnProperty.call(message, "v"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.v);
+            if (message.vInit != null && Object.hasOwnProperty.call(message, "vInit"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.vInit);
+            if (message.vUpdateAt != null && Object.hasOwnProperty.call(message, "vUpdateAt"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint64(message.vUpdateAt);
+            if (message.vUpdateBlock != null && Object.hasOwnProperty.call(message, "vUpdateBlock"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint32(message.vUpdateBlock);
+            if (message.iterationLast != null && Object.hasOwnProperty.call(message, "iterationLast"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.iterationLast);
+            if (message.challengeTimeLast != null && Object.hasOwnProperty.call(message, "challengeTimeLast"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint64(message.challengeTimeLast);
+            if (message.pBench != null && Object.hasOwnProperty.call(message, "pBench"))
+                writer.uint32(/* id 8, wireType 2 =*/66).string(message.pBench);
+            if (message.pInstant != null && Object.hasOwnProperty.call(message, "pInstant"))
+                writer.uint32(/* id 9, wireType 2 =*/74).string(message.pInstant);
+            if (message.confidenceLevel != null && Object.hasOwnProperty.call(message, "confidenceLevel"))
+                writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.confidenceLevel);
+            if (message.lastPayout != null && Object.hasOwnProperty.call(message, "lastPayout"))
+                writer.uint32(/* id 11, wireType 2 =*/90).string(message.lastPayout);
+            if (message.lastPayoutAtBlock != null && Object.hasOwnProperty.call(message, "lastPayoutAtBlock"))
+                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.lastPayoutAtBlock);
+            if (message.totalPayout != null && Object.hasOwnProperty.call(message, "totalPayout"))
+                writer.uint32(/* id 13, wireType 2 =*/106).string(message.totalPayout);
+            if (message.totalPayoutCount != null && Object.hasOwnProperty.call(message, "totalPayoutCount"))
+                writer.uint32(/* id 14, wireType 0 =*/112).uint32(message.totalPayoutCount);
+            if (message.lastSlash != null && Object.hasOwnProperty.call(message, "lastSlash"))
+                writer.uint32(/* id 15, wireType 2 =*/122).string(message.lastSlash);
+            if (message.lastSlashAtBlock != null && Object.hasOwnProperty.call(message, "lastSlashAtBlock"))
+                writer.uint32(/* id 16, wireType 0 =*/128).uint32(message.lastSlashAtBlock);
+            if (message.totalSlash != null && Object.hasOwnProperty.call(message, "totalSlash"))
+                writer.uint32(/* id 17, wireType 2 =*/138).string(message.totalSlash);
+            if (message.totalSlashCount != null && Object.hasOwnProperty.call(message, "totalSlashCount"))
+                writer.uint32(/* id 18, wireType 0 =*/144).uint32(message.totalSlashCount);
+            if (message.vDeductible != null && Object.hasOwnProperty.call(message, "vDeductible"))
+                writer.uint32(/* id 19, wireType 2 =*/154).string(message.vDeductible);
+            if (message.share != null && Object.hasOwnProperty.call(message, "share"))
+                writer.uint32(/* id 20, wireType 2 =*/162).string(message.share);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified TokenomicInfo message, length delimited. Does not implicitly {@link pruntime_rpc.TokenomicInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {pruntime_rpc.ITokenomicInfo} message TokenomicInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        TokenomicInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a TokenomicInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.TokenomicInfo} TokenomicInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        TokenomicInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.TokenomicInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.v = reader.string();
+                    break;
+                case 2:
+                    message.vInit = reader.string();
+                    break;
+                case 19:
+                    message.vDeductible = reader.string();
+                    break;
+                case 20:
+                    message.share = reader.string();
+                    break;
+                case 4:
+                    message.vUpdateAt = reader.uint64();
+                    break;
+                case 5:
+                    message.vUpdateBlock = reader.uint32();
+                    break;
+                case 6:
+                    message.iterationLast = reader.uint64();
+                    break;
+                case 7:
+                    message.challengeTimeLast = reader.uint64();
+                    break;
+                case 8:
+                    message.pBench = reader.string();
+                    break;
+                case 9:
+                    message.pInstant = reader.string();
+                    break;
+                case 10:
+                    message.confidenceLevel = reader.uint32();
+                    break;
+                case 11:
+                    message.lastPayout = reader.string();
+                    break;
+                case 12:
+                    message.lastPayoutAtBlock = reader.uint32();
+                    break;
+                case 13:
+                    message.totalPayout = reader.string();
+                    break;
+                case 14:
+                    message.totalPayoutCount = reader.uint32();
+                    break;
+                case 15:
+                    message.lastSlash = reader.string();
+                    break;
+                case 16:
+                    message.lastSlashAtBlock = reader.uint32();
+                    break;
+                case 17:
+                    message.totalSlash = reader.string();
+                    break;
+                case 18:
+                    message.totalSlashCount = reader.uint32();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a TokenomicInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.TokenomicInfo} TokenomicInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        TokenomicInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a TokenomicInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        TokenomicInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.v != null && message.hasOwnProperty("v"))
+                if (!$util.isString(message.v))
+                    return "v: string expected";
+            if (message.vInit != null && message.hasOwnProperty("vInit"))
+                if (!$util.isString(message.vInit))
+                    return "vInit: string expected";
+            if (message.vDeductible != null && message.hasOwnProperty("vDeductible"))
+                if (!$util.isString(message.vDeductible))
+                    return "vDeductible: string expected";
+            if (message.share != null && message.hasOwnProperty("share"))
+                if (!$util.isString(message.share))
+                    return "share: string expected";
+            if (message.vUpdateAt != null && message.hasOwnProperty("vUpdateAt"))
+                if (!$util.isInteger(message.vUpdateAt) && !(message.vUpdateAt && $util.isInteger(message.vUpdateAt.low) && $util.isInteger(message.vUpdateAt.high)))
+                    return "vUpdateAt: integer|Long expected";
+            if (message.vUpdateBlock != null && message.hasOwnProperty("vUpdateBlock"))
+                if (!$util.isInteger(message.vUpdateBlock))
+                    return "vUpdateBlock: integer expected";
+            if (message.iterationLast != null && message.hasOwnProperty("iterationLast"))
+                if (!$util.isInteger(message.iterationLast) && !(message.iterationLast && $util.isInteger(message.iterationLast.low) && $util.isInteger(message.iterationLast.high)))
+                    return "iterationLast: integer|Long expected";
+            if (message.challengeTimeLast != null && message.hasOwnProperty("challengeTimeLast"))
+                if (!$util.isInteger(message.challengeTimeLast) && !(message.challengeTimeLast && $util.isInteger(message.challengeTimeLast.low) && $util.isInteger(message.challengeTimeLast.high)))
+                    return "challengeTimeLast: integer|Long expected";
+            if (message.pBench != null && message.hasOwnProperty("pBench"))
+                if (!$util.isString(message.pBench))
+                    return "pBench: string expected";
+            if (message.pInstant != null && message.hasOwnProperty("pInstant"))
+                if (!$util.isString(message.pInstant))
+                    return "pInstant: string expected";
+            if (message.confidenceLevel != null && message.hasOwnProperty("confidenceLevel"))
+                if (!$util.isInteger(message.confidenceLevel))
+                    return "confidenceLevel: integer expected";
+            if (message.lastPayout != null && message.hasOwnProperty("lastPayout"))
+                if (!$util.isString(message.lastPayout))
+                    return "lastPayout: string expected";
+            if (message.lastPayoutAtBlock != null && message.hasOwnProperty("lastPayoutAtBlock"))
+                if (!$util.isInteger(message.lastPayoutAtBlock))
+                    return "lastPayoutAtBlock: integer expected";
+            if (message.totalPayout != null && message.hasOwnProperty("totalPayout"))
+                if (!$util.isString(message.totalPayout))
+                    return "totalPayout: string expected";
+            if (message.totalPayoutCount != null && message.hasOwnProperty("totalPayoutCount"))
+                if (!$util.isInteger(message.totalPayoutCount))
+                    return "totalPayoutCount: integer expected";
+            if (message.lastSlash != null && message.hasOwnProperty("lastSlash"))
+                if (!$util.isString(message.lastSlash))
+                    return "lastSlash: string expected";
+            if (message.lastSlashAtBlock != null && message.hasOwnProperty("lastSlashAtBlock"))
+                if (!$util.isInteger(message.lastSlashAtBlock))
+                    return "lastSlashAtBlock: integer expected";
+            if (message.totalSlash != null && message.hasOwnProperty("totalSlash"))
+                if (!$util.isString(message.totalSlash))
+                    return "totalSlash: string expected";
+            if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
+                if (!$util.isInteger(message.totalSlashCount))
+                    return "totalSlashCount: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates a TokenomicInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.TokenomicInfo} TokenomicInfo
+         */
+        TokenomicInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.TokenomicInfo)
+                return object;
+            var message = new $root.pruntime_rpc.TokenomicInfo();
+            if (object.v != null)
+                message.v = String(object.v);
+            if (object.vInit != null)
+                message.vInit = String(object.vInit);
+            if (object.vDeductible != null)
+                message.vDeductible = String(object.vDeductible);
+            if (object.share != null)
+                message.share = String(object.share);
+            if (object.vUpdateAt != null)
+                if ($util.Long)
+                    (message.vUpdateAt = $util.Long.fromValue(object.vUpdateAt)).unsigned = true;
+                else if (typeof object.vUpdateAt === "string")
+                    message.vUpdateAt = parseInt(object.vUpdateAt, 10);
+                else if (typeof object.vUpdateAt === "number")
+                    message.vUpdateAt = object.vUpdateAt;
+                else if (typeof object.vUpdateAt === "object")
+                    message.vUpdateAt = new $util.LongBits(object.vUpdateAt.low >>> 0, object.vUpdateAt.high >>> 0).toNumber(true);
+            if (object.vUpdateBlock != null)
+                message.vUpdateBlock = object.vUpdateBlock >>> 0;
+            if (object.iterationLast != null)
+                if ($util.Long)
+                    (message.iterationLast = $util.Long.fromValue(object.iterationLast)).unsigned = true;
+                else if (typeof object.iterationLast === "string")
+                    message.iterationLast = parseInt(object.iterationLast, 10);
+                else if (typeof object.iterationLast === "number")
+                    message.iterationLast = object.iterationLast;
+                else if (typeof object.iterationLast === "object")
+                    message.iterationLast = new $util.LongBits(object.iterationLast.low >>> 0, object.iterationLast.high >>> 0).toNumber(true);
+            if (object.challengeTimeLast != null)
+                if ($util.Long)
+                    (message.challengeTimeLast = $util.Long.fromValue(object.challengeTimeLast)).unsigned = true;
+                else if (typeof object.challengeTimeLast === "string")
+                    message.challengeTimeLast = parseInt(object.challengeTimeLast, 10);
+                else if (typeof object.challengeTimeLast === "number")
+                    message.challengeTimeLast = object.challengeTimeLast;
+                else if (typeof object.challengeTimeLast === "object")
+                    message.challengeTimeLast = new $util.LongBits(object.challengeTimeLast.low >>> 0, object.challengeTimeLast.high >>> 0).toNumber(true);
+            if (object.pBench != null)
+                message.pBench = String(object.pBench);
+            if (object.pInstant != null)
+                message.pInstant = String(object.pInstant);
+            if (object.confidenceLevel != null)
+                message.confidenceLevel = object.confidenceLevel >>> 0;
+            if (object.lastPayout != null)
+                message.lastPayout = String(object.lastPayout);
+            if (object.lastPayoutAtBlock != null)
+                message.lastPayoutAtBlock = object.lastPayoutAtBlock >>> 0;
+            if (object.totalPayout != null)
+                message.totalPayout = String(object.totalPayout);
+            if (object.totalPayoutCount != null)
+                message.totalPayoutCount = object.totalPayoutCount >>> 0;
+            if (object.lastSlash != null)
+                message.lastSlash = String(object.lastSlash);
+            if (object.lastSlashAtBlock != null)
+                message.lastSlashAtBlock = object.lastSlashAtBlock >>> 0;
+            if (object.totalSlash != null)
+                message.totalSlash = String(object.totalSlash);
+            if (object.totalSlashCount != null)
+                message.totalSlashCount = object.totalSlashCount >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a TokenomicInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @static
+         * @param {pruntime_rpc.TokenomicInfo} message TokenomicInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        TokenomicInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.v = "";
+                object.vInit = "";
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.vUpdateAt = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.vUpdateAt = options.longs === String ? "0" : 0;
+                object.vUpdateBlock = 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.iterationLast = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.iterationLast = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.challengeTimeLast = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.challengeTimeLast = options.longs === String ? "0" : 0;
+                object.pBench = "";
+                object.pInstant = "";
+                object.confidenceLevel = 0;
+                object.lastPayout = "";
+                object.lastPayoutAtBlock = 0;
+                object.totalPayout = "";
+                object.totalPayoutCount = 0;
+                object.lastSlash = "";
+                object.lastSlashAtBlock = 0;
+                object.totalSlash = "";
+                object.totalSlashCount = 0;
+                object.vDeductible = "";
+                object.share = "";
+            }
+            if (message.v != null && message.hasOwnProperty("v"))
+                object.v = message.v;
+            if (message.vInit != null && message.hasOwnProperty("vInit"))
+                object.vInit = message.vInit;
+            if (message.vUpdateAt != null && message.hasOwnProperty("vUpdateAt"))
+                if (typeof message.vUpdateAt === "number")
+                    object.vUpdateAt = options.longs === String ? String(message.vUpdateAt) : message.vUpdateAt;
+                else
+                    object.vUpdateAt = options.longs === String ? $util.Long.prototype.toString.call(message.vUpdateAt) : options.longs === Number ? new $util.LongBits(message.vUpdateAt.low >>> 0, message.vUpdateAt.high >>> 0).toNumber(true) : message.vUpdateAt;
+            if (message.vUpdateBlock != null && message.hasOwnProperty("vUpdateBlock"))
+                object.vUpdateBlock = message.vUpdateBlock;
+            if (message.iterationLast != null && message.hasOwnProperty("iterationLast"))
+                if (typeof message.iterationLast === "number")
+                    object.iterationLast = options.longs === String ? String(message.iterationLast) : message.iterationLast;
+                else
+                    object.iterationLast = options.longs === String ? $util.Long.prototype.toString.call(message.iterationLast) : options.longs === Number ? new $util.LongBits(message.iterationLast.low >>> 0, message.iterationLast.high >>> 0).toNumber(true) : message.iterationLast;
+            if (message.challengeTimeLast != null && message.hasOwnProperty("challengeTimeLast"))
+                if (typeof message.challengeTimeLast === "number")
+                    object.challengeTimeLast = options.longs === String ? String(message.challengeTimeLast) : message.challengeTimeLast;
+                else
+                    object.challengeTimeLast = options.longs === String ? $util.Long.prototype.toString.call(message.challengeTimeLast) : options.longs === Number ? new $util.LongBits(message.challengeTimeLast.low >>> 0, message.challengeTimeLast.high >>> 0).toNumber(true) : message.challengeTimeLast;
+            if (message.pBench != null && message.hasOwnProperty("pBench"))
+                object.pBench = message.pBench;
+            if (message.pInstant != null && message.hasOwnProperty("pInstant"))
+                object.pInstant = message.pInstant;
+            if (message.confidenceLevel != null && message.hasOwnProperty("confidenceLevel"))
+                object.confidenceLevel = message.confidenceLevel;
+            if (message.lastPayout != null && message.hasOwnProperty("lastPayout"))
+                object.lastPayout = message.lastPayout;
+            if (message.lastPayoutAtBlock != null && message.hasOwnProperty("lastPayoutAtBlock"))
+                object.lastPayoutAtBlock = message.lastPayoutAtBlock;
+            if (message.totalPayout != null && message.hasOwnProperty("totalPayout"))
+                object.totalPayout = message.totalPayout;
+            if (message.totalPayoutCount != null && message.hasOwnProperty("totalPayoutCount"))
+                object.totalPayoutCount = message.totalPayoutCount;
+            if (message.lastSlash != null && message.hasOwnProperty("lastSlash"))
+                object.lastSlash = message.lastSlash;
+            if (message.lastSlashAtBlock != null && message.hasOwnProperty("lastSlashAtBlock"))
+                object.lastSlashAtBlock = message.lastSlashAtBlock;
+            if (message.totalSlash != null && message.hasOwnProperty("totalSlash"))
+                object.totalSlash = message.totalSlash;
+            if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
+                object.totalSlashCount = message.totalSlashCount;
+            if (message.vDeductible != null && message.hasOwnProperty("vDeductible"))
+                object.vDeductible = message.vDeductible;
+            if (message.share != null && message.hasOwnProperty("share"))
+                object.share = message.share;
+            return object;
+        };
+
+        /**
+         * Converts this TokenomicInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.TokenomicInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        TokenomicInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return TokenomicInfo;
     })();
 
     return pruntime_rpc;
@@ -5962,6 +8829,1726 @@ $root.google = (function() {
             };
 
             return Empty;
+        })();
+
+        protobuf.DoubleValue = (function() {
+
+            /**
+             * Properties of a DoubleValue.
+             * @memberof google.protobuf
+             * @interface IDoubleValue
+             * @property {number|null} [value] DoubleValue value
+             */
+
+            /**
+             * Constructs a new DoubleValue.
+             * @memberof google.protobuf
+             * @classdesc Represents a DoubleValue.
+             * @implements IDoubleValue
+             * @constructor
+             * @param {google.protobuf.IDoubleValue=} [properties] Properties to set
+             */
+            function DoubleValue(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * DoubleValue value.
+             * @member {number} value
+             * @memberof google.protobuf.DoubleValue
+             * @instance
+             */
+            DoubleValue.prototype.value = 0;
+
+            /**
+             * Creates a new DoubleValue instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {google.protobuf.IDoubleValue=} [properties] Properties to set
+             * @returns {google.protobuf.DoubleValue} DoubleValue instance
+             */
+            DoubleValue.create = function create(properties) {
+                return new DoubleValue(properties);
+            };
+
+            /**
+             * Encodes the specified DoubleValue message. Does not implicitly {@link google.protobuf.DoubleValue.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {google.protobuf.IDoubleValue} message DoubleValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            DoubleValue.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 1 =*/9).double(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified DoubleValue message, length delimited. Does not implicitly {@link google.protobuf.DoubleValue.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {google.protobuf.IDoubleValue} message DoubleValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            DoubleValue.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a DoubleValue message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.DoubleValue} DoubleValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            DoubleValue.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.DoubleValue();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.double();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a DoubleValue message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.DoubleValue} DoubleValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            DoubleValue.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a DoubleValue message.
+             * @function verify
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            DoubleValue.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (typeof message.value !== "number")
+                        return "value: number expected";
+                return null;
+            };
+
+            /**
+             * Creates a DoubleValue message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.DoubleValue} DoubleValue
+             */
+            DoubleValue.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.DoubleValue)
+                    return object;
+                var message = new $root.google.protobuf.DoubleValue();
+                if (object.value != null)
+                    message.value = Number(object.value);
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a DoubleValue message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.DoubleValue
+             * @static
+             * @param {google.protobuf.DoubleValue} message DoubleValue
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            DoubleValue.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    object.value = 0;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
+                return object;
+            };
+
+            /**
+             * Converts this DoubleValue to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.DoubleValue
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            DoubleValue.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return DoubleValue;
+        })();
+
+        protobuf.FloatValue = (function() {
+
+            /**
+             * Properties of a FloatValue.
+             * @memberof google.protobuf
+             * @interface IFloatValue
+             * @property {number|null} [value] FloatValue value
+             */
+
+            /**
+             * Constructs a new FloatValue.
+             * @memberof google.protobuf
+             * @classdesc Represents a FloatValue.
+             * @implements IFloatValue
+             * @constructor
+             * @param {google.protobuf.IFloatValue=} [properties] Properties to set
+             */
+            function FloatValue(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * FloatValue value.
+             * @member {number} value
+             * @memberof google.protobuf.FloatValue
+             * @instance
+             */
+            FloatValue.prototype.value = 0;
+
+            /**
+             * Creates a new FloatValue instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {google.protobuf.IFloatValue=} [properties] Properties to set
+             * @returns {google.protobuf.FloatValue} FloatValue instance
+             */
+            FloatValue.create = function create(properties) {
+                return new FloatValue(properties);
+            };
+
+            /**
+             * Encodes the specified FloatValue message. Does not implicitly {@link google.protobuf.FloatValue.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {google.protobuf.IFloatValue} message FloatValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            FloatValue.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 5 =*/13).float(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified FloatValue message, length delimited. Does not implicitly {@link google.protobuf.FloatValue.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {google.protobuf.IFloatValue} message FloatValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            FloatValue.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a FloatValue message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.FloatValue} FloatValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            FloatValue.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.FloatValue();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.float();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a FloatValue message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.FloatValue} FloatValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            FloatValue.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a FloatValue message.
+             * @function verify
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            FloatValue.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (typeof message.value !== "number")
+                        return "value: number expected";
+                return null;
+            };
+
+            /**
+             * Creates a FloatValue message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.FloatValue} FloatValue
+             */
+            FloatValue.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.FloatValue)
+                    return object;
+                var message = new $root.google.protobuf.FloatValue();
+                if (object.value != null)
+                    message.value = Number(object.value);
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a FloatValue message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.FloatValue
+             * @static
+             * @param {google.protobuf.FloatValue} message FloatValue
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            FloatValue.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    object.value = 0;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = options.json && !isFinite(message.value) ? String(message.value) : message.value;
+                return object;
+            };
+
+            /**
+             * Converts this FloatValue to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.FloatValue
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            FloatValue.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return FloatValue;
+        })();
+
+        protobuf.Int64Value = (function() {
+
+            /**
+             * Properties of an Int64Value.
+             * @memberof google.protobuf
+             * @interface IInt64Value
+             * @property {number|Long|null} [value] Int64Value value
+             */
+
+            /**
+             * Constructs a new Int64Value.
+             * @memberof google.protobuf
+             * @classdesc Represents an Int64Value.
+             * @implements IInt64Value
+             * @constructor
+             * @param {google.protobuf.IInt64Value=} [properties] Properties to set
+             */
+            function Int64Value(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * Int64Value value.
+             * @member {number|Long} value
+             * @memberof google.protobuf.Int64Value
+             * @instance
+             */
+            Int64Value.prototype.value = $util.Long ? $util.Long.fromBits(0,0,false) : 0;
+
+            /**
+             * Creates a new Int64Value instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {google.protobuf.IInt64Value=} [properties] Properties to set
+             * @returns {google.protobuf.Int64Value} Int64Value instance
+             */
+            Int64Value.create = function create(properties) {
+                return new Int64Value(properties);
+            };
+
+            /**
+             * Encodes the specified Int64Value message. Does not implicitly {@link google.protobuf.Int64Value.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {google.protobuf.IInt64Value} message Int64Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Int64Value.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 0 =*/8).int64(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified Int64Value message, length delimited. Does not implicitly {@link google.protobuf.Int64Value.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {google.protobuf.IInt64Value} message Int64Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Int64Value.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes an Int64Value message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.Int64Value} Int64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Int64Value.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.Int64Value();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.int64();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes an Int64Value message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.Int64Value} Int64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Int64Value.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies an Int64Value message.
+             * @function verify
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            Int64Value.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (!$util.isInteger(message.value) && !(message.value && $util.isInteger(message.value.low) && $util.isInteger(message.value.high)))
+                        return "value: integer|Long expected";
+                return null;
+            };
+
+            /**
+             * Creates an Int64Value message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.Int64Value} Int64Value
+             */
+            Int64Value.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.Int64Value)
+                    return object;
+                var message = new $root.google.protobuf.Int64Value();
+                if (object.value != null)
+                    if ($util.Long)
+                        (message.value = $util.Long.fromValue(object.value)).unsigned = false;
+                    else if (typeof object.value === "string")
+                        message.value = parseInt(object.value, 10);
+                    else if (typeof object.value === "number")
+                        message.value = object.value;
+                    else if (typeof object.value === "object")
+                        message.value = new $util.LongBits(object.value.low >>> 0, object.value.high >>> 0).toNumber();
+                return message;
+            };
+
+            /**
+             * Creates a plain object from an Int64Value message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.Int64Value
+             * @static
+             * @param {google.protobuf.Int64Value} message Int64Value
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            Int64Value.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    if ($util.Long) {
+                        var long = new $util.Long(0, 0, false);
+                        object.value = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    } else
+                        object.value = options.longs === String ? "0" : 0;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (typeof message.value === "number")
+                        object.value = options.longs === String ? String(message.value) : message.value;
+                    else
+                        object.value = options.longs === String ? $util.Long.prototype.toString.call(message.value) : options.longs === Number ? new $util.LongBits(message.value.low >>> 0, message.value.high >>> 0).toNumber() : message.value;
+                return object;
+            };
+
+            /**
+             * Converts this Int64Value to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.Int64Value
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            Int64Value.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return Int64Value;
+        })();
+
+        protobuf.UInt64Value = (function() {
+
+            /**
+             * Properties of a UInt64Value.
+             * @memberof google.protobuf
+             * @interface IUInt64Value
+             * @property {number|Long|null} [value] UInt64Value value
+             */
+
+            /**
+             * Constructs a new UInt64Value.
+             * @memberof google.protobuf
+             * @classdesc Represents a UInt64Value.
+             * @implements IUInt64Value
+             * @constructor
+             * @param {google.protobuf.IUInt64Value=} [properties] Properties to set
+             */
+            function UInt64Value(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * UInt64Value value.
+             * @member {number|Long} value
+             * @memberof google.protobuf.UInt64Value
+             * @instance
+             */
+            UInt64Value.prototype.value = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+            /**
+             * Creates a new UInt64Value instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {google.protobuf.IUInt64Value=} [properties] Properties to set
+             * @returns {google.protobuf.UInt64Value} UInt64Value instance
+             */
+            UInt64Value.create = function create(properties) {
+                return new UInt64Value(properties);
+            };
+
+            /**
+             * Encodes the specified UInt64Value message. Does not implicitly {@link google.protobuf.UInt64Value.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {google.protobuf.IUInt64Value} message UInt64Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            UInt64Value.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 0 =*/8).uint64(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified UInt64Value message, length delimited. Does not implicitly {@link google.protobuf.UInt64Value.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {google.protobuf.IUInt64Value} message UInt64Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            UInt64Value.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a UInt64Value message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.UInt64Value} UInt64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            UInt64Value.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.UInt64Value();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.uint64();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a UInt64Value message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.UInt64Value} UInt64Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            UInt64Value.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a UInt64Value message.
+             * @function verify
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            UInt64Value.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (!$util.isInteger(message.value) && !(message.value && $util.isInteger(message.value.low) && $util.isInteger(message.value.high)))
+                        return "value: integer|Long expected";
+                return null;
+            };
+
+            /**
+             * Creates a UInt64Value message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.UInt64Value} UInt64Value
+             */
+            UInt64Value.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.UInt64Value)
+                    return object;
+                var message = new $root.google.protobuf.UInt64Value();
+                if (object.value != null)
+                    if ($util.Long)
+                        (message.value = $util.Long.fromValue(object.value)).unsigned = true;
+                    else if (typeof object.value === "string")
+                        message.value = parseInt(object.value, 10);
+                    else if (typeof object.value === "number")
+                        message.value = object.value;
+                    else if (typeof object.value === "object")
+                        message.value = new $util.LongBits(object.value.low >>> 0, object.value.high >>> 0).toNumber(true);
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a UInt64Value message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.UInt64Value
+             * @static
+             * @param {google.protobuf.UInt64Value} message UInt64Value
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            UInt64Value.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    if ($util.Long) {
+                        var long = new $util.Long(0, 0, true);
+                        object.value = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                    } else
+                        object.value = options.longs === String ? "0" : 0;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (typeof message.value === "number")
+                        object.value = options.longs === String ? String(message.value) : message.value;
+                    else
+                        object.value = options.longs === String ? $util.Long.prototype.toString.call(message.value) : options.longs === Number ? new $util.LongBits(message.value.low >>> 0, message.value.high >>> 0).toNumber(true) : message.value;
+                return object;
+            };
+
+            /**
+             * Converts this UInt64Value to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.UInt64Value
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            UInt64Value.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return UInt64Value;
+        })();
+
+        protobuf.Int32Value = (function() {
+
+            /**
+             * Properties of an Int32Value.
+             * @memberof google.protobuf
+             * @interface IInt32Value
+             * @property {number|null} [value] Int32Value value
+             */
+
+            /**
+             * Constructs a new Int32Value.
+             * @memberof google.protobuf
+             * @classdesc Represents an Int32Value.
+             * @implements IInt32Value
+             * @constructor
+             * @param {google.protobuf.IInt32Value=} [properties] Properties to set
+             */
+            function Int32Value(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * Int32Value value.
+             * @member {number} value
+             * @memberof google.protobuf.Int32Value
+             * @instance
+             */
+            Int32Value.prototype.value = 0;
+
+            /**
+             * Creates a new Int32Value instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {google.protobuf.IInt32Value=} [properties] Properties to set
+             * @returns {google.protobuf.Int32Value} Int32Value instance
+             */
+            Int32Value.create = function create(properties) {
+                return new Int32Value(properties);
+            };
+
+            /**
+             * Encodes the specified Int32Value message. Does not implicitly {@link google.protobuf.Int32Value.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {google.protobuf.IInt32Value} message Int32Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Int32Value.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 0 =*/8).int32(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified Int32Value message, length delimited. Does not implicitly {@link google.protobuf.Int32Value.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {google.protobuf.IInt32Value} message Int32Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            Int32Value.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes an Int32Value message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.Int32Value} Int32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Int32Value.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.Int32Value();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.int32();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes an Int32Value message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.Int32Value} Int32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            Int32Value.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies an Int32Value message.
+             * @function verify
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            Int32Value.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (!$util.isInteger(message.value))
+                        return "value: integer expected";
+                return null;
+            };
+
+            /**
+             * Creates an Int32Value message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.Int32Value} Int32Value
+             */
+            Int32Value.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.Int32Value)
+                    return object;
+                var message = new $root.google.protobuf.Int32Value();
+                if (object.value != null)
+                    message.value = object.value | 0;
+                return message;
+            };
+
+            /**
+             * Creates a plain object from an Int32Value message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.Int32Value
+             * @static
+             * @param {google.protobuf.Int32Value} message Int32Value
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            Int32Value.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    object.value = 0;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = message.value;
+                return object;
+            };
+
+            /**
+             * Converts this Int32Value to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.Int32Value
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            Int32Value.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return Int32Value;
+        })();
+
+        protobuf.UInt32Value = (function() {
+
+            /**
+             * Properties of a UInt32Value.
+             * @memberof google.protobuf
+             * @interface IUInt32Value
+             * @property {number|null} [value] UInt32Value value
+             */
+
+            /**
+             * Constructs a new UInt32Value.
+             * @memberof google.protobuf
+             * @classdesc Represents a UInt32Value.
+             * @implements IUInt32Value
+             * @constructor
+             * @param {google.protobuf.IUInt32Value=} [properties] Properties to set
+             */
+            function UInt32Value(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * UInt32Value value.
+             * @member {number} value
+             * @memberof google.protobuf.UInt32Value
+             * @instance
+             */
+            UInt32Value.prototype.value = 0;
+
+            /**
+             * Creates a new UInt32Value instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {google.protobuf.IUInt32Value=} [properties] Properties to set
+             * @returns {google.protobuf.UInt32Value} UInt32Value instance
+             */
+            UInt32Value.create = function create(properties) {
+                return new UInt32Value(properties);
+            };
+
+            /**
+             * Encodes the specified UInt32Value message. Does not implicitly {@link google.protobuf.UInt32Value.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {google.protobuf.IUInt32Value} message UInt32Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            UInt32Value.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified UInt32Value message, length delimited. Does not implicitly {@link google.protobuf.UInt32Value.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {google.protobuf.IUInt32Value} message UInt32Value message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            UInt32Value.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a UInt32Value message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.UInt32Value} UInt32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            UInt32Value.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.UInt32Value();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.uint32();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a UInt32Value message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.UInt32Value} UInt32Value
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            UInt32Value.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a UInt32Value message.
+             * @function verify
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            UInt32Value.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (!$util.isInteger(message.value))
+                        return "value: integer expected";
+                return null;
+            };
+
+            /**
+             * Creates a UInt32Value message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.UInt32Value} UInt32Value
+             */
+            UInt32Value.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.UInt32Value)
+                    return object;
+                var message = new $root.google.protobuf.UInt32Value();
+                if (object.value != null)
+                    message.value = object.value >>> 0;
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a UInt32Value message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.UInt32Value
+             * @static
+             * @param {google.protobuf.UInt32Value} message UInt32Value
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            UInt32Value.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    object.value = 0;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = message.value;
+                return object;
+            };
+
+            /**
+             * Converts this UInt32Value to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.UInt32Value
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            UInt32Value.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return UInt32Value;
+        })();
+
+        protobuf.BoolValue = (function() {
+
+            /**
+             * Properties of a BoolValue.
+             * @memberof google.protobuf
+             * @interface IBoolValue
+             * @property {boolean|null} [value] BoolValue value
+             */
+
+            /**
+             * Constructs a new BoolValue.
+             * @memberof google.protobuf
+             * @classdesc Represents a BoolValue.
+             * @implements IBoolValue
+             * @constructor
+             * @param {google.protobuf.IBoolValue=} [properties] Properties to set
+             */
+            function BoolValue(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * BoolValue value.
+             * @member {boolean} value
+             * @memberof google.protobuf.BoolValue
+             * @instance
+             */
+            BoolValue.prototype.value = false;
+
+            /**
+             * Creates a new BoolValue instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {google.protobuf.IBoolValue=} [properties] Properties to set
+             * @returns {google.protobuf.BoolValue} BoolValue instance
+             */
+            BoolValue.create = function create(properties) {
+                return new BoolValue(properties);
+            };
+
+            /**
+             * Encodes the specified BoolValue message. Does not implicitly {@link google.protobuf.BoolValue.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {google.protobuf.IBoolValue} message BoolValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            BoolValue.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 0 =*/8).bool(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified BoolValue message, length delimited. Does not implicitly {@link google.protobuf.BoolValue.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {google.protobuf.IBoolValue} message BoolValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            BoolValue.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a BoolValue message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.BoolValue} BoolValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            BoolValue.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.BoolValue();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.bool();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a BoolValue message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.BoolValue} BoolValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            BoolValue.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a BoolValue message.
+             * @function verify
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            BoolValue.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (typeof message.value !== "boolean")
+                        return "value: boolean expected";
+                return null;
+            };
+
+            /**
+             * Creates a BoolValue message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.BoolValue} BoolValue
+             */
+            BoolValue.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.BoolValue)
+                    return object;
+                var message = new $root.google.protobuf.BoolValue();
+                if (object.value != null)
+                    message.value = Boolean(object.value);
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a BoolValue message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.BoolValue
+             * @static
+             * @param {google.protobuf.BoolValue} message BoolValue
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            BoolValue.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    object.value = false;
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = message.value;
+                return object;
+            };
+
+            /**
+             * Converts this BoolValue to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.BoolValue
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            BoolValue.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return BoolValue;
+        })();
+
+        protobuf.StringValue = (function() {
+
+            /**
+             * Properties of a StringValue.
+             * @memberof google.protobuf
+             * @interface IStringValue
+             * @property {string|null} [value] StringValue value
+             */
+
+            /**
+             * Constructs a new StringValue.
+             * @memberof google.protobuf
+             * @classdesc Represents a StringValue.
+             * @implements IStringValue
+             * @constructor
+             * @param {google.protobuf.IStringValue=} [properties] Properties to set
+             */
+            function StringValue(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * StringValue value.
+             * @member {string} value
+             * @memberof google.protobuf.StringValue
+             * @instance
+             */
+            StringValue.prototype.value = "";
+
+            /**
+             * Creates a new StringValue instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {google.protobuf.IStringValue=} [properties] Properties to set
+             * @returns {google.protobuf.StringValue} StringValue instance
+             */
+            StringValue.create = function create(properties) {
+                return new StringValue(properties);
+            };
+
+            /**
+             * Encodes the specified StringValue message. Does not implicitly {@link google.protobuf.StringValue.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {google.protobuf.IStringValue} message StringValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            StringValue.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 2 =*/10).string(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified StringValue message, length delimited. Does not implicitly {@link google.protobuf.StringValue.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {google.protobuf.IStringValue} message StringValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            StringValue.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a StringValue message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.StringValue} StringValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            StringValue.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.StringValue();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.string();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a StringValue message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.StringValue} StringValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            StringValue.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a StringValue message.
+             * @function verify
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            StringValue.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (!$util.isString(message.value))
+                        return "value: string expected";
+                return null;
+            };
+
+            /**
+             * Creates a StringValue message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.StringValue} StringValue
+             */
+            StringValue.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.StringValue)
+                    return object;
+                var message = new $root.google.protobuf.StringValue();
+                if (object.value != null)
+                    message.value = String(object.value);
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a StringValue message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.StringValue
+             * @static
+             * @param {google.protobuf.StringValue} message StringValue
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            StringValue.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    object.value = "";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = message.value;
+                return object;
+            };
+
+            /**
+             * Converts this StringValue to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.StringValue
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            StringValue.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return StringValue;
+        })();
+
+        protobuf.BytesValue = (function() {
+
+            /**
+             * Properties of a BytesValue.
+             * @memberof google.protobuf
+             * @interface IBytesValue
+             * @property {Uint8Array|null} [value] BytesValue value
+             */
+
+            /**
+             * Constructs a new BytesValue.
+             * @memberof google.protobuf
+             * @classdesc Represents a BytesValue.
+             * @implements IBytesValue
+             * @constructor
+             * @param {google.protobuf.IBytesValue=} [properties] Properties to set
+             */
+            function BytesValue(properties) {
+                if (properties)
+                    for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                        if (properties[keys[i]] != null)
+                            this[keys[i]] = properties[keys[i]];
+            }
+
+            /**
+             * BytesValue value.
+             * @member {Uint8Array} value
+             * @memberof google.protobuf.BytesValue
+             * @instance
+             */
+            BytesValue.prototype.value = $util.newBuffer([]);
+
+            /**
+             * Creates a new BytesValue instance using the specified properties.
+             * @function create
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {google.protobuf.IBytesValue=} [properties] Properties to set
+             * @returns {google.protobuf.BytesValue} BytesValue instance
+             */
+            BytesValue.create = function create(properties) {
+                return new BytesValue(properties);
+            };
+
+            /**
+             * Encodes the specified BytesValue message. Does not implicitly {@link google.protobuf.BytesValue.verify|verify} messages.
+             * @function encode
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {google.protobuf.IBytesValue} message BytesValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            BytesValue.encode = function encode(message, writer) {
+                if (!writer)
+                    writer = $Writer.create();
+                if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                    writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.value);
+                return writer;
+            };
+
+            /**
+             * Encodes the specified BytesValue message, length delimited. Does not implicitly {@link google.protobuf.BytesValue.verify|verify} messages.
+             * @function encodeDelimited
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {google.protobuf.IBytesValue} message BytesValue message or plain object to encode
+             * @param {$protobuf.Writer} [writer] Writer to encode to
+             * @returns {$protobuf.Writer} Writer
+             */
+            BytesValue.encodeDelimited = function encodeDelimited(message, writer) {
+                return this.encode(message, writer).ldelim();
+            };
+
+            /**
+             * Decodes a BytesValue message from the specified reader or buffer.
+             * @function decode
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @param {number} [length] Message length if known beforehand
+             * @returns {google.protobuf.BytesValue} BytesValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            BytesValue.decode = function decode(reader, length) {
+                if (!(reader instanceof $Reader))
+                    reader = $Reader.create(reader);
+                var end = length === undefined ? reader.len : reader.pos + length, message = new $root.google.protobuf.BytesValue();
+                while (reader.pos < end) {
+                    var tag = reader.uint32();
+                    switch (tag >>> 3) {
+                    case 1:
+                        message.value = reader.bytes();
+                        break;
+                    default:
+                        reader.skipType(tag & 7);
+                        break;
+                    }
+                }
+                return message;
+            };
+
+            /**
+             * Decodes a BytesValue message from the specified reader or buffer, length delimited.
+             * @function decodeDelimited
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+             * @returns {google.protobuf.BytesValue} BytesValue
+             * @throws {Error} If the payload is not a reader or valid buffer
+             * @throws {$protobuf.util.ProtocolError} If required fields are missing
+             */
+            BytesValue.decodeDelimited = function decodeDelimited(reader) {
+                if (!(reader instanceof $Reader))
+                    reader = new $Reader(reader);
+                return this.decode(reader, reader.uint32());
+            };
+
+            /**
+             * Verifies a BytesValue message.
+             * @function verify
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {Object.<string,*>} message Plain object to verify
+             * @returns {string|null} `null` if valid, otherwise the reason why it is not
+             */
+            BytesValue.verify = function verify(message) {
+                if (typeof message !== "object" || message === null)
+                    return "object expected";
+                if (message.value != null && message.hasOwnProperty("value"))
+                    if (!(message.value && typeof message.value.length === "number" || $util.isString(message.value)))
+                        return "value: buffer expected";
+                return null;
+            };
+
+            /**
+             * Creates a BytesValue message from a plain object. Also converts values to their respective internal types.
+             * @function fromObject
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {Object.<string,*>} object Plain object
+             * @returns {google.protobuf.BytesValue} BytesValue
+             */
+            BytesValue.fromObject = function fromObject(object) {
+                if (object instanceof $root.google.protobuf.BytesValue)
+                    return object;
+                var message = new $root.google.protobuf.BytesValue();
+                if (object.value != null)
+                    if (typeof object.value === "string")
+                        $util.base64.decode(object.value, message.value = $util.newBuffer($util.base64.length(object.value)), 0);
+                    else if (object.value.length)
+                        message.value = object.value;
+                return message;
+            };
+
+            /**
+             * Creates a plain object from a BytesValue message. Also converts values to other types if specified.
+             * @function toObject
+             * @memberof google.protobuf.BytesValue
+             * @static
+             * @param {google.protobuf.BytesValue} message BytesValue
+             * @param {$protobuf.IConversionOptions} [options] Conversion options
+             * @returns {Object.<string,*>} Plain object
+             */
+            BytesValue.toObject = function toObject(message, options) {
+                if (!options)
+                    options = {};
+                var object = {};
+                if (options.defaults)
+                    if (options.bytes === String)
+                        object.value = "";
+                    else {
+                        object.value = [];
+                        if (options.bytes !== Array)
+                            object.value = $util.newBuffer(object.value);
+                    }
+                if (message.value != null && message.hasOwnProperty("value"))
+                    object.value = options.bytes === String ? $util.base64.encode(message.value, 0, message.value.length) : options.bytes === Array ? Array.prototype.slice.call(message.value) : message.value;
+                return object;
+            };
+
+            /**
+             * Converts this BytesValue to JSON.
+             * @function toJSON
+             * @memberof google.protobuf.BytesValue
+             * @instance
+             * @returns {Object.<string,*>} JSON object
+             */
+            BytesValue.prototype.toJSON = function toJSON() {
+                return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+            };
+
+            return BytesValue;
         })();
 
         return protobuf;

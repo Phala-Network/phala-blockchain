@@ -1,17 +1,19 @@
-use super::{TransactionError, TypedReceiver, WorkerState};
+use super::{RotatedMasterKey, TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_fat::ClusterRegistryEvent;
+use chain::pallet_registry::GatekeeperRegistryEvent;
 use phala_crypto::{
-    aead, ecdh,
+    aead, key_share,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
 };
-use phala_mq::{traits::MessageChannel, MessageDispatcher};
+use phala_mq::{traits::MessageChannel, MessageDispatcher, Sr25519Signer};
 use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        ClusterOperation, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
-        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
-        SystemEvent, WorkerEvent, WorkerEventWithKey,
+        BatchRotateMasterKeyEvent, ClusterOperation, DispatchMasterKeyHistoryEvent, EncryptedKey,
+        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        RandomNumber, RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent,
+        WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -34,6 +36,8 @@ pub use tokenomic::{FixedPoint, TokenomicInfo};
 ///
 /// WARNING: this interval need to be large enough considering the latency of mq
 const VRF_INTERVAL: u32 = 5;
+
+const MASTER_KEY_SHARING_SALT: &[u8] = b"master_key_sharing";
 
 // pesudo_random_number = blake2_256(last_random_number, block_number, derived_master_key)
 //
@@ -105,10 +109,15 @@ impl WorkerInfo {
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Gatekeeper<MsgChan> {
+    /// The current master key in use
     #[serde(with = "more::key_bytes")]
     master_key: sr25519::Pair,
+    /// This will be switched once when the first master key is uploaded
     master_pubkey_on_chain: bool,
+    /// Unregistered GK will sync all the GK messages silently
     registered_on_chain: bool,
+    #[serde(with = "more::scale_bytes")]
+    master_key_history: Vec<RotatedMasterKey>,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     cluster_events: TypedReceiver<ClusterEvent>,
@@ -120,19 +129,26 @@ pub(crate) struct Gatekeeper<MsgChan> {
 
 impl<MsgChan> Gatekeeper<MsgChan>
 where
-    MsgChan: MessageChannel + Clone,
+    MsgChan: MessageChannel<Signer = Sr25519Signer> + Clone,
 {
     pub fn new(
-        master_key: sr25519::Pair,
+        master_key_history: Vec<RotatedMasterKey>,
         recv_mq: &mut MessageDispatcher,
         egress: MsgChan,
     ) -> Self {
+        let master_key = sr25519::Pair::restore_from_secret_key(
+            &master_key_history
+                .first()
+                .expect("empty master key history")
+                .secret,
+        );
         egress.set_dummy(true);
 
         Self {
             master_key,
             master_pubkey_on_chain: false,
             registered_on_chain: false,
+            master_key_history,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
             cluster_events: recv_mq.subscribe_bound(),
@@ -157,7 +173,7 @@ where
         let hash = hashing::blake2_256(buf.as_ref());
         hash[0..12]
             .try_into()
-            .expect("should never fail given correct length; qed;")
+            .expect("should never fail given correct length; qed.")
     }
 
     pub fn register_on_chain(&mut self) {
@@ -166,7 +182,6 @@ where
         self.registered_on_chain = true;
     }
 
-    #[allow(unused)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.egress.set_dummy(true);
@@ -177,8 +192,73 @@ where
         self.registered_on_chain
     }
 
-    pub fn master_pubkey_uploaded(&mut self) {
+    pub fn master_pubkey_uploaded(&mut self, master_pubkey: sr25519::Public) {
+        assert!(
+            self.master_key.public() == master_pubkey,
+            "local and on-chain master key mismatch"
+        );
         self.master_pubkey_on_chain = true;
+    }
+
+    pub fn master_pubkey(&self) -> sr25519::Public {
+        self.master_key.public()
+    }
+
+    pub fn master_key_history(&self) -> &Vec<RotatedMasterKey> {
+        &self.master_key_history
+    }
+
+    /// Return whether the history is really updated
+    pub fn set_master_key_history(&mut self, master_key_history: &Vec<RotatedMasterKey>) -> bool {
+        if master_key_history.len() <= self.master_key_history.len() {
+            return false;
+        }
+        self.master_key_history = master_key_history.clone();
+        true
+    }
+
+    /// Append the rotated key to Gatekeeper's master key history, return whether the history is really updated
+    pub fn append_master_key(&mut self, rotated_master_key: RotatedMasterKey) -> bool {
+        if !self.master_key_history.contains(&rotated_master_key) {
+            // the rotation id must be in order
+            assert!(
+                rotated_master_key.rotation_id == self.master_key_history.len() as u64,
+                "Gatekeeper Master key history corrupted"
+            );
+            self.master_key_history.push(rotated_master_key.clone());
+            return true;
+        }
+        false
+    }
+
+    /// Update the master key and Gatekeeper mq, return whether the key switch succeeds
+    pub fn switch_master_key(
+        &mut self,
+        rotation_id: u64,
+        block_height: chain::BlockNumber,
+    ) -> bool {
+        let raw_key = self.master_key_history.get(rotation_id as usize);
+        if raw_key.is_none() {
+            return false;
+        }
+
+        let raw_key = raw_key.expect("checked; qed.");
+        assert!(
+            raw_key.rotation_id == rotation_id && raw_key.block_height == block_height,
+            "Gatekeeper Master key history corrupted"
+        );
+        let new_master_key = sr25519::Pair::restore_from_secret_key(&raw_key.secret);
+        // send the RotatedMasterPubkey event with old master key
+        let master_pubkey = new_master_key.public();
+        self.egress
+            .push_message(&GatekeeperRegistryEvent::RotatedMasterPubkey {
+                rotation_id: raw_key.rotation_id,
+                master_pubkey,
+            });
+
+        self.master_key = new_master_key.clone();
+        self.egress.set_signer(self.master_key.clone().into());
+        true
     }
 
     pub fn share_master_key(
@@ -187,26 +267,109 @@ where
         ecdh_pubkey: &EcdhPublicKey,
         block_number: chain::BlockNumber,
     ) {
+        if self.master_key_history.len() > 1 {
+            self.share_master_key_history(pubkey, ecdh_pubkey, block_number);
+        } else {
+            self.share_latest_master_key(pubkey, ecdh_pubkey, block_number);
+        }
+    }
+
+    pub fn share_latest_master_key(
+        &mut self,
+        pubkey: &WorkerPublicKey,
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: chain::BlockNumber,
+    ) {
         info!("Gatekeeper: try dispatch master key");
         let master_key = self.master_key.dump_secret_key();
         let encrypted_key = self.encrypt_key_to(
-            &[b"master_key_sharing"],
+            &[MASTER_KEY_SHARING_SALT],
             ecdh_pubkey,
             &master_key,
             block_number,
         );
-        self.egress
-            .push_message(&KeyDistribution::master_key_distribution(
+        self.egress.push_message(
+            &KeyDistribution::<chain::BlockNumber>::master_key_distribution(
                 *pubkey,
                 encrypted_key.ecdh_pubkey,
                 encrypted_key.encrypted_key,
                 encrypted_key.iv,
+            ),
+        );
+    }
+
+    pub fn share_master_key_history(
+        &mut self,
+        pubkey: &WorkerPublicKey,
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: chain::BlockNumber,
+    ) {
+        info!("Gatekeeper: try dispatch all historical master keys");
+        let encrypted_master_key_history = self
+            .master_key_history
+            .clone()
+            .iter()
+            .map(|key| {
+                (
+                    key.rotation_id,
+                    key.block_height,
+                    self.encrypt_key_to(
+                        &[MASTER_KEY_SHARING_SALT],
+                        ecdh_pubkey,
+                        &key.secret,
+                        block_number,
+                    ),
+                )
+            })
+            .collect();
+        self.egress.push_message(&KeyDistribution::MasterKeyHistory(
+            DispatchMasterKeyHistoryEvent {
+                dest: pubkey.clone(),
+                encrypted_master_key_history,
+            },
+        ));
+    }
+
+    pub fn process_master_key_rotation_request(
+        &mut self,
+        block: &BlockInfo,
+        event: RotateMasterKeyEvent,
+        identity_key: sr25519::Pair,
+    ) {
+        let new_master_key = crate::new_sr25519_key();
+        let secret_key = new_master_key.dump_secret_key();
+        let secret_keys: BTreeMap<_, _> = event
+            .gk_identities
+            .into_iter()
+            .map(|gk_identity| {
+                let encrypted_key = self.encrypt_key_to(
+                    &[MASTER_KEY_SHARING_SALT],
+                    &gk_identity.ecdh_pubkey,
+                    &secret_key,
+                    block.block_number,
+                );
+                (gk_identity.pubkey, encrypted_key)
+            })
+            .collect();
+        let mut event = BatchRotateMasterKeyEvent {
+            rotation_id: event.rotation_id,
+            secret_keys,
+            sender: identity_key.public(),
+            sig: vec![],
+        };
+        let data_to_sign = event.data_be_signed();
+        event.sig = identity_key.sign(&data_to_sign).0.to_vec();
+        self.egress
+            .push_message(&KeyDistribution::<chain::BlockNumber>::MasterKeyRotation(
+                event,
             ));
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
         if !self.master_pubkey_on_chain {
-            info!("Gatekeeper: not handling the messages because Gatekeeper has not launched on chain");
+            info!(
+                "Gatekeeper: not handle the messages because Gatekeeper has not launched on chain"
+            );
             return;
         }
 
@@ -257,11 +420,12 @@ where
         }
     }
 
-    // Manually encrypt the secret key for sharing
-    //
-    // The encrypted key intends to be shared through public channel in a broadcast way,
-    // so it is possible to share one key to multiple parties in one message.
-    // For end-to-end secret sharing, use `SecretMessageChannel`.
+    /// Manually encrypt the secret key for sharing
+    ///
+    /// The encrypted key intends to be shared through public channel in a broadcast way,
+    /// so it is possible to share one key to multiple parties in one message.
+    ///
+    /// For end-to-end secret sharing, use `SecretMessageChannel`.
     fn encrypt_key_to(
         &mut self,
         key_derive_info: &[&[u8]],
@@ -269,22 +433,18 @@ where
         secret_key: &Sr25519SecretKey,
         block_number: chain::BlockNumber,
     ) -> EncryptedKey {
-        let derived_key = self
-            .master_key
-            .derive_sr25519_pair(key_derive_info)
-            .expect("should not fail with valid info; qed.");
-        let my_ecdh_key = derived_key
-            .derive_ecdh_key()
-            .expect("ecdh key derivation should never failed with valid master key; qed.");
-        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
-            .expect("should never fail with valid ecdh key; qed.");
         let iv = self.generate_iv(block_number);
-        let mut data = secret_key.to_vec();
-        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
-
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
+            &self.master_key,
+            key_derive_info,
+            &ecdh_pubkey.0,
+            secret_key,
+            &iv,
+        )
+        .expect("should never fail with valid master key; qed.");
         EncryptedKey {
-            ecdh_pubkey: sr25519::Public(my_ecdh_key.public()),
-            encrypted_key: data,
+            ecdh_pubkey: sr25519::Public(ecdh_pubkey),
+            encrypted_key,
             iv,
         }
     }
@@ -345,11 +505,25 @@ where
             return;
         };
 
-        let expect_random = next_random_number(
-            &self.master_key,
-            event.block_number,
-            event.last_random_number,
-        );
+        // determine which master key to use
+        // the random number may be generated with the latest master key or last key that was just rotated
+        let master_key = if self
+            .master_key_history
+            .last()
+            .expect("at least one key in gk; qed")
+            .block_height
+            > event.block_number
+        {
+            let len = self.master_key_history.len();
+            assert!(len >= 2, "no proper key for random generation");
+            let secret = self.master_key_history[len - 2].secret;
+            sr25519::Pair::restore_from_secret_key(&secret)
+        } else {
+            self.master_key.clone()
+        };
+
+        let expect_random =
+            next_random_number(&master_key, event.block_number, event.last_random_number);
         // instead of checking the origin, we directly verify the random to avoid access storage
         if expect_random != event.random_number {
             error!("Fatal error: Expect random number {:?}", expect_random);
@@ -510,7 +684,7 @@ impl From<&WorkerInfo> for pb::WorkerState {
     }
 }
 
-impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
+impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
     pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
         MiningEconomics {
             egress,
@@ -589,7 +763,7 @@ struct MiningMessageProcessor<'a, MsgChan> {
 
 impl<MsgChan> MiningMessageProcessor<'_, MsgChan>
 where
-    MsgChan: MessageChannel,
+    MsgChan: MessageChannel<Signer = Sr25519Signer>,
 {
     fn process(&mut self) {
         self.prepare();
@@ -1321,7 +1495,7 @@ pub mod tests {
     use super::{BlockInfo, FixedPoint, MessageChannel, MiningEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
-    use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path};
+    use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path, Sr25519Signer};
     use phala_types::{messaging as msg, WorkerPublicKey};
     use std::cell::RefCell;
 
@@ -1378,6 +1552,8 @@ pub mod tests {
     }
 
     impl MessageChannel for CollectChannel {
+        type Signer = Sr25519Signer;
+
         fn push_data(&self, data: Vec<u8>, to: impl Into<Path>) {
             let message = Message {
                 sender: MessageOrigin::Gatekeeper,

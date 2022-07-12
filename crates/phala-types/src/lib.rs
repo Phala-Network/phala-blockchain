@@ -26,7 +26,8 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{
-        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity,
+        WorkerPublicKey,
     };
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
@@ -377,6 +378,8 @@ pub mod messaging {
     pub enum GatekeeperLaunch {
         FirstGatekeeper(NewGatekeeperEvent),
         MasterPubkeyOnChain(MasterPubkeyEvent),
+        RotateMasterKey(RotateMasterKeyEvent),
+        MasterPubkeyRotated(MasterPubkeyEvent),
     }
 
     impl GatekeeperLaunch {
@@ -393,6 +396,20 @@ pub mod messaging {
         pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> GatekeeperLaunch {
             GatekeeperLaunch::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
         }
+
+        pub fn rotate_master_key(
+            rotation_id: u64,
+            gk_identities: Vec<WorkerIdentity>,
+        ) -> GatekeeperLaunch {
+            GatekeeperLaunch::RotateMasterKey(RotateMasterKeyEvent {
+                rotation_id,
+                gk_identities,
+            })
+        }
+
+        pub fn master_pubkey_rotated(master_pubkey: MasterPublicKey) -> GatekeeperLaunch {
+            GatekeeperLaunch::MasterPubkeyRotated(MasterPubkeyEvent { master_pubkey })
+        }
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
@@ -404,15 +421,28 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct RemoveGatekeeperEvent {
+        /// The public key of registered gatekeeper
+        pub pubkey: WorkerPublicKey,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct MasterPubkeyEvent {
         pub master_pubkey: MasterPublicKey,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct RotateMasterKeyEvent {
+        pub rotation_id: u64,
+        pub gk_identities: Vec<WorkerIdentity>,
     }
 
     // Messages: Gatekeeper change
     bind_topic!(GatekeeperChange, b"phala/gatekeeper/change");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum GatekeeperChange {
-        GatekeeperRegistered(NewGatekeeperEvent),
+        Registered(NewGatekeeperEvent),
+        Unregistered(RemoveGatekeeperEvent),
     }
 
     impl GatekeeperChange {
@@ -420,27 +450,41 @@ pub mod messaging {
             pubkey: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
         ) -> GatekeeperChange {
-            GatekeeperChange::GatekeeperRegistered(NewGatekeeperEvent {
+            GatekeeperChange::Registered(NewGatekeeperEvent {
                 pubkey,
                 ecdh_pubkey,
             })
         }
+
+        pub fn gatekeeper_unregistered(pubkey: WorkerPublicKey) -> GatekeeperChange {
+            GatekeeperChange::Unregistered(RemoveGatekeeperEvent { pubkey })
+        }
     }
 
     // Messages: Distribution of master key and contract keys
-    bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
+    bind_topic!(KeyDistribution<BlockNumber>, b"phala/gatekeeper/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum KeyDistribution {
+    pub enum KeyDistribution<BlockNumber> {
+        /// Legacy single master key sharing, use `MasterKeyHistory` after we enable master key rotation
+        ///
+        /// MessageOrigin::Gatekeeper -> MessageOrigin::Worker
         MasterKeyDistribution(DispatchMasterKeyEvent),
+        // TODO.shelven: a better way for real large batch key distribution
+        /// MessageOrigin::Worker -> ALL
+        ///
+        /// The origin cannot be Gatekeeper, else the leakage of old master key will further leak the following keys
+        MasterKeyRotation(BatchRotateMasterKeyEvent),
+        /// MessageOrigin::Gatekeeper -> MessageOrigin::Worker
+        MasterKeyHistory(DispatchMasterKeyHistoryEvent<BlockNumber>),
     }
 
-    impl KeyDistribution {
+    impl<BlockNumber> KeyDistribution<BlockNumber> {
         pub fn master_key_distribution(
             dest: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
-        ) -> KeyDistribution {
+        ) -> KeyDistribution<BlockNumber> {
             KeyDistribution::MasterKeyDistribution(DispatchMasterKeyEvent {
                 dest,
                 ecdh_pubkey,
@@ -450,11 +494,11 @@ pub mod messaging {
         }
     }
 
-    // TODO.shelven: merge this into KeyDistribution
     bind_topic!(ClusterOperation<BlockNumber>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum ClusterOperation<BlockNumber> {
         // TODO.shelven: a better way for real large batch key distribution
+        /// MessageOrigin::Gatekeeper -> ALL
         DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
         /// Set the contract to receive the ink logs inside given cluster.
         SetLogReceiver {
@@ -503,6 +547,39 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct DispatchMasterKeyHistoryEvent<BlockNumber> {
+        /// The target to dispatch master key
+        pub dest: WorkerPublicKey,
+        pub encrypted_master_key_history: Vec<(u64, BlockNumber, EncryptedKey)>,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct BatchRotateMasterKeyEvent {
+        pub rotation_id: u64,
+        pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+        pub sender: WorkerPublicKey,
+        pub sig: Vec<u8>,
+    }
+
+    #[derive(Encode)]
+    pub(crate) struct BatchRotateMasterKeyData<'a> {
+        pub(crate) rotation_id: u64,
+        pub(crate) secret_keys: &'a BTreeMap<WorkerPublicKey, EncryptedKey>,
+        pub(crate) sender: WorkerPublicKey,
+    }
+
+    impl BatchRotateMasterKeyEvent {
+        pub fn data_be_signed(&self) -> Vec<u8> {
+            BatchRotateMasterKeyData {
+                rotation_id: self.rotation_id,
+                secret_keys: &self.secret_keys,
+                sender: self.sender.clone(),
+            }
+            .encode()
+        }
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
@@ -676,6 +753,36 @@ pub use sp_core::sr25519::Signature as Sr25519Signature;
 pub struct WorkerIdentity {
     pub pubkey: WorkerPublicKey,
     pub ecdh_pubkey: EcdhPublicKey,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct HandoverChallengePayload<BlockNumber> {
+    // The challenge is only considered valid within 150 blocks (~30 min)
+    pub block_number: BlockNumber,
+    pub now: u64,
+    pub dev_mode: bool,
+    pub nonce: [u8; 32],
+}
+
+/// One-time Challenge for WorkerKey handover
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct HandoverChallenge<BlockNumber> {
+    pub payload: HandoverChallengePayload<BlockNumber>,
+    // Signature on encoded challenge payload
+    pub signature: Sr25519Signature,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct ChallengeHandlerInfo<BlockNumber> {
+    pub challenge: HandoverChallenge<BlockNumber>,
+    pub ecdh_pubkey: EcdhPublicKey,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct EncryptedWorkerKey {
+    pub genesis_block_hash: H256,
+    pub dev_mode: bool,
+    pub encrypted_key: messaging::EncryptedKey,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]

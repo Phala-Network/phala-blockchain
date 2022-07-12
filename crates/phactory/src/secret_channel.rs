@@ -62,6 +62,8 @@ mod sender {
     impl<'a, MsgChan: MessageChannel> phala_mq::traits::MessageChannel
         for BoundSecretMessageChannel<'a, MsgChan>
     {
+        type Signer = MsgChan::Signer;
+
         fn push_data(&self, data: Vec<u8>, to: impl Into<Path>) {
             let payload = self.encrypt_payload(data);
             self.inner.mq.push_message_to(&payload, to)

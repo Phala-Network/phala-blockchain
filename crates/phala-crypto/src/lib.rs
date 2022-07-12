@@ -6,9 +6,12 @@ extern crate alloc;
 #[macro_use]
 extern crate std;
 
-pub mod ecdh;
 pub mod aead;
+pub mod ecdh;
 pub mod sr25519;
+
+#[cfg(feature = "full_crypto")]
+pub mod key_share;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -20,4 +23,6 @@ pub enum CryptoError {
     AeadInvalidKey,
     AeadEncryptError,
     AeadDecryptError,
+    // sr25519
+    Sr25519InvalidSecret,
 }

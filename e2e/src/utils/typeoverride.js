@@ -176,7 +176,7 @@ const types = {
     },
     "GatekeeperChange": {
         "_enum": {
-            "GatekeeperRegistered": "NewGatekeeperEvent",
+            "Registered": "NewGatekeeperEvent",
         }
     },
     "GatekeeperEvent": {

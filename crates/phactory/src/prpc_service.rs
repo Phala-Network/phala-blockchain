@@ -1,16 +1,24 @@
+use std::convert::TryFrom;
 use std::sync::{Mutex, MutexGuard};
 
-use crate::system::System;
+use crate::system::{chain_state, System};
 
 use super::*;
+use chain::pallet_registry::{Attestation, AttestationValidator, IasFields, IasValidator};
+use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
+use phala_crypto::{
+    key_share,
+    sr25519::{Persistence, KDF},
+};
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, EndpointType, WorkerEndpointPayload, VersionedWorkerEndpoints, WorkerPublicKey,
+    contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
+    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -332,7 +340,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         info!("CPU cores: {}", cpu_core_num);
 
         let cpu_feature_level: u32 = self.platform.cpu_feature_level();
-
         info!("CPU feature level: {}", cpu_feature_level);
 
         // Build WorkerRegistrationInfo
@@ -388,6 +395,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
+            rt_data.trusted_sk,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
@@ -413,6 +421,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         let skip_ra = self.skip_ra;
+        let validated_identity_key = self.system()?.validated_identity_key();
 
         let mut cached_resp = self
             .runtime_info
@@ -428,7 +437,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             cached_resp.encoded_runtime_info = runtime_info.encode();
         }
 
-        if !skip_ra {
+        // never generate RA report for a potentially injected identity key
+        // else he is able to fake a Secure Worker
+        if !skip_ra && validated_identity_key {
             if let Some(cached_attestation) = &cached_resp.attestation {
                 const MAX_ATTESTATION_AGE: u64 = 60 * 60;
                 if refresh_ra
@@ -461,8 +472,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     payload: Some(pb::AttestationReport {
                         report: attn_report,
                         signature: base64::decode(sig).map_err(from_display)?,
-                        signing_cert: base64::decode_config(cert, base64::STANDARD)
-                            .map_err(from_display)?,
+                        signing_cert: base64::decode(cert).map_err(from_display)?,
                     }),
                     timestamp: now(),
                 });
@@ -524,7 +534,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Origin
         let accid_origin = match origin {
             Some(origin) => {
-                use core::convert::TryFrom;
                 let accid = chain::AccountId::try_from(origin.as_slice())
                     .map_err(|_| from_display("Bad account id"))?;
                 Some(accid)
@@ -824,9 +833,31 @@ pub struct RpcService<'a, Platform> {
     phactory: &'a Mutex<Phactory<Platform>>,
 }
 
-impl<Platform> RpcService<'_, Platform> {
+impl<Platform: pal::Platform> RpcService<'_, Platform> {
     fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
         self.phactory.lock().unwrap()
+    }
+
+    fn create_attestation_report_on(&self, data: &[u8]) -> RpcResult<pb::Attestation> {
+        let phactory = self.lock_phactory();
+        let (attn_report, sig, cert) = match phactory.platform.create_attestation_report(&data) {
+            Ok(r) => r,
+            Err(e) => {
+                let message = format!("Failed to create attestation report: {:?}", e);
+                error!("{}", message);
+                return Err(from_display(message));
+            }
+        };
+        Ok(pb::Attestation {
+            version: 1,
+            provider: "SGX".to_string(),
+            payload: Some(pb::AttestationReport {
+                report: attn_report,
+                signature: base64::decode(sig).map_err(from_display)?,
+                signing_cert: base64::decode(cert).map_err(from_display)?,
+            }),
+            timestamp: now(),
+        })
     }
 }
 
@@ -971,5 +1002,233 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
         let echo_msg = request.echo_msg;
         Ok(pb::EchoMessage { echo_msg })
+    }
+
+    // WorkerKey Handover Server
+
+    fn handover_create_challenge(&mut self, _request: ()) -> RpcResult<pb::HandoverChallenge> {
+        let mut phactory = self.lock_phactory();
+        let dev_mode = phactory.dev_mode;
+        let system = phactory.system()?;
+        let challenge = system.get_worker_key_challenge(dev_mode);
+        Ok(pb::HandoverChallenge::new(challenge))
+    }
+
+    fn handover_start(
+        &mut self,
+        request: pb::HandoverChallengeResponse,
+    ) -> RpcResult<pb::HandoverWorkerKey> {
+        let mut phactory = self.lock_phactory();
+        let dev_mode = phactory.dev_mode;
+        let system = phactory.system()?;
+        let my_identity_key = system.identity_key.clone();
+
+        // 1. verify RA report
+        let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
+        let now_ms = system.now_ms;
+        let block_number = system.block_number;
+        let attestation = if dev_mode {
+            info!("Skip RA report check in dev mode");
+            None
+        } else {
+            let payload_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+            let raw_attestation = request
+                .attestation
+                .ok_or_else(|| from_display("Attestation not found"))?;
+            let payload = raw_attestation
+                .payload
+                .ok_or_else(|| from_display("Missing attestation payload"))?;
+            let attn_to_validate = Attestation::SgxIas {
+                ra_report: payload.report.as_bytes().to_vec(),
+                signature: payload.signature,
+                raw_signing_cert: payload.signing_cert,
+            };
+            // The time from attestation report is generated by IAS, thus trusted. By default, it's valid for 10h.
+            // By ensuring our system timestamp is within the valid period, we know that this pRuntime is not hold back by
+            // malicious workers.
+            IasValidator::validate(&attn_to_validate, &payload_hash, now_ms, false, vec![])
+                .map_err(|_| from_display("Invalid RA report"))?;
+            Some(attn_to_validate)
+        };
+        // 2. verify challenge validity to prevent replay attack
+        let challenge = challenge_handler.challenge;
+        if !system.verify_worker_key_challenge(&challenge) {
+            return Err(from_display("Invalid challenge"));
+        }
+        // 3. verify challenge block height and report timestamp
+        // only challenge within 150 blocks (30 minutes) is accepted
+        let challenge_height = challenge.payload.block_number;
+        if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
+            return Err(from_display("Outdated challenge"));
+        }
+        // 4. verify pruntime launch date
+        if !dev_mode {
+            let runtime_info = phactory
+                .runtime_info
+                .as_ref()
+                .ok_or_else(|| from_display("Runtime not initialized"))?;
+            let my_attn = runtime_info
+                .attestation
+                .as_ref()
+                .ok_or_else(|| from_display("My attestation not found"))?;
+            let my_attn_report = my_attn
+                .payload
+                .as_ref()
+                .ok_or_else(|| from_display("My RA report not found"))?;
+            let (my_ias_fields, _) =
+                IasFields::from_ias_report(&my_attn_report.report.as_bytes().to_vec())
+                    .map_err(|_| from_display("Invalid RA report"))?;
+            let my_mrenclave = my_ias_fields.extend_mrenclave();
+            let runtime_state = phactory.runtime_state()?;
+            let my_runtime_timestamp =
+                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &my_mrenclave)
+                    .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
+
+            let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
+            let mrenclave = match attestation {
+                Attestation::SgxIas {
+                    ra_report,
+                    signature: _,
+                    raw_signing_cert: _,
+                } => {
+                    let (ias_fields, _) = IasFields::from_ias_report(&ra_report)
+                        .map_err(|_| from_display("Invalid received RA report"))?;
+                    ias_fields.extend_mrenclave()
+                }
+            };
+            let req_runtime_timestamp =
+                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
+                    .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            if my_runtime_timestamp >= req_runtime_timestamp {
+                return Err(from_display("No handover for old pRuntime"));
+            }
+        } else {
+            info!("Skip pRuntime timestamp check in dev mode");
+        }
+
+        // Share the key with attestation
+        let ecdh_pubkey = challenge_handler.ecdh_pubkey;
+        let iv = crate::generate_random_iv();
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
+            &my_identity_key,
+            &[b"worker_key_handover"],
+            &ecdh_pubkey.0,
+            &my_identity_key.dump_secret_key(),
+            &iv,
+        )
+        .map_err(from_debug)?;
+        let encrypted_key = EncryptedKey {
+            ecdh_pubkey: sr25519::Public(ecdh_pubkey),
+            encrypted_key,
+            iv,
+        };
+        let runtime_state = phactory.runtime_state()?;
+        let genesis_block_hash = runtime_state.genesis_block_hash;
+        let encrypted_worker_key = EncryptedWorkerKey {
+            genesis_block_hash,
+            dev_mode,
+            encrypted_key,
+        };
+        let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+        let attestation = if dev_mode {
+            info!("Omit RA report in workerkey response in dev mode");
+            None
+        } else {
+            Some(self.create_attestation_report_on(&worker_key_hash)?)
+        };
+
+        Ok(pb::HandoverWorkerKey::new(
+            encrypted_worker_key,
+            attestation,
+        ))
+    }
+
+    // WorkerKey Handover Client
+
+    fn handover_accept_challenge(
+        &mut self,
+        request: pb::HandoverChallenge,
+    ) -> RpcResult<pb::HandoverChallengeResponse> {
+        let mut phactory = self.lock_phactory();
+
+        // generate and save tmp key only for key handover encryption
+        let handover_key = crate::new_sr25519_key();
+        let handover_ecdh_key = handover_key
+            .derive_ecdh_key()
+            .expect("should never fail with valid key; qed.");
+        let ecdh_pubkey = phala_types::EcdhPublicKey(handover_ecdh_key.public());
+        phactory.handover_ecdh_key = Some(handover_ecdh_key);
+
+        let challenge = request.decode_challenge().map_err(from_display)?;
+        let challenge_handler = ChallengeHandlerInfo {
+            challenge: challenge.clone(),
+            ecdh_pubkey,
+        };
+        let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+        let attestation = if challenge.payload.dev_mode {
+            info!("Omit RA report in challenge response in dev mode");
+            None
+        } else {
+            Some(self.create_attestation_report_on(&handler_hash)?)
+        };
+
+        Ok(pb::HandoverChallengeResponse::new(
+            challenge_handler,
+            attestation,
+        ))
+    }
+
+    fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
+        let mut phactory = self.lock_phactory();
+        let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
+
+        let dev_mode = encrypted_worker_key.dev_mode;
+        // verify RA report
+        if !dev_mode {
+            let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+            let raw_attestation = request
+                .attestation
+                .ok_or_else(|| from_display("Attestation not found"))?;
+            let payload = raw_attestation
+                .payload
+                .ok_or_else(|| from_display("Missing attestation payload"))?;
+            let attn_to_validate = Attestation::SgxIas {
+                ra_report: payload.report.as_bytes().to_vec(),
+                signature: payload.signature,
+                raw_signing_cert: payload.signing_cert,
+            };
+            IasValidator::validate(&attn_to_validate, &worker_key_hash, now(), false, vec![])
+                .map_err(|_| from_display("Invalid RA report"))?;
+        } else {
+            info!("Skip RA report check in dev mode");
+        }
+
+        let encrypted_key = encrypted_worker_key.encrypted_key;
+        let my_ecdh_key = phactory
+            .handover_ecdh_key
+            .as_ref()
+            .ok_or_else(|| from_display("Ecdh key not initialized"))?;
+        let secret = key_share::decrypt_secret_from(
+            my_ecdh_key,
+            &encrypted_key.ecdh_pubkey.0,
+            &encrypted_key.encrypted_key,
+            &encrypted_key.iv,
+        )
+        .map_err(from_debug)?;
+
+        // only seal if the key is successfully updated
+        phactory
+            .save_runtime_data(
+                encrypted_worker_key.genesis_block_hash,
+                sr25519::Pair::restore_from_secret_key(&secret),
+                false, // we are not sure whether this key is injected
+                dev_mode,
+            )
+            .map_err(from_display)?;
+
+        // clear cached RA report and handover ecdh key to prevent replay
+        phactory.runtime_info = None;
+        phactory.handover_ecdh_key = None;
+        Ok(())
     }
 }

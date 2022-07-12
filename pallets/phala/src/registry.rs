@@ -17,25 +17,44 @@ pub mod pallet {
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
 
-	use crate::attestation::{AttestationValidator, Error as AttestationError};
+	use crate::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
 	// Re-export
-	pub use crate::attestation::{Attestation, IasValidator};
+	pub use crate::attestation::{Attestation, AttestationValidator, IasFields, IasValidator};
 
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerEndpointPayload,
-		VersionedWorkerEndpoints, WorkerPublicKey, WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
+		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
 	pub enum RegistryEvent {
-		BenchReport { start_time: u64, iterations: u64 },
-		MasterPubkey { master_pubkey: MasterPublicKey },
+		BenchReport {
+			start_time: u64,
+			iterations: u64,
+		},
+		///	MessageOrigin::Worker -> Pallet
+		///
+		/// Only used for first master pubkey upload, the origin has to be worker identity since there is no master pubkey
+		/// on-chain yet.
+		MasterPubkey {
+			master_pubkey: MasterPublicKey,
+		},
+	}
+
+	bind_topic!(GatekeeperRegistryEvent, b"^phala/registry/gk_event");
+	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
+	pub enum GatekeeperRegistryEvent {
+		RotatedMasterPubkey {
+			rotation_id: u64,
+			master_pubkey: MasterPublicKey,
+		},
 	}
 
 	#[pallet::config]
@@ -80,6 +99,19 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
+	/// The rotation counter starting from 1, it always equals to the latest rotation id.
+	/// The totation id 0 is reserved for the first master key before we introduce the rotation.
+	#[pallet::storage]
+	pub type RotationCounter<T> = StorageValue<_, u64, ValueQuery>;
+
+	/// Current rotation info including rotation id
+	///
+	/// Only one rotation process is allowed at one time.
+	/// Since the rotation request is broadcasted to all gatekeepers, it should be finished only if there is one functional
+	/// gatekeeper.
+	#[pallet::storage]
+	pub type MasterKeyRotationLock<T: Config> = StorageValue<_, Option<u64>, ValueQuery>;
+
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Workers<T: Config> =
@@ -106,6 +138,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn pruntime_allowlist)]
 	pub type PRuntimeAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+
+	/// The effective height of pRuntime binary
+	#[pallet::storage]
+	pub type PRuntimeAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, T::BlockNumber>;
 
 	/// Allow list of relaychain genesis
 	///
@@ -135,6 +171,14 @@ pub mod pallet {
 		},
 		WorkerUpdated {
 			pubkey: WorkerPublicKey,
+		},
+		MasterKeyRotated {
+			rotation_id: u64,
+			master_pubkey: MasterPublicKey,
+		},
+		MasterKeyRotationFailed {
+			rotation_lock: Option<u64>,
+			gatekeeper_rotation_id: u64,
 		},
 	}
 
@@ -176,6 +220,9 @@ pub mod pallet {
 		// Additional
 		UnknownCluster,
 		NotImplemented,
+		CannotRemoveLastGatekeeper,
+		MasterKeyInRotation,
+		InvalidRotatedMasterPubkey,
 		// PRouter related
 		InvalidEndpointSigningTime,
 	}
@@ -252,8 +299,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let mut gatekeepers = Gatekeeper::<T>::get();
+			// disable gatekeeper change during key rotation
+			let rotating = MasterKeyRotationLock::<T>::get();
+			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
+			let mut gatekeepers = Gatekeeper::<T>::get();
 			// wait for the lead gatekeeper to upload the master pubkey
 			ensure!(
 				gatekeepers.is_empty() || GatekeeperMasterPubkey::<T>::get().is_some(),
@@ -284,15 +334,67 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Deprecated
-		#[allow(unused_variables)]
-		#[pallet::weight(0)]
+		/// Unregister a gatekeeper
+		///
+		/// At least one gatekeeper should be available
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
-			sig: [u8; 64],
 		) -> DispatchResult {
-			Err(Error::<T>::NotImplemented.into())
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			// disable gatekeeper change during key rotation
+			let rotating = MasterKeyRotationLock::<T>::get();
+			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
+
+			let mut gatekeepers = Gatekeeper::<T>::get();
+			ensure!(
+				gatekeepers.contains(&gatekeeper),
+				Error::<T>::InvalidGatekeeper
+			);
+			ensure!(
+				gatekeepers.len() > 1,
+				Error::<T>::CannotRemoveLastGatekeeper
+			);
+
+			gatekeepers.retain(|g| *g != gatekeeper);
+			Gatekeeper::<T>::put(gatekeepers);
+			Self::push_message(GatekeeperChange::gatekeeper_unregistered(gatekeeper));
+			Ok(())
+		}
+
+		/// Rotate the master key
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let rotating = MasterKeyRotationLock::<T>::get();
+			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
+
+			let gatekeepers = Gatekeeper::<T>::get();
+			let gk_identities = gatekeepers
+				.iter()
+				.map(|gk| {
+					let worker_info = Workers::<T>::get(gk).ok_or(Error::<T>::WorkerNotFound)?;
+					Ok(WorkerIdentity {
+						pubkey: worker_info.pubkey,
+						ecdh_pubkey: worker_info.ecdh_pubkey,
+					})
+				})
+				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
+
+			let rotation_id = RotationCounter::<T>::mutate(|counter| {
+				*counter += 1;
+				*counter
+			});
+
+			MasterKeyRotationLock::<T>::put(Some(rotation_id));
+			Self::push_message(GatekeeperLaunch::rotate_master_key(
+				rotation_id,
+				gk_identities,
+			));
+			Ok(())
 		}
 
 		/// Registers a worker on the blockchain
@@ -389,10 +491,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Validate the signature
-			ensure!(
-				signature.len() == 64,
-				Error::<T>::InvalidSignatureLength
-			);
+			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
@@ -406,14 +505,21 @@ pub mod pallet {
 			let expiration = 4 * 60 * 60 * 1000; // 4 hours
 			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
 			ensure!(
-				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
+				endpoint_payload.signing_time < now
+					&& now <= endpoint_payload.signing_time + expiration,
 				Error::<T>::InvalidEndpointSigningTime
 			);
 
 			// Validate the public key
-			ensure!(Workers::<T>::contains_key(&endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
+			ensure!(
+				Workers::<T>::contains_key(&endpoint_payload.pubkey),
+				Error::<T>::InvalidPubKey
+			);
 
-			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint_payload.versioned_endpoints);
+			Endpoints::<T>::insert(
+				endpoint_payload.pubkey,
+				endpoint_payload.versioned_endpoints,
+			);
 
 			Ok(())
 		}
@@ -431,8 +537,11 @@ pub mod pallet {
 				Error::<T>::PRuntimeAlreadyExists
 			);
 
-			allowlist.push(pruntime_hash);
+			allowlist.push(pruntime_hash.clone());
 			PRuntimeAllowList::<T>::put(allowlist);
+
+			let now = frame_system::Pallet::<T>::block_number();
+			PRuntimeAddedAt::<T>::insert(&pruntime_hash, &now);
 
 			Ok(())
 		}
@@ -444,17 +553,16 @@ pub mod pallet {
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let allowlist = PRuntimeAllowList::<T>::get();
+			let mut allowlist = PRuntimeAllowList::<T>::get();
 			ensure!(
 				allowlist.contains(&pruntime_hash),
 				Error::<T>::PRuntimeNotFound
 			);
 
-			let filtered: Vec<_> = allowlist
-				.into_iter()
-				.filter(|h| *h != pruntime_hash)
-				.collect();
-			PRuntimeAllowList::<T>::put(filtered);
+			allowlist.retain(|h| *h != pruntime_hash);
+			PRuntimeAllowList::<T>::put(allowlist);
+
+			PRuntimeAddedAt::<T>::remove(&pruntime_hash);
 
 			Ok(())
 		}
@@ -491,17 +599,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
+			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
 			ensure!(
 				allowlist.contains(&genesis_block_hash),
 				Error::<T>::GenesisBlockHashNotFound
 			);
 
-			let filtered: Vec<_> = allowlist
-				.into_iter()
-				.filter(|h| *h != genesis_block_hash)
-				.collect();
-			RelaychainGenesisBlockHashAllowList::<T>::put(filtered);
+			allowlist.retain(|h| *h != genesis_block_hash);
+			RelaychainGenesisBlockHashAllowList::<T>::put(allowlist);
 
 			Ok(())
 		}
@@ -602,6 +707,39 @@ pub mod pallet {
 							));
 						}
 					}
+				}
+			}
+			Ok(())
+		}
+
+		pub fn on_gk_message_received(
+			message: DecodedMessage<GatekeeperRegistryEvent>,
+		) -> DispatchResult {
+			if !message.sender.is_gatekeeper() {
+				return Err(Error::<T>::InvalidSender.into());
+			}
+
+			match message.payload {
+				GatekeeperRegistryEvent::RotatedMasterPubkey {
+					rotation_id,
+					master_pubkey,
+				} => {
+					let rotating = MasterKeyRotationLock::<T>::get();
+					if rotating.is_none() || rotating.unwrap() != rotation_id {
+						Self::deposit_event(Event::<T>::MasterKeyRotationFailed {
+							rotation_lock: rotating,
+							gatekeeper_rotation_id: rotation_id,
+						});
+						return Err(Error::<T>::InvalidRotatedMasterPubkey.into());
+					}
+
+					GatekeeperMasterPubkey::<T>::put(master_pubkey);
+					MasterKeyRotationLock::<T>::put(Option::<u64>::None);
+					Self::deposit_event(Event::<T>::MasterKeyRotated {
+						rotation_id,
+						master_pubkey,
+					});
+					Self::push_message(GatekeeperLaunch::master_pubkey_rotated(master_pubkey));
 				}
 			}
 			Ok(())
@@ -847,6 +985,7 @@ pub mod pallet {
 					Error::<Test>::PRuntimeAlreadyExists
 				);
 				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 1);
+				assert!(PRuntimeAddedAt::<Test>::contains_key(&sample));
 				assert_ok!(PhalaRegistry::remove_pruntime(
 					Origin::root(),
 					sample.clone()
@@ -856,6 +995,7 @@ pub mod pallet {
 					Error::<Test>::PRuntimeNotFound
 				);
 				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 0);
+				assert!(!PRuntimeAddedAt::<Test>::contains_key(&sample));
 			});
 		}
 
