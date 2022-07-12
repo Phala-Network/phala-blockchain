@@ -39,11 +39,12 @@ pub async fn try_update_worker_endpoint(
     args: &Args,
 ) -> Result<()> {
     let info = pr.get_endpoint_info(()).await?;
+    let encoded_endpoint_payload = info.encoded_endpoint_payload.ok_or(anyhow!("No endpoint payload"))?;
     let signature = info.signature.ok_or(anyhow!("No endpoint signature"))?;
     info!("Binding worker's endpoint...");
     update_worker_endpoint(
         &para_api,
-        info.encoded_endpoint_payload,
+        encoded_endpoint_payload,
         signature,
         signer,
         args,

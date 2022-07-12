@@ -729,7 +729,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             versioned_endpoints,
             signing_time: block_time,
         };
-        let resp = pb::GetEndpointResponse::new(endpoint_payload.clone(), None);
+        let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), None);
 
         self.endpoint_cache = Some(SignedEndpointCache {
             endpoints,
@@ -746,7 +746,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
 
         if self.endpoint_cache.is_none() {
-            return Err(from_display("No endpoint"));
+            info!("Endpoint not found");
+            return Ok(pb::GetEndpointResponse::new(None, None));
         }
 
         let endpoint_cache = self
@@ -778,8 +779,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .clone()
         };
 
-        let resp =
-            pb::GetEndpointResponse::new(endpoint_cache.endpoint_payload.clone(), Some(signature));
+        let resp = pb::GetEndpointResponse::new(
+            Some(endpoint_cache.endpoint_payload.clone()),
+            Some(signature),
+        );
 
         Ok(resp)
     }
