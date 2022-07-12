@@ -843,7 +843,7 @@ where
 }
 
 impl<Platform: pal::Platform> RpcService<Platform> {
-    fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
+    pub fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
         self.phactory.lock().unwrap()
     }
 
