@@ -1104,8 +1104,8 @@ async fn bridge(
         if !args.no_bind && info.public_key.is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
             match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await {
-                Ok(_) => {
-                    flags.endpoint_registered = true;
+                Ok(registered) => {
+                    flags.endpoint_registered = registered;
                 }
                 Err(e) => {
                     error!("FailedToCallBindWorkerEndpoint: {:?}", e);
