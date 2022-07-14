@@ -18,6 +18,13 @@ pub struct FairQueue<FlowId: FlowIdType> {
     inner: Arc<Mutex<FairQueueInner<FlowId>>>,
 }
 
+pub struct DumpInfo<FlowId> {
+    pub backlog: Vec<(FlowId, VirtualTime)>,
+    pub flows: Vec<(FlowId, VirtualTime, VirtualTime)>,
+    pub serving: u32,
+    pub virtual_time: VirtualTime,
+}
+
 #[derive(Error, Debug)]
 pub enum AcquireError {
     #[error("fair queue overloaded")]
@@ -47,6 +54,24 @@ impl<FlowId: FlowIdType> FairQueue<FlowId> {
 
     pub fn purge_inactive_flows(&self, duration: Duration) {
         self.inner.lock().unwrap().purge_inactive_flows(duration);
+    }
+
+    pub fn dump(&self) -> DumpInfo<FlowId> {
+        let inner = self.inner.lock().unwrap();
+        DumpInfo {
+            backlog: inner
+                .backlog
+                .iter()
+                .map(|(k, v)| (v.flow_id.clone(), *k))
+                .collect(),
+            flows: inner
+                .flows
+                .iter()
+                .map(|(k, v)| (k.clone(), v.average_cost, v.previous_finish_tag))
+                .collect(),
+            serving: inner.serving,
+            virtual_time: inner.virtual_time,
+        }
     }
 }
 
