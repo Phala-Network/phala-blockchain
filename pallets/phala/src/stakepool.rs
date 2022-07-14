@@ -346,6 +346,8 @@ pub mod pallet {
 		/// The worker doesn't have a valid benchmark when adding to the pool
 		BenchmarkMissing,
 		/// The worker is already added to the pool
+		WorkerExist,
+		/// The worker is already in cd_workers
 		WorkerAlreadyStopped,
 		/// The target worker is not in the pool
 		WorkerDoesNotExist,
@@ -406,7 +408,7 @@ pub mod pallet {
 		/// Withdraw queue is not empty so that we can't restart mining
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
-		MissCollectionId,
+		MissingCollectionId,
 		/// CheckSub less than zero, indicate share amount is invalid
 		InvalidShareToWithdraw,
 	}
@@ -440,6 +442,7 @@ pub mod pallet {
 				},
 			);
 			PoolCount::<T>::put(pid + 1);
+			// TODO(mingxuan): create_collection should return cid
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 			#[cfg(not(feature = "std"))]
 			use alloc::format;
@@ -499,7 +502,7 @@ pub mod pallet {
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// make sure worker has not been not added
 			let workers = &mut pool_info.workers;
-			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerAlreadyStopped);
+			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExist);
 			// too many workers may cause performance regression
 			ensure!(
 				workers.len() + 1 <= T::MaxPoolWorkers::get() as usize,
@@ -810,7 +813,7 @@ pub mod pallet {
 				Error::<T>::PoolBankrupt
 			);
 			let collection_id =
-				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissCollectionId)?;
+				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissingCollectionId)?;
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
@@ -861,7 +864,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let collection_id =
-				PoolCollections::<T>::get(pool_info.pid).ok_or(Error::<T>::MissCollectionId)?;
+				PoolCollections::<T>::get(pool_info.pid).ok_or(Error::<T>::MissingCollectionId)?;
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
@@ -1055,7 +1058,7 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_nft(pool_info.pid, userid.clone(), shares, amount, collection_id)
+			Self::mint_nft(pool_info.pid, userid, shares, amount, collection_id)
 				.expect("mint should always success; qed.");
 			pool_info.total_shares += shares;
 			pool_info.total_stake += amount;
@@ -1107,6 +1110,7 @@ pub mod pallet {
 		) -> Result<NftId, DispatchError> {
 			let collection_info = pallet_rmrk_core::Collections::<T>::get(collection_id)
 				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
+				// TODO(mingxuan): mint_nft should return nftid
 			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(collection_id);
 
 			pallet_rmrk_core::Pallet::<T>::mint_nft(
@@ -1149,6 +1153,7 @@ pub mod pallet {
 				pallet_rmrk_core::Nfts::<T>::iter_key_prefix(collection_id).collect();
 			let mut total_stakes: BalanceOf<T> = Zero::zero();
 			let mut total_shares: BalanceOf<T> = Zero::zero();
+			// TODO(mingxuan): more effective indexing is needed (such as DoubleNMap), wait for joshua
 			for nftid in &nftid_arr {
 				let nft = pallet_rmrk_core::Nfts::<T>::get(collection_id, nftid)
 					.ok_or(pallet_rmrk_core::Error::<T>::NoAvailableNftId)?;
@@ -1178,7 +1183,7 @@ pub mod pallet {
 				.expect("str coverts to bvec should never fail; qed.");
 			let raw_value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				pallet_rmrk_core::Pallet::<T>::properties((collection_id, Some(nft_id), key))
-					.ok_or(Error::<T>::MissCollectionId)?;
+					.ok_or(Error::<T>::MissingCollectionId)?;
 			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
 		}
 
@@ -1196,6 +1201,7 @@ pub mod pallet {
 				.expect("str coverts to bvec should never fail; qed.");
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				encode_attr.try_into().unwrap();
+			// TODO(mingxuan): set lock shouldn't restrcit set_property, wait for joshua
 			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), false);
 			pallet_rmrk_core::Pallet::<T>::set_property(
 				Origin::<T>::Signed(pallet_id()).into(),
@@ -1343,6 +1349,20 @@ pub mod pallet {
 			Ok(())
 		}
 
+		fn maybe_remove_dust(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			nft: &NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
+		) ->bool {
+			if is_nondust_balance(nft.shares) {
+				return false
+			}
+			Self::remove_dust(&userid, nft.stakes);
+			pool_info.total_shares -= nft.shares;
+			pool_info.total_stake -= nft.stakes;
+			true
+		}
+
 		fn do_withdraw_shares(
 			withdrawing_shares: BalanceOf<T>,
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
@@ -1421,7 +1441,7 @@ pub mod pallet {
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
 					if withdraw_nft.shares == Zero::zero()
-						|| !is_nondust_balance(withdraw_nft.shares)
+						|| Self::maybe_remove_dust(pool_info, &withdraw_nft, withdraw.user.clone())
 					{
 						pool_info.withdraw_queue.pop_front();
 						Self::burn_nft(collection_id, withdraw.nft_id)
@@ -1513,6 +1533,8 @@ pub mod pallet {
 						worker: worker.clone(),
 					});
 					// To adjust the case that skip stakepool::stop_mining when call remove_worker
+					// (TODO(mingxuan): should let remove_worker in stakepool call mining directly instead of stakepool -> mining -> stakepool
+					// and remove this cover code.)
 					if !pool.cd_workers.contains(&worker) {
 						pool.cd_workers.push(worker.clone());
 					}
