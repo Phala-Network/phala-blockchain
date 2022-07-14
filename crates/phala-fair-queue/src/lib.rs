@@ -66,16 +66,25 @@ pub struct ServingGuard<FlowId: FlowIdType> {
     queue: FairQueue<FlowId>,
     flow_id: FlowId,
     start_time: Instant,
+    actual_cost: Option<VirtualTime>,
 }
 
 impl<FlowId: FlowIdType> Drop for ServingGuard<FlowId> {
     fn drop(&mut self) {
-        let actual_cost = self.start_time.elapsed().as_micros() as VirtualTime;
+        let actual_cost = self
+            .actual_cost
+            .unwrap_or_else(|| self.start_time.elapsed().as_micros() as VirtualTime);
         self.queue
             .inner
             .lock()
             .unwrap()
             .release(&self.flow_id, actual_cost);
+    }
+}
+
+impl<FlowId: FlowIdType> ServingGuard<FlowId> {
+    pub fn set_cost(&mut self, cost: VirtualTime) {
+        self.actual_cost = Some(cost);
     }
 }
 
@@ -177,6 +186,7 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
             },
             flow_id: request.flow_id,
             start_time: Instant::now(),
+            actual_cost: None,
         };
 
         // If the receiver side has been dropped, the ServingGuard would be dropped here
