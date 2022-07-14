@@ -10799,6 +10799,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sfq-test"
+version = "0.1.0"
+dependencies = [
+ "clap 3.2.8",
+ "phala-fair-queue",
+ "rocket",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
