@@ -84,6 +84,7 @@ struct Flow {
 struct Request<FlowId: FlowIdType> {
     flow_id: FlowId,
     start_tag: VirtualTime,
+    cost: VirtualTime,
     start_signal: Sender<ServingGuard<FlowId>>,
 }
 
@@ -151,7 +152,8 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
 
         let start_tag = self.virtual_time.max(flow.previous_finish_tag);
         let cost = flow.average_cost / weight as VirtualTime;
-        let finish_tag = start_tag + cost.max(1);
+        let cost = cost.max(1);
+        let finish_tag = start_tag + cost;
         flow.previous_finish_tag = finish_tag;
 
         if self.backlog.len() >= self.backlog_cap {
@@ -160,11 +162,16 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
                 .get_last()
                 .expect("Get the latest request from non-empty backlog should not fail");
             if start_tag >= *max_start_tag {
+                flow.previous_finish_tag -= cost;
                 return Err(AcquireError::Overloaded);
             } else {
                 // Drop the previous low priority request. This would cancel the corresponding
                 // `async acquire`.
-                let _ = self.backlog.pop_last();
+                if let Some((_, req)) = self.backlog.pop_last() {
+                    if let Some(flow) = self.flows.get_mut(&req.flow_id) {
+                        flow.previous_finish_tag -= req.cost;
+                    }
+                }
             }
         }
 
@@ -173,6 +180,7 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
         let request = Request {
             flow_id,
             start_tag,
+            cost,
             start_signal: tx,
         };
 
