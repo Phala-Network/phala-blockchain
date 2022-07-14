@@ -164,13 +164,12 @@ impl<FlowId: FlowIdType> FairQueueInner<FlowId> {
             if start_tag >= *max_start_tag {
                 flow.previous_finish_tag -= cost;
                 return Err(AcquireError::Overloaded);
-            } else {
-                // Drop the previous low priority request. This would cancel the corresponding
-                // `async acquire`.
-                if let Some((_, req)) = self.backlog.pop_last() {
-                    if let Some(flow) = self.flows.get_mut(&req.flow_id) {
-                        flow.previous_finish_tag -= req.cost;
-                    }
+            }
+            // Drop the previous low priority request. This would cancel the corresponding
+            // `async acquire`.
+            if let Some((_, req)) = self.backlog.pop_last() {
+                if let Some(flow) = self.flows.get_mut(&req.flow_id) {
+                    flow.previous_finish_tag -= req.cost;
                 }
             }
         }
