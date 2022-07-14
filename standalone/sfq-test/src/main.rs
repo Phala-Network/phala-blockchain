@@ -73,17 +73,22 @@ async fn dump(state: &State<App>) -> String {
     result.push_str(&format!("Backlog: {}\n", info.backlog.len()));
     result.push_str("Flow stats:\n");
     result.push_str(&format!(
-        "      flow,        v clock,           used,  avg cost,   backlog,  accepted,  rejected,     total\n"
+        "      flow, weight,        v clock,      time used,  avg cost,   backlog,  accepted,  rejected,     total\n"
     ));
 
     let stats = state.stats.lock().unwrap();
 
     for (flow, avg_cost, clock) in info.flows.iter() {
         let cnt = flow_stats.get(flow).cloned().unwrap_or_default();
-        let Stats { accepted, rejected, time } = stats.get(flow).cloned().unwrap_or_default();
+        let Stats {
+            accepted,
+            rejected,
+            time,
+        } = stats.get(flow).cloned().unwrap_or_default();
         let total = accepted + rejected;
+        let weight = flow.split('/').nth(1).unwrap_or("");
         result.push_str(&format!(
-            "{flow:>10},{clock:>15},{time:>15},{avg_cost:>10},{cnt:>10},{accepted:>10},{rejected:>10},{total:>10}\n",
+            "{flow:>10},{weight:>7},{clock:>15},{time:>15},{avg_cost:>10},{cnt:>10},{accepted:>10},{rejected:>10},{total:>10}\n",
         ));
     }
     result
