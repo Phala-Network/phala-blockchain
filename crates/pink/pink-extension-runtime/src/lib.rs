@@ -188,6 +188,12 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         log::log!(target: "pink", level, "[{}] {}", address, message);
         Ok(())
     }
+
+    fn getrandom(&self, length: u8) -> Result<Vec<u8>, Self::Error> {
+        let mut buf = vec![0u8; length as _];
+        getrandom::getrandom(&mut buf[..]).or(Err("Failed to get random bytes"))?;
+        Ok(buf)
+    }
 }
 
 struct LimitedWriter<W> {

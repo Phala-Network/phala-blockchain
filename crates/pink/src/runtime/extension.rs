@@ -207,6 +207,10 @@ impl PinkExtBackend for CallInQuery {
         super::emit_log(&self.address, level, message.as_ref().into());
         DefaultPinkExtension::new(self).log(level, message)
     }
+
+    fn getrandom(&self, length: u8) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).getrandom(length)
+    }
 }
 
 struct CallInCommand {
@@ -283,5 +287,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
         self.as_in_query.log(level, message)
+    }
+
+    fn getrandom(&self, _length: u8) -> Result<Vec<u8>, Self::Error> {
+        Err("getrandom is not allowed in command".into())
     }
 }
