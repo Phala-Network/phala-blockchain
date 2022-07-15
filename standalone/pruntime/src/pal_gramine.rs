@@ -84,7 +84,7 @@ impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
         let stats = ALLOCATOR.stats();
         MemoryUsage {
-            total_peak_used: 0,
+            total_peak_used: vm_peak().unwrap_or_default(),
             rust_used: stats.current_used,
             rust_peak_used: stats.peak_used,
         }
@@ -100,4 +100,15 @@ impl AppInfo for GraminePlatform {
             patch: ver.patch,
         }
     }
+}
+
+fn vm_peak() -> Option<usize> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    for line in status.lines() {
+        if line.starts_with("VmPeak:") {
+            let peak = line.split_ascii_whitespace().nth(1)?;
+            return Some(peak.parse().ok()?);
+        }
+    }
+    None
 }
