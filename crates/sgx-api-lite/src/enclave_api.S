@@ -1,22 +1,38 @@
     .global sgx_report
     .type sgx_report, @function
 sgx_report:
-    mov    r10,rbx
-    mov    eax,0x0
+    .cfi_startproc
+    push   rbx
+    push   rcx
+
     mov    rbx,rdi
     mov    rcx,rsi
+    mov    rax,0x0
+    clc
     enclu
-    xor    rax,rax
-    mov    rbx,r10
+    setc   al
+
+    pop    rcx
+    pop    rbx
     ret
+    .cfi_endproc
 
     .global sgx_getkey
     .type sgx_getkey, @function
 sgx_getkey:
-    mov    r10,rbx
-    mov    eax,0x1
+    .cfi_startproc
+    push   rbx
+    push   rcx
+
     mov    rbx,rdi
     mov    rcx,rsi
+    mov    rax,0x1
     enclu
-    mov    rbx,r10
+    jz   .Legetkey_done
+    xor  rax, rax
+
+.Legetkey_done:
+    pop    rcx
+    pop    rbx
     ret
+    .cfi_endproc

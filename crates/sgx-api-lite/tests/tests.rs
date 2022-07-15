@@ -16,5 +16,5 @@ fn it_works() {
     let recv_report = unsafe { sgx::decode(report_bytes).unwrap() };
     let rv = sgx::verify(recv_report);
     assert!(rv.is_ok());
-    println!("It works");
+    println!("It works!");
 }
