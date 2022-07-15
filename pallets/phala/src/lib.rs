@@ -23,6 +23,8 @@ pub mod ott;
 pub mod puppets;
 pub mod registry;
 pub mod stakepool;
+pub mod basepool;
+pub mod poolproxy;
 
 // Alias
 pub use fat as pallet_fat;
@@ -31,6 +33,7 @@ pub use mq as pallet_mq;
 pub use ott as pallet_ott;
 pub use registry as pallet_registry;
 pub use stakepool as pallet_stakepool;
+pub use basepool as pallet_basepool;
 
 #[cfg(feature = "native")]
 use sp_core::hashing;
