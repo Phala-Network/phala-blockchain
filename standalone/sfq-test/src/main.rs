@@ -34,7 +34,7 @@ async fn test(
     state: &State<App>,
     flow: &str,
     weight: u32,
-    cost: u8,
+    cost: u32,
 ) -> Result<String, Custom<String>> {
     let flow_id = format!("{}/{}", flow, weight);
     let guard = state
