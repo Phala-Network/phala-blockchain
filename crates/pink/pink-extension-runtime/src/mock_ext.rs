@@ -67,6 +67,10 @@ impl ext::PinkExtBackend for MockExtension {
         super::DefaultPinkExtension::new(self).log(level, message)
     }
 
+    fn getrandom(&self, length: u8) -> Result<Vec<u8>, Self::Error> {
+        super::DefaultPinkExtension::new(self).getrandom(length)
+    }
+
     type Error = String;
 }
 

@@ -84,6 +84,10 @@ pub trait PinkExt {
     /// Print log message.
     #[ink(extension = 0xff00000a, handle_status = false, returns_result = false)]
     fn log(level: u8, message: &str);
+
+    /// Get random bytes, for query only
+    #[ink(extension = 0xff00000b, handle_status = false, returns_result = false)]
+    fn getrandom(length: u8) -> Vec<u8>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
