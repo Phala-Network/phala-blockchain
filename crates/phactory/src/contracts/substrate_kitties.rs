@@ -133,6 +133,7 @@ impl SubstrateKitties {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for SubstrateKitties {
     type Cmd = Command;
     type QReq = Request;
@@ -288,7 +289,7 @@ impl contracts::NativeContract for SubstrateKitties {
     }
 
     // Handles a direct query and responds to the query. It shouldn't modify the contract states.
-    fn handle_query(
+    async fn handle_query(
         &mut self,
         origin: Option<&chain::AccountId>,
         req: Request,

@@ -31,6 +31,7 @@ pub enum QueryError {
     RuntimeError(String),
     SidevmNotFound,
     NoResponse,
+    ServiceUnavailable,
 }
 
 #[derive(Encode, Decode, Clone)]
@@ -89,6 +90,7 @@ impl Pink {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for Pink {
     type Cmd = Command;
 
@@ -96,7 +98,7 @@ impl contracts::NativeContract for Pink {
 
     type QResp = Result<Response, QueryError>;
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&AccountId>,
         req: Query,
@@ -137,20 +139,18 @@ impl contracts::NativeContract for Pink {
                 };
                 let origin = origin.cloned().map(Into::into);
 
-                let reply = tokio::task::block_in_place(move || {
-                    tokio::runtime::Handle::current().block_on(async move {
-                        let (reply_tx, rx) = tokio::sync::oneshot::channel();
-                        let _x = cmd_sender
-                            .send(SidevmCommand::PushQuery {
-                                origin,
-                                payload,
-                                reply_tx,
-                            })
-                            .await;
-                        rx.await
+                let (reply_tx, rx) = tokio::sync::oneshot::channel();
+                cmd_sender
+                    .send(SidevmCommand::PushQuery {
+                        origin,
+                        payload,
+                        reply_tx,
                     })
-                });
-                reply.or(Err(QueryError::NoResponse)).map(Response::Payload)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
+                rx.await
+                    .or(Err(QueryError::NoResponse))
+                    .map(Response::Payload)
             }
         }
     }

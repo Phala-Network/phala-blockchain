@@ -46,6 +46,7 @@ impl NativeContext<'_, '_> {
     }
 }
 
+#[async_trait::async_trait]
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;
@@ -59,7 +60,7 @@ pub trait NativeContract {
     ) -> TransactionResult {
         Ok(Default::default())
     }
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&chain::AccountId>,
         req: Self::QReq,
@@ -79,13 +80,13 @@ pub(crate) struct Query {
 }
 
 impl Query {
-    pub fn handle_query(
+    pub async fn handle_query(
         &self,
         origin: Option<&runtime::AccountId>,
         req: OpaqueQuery,
         context: &mut QueryContext,
     ) -> Result<OpaqueReply, OpaqueError> {
-        self.contract.handle_query(origin, req, context)
+        self.contract.handle_query(origin, req, context).await
     }
 }
 

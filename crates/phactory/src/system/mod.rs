@@ -50,6 +50,7 @@ use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
 use std::convert::TryFrom;
+use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -564,10 +565,9 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
-    ) -> Result<
-        impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
-        OpaqueError,
-    > {
+        origin: Option<&chain::AccountId>,
+        query: OpaqueQuery,
+    ) -> Result<impl Future<Output = Result<OpaqueReply, OpaqueError>>, OpaqueError> {
         use pink::storage::Snapshot as _;
 
         let contract = self
@@ -590,9 +590,8 @@ impl<Platform: pal::Platform> System<Platform> {
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
         };
-        Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
-            contract.handle_query(origin, req, &mut context)
-        })
+        let origin = origin.cloned();
+        Ok(async move { contract.handle_query(origin.as_ref(), query, &mut context).await })
     }
 
     pub fn process_next_message(&mut self, block: &mut BlockInfo) -> anyhow::Result<bool> {

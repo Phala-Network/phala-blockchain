@@ -18,8 +18,8 @@ use phala_crypto::{
 };
 use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
-    contract, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
+    contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
+    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -478,8 +478,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
-    ) -> RpcResult<impl Future<Output = impl FnOnce() -> RpcResult<pb::ContractQueryResponse>>>
-    {
+    ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
@@ -527,37 +526,37 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         // Dispatch
-        let call = self.system()?.make_query(&head.id)?;
+        let query_future = self.system()?.make_query(
+            &head.id,
+            accid_origin.as_ref(),
+            data[data.len() - rest..].to_vec(),
+        )?;
 
         let dispatch_queue = self.query_dispatch_queue.clone();
 
         Ok(async move {
-            let guard = dispatch_queue.acquire(head.id, 1).await;
+            let _guard = dispatch_queue
+                .acquire(head.id, 1)
+                .await
+                .map_err(from_display)?;
 
-            move || {
-                let _guard = guard.map_err(|e| from_display(format!("{:?}", e)))?;
+            // Encode response
+            let response = contract::ContractQueryResponse {
+                nonce: head.nonce,
+                result: contract::Data(query_future.await?),
+            };
+            let response_data = response.encode();
 
-                // Encode response
-                let response = contract::ContractQueryResponse {
-                    nonce: head.nonce,
-                    result: contract::Data(call(
-                        accid_origin.as_ref(),
-                        &data[data.len() - rest..],
-                    )?),
-                };
-                let response_data = response.encode();
+            // Encrypt
+            let encrypted_resp = crypto::EncryptedData::encrypt(
+                &ecdh_key,
+                &encrypted_req.pubkey,
+                crate::generate_random_iv(),
+                &response_data,
+            )
+            .map_err(from_debug)?;
 
-                // Encrypt
-                let encrypted_resp = crypto::EncryptedData::encrypt(
-                    &ecdh_key,
-                    &encrypted_req.pubkey,
-                    crate::generate_random_iv(),
-                    &response_data,
-                )
-                .map_err(from_debug)?;
-
-                Ok(pb::ContractQueryResponse::new(encrypted_resp))
-            }
+            Ok(pb::ContractQueryResponse::new(encrypted_resp))
         })
     }
 
@@ -946,9 +945,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        let make_query_fut = self.lock_phactory().contract_query(request)?;
-        let do_query = make_query_fut.await;
-        do_query()
+        let query_fut = self.lock_phactory().contract_query(request)?;
+        query_fut.await
     }
 
     async fn get_worker_state(
@@ -1016,7 +1014,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
     // WorkerKey Handover Server
 
-    async fn handover_create_challenge(&mut self, _request: ()) -> RpcResult<pb::HandoverChallenge> {
+    async fn handover_create_challenge(
+        &mut self,
+        _request: (),
+    ) -> RpcResult<pb::HandoverChallenge> {
         let mut phactory = self.lock_phactory();
         let dev_mode = phactory.dev_mode;
         let system = phactory.system()?;

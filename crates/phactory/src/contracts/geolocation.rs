@@ -81,6 +81,7 @@ impl Geolocation {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for Geolocation {
     type Cmd = Command;
     type QReq = Request;
@@ -125,7 +126,7 @@ impl contracts::NativeContract for Geolocation {
         }
     }
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&chain::AccountId>,
         req: Request,
