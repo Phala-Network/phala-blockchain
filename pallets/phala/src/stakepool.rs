@@ -17,6 +17,8 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::mining;
 	use crate::registry;
+	use crate::basepool;
+	use crate::poolproxy::*;
 
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
@@ -85,7 +87,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config:
-		frame_system::Config + registry::Config + mining::Config + pallet_rmrk_core::Config
+		frame_system::Config + registry::Config + mining::Config + pallet_rmrk_core::Config + basepool::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
@@ -422,26 +424,10 @@ pub mod pallet {
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let pid = PoolCount::<T>::get();
-			StakePools::<T>::insert(
-				pid,
-				PoolInfo {
-					pid,
-					owner: owner.clone(),
-					payout_commission: None,
-					owner_reward: Zero::zero(),
-					cap: None,
-					total_shares: Zero::zero(),
-					total_stake: Zero::zero(),
-					free_stake: Zero::zero(),
-					workers: vec![],
-					cd_workers: vec![],
-					withdraw_queue: VecDeque::new(),
-				},
-			);
-			PoolCount::<T>::put(pid + 1);
 			// TODO(mingxuan): create_collection should return cid
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 			#[cfg(not(feature = "std"))]
@@ -461,11 +447,31 @@ pub mod pallet {
 				None,
 				symbol,
 			)?;
-			PoolCollections::<T>::insert(pid, collection_id);
+			basepool::pallet::PoolCollection::<T>::insert(
+				pid,
+				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool( 
+					StakePool::<T::AccountId, BalanceOf<T>>	{
+						basepool: basepool::BasePool {
+							pid,
+							owner: owner.clone(),
+							total_shares: Zero::zero(),
+							total_stake: Zero::zero(),
+							free_stake: Zero::zero(),		
+							withdraw_queue: VecDeque::new(),	
+							cid: collection_id,
+						},
+						payout_commission: None,
+						owner_reward: Zero::zero(),
+						cap: None,
+						workers: vec![],
+						cd_workers: vec![],
+					}
+				),
+			);
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
 
 			Ok(())
-		}
+		}		
 
 		/// Adds a worker to a pool
 		///
