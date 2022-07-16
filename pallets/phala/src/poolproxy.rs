@@ -2,8 +2,6 @@ use scale_info::TypeInfo;
 use frame_support::pallet_prelude::*;
 use sp_runtime::Permill;
 use phala_types::WorkerPublicKey;
-use crate::balance_convert::FixedPointConvert;
-use sp_std::fmt::Display;
 use crate::basepool;
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -31,7 +29,29 @@ pub struct StakePool<AccountId, Balance> {
     pub cd_workers: Vec<WorkerPublicKey>,
 }
 
+impl<AccountId, Balance> StakePool<AccountId, Balance> {
+    /// Removes a worker from the pool's worker list
+    pub fn remove_worker(&mut self, worker: &WorkerPublicKey) {
+        self.workers.retain(|w| w != worker);
+    }
+
+    /// Removes a worker from the pool's cd_worker list
+    pub fn remove_cd_worker(&mut self, worker: &WorkerPublicKey) {
+        self.cd_workers.retain(|w| w != worker);
+    }
+}
+
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum PoolProxy<AccountId, Balance> {
     StakePool(StakePool<AccountId, Balance>),
+}
+
+pub fn ensure_stake_pool<T: basepool::Config>(pid: u64) -> Result<StakePool<T::AccountId, basepool::BalanceOf<T>>, basepool::Error<T>>
+{
+    let pool_proxy = basepool::Pallet::<T>::pool_collection(pid).ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
+    match &pool_proxy {
+        PoolProxy::StakePool(res) => Ok(res.clone()),
+        _other => Err(basepool::Error::<T>::PoolTypeNotMatch),
+
+    }
 }

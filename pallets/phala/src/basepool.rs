@@ -1,10 +1,11 @@
 pub use self::pallet::*;
+use crate::mining;
 
 use frame_support::traits::Currency;
 use sp_runtime::traits::Zero;
 
-type BalanceOf<T> =
-	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+pub type BalanceOf<T> =
+	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[allow(unused_variables)]
 #[frame_support::pallet]
@@ -86,6 +87,11 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
+	/// The number of total pools
+	#[pallet::storage]
+	#[pallet::getter(fn pool_count)]
+	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn pool_collection)]
 	pub type PoolCollection<T: Config> =
@@ -93,9 +99,7 @@ pub mod pallet {
 
     #[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-
-    }
+	pub enum Event<T: Config> {}
 
     #[pallet::error]
     pub enum Error<T> {
@@ -112,6 +116,10 @@ pub mod pallet {
         InvalidWithdrawalAmount,
         /// RMRK errors
         RmrkError,
+
+        PoolDoesNotExist,
+
+        PoolTypeNotMatch,
     }
 
     #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -141,6 +149,56 @@ pub mod pallet {
                 .to_fixed()
                 .checked_div(self.total_shares.to_fixed())
         }
+        pub fn slash(&mut self, amount: Balance) {
+			debug_assert!(
+				is_nondust_balance(self.total_shares),
+				"No share in the pool. This shouldn't happen."
+			);
+			debug_assert!(
+				self.total_stake >= amount,
+				"No enough stake to slash (total = {}, slash = {})",
+				self.total_stake,
+				amount
+			);
+			let amount = self.total_stake.min(amount);
+			// Note that once the stake reaches zero by slashing (implying the share is non-zero),
+			// the pool goes bankrupt. In such case, the pool becomes frozen.
+			// (TODO: maybe can be recovered by removing all the miners from the pool? How to take
+			// care of PoolUsers?)
+			let (new_stake, _) = extract_dust(self.total_stake - amount);
+			self.total_stake = new_stake;
+		}
+
+		/// Settles the pending slash for a pool user.
+		///
+		/// The slash is
+		///
+		/// Returns the slashed amount if succeeded, otherwise None.
+		pub fn settle_nft_slash(&self, nft: &mut NftAttr<Balance>) -> Option<Balance> {
+			let price = self.share_price()?;
+			let locked = nft.stakes;
+			let new_locked = bmul(nft.shares, &price);
+			// Double check the new_locked won't exceed the original locked
+			let new_locked = new_locked.min(locked);
+			// When only dust remaining in the pool, we include the dust in the slash amount
+			let (new_locked, _) = extract_dust(new_locked);
+			nft.stakes = new_locked;
+			// The actual slashed amount. Usually slash will only cause the share price decreasing.
+			// However in some edge case (i.e. the pool got slashed to 0 and then new contribution
+			// added), the locked amount may even become larger
+			Some(locked - new_locked)
+		}
+
+        // Distributes additional rewards to the current share holders.
+		//
+		// Additional rewards contribute to the face value of the pool shares. The value of each
+		// share effectively grows by (rewards / total_shares).
+		//
+		// Warning: `total_reward` mustn't be zero.
+		pub fn distribute_reward(&mut self, rewards: Balance) {
+			self.total_stake += rewards;
+			self.free_stake += rewards;
+		}
     }
 
     fn pallet_id<T>() -> T
@@ -164,9 +222,9 @@ pub mod pallet {
             userid: T::AccountId,
             amount: BalanceOf<T>,
             maybe_settle_method: Option<F>,
-        )  -> DispatchResult
+        )  -> Result<BalanceOf<T>, DispatchError>
         where 
-            F: FnMut(&mut NftAttr<BalanceOf<T>>, T::AccountId)
+            F: FnMut(&BasePool<T::AccountId, BalanceOf<T>>, &mut NftAttr<BalanceOf<T>>, T::AccountId)
         {
             ensure!(
                 // There's no share, meaning the pool is empty;
@@ -183,7 +241,7 @@ pub mod pallet {
             // NFT should always settled befroe adding/ removing.
 
             if let Some(mut settle_method) = maybe_settle_method {
-                settle_method(&mut nft, userid.clone());
+                settle_method(base_pool, &mut nft, userid.clone());
             }
 
             //maybe_settle_nft_slash is only for stakepool
@@ -198,7 +256,7 @@ pub mod pallet {
             Self::set_nft_attr(base_pool, nft_id, &nft)
                 .expect("set nft attr should always success; qed.");
 
-            Ok(())
+            Ok(shares)
         }
 
         #[frame_support::transactional]
@@ -300,7 +358,7 @@ pub mod pallet {
             Ok(())
         }
 
-        fn has_expired_withdrawal(
+        pub fn has_expired_withdrawal(
             base_pool: &mut BasePool<T::AccountId, BalanceOf<T>>, 
             now: u64,
             grace_period: u64,
