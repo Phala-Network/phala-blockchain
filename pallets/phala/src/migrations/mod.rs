@@ -12,11 +12,11 @@ type MiningBalanceOf<T> =
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
-	fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config
+	fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config + basepool::Config
 {
 }
 impl<T> PhalaPallets for T where
-	T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config
+	T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config + basepool::Config
 {
 }
 
@@ -72,7 +72,7 @@ pub mod v6 {
 	where
 		T: PhalaPallets,
 		MiningBalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
-		T: mining::pallet::Config<Currency = <T as stakepool::pallet::Config>::Currency>,
+		T: mining::pallet::Config<Currency = <T as basepool::Config>::Currency>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		if get_versions::<T>() == unified_versions::<T>(5) {
