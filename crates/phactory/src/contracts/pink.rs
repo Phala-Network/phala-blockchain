@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
@@ -32,6 +34,7 @@ pub enum QueryError {
     SidevmNotFound,
     NoResponse,
     ServiceUnavailable,
+    Timeout,
 }
 
 #[derive(Encode, Decode, Clone)]
@@ -146,17 +149,24 @@ impl contracts::NativeContract for Pink {
                 let origin = origin.cloned().map(Into::into);
 
                 let (reply_tx, rx) = tokio::sync::oneshot::channel();
-                cmd_sender
-                    .send(SidevmCommand::PushQuery {
-                        origin,
-                        payload,
-                        reply_tx,
-                    })
-                    .await
-                    .or(Err(QueryError::ServiceUnavailable))?;
-                rx.await
-                    .or(Err(QueryError::NoResponse))
-                    .map(Response::Payload)
+
+                const SIDEVM_QUERY_TIMEOUT: Duration = Duration::from_secs(60 * 5);
+
+                tokio::time::timeout(SIDEVM_QUERY_TIMEOUT, async move {
+                    cmd_sender
+                        .send(SidevmCommand::PushQuery {
+                            origin,
+                            payload,
+                            reply_tx,
+                        })
+                        .await
+                        .or(Err(QueryError::ServiceUnavailable))?;
+                    rx.await
+                        .or(Err(QueryError::NoResponse))
+                        .map(Response::Payload)
+                })
+                .await
+                .or(Err(QueryError::Timeout))?
             }
         }
     }
