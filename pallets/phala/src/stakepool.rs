@@ -14,6 +14,7 @@ type NegativeImbalanceOf<T> = <<T as basepool::Config>::Currency as Currency<
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
+<<<<<<< HEAD
 	#[cfg(not(feature = "std"))]
 	use alloc::format;
 	#[cfg(feature = "std")]
@@ -21,6 +22,9 @@ pub mod pallet {
 
 	use crate::balance_convert::{div as bdiv, FixedPointConvert};
 
+=======
+	use crate::balance_convert::{div as bdiv, FixedPointConvert};
+>>>>>>> fd01ae4205646f203ff7cb7136154a203a1208e4
 	use crate::mining;
 	use crate::registry;
 	use crate::basepool;
