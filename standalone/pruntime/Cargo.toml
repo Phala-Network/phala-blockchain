@@ -35,3 +35,7 @@ phactory-api = {path = "../../crates/phactory/api"}
 phactory-pal = {path = "../../crates/phactory/pal"}
 phala-allocator = {path = "../../crates/phala-allocator"}
 phala-rocket-middleware = {path = "../../crates/phala-rocket-middleware"}
+
+[patch.crates-io]
+# TODO.kevin: Remove this patch when https://github.com/SergioBenitez/Rocket/pull/2269 launched
+rocket = { git = "https://github.com/kvinwang/Rocket.git", branch = "fix-2268" }
