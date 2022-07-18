@@ -12,6 +12,7 @@ use crate::{
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
+use phala_fair_queue::FairQueue;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
 
@@ -567,6 +568,7 @@ impl<Platform: pal::Platform> System<Platform> {
         contract_id: &ContractId,
         origin: Option<&chain::AccountId>,
         query: OpaqueQuery,
+        query_queue: FairQueue<ContractId>,
     ) -> Result<impl Future<Output = Result<OpaqueReply, OpaqueError>>, OpaqueError> {
         use pink::storage::Snapshot as _;
 
@@ -589,9 +591,14 @@ impl<Platform: pal::Platform> System<Platform> {
             storage,
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
+            query_queue,
         };
         let origin = origin.cloned();
-        Ok(async move { contract.handle_query(origin.as_ref(), query, &mut context).await })
+        Ok(async move {
+            contract
+                .handle_query(origin.as_ref(), query, &mut context)
+                .await
+        })
     }
 
     pub fn process_next_message(&mut self, block: &mut BlockInfo) -> anyhow::Result<bool> {

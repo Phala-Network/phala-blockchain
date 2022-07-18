@@ -525,21 +525,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => None,
         };
 
+        let query_queue = self.query_dispatch_queue.clone();
         // Dispatch
         let query_future = self.system()?.make_query(
             &head.id,
             accid_origin.as_ref(),
             data[data.len() - rest..].to_vec(),
+            query_queue,
         )?;
 
-        let dispatch_queue = self.query_dispatch_queue.clone();
-
         Ok(async move {
-            let _guard = dispatch_queue
-                .acquire(head.id, 1)
-                .await
-                .map_err(from_display)?;
-
             // Encode response
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,

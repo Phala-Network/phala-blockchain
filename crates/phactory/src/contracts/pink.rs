@@ -106,6 +106,12 @@ impl contracts::NativeContract for Pink {
     ) -> Result<Response, QueryError> {
         match req {
             Query::InkMessage(input_data) => {
+                let _guard = context
+                    .query_queue
+                    .acquire(self.id(), 1)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
+
                 let origin = origin.ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
 
