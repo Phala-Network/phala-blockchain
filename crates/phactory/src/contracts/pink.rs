@@ -162,7 +162,7 @@ impl contracts::NativeContract for Pink {
         context: &mut contracts::NativeContext,
     ) -> TransactionResult {
         match cmd {
-            Command::InkMessage { nonce: _, message } => {
+            Command::InkMessage { nonce, message } => {
                 let origin: runtime::AccountId = match origin {
                     MessageOrigin::AccountId(origin) => origin.0.into(),
                     _ => return Err(TransactionError::BadOrigin),
@@ -190,6 +190,7 @@ impl contracts::NativeContract for Pink {
                             origin: origin.clone().into(),
                             contract: self.instance.address.clone().into(),
                             block_number: context.block.block_number,
+                            nonce,
                             output: result.result.encode(),
                         },
                     )) {
