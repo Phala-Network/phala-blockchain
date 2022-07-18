@@ -130,6 +130,8 @@ pub mod pallet {
 
 		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId>>,
 
+        pub vault_stakers: VecDeque<u64>,
+
 		pub cid: CollectionId,
 	}
 
@@ -188,10 +190,33 @@ pub mod pallet {
 		// share effectively grows by (rewards / total_shares).
 		//
 		// Warning: `total_reward` mustn't be zero.
-		pub fn distribute_reward(&mut self, rewards: Balance) {
+		pub fn distribute_reward<T: Config>(&mut self, rewards: Balance, need_update_free_stake: bool) 
+        where 
+            T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+            BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+            T: mining::Config<Currency = <T as Config>::Currency>,
+			T: frame_system::Config<AccountId = AccountId>,
+			AccountId: PartialEq + Clone,
+        {
 			self.total_stake += rewards;
-			self.free_stake += rewards;
+            if need_update_free_stake {
+			    self.free_stake += rewards;
+            }
+            
+            for vault_staker in &self.vault_stakers {
+                let mut vault = ensure_vault::<T>(*vault_staker).expect("vault in vault_stakers should always exist: qed.");
+                let nft_id = Pallet::<T>::merge_or_init_nft_for_staker_inner(self.cid, vault.user_id.clone()).expect("merge nft shoule always success: qed.");
+                let nft = Pallet::<T>::get_nft_attr_inner(self.cid, nft_id).expect("get nft attr should always success: qed.");
+				let mut vault_shares = nft.shares.to_fixed();
+                let stake_ratio = match vault_shares.checked_div(self.total_shares.to_fixed()) {
+                    Some(ratio) => BalanceOf::<T>::from_fixed(&ratio),
+                    None => continue,
+                };
+                let settled_stake = bmul(stake_ratio, &rewards.to_fixed());
+                vault.basepool.distribute_reward::<T>(settled_stake, false);
+            }
 		}
+
 	}
 
 	fn pallet_id<T>() -> T
@@ -444,14 +469,24 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 			stakes: BalanceOf<T>,
 		) -> Result<NftId, DispatchError> {
-			let collection_info = pallet_rmrk_core::Collections::<T>::get(base_pool.cid)
+			Self::mint_nft_inner(base_pool.cid, contributer, shares, stakes)
+		}
+
+		#[frame_support::transactional]
+		pub(super) fn mint_nft_inner(
+			cid: CollectionId,
+			contributer: T::AccountId,
+			shares: BalanceOf<T>,
+			stakes: BalanceOf<T>,
+		) -> Result<NftId, DispatchError> {
+			let collection_info = pallet_rmrk_core::Collections::<T>::get(cid)
 				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
-			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(base_pool.cid);
+			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(cid);
 
 			pallet_rmrk_core::Pallet::<T>::mint_nft(
 				Origin::<T>::Signed(pallet_id()).into(),
 				Some(contributer),
-				base_pool.cid,
+				cid,
 				None,
 				None,
 				Default::default(),
@@ -460,8 +495,8 @@ pub mod pallet {
 			)?;
 
 			let attr = NftAttr { shares, stakes };
-			Self::set_nft_attr(base_pool, nft_id, &attr)?;
-			pallet_rmrk_core::Pallet::<T>::set_lock((base_pool.cid, nft_id), true);
+			Self::set_nft_attr_inner(cid, nft_id, &attr)?;
+			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Ok(nft_id)
 		}
 
@@ -470,15 +505,23 @@ pub mod pallet {
 			base_pool: &BasePool<T::AccountId, BalanceOf<T>>,
 			nft_id: NftId,
 		) -> DispatchResult {
-			pallet_rmrk_core::Pallet::<T>::set_lock((base_pool.cid, nft_id), false);
+			Self::burn_nft_inner(base_pool.cid, nft_id)
+		}
+
+		#[frame_support::transactional]
+		pub(super) fn burn_nft_inner(
+			cid: CollectionId,
+			nft_id: NftId,
+		) -> DispatchResult {
+			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
 			pallet_rmrk_core::Pallet::<T>::burn_nft_by_issuer(
 				Origin::<T>::Signed(pallet_id()).into(),
-				base_pool.cid,
+				cid,
 				nft_id,
 			)?;
 
 			Ok(())
-		}
+		}	
 
 		/// Merge multiple nfts belong to one user in the pool.
 		#[frame_support::transactional]
@@ -486,12 +529,19 @@ pub mod pallet {
 			base_pool: &BasePool<T::AccountId, BalanceOf<T>>,
 			staker: T::AccountId,
 		) -> Result<NftId, DispatchError> {
+			Self::merge_or_init_nft_for_staker_inner(base_pool.cid, staker)
+		}
+
+		pub(super) fn merge_or_init_nft_for_staker_inner(
+			cid: CollectionId,
+			staker: T::AccountId,
+		)  -> Result<NftId, DispatchError> {
 			let nftid_arr: Vec<NftId> =
-				pallet_rmrk_core::Nfts::<T>::iter_key_prefix(base_pool.cid).collect();
+				pallet_rmrk_core::Nfts::<T>::iter_key_prefix(cid).collect();
 			let mut total_stakes: BalanceOf<T> = Zero::zero();
 			let mut total_shares: BalanceOf<T> = Zero::zero();
 			for nftid in &nftid_arr {
-				let nft = pallet_rmrk_core::Nfts::<T>::get(base_pool.cid, nftid)
+				let nft = pallet_rmrk_core::Nfts::<T>::get(cid, nftid)
 					.ok_or(pallet_rmrk_core::Error::<T>::NoAvailableNftId)?;
 				if nft.owner
 					!= rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(staker.clone())
@@ -499,17 +549,24 @@ pub mod pallet {
 					continue;
 				}
 
-				let property = Self::get_nft_attr(base_pool, *nftid)?;
+				let property = Self::get_nft_attr_inner(cid, *nftid)?;
 				total_stakes += property.stakes;
 				total_shares += property.shares;
-				Self::burn_nft(base_pool, *nftid)?;
+				Self::burn_nft_inner(cid, *nftid)?;
 			}
 
-			Self::mint_nft(base_pool, staker, total_shares, total_stakes)
+			Self::mint_nft_inner(cid, staker, total_shares, total_stakes)
 		}
 
 		pub fn get_nft_attr(
 			base_pool: &BasePool<T::AccountId, BalanceOf<T>>,
+			nft_id: NftId,
+		) -> Result<NftAttr<BalanceOf<T>>, DispatchError> {
+			Self::get_nft_attr_inner(base_pool.cid, nft_id)
+		}
+
+		pub(super) fn get_nft_attr_inner(
+			cid: CollectionId,
 			nft_id: NftId,
 		) -> Result<NftAttr<BalanceOf<T>>, DispatchError> {
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = NFT_PROPERTY_KEY
@@ -518,14 +575,23 @@ pub mod pallet {
 				.try_into()
 				.expect("str coverts to bvec should never fail; qed.");
 			let raw_value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-				pallet_rmrk_core::Pallet::<T>::properties((base_pool.cid, Some(nft_id), key))
+				pallet_rmrk_core::Pallet::<T>::properties((cid, Some(nft_id), key))
 					.ok_or(Error::<T>::MissCollectionId)?;
-			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
+			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))			
 		}
 
 		#[frame_support::transactional]
 		pub fn set_nft_attr(
 			base_pool: &BasePool<T::AccountId, BalanceOf<T>>,
+			nft_id: NftId,
+			nft_attr: &NftAttr<BalanceOf<T>>,
+		) -> DispatchResult {
+			Self::set_nft_attr_inner(base_pool.cid, nft_id, nft_attr)
+		}
+
+		#[frame_support::transactional]
+		pub(super) fn set_nft_attr_inner(
+			cid: CollectionId,
 			nft_id: NftId,
 			nft_attr: &NftAttr<BalanceOf<T>>,
 		) -> DispatchResult {
@@ -537,15 +603,15 @@ pub mod pallet {
 				.expect("str coverts to bvec should never fail; qed.");
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				encode_attr.try_into().unwrap();
-			pallet_rmrk_core::Pallet::<T>::set_lock((base_pool.cid, nft_id), false);
+			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
 			pallet_rmrk_core::Pallet::<T>::set_property(
 				Origin::<T>::Signed(pallet_id()).into(),
-				base_pool.cid,
+				cid,
 				Some(nft_id),
 				key,
 				value,
 			)?;
-			pallet_rmrk_core::Pallet::<T>::set_lock((base_pool.cid, nft_id), true);
+			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Ok(())
 		}
 	}

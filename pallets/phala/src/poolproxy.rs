@@ -3,6 +3,21 @@ use frame_support::pallet_prelude::*;
 use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
 use sp_runtime::Permill;
+use sp_std::collections::vec_deque::VecDeque;
+
+#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
+pub enum PoolType {
+	StakePool,
+	Vault,
+}
+
+pub struct InvestigationsLen;
+
+impl Get<u32> for InvestigationsLen {
+	fn get() -> u32 {
+		5000
+	}
+}
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
@@ -29,6 +44,19 @@ pub struct StakePool<AccountId, Balance> {
 	pub cd_workers: Vec<WorkerPublicKey>,
 }
 
+#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
+pub struct Vault<AccountId, Balance> {
+	pub basepool: basepool::BasePool<AccountId, Balance>,
+
+	pub user_id: AccountId,
+
+	pub last_share_price_checkpoint: Balance,
+
+	pub delta_price_ratio: Option<Permill>,
+
+	pub owner_shares: Balance,
+}
+
 impl<AccountId, Balance> StakePool<AccountId, Balance> {
 	/// Removes a worker from the pool's worker list
 	pub fn remove_worker(&mut self, worker: &WorkerPublicKey) {
@@ -44,6 +72,7 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum PoolProxy<AccountId, Balance> {
 	StakePool(StakePool<AccountId, Balance>),
+	Vault(Vault<AccountId, Balance>),
 }
 
 pub fn ensure_stake_pool<T: basepool::Config>(
@@ -53,6 +82,17 @@ pub fn ensure_stake_pool<T: basepool::Config>(
 		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
 	match &pool_proxy {
 		PoolProxy::StakePool(res) => Ok(res.clone()),
+		_other => Err(basepool::Error::<T>::PoolTypeNotMatch),
+	}
+}
+
+pub fn ensure_vault<T: basepool::Config>(
+	pid: u64,
+) -> Result<Vault<T::AccountId, basepool::BalanceOf<T>>, basepool::Error<T>> {
+	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
+		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
+	match &pool_proxy {
+		PoolProxy::Vault(res) => Ok(res.clone()),
 		_other => Err(basepool::Error::<T>::PoolTypeNotMatch),
 	}
 }
