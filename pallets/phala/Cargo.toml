@@ -27,12 +27,13 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 log = { version = "0.4.14", default-features = false }
 
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
 
 # RMRK dependencies
-pallet-rmrk-core = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.24", default-features = false }
-pallet-rmrk-equip = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.24", default-features = false }
-pallet-rmrk-market = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.24", default-features = false }
-rmrk-traits = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.24", default-features = false }
+pallet-rmrk-core = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
+pallet-rmrk-equip = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
+pallet-rmrk-market = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
+rmrk-traits = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
 
 phala-types = { default-features = false, path = "../../crates/phala-types" }
 chrono = { version = "0.4", default-features = false }
@@ -70,6 +71,7 @@ std = [
 	"sp-core/full_crypto",
 	"frame-benchmarking/std",
 	"pallet-balances/std",
+	"pallet-uniques/std",
 	"log/std",
 	"phala-types/enable_serde",
 	"pallet-rmrk-core/std",

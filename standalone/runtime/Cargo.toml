@@ -92,6 +92,13 @@ pallet-transaction-payment-rpc-runtime-api = { default-features = false, git = "
 pallet-vesting = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
+pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+
+# RMRK dependencies
+pallet-rmrk-core = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
+pallet-rmrk-equip = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
+pallet-rmrk-market = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
+rmrk-traits = { git = "https://github.com/Index0011/rmrk-substrate", default-features = false, branch = "test2" }
 
 native-nostd-hasher = { path = "../../native-nostd-hasher", optional = true }
 
@@ -170,6 +177,11 @@ std = [
 	"phala-pallets/std",
 	"pallet-mq-runtime-api/std",
 	"sp-sandbox?/std",
+	"pallet-uniques/std",
+	"pallet-rmrk-core/std",
+	"pallet-rmrk-equip/std",
+	"pallet-rmrk-market/std",
+	"rmrk-traits/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

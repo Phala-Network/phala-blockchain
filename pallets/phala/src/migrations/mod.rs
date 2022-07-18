@@ -5,6 +5,8 @@ use frame_support::{
 };
 use log;
 
+use rmrk_traits::primitives::{CollectionId, NftId};
+
 type MiningBalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
@@ -71,6 +73,7 @@ pub mod v6 {
 		T: PhalaPallets,
 		MiningBalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: mining::pallet::Config<Currency = <T as stakepool::pallet::Config>::Currency>,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		if get_versions::<T>() == unified_versions::<T>(5) {
 			let mut weight: Weight = 0;

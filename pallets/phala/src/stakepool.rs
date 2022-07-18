@@ -14,9 +14,12 @@ type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::accumulator::Accumulator;
+	#[cfg(not(feature = "std"))]
+	use alloc::format;
+	#[cfg(feature = "std")]
+	use std::format;
+
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
-	use crate::fixed_point::CodecFixedPoint;
 	use crate::mining;
 	use crate::registry;
 
@@ -35,19 +38,24 @@ pub mod pallet {
 			UnixTime, WithdrawReasons,
 		},
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{pallet_prelude::*, Origin};
+
 	use scale_info::TypeInfo;
 	use sp_runtime::{
-		traits::{Saturating, TrailingZeroInput, Zero},
+		traits::{CheckedSub, Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec};
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 
+	pub use rmrk_traits::primitives::{CollectionId, NftId};
+
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
 	const MAX_WHITELIST_LEN: u32 = 100;
+
+	const NFT_PROPERTY_KEY: &str = "stake-info";
 
 	pub struct DescMaxLen;
 
@@ -56,6 +64,7 @@ pub mod pallet {
 			400
 		}
 	}
+
 	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
@@ -72,7 +81,9 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + registry::Config + mining::Config {
+	pub trait Config:
+		frame_system::Config + registry::Config + mining::Config + pallet_rmrk_core::Config
+	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 
@@ -115,12 +126,6 @@ pub mod pallet {
 	pub type StakePools<T: Config> =
 		StorageMap<_, Twox64Concat, u64, PoolInfo<T::AccountId, BalanceOf<T>>>;
 
-	/// Mapping from (pid, staker) to UserStakeInfo
-	#[pallet::storage]
-	#[pallet::getter(fn pool_stakers)]
-	pub type PoolStakers<T: Config> =
-		StorageMap<_, Twox64Concat, (u64, T::AccountId), UserStakeInfo<T::AccountId, BalanceOf<T>>>;
-
 	/// The number of total pools
 	#[pallet::storage]
 	#[pallet::getter(fn pool_count)]
@@ -141,17 +146,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn stake_ledger)]
 	pub type StakeLedger<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
-
-	/// Mapping from the block timestamp to pools that has withdrawal requests queued in that block
-	#[pallet::storage]
-	#[pallet::getter(fn withdrawal_queued_pools)]
-	pub type WithdrawalQueuedPools<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<u64>>;
-
-	/// Queue that contains all block's timestamp, in that block contains the waiting withdraw reqeust.
-	/// This queue has a max size of (T::GracePeriod * 8) bytes
-	#[pallet::storage]
-	#[pallet::getter(fn withdrawal_timestamps)]
-	pub type WithdrawalTimestamps<T> = StorageValue<_, VecDeque<u64>, ValueQuery>;
 
 	/// Switch to enable the stake pool pallet (disabled by default)
 	#[pallet::storage]
@@ -179,6 +173,11 @@ pub mod pallet {
 	#[pallet::getter(fn pool_descriptions)]
 	pub type PoolDescriptions<T: Config> =
 		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, super::DescMaxLen>>;
+
+	/// Mapping for the collection_id of the pool which is used to generate nftid
+	#[pallet::storage]
+	#[pallet::getter(fn pool_collections)]
+	pub type PoolCollections<T: Config> = StorageMap<_, Twox64Concat, u64, CollectionId>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -345,6 +344,8 @@ pub mod pallet {
 		BenchmarkMissing,
 		/// The worker is already added to the pool
 		WorkerExists,
+		/// The worker is already in cd_workers
+		WorkerAlreadyStopped,
 		/// The target worker is not in the pool
 		WorkerDoesNotExist,
 		/// The worker is already added to another pool
@@ -401,33 +402,23 @@ pub mod pallet {
 		NoWhitelistCreated,
 		/// Too long for pool description length
 		ExceedMaxDescriptionLen,
-	}
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
-	where
-		T: mining::Config<Currency = <T as Config>::Currency>,
-		BalanceOf<T>: FixedPointConvert + Display,
-	{
-		fn on_finalize(_n: T::BlockNumber) {
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
-			Self::maybe_force_withdraw(now);
-		}
+		/// Withdraw queue is not empty so that we can't restart mining
+		WithdrawQueueNotEmpty,
+		/// Stakepool's collection_id isn't founded
+		MissingCollectionId,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
-		BalanceOf<T>: FixedPointConvert + Display,
+		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-
 			let pid = PoolCount::<T>::get();
 			StakePools::<T>::insert(
 				pid,
@@ -437,16 +428,31 @@ pub mod pallet {
 					payout_commission: None,
 					owner_reward: Zero::zero(),
 					cap: None,
-					reward_acc: CodecFixedPoint::zero(),
 					total_shares: Zero::zero(),
 					total_stake: Zero::zero(),
 					free_stake: Zero::zero(),
-					releasing_stake: Zero::zero(),
 					workers: vec![],
+					cd_workers: vec![],
 					withdraw_queue: VecDeque::new(),
 				},
 			);
 			PoolCount::<T>::put(pid + 1);
+			// TODO(mingxuan): create_collection should return cid
+			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
+			// Create a NFT collection related to the new stake pool
+			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
+				format!("STAKEPOOL-{}", pid)
+					.as_bytes()
+					.to_vec()
+					.try_into()
+					.expect("create a bvec from string should never fail; qed.");
+			pallet_rmrk_core::Pallet::<T>::create_collection(
+				Origin::<T>::Signed(pallet_id()).into(),
+				Default::default(),
+				None,
+				symbol,
+			)?;
+			PoolCollections::<T>::insert(pid, collection_id);
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
 
 			Ok(())
@@ -699,35 +705,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Manually assign rewards to pools by miningSwitchOrigin for fixing issue 763
-
-		///
-		/// Requires:
-		/// 1. The caller is root
-		/// 2. Assigned pool must currently exist
-		/// 3. Reward is positive
-		#[pallet::weight(0)]
-		pub fn force_assign_reward(
-			origin: OriginFor<T>,
-			reward_arr: Vec<(u64, BalanceOf<T>)>,
-		) -> DispatchResult {
-			// Origin must be MiningSwitchOrigin
-			T::MiningSwitchOrigin::ensure_origin(origin)?;
-			for (pid, reward) in reward_arr {
-				// The assigned pool must exist
-				let mut pool_info = Self::ensure_pool(pid)?;
-				// The reward must be positive
-				if reward <= Zero::zero() {
-					continue;
-				}
-				// Assign reward
-				Self::handle_pool_new_reward(&mut pool_info, reward);
-				StakePools::<T>::insert(&pid, &pool_info);
-			}
-
-			Ok(())
-		}
-
 		/// Claims pool-owner's pending rewards of the sender and send to the `target`
 		///
 		/// The rewards associate to sender's "staker role" will not be claimed
@@ -759,85 +736,39 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Claims staker's pending rewards of the sender and send to the `target`
+		/// Let any user to launch a stakepool withdraw. Then check if the pool need to be forced shutdown.
 		///
-		/// The rewards associate to sender's "owner role" will not be claimed
-		///
-		/// Requires:
-		///
-		/// 1. The sender is a staker
+		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
+		/// Note: This function doesn't guarantee no-op when there's error.
 		#[pallet::weight(0)]
-		pub fn claim_staker_rewards(
-			origin: OriginFor<T>,
-			pid: u64,
-			target: T::AccountId,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			let pool_info = Self::ensure_pool(pid)?;
-			let info_key = (pid, who.clone());
-			let mut user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::NoRewardToClaim)?;
-			pool_info.settle_user_pending_reward(&mut user_info);
-			let rewards = user_info.available_rewards;
-			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
-				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
-			user_info.available_rewards = Zero::zero();
-			// Update ledger
-			StakePools::<T>::insert(pid, &pool_info);
-			PoolStakers::<T>::insert(&info_key, &user_info);
-			Self::deposit_event(Event::<T>::StakerRewardsWithdrawn {
-				pid,
-				user: who,
-				amount: rewards,
-			});
+		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
+			ensure_signed(origin)?;
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+			let mut pool = Self::ensure_pool(pid)?;
+			Self::try_process_withdraw_queue(&mut pool);
+			let grace_period = T::GracePeriod::get();
+			let mut releasing_stake = Zero::zero();
+			for worker in pool.cd_workers.iter() {
+				let miner: T::AccountId = pool_sub_account(pid, &worker);
+				let stakes: BalanceOf<T> = mining::pallet::Stakes::<T>::get(&miner)
+					.expect("workers have no stakes recorded; qed.");
+				// TODO(mingxuan): handle slash
+				releasing_stake += stakes;
+			}
+			StakePools::<T>::insert(pid, &pool);
+			if Self::has_expired_withdrawal(&pool, now, grace_period, releasing_stake) {
+				for worker in pool.workers.iter() {
+					let miner: T::AccountId = pool_sub_account(pid, &worker);
+					if !pool.cd_workers.contains(&worker) {
+						Self::do_stop_mining(&pool.owner, pid, worker.clone())?;
+					}
+				}
+			}
 
 			Ok(())
 		}
-
-		/// Claims all the pending rewards of the sender and send to the `target`
-		///
-		/// Requires:
-		///
-		/// 1. The sender is a pool owner or staker
-		#[pallet::weight(0)]
-		pub fn claim_rewards(
-			origin: OriginFor<T>,
-			pid: u64,
-			target: T::AccountId,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			let mut pool_info = Self::ensure_pool(pid)?;
-			let mut rewards = BalanceOf::<T>::zero();
-			// Add pool owner's reward if applicable
-			if who == pool_info.owner {
-				rewards += pool_info.owner_reward;
-				pool_info.owner_reward = Zero::zero();
-			}
-			// Settle the pending reward, and calculate the rewards belong to user
-			let info_key = (pid, who.clone());
-			let mut user_info = Self::pool_stakers(&info_key);
-			if let Some(ref mut user_info) = user_info {
-				pool_info.settle_user_pending_reward(user_info);
-				rewards += user_info.available_rewards;
-				user_info.available_rewards = Zero::zero();
-			}
-			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
-				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
-			// Update ledger
-			StakePools::<T>::insert(pid, &pool_info);
-			if let Some(user_info) = user_info {
-				PoolStakers::<T>::insert(&info_key, &user_info);
-			}
-			Self::deposit_event(Event::<T>::RewardsWithdrawn {
-				pid,
-				user: who,
-				amount: rewards,
-			});
-
-			Ok(())
-		}
-
 		/// Contributes some stake to a pool
 		///
 		/// Requires:
@@ -849,7 +780,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-			// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.owner == who,
@@ -863,7 +794,6 @@ pub mod pallet {
 			let free = <T as Config>::Currency::free_balance(&who);
 			let locked = Self::ledger_query(&who);
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
-
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
@@ -873,33 +803,24 @@ pub mod pallet {
 				|| pool_info.total_stake > Zero::zero(),
 				Error::<T>::PoolBankrupt
 			);
+			let collection_id =
+				PoolCollections::<T>::get(pid).ok_or(Error::<T>::MissingCollectionId)?;
+			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
+			// The nft instance must be wrote to Nft storage at the end of the function
+			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
+			// is called. Or the property of the nft will be overwrote incorrectly.
+			let mut nft = Self::get_nft_attr(collection_id, nft_id)?;
+			// NFT should always settled befroe adding/ removing.
+			Self::maybe_settle_nft_slash(&pool_info, &mut nft, who.clone());
 
-			let info_key = (pid, who.clone());
-			// Clear the pending reward before adding stake, if applies
-			let mut user_info = match Self::pool_stakers(&info_key) {
-				Some(mut user_info) => {
-					pool_info.settle_user_pending_reward(&mut user_info);
-					Self::maybe_settle_slash(&pool_info, &mut user_info);
-					user_info
-				}
-				None => UserStakeInfo {
-					user: who.clone(),
-					locked: Zero::zero(),
-					shares: Zero::zero(),
-					available_rewards: Zero::zero(),
-					reward_debt: Zero::zero(),
-				},
-			};
-			let shares = pool_info.add_stake(&mut user_info, a);
-
-			// Persist
-			PoolStakers::<T>::insert(&info_key, &user_info);
+			let shares =
+				Self::add_stake_to_new_nft(&mut pool_info, who.clone(), collection_id, amount);
 			// Lock the funds
 			Self::ledger_accrue(&who, a);
-
+			Self::set_nft_attr(pool_info.pid, collection_id, nft_id, &nft)
+				.expect("set nft attr should always success; qed.");
 			// We have new free stake now, try to handle the waiting withdraw queue
 			Self::try_process_withdraw_queue(&mut pool_info);
-
 			// Post-check to ensure the total stake doesn't exceed the cap
 			if let Some(cap) = pool_info.cap {
 				ensure!(
@@ -907,15 +828,16 @@ pub mod pallet {
 					Error::<T>::StakeExceedsCapacity
 				);
 			}
-
 			// Persist
 			StakePools::<T>::insert(&pid, &pool_info);
+			Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
 				amount: a,
 				shares,
 			});
+
 			Ok(())
 		}
 
@@ -928,23 +850,37 @@ pub mod pallet {
 		///     take effect immediately.
 		/// - else the withdrawal would be queued and delayed until there is enough free stake.
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let info_key = (pid, who.clone());
-			let mut user_info =
-				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
-
+			let mut pool_info = Self::ensure_pool(pid)?;
+			let collection_id =
+				PoolCollections::<T>::get(pool_info.pid).ok_or(Error::<T>::MissingCollectionId)?;
+			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
+			// The nft instance must be wrote to Nft storage at the end of the function
+			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
+			// is called. Or the property of the nft will be overwrote incorrectly.
+			let mut nft = Self::get_nft_attr(collection_id, nft_id)?;
+			let in_queue_shares = match pool_info
+				.withdraw_queue
+				.iter()
+				.find(|&withdraw| withdraw.user == who)
+			{
+				Some(withdraw) => {
+					let withdraw_nft = Self::get_nft_attr(collection_id, withdraw.nft_id)
+						.expect("get nftattr should always success; qed.");
+					withdraw_nft.shares
+				}
+				None => Zero::zero(),
+			};
 			ensure!(
-				is_nondust_balance(shares) && shares <= user_info.shares,
+				is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
 				Error::<T>::InvalidWithdrawalAmount
 			);
-			// TODO(hangyin): consider the amounts in the withdraw request
-			// https://github.com/Phala-Network/phala-blockchain/issues/490
-
-			let mut pool_info = Self::ensure_pool(pid)?;
-			Self::try_withdraw(&mut pool_info, &mut user_info, shares);
-
-			PoolStakers::<T>::insert(&info_key, &user_info);
+			Self::try_withdraw(&mut pool_info, &mut nft, who.clone(), shares)?;
+			Self::set_nft_attr(pool_info.pid, collection_id, nft_id, &nft)
+				.expect("set nft attr should always success; qed.");
+			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
 			StakePools::<T>::insert(&pid, &pool_info);
 
 			Ok(())
@@ -1002,38 +938,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// TODO(hangyin): remove once after issue 527 is closed.
-		/// Temporary function to reconcile incorrect withdraw queue (issue 527).
-		#[pallet::weight(195_000_000)]
-		pub fn reconcile_withdraw_queue(
-			origin: OriginFor<T>,
-			pid: u64,
-			account: T::AccountId,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
-			let mut pool_info = Self::ensure_pool(pid)?;
-			let info_key = (pid, account.clone());
-			let user_info = Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
-			// We don't care about dust
-			let (available_shares, _dust) = extract_dust(user_info.shares);
-			// Update the withdraw request if it exceeds the actual available shares, or remove it
-			// if there's no share at all.
-			if let Some(idx) = pool_info
-				.withdraw_queue
-				.iter()
-				.position(|req| req.user == account && req.shares > available_shares)
-			{
-				if available_shares == Zero::zero() {
-					pool_info.withdraw_queue.remove(idx);
-				} else {
-					pool_info.withdraw_queue.get_mut(idx).unwrap().shares = available_shares;
-				}
-				StakePools::<T>::insert(pid, pool_info);
-			}
-
-			Ok(())
-		}
-
 		/// Restart the miner with a higher stake
 		#[pallet::weight(195_000_000)]
 		#[frame_support::transactional]
@@ -1047,8 +951,8 @@ pub mod pallet {
 			// Make sure the withdraw queue is empty to avoid troubles
 			let pool = Self::ensure_pool(pid)?;
 			ensure!(
-				pool.free_stake > Zero::zero(),
-				Error::<T>::InsufficientFreeStake
+				pool.withdraw_queue.len() as u32 <= 0,
+				Error::<T>::WithdrawQueueNotEmpty
 			);
 			// Stop and instantly reclaim the worker
 			Self::do_stop_mining(&owner, pid, worker)?;
@@ -1065,6 +969,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		pub fn do_start_mining(
 			owner: &T::AccountId,
@@ -1098,7 +1003,7 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
 			ensure!(Self::mining_enabled(), Error::<T>::FeatureNotEnabled);
-			let pool_info = Self::ensure_pool(pid)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(&pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// check whether we have add this worker
@@ -1106,9 +1011,15 @@ pub mod pallet {
 				pool_info.workers.contains(&worker),
 				Error::<T>::WorkerDoesNotExist
 			);
+			ensure!(
+				!pool_info.cd_workers.contains(&worker),
+				Error::<T>::WorkerAlreadyStopped
+			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			// Mining::stop_mining will notify us how much it will release by `on_stopped`
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
+			pool_info.cd_workers.push(worker.clone());
+			StakePools::<T>::insert(&pid, &pool_info);
 			Ok(())
 		}
 		fn do_reclaim(
@@ -1121,7 +1032,177 @@ pub mod pallet {
 				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
 			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
+			let mut pool_info = Self::ensure_pool(pid)?;
+			pool_info.remove_cd_worker(&worker);
+			StakePools::<T>::insert(&pid, &pool_info);
 			Ok((orig_stake, slashed))
+		}
+
+		/// Mint a new nft in the Pool's collection and store some shares in it
+		pub fn add_stake_to_new_nft(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			userid: T::AccountId,
+			collection_id: CollectionId,
+			amount: BalanceOf<T>,
+		) -> BalanceOf<T> {
+			let shares = match pool_info.share_price() {
+				Some(price) if price != fp!(0) => bdiv(amount, &price),
+				_ => amount, // adding new stake (share price = 1)
+			};
+			Self::mint_nft(pool_info.pid, userid, shares, amount, collection_id)
+				.expect("mint should always success; qed.");
+			pool_info.total_shares += shares;
+			pool_info.total_stake += amount;
+			pool_info.free_stake += amount;
+			shares
+		}
+
+		/// Remove some stakes from nft when withdraw or process_withdraw_queue called.
+		pub fn remove_stake_from_nft(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			shares: BalanceOf<T>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+		) -> Option<(BalanceOf<T>, BalanceOf<T>, BalanceOf<T>)> {
+			let price = pool_info.share_price()?;
+			let amount = bmul(shares, &price);
+
+			let amount = amount.min(pool_info.free_stake).min(nft.stakes);
+
+			let user_shares = nft.shares.checked_sub(&shares)?;
+			let (user_shares, shares_dust) = extract_dust(user_shares);
+			let user_locked = nft.stakes.checked_sub(&amount)?;
+			let (user_locked, user_dust) = extract_dust(user_locked);
+
+			let removed_shares = shares + shares_dust;
+			let total_shares = pool_info.total_shares.checked_sub(&removed_shares)?;
+
+			let (total_stake, _) = extract_dust(pool_info.total_stake - amount);
+			if total_stake > Zero::zero() {
+				pool_info.free_stake -= amount;
+				pool_info.total_stake -= amount;
+			} else {
+				pool_info.free_stake = Zero::zero();
+				pool_info.total_stake = Zero::zero();
+			}
+			pool_info.total_shares = total_shares;
+			nft.shares = user_shares;
+			nft.stakes = user_locked;
+
+			Some((amount, user_dust, removed_shares))
+		}
+
+		#[frame_support::transactional]
+		pub fn mint_nft(
+			pid: u64,
+			contributer: T::AccountId,
+			shares: BalanceOf<T>,
+			stakes: BalanceOf<T>,
+			collection_id: CollectionId,
+		) -> Result<NftId, DispatchError> {
+			let collection_info = pallet_rmrk_core::Collections::<T>::get(collection_id)
+				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
+				// TODO(mingxuan): mint_nft should return nftid
+			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(collection_id);
+
+			pallet_rmrk_core::Pallet::<T>::mint_nft(
+				Origin::<T>::Signed(pallet_id()).into(),
+				Some(contributer),
+				collection_id,
+				None,
+				None,
+				Default::default(),
+				true,
+				None,
+			)?;
+
+			let attr = NftAttr { shares, stakes };
+			Self::set_nft_attr(pid, collection_id, nft_id, &attr)?;
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), true);
+			Ok(nft_id)
+		}
+
+		#[frame_support::transactional]
+		pub fn burn_nft(collection_id: CollectionId, nft_id: NftId) -> DispatchResult {
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), false);
+			pallet_rmrk_core::Pallet::<T>::burn_nft_by_issuer(
+				Origin::<T>::Signed(pallet_id()).into(),
+				collection_id,
+				nft_id,
+			)?;
+
+			Ok(())
+		}
+
+		/// Merge multiple nfts belong to one user in the pool.
+		#[frame_support::transactional]
+		pub fn merge_or_init_nft_for_staker(
+			staker: T::AccountId,
+			collection_id: CollectionId,
+			pid: u64,
+		) -> Result<NftId, DispatchError> {
+			let nftid_arr: Vec<NftId> =
+				pallet_rmrk_core::Nfts::<T>::iter_key_prefix(collection_id).collect();
+			let mut total_stakes: BalanceOf<T> = Zero::zero();
+			let mut total_shares: BalanceOf<T> = Zero::zero();
+			// TODO(mingxuan): more effective indexing is needed (such as DoubleNMap), wait for joshua
+			for nftid in &nftid_arr {
+				let nft = pallet_rmrk_core::Nfts::<T>::get(collection_id, nftid)
+					.ok_or(pallet_rmrk_core::Error::<T>::NoAvailableNftId)?;
+				if nft.owner
+					!= rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(staker.clone())
+				{
+					continue;
+				}
+
+				let property = Self::get_nft_attr(collection_id, *nftid)?;
+				total_stakes += property.stakes;
+				total_shares += property.shares;
+				Self::burn_nft(collection_id, *nftid)?;
+			}
+
+			Self::mint_nft(pid, staker, total_shares, total_stakes, collection_id)
+		}
+
+		pub fn get_nft_attr(
+			collection_id: CollectionId,
+			nft_id: NftId,
+		) -> Result<NftAttr<BalanceOf<T>>, DispatchError> {
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = NFT_PROPERTY_KEY
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let raw_value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+				pallet_rmrk_core::Pallet::<T>::properties((collection_id, Some(nft_id), key))
+					.ok_or(Error::<T>::MissingCollectionId)?;
+			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
+		}
+
+		pub fn set_nft_attr(
+			pid: u64,
+			collection_id: CollectionId,
+			nft_id: NftId,
+			nft_attr: &NftAttr<BalanceOf<T>>,
+		) -> DispatchResult {
+			let encode_attr = nft_attr.encode();
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = NFT_PROPERTY_KEY
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+				encode_attr.try_into().unwrap();
+			// TODO(mingxuan): set lock shouldn't restrcit set_property, wait for joshua
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), false);
+			pallet_rmrk_core::Pallet::<T>::set_property(
+				Origin::<T>::Signed(pallet_id()).into(),
+				collection_id,
+				Some(nft_id),
+				key,
+				value,
+			)?;
+			pallet_rmrk_core::Pallet::<T>::set_lock((collection_id, nft_id), true);
+			Ok(())
 		}
 
 		/// Adds up the newly received reward to `reward_acc`
@@ -1182,12 +1263,7 @@ pub mod pallet {
 			}
 
 			// With the worker being cleaned, those stake now are free
-			debug_assert!(
-				pool_info.releasing_stake >= returned,
-				"More return then expected"
-			);
 			pool_info.free_stake.saturating_accrue(returned);
-			pool_info.releasing_stake.saturating_reduce(returned);
 
 			Self::try_process_withdraw_queue(&mut pool_info);
 			StakePools::<T>::insert(&pid, &pool_info);
@@ -1206,66 +1282,98 @@ pub mod pallet {
 		/// 2. The pool must has shares and stake (or it can cause division by zero error)
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
-			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
 			shares: BalanceOf<T>,
+		) -> DispatchResult {
+			let collection_id = PoolCollections::<T>::get(pool_info.pid)
+				.expect("pool collection_id should always be founded; qed.");
+			// Remove the existing withdraw request in the queue if there is any.
+			let (in_queue_nfts, new_withdraw_queue): (VecDeque<_>, VecDeque<_>) = pool_info
+				.withdraw_queue
+				.clone()
+				.into_iter()
+				.partition(|withdraw| withdraw.user == userid);
+			// only one nft withdraw request should be in the queue
+			pool_info.withdraw_queue = new_withdraw_queue;
+			for withdrawinfo in &in_queue_nfts {
+				let in_queue_nft = Self::get_nft_attr(collection_id, withdrawinfo.nft_id)
+					.expect("get nft attr should always success; qed.");
+				nft.stakes += in_queue_nft.stakes;
+				nft.shares += in_queue_nft.shares;
+				Self::burn_nft(collection_id, withdrawinfo.nft_id)
+					.expect("burn nft attr should always success; qed.");
+			}
+
+			let price = pool_info
+				.share_price()
+				.expect("In withdraw case, price should always exists;");
+			let amount = bmul(shares, &price);
+			let split_nft_id =
+				Self::mint_nft(pool_info.pid, pallet_id(), shares, amount, collection_id)
+					.expect("mint nft should always success");
+			nft.shares = nft
+				.shares
+				.checked_sub(&shares)
+				.ok_or(Error::<T>::InvalidWithdrawalAmount)?;
+			nft.stakes = nft
+				.stakes
+				.checked_sub(&amount)
+				.ok_or(Error::<T>::InvalidWithdrawalAmount)?;
+			// Push the request
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+			pool_info.withdraw_queue.push_back(WithdrawInfo {
+				user: userid.clone(),
+				start_time: now,
+				nft_id: split_nft_id,
+			});
+			Self::deposit_event(Event::<T>::WithdrawalQueued {
+				pid: pool_info.pid,
+				user: userid.clone(),
+				shares: shares,
+			});
+			Self::try_process_withdraw_queue(pool_info);
+
+			Ok(())
+		}
+
+		fn maybe_remove_dust(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			nft: &NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
+		) ->bool {
+			if is_nondust_balance(nft.shares) {
+				return false
+			}
+			Self::remove_dust(&userid, nft.stakes);
+			pool_info.total_shares -= nft.shares;
+			pool_info.total_stake -= nft.stakes;
+			true
+		}
+
+		fn do_withdraw_shares(
+			withdrawing_shares: BalanceOf<T>,
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			nft_id: NftId,
+			userid: T::AccountId,
 		) {
-			pool_info.settle_user_pending_reward(user_info);
-			let free_shares = match pool_info.share_price() {
-				Some(price) if price != fp!(0) => bdiv(pool_info.free_stake, &price),
-				// LOL, 100% slashed. We allow to withdraw all any number of shares with zero token
-				// in return.
-				_ => shares,
-			};
-			// The user is requesting to withdraw `shares`. So we compare the maximal free shares
-			// with that of the request. The `shares` in the request is split to:
-			// - `withdraw_shares`: can be withdrawn immediately
-			// - `queued_shares`: enqueued in the withdraw queue
-			// We remove the dust in both values.
-			let withdrawing_shares = shares.min(free_shares);
-			let (withdrawing_shares, _) = extract_dust(withdrawing_shares);
-			let queued_shares = shares - withdrawing_shares;
-			let (queued_shares, _) = extract_dust(queued_shares);
-			// Try withdraw immediately if we can
-			if withdrawing_shares > Zero::zero() {
-				Self::maybe_settle_slash(pool_info, user_info);
-				// Overflow warning: remove_stake is carefully written to avoid precision error.
-				// (I hope so)
-				let (reduced, dust, withdrawn_shares) = pool_info
-					.remove_stake(user_info, withdrawing_shares)
+			Self::maybe_settle_nft_slash(pool_info, nft, userid.clone());
+
+			// Overflow warning: remove_stake is carefully written to avoid precision error.
+			// (I hope so)
+			let (reduced, dust, withdrawn_shares) =
+				Self::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
 					.expect("There are enough withdrawing_shares; qed.");
-				Self::ledger_reduce(&user_info.user, reduced, dust);
-				Self::deposit_event(Event::<T>::Withdrawal {
-					pid: pool_info.pid,
-					user: user_info.user.clone(),
-					amount: reduced,
-					shares: withdrawn_shares,
-				});
-			}
-			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
-			// queue. When the pool has free stake again, the withdrawal will be fulfilled.
-			if queued_shares > Zero::zero() {
-				// Remove the existing withdraw request in the queue if there is any.
-				pool_info
-					.withdraw_queue
-					.retain(|withdraw| withdraw.user != user_info.user);
-				// Push the request
-				let now = <T as registry::Config>::UnixTime::now()
-					.as_secs()
-					.saturated_into::<u64>();
-				pool_info.withdraw_queue.push_back(WithdrawInfo {
-					user: user_info.user.clone(),
-					shares: queued_shares,
-					start_time: now,
-				});
-				Self::maybe_add_withdraw_queue(now, pool_info.pid);
-				Self::deposit_event(Event::<T>::WithdrawalQueued {
-					pid: pool_info.pid,
-					user: user_info.user.clone(),
-					shares: queued_shares,
-				});
-			}
-			// Update the pending reward after changing the staked amount
-			pool_info.reset_pending_reward(user_info);
+			Self::ledger_reduce(&userid, reduced, dust);
+			Self::deposit_event(Event::<T>::Withdrawal {
+				pid: pool_info.pid,
+				user: userid,
+				amount: reduced,
+				shares: withdrawn_shares,
+			});
 		}
 
 		/// Tries to fulfill the withdraw queue with the newly freed stake
@@ -1278,55 +1386,56 @@ pub mod pallet {
 			};
 
 			while is_nondust_balance(pool_info.free_stake) {
-				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
+				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
-					let info_key = (pool_info.pid, withdraw.user.clone());
-					let mut user_info = match Self::pool_stakers(&info_key) {
-						Some(user) => user,
-						// Usually it shouldn't be the case but we still check as a safe-guard
+
+					let collection_id = match PoolCollections::<T>::get(pool_info.pid) {
+						Some(id) => id,
 						None => {
 							pool_info.withdraw_queue.pop_front();
 							continue;
 						}
 					};
-					pool_info.settle_user_pending_reward(&mut user_info);
+					let mut withdraw_nft = Self::get_nft_attr(collection_id, withdraw.nft_id)
+						.expect("get nftattr should always success; qed.");
 					// Try to fulfill the withdraw requests as much as possible
 					let free_shares = if price == fp!(0) {
-						withdraw.shares // 100% slashed
+						withdraw_nft.shares // 100% slashed
 					} else {
 						bdiv(pool_info.free_stake, &price)
 					};
 					// This is the shares to withdraw immedately. It should NOT contain any dust
 					// because we ensure (1) `free_shares` is not dust earlier, and (2) the shares
 					// in any withdraw request mustn't be dust when inserting and updating it.
-					let withdrawing_shares = free_shares.min(withdraw.shares);
+					let withdrawing_shares = free_shares.min(withdraw_nft.shares);
 					debug_assert!(
 						is_nondust_balance(withdrawing_shares),
 						"withdrawing_shares must be positive"
 					);
 					// Actually remove the fulfilled withdraw request. Dust in the user shares is
 					// considered but it in the request is ignored.
-					Self::maybe_settle_slash(pool_info, &mut user_info);
-					let (reduced, dust, withdrawn_shares) = pool_info
-						.remove_stake(&mut user_info, withdrawing_shares)
-						.expect("Remove only what we have; qed.");
-					let (shares, _) = extract_dust(withdraw.shares - withdrawing_shares);
-					withdraw.shares = shares;
-					// Withdraw the funds
-					Self::ledger_reduce(&user_info.user, reduced, dust);
-					Self::deposit_event(Event::<T>::Withdrawal {
-						pid: pool_info.pid,
-						user: user_info.user.clone(),
-						amount: reduced,
-						shares: withdrawn_shares,
-					});
-					// Update the pending reward after changing the staked amount
-					pool_info.reset_pending_reward(&mut user_info);
-					PoolStakers::<T>::insert(&info_key, &user_info);
+					Self::do_withdraw_shares(
+						withdrawing_shares,
+						pool_info,
+						&mut withdraw_nft,
+						withdraw.nft_id,
+						withdraw.user.clone(),
+					);
+					Self::set_nft_attr(
+						pool_info.pid,
+						collection_id,
+						withdraw.nft_id,
+						&mut withdraw_nft,
+					)
+					.expect("set nftattr should always success; qed.");
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
-					if withdraw.shares == Zero::zero() {
+					if withdraw_nft.shares == Zero::zero()
+						|| Self::maybe_remove_dust(pool_info, &withdraw_nft, withdraw.user.clone())
+					{
 						pool_info.withdraw_queue.pop_front();
+						Self::burn_nft(collection_id, withdraw.nft_id)
+							.expect("burn nft should always success");
 					} else {
 						*pool_info
 							.withdraw_queue
@@ -1348,6 +1457,40 @@ pub mod pallet {
 			}
 		}
 
+		fn has_expired_withdrawal(
+			pool_info: &PoolInfo<T::AccountId, BalanceOf<T>>,
+			now: u64,
+			grace_period: u64,
+			releasing_stake: BalanceOf<T>,
+		) -> bool {
+			debug_assert!(
+				pool_info.free_stake == Zero::zero(),
+				"We really don't want to have free stake and withdraw requests at the same time"
+			);
+
+			// If the pool is bankrupt, or there's no share, we just skip this pool.
+			let price = match pool_info.share_price() {
+				Some(price) if price != fp!(0) => price,
+				_ => return false,
+			};
+			let mut budget = pool_info.free_stake + releasing_stake;
+			for request in &pool_info.withdraw_queue {
+				let collection_id = PoolCollections::<T>::get(pool_info.pid)
+					.expect("get pool collection_id should always success; qed.");
+				let withdraw_nft = Self::get_nft_attr(collection_id, request.nft_id)
+					.expect("get nftattr should always success; qed.");
+				let amount = bmul(withdraw_nft.shares, &price);
+				if amount > budget {
+					// Run out of budget, let's check if the request is still in the grace period
+					return now - request.start_time > grace_period;
+				} else {
+					// Otherwise we allocate some budget to virtually fulfill the request
+					budget -= amount;
+				}
+			}
+			false
+		}
+
 		/// Removes some dust amount from a user's account by Currency::slash.
 		fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
@@ -1367,34 +1510,6 @@ pub mod pallet {
 			Self::stake_pools(&pid).ok_or(Error::<T>::PoolDoesNotExist)
 		}
 
-		/// Adds the given pool (`pid`) to the withdraw queue if not present
-		fn maybe_add_withdraw_queue(start_time: u64, pid: u64) {
-			let mut t = WithdrawalTimestamps::<T>::get();
-			if let Some(last_start_time) = t.back().cloned() {
-				// the last_start_time == start_time means already have a withdraw request added early of this block,
-				// last_start_time > start_time is impossible
-				if last_start_time < start_time {
-					t.push_back(start_time);
-				}
-			} else {
-				// first time add withdraw pool
-				t.push_back(start_time);
-			}
-			WithdrawalTimestamps::<T>::put(&t);
-
-			// push pool to the pool list, if the pool was added in this pool, means it has waiting withdraw request
-			// in current block(if they have the same timestamp, we think they are in the same block)
-			if let Some(mut pool_list) = WithdrawalQueuedPools::<T>::get(&start_time) {
-				// if pool has already been added, ignore it
-				if !pool_list.contains(&pid) {
-					pool_list.push(pid);
-					WithdrawalQueuedPools::<T>::insert(&start_time, &pool_list);
-				}
-			} else {
-				WithdrawalQueuedPools::<T>::insert(&start_time, vec![pid]);
-			}
-		}
-
 		/// Removes a worker from a pool, either intentionally or unintentionally.
 		///
 		/// It assumes the worker is already in a pool.
@@ -1407,66 +1522,38 @@ pub mod pallet {
 						pid,
 						worker: worker.clone(),
 					});
+					// To adjust the case that skip stakepool::stop_mining when call remove_worker
+					// (TODO(mingxuan): should let remove_worker in stakepool call mining directly instead of stakepool -> mining -> stakepool
+					// and remove this cover code.)
+					if !pool.cd_workers.contains(&worker) {
+						pool.cd_workers.push(worker.clone());
+					}
 				}
 			});
 		}
 
-		fn maybe_settle_slash(
+		fn maybe_settle_nft_slash(
 			pool: &PoolInfo<T::AccountId, BalanceOf<T>>,
-			user: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
 		) {
-			match pool.settle_slash(user) {
+			match pool.settle_nft_slash(nft) {
 				// We don't slash on dust, because the share price is just unstable.
 				Some(slashed) if is_nondust_balance(slashed) => {
-					let (imbalance, _remaining) =
-						<T as Config>::Currency::slash(&user.user, slashed);
+					let (imbalance, _remaining) = <T as Config>::Currency::slash(&userid, slashed);
 					let actual_slashed = imbalance.peek();
 					T::OnSlashed::on_unbalanced(imbalance);
 					// Dust is not considered because it's already merged into the slash if
 					// presents.
-					Self::ledger_reduce(&user.user, actual_slashed, Zero::zero());
+					Self::ledger_reduce(&userid, actual_slashed, Zero::zero());
 					Self::deposit_event(Event::<T>::SlashSettled {
 						pid: pool.pid,
-						user: user.user.clone(),
+						user: userid,
 						amount: actual_slashed,
 					});
 				}
 				_ => (),
 			}
-		}
-
-		/// Tries to enforce expired withdraw requests
-		///
-		/// TODO: carefully examine the caveat in this function
-		fn maybe_force_withdraw(now: u64) {
-			// TODO: review again!
-			let mut t = WithdrawalTimestamps::<T>::get();
-			if t.is_empty() {
-				return;
-			}
-			// Handle timeout requests at every block
-			let grace_period = T::GracePeriod::get();
-			while let Some(start_time) = t.front().cloned() {
-				if now - start_time <= grace_period {
-					break;
-				}
-				let pools = WithdrawalQueuedPools::<T>::take(start_time)
-					.expect("Pool list must exist; qed.");
-				for &pid in pools.iter() {
-					let pool = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
-					if pool.has_expired_withdrawal(now, grace_period) {
-						// Force shutdown all miners
-						for worker in pool.workers {
-							let miner: T::AccountId = pool_sub_account(pid, &worker);
-							// TODO: avoid stop mining multiple times?
-							let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
-						}
-					}
-				}
-				// pop front timestamp
-				t.pop_front();
-			}
-			WithdrawalTimestamps::<T>::put(&t);
 		}
 
 		pub(crate) fn migration_remove_assignments() -> Weight {
@@ -1479,6 +1566,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
@@ -1509,6 +1597,7 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Usually called on worker force unbinding (force == true), but it's also possible
@@ -1529,22 +1618,16 @@ pub mod pallet {
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
-		/// Called when a worker is stopped and there is releasing stake
-		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
-			let pid = WorkerAssignments::<T>::get(worker)
-				.expect("Stopping workers have assignment; qed.");
-			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
-			let returned = orig_stake - slashed;
-			pool_info.releasing_stake.saturating_accrue(returned);
-			StakePools::<T>::insert(pid, pool_info);
-		}
+		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {}
 	}
 
 	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
@@ -1581,6 +1664,15 @@ pub mod pallet {
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
+	fn pallet_id<T>() -> T
+	where
+		T: Encode + Decode,
+	{
+		(b"stakepool")
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
+			.expect("Decoding zero-padded account id should always succeed; qed")
+	}
+
 	/// The state of a pool
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId, Balance> {
@@ -1603,11 +1695,6 @@ pub mod pallet {
 		///
 		/// When it's set, the totals stake a pool can receive will not exceed this capacity.
 		pub cap: Option<Balance>,
-		/// The reward [accumulator](crate::utils::accumulator)
-		///
-		/// An individual user's reward is tracked by [`reward_acc`](PoolInfo::reward_acc), their
-		/// [`shares`](UserStakeInfo::shares) and the [`reward_debt`](UserStakeInfo::reward_debt).
-		pub reward_acc: CodecFixedPoint,
 		/// Total shares
 		///
 		/// It tracks the total number of shared of all the contributors. Guaranteed to be
@@ -1621,125 +1708,18 @@ pub mod pallet {
 		///
 		/// It tracks the total free stake (not used by any miner) in the pool. Can be dust.
 		pub free_stake: Balance,
-		/// Releasing stake
-		///
-		/// It tracks the stake that will be unlocked in the future. It's the sum of all the
-		/// cooling down miners' remaining stake.
-		pub releasing_stake: Balance,
 		/// Bound workers
 		pub workers: Vec<WorkerPublicKey>,
+		/// The workers in cd in the pool
+		pub cd_workers: Vec<WorkerPublicKey>,
 		/// The queue of withdraw requests
-		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId, Balance>>,
+		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId>>,
 	}
 
 	impl<AccountId, Balance> PoolInfo<AccountId, Balance>
 	where
 		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
-		/// Adds some stake to a user.
-		///
-		/// No dirty slash allowed. Usually it doesn't change the price of the share, unless the
-		/// share price is zero (all slashed), which is a really a disrupting case that we don't
-		/// even bother to deal with.
-		fn add_stake(
-			&mut self,
-			user: &mut UserStakeInfo<AccountId, Balance>,
-			amount: Balance,
-		) -> Balance {
-			debug_assert!(is_nondust_balance(amount));
-			self.assert_slash_clean(user);
-			self.assert_reward_clean(user);
-			// Calcuate shares to add
-			let shares = match self.share_price() {
-				Some(price) if price != fp!(0) => bdiv(amount, &price),
-				_ => amount, // adding new stake (share price = 1)
-			};
-			// Add the stake
-			user.shares.saturating_accrue(shares);
-			user.locked.saturating_accrue(amount);
-			self.reset_pending_reward(user);
-			// Update self
-			self.total_shares += shares;
-			self.total_stake.saturating_accrue(amount);
-			self.free_stake.saturating_accrue(amount);
-			shares
-		}
-
-		/// Removes some shares from a user and returns the removed stake amount.
-		///
-		/// This function can deal with fixed point precision issue (I hope so). However it also
-		/// requires:
-		///
-		/// - There's no dirty slash
-		/// - `shares` mustn't exceed the user shares.
-		///
-		/// It returns `None` and makes no change if there's any error. Otherwise it returns a
-		/// tuple with the amount of the actual removed stake, and potentially the dust stake to
-		/// remove.
-		fn remove_stake(
-			&mut self,
-			user: &mut UserStakeInfo<AccountId, Balance>,
-			shares: Balance,
-		) -> Option<(Balance, Balance, Balance)> {
-			debug_assert!(is_nondust_balance(shares));
-			self.assert_slash_clean(user);
-			self.assert_reward_clean(user);
-
-			// It's tricky to deal with the fixed point precision loss. Generally we drop the dust
-			// shares, because shares are just a virtual value representing the ownership of a
-			// pool. However for balances, even the dust of 1 pico PHA must be absorbed.
-			//
-			// In StakePool, all the balances are PHA locked in user's account. Therefore once we
-			// want to absorb some dust, we have to withdraw the funds from the users' stake, and
-			// deposit it to the Treasury.
-			let price = self.share_price()?;
-			let amount = bmul(shares, &price);
-			// In case `amount` is a little bit larger than `free_stake` or `user.locked`. Note
-			// that it should never really exceed `user.locked` because we ask the caller to ensure
-			// the share to remove is not greater than user's shares.
-			let amount = amount.min(self.free_stake).min(user.locked);
-			// Remove shares and stake from the user record
-			let user_shares = user.shares.checked_sub(&shares)?;
-			let (user_shares, shares_dust) = extract_dust(user_shares);
-			let user_locked = user.locked.checked_sub(&amount)?;
-			let (user_locked, user_dust) = extract_dust(user_locked);
-			// Whenver we remove dust shares in user's account, we remove it in the total_shares
-			// as well. It keeps the invariant:
-			//   pool.total_shares == sum(pool_user.shares)
-			let removed_shares = shares + shares_dust;
-			let total_shares = self.total_shares.checked_sub(&removed_shares)?;
-			debug_assert!(
-				extract_dust(total_shares).1 == Zero::zero(),
-				"total_shares should never have dust"
-			);
-			// Apply updates
-			//
-			// Note that ideally we should maintain the invariant:
-			//   pool.total_stake == sum(pool_user.stake)
-			//
-			// When we extracted some dust, we should also deduct it from the total_stake. However,
-			// the invariant will be broken anyway when a pool got any slash settled. For example,
-			// when the total stake got slashed by 1 pico-PHA, the sum of pool users' stake will
-			// be always larger than total_stake.
-			//
-			// So we'd rather just don't deduct the the removed dust at all. Instead, we drop the
-			// dust in pool.total_stake after the user stake is removed. In other words, we always
-			// drop the dust in total_stake without more bookkeeping.
-			let (total_stake, _) = extract_dust(self.total_stake - amount);
-			if total_stake > Zero::zero() {
-				self.free_stake -= amount;
-				self.total_stake -= amount;
-			} else {
-				self.free_stake = Zero::zero();
-				self.total_stake = Zero::zero();
-			}
-			self.total_shares = total_shares;
-			user.shares = user_shares;
-			user.locked = user_locked;
-			self.reset_pending_reward(user);
-			Some((amount, user_dust, removed_shares))
-		}
-
 		/// Slashes the pool with dust removed.
 		fn slash(&mut self, amount: Balance) {
 			debug_assert!(
@@ -1762,7 +1742,7 @@ pub mod pallet {
 		}
 
 		/// Asserts there's no dirty slash (in debug profile only)
-		fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
+		pub fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
 			debug_assert!(
 				self.total_shares == Zero::zero()
 				// Due to the unstable fixed point share price, we cannot compare them directly
@@ -1773,30 +1753,20 @@ pub mod pallet {
 			);
 		}
 
-		/// Asserts there's no pending reward (in debug profile only)
-		fn assert_reward_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
-			debug_assert!(
-				self.pending_reward(user) == Zero::zero(),
-				"The pending reward should be zero (user share = {}, user debt = {}, accumulator = {:?}, delta = {}))",
-				user.shares, user.reward_debt, self.reward_acc,
-				self.pending_reward(user)
-			);
-		}
-
 		/// Settles the pending slash for a pool user.
 		///
 		/// The slash is
 		///
 		/// Returns the slashed amount if succeeded, otherwise None.
-		fn settle_slash(&self, user: &mut UserStakeInfo<AccountId, Balance>) -> Option<Balance> {
+		fn settle_nft_slash(&self, nft: &mut NftAttr<Balance>) -> Option<Balance> {
 			let price = self.share_price()?;
-			let locked = user.locked;
-			let new_locked = bmul(user.shares, &price);
+			let locked = nft.stakes;
+			let new_locked = bmul(nft.shares, &price);
 			// Double check the new_locked won't exceed the original locked
 			let new_locked = new_locked.min(locked);
 			// When only dust remaining in the pool, we include the dust in the slash amount
 			let (new_locked, _) = extract_dust(new_locked);
-			user.locked = new_locked;
+			nft.stakes = new_locked;
 			// The actual slashed amount. Usually slash will only cause the share price decreasing.
 			// However in some edge case (i.e. the pool got slashed to 0 and then new contribution
 			// added), the locked amount may even become larger
@@ -1804,17 +1774,10 @@ pub mod pallet {
 		}
 
 		/// Returns the price of one share, or None if no share at all.
-		fn share_price(&self) -> Option<FixedPoint> {
+		pub fn share_price(&self) -> Option<FixedPoint> {
 			self.total_stake
 				.to_fixed()
 				.checked_div(self.total_shares.to_fixed())
-		}
-
-		/// Settles all the pending rewards of a user and move to `available_rewards` for claiming
-		fn settle_user_pending_reward(&self, user: &mut UserStakeInfo<AccountId, Balance>) {
-			let pending_reward = self.pending_reward(user);
-			user.available_rewards.saturating_accrue(pending_reward);
-			self.reset_pending_reward(user);
 		}
 
 		// Distributes additional rewards to the current share holders.
@@ -1824,29 +1787,8 @@ pub mod pallet {
 		//
 		// Warning: `total_reward` mustn't be zero.
 		fn distribute_reward(&mut self, rewards: Balance) {
-			assert!(
-				is_nondust_balance(self.total_shares),
-				"Divide by zero at distribute_reward"
-			);
-			Accumulator::<Balance>::distribute(
-				self.total_shares,
-				self.reward_acc.get_mut(),
-				rewards,
-			);
-		}
-
-		/// Calculates the pending reward a user is holding
-		fn pending_reward(&self, user: &UserStakeInfo<AccountId, Balance>) -> Balance {
-			Accumulator::<Balance>::pending(user.shares, &self.reward_acc.into(), user.reward_debt)
-		}
-
-		/// Resets user's `reward_debt` to remove all the pending rewards
-		fn reset_pending_reward(&self, user: &mut UserStakeInfo<AccountId, Balance>) {
-			Accumulator::<Balance>::clear_pending(
-				user.shares,
-				&self.reward_acc.into(),
-				&mut user.reward_debt,
-			);
+			self.total_stake += rewards;
+			self.free_stake += rewards;
 		}
 
 		/// Removes a worker from the pool's worker list
@@ -1854,35 +1796,18 @@ pub mod pallet {
 			self.workers.retain(|w| w != worker);
 		}
 
-		/// Returns if the pool has expired withdrawal requests
-		fn has_expired_withdrawal(&self, now: u64, grace_period: u64) -> bool {
-			debug_assert!(
-				self.free_stake == Zero::zero(),
-				"We really don't want to have free stake and withdraw requests at the same time"
-			);
-			// If we check the pool withdraw_queue here, we don't have to remove a pool from
-			// WithdrawalQueuedPools when a pool has handled their waiting withdraw requests before
-			// timeout. Compare the IO performance we think removing pool from
-			// WithdrawalQueuedPools would have more resource cost.
-
-			// If the pool is bankrupt, or there's no share, we just skip this pool.
-			let price = match self.share_price() {
-				Some(price) if price != fp!(0) => price,
-				_ => return false,
-			};
-			let mut budget = self.free_stake + self.releasing_stake;
-			for request in &self.withdraw_queue {
-				let amount = bmul(request.shares, &price);
-				if amount > budget {
-					// Run out of budget, let's check if the request is still in the grace period
-					return now - request.start_time > grace_period;
-				} else {
-					// Otherwise we allocate some budget to virtually fulfill the request
-					budget -= amount;
-				}
-			}
-			false
+		/// Removes a worker from the pool's cd_worker list
+		fn remove_cd_worker(&mut self, worker: &WorkerPublicKey) {
+			self.cd_workers.retain(|w| w != worker);
 		}
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
+	pub struct NftAttr<Balance> {
+		/// Shares that the Nft contains
+		pub shares: Balance,
+		/// the stakes of Shares at the moment Nft created or transfered
+		pub stakes: Balance,
 	}
 
 	/// A user's staking info
@@ -1897,26 +1822,17 @@ pub mod pallet {
 		/// Guaranteed to be non-dust. Invariant must hold:
 		/// - `StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)`
 		pub shares: Balance,
-		/// Resolved claimable rewards
-		///
-		/// It's accumulated by resolving "pending stake" from the reward
-		/// [accumulator](crate::utils::accumulator).
-		pub available_rewards: Balance,
-		/// The debt of a user's stake
-		///
-		/// It's subject to the pool reward [accumulator](crate::utils::accumulator).
-		pub reward_debt: Balance,
 	}
 
 	/// A withdraw request, usually stored in the withdrawal queue
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct WithdrawInfo<AccountId, Balance> {
+	pub struct WithdrawInfo<AccountId> {
 		/// The withdrawal requester
 		pub user: AccountId,
-		/// The shares to withdraw. Cannot be dust.
-		pub shares: Balance,
 		/// The start time of the request
 		pub start_time: u64,
+		/// The nft_id of the withdraw request
+		pub nft_id: NftId,
 	}
 
 	#[cfg(test)]
@@ -1959,7 +1875,25 @@ pub mod pallet {
 				assert_matches!(
 					take_events().as_slice(),
 					[
+						TestEvent::Uniques(pallet_uniques::Event::Created {
+							collection: 0,
+							creator: _,
+							owner: _
+						}),
+						TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
+							issuer: _,
+							collection_id: 0
+						}),
 						TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 0 }),
+						TestEvent::Uniques(pallet_uniques::Event::Created {
+							collection: 1,
+							creator: _,
+							owner: _
+						}),
+						TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
+							issuer: _,
+							collection_id: 1
+						}),
 						TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 1 }),
 					]
 				);
@@ -1971,16 +1905,283 @@ pub mod pallet {
 						payout_commission: None,
 						owner_reward: 0,
 						cap: None,
-						reward_acc: CodecFixedPoint::zero(),
 						total_shares: 0,
 						total_stake: 0,
 						free_stake: 0,
-						releasing_stake: 0,
 						workers: Vec::new(),
+						cd_workers: Vec::new(),
 						withdraw_queue: VecDeque::new(),
 					})
 				);
+				assert_eq!(PhalaStakePool::pool_collections(0).unwrap(), 0);
+				assert_eq!(PhalaStakePool::pool_collections(1).unwrap(), 1);
 				assert_eq!(PoolCount::<Test>::get(), 2);
+			});
+		}
+
+		#[test]
+		fn test_mint_nft() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				let mut cid1 = PhalaStakePool::pool_collections(0).unwrap();
+				assert_eq!(cid1, 0);
+				assert_ok!(PhalaStakePool::mint_nft(
+					0,
+					1,
+					1000 * DOLLARS,
+					1000 * DOLLARS,
+					cid1
+				));
+
+				assert_ok!(PhalaStakePool::get_nft_attr(0, 0));
+				let nft_attr = PhalaStakePool::get_nft_attr(0, 0).unwrap();
+				assert_eq!(nft_attr.shares, 1000 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 1000 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_merge_or_init_nft() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				let mut cid1 = PhalaStakePool::pool_collections(0).unwrap();
+				assert_eq!(cid1, 0);
+				assert_ok!(PhalaStakePool::mint_nft(
+					0,
+					1,
+					1000 * DOLLARS,
+					1000 * DOLLARS,
+					cid1,
+				));
+				assert_ok!(PhalaStakePool::mint_nft(
+					0,
+					1,
+					2000 * DOLLARS,
+					2000 * DOLLARS,
+					cid1,
+				));
+				let nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				assert_eq!(nftid_arr.len(), 2);
+				assert_ok!(PhalaStakePool::merge_or_init_nft_for_staker(1, cid1, 0));
+				let nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 3000 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 3000 * DOLLARS);
+				assert_ok!(PhalaStakePool::merge_or_init_nft_for_staker(2, cid1, 0));
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 0 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 0 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_set_nft_attr() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				let mut cid1 = PhalaStakePool::pool_collections(0).unwrap();
+				assert_eq!(cid1, 0);
+				assert_ok!(PhalaStakePool::mint_nft(
+					0,
+					1,
+					1000 * DOLLARS,
+					1000 * DOLLARS,
+					cid1,
+				));
+				let mut nft_attr = PhalaStakePool::get_nft_attr(0, 0).unwrap();
+				nft_attr.shares = 5000 * DOLLARS;
+				nft_attr.stakes = 5000 * DOLLARS;
+				assert_ok!(PhalaStakePool::set_nft_attr(0, 0, 0, &nft_attr,));
+				let nft_attr = PhalaStakePool::get_nft_attr(0, 0).unwrap();
+				assert_eq!(nft_attr.shares, 5000 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 5000 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_remove_stake_from_nft() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				let mut cid1 = PhalaStakePool::pool_collections(0).unwrap();
+				assert_eq!(cid1, 0);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					50 * DOLLARS
+				));
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let mut nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				let mut pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.share_price().unwrap(), 1);
+				match PhalaStakePool::remove_stake_from_nft(&mut pool, 40 * DOLLARS, &mut nft_attr)
+				{
+					Some((amout, user_dust, removed_shares)) => return,
+					_ => panic!(),
+				}
+				assert_eq!(nft_attr.shares, 10 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 10 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_new_contibute() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					50 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					50 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					30 * DOLLARS
+				));
+
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 80 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 80 * DOLLARS);
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 50 * DOLLARS);
+				assert_eq!(nft_attr.stakes, 50 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_new_withdraw() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					400 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(2),
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					800 * DOLLARS
+				));
+				let mut pool = PhalaStakePool::stake_pools(0).unwrap();
+				let mut item = pool
+					.withdraw_queue
+					.clone()
+					.into_iter()
+					.find(|x| x.user == 2);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, item.unwrap().nft_id).unwrap();
+				assert_eq!(nft_attr.shares, 300 * DOLLARS);
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+				});
+				let user_nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(user_nft_attr.shares, 200 * DOLLARS);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					1000 * DOLLARS
+				));
+				let mut pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.withdraw_queue.len(), 0);
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(3)
+				});
+				assert_eq!(nftid_arr.len(), 1);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(nft_attr.shares, 1000 * DOLLARS);
+				assert_eq!(pool.total_stake, 1200 * DOLLARS);
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(3),
+					0,
+					900 * DOLLARS
+				));
+				let mut pool = PhalaStakePool::stake_pools(0).unwrap();
+				let mut item = pool
+					.withdraw_queue
+					.clone()
+					.into_iter()
+					.find(|x| x.user == 3);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, item.unwrap().nft_id).unwrap();
+				assert_eq!(nft_attr.shares, 200 * DOLLARS);
+				assert_ok!(PhalaStakePool::withdraw(Origin::signed(3), 0, 50 * DOLLARS));
+				let mut nftid_arr: Vec<NftId> =
+					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+				nftid_arr.retain(|x| {
+					let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+					nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(3)
+				});
+				let user_nft_attr = PhalaStakePool::get_nft_attr(0, nftid_arr[0]).unwrap();
+				assert_eq!(user_nft_attr.shares, 250 * DOLLARS);
+				let mut pool = PhalaStakePool::stake_pools(0).unwrap();
+				let mut item = pool
+					.withdraw_queue
+					.clone()
+					.into_iter()
+					.find(|x| x.user == 3);
+				let nft_attr = PhalaStakePool::get_nft_attr(0, item.unwrap().nft_id).unwrap();
+				assert_eq!(nft_attr.shares, 50 * DOLLARS);
 			});
 		}
 
@@ -2180,6 +2381,184 @@ pub mod pallet {
 				// Check the mining is stopped
 				let miner = PhalaMining::miners(&sub_account).unwrap();
 				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
+			});
+		}
+
+		#[test]
+		fn test_stop_mining() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				// Cannot start mining without a bound worker
+				assert_noop!(
+					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+					Error::<Test>::WorkerDoesNotExist
+				);
+				// Basic setup
+				setup_workers(2);
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
+			});
+		}
+
+		#[test]
+		fn test_for_cdworkers() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				// Cannot start mining without a bound worker
+				assert_noop!(
+					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+					Error::<Test>::WorkerDoesNotExist
+				);
+				// Basic setup
+				setup_workers(2);
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::remove_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
+				elapse_cool_down();
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.cd_workers, []);
+			});
+		}
+
+		#[test]
+		fn test_check_and_maybe_force_withdraw() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					400 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(2),
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					800 * DOLLARS
+				));
+				elapse_seconds(864000);
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+				));
+				assert_ok!(PhalaStakePool::check_and_maybe_force_withdraw(
+					Origin::signed(3),
+					0
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.free_stake, 0 * DOLLARS);
+				assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					500 * DOLLARS
+				));
+				elapse_seconds(864000);
+				assert_ok!(PhalaStakePool::check_and_maybe_force_withdraw(
+					Origin::signed(3),
+					0
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.cd_workers, [worker_pubkey(1), worker_pubkey(2)]);
+			});
+		}
+
+		#[test]
+		fn test_new_on_reward() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);
+
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				// Staker2 contribute 1000 PHA and start mining
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					2000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1000 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(2000u32).to_bits(),
+					treasury: 0,
+				}]);
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.owner_reward, 1000 * DOLLARS);
+				assert_eq!(pool.free_stake, 2000 * DOLLARS);
+				assert_eq!(pool.total_stake, 3000 * DOLLARS);
 			});
 		}
 
@@ -2398,8 +2777,8 @@ pub mod pallet {
 				assert_eq!(pool.total_stake, 250000000000000);
 				let mut staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let mut staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				PhalaStakePool::maybe_settle_slash(&pool, &mut staker1);
-				PhalaStakePool::maybe_settle_slash(&pool, &mut staker2);
+				//PhalaStakePool::maybe_settle_slash(&pool, &mut staker1);
+				//PhalaStakePool::maybe_settle_slash(&pool, &mut staker2);
 				StakePools::<Test>::insert(0, pool);
 				PoolStakers::<Test>::insert((0, 1), staker1);
 				PoolStakers::<Test>::insert((0, 2), staker2);
@@ -2601,41 +2980,7 @@ pub mod pallet {
 		}
 
 		#[test]
-		fn test_force_assign_reward() {
-			use crate::mining::pallet::OnReward;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid = 0
-
-				// Check stake before receiving any rewards
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(1),
-					0,
-					100 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					400 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::set_payout_pref(
-					Origin::signed(1),
-					0,
-					Permill::from_percent(50)
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.reward_acc.get(), fp!(0));
-				assert_eq!(pool.owner_reward, fp!(0));
-				let input = vec![(0, 500 * DOLLARS)];
-				PhalaStakePool::force_assign_reward(Origin::root(), input);
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.reward_acc.get(), fp!(0.5));
-				assert_eq!(pool.owner_reward, 250 * DOLLARS);
-			});
-		}
-		#[test]
-		fn test_divided_claim_rewards() {
+		fn test_claim_owner_rewards() {
 			use crate::mining::pallet::OnReward;
 			new_test_ext().execute_with(|| {
 				set_block_1();
@@ -2663,28 +3008,9 @@ pub mod pallet {
 					treasury: 0,
 				}]);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
-				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
 				assert_eq!(pool.owner_reward, 500 * DOLLARS);
 				assert_ok!(PhalaStakePool::claim_owner_rewards(Origin::signed(1), 0, 1));
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
-				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
-				assert_eq!(pool.owner_reward, 0 * DOLLARS);
-				assert_ok!(PhalaStakePool::claim_staker_rewards(
-					Origin::signed(1),
-					0,
-					1
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.pending_reward(&staker1), 0 * DOLLARS);
-				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
 				assert_eq!(pool.owner_reward, 0 * DOLLARS);
 			});
 		}
@@ -2710,12 +3036,6 @@ pub mod pallet {
 					0,
 					40 * DOLLARS
 				));
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				assert_eq!(staker1.shares, 40 * DOLLARS);
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker2.shares, 40 * DOLLARS);
-				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
-				assert_eq!(staker3.shares, 40 * DOLLARS);
 				assert_ok!(PhalaStakePool::add_staker_to_whitelist(
 					Origin::signed(1),
 					0,
@@ -2737,12 +3057,6 @@ pub mod pallet {
 					PhalaStakePool::contribute(Origin::signed(3), 0, 40 * DOLLARS),
 					Error::<Test>::NotInContributeWhitelist
 				);
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				assert_eq!(staker1.shares, 50 * DOLLARS);
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker2.shares, 80 * DOLLARS);
-				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
-				assert_eq!(staker3.shares, 40 * DOLLARS);
 				assert_ok!(PhalaStakePool::add_staker_to_whitelist(
 					Origin::signed(1),
 					0,
@@ -2755,8 +3069,6 @@ pub mod pallet {
 					0,
 					20 * DOLLARS,
 				));
-				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
-				assert_eq!(staker4.shares, 60 * DOLLARS);
 				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
 				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
 				assert_eq!(whitelist, [3]);
@@ -2771,640 +3083,6 @@ pub mod pallet {
 					0,
 					20 * DOLLARS,
 				));
-				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
-				assert_eq!(staker4.shares, 80 * DOLLARS);
-			});
-		}
-		#[test]
-		fn test_reward_management() {
-			use crate::mining::pallet::OnReward;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid = 0
-
-				// Check stake before receiving any rewards
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(1),
-					0,
-					100 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					400 * DOLLARS
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.reward_acc, CodecFixedPoint::zero());
-				assert_eq!(pool.total_stake, 500 * DOLLARS);
-
-				// Mined 500 PHA
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(500u32).to_bits(),
-					treasury: 0,
-				}]);
-				// Should result in 100, 400 PHA pending reward for staker 1 & 2
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.reward_acc.get(), fp!(1));
-				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
-				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
-
-				// Staker1 claims 100 PHA rewrad, left 100 debt & no pending reward
-				let _ = take_events();
-				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
-				assert_eq!(
-					take_events().as_slice(),
-					[
-						TestEvent::Balances(pallet_balances::Event::<Test>::Transfer {
-							from: PhalaMining::account_id(),
-							to: 1,
-							amount: 100 * DOLLARS
-						}),
-						TestEvent::PhalaStakePool(Event::RewardsWithdrawn {
-							pid: 0,
-							user: 1,
-							amount: 100 * DOLLARS
-						})
-					]
-				);
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				assert_eq!(pool.reward_acc.get(), fp!(1), "reward_acc shouldn't change");
-				assert_eq!(staker1.reward_debt, 100 * DOLLARS);
-				assert_eq!(pool.pending_reward(&staker1), 0);
-
-				// Mined 500 PHA
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(500u32).to_bits(),
-					treasury: 0,
-				}]);
-				// Should result in 100, 800 PHA pending reward for staker1 & 2
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.reward_acc.get(), fp!(2));
-				assert_eq!(pool.pending_reward(&staker1), 100 * DOLLARS);
-				assert_eq!(pool.pending_reward(&staker2), 800 * DOLLARS);
-
-				// Staker2 claims 800 PHA reward, left 800 debt
-				let _ = take_events();
-				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(2), 0, 2));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker2.reward_debt, 800 * DOLLARS);
-
-				// Staker1 contribute another 300 PHA (now 50:50), causing a passive reward settlement
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(1),
-					0,
-					300 * DOLLARS
-				));
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				assert_eq!(staker1.shares, 400 * DOLLARS);
-				assert_eq!(staker1.reward_debt, 800 * DOLLARS);
-
-				// Mined 800 PHA
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(800u32).to_bits(),
-					treasury: 0,
-				}]);
-				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.reward_acc.get(), fp!(3));
-				assert_eq!(pool.pending_reward(&staker1), 0);
-				assert_eq!(pool.pending_reward(&staker2), 400 * DOLLARS);
-
-				// Staker1 withdraw all
-				let _ = take_events();
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(1),
-					0,
-					400 * DOLLARS
-				));
-				assert_eq!(
-					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::Withdrawal {
-						pid: 0,
-						user: 1,
-						amount: 400 * DOLLARS,
-						shares: 400 * DOLLARS
-					})]
-				);
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker1.shares, 0);
-				assert_eq!(staker1.reward_debt, 0);
-				assert_eq!(staker2.shares, 400 * DOLLARS);
-			});
-		}
-
-		#[test]
-		fn dismiss_dust_reward() {
-			use crate::mining::pallet::OnReward;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid = 0
-
-				// Check stake before receiving any rewards
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(1),
-					0,
-					100 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					400 * DOLLARS
-				));
-				let _ = take_events();
-				// Inject 100 pico PHA payout to trigger dust removal (99 after conversing to fp)
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: 100u128.to_fixed().to_bits(),
-					treasury: 0,
-				}]);
-				let ev = take_events();
-				assert_eq!(
-					ev,
-					vec![TestEvent::PhalaStakePool(Event::RewardDismissedDust {
-						pid: 0,
-						amount: 99
-					}),]
-				);
-			});
-		}
-
-		#[test]
-		fn test_late_reward_report() {
-			use crate::mining::pallet::OnReward;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid = 0
-
-				// Simulate no share in the pool.
-				let _ = take_events();
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(500u32).to_bits(),
-					treasury: 0,
-				}]);
-				let ev = take_events();
-				assert_eq!(
-					ev,
-					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNoShare {
-						pid: 0,
-						amount: 500 * DOLLARS
-					})]
-				);
-				// Simulate the worker is already unbound
-				assert_ok!(PhalaStakePool::remove_worker(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
-				let _ = take_events();
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(500u32).to_bits(),
-					treasury: 0,
-				}]);
-				let ev = take_events();
-				assert_eq!(
-					ev,
-					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNotInPool {
-						worker: worker_pubkey(1),
-						amount: 500 * DOLLARS
-					})]
-				);
-			});
-		}
-
-		#[test]
-		fn test_drained_subsidy_pool_noop() {
-			use crate::mining::pallet::OnReward;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid = 0
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(1),
-					0,
-					100 * DOLLARS
-				));
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(500u32).to_bits(),
-					treasury: 0,
-				}]);
-				assert_ok!(Balances::set_balance(
-					Origin::root(),
-					PhalaMining::account_id(),
-					1 * DOLLARS,
-					0
-				));
-				assert_noop!(
-					PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1),
-					Error::<Test>::InternalSubsidyPoolCannotWithdraw
-				);
-			});
-		}
-
-		#[test]
-		fn test_withdraw() {
-			use crate::mining::pallet::OnStopped;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(2);
-				setup_pool_with_workers(1, &[1, 2]); // pid = 0
-
-				// Stake 1000 PHA, and start two miners with 400 & 100 PHA as stake
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					1000 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					400 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(2),
-					100 * DOLLARS
-				));
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker2.shares, 1000 * DOLLARS);
-				assert_eq!(Balances::locks(2), vec![the_lock(1000 * DOLLARS)]);
-				// Cannot withdraw more than one's stake
-				assert_noop!(
-					PhalaStakePool::withdraw(Origin::signed(2), 0, 9999 * DOLLARS),
-					Error::<Test>::InvalidWithdrawalAmount
-				);
-				// Immediate withdraw 499 PHA from the free stake
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					499 * DOLLARS
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.free_stake, 1 * DOLLARS);
-				assert_eq!(pool.total_stake, 501 * DOLLARS);
-				assert_eq!(staker2.shares, 501 * DOLLARS);
-				assert_eq!(Balances::locks(2), vec![the_lock(501 * DOLLARS)]);
-				// Withdraw 2 PHA will only fulfill 1 PHA from the free stake, leaving 1 PHA in the
-				// withdraw queue
-				assert_ok!(PhalaStakePool::withdraw(Origin::signed(2), 0, 2 * DOLLARS));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.free_stake, 0);
-				assert_eq!(pool.total_stake, 500 * DOLLARS);
-				assert_eq!(staker2.shares, 500 * DOLLARS);
-				assert_eq!(Balances::locks(2), vec![the_lock(500 * DOLLARS)]);
-				// Check the queue
-				assert_eq!(
-					pool.withdraw_queue,
-					vec![WithdrawInfo {
-						user: 2,
-						shares: 1 * DOLLARS,
-						start_time: 0
-					}]
-				);
-				let ts_queue = PhalaStakePool::withdrawal_timestamps();
-				assert_eq!(ts_queue.len(), 1);
-				assert_eq!(
-					PhalaStakePool::withdrawal_queued_pools(ts_queue.front().unwrap()),
-					Some(vec![0])
-				);
-
-				// Contribute 1 PHA to trigger instant withdraw, fulfilling the withdraw request.
-				// Then staker1 has 1PHA in stake, and staker2 only has 499 PHA in stake.
-				let _ = take_events();
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(1),
-					0,
-					1 * DOLLARS
-				));
-				assert_eq!(
-					take_events().as_slice(),
-					[
-						TestEvent::PhalaStakePool(Event::Withdrawal {
-							pid: 0,
-							user: 2,
-							amount: 1 * DOLLARS,
-							shares: 1 * DOLLARS
-						}),
-						TestEvent::PhalaStakePool(Event::Contribution {
-							pid: 0,
-							user: 1,
-							amount: 1 * DOLLARS,
-							shares: 1 * DOLLARS
-						})
-					]
-				);
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.free_stake, 0);
-				assert_eq!(pool.total_stake, 500 * DOLLARS);
-				assert_eq!(pool.withdraw_queue.is_empty(), true);
-				assert_eq!(staker1.shares, 1 * DOLLARS);
-				assert_eq!(staker2.shares, 499 * DOLLARS);
-				assert_eq!(Balances::locks(2), vec![the_lock(499 * DOLLARS)]);
-				// Staker2 and 1 withdraw 199 PHA, 1 PHA, queued, and then wait for force clear
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					199 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::withdraw(Origin::signed(1), 0, 1 * DOLLARS));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(
-					pool.withdraw_queue,
-					vec![
-						WithdrawInfo {
-							user: 2,
-							shares: 199 * DOLLARS,
-							start_time: 0
-						},
-						WithdrawInfo {
-							user: 1,
-							shares: 1 * DOLLARS,
-							start_time: 0
-						}
-					]
-				);
-				assert_eq!(staker1.shares, 1 * DOLLARS);
-				assert_eq!(staker2.shares, 499 * DOLLARS);
-				// Trigger a force clear by `on_reclaim()`, releasing 100 PHA stake to partially
-				// fulfill staker2's withdraw request, but leaving staker1's untouched.
-				let _ = take_events();
-				PhalaStakePool::on_stopped(&worker_pubkey(2), 100 * DOLLARS, 0);
-				PhalaStakePool::handle_reclaim(0, 100 * DOLLARS, 0);
-				assert_eq!(
-					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::Withdrawal {
-						pid: 0,
-						user: 2,
-						amount: 100 * DOLLARS,
-						shares: 100 * DOLLARS
-					}),]
-				);
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.total_stake, 400 * DOLLARS);
-				assert_eq!(pool.free_stake, 0);
-				assert_eq!(staker1.shares, 1 * DOLLARS);
-				assert_eq!(staker2.shares, 399 * DOLLARS);
-				// Trigger another force clear with 100 PHA slashed, releasing all 400 PHA stake
-				// (100 slashed & 300 free), fulfilling stakers' requests.
-				let _ = take_events();
-				PhalaStakePool::on_stopped(&worker_pubkey(1), 400 * DOLLARS, 100 * DOLLARS);
-				PhalaStakePool::handle_reclaim(0, 400 * DOLLARS, 100 * DOLLARS);
-				assert_eq!(
-					take_events().as_slice(),
-					[
-						TestEvent::PhalaStakePool(Event::PoolSlashed {
-							pid: 0,
-							amount: 100 * DOLLARS
-						}),
-						// Staker 2 got 75% * 99 PHA back
-						TestEvent::Balances(pallet_balances::Event::Slashed {
-							who: 2,
-							amount: 99_750000000000
-						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled {
-							pid: 0,
-							user: 2,
-							amount: 99_750000000000
-						}),
-						TestEvent::PhalaStakePool(Event::Withdrawal {
-							pid: 0,
-							user: 2,
-							amount: 74_250000000000,
-							shares: 99000000000000
-						}),
-						// Staker 1 got 75% * 1 PHA back
-						TestEvent::Balances(pallet_balances::Event::Slashed {
-							who: 1,
-							amount: 250000000000
-						}),
-						TestEvent::PhalaStakePool(Event::SlashSettled {
-							pid: 0,
-							user: 1,
-							amount: 250000000000
-						}),
-						TestEvent::PhalaStakePool(Event::Withdrawal {
-							pid: 0,
-							user: 1,
-							amount: 750000000000,
-							shares: 1000000000000
-						}),
-					]
-				);
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				// After fulfill all the withdraw requests (100 shares, 75 PHA), there are 100 PHA
-				// slashed and 75 PHA withdrawn, leaving 225 PHA in the pool, all belong to
-				// staker2.
-				assert_eq!(pool.total_stake, 225 * DOLLARS);
-				assert_eq!(pool.free_stake, 225 * DOLLARS);
-				assert_eq!(staker1.shares, 0);
-				assert_eq!(staker2.shares, 300 * DOLLARS);
-				assert_eq!(Balances::locks(1), vec![]);
-				assert_eq!(Balances::locks(2), vec![the_lock(225 * DOLLARS)]);
-			});
-		}
-
-		#[test]
-		fn test_pool_has_expired_withdraw() {
-			// Default pool setup
-			let mut pool: PoolInfo<u64, Balance> = Default::default();
-			pool.total_shares = 1000 * DOLLARS;
-			pool.total_stake = 900 * DOLLARS; // 90% stake returned
-			pool.withdraw_queue.push_back(WithdrawInfo {
-				user: 1,
-				shares: 100 * DOLLARS,
-				start_time: 0,
-			});
-			pool.withdraw_queue.push_back(WithdrawInfo {
-				user: 2,
-				shares: 200 * DOLLARS,
-				start_time: 100,
-			});
-			pool.withdraw_queue.push_back(WithdrawInfo {
-				user: 3,
-				shares: 400 * DOLLARS,
-				start_time: 200,
-			});
-			// No releasing stake
-			let pool1 = PoolInfo::<u64, Balance> {
-				releasing_stake: 0,
-				..pool.clone()
-			};
-			assert!(!pool1.has_expired_withdrawal(0, 100), "All in grace period");
-			assert!(
-				!pool1.has_expired_withdrawal(100, 100),
-				"Still all in grace period"
-			);
-			assert!(
-				pool1.has_expired_withdrawal(101, 100),
-				"First withdraw request expired"
-			);
-			// Releasing stake to cover the first request
-			let pool2 = PoolInfo::<u64, Balance> {
-				releasing_stake: 90 * DOLLARS,
-				..pool.clone()
-			};
-			assert!(
-				!pool2.has_expired_withdrawal(101, 100),
-				"First withdraw request fulfilled"
-			);
-			assert!(
-				pool2.has_expired_withdrawal(201, 100),
-				"Second withdraw request expired"
-			);
-			let pool3 = PoolInfo::<u64, Balance> {
-				releasing_stake: 630 * DOLLARS - 10,
-				..pool.clone()
-			};
-			assert!(
-				pool3.has_expired_withdrawal(1000, 100),
-				"No enought releasing stake to fulfill all"
-			);
-			let pool4 = PoolInfo::<u64, Balance> {
-				releasing_stake: 630 * DOLLARS,
-				..pool.clone()
-			};
-			assert!(!pool4.has_expired_withdrawal(1000, 100), "Enough stake");
-		}
-
-		#[test]
-		fn test_force_withdraw() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid = 0
-				let sub_account1: u64 = pool_sub_account(0, &worker_pubkey(1));
-
-				// Stake 1000 PHA, and start two miners with 400 & 100 PHA as stake
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					900 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(3),
-					0,
-					100 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					900 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					900 * DOLLARS
-				));
-				// Now: 100 already withdrawal, 800 in queue
-				// Then we make the withdraw request expired.
-				let grace_period = <Test as Config>::GracePeriod::get();
-				elapse_seconds(grace_period + 1);
-				teleport_to_block(2);
-				// Check stake releasing
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.releasing_stake, 900 * DOLLARS);
-				assert_eq!(pool.total_stake, 900 * DOLLARS);
-				let user2 = PhalaStakePool::pool_stakers(&(0, 2)).unwrap();
-				assert_eq!(user2.locked, 800 * DOLLARS);
-				assert_eq!(user2.shares, 800 * DOLLARS);
-				// Check worker is shutting down
-				let miner = PhalaMining::miners(sub_account1).unwrap();
-				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
-				// Reclaim, triggering the return of the stake
-				elapse_cool_down();
-				assert_ok!(PhalaStakePool::reclaim_pool_worker(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
-				// Check worker is is reclaimed
-				let miner = PhalaMining::miners(sub_account1).unwrap();
-				assert_eq!(miner.state, mining::MinerState::Ready);
-				// Check settled
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.releasing_stake, 0);
-				assert_eq!(pool.total_stake, 100 * DOLLARS);
-				let user2 = PhalaStakePool::pool_stakers(&(0, 2)).unwrap();
-				assert_eq!(user2.locked, 0);
-				assert_eq!(user2.shares, 0);
-				assert_eq!(Balances::locks(2), vec![]);
-			});
-		}
-
-		#[test]
-		fn double_withdraw_cancel_the_first() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(2);
-				setup_pool_with_workers(1, &[1, 2]); // pid = 0
-
-				// Stake 1000 PHA, and start a miner with 500 PHA as stake
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					500 * DOLLARS
-				));
-				// Request to withdraw 100 PHA
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					100 * DOLLARS
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.withdraw_queue.len(), 1);
-				assert_eq!(pool.withdraw_queue.get(0).unwrap().shares, 100 * DOLLARS);
-				// Request to withdraw 200 PHA again
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					200 * DOLLARS
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.withdraw_queue.len(), 1);
-				assert_eq!(pool.withdraw_queue.get(0).unwrap().shares, 200 * DOLLARS);
 			});
 		}
 
@@ -3420,71 +3098,6 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(1), 0, balance),
 					Error::<Test>::InsufficientBalance
-				);
-			});
-		}
-
-		#[test]
-		fn test_pool_owner_reward() {
-			use crate::mining::pallet::OnReward;
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]);
-
-				assert_ok!(PhalaStakePool::set_payout_pref(
-					Origin::signed(1),
-					0,
-					Permill::from_percent(50)
-				));
-				// Staker2 contribute 1000 PHA and start mining
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					1000 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					1000 * DOLLARS
-				));
-				// Mined 100 PHA
-				PhalaStakePool::on_reward(&vec![SettleInfo {
-					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1u32).to_bits(),
-					payout: FixedPoint::from_num(100u32).to_bits(),
-					treasury: 0,
-				}]);
-				// Both owner and staker2 can claim 50 PHA
-				let _ = take_events();
-				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
-				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(2), 0, 2));
-				let ev = take_events();
-				assert_matches!(
-					ev.as_slice(),
-					[
-						TestEvent::Balances(pallet_balances::Event::Transfer {
-							from: _,
-							to: 1,
-							amount: 50000000000000
-						}),
-						TestEvent::PhalaStakePool(Event::RewardsWithdrawn {
-							pid: 0,
-							user: 1,
-							amount: 50000000000000
-						}),
-						TestEvent::Balances(pallet_balances::Event::Transfer {
-							from: _,
-							to: 2,
-							amount: 49999999999999
-						}),
-						TestEvent::PhalaStakePool(Event::RewardsWithdrawn {
-							pid: 0,
-							user: 2,
-							amount: 49999999999999
-						})
-					]
 				);
 			});
 		}
@@ -3569,10 +3182,6 @@ pub mod pallet {
 					StakePools::<Test>::get(0).unwrap().total_stake,
 					100 * DOLLARS
 				);
-				assert_eq!(
-					PoolStakers::<Test>::get(&(0, 1)).unwrap().shares,
-					100 * DOLLARS
-				);
 
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(2),
@@ -3582,10 +3191,6 @@ pub mod pallet {
 				assert_eq!(
 					StakePools::<Test>::get(0).unwrap().total_stake,
 					300 * DOLLARS
-				);
-				assert_eq!(
-					PoolStakers::<Test>::get(&(0, 2)).unwrap().shares,
-					200 * DOLLARS
 				);
 				// Shouldn't exceed the pool cap
 				assert_noop!(
@@ -3695,92 +3300,6 @@ pub mod pallet {
 		}
 
 		#[test]
-		fn issue487_eps_should_not_cause_dead_loop() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				StakePools::<Test>::insert(
-					0,
-					PoolInfo {
-						pid: 0,
-						owner: 1,
-						payout_commission: None,
-						owner_reward: 0,
-						cap: None,
-						reward_acc: CodecFixedPoint::zero(),
-						/// Total shares
-						total_shares: 47_9299_9999_9999,
-						total_stake: 47_9300_0000_0000,
-						free_stake: 1,
-						releasing_stake: 0,
-						workers: vec![],
-						/// The queue of withdraw requests
-						withdraw_queue: {
-							let mut q = VecDeque::<WithdrawInfo<u64, u128>>::new();
-							q.push_back(WithdrawInfo {
-								user: 2,
-								shares: 298_9080_0000_0000,
-								start_time: 100,
-							});
-							q
-						},
-					},
-				);
-				PoolStakers::<Test>::insert(
-					(0, 2),
-					UserStakeInfo::<u64, u128> {
-						user: 2,
-						locked: 299_9000_0000_0000,
-						shares: 299_9000_0000_0000,
-						available_rewards: 0,
-						reward_debt: 0,
-					},
-				);
-				PhalaStakePool::ledger_accrue(&2, 299_9000_0000_0000);
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(3),
-					0,
-					1 * DOLLARS
-				));
-			});
-		}
-
-		#[test]
-		fn issue490_limit_one_withdraw_per_user() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid=0
-								  // Start a worker as usual
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					1500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					1500 * DOLLARS
-				));
-
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					100 * DOLLARS
-				));
-				let queue = PhalaStakePool::stake_pools(0).unwrap().withdraw_queue;
-				assert_eq!(queue[0].shares, 100 * DOLLARS);
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					200 * DOLLARS
-				));
-				let queue = PhalaStakePool::stake_pools(0).unwrap().withdraw_queue;
-				assert_eq!(queue[0].shares, 200 * DOLLARS);
-			});
-		}
-
-		#[test]
 		fn issue500_should_not_restart_worker_in_cool_down() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
@@ -3821,87 +3340,6 @@ pub mod pallet {
 				);
 				let miner = PhalaMining::miners(subaccount).unwrap();
 				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
-			});
-		}
-
-		#[test]
-		fn issue257_reconcile_reduced_withdraw() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid=0
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					500 * DOLLARS
-				));
-				let orig_pool = StakePools::<Test>::get(0);
-				StakePools::<Test>::mutate(0, |pool_info| {
-					pool_info
-						.as_mut()
-						.unwrap()
-						.withdraw_queue
-						.push_back(WithdrawInfo {
-							user: 2,
-							shares: 1000 * DOLLARS,
-							start_time: 1u64,
-						});
-				});
-				// Should reduce the requested shares to 500
-				assert_ok!(PhalaStakePool::reconcile_withdraw_queue(
-					Origin::signed(1),
-					0,
-					2
-				));
-				let req = StakePools::<Test>::get(0)
-					.unwrap()
-					.withdraw_queue
-					.get(0)
-					.cloned()
-					.unwrap();
-				assert_eq!(req.shares, 500 * DOLLARS);
-			});
-		}
-
-		#[test]
-		fn issue257_reconcile_removed_withdraw() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid=0
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					500 * DOLLARS
-				));
-				// Remove all the stake, leaving zero share in PoolStakers
-				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
-					0,
-					500 * DOLLARS
-				));
-				let orig_pool = StakePools::<Test>::get(0);
-				StakePools::<Test>::mutate(0, |pool_info| {
-					pool_info
-						.as_mut()
-						.unwrap()
-						.withdraw_queue
-						.push_back(WithdrawInfo {
-							user: 2,
-							shares: 1000 * DOLLARS,
-							start_time: 1u64,
-						});
-				});
-				// Should reduce the requested shares to 500
-				assert_ok!(PhalaStakePool::reconcile_withdraw_queue(
-					Origin::signed(1),
-					0,
-					2
-				));
-				assert!(StakePools::<Test>::get(0)
-					.unwrap()
-					.withdraw_queue
-					.is_empty());
 			});
 		}
 

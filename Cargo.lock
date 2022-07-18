@@ -6708,7 +6708,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-core"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.24#953dc14f1e6411d6949eafa3d3a73da984acb5f6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6726,7 +6726,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-equip"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.24#953dc14f1e6411d6949eafa3d3a73da984acb5f6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6745,7 +6745,7 @@ dependencies = [
 [[package]]
 name = "pallet-rmrk-market"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.24#953dc14f1e6411d6949eafa3d3a73da984acb5f6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -7629,6 +7629,9 @@ dependencies = [
  "pallet-proxy",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
+ "pallet-rmrk-core",
+ "pallet-rmrk-equip",
+ "pallet-rmrk-market",
  "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",
@@ -7641,11 +7644,13 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-treasury",
+ "pallet-uniques",
  "pallet-utility",
  "pallet-vesting",
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
+ "rmrk-traits",
  "scale-info",
  "sp-api",
  "sp-authority-discovery",
@@ -7691,6 +7696,7 @@ dependencies = [
  "pallet-rmrk-equip",
  "pallet-rmrk-market",
  "pallet-timestamp",
+ "pallet-uniques",
  "parity-scale-codec",
  "phala-types",
  "primitive-types",
@@ -9173,7 +9179,7 @@ dependencies = [
 [[package]]
 name = "rmrk-traits"
 version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.24#953dc14f1e6411d6949eafa3d3a73da984acb5f6"
+source = "git+https://github.com/Index0011/rmrk-substrate?branch=test2#bda74a032c4676be2d981db7038550e1f643b437"
 dependencies = [
  "frame-benchmarking",
  "frame-support",

@@ -6,7 +6,7 @@ use crate::{
 use frame_support::{
 	pallet_prelude::ConstU32,
 	parameter_types,
-	traits::{GenesisBuild, OnFinalize, OnInitialize},
+	traits::{AsEnsureOriginWithArg, GenesisBuild, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -17,6 +17,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
+use frame_system::EnsureRoot;
 pub(crate) type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -33,6 +34,8 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
+		RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
@@ -129,6 +132,53 @@ impl registry::Config for Test {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+}
+
+parameter_types! {
+	pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
+	pub const ItemDeposit: Balance = 0; // 1/100 UNIT deposit to create item
+	pub const StringLimit: u32 = 52100;
+	pub const KeyLimit: u32 = 32000; // Max 32 bytes per key
+	pub const ValueLimit: u32 = 512000; // Max 64 bytes per value
+	pub const UniquesMetadataDepositBase: Balance = 0;
+	pub const AttributeDepositBase: Balance = 0;
+	pub const DepositPerByte: Balance = 0;
+}
+impl pallet_uniques::Config for Test {
+	type Event = Event;
+	type CollectionId = u32;
+	type ItemId = u32;
+	type Currency = Balances;
+	type ForceOrigin = EnsureRoot<Self::AccountId>;
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<Self::AccountId>>;
+	type Locker = pallet_rmrk_core::Pallet<Test>;
+	type CollectionDeposit = CollectionDeposit;
+	type ItemDeposit = ItemDeposit;
+	type MetadataDepositBase = UniquesMetadataDepositBase;
+	type AttributeDepositBase = AttributeDepositBase;
+	type DepositPerByte = DepositPerByte;
+	type StringLimit = StringLimit;
+	type KeyLimit = KeyLimit;
+	type ValueLimit = ValueLimit;
+	type WeightInfo = ();
+}
+parameter_types! {
+	pub ClassBondAmount: Balance = 100;
+	pub MaxMetadataLength: u32 = 256;
+	pub const MaxRecursions: u32 = 10;
+	pub const ResourceSymbolLimit: u32 = 10;
+	pub const PartsLimit: u32 = 10;
+	pub const MaxPriorities: u32 = 3;
+	pub const CollectionSymbolLimit: u32 = 100;
+}
+impl pallet_rmrk_core::Config for Test {
+	type Event = Event;
+	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
+	type MaxRecursions = MaxRecursions;
+	type ResourceSymbolLimit = ResourceSymbolLimit;
+	type PartsLimit = PartsLimit;
+	type MaxPriorities = MaxPriorities;
+	type CollectionSymbolLimit = CollectionSymbolLimit;
 }
 
 impl mining::Config for Test {
