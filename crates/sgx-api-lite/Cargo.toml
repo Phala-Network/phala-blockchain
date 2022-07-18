@@ -1,0 +1,8 @@
+[package]
+name = "sgx-api-lite"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cmac = "0.7.1"
+aes = "0.8.1"

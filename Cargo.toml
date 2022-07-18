@@ -67,6 +67,7 @@ members = [
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
+	"crates/sgx-api-lite",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"scripts/toml-upgrade-version",
