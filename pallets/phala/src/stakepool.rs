@@ -14,6 +14,11 @@ type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
+	#[cfg(not(feature = "std"))]
+	use alloc::format;
+	#[cfg(feature = "std")]
+	use std::format;
+
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::mining;
 	use crate::registry;
@@ -346,7 +351,7 @@ pub mod pallet {
 		/// The worker doesn't have a valid benchmark when adding to the pool
 		BenchmarkMissing,
 		/// The worker is already added to the pool
-		WorkerExist,
+		WorkerExists,
 		/// The worker is already in cd_workers
 		WorkerAlreadyStopped,
 		/// The target worker is not in the pool
@@ -409,8 +414,6 @@ pub mod pallet {
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
 		MissingCollectionId,
-		/// CheckSub less than zero, indicate share amount is invalid
-		InvalidShareToWithdraw,
 	}
 
 	#[pallet::call]
@@ -444,10 +447,6 @@ pub mod pallet {
 			PoolCount::<T>::put(pid + 1);
 			// TODO(mingxuan): create_collection should return cid
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
-			#[cfg(not(feature = "std"))]
-			use alloc::format;
-			#[cfg(feature = "std")]
-			use std::format;
 			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 				format!("STAKEPOOL-{}", pid)
@@ -502,7 +501,7 @@ pub mod pallet {
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// make sure worker has not been not added
 			let workers = &mut pool_info.workers;
-			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExist);
+			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExists);
 			// too many workers may cause performance regression
 			ensure!(
 				workers.len() + 1 <= T::MaxPoolWorkers::get() as usize,
@@ -886,7 +885,7 @@ pub mod pallet {
 				is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
 				Error::<T>::InvalidWithdrawalAmount
 			);
-			Self::try_withdraw(&mut pool_info, &mut nft, nft_id, who.clone(), shares)?;
+			Self::try_withdraw(&mut pool_info, &mut nft, who.clone(), shares)?;
 			Self::set_nft_attr(pool_info.pid, collection_id, nft_id, &nft)
 				.expect("set nft attr should always success; qed.");
 			let nft_id = Self::merge_or_init_nft_for_staker(who.clone(), collection_id, pid)?;
@@ -1292,7 +1291,6 @@ pub mod pallet {
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			nft: &mut NftAttr<BalanceOf<T>>,
-			nft_id: NftId,
 			userid: T::AccountId,
 			shares: BalanceOf<T>,
 		) -> DispatchResult {
@@ -1325,11 +1323,11 @@ pub mod pallet {
 			nft.shares = nft
 				.shares
 				.checked_sub(&shares)
-				.ok_or(Error::<T>::InvalidShareToWithdraw)?;
+				.ok_or(Error::<T>::InvalidWithdrawalAmount)?;
 			nft.stakes = nft
 				.stakes
 				.checked_sub(&amount)
-				.ok_or(Error::<T>::InvalidShareToWithdraw)?;
+				.ok_or(Error::<T>::InvalidWithdrawalAmount)?;
 			// Push the request
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
