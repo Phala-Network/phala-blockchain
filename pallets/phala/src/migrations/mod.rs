@@ -16,7 +16,12 @@ pub trait PhalaPallets:
 {
 }
 impl<T> PhalaPallets for T where
-	T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config + basepool::Config
+	T: fat::Config
+		+ mining::Config
+		+ mq::Config
+		+ registry::Config
+		+ stakepool::Config
+		+ basepool::Config
 {
 }
 
