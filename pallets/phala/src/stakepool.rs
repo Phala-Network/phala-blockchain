@@ -65,14 +65,6 @@ pub mod pallet {
 		}
 	}
 
-	pub struct ContributeListMaxLen;
-
-	impl Get<u32> for ContributeListMaxLen {
-		fn get() -> u32 {
-			2000
-		}
-	}
-
 	/// The functions to manage user's native currency lock in the Balances pallet
 	pub trait Ledger<AccountId, Balance> {
 		/// Increases the locked amount for a user
