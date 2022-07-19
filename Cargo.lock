@@ -848,12 +848,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bit-vec"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
-
-[[package]]
 name = "bitcoin"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2212,7 +2206,6 @@ dependencies = [
  "frame-support",
  "hex",
  "parity-scale-codec",
- "phactory",
  "phactory-api",
  "phala-crypto",
  "phala-pallets",
@@ -3165,7 +3158,7 @@ dependencies = [
  "frame-support-test-pallet",
  "frame-system",
  "parity-scale-codec",
- "pretty_assertions 1.2.1",
+ "pretty_assertions",
  "rustversion",
  "scale-info",
  "serde",
@@ -7313,12 +7306,10 @@ dependencies = [
  "async-io",
  "async-std",
  "base64 0.13.0",
- "bit-vec",
  "bitcoin",
  "bitcoin_hashes",
  "chrono",
  "ciborium",
- "csv-core",
  "derive_more",
  "finality-grandpa 0.15.0",
  "fixed",
@@ -7352,12 +7343,11 @@ dependencies = [
  "pink",
  "pink-sidevm-host-runtime",
  "prpc",
- "rand 0.7.3",
+ "rand 0.8.5",
  "regex",
  "ring 0.16.20",
  "rmp-serde",
  "ron",
- "rustls 0.19.1",
  "scopeguard",
  "serde",
  "serde_cbor",
@@ -7374,9 +7364,6 @@ dependencies = [
  "surf",
  "thiserror",
  "tokio",
- "webpki 0.21.4",
- "woothee",
- "yasna",
 ]
 
 [[package]]
@@ -7737,7 +7724,6 @@ dependencies = [
  "serde_json",
  "sp-application-crypto",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
- "sp-io",
  "sp-runtime",
  "sp-state-machine",
  "sp-trie",
@@ -7751,12 +7737,10 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
- "phala-trie-storage",
  "prpc",
  "scale-info",
  "serde",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
- "sp-runtime",
 ]
 
 [[package]]
@@ -7790,7 +7774,6 @@ dependencies = [
  "pallet-indices",
  "parity-scale-codec",
  "phactory-api",
- "phactory-pal",
  "phala-mq",
  "phala-node-rpc-ext",
  "phala-pallets",
@@ -7799,15 +7782,11 @@ dependencies = [
  "phaxt",
  "rand 0.8.5",
  "reqwest",
- "sc-finality-grandpa",
- "sc-rpc-api",
  "scale-info",
  "serde",
  "serde_json",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
  "sp-finality-grandpa",
- "sp-keyring",
- "sp-rpc",
  "sp-runtime",
  "tokio",
 ]
@@ -7919,8 +7898,6 @@ dependencies = [
  "phala-types",
  "pink-extension",
  "pink-extension-runtime",
- "pretty_assertions 0.7.2",
- "pwasm-utils",
  "reqwest",
  "reqwest-env-proxy",
  "scale-info",
@@ -7936,7 +7913,6 @@ dependencies = [
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
  "sp-trie",
  "wasmi-validation 0.3.0",
- "wat",
 ]
 
 [[package]]
@@ -8187,18 +8163,6 @@ checksum = "4d86de6de25020a36c6d3643a86d9a6a9f552107c0559c60ea03551b5e16c032"
 dependencies = [
  "predicates-core",
  "termtree",
-]
-
-[[package]]
-name = "pretty_assertions"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cab0e7c02cf376875e9335e0ba1da535775beb5450d21e1dffca068818ed98b"
-dependencies = [
- "ansi_term",
- "ctor",
- "diff",
- "output_vt100",
 ]
 
 [[package]]
@@ -8510,17 +8474,6 @@ dependencies = [
  "proc-macro2 1.0.40",
  "quote 1.0.20",
  "syn 1.0.98",
-]
-
-[[package]]
-name = "pwasm-utils"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c8ac87af529432d3a4f0e2b3bbf08af49f28f09cc73ed7e551161bdaef5f78d"
-dependencies = [
- "byteorder",
- "log",
- "parity-wasm 0.41.0",
 ]
 
 [[package]]
@@ -9074,9 +9027,9 @@ dependencies = [
 
 [[package]]
 name = "rmp-serde"
-version = "0.15.5"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "723ecff9ad04f4ad92fe1c8ca6c20d2196d9286e9c60727c4cb5511629260e9d"
+checksum = "25786b0d276110195fa3d6f3f31299900cf71dfbd6c28450f3f58a0e7f7a347e"
 dependencies = [
  "byteorder",
  "rmp",
@@ -14459,16 +14412,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "woothee"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89d5a45c5d9c772e577c263597681448fd91a46aed911783394eec396e45d4ee"
-dependencies = [
- "lazy_static",
- "regex",
-]
-
-[[package]]
 name = "wyz"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14522,16 +14465,6 @@ name = "yap"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fc77f52dc9e9b10d55d3f4462c3b7fc393c4f17975d641542833ab2d3bc26ef"
-
-[[package]]
-name = "yasna"
-version = "0.4.0"
-source = "git+https://github.com/Phala-Network/yasna.rs?branch=phala#53ad4d64f112995c7bded0373e67e339ee30146b"
-dependencies = [
- "bit-vec",
- "chrono",
- "num-bigint 0.4.3",
-]
 
 [[package]]
 name = "zeroize"
