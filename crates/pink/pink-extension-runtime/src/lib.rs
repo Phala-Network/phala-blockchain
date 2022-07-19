@@ -194,6 +194,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         getrandom::getrandom(&mut buf[..]).or(Err("Failed to get random bytes"))?;
         Ok(buf)
     }
+
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
 }
 
 struct LimitedWriter<W> {

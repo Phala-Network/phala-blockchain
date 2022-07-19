@@ -71,7 +71,19 @@ impl ext::PinkExtBackend for MockExtension {
         super::DefaultPinkExtension::new(self).getrandom(length)
     }
 
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(IS_COMMAND_MODE.with(|mode| mode.get()))
+    }
+
     type Error = String;
+}
+
+thread_local! {
+    static IS_COMMAND_MODE: std::cell::Cell<bool> = std::cell::Cell::new(false);
+}
+
+pub fn set_mode(is_command: bool) {
+    IS_COMMAND_MODE.with(|cell| cell.set(is_command));
 }
 
 pub fn mock_all_ext() {
