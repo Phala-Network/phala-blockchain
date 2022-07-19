@@ -911,7 +911,25 @@ where
                 challenge_block,
                 challenge_time,
                 iterations,
-            } => {
+            } |
+            MiningReportEvent::HeartbeatV2 {
+                session_id,
+                challenge_block,
+                challenge_time,
+                iterations,
+                ..
+            }
+             => {
+                let n_contracts = if let MiningReportEvent::HeartbeatV2 {
+                    n_contracts,
+                    ..
+                } = event {
+                    n_contracts
+                } else {
+                    0
+                };
+                // TODO.kevin: Deal with workers running contracts.
+
                 let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
                     Some(info) => info,
                     None => {

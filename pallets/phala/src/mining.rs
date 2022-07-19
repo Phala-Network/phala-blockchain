@@ -573,6 +573,11 @@ pub mod pallet {
 						iterations,
 						challenge_time,
 						..
+					} |
+					MiningReportEvent::HeartbeatV2 {
+						iterations,
+						challenge_time,
+						..
 					} => {
 						// Handle with great care!
 						//
