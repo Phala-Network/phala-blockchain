@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::sync::{Mutex, MutexGuard};
 
+use crate::benchmark::Flags;
 use crate::system::{chain_state, System};
 
 use super::*;
@@ -631,12 +632,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // When delta time reaches 3600s, there are about 3600 / 12 = 300 blocks rest.
         // It need about 30 more seconds to sync up to date.
-        let ready = block_time + 3600 > sys_time;
+        let syncing = block_time + 3600 <= sys_time;
         debug!(
-            "block_time={}, sys_time={}, ready={}",
-            block_time, sys_time, ready
+            "block_time={}, sys_time={}, syncing={}",
+            block_time, sys_time, syncing
         );
-        benchmark::set_ready(ready);
+        benchmark::set_flag(Flags::SYNCING, syncing);
 
         let storage = &state.chain_storage;
         let side_task_man = &mut self.side_task_man;
