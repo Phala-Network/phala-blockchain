@@ -12,7 +12,6 @@ parity-scale-codec = { version = "3.0", default-features = false }
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", features = ["full_crypto"] }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
-sp-io   = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
 
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"], optional = true }

@@ -478,12 +478,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "383d29d513d8764dcdc42ea295d979eb99c3c9f00607b3692cf68a431f7dca72"
 
 [[package]]
-name = "bit-vec"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
-
-[[package]]
 name = "bitcoin"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1098,15 +1092,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "csv-core"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b2466559f260f48ad25fe6317b3c8dac77b5bdb5763ac7d9d6103530663bc90"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "ctor"
 version = "0.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1290,12 +1275,6 @@ dependencies = [
  "quote 1.0.20",
  "syn 1.0.98",
 ]
-
-[[package]]
-name = "diff"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56254986775e3233ffa9c4d7d3faaf6d36a2c09d30b20687e9f88bc8bafc16c8"
 
 [[package]]
 name = "digest"
@@ -3431,15 +3410,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21326818e99cfe6ce1e524c2a805c189a99b5ae555a35d19f9a284b427d86afa"
 
 [[package]]
-name = "output_vt100"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "628223faebab4e3e40667ee0b2336d34a5b960ff60ea743ddfdbcf7770bcfb66"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "page_size"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4336,11 +4306,9 @@ dependencies = [
  "async-io",
  "async-std",
  "base64 0.13.0",
- "bit-vec",
  "bitcoin",
  "bitcoin_hashes",
  "chrono",
- "csv-core",
  "derive_more",
  "finality-grandpa 0.15.0",
  "fixed",
@@ -4373,10 +4341,9 @@ dependencies = [
  "pink",
  "pink-sidevm-host-runtime",
  "prpc",
- "rand 0.7.3",
+ "rand 0.8.5",
  "regex",
  "ring 0.16.20",
- "rustls 0.19.1",
  "scopeguard",
  "serde",
  "serde_cbor",
@@ -4392,9 +4359,6 @@ dependencies = [
  "surf",
  "thiserror",
  "tokio",
- "webpki 0.21.4",
- "woothee",
- "yasna",
 ]
 
 [[package]]
@@ -4612,7 +4576,6 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
- "sp-io",
  "sp-state-machine",
  "sp-trie",
  "trie-db",
@@ -4625,12 +4588,10 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
- "phala-trie-storage",
  "prpc",
  "scale-info",
  "serde",
  "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
- "sp-runtime",
 ]
 
 [[package]]
@@ -4731,8 +4692,6 @@ dependencies = [
  "phala-types",
  "pink-extension",
  "pink-extension-runtime",
- "pretty_assertions",
- "pwasm-utils",
  "reqwest",
  "reqwest-env-proxy",
  "scale-info",
@@ -4748,12 +4707,11 @@ dependencies = [
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
  "sp-trie",
  "wasmi-validation 0.3.0",
- "wat",
 ]
 
 [[package]]
 name = "pink-extension"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -4781,8 +4739,9 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
+ "getrandom 0.2.7",
  "log",
  "pink-extension",
  "reqwest",
@@ -4891,18 +4850,6 @@ name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
-
-[[package]]
-name = "pretty_assertions"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cab0e7c02cf376875e9335e0ba1da535775beb5450d21e1dffca068818ed98b"
-dependencies = [
- "ansi_term",
- "ctor",
- "diff",
- "output_vt100",
-]
 
 [[package]]
 name = "primitive-types"
@@ -5117,17 +5064,6 @@ dependencies = [
  "proc-macro2 1.0.40",
  "quote 1.0.20",
  "syn 1.0.98",
-]
-
-[[package]]
-name = "pwasm-utils"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c8ac87af529432d3a4f0e2b3bbf08af49f28f09cc73ed7e551161bdaef5f78d"
-dependencies = [
- "byteorder",
- "log",
- "parity-wasm 0.41.0",
 ]
 
 [[package]]
@@ -5684,19 +5620,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d1126dcf58e93cee7d098dbda643b5f92ed724f1f6a63007c1116eed6700c81"
 dependencies = [
  "base64 0.12.3",
- "log",
- "ring 0.16.20",
- "sct 0.6.1",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "rustls"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35edb675feee39aec9c99fa5ff985081995a06d594114ae14cbe797ad7b7a6d7"
-dependencies = [
- "base64 0.13.0",
  "log",
  "ring 0.16.20",
  "sct 0.6.1",
@@ -8526,16 +8449,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "woothee"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89d5a45c5d9c772e577c263597681448fd91a46aed911783394eec396e45d4ee"
-dependencies = [
- "lazy_static",
- "regex",
-]
-
-[[package]]
 name = "wyz"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8549,16 +8462,6 @@ name = "yansi"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
-
-[[package]]
-name = "yasna"
-version = "0.4.0"
-source = "git+https://github.com/Phala-Network/yasna.rs?branch=phala#53ad4d64f112995c7bded0373e67e339ee30146b"
-dependencies = [
- "bit-vec",
- "chrono",
- "num-bigint 0.4.3",
-]
 
 [[package]]
 name = "zeroize"
