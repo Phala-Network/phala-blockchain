@@ -3,7 +3,6 @@ use frame_support::pallet_prelude::*;
 use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
 use sp_runtime::Permill;
-use sp_std::collections::vec_deque::VecDeque;
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum PoolType {
@@ -55,6 +54,8 @@ pub struct Vault<AccountId, Balance> {
 	pub delta_price_ratio: Option<Permill>,
 
 	pub owner_shares: Balance,
+
+	pub invest_pools: Vec<u64>,
 }
 
 impl<AccountId, Balance> StakePool<AccountId, Balance> {
