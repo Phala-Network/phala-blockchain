@@ -506,6 +506,11 @@ pub mod messaging {
             /// The id of the contract to receive the ink logs.
             log_handler: AccountId,
         },
+        /// Force to destroy a cluster.
+        ///
+        /// This leaves a door to clean up the beta clusters in fat v1.
+        /// We might need to redesign a more graceful one it in the future.
+        DestroyCluster(ContractClusterId),
     }
 
     impl<BlockNumber> ClusterOperation<BlockNumber> {

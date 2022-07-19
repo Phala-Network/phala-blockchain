@@ -358,6 +358,17 @@ impl FatContract {
             SidevmHandle::Running(tx) => Some(tx.clone()),
         }
     }
+
+    pub(crate) fn destroy(&mut self) {
+        if let Some(sidevm_info) = &mut self.sidevm_info {
+            match &*sidevm_info.handle.lock().unwrap() {
+                SidevmHandle::Terminated(_) => {}
+                SidevmHandle::Running(tx) => {
+                    let _ = tx.send(sidevm::service::Command::Stop);
+                }
+            }
+        }
+    }
 }
 
 fn do_start_sidevm(

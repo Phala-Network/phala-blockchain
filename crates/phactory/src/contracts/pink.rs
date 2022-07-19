@@ -327,6 +327,10 @@ pub mod cluster {
                 cluster
             })
         }
+
+        pub fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster> {
+            self.clusters.remove(cluster_id)
+        }
     }
 
     #[derive(Serialize, Deserialize, Default)]
@@ -367,6 +371,10 @@ pub mod cluster {
             code: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
             self.storage.upload_code(origin, code)
+        }
+
+        pub fn iter_contracts(&self) -> impl Iterator<Item = &ContractId> {
+            self.contracts.iter()
         }
     }
 }
