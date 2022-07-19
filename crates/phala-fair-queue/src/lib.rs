@@ -267,7 +267,9 @@ mod test {
         let (tx, mut rx) = mpsc::channel(1);
 
         spawn_task(queue.clone(), 1, 1, 100, 5, tx.clone());
+        sleep_ms(10).await;
         spawn_task(queue.clone(), 2, 1, 100, 5, tx.clone());
+        sleep_ms(10).await;
         spawn_task(queue.clone(), 3, 1, 100, 5, tx.clone());
 
         drop(tx);
