@@ -3,6 +3,7 @@ use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
+use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
@@ -165,6 +166,7 @@ impl contracts::NativeContract for Pink {
             Command::InkMessage { nonce: _, message } => {
                 let origin: runtime::AccountId = match origin {
                     MessageOrigin::AccountId(origin) => origin.0.into(),
+                    MessageOrigin::Pallet(_) => pallet_account(),
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
