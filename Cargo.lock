@@ -7913,6 +7913,7 @@ dependencies = [
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
  "sp-trie",
  "wasmi-validation 0.3.0",
+ "wat",
 ]
 
 [[package]]

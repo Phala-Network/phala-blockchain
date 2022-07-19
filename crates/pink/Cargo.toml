@@ -31,6 +31,7 @@ parity-wasm = { version = "0.41.0", default-features = false }
 wasmi-validation = { version = "0.3.0", default-features = false }
 
 paste = "1.0"
+wat = "1.0"
 call-trace = "*"
 impl-serde = "0.3.1"
 hex = "0.4.3"
