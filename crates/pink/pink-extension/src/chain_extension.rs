@@ -88,6 +88,10 @@ pub trait PinkExt {
     /// Get random bytes, for query only
     #[ink(extension = 0xff00000b, handle_status = false, returns_result = false)]
     fn getrandom(length: u8) -> Vec<u8>;
+
+    /// Check if it is running in a Command context.
+    #[ink(extension = 0xff00000c, handle_status = false, returns_result = false)]
+    fn is_running_in_command() -> bool;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
