@@ -6,12 +6,16 @@ use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
+use sp_runtime::{traits::ConstU32, BoundedVec};
 
 use super::contract_address_to_id;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
-    InkMessage { nonce: Vec<u8>, message: Vec<u8> },
+    InkMessage {
+        nonce: BoundedVec<u8, ConstU32<32>>,
+        message: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -190,7 +194,7 @@ impl contracts::NativeContract for Pink {
                             origin: origin.clone().into(),
                             contract: self.instance.address.clone().into(),
                             block_number: context.block.block_number,
-                            nonce,
+                            nonce: nonce.into_inner(),
                             output: result.result.encode(),
                         },
                     )) {
