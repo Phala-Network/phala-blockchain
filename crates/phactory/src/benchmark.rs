@@ -11,13 +11,13 @@ const MAX_NUM: u128 = 65536 * 128;
 
 static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 static SCORE: AtomicU64 = AtomicU64::new(0);
-static FLAGS: Mutex<Flags> = Mutex::new(Flags::MINING_IDLE);
+static FLAGS: Mutex<Flags> = Mutex::new(Flags::BENCH_PAUSED);
 
 bitflags::bitflags! {
     // Any flag is set when the benchmark is paused.
     #[derive(Serialize, Deserialize)]
     pub struct Flags: u32 {
-        const MINING_IDLE = 1 << 0;
+        const BENCH_PAUSED = 1 << 0;
         const SYNCING = 1 << 1;
         const CONTRACT_RUNNING = 1 << 2;
     }
@@ -95,11 +95,11 @@ pub fn reset_iteration_counter() {
 }
 
 pub fn pause() {
-    set_flag(Flags::MINING_IDLE, true);
+    set_flag(Flags::BENCH_PAUSED, true);
 }
 
 pub fn resume() {
-    set_flag(Flags::MINING_IDLE, false);
+    set_flag(Flags::BENCH_PAUSED, false);
 }
 
 pub fn paused() -> bool {
