@@ -128,6 +128,9 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			log_handler: ContractId,
 		},
+		ClusterDestroyed {
+			cluster: ContractClusterId,
+		},
 	}
 
 	#[pallet::error]
@@ -284,6 +287,16 @@ pub mod pallet {
 				cluster,
 				log_handler,
 			});
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn cluster_destory(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
+			ensure_root(origin)?;
+
+			Clusters::<T>::take(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
+			Self::push_message(ClusterOperation::<T::BlockNumber>::DestroyCluster(cluster));
+			Self::deposit_event(Event::ClusterDestroyed { cluster });
 			Ok(())
 		}
 	}

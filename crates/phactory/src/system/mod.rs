@@ -1099,10 +1099,13 @@ impl<Platform: pal::Platform> System<Platform> {
                     error!("Invalid origin {:?} sent a {:?}", origin, event);
                     anyhow::bail!("Invalid origin");
                 }
-                let cluster = self
+                let cluster = match self
                     .contract_clusters
-                    .remove_cluster(&cluster)
-                    .ok_or(anyhow!("Cluster {} not found", hex_fmt::HexFmt(cluster)))?;
+                    .remove_cluster(&cluster) {
+                        // The cluster is not deployed on this worker, just ignore it.
+                        None => return Ok(()),
+                        Some(cluster) => cluster,
+                    };
                 for contract in cluster.iter_contracts() {
                     if let Some(mut contract) = self.contracts.remove(&contract) {
                         contract.destroy();
