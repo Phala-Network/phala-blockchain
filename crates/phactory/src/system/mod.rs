@@ -732,7 +732,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
 
-        let contract_running = !self.contracts.is_empty();
+        let contract_running = !self.contract_clusters.is_empty();
         benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
     }
 

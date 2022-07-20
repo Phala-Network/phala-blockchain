@@ -264,6 +264,10 @@ pub mod cluster {
     }
 
     impl ClusterKeeper {
+        pub fn is_empty(&self) -> bool {
+            self.clusters.is_empty()
+        }
+
         pub fn len(&self) -> usize {
             self.clusters.len()
         }
