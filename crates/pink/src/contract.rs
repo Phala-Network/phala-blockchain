@@ -7,7 +7,7 @@ use sp_runtime::DispatchError;
 use crate::{
     runtime::{BoxedEventCallbacks, Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hash, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hash, GAS_LIMIT, COMMAND_GAS_LIMIT},
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -86,7 +86,7 @@ impl Contract {
                 let result = Contracts::bare_instantiate(
                     origin.clone(),
                     0,
-                    GAS_LIMIT,
+                    COMMAND_GAS_LIMIT,
                     None,
                     pallet_contracts_primitives::Code::Existing(code_hash),
                     input_data,
@@ -202,7 +202,12 @@ impl Contract {
         storage.execute_with(rollback, callbacks, move || {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            Contracts::bare_call(origin, addr, 0, GAS_LIMIT, None, input_data, true)
+            let gas_limit = if rollback {
+                GAS_LIMIT
+            } else {
+                COMMAND_GAS_LIMIT
+            };
+            Contracts::bare_call(origin, addr, 0, gas_limit, None, input_data, true)
         })
     }
 

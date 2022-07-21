@@ -11,3 +11,6 @@ pub type Index = u64;
 
 pub const ENOUGH: Balance = Balance::MAX / 2;
 pub const GAS_LIMIT: Weight = Weight::MAX / 2;
+
+// The magic 9218808636700 is the gas required to start a 5MB sideprog.
+pub const COMMAND_GAS_LIMIT: Weight = 9218808636700;
