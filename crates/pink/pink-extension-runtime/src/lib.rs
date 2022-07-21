@@ -65,6 +65,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         let mut response = client
             .request(method, url)
             .headers(headers)
+            .body(request.body)
             .send()
             .map_err(|err| {
                 log::info!("HTTP request error: {}", err);

@@ -3394,16 +3394,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
-name = "os_pipe"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c92f2b54f081d635c77e7120862d48db8e91f7f21cef23ab1b4fe9971c59f55"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "os_str_bytes"
 version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4719,11 +4709,12 @@ dependencies = [
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.26)",
  "sp-trie",
  "wasmi-validation 0.3.0",
+ "wat",
 ]
 
 [[package]]
 name = "pink-extension"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -4751,7 +4742,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "getrandom 0.2.7",
  "log",
@@ -5041,7 +5032,6 @@ dependencies = [
  "libc",
  "log",
  "num_cpus",
- "os_pipe",
  "parity-scale-codec",
  "phactory",
  "phactory-api",
