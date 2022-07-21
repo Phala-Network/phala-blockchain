@@ -77,7 +77,7 @@ pub struct TxRef {
 }
 
 // for contracts
-pub type OpaqueQuery<'a> = &'a [u8];
+pub type OpaqueQuery = Vec<u8>;
 pub type OpaqueReply = Vec<u8>;
 pub type OpaqueError = ContractQueryError;
 

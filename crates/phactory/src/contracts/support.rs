@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use phala_crypto::ecdh::EcdhPublicKey;
+use phala_fair_queue::FairQueue;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
@@ -38,6 +39,7 @@ pub struct QueryContext {
     pub storage: ::pink::Storage,
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
+    pub query_queue: FairQueue<ContractId>,
 }
 
 impl NativeContext<'_, '_> {
@@ -46,6 +48,7 @@ impl NativeContext<'_, '_> {
     }
 }
 
+#[async_trait::async_trait]
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;
@@ -59,7 +62,7 @@ pub trait NativeContract {
     ) -> TransactionResult {
         Ok(Default::default())
     }
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&chain::AccountId>,
         req: Self::QReq,
@@ -72,21 +75,6 @@ pub trait NativeContract {
     fn snapshot(&self) -> Self
     where
         Self: Sized;
-}
-
-pub(crate) struct Query {
-    contract: AnyContract,
-}
-
-impl Query {
-    pub fn handle_query(
-        &self,
-        origin: Option<&runtime::AccountId>,
-        req: OpaqueQuery,
-        context: &mut QueryContext,
-    ) -> Result<OpaqueReply, OpaqueError> {
-        self.contract.handle_query(origin, req, context)
-    }
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -191,10 +179,8 @@ impl FatContract {
         self.cluster_id
     }
 
-    pub(crate) fn snapshot_for_query(&self) -> Query {
-        Query {
-            contract: self.contract.snapshot(),
-        }
+    pub(crate) fn snapshot_for_query(&self) -> AnyContract {
+        self.contract.snapshot()
     }
 
     pub(crate) fn sidevm_handle(&self) -> Option<SidevmHandle> {

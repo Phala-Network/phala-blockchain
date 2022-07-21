@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
@@ -35,6 +37,8 @@ pub enum QueryError {
     RuntimeError(String),
     SidevmNotFound,
     NoResponse,
+    ServiceUnavailable,
+    Timeout,
 }
 
 #[derive(Encode, Decode, Clone)]
@@ -93,6 +97,7 @@ impl Pink {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for Pink {
     type Cmd = Command;
 
@@ -100,7 +105,7 @@ impl contracts::NativeContract for Pink {
 
     type QResp = Result<Response, QueryError>;
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&AccountId>,
         req: Query,
@@ -108,6 +113,12 @@ impl contracts::NativeContract for Pink {
     ) -> Result<Response, QueryError> {
         match req {
             Query::InkMessage(input_data) => {
+                let _guard = context
+                    .query_queue
+                    .acquire(self.id(), 1)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
+
                 let origin = origin.ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
 
@@ -141,20 +152,25 @@ impl contracts::NativeContract for Pink {
                 };
                 let origin = origin.cloned().map(Into::into);
 
-                let reply = tokio::task::block_in_place(move || {
-                    tokio::runtime::Handle::current().block_on(async move {
-                        let (reply_tx, rx) = tokio::sync::oneshot::channel();
-                        let _x = cmd_sender
-                            .send(SidevmCommand::PushQuery {
-                                origin,
-                                payload,
-                                reply_tx,
-                            })
-                            .await;
-                        rx.await
-                    })
-                });
-                reply.or(Err(QueryError::NoResponse)).map(Response::Payload)
+                let (reply_tx, rx) = tokio::sync::oneshot::channel();
+
+                const SIDEVM_QUERY_TIMEOUT: Duration = Duration::from_secs(60 * 5);
+
+                tokio::time::timeout(SIDEVM_QUERY_TIMEOUT, async move {
+                    cmd_sender
+                        .send(SidevmCommand::PushQuery {
+                            origin,
+                            payload,
+                            reply_tx,
+                        })
+                        .await
+                        .or(Err(QueryError::ServiceUnavailable))?;
+                    rx.await
+                        .or(Err(QueryError::NoResponse))
+                        .map(Response::Payload)
+                })
+                .await
+                .or(Err(QueryError::Timeout))?
             }
         }
     }

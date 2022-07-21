@@ -3,15 +3,14 @@ use crate::pal_gramine::GraminePlatform;
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
 use log::info;
-use phactory::{benchmark, Phactory};
-use std::sync::Mutex;
+use phactory::{benchmark, RpcService, Phactory};
 
 lazy_static::lazy_static! {
-    static ref APPLICATION: Mutex<Phactory<GraminePlatform>> = Mutex::new(Phactory::new(GraminePlatform));
+    static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
 }
 
 pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
-    let mut factory = APPLICATION.lock().unwrap();
+    let mut factory = APPLICATION.lock_phactory();
     Ok(factory.handle_scale_api(action, input))
 }
 
@@ -31,7 +30,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");
                 factory.set_args(args.clone());
-                *APPLICATION.lock().unwrap() = factory;
+                *APPLICATION.lock_phactory() = factory;
                 return Ok(());
             }
             Err(err) => {
@@ -45,7 +44,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         info!("Checkpoint disabled.");
     }
 
-    APPLICATION.lock().unwrap().init(args);
+    APPLICATION.lock_phactory().init(args);
 
     info!("Enclave init OK");
     Ok(())
@@ -58,8 +57,8 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
-    let (code, data) = phactory::dispatch_prpc_request(path, data, usize::MAX, &APPLICATION);
+pub async fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
+    let (code, data) = APPLICATION.dispatch_request(path, data).await;
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
 }
