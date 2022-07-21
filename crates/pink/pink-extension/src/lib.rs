@@ -13,6 +13,16 @@ pub use pink_extension_macro::contract;
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
 pub mod logger;
+pub mod predefined_accounts {
+    use ink_env;
+
+    // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
+    pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+
+    pub fn is_pallet(account_id: &ink_env::AccountId) -> bool {
+        account_id.as_ref() as &[u8] == &ACCOUNT_PALLET
+    }
+}
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
