@@ -344,6 +344,21 @@ impl FatContract {
             SidevmHandle::Running(tx) => Some(tx.clone()),
         }
     }
+
+    pub(crate) fn destroy(self, spawner: &sidevm::service::Spawner) {
+        if let Some(sidevm_info) = &self.sidevm_info {
+            match sidevm_info.handle.lock().unwrap().clone() {
+                SidevmHandle::Terminated(_) => {}
+                SidevmHandle::Running(tx) => {
+                    spawner.spawn(async move {
+                        if let Err(err) = tx.send(sidevm::service::Command::Stop).await {
+                            error!("Failed to send stop command to sidevm: {}", err);
+                        }
+                    });
+                }
+            }
+        }
+    }
 }
 
 fn do_start_sidevm(

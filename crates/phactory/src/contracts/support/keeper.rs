@@ -128,4 +128,8 @@ impl ContractsKeeper {
             }
         }
     }
+
+    pub fn remove(&mut self, id: &ContractId) -> Option<FatContract> {
+        self.0.remove(id)
+    }
 }

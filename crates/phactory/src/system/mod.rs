@@ -1086,6 +1086,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 cluster: cluster_id,
                 log_handler,
             } => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
                 let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
                 if let Some(cluster) = cluster {
                     info!(
@@ -1094,6 +1098,23 @@ impl<Platform: pal::Platform> System<Platform> {
                         log_handler
                     );
                     cluster.config.log_handler = Some(log_handler);
+                }
+            }
+            ClusterOperation::DestroyCluster(cluster_id) => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
+                let cluster = match self.contract_clusters.remove_cluster(&cluster_id) {
+                    // The cluster is not deployed on this worker, just ignore it.
+                    None => return Ok(()),
+                    Some(cluster) => cluster,
+                };
+                info!("Destroying cluster {}", hex_fmt::HexFmt(&cluster_id));
+                for contract in cluster.iter_contracts() {
+                    if let Some(contract) = self.contracts.remove(&contract) {
+                        contract.destroy(&self.sidevm_spawner);
+                    }
                 }
             }
         }

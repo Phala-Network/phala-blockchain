@@ -14,6 +14,12 @@ type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate:
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
+fn _compilation_hint_for_kvdb(db: Storage) {
+    // TODO.kevin: Don't forget to clean up the disk space on cluster destroying when we switch to
+    // a KVDB backend.
+    let _dont_forget_to_clean_up_disk: storage::Storage<storage::InMemoryBackend> = db;
+}
+
 impl Default for Storage {
     fn default() -> Self {
         Self::new(storage::new_in_memory_backend())
