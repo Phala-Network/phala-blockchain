@@ -7929,7 +7929,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -10745,20 +10745,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sfq-test"
+version = "0.1.0"
+dependencies = [
+ "clap 3.2.11",
+ "phala-fair-queue",
+ "rocket",
+]
+
+[[package]]
 name = "sgx-api-lite"
 version = "0.1.0"
 dependencies = [
  "aes 0.8.1",
  "cmac",
-]
-
-[[package]]
-name = "sfq-test"
-version = "0.1.0"
-dependencies = [
- "clap 3.2.8",
- "phala-fair-queue",
- "rocket",
 ]
 
 [[package]]
