@@ -291,7 +291,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn cluster_destory(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
+		pub fn cluster_destroy(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
 			ensure_root(origin)?;
 
 			Clusters::<T>::take(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
