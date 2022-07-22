@@ -1,10 +1,10 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	mining, mq, ott, registry, stakepool, basepool,
+	basepool, mining, mq, ott, registry, stakepool,
 };
 
 use frame_support::{
-	pallet_prelude::{ConstU32, Encode, Decode},
+	pallet_prelude::{ConstU32, Decode, Encode},
 	parameter_types,
 	traits::{AsEnsureOriginWithArg, GenesisBuild, OnFinalize, OnInitialize},
 };
@@ -127,8 +127,6 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 	}
 }
 
-
-
 impl registry::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
@@ -230,12 +228,12 @@ impl Decode for Test {
 }
 
 impl Encode for Test {
-    fn size_hint(&self) -> usize {
-        0
-    }
-    fn encode_to<T: codec::Output + ?Sized>(&self, dest: &mut T) {
-        dest.write(&self.encode())
-    }
+	fn size_hint(&self) -> usize {
+		0
+	}
+	fn encode_to<T: codec::Output + ?Sized>(&self, dest: &mut T) {
+		dest.write(&self.encode())
+	}
 }
 
 pub struct MockValidator;
