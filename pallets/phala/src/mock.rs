@@ -1,10 +1,10 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	mining, mq, ott, registry, stakepool,
+	mining, mq, ott, registry, stakepool, basepool,
 };
 
 use frame_support::{
-	pallet_prelude::ConstU32,
+	pallet_prelude::{ConstU32, Encode, Decode},
 	parameter_types,
 	traits::{AsEnsureOriginWithArg, GenesisBuild, OnFinalize, OnInitialize},
 };
@@ -16,6 +16,8 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
+
+use frame_support::dispatch::Input;
 
 use frame_system::EnsureRoot;
 pub(crate) type Balance = u128;
@@ -41,6 +43,7 @@ frame_support::construct_runtime!(
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
+		PhalaBasePool: basepool::{Pallet, Event<T>},
 		PhalaOneshotTransfer: ott::{Pallet, Event<T>},
 	}
 );
@@ -124,6 +127,8 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 	}
 }
 
+
+
 impl registry::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
@@ -170,6 +175,7 @@ parameter_types! {
 	pub const PartsLimit: u32 = 10;
 	pub const MaxPriorities: u32 = 3;
 	pub const CollectionSymbolLimit: u32 = 100;
+	pub const MaxResourcesOnMint: u32 = 100;
 }
 impl pallet_rmrk_core::Config for Test {
 	type Event = Event;
@@ -179,6 +185,7 @@ impl pallet_rmrk_core::Config for Test {
 	type PartsLimit = PartsLimit;
 	type MaxPriorities = MaxPriorities;
 	type CollectionSymbolLimit = CollectionSymbolLimit;
+	type MaxResourcesOnMint = MaxResourcesOnMint;
 }
 
 impl mining::Config for Test {
@@ -206,9 +213,29 @@ impl stakepool::Config for Test {
 	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
+impl basepool::Config for Test {
+	type Event = Event;
+	type Currency = Balances;
+}
+
 impl ott::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
+}
+
+impl Decode for Test {
+	fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
+		Ok(Self)
+	}
+}
+
+impl Encode for Test {
+    fn size_hint(&self) -> usize {
+        0
+    }
+    fn encode_to<T: codec::Output + ?Sized>(&self, dest: &mut T) {
+        dest.write(&self.encode())
+    }
 }
 
 pub struct MockValidator;
@@ -362,4 +389,5 @@ pub fn teleport_to_block(n: u64) {
 	PhalaRegistry::on_initialize(System::block_number());
 	PhalaMining::on_initialize(System::block_number());
 	PhalaStakePool::on_initialize(System::block_number());
+	PhalaBasePool::on_initialize(System::block_number());
 }

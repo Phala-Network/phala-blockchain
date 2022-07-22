@@ -228,7 +228,7 @@ pub mod pallet {
 		}
 	}
 
-	fn pallet_id<T>() -> T
+	pub fn pallet_id<T>() -> T
 	where
 		T: Encode + Decode,
 	{
