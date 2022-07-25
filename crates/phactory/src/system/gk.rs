@@ -8,12 +8,15 @@ use phala_crypto::{
 use phala_mq::{traits::MessageChannel, MessageDispatcher, Sr25519Signer};
 use phala_serde_more as more;
 use phala_types::{
-    contract::{messaging::ClusterEvent, ContractClusterId},
+    contract::{
+        messaging::{ClusterEvent, ClusterOperation},
+        ContractClusterId,
+    },
     messaging::{
-        BatchRotateMasterKeyEvent, ClusterOperation, DispatchMasterKeyHistoryEvent, EncryptedKey,
-        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
-        RandomNumber, RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent,
-        WorkerEvent, WorkerEventWithKey,
+        BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, GatekeeperEvent,
+        KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
+        RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent,
+        WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -487,12 +490,13 @@ where
                         (worker.pubkey, encrypted_key)
                     })
                     .collect();
-                self.egress
-                    .push_message(&ClusterOperation::batch_distribution(
+                self.egress.push_message(
+                    &ClusterOperation::<chain::AccountId, _>::batch_distribution(
                         secret_keys,
                         cluster,
                         0,
-                    ));
+                    ),
+                );
                 Ok(())
             }
         }
