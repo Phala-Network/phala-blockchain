@@ -36,13 +36,17 @@ impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
 }
 
 pub mod messaging {
-    use alloc::vec::Vec;
+    use alloc::{vec::Vec, collections::BTreeMap};
     use codec::{Decode, Encode};
     use core::fmt::Debug;
+    use scale_info::TypeInfo;
 
     use super::{ContractClusterId, ContractInfo};
-    use crate::WorkerIdentity;
-    use phala_mq::bind_topic;
+    use phala_mq::{bind_topic, ContractId, AccountId};
+    use crate::{WorkerIdentity, ClusterPublicKey, ContractPublicKey, WorkerPublicKey};
+    use crate::messaging::EncryptedKey;
+
+    type MqAccountId = AccountId;
 
     bind_topic!(ClusterEvent, b"phala/cluster/event");
     #[derive(Encode, Decode, Debug)]
@@ -55,37 +59,11 @@ pub mod messaging {
     }
 
     bind_topic!(ContractOperation<CodeHash, AccountId>, b"phala/contract/op");
-    #[derive(Encode, Decode)]
+    #[derive(Encode, Decode, Debug)]
     pub enum ContractOperation<CodeHash, AccountId> {
-        UploadCodeToCluster {
-            origin: AccountId,
-            code: Vec<u8>,
-            cluster_id: ContractClusterId,
-        },
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
         },
-    }
-
-    impl<CodeHash: Debug, AccountId: Debug> Debug for ContractOperation<CodeHash, AccountId> {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            match self {
-                Self::UploadCodeToCluster {
-                    origin,
-                    code,
-                    cluster_id,
-                } => f
-                    .debug_struct("UploadCodeToCluster")
-                    .field("origin", origin)
-                    .field("code.len", &code.len())
-                    .field("cluster_id", cluster_id)
-                    .finish(),
-                Self::InstantiateCode { contract_info } => f
-                    .debug_struct("InstantiateCode")
-                    .field("contract_info", contract_info)
-                    .finish(),
-            }
-        }
     }
 
     impl<CodeHash, AccountId> ContractOperation<CodeHash, AccountId> {
@@ -93,6 +71,90 @@ pub mod messaging {
             ContractOperation::InstantiateCode { contract_info }
         }
     }
+
+    // Pink messages
+    #[derive(Encode, Decode, Debug, PartialEq, Eq, TypeInfo, Clone)]
+    pub enum ResourceType {
+        InkCode,
+        SidevmCode,
+    }
+
+    bind_topic!(WorkerClusterReport, b"phala/cluster/worker/report");
+    #[derive(Encode, Decode, Debug, TypeInfo)]
+    pub enum WorkerClusterReport {
+        ClusterDeployed {
+            id: ContractClusterId,
+            pubkey: ClusterPublicKey,
+        },
+        ClusterDeploymentFailed {
+            id: ContractClusterId,
+        },
+    }
+
+    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
+    #[derive(Encode, Decode, Debug, TypeInfo)]
+    pub enum WorkerContractReport {
+        ContractInstantiated {
+            id: ContractId,
+            cluster_id: ContractClusterId,
+            deployer: AccountId,
+            pubkey: ContractPublicKey,
+        },
+        ContractInstantiationFailed {
+            id: ContractId,
+            cluster_id: ContractClusterId,
+            deployer: AccountId,
+        },
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+    pub struct BatchDispatchClusterKeyEvent<BlockNumber> {
+        pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+        pub cluster: ContractClusterId,
+        pub expiration: BlockNumber,
+    }
+
+    bind_topic!(ClusterOperation<AccountId, BlockNumber>, b"phala/cluster/key");
+    #[derive(Encode, Decode, Clone, Debug, TypeInfo)]
+    pub enum ClusterOperation<AccountId, BlockNumber> {
+        // TODO.shelven: a better way for real large batch key distribution
+        /// MessageOrigin::Gatekeeper -> ALL
+        DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
+        /// Set the contract to receive the ink logs inside given cluster.
+        SetLogReceiver {
+            cluster: ContractClusterId,
+            /// The id of the contract to receive the ink logs.
+            log_handler: MqAccountId,
+        },
+        /// Force destroying a cluster.
+        ///
+        /// This leaves a door to clean up the beta clusters in fat v1.
+        /// We might need to redesign a more graceful one in the future.
+        DestroyCluster(ContractClusterId),
+        /// Upload ink code to the cluster.
+        UploadResource {
+            origin: AccountId,
+            cluster_id: ContractClusterId,
+            resource_type: ResourceType,
+            resource_data: Vec<u8>,
+        },
+    }
+
+    impl<AccountId, BlockNumber> ClusterOperation<AccountId, BlockNumber> {
+        pub fn batch_distribution(
+            secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
+            cluster: ContractClusterId,
+            expiration: BlockNumber,
+        ) -> Self {
+            ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
+                secret_keys,
+                cluster,
+                expiration,
+            })
+        }
+    }
+
+
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
