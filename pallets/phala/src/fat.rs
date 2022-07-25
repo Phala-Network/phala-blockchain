@@ -16,12 +16,13 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 	use phala_types::{
 		contract::{
-			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo, 
-messaging::{ClusterEvent, ContractOperation, ClusterOperation, WorkerClusterReport, WorkerContractReport, ResourceType},
+			messaging::{
+				ClusterEvent, ClusterOperation, ContractOperation, ResourceType,
+				WorkerClusterReport, WorkerContractReport,
+			},
+			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
-		messaging::{
-			bind_topic, DecodedMessage, MessageOrigin,
-		},
+		messaging::{bind_topic, DecodedMessage, MessageOrigin},
 		ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
 
@@ -46,6 +47,8 @@ messaging::{ClusterEvent, ContractOperation, ClusterOperation, WorkerClusterRepo
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type InkCodeSizeLimit: Get<u32>;
+		type SidevmCodeSizeLimit: Get<u32>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -135,6 +138,7 @@ messaging::{ClusterEvent, ContractOperation, ClusterOperation, WorkerClusterRepo
 		NoWorkerSpecified,
 		InvalidSender,
 		WorkerNotFound,
+		PayloadTooLarge,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -208,6 +212,15 @@ messaging::{ClusterEvent, ContractOperation, ClusterOperation, WorkerClusterRepo
 			ensure!(
 				check_cluster_permission::<T>(&origin, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
+			);
+
+			let size_limit = match resource_type {
+				ResourceType::InkCode => T::InkCodeSizeLimit::get(),
+				ResourceType::SidevmCode => T::SidevmCodeSizeLimit::get(),
+			} as usize;
+			ensure!(
+				resource_data.len() <= size_limit,
+				Error::<T>::PayloadTooLarge
 			);
 
 			Self::push_message(ClusterOperation::<_, T::BlockNumber>::UploadResource {
@@ -289,7 +302,9 @@ messaging::{ClusterEvent, ContractOperation, ClusterOperation, WorkerClusterRepo
 			ensure_root(origin)?;
 
 			Clusters::<T>::take(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
-			Self::push_message(ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster));
+			Self::push_message(
+				ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster),
+			);
 			Self::deposit_event(Event::ClusterDestroyed { cluster });
 			Ok(())
 		}
