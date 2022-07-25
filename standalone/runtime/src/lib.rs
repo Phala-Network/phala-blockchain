@@ -35,7 +35,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
-		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EitherOfDiverse, ConstU16, ConstU32
+		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EitherOfDiverse, ConstU16, ConstU32, ConstU64
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -1280,6 +1280,8 @@ impl pallet_stakepool::Config for Runtime {
 }
 impl pallet_fat::Config for Runtime {
 	type Event = Event;
+	type InkCodeSizeLimit = ConstU32<{1024*1024*2}>;
+	type SidevmCodeSizeLimit = ConstU32<{1024*1024*2}>;
 }
 
 impl puppets::parachain_info::Config for Runtime {}
