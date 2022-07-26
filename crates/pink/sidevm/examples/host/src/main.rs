@@ -6,6 +6,8 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
+mod web_api;
+
 #[derive(Parser)]
 #[clap(about = "Demo sidevm host app", version, author)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
@@ -79,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         wasm_bytes = instrument::instrument(&wasm_bytes)?;
     }
     println!("VM running...");
-    let (_sender, handle) = spawner
+    let (sender, handle) = spawner
         .start(
             &wasm_bytes,
             1024,
@@ -89,8 +91,7 @@ async fn main() -> anyhow::Result<()> {
             simple_cache(),
         )
         .unwrap();
-    handle.await?;
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    println!("done");
+    tokio::spawn(handle);
+    web_api::serve(sender).await.unwrap();
     Ok(())
 }
