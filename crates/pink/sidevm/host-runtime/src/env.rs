@@ -20,7 +20,7 @@ use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
 use env::{
     messages::{AccountId, QueryRequest, SystemMessage},
     tls::{TlsClientConfig, TlsServerConfig},
-    IntPtr, IntRet, OcallError, Result, RetEncode,
+    IntPtr, IntRet, OcallError, OcallFuncs, Result, RetEncode,
 };
 use pink_sidevm_env as env;
 use scale::Encode;
@@ -213,18 +213,27 @@ impl Env {
         reply_tx: OneshotSender<Vec<u8>>,
     ) -> Option<impl Future<Output = anyhow::Result<()>>> {
         let mut env_guard = self.inner.lock().unwrap();
+        let tx = env_guard.state.query_tx.clone()?;
         let reply_tx = env_guard
             .state
             .resources
             .push(Resource::OneshotTx(Some(reply_tx)));
-        let tx = env_guard.state.query_tx.clone()?;
+        let inner = self.inner.clone();
         Some(async move {
+            let reply_tx = reply_tx?;
             let query = QueryRequest {
                 origin,
                 payload,
-                reply_tx: reply_tx?,
+                reply_tx,
             };
-            tx.send(query.encode()).await?;
+            let result = tx.send(query.encode()).await;
+            if result.is_err() {
+                // FIXME: The channel doesn't guarantee the rx side would receive the message even
+                // if the send returns an Ok. So the reply_tx could still leak in that case.
+                let mut env_guard = inner.lock().unwrap();
+                let _ = env_guard.state.close(reply_tx);
+            }
+            let _ = result?;
             Ok(())
         })
     }
