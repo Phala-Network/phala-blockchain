@@ -20,10 +20,8 @@ pub fn generate<T: Service>(
     let server_service = quote::format_ident!("{}Server", service.name());
     let server_trait = quote::format_ident!("{}", service.name());
     let server_mod = quote::format_ident!("{}_server", naive_snake_case(service.name()));
-    let supported_methods = generate_supported_methods(
-        service,
-        emit_package,
-    );
+    let supported_methods = generate_supported_methods(service, emit_package);
+    let method_enum = generate_methods_enum(service, emit_package);
     let generated_trait = generate_trait(
         service,
         proto_path,
@@ -42,6 +40,8 @@ pub fn generate<T: Service>(
         pub mod #server_mod {
             use alloc::vec::Vec;
             use alloc::boxed::Box;
+
+            #method_enum
 
             #supported_methods
 
@@ -127,10 +127,7 @@ fn generate_trait_methods<T: Service>(
     stream
 }
 
-fn generate_supported_methods<T: Service>(
-    service: &T,
-    emit_package: bool,
-) -> TokenStream {
+fn generate_supported_methods<T: Service>(service: &T, emit_package: bool) -> TokenStream {
     let mut all_methods = TokenStream::new();
     for method in service.methods() {
         let path = crate::join_path(
@@ -153,6 +150,44 @@ fn generate_supported_methods<T: Service>(
                     #all_methods
                 ]
             }
+    }
+}
+
+fn generate_methods_enum<T: Service>(service: &T, emit_package: bool) -> TokenStream {
+    let mut paths = vec![];
+    let mut variants = vec![];
+    for method in service.methods() {
+        let path = crate::join_path(
+            emit_package,
+            service.package(),
+            service.identifier(),
+            method.identifier(),
+        );
+
+        let variant = Ident::new(method.identifier(), Span::call_site());
+        variants.push(variant);
+
+        let method_path = Lit::Str(LitStr::new(&path, Span::call_site()));
+        paths.push(method_path);
+    }
+
+    let enum_name = Ident::new(
+        &format!("{}Method", service.identifier()),
+        Span::call_site(),
+    );
+    quote! {
+        pub enum #enum_name {
+            #(#variants,)*
+        }
+
+        impl #enum_name {
+            pub fn from_str(path: &str) -> Option<Self> {
+                match path {
+                    #(#paths => Some(Self::#variants),)*
+                    _ => None,
+                }
+            }
+        }
     }
 }
 
