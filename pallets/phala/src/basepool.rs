@@ -215,9 +215,12 @@ pub mod pallet {
 					vault.user_id.clone(),
 				)
 				.expect("merge nft shoule always success: qed.");
-				let nft = Pallet::<T>::get_nft_attr_inner(self.cid, nft_id)
+				let mut nft = Pallet::<T>::get_nft_attr_inner(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
 				let vault_shares = nft.shares.to_fixed();
+				let price = self.share_price().expect("price will always exist");
+				nft.stakes = bmul(nft.shares, &price);
+				Pallet::<T>::set_nft_attr_inner(self.cid, nft_id, &nft);
 				let stake_ratio = match vault_shares.checked_div(self.total_shares.to_fixed()) {
 					Some(ratio) => BalanceOf::<T>::from_fixed(&ratio),
 					None => continue,
@@ -332,8 +335,6 @@ pub mod pallet {
 						nft.shares += in_queue_nft.shares;
 						Self::burn_nft(base_pool, withdrawinfo.nft_id)
 							.expect("burn nft attr should always success; qed.");
-						vault.basepool.total_stake =
-							vault.basepool.total_stake - in_queue_nft.stakes + withdraw_amount;
 						vault.basepool.free_stake += withdraw_amount;
 					}
 					PoolCollection::<T>::insert(
