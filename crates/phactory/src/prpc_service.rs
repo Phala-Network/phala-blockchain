@@ -572,6 +572,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .mq_messages()
             .map_err(|_| from_display("Can not get mq messages from storage"))?;
 
+        let now_ms = state
+            .chain_storage
+            .timestamp_now()
+            .ok_or_else(|| from_display("No timestamp found in block"))?;
+
         state.recv_mq.reset_local_index();
 
         for message in messages {
@@ -603,19 +608,23 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 );
             }
             state.recv_mq.dispatch(message);
-        }
 
-        let mut guard = scopeguard::guard(&mut state.recv_mq, |mq| {
-            let n_unhandled = mq.clear();
+            let mut block = BlockInfo {
+                block_number,
+                now_ms,
+                storage: &state.chain_storage,
+                send_mq: &state.send_mq,
+                recv_mq: &mut state.recv_mq,
+                side_task_man: &mut self.side_task_man,
+            };
+
+            system.process_messages(&mut block);
+
+            let n_unhandled = state.recv_mq.clear();
             if n_unhandled > 0 {
                 warn!("There are {} unhandled messages dropped", n_unhandled);
             }
-        });
-
-        let now_ms = state
-            .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
+        }
 
         let block_time = now_ms / 1000;
         let sys_time = now();
@@ -629,19 +638,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         );
         benchmark::set_flag(Flags::SYNCING, syncing);
 
-        let storage = &state.chain_storage;
-        let side_task_man = &mut self.side_task_man;
-        let recv_mq = &mut *guard;
-        let mut block = BlockInfo {
-            block_number,
-            now_ms,
-            storage,
-            send_mq: &state.send_mq,
-            recv_mq,
-            side_task_man,
-        };
-
-        system.process_messages(&mut block);
         Ok(())
     }
 
