@@ -1,0 +1,13 @@
+[package]
+name = "phala-fair-queue"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+rbtree = "0.1.5"
+tokio = { version = "1", features = ["sync"] }
+thiserror = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

@@ -65,6 +65,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         let mut response = client
             .request(method, url)
             .headers(headers)
+            .body(request.body)
             .send()
             .map_err(|err| {
                 log::info!("HTTP request error: {}", err);
@@ -193,6 +194,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         let mut buf = vec![0u8; length as _];
         getrandom::getrandom(&mut buf[..]).or(Err("Failed to get random bytes"))?;
         Ok(buf)
+    }
+
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(false)
     }
 }
 

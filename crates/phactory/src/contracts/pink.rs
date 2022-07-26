@@ -1,17 +1,24 @@
+use std::time::Duration;
+
 use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
+use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
+use sp_runtime::{traits::ConstU32, BoundedVec};
 
 use super::contract_address_to_id;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
-    InkMessage { nonce: Vec<u8>, message: Vec<u8> },
+    InkMessage {
+        nonce: BoundedVec<u8, ConstU32<32>>,
+        message: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -31,6 +38,8 @@ pub enum QueryError {
     RuntimeError(String),
     SidevmNotFound,
     NoResponse,
+    ServiceUnavailable,
+    Timeout,
 }
 
 #[derive(Encode, Decode, Clone)]
@@ -89,6 +98,7 @@ impl Pink {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for Pink {
     type Cmd = Command;
 
@@ -96,7 +106,7 @@ impl contracts::NativeContract for Pink {
 
     type QResp = Result<Response, QueryError>;
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&AccountId>,
         req: Query,
@@ -104,6 +114,12 @@ impl contracts::NativeContract for Pink {
     ) -> Result<Response, QueryError> {
         match req {
             Query::InkMessage(input_data) => {
+                let _guard = context
+                    .query_queue
+                    .acquire(self.id(), 1)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
+
                 let origin = origin.ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
 
@@ -137,20 +153,25 @@ impl contracts::NativeContract for Pink {
                 };
                 let origin = origin.cloned().map(Into::into);
 
-                let reply = tokio::task::block_in_place(move || {
-                    tokio::runtime::Handle::current().block_on(async move {
-                        let (reply_tx, rx) = tokio::sync::oneshot::channel();
-                        let _x = cmd_sender
-                            .send(SidevmCommand::PushQuery {
-                                origin,
-                                payload,
-                                reply_tx,
-                            })
-                            .await;
-                        rx.await
-                    })
-                });
-                reply.or(Err(QueryError::NoResponse)).map(Response::Payload)
+                let (reply_tx, rx) = tokio::sync::oneshot::channel();
+
+                const SIDEVM_QUERY_TIMEOUT: Duration = Duration::from_secs(60 * 5);
+
+                tokio::time::timeout(SIDEVM_QUERY_TIMEOUT, async move {
+                    cmd_sender
+                        .send(SidevmCommand::PushQuery {
+                            origin,
+                            payload,
+                            reply_tx,
+                        })
+                        .await
+                        .or(Err(QueryError::ServiceUnavailable))?;
+                    rx.await
+                        .or(Err(QueryError::NoResponse))
+                        .map(Response::Payload)
+                })
+                .await
+                .or(Err(QueryError::Timeout))?
             }
         }
     }
@@ -162,9 +183,10 @@ impl contracts::NativeContract for Pink {
         context: &mut contracts::NativeContext,
     ) -> TransactionResult {
         match cmd {
-            Command::InkMessage { nonce: _, message } => {
+            Command::InkMessage { nonce, message } => {
                 let origin: runtime::AccountId = match origin {
                     MessageOrigin::AccountId(origin) => origin.0.into(),
+                    MessageOrigin::Pallet(_) => pallet_account(),
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
@@ -190,6 +212,7 @@ impl contracts::NativeContract for Pink {
                             origin: origin.clone().into(),
                             contract: self.instance.address.clone().into(),
                             block_number: context.block.block_number,
+                            nonce: nonce.into_inner(),
                             output: result.result.encode(),
                         },
                     )) {
@@ -327,6 +350,10 @@ pub mod cluster {
                 cluster
             })
         }
+
+        pub fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster> {
+            self.clusters.remove(cluster_id)
+        }
     }
 
     #[derive(Serialize, Deserialize, Default)]
@@ -367,6 +394,10 @@ pub mod cluster {
             code: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
             self.storage.upload_code(origin, code)
+        }
+
+        pub fn iter_contracts(&self) -> impl Iterator<Item = &ContractId> {
+            self.contracts.iter()
         }
     }
 }

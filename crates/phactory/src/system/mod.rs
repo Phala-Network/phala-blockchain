@@ -12,6 +12,7 @@ use crate::{
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
+use phala_fair_queue::FairQueue;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
 
@@ -50,6 +51,7 @@ use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
 use std::convert::TryFrom;
+use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -564,10 +566,10 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
-    ) -> Result<
-        impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
-        OpaqueError,
-    > {
+        origin: Option<&chain::AccountId>,
+        query: OpaqueQuery,
+        query_queue: FairQueue<ContractId>,
+    ) -> Result<impl Future<Output = Result<OpaqueReply, OpaqueError>>, OpaqueError> {
         use pink::storage::Snapshot as _;
 
         let contract = self
@@ -589,9 +591,13 @@ impl<Platform: pal::Platform> System<Platform> {
             storage,
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
+            query_queue,
         };
-        Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
-            contract.handle_query(origin, req, &mut context)
+        let origin = origin.cloned();
+        Ok(async move {
+            contract
+                .handle_query(origin.as_ref(), query, &mut context)
+                .await
         })
     }
 
@@ -1080,6 +1086,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 cluster: cluster_id,
                 log_handler,
             } => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
                 let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
                 if let Some(cluster) = cluster {
                     info!(
@@ -1088,6 +1098,23 @@ impl<Platform: pal::Platform> System<Platform> {
                         log_handler
                     );
                     cluster.config.log_handler = Some(log_handler);
+                }
+            }
+            ClusterOperation::DestroyCluster(cluster_id) => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
+                let cluster = match self.contract_clusters.remove_cluster(&cluster_id) {
+                    // The cluster is not deployed on this worker, just ignore it.
+                    None => return Ok(()),
+                    Some(cluster) => cluster,
+                };
+                info!("Destroying cluster {}", hex_fmt::HexFmt(&cluster_id));
+                for contract in cluster.iter_contracts() {
+                    if let Some(contract) = self.contracts.remove(&contract) {
+                        contract.destroy(&self.sidevm_spawner);
+                    }
                 }
             }
         }

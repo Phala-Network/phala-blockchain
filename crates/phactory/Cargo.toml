@@ -10,14 +10,10 @@ chrono      = "0.4.19"
 base64      = "0.13.0"
 num-bigint  = "0.4.0"
 ring        = "0.16.20"
-rand        = "0.7.3"
+rand        = "0.8"
 regex       = "1.5.5"
-yasna       = { git = "https://github.com/Phala-Network/yasna.rs", branch = "phala", features = ["chrono", "bit-vec", "num-bigint"] }
-rustls      = { version = "0.19.1", features = ["dangerous_configuration"] }
-webpki      = { version = "0.21", features = ["std"] }
 bitcoin     = { version = "0.27.0", features = ["use-serde"]}
 bitcoin_hashes = { version = "0.10.0", default-features = false }
-woothee     = { version = "0.11.0" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -28,7 +24,6 @@ hex-literal = "0.3"
 hex_fmt = "0.3"
 anyhow = { version = "1.0", default-features = false }
 thiserror = { version = "1.0", default-features = false }
-bit-vec = { version = "0.6.3", default-features = false }
 itertools = { version = "0.10.1", default-features = false }
 lazy_static = { version = "1.4.0", default-features = false }
 
@@ -50,11 +45,9 @@ scopeguard   = { version = "1.1", default-features = false }
 # Phala specific
 runtime = { path = "../../standalone/runtime", package = "phala-node-runtime", default-features = false, features = ["std"] }
 phala-pallets = { path = "../../pallets/phala", default-features = false }
-phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
+phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "sgx"] }
 phactory-api = { path = "./api", default-features = false, features = ["serde"] }
 phactory-pal = { path = "./pal", default-features = false }
-
-csv-core = { version = "0.1.10", default-features = false }
 
 # for light_validation
 derive_more = "0.99.0"
@@ -85,10 +78,12 @@ maxminddb = "0.17"
 glob = "0.3"
 sidevm = { version = "0.1.0", package = "pink-sidevm-host-runtime", path = "../pink/sidevm/host-runtime" }
 tokio = { version = "1", features = ["full"] }
+async-trait = "0.1.56"
+phala-fair-queue = { path = "../phala-fair-queue" }
 
 [dev-dependencies]
 insta = "1.7.2"
-rmp-serde = "0.15.5"
+rmp-serde = "1"
 serde_path_to_error = "0.1.5"
 ron = "0.7.0"
 ciborium = "0.2.0"

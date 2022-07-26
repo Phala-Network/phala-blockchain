@@ -66,7 +66,7 @@ pub mod traits {
         }
         fn set_dummy(&self, _dummy: bool) {}
         /// Set signer for the channel.
-        fn set_signer(&mut self, signer: Self::Signer) {}
+        fn set_signer(&mut self, _signer: Self::Signer) {}
     }
 
     /// A MessagePrepareChannel is used prepare messages which later can be pushed into the message queue.

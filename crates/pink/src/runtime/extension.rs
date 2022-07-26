@@ -211,6 +211,10 @@ impl PinkExtBackend for CallInQuery {
     fn getrandom(&self, length: u8) -> Result<Vec<u8>, Self::Error> {
         DefaultPinkExtension::new(self).getrandom(length)
     }
+
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
 }
 
 struct CallInCommand {
@@ -291,5 +295,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn getrandom(&self, _length: u8) -> Result<Vec<u8>, Self::Error> {
         Err("getrandom is not allowed in command".into())
+    }
+
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(true)
     }
 }

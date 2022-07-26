@@ -19,7 +19,6 @@ sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
-phactory = { path = "../../crates/phactory" }
 phala-crypto = { path = "../../crates/phala-crypto" }
 
 tokio = { version = "1.10.0", features = ["full"] }

@@ -190,7 +190,7 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
         }
     };
 
-    let (status_code, output) = runtime::ecall_prpc_request(path_bytes, &data);
+    let (status_code, output) = runtime::ecall_prpc_request(path_bytes, &data).await;
     if let Some(status) = Status::from_code(status_code) {
         Custom(status, output)
     } else {
