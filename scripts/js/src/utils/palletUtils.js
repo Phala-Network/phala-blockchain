@@ -44,9 +44,17 @@ function calculateReturnSlash(minerInfo, origStake) {
     ];
 }
 
+function createMotion(api, threshold, call) {
+    const callHex = (typeof call == 'string') ? call : u8aToHex(call);
+    const lengthBound = ((callHex.length / 2) | 0) + 10;
+    const bareCall = api.createType('Call', callHex);
+    return api.tx.council.propose(threshold, bareCall, lengthBound);
+}
+
 module.exports = {
     poolSubAccount,
     calculateReturnSlash,
     balanceDecToBn,
     balanceBnToDec,
+    createMotion,
 };
