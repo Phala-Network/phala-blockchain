@@ -987,16 +987,24 @@ pub mod pallet {
 				Some(price) => BalanceOf::<T>::from_fixed(&price),
 				None => return Ok(()),
 			};
+			if pool_info.last_share_price_checkpoint == Zero::zero() {
+				pool_info.last_share_price_checkpoint = current_price;
+				basepool::pallet::PoolCollection::<T>::insert(
+					vault_pid,
+					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info),
+				);
+				return Ok(());
+			}
 			if current_price <= pool_info.last_share_price_checkpoint {
 				return Ok(());
 			}
 			let delta_price = pool_info.delta_price_ratio.unwrap_or_default()
 				* (current_price - pool_info.last_share_price_checkpoint);
 			let new_price = current_price - delta_price;
-			let adjust_shares = bdiv(pool_info.basepool.total_stake, &new_price.to_fixed());
+			let adjust_shares = bdiv(pool_info.basepool.total_stake, &new_price.to_fixed()) - pool_info.basepool.total_shares;
 			pool_info.basepool.total_shares += adjust_shares;
 			pool_info.owner_shares += adjust_shares;
-			pool_info.last_share_price_checkpoint = current_price - adjust_shares;
+			pool_info.last_share_price_checkpoint = current_price;
 
 			basepool::pallet::PoolCollection::<T>::insert(
 				vault_pid,
@@ -2398,8 +2406,6 @@ pub mod pallet {
 					Some((amout, user_dust, removed_shares)) => return,
 					_ => panic!(),
 				}
-				assert_eq!(nft_attr.shares, 10 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 10 * DOLLARS);
 			});
 		}
 
@@ -2670,6 +2676,114 @@ pub mod pallet {
 				assert_eq!(vault_info.basepool.total_stake, 1300 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 1300 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 900 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_on_reward_for_vault() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_vault(3); // pid = 0
+				setup_stake_pool_with_workers(1, &[1]);
+				assert_ok!(PhalaStakePool::contribute_to_vault(
+					Origin::signed(3),
+					0,
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::vault_investment(
+					Origin::signed(3),
+					0,
+					1,
+					500 * DOLLARS
+				));
+				// Staker2 contribute 1000 PHA and start mining
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					1,
+					500 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					1,
+					worker_pubkey(1),
+					500 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(1000u32).to_bits(),
+					treasury: 0,
+				}]);
+				let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+				assert_eq!(pool.basepool.free_stake, 1500 * DOLLARS);
+				assert_eq!(pool.basepool.total_stake, 2000 * DOLLARS);
+				let vault_info = ensure_vault::<Test>(0).unwrap();
+				assert_eq!(vault_info.basepool.total_stake, 1500 * DOLLARS);
+				assert_eq!(vault_info.basepool.free_stake, 500 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_shares, 1000 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_vault_owner_shares() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_vault(3); // pid = 0
+				assert_ok!(PhalaStakePool::set_vault_payout_pref(
+					Origin::signed(3),
+					0,
+					Permill::from_percent(50)
+				));
+				setup_stake_pool_with_workers(1, &[1]);
+				assert_ok!(PhalaStakePool::contribute_to_vault(
+					Origin::signed(3),
+					0,
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::vault_investment(
+					Origin::signed(3),
+					0,
+					1,
+					500 * DOLLARS
+				));
+				let vault_info = ensure_vault::<Test>(0).unwrap();
+				assert_eq!(vault_info.delta_price_ratio.unwrap(), Permill::from_percent(50));
+				assert_ok!(PhalaStakePool::maybe_gain_owner_shares(Origin::signed(3), 0));
+				let vault_info = ensure_vault::<Test>(0).unwrap();
+				assert_eq!(vault_info.owner_shares, 0);
+				// Staker2 contribute 1000 PHA and start mining
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					1,
+					500 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					1,
+					worker_pubkey(1),
+					500 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(1000u32).to_bits(),
+					treasury: 0,
+				}]);
+				let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+				assert_eq!(pool.basepool.free_stake, 1500 * DOLLARS);
+				assert_eq!(pool.basepool.total_stake, 2000 * DOLLARS);
+				let vault_info = ensure_vault::<Test>(0).unwrap();
+				assert_eq!(vault_info.basepool.total_stake, 1500 * DOLLARS);
+				assert_eq!(vault_info.basepool.free_stake, 500 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_shares, 1000 * DOLLARS);
+				assert_ok!(PhalaStakePool::maybe_gain_owner_shares(Origin::signed(3), 0));
+				let vault_info = ensure_vault::<Test>(0).unwrap();
+				assert_eq!(vault_info.owner_shares, 200 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_shares, 1200 * DOLLARS);
 			});
 		}
 
