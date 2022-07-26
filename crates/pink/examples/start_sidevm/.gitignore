@@ -8,3 +8,5 @@
 # More information here http://doc.crates.io/guide.html#cargotoml-vs-cargolock
 Cargo.lock
 /*.wasm
+/sideprog.wasm
+/sideprog.wasm.hash
