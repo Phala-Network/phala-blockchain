@@ -1638,9 +1638,7 @@ pub fn apply_pink_side_effects(
                 auto_restart,
             } => {
                 let code_hash = code_hash.into();
-                let wasm_code = match cluster
-                    .get_resource(ResourceType::SidevmCode, &code_hash)
-                {
+                let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
                     Some(code) => code,
                     None => {
                         error!(target: "sidevm", "[{vmid}] Start sidevm failed: code not found, code_hash={code_hash:?}");
@@ -1815,7 +1813,7 @@ mod tests {
 
         let mut env = ExecuteEnv {
             block: &mut block_info,
-            contract_clusters: &mut &mut keeper,
+            contract_clusters: &mut keeper,
             log_handler: None,
         };
 
@@ -1830,6 +1828,7 @@ mod tests {
             .into_iter()
             .map(|msg| (msg.sequence, msg.message))
             .collect();
+        // WorkerContractReport::ContractInstantiated
         insta::assert_debug_snapshot!(messages);
     }
 }

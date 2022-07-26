@@ -1,6 +1,6 @@
 ---
 source: crates/phactory/src/system/mod.rs
-assertion_line: 1524
+assertion_line: 1832
 expression: messages
 ---
 [
@@ -10,7 +10,7 @@ expression: messages
             sender: Gatekeeper,
             destination: phala/contract/worker/report,
             payload: [
-                2,
+                0,
                 106,
                 54,
                 146,

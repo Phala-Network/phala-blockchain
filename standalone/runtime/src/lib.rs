@@ -35,7 +35,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
-		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EitherOfDiverse, ConstU16, ConstU32, ConstU64
+		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EitherOfDiverse, ConstU16, ConstU32
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
