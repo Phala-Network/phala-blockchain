@@ -21,6 +21,7 @@ pink-extension = { version = "0.1.0", path = "../../pink-extension", default-fea
 
 [build-dependencies]
 run_shell = "0.1"
+sp-core = "6"
 
 [lib]
 name = "log_server"

@@ -34,13 +34,19 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, messaging::{ContractOperation, BatchDispatchClusterKeyEvent, ClusterOperation, WorkerClusterReport, WorkerContractReport, ResourceType}, CodeIndex},
+    contract::{
+        self,
+        messaging::{
+            BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
+            WorkerClusterReport, WorkerContractReport,
+        },
+        CodeIndex,
+    },
     messaging::{
-        AeadIV, BatchRotateMasterKeyEvent,
-        Condition, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent, GatekeeperChange,
-        GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent,
-        SystemEvent, WorkerEvent,
+        AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
+        DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
+        RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
     EcdhPublicKey, HandoverChallenge, HandoverChallengePayload, WorkerPublicKey,
 };
@@ -417,7 +423,8 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
-    cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::AccountId, chain::BlockNumber>>,
+    cluster_key_distribution_events:
+        TypedReceiver<ClusterOperation<chain::AccountId, chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -1128,9 +1135,9 @@ impl<Platform: pal::Platform> System<Platform> {
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
                 let uploader = phala_types::messaging::AccountId(origin.clone().into());
-                let hash = cluster.upload_resource(origin, resource_type, resource_data).map_err(|err| {
-                    anyhow!("Failed to upload code: {:?}", err)
-                })?;
+                let hash = cluster
+                    .upload_resource(origin, resource_type, resource_data)
+                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
@@ -1630,7 +1637,10 @@ pub fn apply_pink_side_effects(
                 code_hash,
                 auto_restart,
             } => {
-                let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash.into()) {
+                let code_hash = code_hash.into();
+                let wasm_code = match cluster
+                    .get_resource(ResourceType::SidevmCode, &code_hash)
+                {
                     Some(code) => code,
                     None => {
                         error!(target: "sidevm", "[{vmid}] Start sidevm failed: code not found, code_hash={code_hash:?}");
@@ -1764,7 +1774,9 @@ mod tests {
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
         let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
-        let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
+        let code_hash = cluster
+            .upload_resource(ALICE.clone(), ResourceType::InkCode, wasm_bin)
+            .unwrap();
         let effects = keeper
             .instantiate_contract(
                 cluster_id,

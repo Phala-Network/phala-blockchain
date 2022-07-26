@@ -18,8 +18,8 @@ mod contract {
     impl Contract {
         #[ink(constructor)]
         pub fn default() -> Self {
-            let code = &include_bytes!("./sideprog.wasm")[..];
-            pink::start_sidevm(code.into(), true);
+            let code_hash = *include_bytes!("./sideprog.wasm.hash");
+            pink::start_sidevm(code_hash, true);
             Self {}
         }
         #[pink(on_block_end)]
