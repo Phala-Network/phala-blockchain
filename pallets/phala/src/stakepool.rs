@@ -1834,13 +1834,14 @@ pub mod pallet {
 			Self::maybe_settle_nft_slash(&pool_info, nft, userid.clone());
 			// Overflow warning: remove_stake is carefully written to avoid precision error.
 			// (I hope so)
+			let before_nft_stakes = nft.stakes;
 			let (reduced, dust, withdrawn_shares) =
 				basepool::Pallet::<T>::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
 					.expect("There are enough withdrawing_shares; qed.");
 			if let Some(pid) = VaultAccountAssignments::<T>::get(userid.clone()) {
 				let mut vault_info =
 					ensure_vault::<T>(pid).expect("get vault should success: qed.");
-
+				vault_info.basepool.total_stake = vault_info.basepool.total_stake - before_nft_stakes + nft.stakes + reduced;
 				vault_info.basepool.free_stake += reduced;
 
 				basepool::pallet::PoolCollection::<T>::insert(

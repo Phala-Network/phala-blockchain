@@ -435,6 +435,7 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 			nft: &mut NftAttr<BalanceOf<T>>,
 		) -> Option<(BalanceOf<T>, BalanceOf<T>, BalanceOf<T>)> {
+			let nft_price = nft.stakes.to_fixed().checked_div(nft.shares.to_fixed()).expect("shares will not be zero: qed.");
 			let price = base_pool.share_price()?;
 			let amount = bmul(shares, &price);
 
@@ -442,7 +443,7 @@ pub mod pallet {
 
 			let user_shares = nft.shares.checked_sub(&shares)?;
 			let (user_shares, shares_dust) = extract_dust(user_shares);
-			let user_locked = nft.stakes.checked_sub(&amount)?;
+			let user_locked = bmul(user_shares, &nft_price);
 			let (user_locked, user_dust) = extract_dust(user_locked);
 
 			let removed_shares = shares + shares_dust;
