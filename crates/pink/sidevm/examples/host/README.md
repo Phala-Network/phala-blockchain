@@ -31,7 +31,9 @@ To simulate those messages, you can just post the payload to those endpoints wit
 
 ```bash
 # Send a message to the sidevm program
-curl -d hello localhost:8003/push/message
+curl -d hello localhost:8000/push/message
 # Send a query to the sidevm program
 curl --data-binary @query_payload.bin localhost:8000/push/query/5Ca7afsGkHrQgwQRcfQ8u7MMrK55JYR3W2rV5KXzThNwu3GU
 ```
+
+You can change the api listening port with environment variable `ROCKET_PORT`.
