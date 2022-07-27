@@ -58,7 +58,7 @@ pub async fn timeout<T: Future<Output = O>, O>(
     }
 }
 
-/// The future returned by `take_a_rest_if_needed`.
+/// The future returned by `maybe_rest`.
 pub struct Rest {
     resting: bool,
 }
@@ -89,7 +89,7 @@ impl Future for Rest {
 /// If the remaining gas of current slot is less than 30%, the returned future will be `Pending` on
 /// first poll and become `Ready` again immediately.
 /// If the remaining gas is equal or more than 30%, the returned future will be `Ready` immediately.
-pub fn take_a_rest_if_needed() -> Rest {
+pub fn maybe_rest() -> Rest {
     let remaining = ocall::gas_remaining().expect("failed to get gas remaining");
     // Yield if there is less than 30% of gas remaining.
     Rest::new(remaining < 30)

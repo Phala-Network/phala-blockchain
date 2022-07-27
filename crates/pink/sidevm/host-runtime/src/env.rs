@@ -498,7 +498,11 @@ impl env::OcallFuncs for State {
 
     fn gas_remaining(&mut self) -> Result<u8> {
         pay(self, 100_000_000)?;
-        Ok((self.gas_to_breath * 100 / self.init_gas_to_breath) as u8)
+        Ok(if self.init_gas_to_breath == 0 {
+            100
+        } else {
+            (self.gas_to_breath * 100 / self.init_gas_to_breath) as u8
+        })
     }
 }
 

@@ -9,6 +9,6 @@ async fn main() {
     ocall::enable_ocall_trace(true).unwrap();
     info!("starting...");
     loop {
-        sidevm::time::take_a_rest_if_needed().await;
+        sidevm::time::maybe_rest().await;
     }
 }
