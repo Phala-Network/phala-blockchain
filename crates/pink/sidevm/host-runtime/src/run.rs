@@ -79,16 +79,22 @@ impl Future for WasmRun {
     type Output = Result<i32, RuntimeError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.env.set_gas_to_breath(self.gas_per_breath);
-        match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
-            Ok(rv) => {
-                if rv == 0 {
-                    Poll::Pending
-                } else {
-                    Poll::Ready(Ok(rv))
+        loop {
+            self.env.set_gas_to_breath(self.gas_per_breath);
+            match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
+                Ok(rv) => {
+                    if rv == 0 {
+                        if self.env.has_more_ready() {
+                            continue;
+                        } else {
+                            break Poll::Pending;
+                        }
+                    } else {
+                        break Poll::Ready(Ok(rv));
+                    }
                 }
+                Err(err) => break Poll::Ready(Err(err)),
             }
-            Err(err) => Poll::Ready(Err(err)),
         }
     }
 }

@@ -57,3 +57,35 @@ pub async fn timeout<T: Future<Output = O>, O>(
         _ = sleep(duration).fuse() => Err(TimedOut),
     }
 }
+
+/// The future returned by `take_a_rest_if_needed`.
+pub struct Rest {
+    resting: bool
+}
+
+impl Future for Rest {
+    type Output = ();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.resting {
+            // Return `Pending` and become Ready immediately.
+            self.resting = false;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
+    }
+}
+
+/// Take a rest if it it about to stifled
+///
+/// If the remaining gas of current slot is less than 30%, the returned future will be `Pending` on
+/// first poll and become `Ready` again immediately.
+/// If the remaining gas is equal or more than 30%, the returned future will be `Ready` immediately.
+pub fn take_a_rest_if_needed() -> Rest {
+    let remaining = ocall::gas_remaining().expect("failed to get gas remaining");
+    // Yield if there is less than 30% of gas remaining.
+    Rest {
+        resting: remaining < 30,
+    }
+}
