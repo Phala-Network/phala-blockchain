@@ -1093,8 +1093,7 @@ pub mod pallet {
 						.basepool
 						.share_price()
 						.expect("pool must have price: qed.");
-					let amount = bmul(nft.shares.clone(), &price);
-					releasing_stake = amount.min(nft.stakes.clone());
+					let releasing_stake = bmul(nft.shares.clone(), &price);
 				}
 			}
 			basepool::pallet::PoolCollection::<T>::insert(
@@ -1825,9 +1824,9 @@ pub mod pallet {
 			if basepool::is_nondust_balance(nft.shares) {
 				return false;
 			}
-			Self::remove_dust(&userid, nft.stakes);
+			Self::remove_dust(&userid, nft.get_stake());
 			pool_info.total_shares -= nft.shares;
-			pool_info.total_stake -= nft.stakes;
+			pool_info.total_stake -= nft.get_stake();
 			true
 		}
 
@@ -1842,14 +1841,12 @@ pub mod pallet {
 			Self::maybe_settle_nft_slash(&pool_info, nft, userid.clone());
 			// Overflow warning: remove_stake is carefully written to avoid precision error.
 			// (I hope so)
-			let before_nft_stakes = nft.stakes;
 			let (reduced, dust, withdrawn_shares) =
 				basepool::Pallet::<T>::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
 					.expect("There are enough withdrawing_shares; qed.");
 			if let Some(pid) = VaultAccountAssignments::<T>::get(userid.clone()) {
 				let mut vault_info =
 					ensure_vault::<T>(pid).expect("get vault should success: qed.");
-				vault_info.basepool.total_stake = vault_info.basepool.total_stake - before_nft_stakes + nft.stakes + reduced;
 				vault_info.basepool.free_stake += reduced;
 
 				basepool::pallet::PoolCollection::<T>::insert(
@@ -2294,7 +2291,7 @@ pub mod pallet {
 				assert_ok!(PhalaBasePool::get_nft_attr(&pool_info.basepool, 0));
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool_info.basepool, 0).unwrap();
 				assert_eq!(nft_attr.shares, 1000 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 1000 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 1000 * DOLLARS);
 			});
 		}
 
@@ -2330,7 +2327,7 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(&pool_info.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 3000 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 3000 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 3000 * DOLLARS);
 				assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 					&pool_info.basepool,
 					2
@@ -2345,7 +2342,7 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(&pool_info.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 0 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 0 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 0 * DOLLARS);
 			});
 		}
 
@@ -2364,7 +2361,7 @@ pub mod pallet {
 				));
 				let mut nft_attr = PhalaBasePool::get_nft_attr(&pool_info.basepool, 0).unwrap();
 				nft_attr.shares = 5000 * DOLLARS;
-				nft_attr.stakes = 5000 * DOLLARS;
+				nft_attr.set_stake(5000 * DOLLARS);
 				assert_ok!(PhalaBasePool::set_nft_attr(
 					&pool_info.basepool,
 					0,
@@ -2372,7 +2369,7 @@ pub mod pallet {
 				));
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool_info.basepool, 0).unwrap();
 				assert_eq!(nft_attr.shares, 5000 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 5000 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 5000 * DOLLARS);
 			});
 		}
 
@@ -2441,7 +2438,7 @@ pub mod pallet {
 				let pool = ensure_stake_pool::<Test>(0).unwrap();
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 80 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 80 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 80 * DOLLARS);
 				let mut nftid_arr: Vec<NftId> =
 					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 				nftid_arr.retain(|x| {
@@ -2451,7 +2448,7 @@ pub mod pallet {
 				assert_eq!(nftid_arr.len(), 1);
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 50 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 			});
 		}
 
@@ -2487,7 +2484,7 @@ pub mod pallet {
 				let pool = ensure_vault::<Test>(0).unwrap();
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 80 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 80 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 80 * DOLLARS);
 				let mut nftid_arr: Vec<NftId> =
 					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 				nftid_arr.retain(|x| {
@@ -2497,7 +2494,7 @@ pub mod pallet {
 				assert_eq!(nftid_arr.len(), 1);
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 50 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
 				assert_eq!(vault_info.basepool.total_stake, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
@@ -2558,7 +2555,7 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(&stakepool_info.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 50 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_stake, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 80 * DOLLARS);
@@ -2612,7 +2609,7 @@ pub mod pallet {
 				)
 				.unwrap();
 				assert_eq!(nft_attr.shares, 30 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 30 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 30 * DOLLARS);
 			});
 		}
 
@@ -2671,7 +2668,7 @@ pub mod pallet {
 				)
 				.unwrap();
 				assert_eq!(nft_attr.shares, 200 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 200 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 200 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
 				assert_eq!(vault_info.basepool.total_stake, 1300 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 1300 * DOLLARS);
@@ -2825,7 +2822,7 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(&pool.basepool, item.unwrap().nft_id).unwrap();
 				assert_eq!(nft_attr.shares, 300 * DOLLARS);
-				assert_eq!(nft_attr.stakes, 300 * DOLLARS);
+				assert_eq!(nft_attr.get_stake(), 300 * DOLLARS);
 				let mut nftid_arr: Vec<NftId> =
 					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 				nftid_arr.retain(|x| {

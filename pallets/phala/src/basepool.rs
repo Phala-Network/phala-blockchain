@@ -72,7 +72,26 @@ pub mod pallet {
 		/// Shares that the Nft contains
 		pub shares: Balance,
 		/// the stakes of Shares at the moment Nft created or transfered
-		pub stakes: Balance,
+		stakes: Balance,
+	}
+
+	impl<Balance> NftAttr<Balance> 
+	where
+		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+	{
+		pub fn remove_stake(&mut self, remove_shares: Balance, checked_shares: Balance) -> Balance {
+			let nft_price = self.stakes.to_fixed().checked_div(self.shares.to_fixed()).expect("shares will not be zero: qed.");
+			let (user_shares, shares_dust) = extract_dust(user_shares);
+			self.stakes = bmul(user_shares, &nft_price);
+			let (user_locked, user_dust) = extract_dust(self.stakes.clone());
+			user_dust
+		}
+		pub fn get_stake(&self) ->Balance {
+			self.stakes
+		}
+		pub fn set_stake(&mut self, amount: Balance) {
+			self.stakes = amount;
+		}
 	}
 
 	#[pallet::pallet]
@@ -137,6 +156,7 @@ pub mod pallet {
 
 	impl<AccountId, Balance> BasePool<AccountId, Balance>
 	where
+		AccountId: codec::FullCodec + PartialEq + Clone,
 		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
 		pub fn share_price(&self) -> Option<FixedPoint> {
@@ -199,8 +219,6 @@ pub mod pallet {
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: mining::Config<Currency = <T as Config>::Currency>,
-			T: frame_system::Config<AccountId = AccountId>,
-			AccountId: PartialEq + Clone,
 		{
 			self.total_stake += rewards;
 			if need_update_free_stake {
@@ -217,7 +235,17 @@ pub mod pallet {
 				.expect("merge nft shoule always success: qed.");
 				let mut nft = Pallet::<T>::get_nft_attr_inner(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
-				let vault_shares = nft.shares.to_fixed();
+				let mut vault_shares = nft.shares.to_fixed();
+				let withdraw_vec: VecDeque<_> = self
+					.withdraw_queue
+					.iter()
+					.filter(|x| x.user.encode() == vault.user_id.encode())
+					.collect();
+				for withdraw_info in &withdraw_vec {
+					let withdraw_nft = Pallet::<T>::get_nft_attr_inner(self.cid, withdraw_info.nft_id)
+					.expect("get nft attr should always success: qed.");
+					vault_shares += withdraw_nft.shares.to_fixed();
+				}
 				let price = self.share_price().expect("price will always exist");
 				nft.stakes = bmul(nft.shares, &price);
 				Pallet::<T>::set_nft_attr_inner(self.cid, nft_id, &nft);
@@ -227,6 +255,10 @@ pub mod pallet {
 				};
 				let settled_stake = bmul(stake_ratio, &rewards.to_fixed());
 				vault.basepool.distribute_reward::<T>(settled_stake, false);
+				PoolCollection::<T>::insert(
+					*vault_staker,
+					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault.clone()),
+				);
 			}
 		}
 	}
@@ -435,7 +467,6 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 			nft: &mut NftAttr<BalanceOf<T>>,
 		) -> Option<(BalanceOf<T>, BalanceOf<T>, BalanceOf<T>)> {
-			let nft_price = nft.stakes.to_fixed().checked_div(nft.shares.to_fixed()).expect("shares will not be zero: qed.");
 			let price = base_pool.share_price()?;
 			let amount = bmul(shares, &price);
 
@@ -443,8 +474,6 @@ pub mod pallet {
 
 			let user_shares = nft.shares.checked_sub(&shares)?;
 			let (user_shares, shares_dust) = extract_dust(user_shares);
-			let user_locked = bmul(user_shares, &nft_price);
-			let (user_locked, user_dust) = extract_dust(user_locked);
 
 			let removed_shares = shares + shares_dust;
 			let total_shares = base_pool.total_shares.checked_sub(&removed_shares)?;
@@ -458,8 +487,8 @@ pub mod pallet {
 				base_pool.total_stake = Zero::zero();
 			}
 			base_pool.total_shares = total_shares;
+			let user_dust = nft.remove_stake(shares, user_shares);
 			nft.shares = user_shares;
-			nft.stakes = user_locked;
 
 			Some((amount, user_dust, removed_shares))
 		}
