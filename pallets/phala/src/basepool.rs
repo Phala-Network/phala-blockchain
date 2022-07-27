@@ -30,7 +30,7 @@ pub mod pallet {
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, result::Result};
 
 	use sp_runtime::{
-		traits::{CheckedSub, TrailingZeroInput, Zero},
+		traits::{CheckedSub, TrailingZeroInput, Zero, Member},
 		SaturatedConversion,
 	};
 
@@ -154,7 +154,7 @@ pub mod pallet {
 
 	impl<AccountId, Balance> BasePool<AccountId, Balance>
 	where
-		AccountId: codec::FullCodec + PartialEq + Clone,
+		AccountId: codec::FullCodec + PartialEq + Clone + Encode + Decode + TypeInfo + Member,
 		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
 		pub fn share_price(&self) -> Option<FixedPoint> {
@@ -217,7 +217,7 @@ pub mod pallet {
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
-			T: mining::Config<Currency = <T as Config>::Currency>,
+			T: Config<AccountId = AccountId>,
 		{
 			self.total_value += rewards;
 			if need_update_free_stake {
@@ -238,7 +238,7 @@ pub mod pallet {
 				let withdraw_vec: VecDeque<_> = self
 					.withdraw_queue
 					.iter()
-					.filter(|x| x.user.encode() == vault.user_id.encode())
+					.filter(|x| x.user == vault.user_id)
 					.collect();
 				for withdraw_info in &withdraw_vec {
 					let withdraw_nft = Pallet::<T>::get_nft_attr_inner(self.cid, withdraw_info.nft_id)
@@ -273,7 +273,6 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T>
 	where
-		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{

@@ -7,7 +7,7 @@ use frame_support::traits::Currency;
 
 type BalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as basepool::Config>::Currency as Currency<
+type NegativeImbalanceOf<T> = <<T as mining::Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
@@ -470,7 +470,6 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
-		T: mining::Config<Currency = <T as basepool::Config>::Currency>,
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
@@ -1154,7 +1153,7 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let free = <T as basepool::Config>::Currency::free_balance(&who);
+			let free = <T as mining::Config>::Currency::free_balance(&who);
 			let locked = Self::ledger_query(&who);
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
@@ -1292,7 +1291,7 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let free = <T as basepool::Config>::Currency::free_balance(&who);
+			let free = <T as mining::Config>::Currency::free_balance(&who);
 			let locked = Self::ledger_query(&who);
 			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
@@ -1619,7 +1618,6 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T>
 	where
-		T: mining::Config<Currency = <T as basepool::Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
@@ -1926,9 +1924,9 @@ pub mod pallet {
 		/// Updates a user's locked balance. Doesn't check the amount is less than the free amount!
 		fn update_lock(who: &T::AccountId, amount: BalanceOf<T>) {
 			if amount == Zero::zero() {
-				<T as basepool::Config>::Currency::remove_lock(STAKING_ID, who);
+				<T as mining::Config>::Currency::remove_lock(STAKING_ID, who);
 			} else {
-				<T as basepool::Config>::Currency::set_lock(
+				<T as mining::Config>::Currency::set_lock(
 					STAKING_ID,
 					who,
 					amount,
@@ -1941,7 +1939,7 @@ pub mod pallet {
 		fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let (imbalance, _remaining) = <T as basepool::Config>::Currency::slash(who, dust);
+				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(who, dust);
 				let actual_removed = imbalance.peek();
 				T::OnSlashed::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::DustRemoved {
@@ -1982,7 +1980,7 @@ pub mod pallet {
 				// We don't slash on dust, because the share price is just unstable.
 				Some(slashed) if basepool::is_nondust_balance(slashed) => {
 					let (imbalance, _remaining) =
-						<T as basepool::Config>::Currency::slash(&userid, slashed);
+						<T as mining::Config>::Currency::slash(&userid, slashed);
 					let actual_slashed = imbalance.peek();
 					T::OnSlashed::on_unbalanced(imbalance);
 					// Dust is not considered because it's already merged into the slash if
@@ -2006,7 +2004,6 @@ pub mod pallet {
 
 	impl<T: Config> mining::OnReward for Pallet<T>
 	where
-		T: mining::Config<Currency = <T as basepool::Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
@@ -2041,7 +2038,6 @@ pub mod pallet {
 
 	impl<T: Config> mining::OnUnbound for Pallet<T>
 	where
-		T: mining::Config<Currency = <T as basepool::Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
@@ -2062,7 +2058,6 @@ pub mod pallet {
 
 	impl<T: Config> mining::OnStopped<BalanceOf<T>> for Pallet<T>
 	where
-		T: mining::Config<Currency = <T as basepool::Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
@@ -2071,7 +2066,6 @@ pub mod pallet {
 
 	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T>
 	where
-		T: mining::Config<Currency = <T as basepool::Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{

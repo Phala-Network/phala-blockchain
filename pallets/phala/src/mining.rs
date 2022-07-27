@@ -12,7 +12,7 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
+			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion, LockableCurrency,
 			UnixTime,
 		},
 		PalletId,
@@ -195,7 +195,7 @@ pub mod pallet {
 		type ExpectedBlockTimeSec: Get<u32>;
 		type MinInitP: Get<u32>;
 
-		type Currency: Currency<Self::AccountId>;
+		type Currency: LockableCurrency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
