@@ -77,7 +77,7 @@ impl Future for Rest {
     }
 }
 
-/// Take a rest if it it about to stifled
+/// Take a rest if it is about to be stifled
 ///
 /// If the remaining gas of current slot is less than 30%, the returned future will be `Pending` on
 /// first poll and become `Ready` again immediately.
