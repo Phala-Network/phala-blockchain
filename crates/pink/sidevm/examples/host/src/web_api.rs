@@ -4,6 +4,8 @@ use rocket::response::status::Custom;
 use rocket::{post, routes};
 use rocket::{Data, State};
 use scale::Decode;
+use sp_core::crypto::AccountId32;
+use std::str::FromStr;
 
 use pink_sidevm_host_runtime::service::{Command, CommandSender, SystemMessage};
 struct App {
@@ -80,13 +82,12 @@ async fn push_query_impl(
     let origin = match origin {
         None => None,
         Some(origin) => Some(
-            hex::decode(origin)
+            AccountId32::from_str(origin)
                 .or(Err(Custom(
                     Status::BadRequest,
                     "Failed to decode the origin",
                 )))?
-                .try_into()
-                .or(Err(Custom(Status::BadRequest, "Bad origin length")))?,
+                .into()
         ),
     };
 
