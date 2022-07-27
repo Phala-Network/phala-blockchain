@@ -81,8 +81,7 @@ pub mod pallet {
 	{
 		pub fn remove_stake(&mut self, remove_shares: Balance, checked_shares: Balance) -> Balance {
 			let nft_price = self.stakes.to_fixed().checked_div(self.shares.to_fixed()).expect("shares will not be zero: qed.");
-			let (user_shares, shares_dust) = extract_dust(user_shares);
-			self.stakes = bmul(user_shares, &nft_price);
+			self.stakes = bmul(checked_shares, &nft_price);
 			let (user_locked, user_dust) = extract_dust(self.stakes.clone());
 			user_dust
 		}
@@ -470,7 +469,7 @@ pub mod pallet {
 			let price = base_pool.share_price()?;
 			let amount = bmul(shares, &price);
 
-			let amount = amount.min(base_pool.free_stake).min(nft.stakes);
+			let amount = amount.min(base_pool.free_stake);
 
 			let user_shares = nft.shares.checked_sub(&shares)?;
 			let (user_shares, shares_dust) = extract_dust(user_shares);
