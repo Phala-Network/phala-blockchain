@@ -4,19 +4,9 @@ use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
 use sp_runtime::Permill;
 
-#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
-pub enum PoolType {
-	StakePool,
-	Vault,
-}
 
 pub struct InvestigationsLen;
 
-impl Get<u32> for InvestigationsLen {
-	fn get() -> u32 {
-		5000
-	}
-}
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
@@ -81,8 +71,8 @@ pub fn ensure_stake_pool<T: basepool::Config>(
 ) -> Result<StakePool<T::AccountId, basepool::BalanceOf<T>>, basepool::Error<T>> {
 	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
 		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
-	match &pool_proxy {
-		PoolProxy::StakePool(res) => Ok(res.clone()),
+	match pool_proxy {
+		PoolProxy::StakePool(res) => Ok(res),
 		_other => Err(basepool::Error::<T>::PoolTypeNotMatch),
 	}
 }
@@ -92,8 +82,8 @@ pub fn ensure_vault<T: basepool::Config>(
 ) -> Result<Vault<T::AccountId, basepool::BalanceOf<T>>, basepool::Error<T>> {
 	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
 		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
-	match &pool_proxy {
-		PoolProxy::Vault(res) => Ok(res.clone()),
+	match pool_proxy {
+		PoolProxy::Vault(res) => Ok(res),
 		_other => Err(basepool::Error::<T>::PoolTypeNotMatch),
 	}
 }

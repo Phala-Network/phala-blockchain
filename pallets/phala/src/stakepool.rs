@@ -167,11 +167,6 @@ pub mod pallet {
 	pub type PoolDescriptions<T: Config> =
 		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, super::DescMaxLen>>;
 
-	/// Mapping for the collection_id of the pool which is used to generate nftid
-	#[pallet::storage]
-	#[pallet::getter(fn pool_collections)]
-	pub type PoolCollections<T: Config> = StorageMap<_, Twox64Concat, u64, CollectionId>;
-
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -500,7 +495,7 @@ pub mod pallet {
 				None,
 				symbol,
 			)?;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(StakePool::<
 					T::AccountId,
@@ -510,10 +505,10 @@ pub mod pallet {
 						pid,
 						owner: owner.clone(),
 						total_shares: Zero::zero(),
-						total_stake: Zero::zero(),
+						total_value: Zero::zero(),
 						free_stake: Zero::zero(),
 						withdraw_queue: VecDeque::new(),
-						vault_stakers: VecDeque::new(),
+						value_subscribers: VecDeque::new(),
 						cid: collection_id,
 					},
 					payout_commission: None,
@@ -551,7 +546,7 @@ pub mod pallet {
 				symbol,
 			)?;
 			let user_id = vault_staker_account(pid, owner.clone());
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(
 					Vault::<T::AccountId, BalanceOf<T>> {
@@ -559,10 +554,10 @@ pub mod pallet {
 							pid,
 							owner: owner.clone(),
 							total_shares: Zero::zero(),
-							total_stake: Zero::zero(),
+							total_value: Zero::zero(),
 							free_stake: Zero::zero(),
 							withdraw_queue: VecDeque::new(),
-							vault_stakers: VecDeque::new(),
+							value_subscribers: VecDeque::new(),
 							cid: collection_id,
 						},
 						user_id: user_id.clone(),
@@ -640,7 +635,7 @@ pub mod pallet {
 
 			// update worker vector
 			workers.push(pubkey);
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info),
 			);
@@ -699,7 +694,7 @@ pub mod pallet {
 
 		/// Sets the hard cap of the pool
 		///
-		/// Note: a smaller cap than current total_stake if not allowed.
+		/// Note: a smaller cap than current total_value if not allowed.
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::weight(0)]
@@ -714,12 +709,12 @@ pub mod pallet {
 			);
 			// check cap
 			ensure!(
-				pool_info.basepool.total_stake <= cap,
+				pool_info.basepool.total_value <= cap,
 				Error::<T>::InadequateCapacity
 			);
 
 			pool_info.cap = Some(cap);
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info),
 			);
@@ -747,7 +742,7 @@ pub mod pallet {
 			);
 
 			pool_info.payout_commission = Some(payout_commission);
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info),
 			);
@@ -779,7 +774,7 @@ pub mod pallet {
 			);
 
 			pool_info.delta_price_ratio = Some(payout_commission);
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info),
 			);
@@ -916,7 +911,7 @@ pub mod pallet {
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			pool_info.owner_reward = Zero::zero();
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info),
 			);
@@ -961,7 +956,7 @@ pub mod pallet {
 			)?;
 			Self::withdraw_from_vault(origin, pool_info.basepool.pid, shares)?;
 			pool_info.owner_shares -= shares;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				vault_pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info),
 			);
@@ -989,7 +984,7 @@ pub mod pallet {
 			};
 			if pool_info.last_share_price_checkpoint == Zero::zero() {
 				pool_info.last_share_price_checkpoint = current_price;
-				basepool::pallet::PoolCollection::<T>::insert(
+				basepool::pallet::Pools::<T>::insert(
 					vault_pid,
 					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info),
 				);
@@ -1001,12 +996,12 @@ pub mod pallet {
 			let delta_price = pool_info.delta_price_ratio.unwrap_or_default()
 				* (current_price - pool_info.last_share_price_checkpoint);
 			let new_price = current_price - delta_price;
-			let adjust_shares = bdiv(pool_info.basepool.total_stake, &new_price.to_fixed()) - pool_info.basepool.total_shares;
+			let adjust_shares = bdiv(pool_info.basepool.total_value, &new_price.to_fixed()) - pool_info.basepool.total_shares;
 			pool_info.basepool.total_shares += adjust_shares;
 			pool_info.owner_shares += adjust_shares;
 			pool_info.last_share_price_checkpoint = current_price;
 
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				vault_pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info),
 			);
@@ -1039,7 +1034,7 @@ pub mod pallet {
 				// TODO(mingxuan): handle slash
 				releasing_stake += stakes;
 			}
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool.clone()),
 			);
@@ -1096,7 +1091,7 @@ pub mod pallet {
 					let releasing_stake = bmul(nft.shares.clone(), &price);
 				}
 			}
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				vault_pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault.clone()),
 			);
@@ -1180,7 +1175,7 @@ pub mod pallet {
 			Self::try_process_withdraw_queue(&mut pool_info.basepool);
 
 			// Persist
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info.clone()),
 			);
@@ -1245,18 +1240,18 @@ pub mod pallet {
 				vault_info.invest_pools.push(pid);
 			}
 			vault_info.basepool.free_stake -= a;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				vault_pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault_info.clone()),
 			);
 			// We have new free stake now, try to handle the waiting withdraw queue
 
 			Self::try_process_withdraw_queue(&mut pool_info.basepool);
-			if !pool_info.basepool.vault_stakers.contains(&vault_pid) {
-				pool_info.basepool.vault_stakers.push_back(vault_pid);
+			if !pool_info.basepool.value_subscribers.contains(&vault_pid) {
+				pool_info.basepool.value_subscribers.push_back(vault_pid);
 			}
 			// Persist
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1322,12 +1317,12 @@ pub mod pallet {
 			// Post-check to ensure the total stake doesn't exceed the cap
 			if let Some(cap) = pool_info.cap {
 				ensure!(
-					pool_info.basepool.total_stake <= cap,
+					pool_info.basepool.total_value <= cap,
 					Error::<T>::StakeExceedsCapacity
 				);
 			}
 			// Persist
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1407,7 +1402,7 @@ pub mod pallet {
 				&pool_info.basepool,
 				who.clone(),
 			)?;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1473,7 +1468,7 @@ pub mod pallet {
 				&pool_info.basepool,
 				who.clone(),
 			)?;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info.clone()),
 			);
@@ -1535,7 +1530,7 @@ pub mod pallet {
 				&pool_info.basepool,
 				who.clone(),
 			)?;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1653,7 +1648,7 @@ pub mod pallet {
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
 			pool_info.basepool.free_stake -= stake;
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1685,7 +1680,7 @@ pub mod pallet {
 			// Mining::stop_mining will notify us how much it will release by `on_stopped`
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 			pool_info.cd_workers.push(worker.clone());
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1703,7 +1698,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			pool_info.remove_cd_worker(&worker);
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1759,7 +1754,7 @@ pub mod pallet {
 
 			let returned = orig_stake - slashed;
 			if slashed != Zero::zero() {
-				// Remove some slashed value from `total_stake`, causing the share price to reduce
+				// Remove some slashed value from `total_value`, causing the share price to reduce
 				// and creating a logical pending slash. The actual slash happens with the pending
 				// slash to individuals is settled.
 				pool_info.basepool.slash(slashed);
@@ -1773,7 +1768,7 @@ pub mod pallet {
 			pool_info.basepool.free_stake.saturating_accrue(returned);
 
 			Self::try_process_withdraw_queue(&mut pool_info.basepool);
-			basepool::pallet::PoolCollection::<T>::insert(
+			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 			);
@@ -1826,7 +1821,7 @@ pub mod pallet {
 			}
 			Self::remove_dust(&userid, nft.get_stake());
 			pool_info.total_shares -= nft.shares;
-			pool_info.total_stake -= nft.get_stake();
+			pool_info.total_value -= nft.get_stake();
 			true
 		}
 
@@ -1849,7 +1844,7 @@ pub mod pallet {
 					ensure_vault::<T>(pid).expect("get vault should success: qed.");
 				vault_info.basepool.free_stake += reduced;
 
-				basepool::pallet::PoolCollection::<T>::insert(
+				basepool::pallet::Pools::<T>::insert(
 					pid,
 					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault_info.clone()),
 				);
@@ -1961,7 +1956,7 @@ pub mod pallet {
 		/// It assumes the worker is already in a pool.
 		fn remove_worker_from_pool(worker: &WorkerPublicKey) {
 			let pid = WorkerAssignments::<T>::take(worker).expect("Worker must be in a pool; qed.");
-			basepool::pallet::PoolCollection::<T>::mutate(pid, |value| {
+			basepool::pallet::Pools::<T>::mutate(pid, |value| {
 				if let Some(PoolProxy::StakePool(pool)) = value {
 					pool.remove_worker(worker);
 					Self::deposit_event(Event::<T>::PoolWorkerRemoved {
@@ -2036,7 +2031,7 @@ pub mod pallet {
 				let mut pool_info =
 					ensure_stake_pool::<T>(pid).expect("Stake pool must exist; qed.");
 				Self::handle_pool_new_reward(&mut pool_info, reward);
-				basepool::pallet::PoolCollection::<T>::insert(
+				basepool::pallet::Pools::<T>::insert(
 					pid,
 					PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
 				);
@@ -2191,7 +2186,7 @@ pub mod pallet {
 					]
 				);
 				assert_eq!(
-					basepool::PoolCollection::<Test>::get(0),
+					basepool::Pools::<Test>::get(0),
 					Some(PoolProxy::<u64, Balance>::StakePool(StakePool::<
 						u64,
 						Balance,
@@ -2200,10 +2195,10 @@ pub mod pallet {
 							pid: 0,
 							owner: 1,
 							total_shares: 0,
-							total_stake: 0,
+							total_value: 0,
 							free_stake: 0,
 							withdraw_queue: VecDeque::new(),
-							vault_stakers: VecDeque::new(),
+							value_subscribers: VecDeque::new(),
 							cid: 0,
 						},
 						payout_commission: None,
@@ -2251,16 +2246,16 @@ pub mod pallet {
 					]
 				);
 				assert_eq!(
-					basepool::PoolCollection::<Test>::get(0),
+					basepool::Pools::<Test>::get(0),
 					Some(PoolProxy::<u64, Balance>::Vault(Vault::<u64, Balance> {
 						basepool: basepool::BasePool {
 							pid: 0,
 							owner: 1,
 							total_shares: 0,
-							total_stake: 0,
+							total_value: 0,
 							free_stake: 0,
 							withdraw_queue: VecDeque::new(),
-							vault_stakers: VecDeque::new(),
+							value_subscribers: VecDeque::new(),
 							cid: 0,
 						},
 						user_id: 3899606504431772022,
@@ -2496,7 +2491,7 @@ pub mod pallet {
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
 				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(vault_info.basepool.total_stake, 130 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 130 * DOLLARS);
 			});
@@ -2526,7 +2521,7 @@ pub mod pallet {
 				));
 
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(vault_info.basepool.total_stake, 130 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 130 * DOLLARS);
 
@@ -2556,10 +2551,10 @@ pub mod pallet {
 					PhalaBasePool::get_nft_attr(&stakepool_info.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
 				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
-				assert_eq!(vault_info.basepool.total_stake, 130 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 80 * DOLLARS);
-				assert_eq!(stakepool_info.basepool.total_stake, 50 * DOLLARS);
+				assert_eq!(stakepool_info.basepool.total_value, 50 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.total_shares, 50 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.free_stake, 50 * DOLLARS);
 			});
@@ -2599,7 +2594,7 @@ pub mod pallet {
 					80 * DOLLARS
 				));
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(vault_info.basepool.total_stake, 80 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 80 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 80 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 0 * DOLLARS);
 				assert_eq!(vault_info.basepool.withdraw_queue.len(), 1);
@@ -2642,7 +2637,7 @@ pub mod pallet {
 					800 * DOLLARS
 				));
 				let stakepool_info = ensure_stake_pool::<Test>(1).unwrap();
-				assert_eq!(stakepool_info.basepool.total_stake, 800 * DOLLARS);
+				assert_eq!(stakepool_info.basepool.total_value, 800 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.total_shares, 800 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.free_stake, 800 * DOLLARS);
 				assert_ok!(PhalaStakePool::start_mining(
@@ -2658,7 +2653,7 @@ pub mod pallet {
 					600 * DOLLARS
 				));
 				let stakepool_info = ensure_stake_pool::<Test>(1).unwrap();
-				assert_eq!(stakepool_info.basepool.total_stake, 400 * DOLLARS);
+				assert_eq!(stakepool_info.basepool.total_value, 400 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.total_shares, 400 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.free_stake, 0 * DOLLARS);
 				assert_eq!(stakepool_info.basepool.withdraw_queue.len(), 1);
@@ -2670,7 +2665,7 @@ pub mod pallet {
 				assert_eq!(nft_attr.shares, 200 * DOLLARS);
 				assert_eq!(nft_attr.get_stake(), 200 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(vault_info.basepool.total_stake, 1300 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 1300 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 1300 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 900 * DOLLARS);
 			});
@@ -2715,9 +2710,9 @@ pub mod pallet {
 				}]);
 				let mut pool = ensure_stake_pool::<Test>(1).unwrap();
 				assert_eq!(pool.basepool.free_stake, 1500 * DOLLARS);
-				assert_eq!(pool.basepool.total_stake, 2000 * DOLLARS);
+				assert_eq!(pool.basepool.total_value, 2000 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(vault_info.basepool.total_stake, 1500 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 1500 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 500 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 1000 * DOLLARS);
 			});
@@ -2772,9 +2767,9 @@ pub mod pallet {
 				}]);
 				let mut pool = ensure_stake_pool::<Test>(1).unwrap();
 				assert_eq!(pool.basepool.free_stake, 1500 * DOLLARS);
-				assert_eq!(pool.basepool.total_stake, 2000 * DOLLARS);
+				assert_eq!(pool.basepool.total_value, 2000 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(vault_info.basepool.total_stake, 1500 * DOLLARS);
+				assert_eq!(vault_info.basepool.total_value, 1500 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 500 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 1000 * DOLLARS);
 				assert_ok!(PhalaStakePool::maybe_gain_owner_shares(Origin::signed(3), 0));
@@ -2848,7 +2843,7 @@ pub mod pallet {
 				assert_eq!(nftid_arr.len(), 1);
 				let nft_attr = PhalaBasePool::get_nft_attr(&pool.basepool, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 1000 * DOLLARS);
-				assert_eq!(pool.basepool.total_stake, 1200 * DOLLARS);
+				assert_eq!(pool.basepool.total_value, 1200 * DOLLARS);
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(3),
 					0,
@@ -3260,7 +3255,7 @@ pub mod pallet {
 				let mut pool = ensure_stake_pool::<Test>(0).unwrap();
 				assert_eq!(pool.owner_reward, 1000 * DOLLARS);
 				assert_eq!(pool.basepool.free_stake, 2000 * DOLLARS);
-				assert_eq!(pool.basepool.total_stake, 3000 * DOLLARS);
+				assert_eq!(pool.basepool.total_value, 3000 * DOLLARS);
 			});
 		}
 
@@ -3377,11 +3372,11 @@ pub mod pallet {
 				));
 				// Check total stake
 				assert_eq!(
-					ensure_stake_pool::<Test>(0).unwrap().basepool.total_stake,
+					ensure_stake_pool::<Test>(0).unwrap().basepool.total_value,
 					11 * DOLLARS
 				);
 				assert_eq!(
-					ensure_stake_pool::<Test>(1).unwrap().basepool.total_stake,
+					ensure_stake_pool::<Test>(1).unwrap().basepool.total_value,
 					1100 * DOLLARS
 				);
 				// Check total locks
@@ -3612,7 +3607,7 @@ pub mod pallet {
 				));
 				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 400 * DOLLARS);
 				assert_eq!(
-					ensure_stake_pool::<Test>(0).unwrap().basepool.total_stake,
+					ensure_stake_pool::<Test>(0).unwrap().basepool.total_value,
 					100 * DOLLARS
 				);
 
@@ -3622,7 +3617,7 @@ pub mod pallet {
 					200 * DOLLARS
 				));
 				assert_eq!(
-					ensure_stake_pool::<Test>(0).unwrap().basepool.total_stake,
+					ensure_stake_pool::<Test>(0).unwrap().basepool.total_value,
 					300 * DOLLARS
 				);
 				// Shouldn't exceed the pool cap

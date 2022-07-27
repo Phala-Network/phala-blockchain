@@ -231,7 +231,6 @@ impl Encode for Test {
 	fn size_hint(&self) -> usize {
 		0
 	}
-	fn encode_to<T: codec::Output + ?Sized>(&self, dest: &mut T) {}
 }
 
 pub struct MockValidator;
