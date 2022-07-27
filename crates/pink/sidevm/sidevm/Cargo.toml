@@ -4,7 +4,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 edition = "2021"
 name = "pink-sidevm"
-version = "0.1.8"
+version = "0.1.9"
 
 [dependencies]
 pink-sidevm-env = { version = "0.1.6", path = "../env" }

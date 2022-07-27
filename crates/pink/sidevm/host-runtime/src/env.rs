@@ -109,6 +109,10 @@ impl TaskSet {
             None => None,
         }
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.awake_tasks.is_empty() && self.awake_wakers.lock().unwrap().is_empty()
+    }
 }
 
 pub trait CacheOps {
@@ -126,6 +130,7 @@ struct State {
     gas: u128,
     // Gas remain to next async yield point
     gas_to_breath: u128,
+    init_gas_to_breath: u128,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
@@ -164,6 +169,7 @@ impl Env {
                     id,
                     gas: 0,
                     gas_to_breath: 0,
+                    init_gas_to_breath: 0,
                     resources: Default::default(),
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
@@ -234,7 +240,13 @@ impl Env {
     }
 
     pub fn set_gas_to_breath(&self, gas: u128) {
-        self.inner.lock().unwrap().state.gas_to_breath = gas;
+        let mut guard = self.inner.lock().unwrap();
+        guard.state.gas_to_breath = gas;
+        guard.state.init_gas_to_breath = gas;
+    }
+
+    pub fn has_more_ready(&self) -> bool {
+        !self.inner.lock().unwrap().state.awake_tasks.is_empty()
     }
 }
 
@@ -482,6 +494,15 @@ impl env::OcallFuncs for State {
             SystemMessage => create_channel!(self.sys_message_tx),
             Query => create_channel!(self.query_tx),
         }
+    }
+
+    fn gas_remaining(&mut self) -> Result<u8> {
+        pay(self, 100_000_000)?;
+        Ok(if self.init_gas_to_breath == 0 {
+            100
+        } else {
+            (self.gas_to_breath * 100 / self.init_gas_to_breath) as u8
+        })
     }
 }
 
