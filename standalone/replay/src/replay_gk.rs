@@ -13,8 +13,8 @@ use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phactory_api::blocks::BlockHeaderWithChanges;
-use phala_mq::{MessageDispatcher, Sr25519Signer};
 use phala_mq::Path as MqPath;
+use phala_mq::{MessageDispatcher, Sr25519Signer};
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
@@ -31,7 +31,7 @@ struct EventRecord {
     pubkey: WorkerPublicKey,
     block_number: BlockNumber,
     time_ms: u64,
-    event: gk::FinanceEvent,
+    event: gk::EconomicEvent,
     v: gk::FixedPoint,
     p: gk::FixedPoint,
 }
@@ -96,12 +96,6 @@ impl ReplayFactory {
             .mq_messages()
             .map_err(|_| "Can not get mq messages from storage")?;
 
-        self.recv_mq.reset_local_index();
-
-        for message in messages {
-            self.recv_mq.dispatch(message);
-        }
-
         let now_ms = self
             .storage
             .timestamp_now()
@@ -116,26 +110,30 @@ impl ReplayFactory {
             side_task_man: &mut SideTaskManager::default(),
         };
 
+        block.recv_mq.reset_local_index();
+
         let next_seq = &mut self.next_event_seq;
-
         let mut records = vec![];
+        let mut event_handler = |event: gk::EconomicEvent, state: &gk::WorkerInfo| {
+            let record = EventRecord {
+                sequence: *next_seq as _,
+                pubkey: state.pubkey().clone(),
+                block_number,
+                time_ms: now_ms,
+                event,
+                v: state.tokenomic_info().v,
+                p: state.tokenomic_info().p_instant,
+            };
+            records.push(record);
+            *next_seq += 1;
+        };
 
-        self.gk.process_messages_with_event_listener(
-            &mut block,
-            &mut |event: gk::FinanceEvent, state: &gk::WorkerInfo| {
-                let record = EventRecord {
-                    sequence: *next_seq as _,
-                    pubkey: state.pubkey().clone(),
-                    block_number,
-                    time_ms: now_ms,
-                    event,
-                    v: state.tokenomic_info().v,
-                    p: state.tokenomic_info().p_instant,
-                };
-                records.push(record);
-                *next_seq += 1;
-            },
-        );
+        self.gk.will_process_block(&block);
+        for message in messages {
+            block.recv_mq.dispatch(message);
+            self.gk.process_messages(&mut block, &mut event_handler);
+        }
+        self.gk.did_process_block(&block, &mut event_handler);
 
         if let Some(tx) = event_tx.as_ref() {
             for record in records {

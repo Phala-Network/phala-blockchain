@@ -344,7 +344,7 @@ pub mod messaging {
     }
 
     bind_topic!(MiningInfoUpdateEvent<BlockNumber>, b"^phala/mining/update");
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo, Default)]
     pub struct MiningInfoUpdateEvent<BlockNumber> {
         /// The block emiting this message.
         pub block_number: BlockNumber,

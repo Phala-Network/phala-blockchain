@@ -368,15 +368,19 @@ where
             ));
     }
 
-    pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+    pub fn will_process_block(&mut self, block: &BlockInfo<'_>) {
         if !self.master_pubkey_on_chain {
             info!(
                 "Gatekeeper: not handle the messages because Gatekeeper has not launched on chain"
             );
+        }
+        self.mining_economics.will_process_block(block);
+    }
+
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+        if !self.master_pubkey_on_chain {
             return;
         }
-
-        debug!("Gatekeeper: processing block {}", block.block_number);
         loop {
             let ok = phala_mq::select_ignore_errors! {
                 (event, origin) = self.gatekeeper_events => {
@@ -397,9 +401,14 @@ where
             }
         }
 
-        self.mining_economics.process_messages(block);
+        self.mining_economics.process_messages(block, &mut ());
+    }
 
-        debug!("Gatekeeper: processed block {}", block.block_number);
+    pub fn did_process_block(&mut self, block: &BlockInfo<'_>) {
+        if self.master_pubkey_on_chain {
+            self.mining_economics.did_process_block(block, &mut ());
+        }
+        self.emit_random_number(block.block_number);
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
@@ -559,7 +568,7 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FinanceEvent {
+pub enum EconomicEvent {
     MiningStart,
     MiningStop,
     HeartbeatChallenge,
@@ -569,16 +578,16 @@ pub enum FinanceEvent {
     RecoverV,
 }
 
-impl FinanceEvent {
+impl EconomicEvent {
     pub fn event_string(&self) -> &'static str {
         match self {
-            FinanceEvent::MiningStart => "mining_start",
-            FinanceEvent::MiningStop => "mining_stop",
-            FinanceEvent::HeartbeatChallenge => "heartbeat_challenge",
-            FinanceEvent::Heartbeat { .. } => "heartbeat",
-            FinanceEvent::EnterUnresponsive => "enter_unresponsive",
-            FinanceEvent::ExitUnresponsive => "exit_unresponsive",
-            FinanceEvent::RecoverV => "recover_v",
+            EconomicEvent::MiningStart => "mining_start",
+            EconomicEvent::MiningStop => "mining_stop",
+            EconomicEvent::HeartbeatChallenge => "heartbeat_challenge",
+            EconomicEvent::Heartbeat { .. } => "heartbeat",
+            EconomicEvent::EnterUnresponsive => "enter_unresponsive",
+            EconomicEvent::ExitUnresponsive => "exit_unresponsive",
+            EconomicEvent::RecoverV => "recover_v",
         }
     }
 
@@ -591,16 +600,16 @@ impl FinanceEvent {
     }
 }
 
-pub trait FinanceEventListener {
-    fn on_finance_event(&mut self, event: FinanceEvent, state: &WorkerInfo);
+pub trait EconomicEventListener {
+    fn emit_event(&mut self, event: EconomicEvent, state: &WorkerInfo);
 }
 
-impl FinanceEventListener for () {
-    fn on_finance_event(&mut self, _event: FinanceEvent, _state: &WorkerInfo) {}
+impl EconomicEventListener for () {
+    fn emit_event(&mut self, _event: EconomicEvent, _state: &WorkerInfo) {}
 }
 
-impl<F: FnMut(FinanceEvent, &WorkerInfo)> FinanceEventListener for F {
-    fn on_finance_event(&mut self, event: FinanceEvent, state: &WorkerInfo) {
+impl<F: FnMut(EconomicEvent, &WorkerInfo)> EconomicEventListener for F {
+    fn emit_event(&mut self, event: EconomicEvent, state: &WorkerInfo) {
         (self)(event, state);
     }
 }
@@ -622,6 +631,14 @@ pub struct MiningEconomics<MsgChan> {
     /// Indicates if the payout duration problem in unresponsive state if fixed
     #[serde(default)]
     unresp_fix: bool,
+    #[serde(skip, default)]
+    eco_cache: EconomicCalcCache,
+}
+
+#[derive(Default)]
+struct EconomicCalcCache {
+    sum_share: FixedPoint,
+    report: MiningInfoUpdateEvent<chain::BlockNumber>,
 }
 
 #[test]
@@ -699,6 +716,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             tokenomic_params: tokenomic::test_params(),
             phala_launched: false,
             unresp_fix: false,
+            eco_cache: Default::default(),
         }
     }
 
@@ -713,117 +731,27 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
         self.workers.get(pubkey).map(Into::into)
     }
 
-    pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
-        self.process_messages_with_event_listener(block, &mut ());
-    }
-
-    pub fn process_messages_with_event_listener(
-        &mut self,
-        block: &BlockInfo<'_>,
-        event_listener: &mut impl FinanceEventListener,
-    ) {
+    pub fn will_process_block(&mut self, block: &BlockInfo<'_>) {
         let sum_share = self.sum_share();
-
-        let mut processor = MiningMessageProcessor {
-            state: self,
-            block,
-            report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
-            event_listener,
-            sum_share,
-        };
-
-        processor.process();
-
-        let report = processor.report;
-
-        if !report.is_empty() {
-            debug!(target: "mining", "Report: {:?}", report);
-            self.egress.push_message(&report);
-        }
-    }
-
-    pub fn sum_share(&self) -> FixedPoint {
-        self.workers
-            .values()
-            .filter(|info| {
-                if self.phala_launched {
-                    !info.unresponsive && info.state.mining_state.is_some()
-                } else {
-                    !info.unresponsive
-                }
-            })
-            .map(|info| info.tokenomic.share())
-            .sum()
-    }
-}
-
-struct MiningMessageProcessor<'a, MsgChan> {
-    state: &'a mut MiningEconomics<MsgChan>,
-    block: &'a BlockInfo<'a>,
-    report: MiningInfoUpdateEvent<chain::BlockNumber>,
-    event_listener: &'a mut dyn FinanceEventListener,
-    sum_share: FixedPoint,
-}
-
-impl<MsgChan> MiningMessageProcessor<'_, MsgChan>
-where
-    MsgChan: MessageChannel<Signer = Sr25519Signer>,
-{
-    fn process(&mut self) {
-        self.prepare();
-        loop {
-            let ok = phala_mq::select! {
-                message = self.state.mining_events => match message {
-                    Ok((_, event, origin)) => {
-                        trace!(target: "mining", "Processing mining report: {:?}, origin: {}",  event, origin);
-                        self.process_mining_report(origin, event);
-                    }
-                    Err(e) => {
-                        error!(target: "mining", "Read message failed: {:?}", e);
-                    }
-                },
-                message = self.state.system_events => match message {
-                    Ok((_, event, origin)) => {
-                        trace!(target: "mining", "Processing system event: {:?}, origin: {}",  event, origin);
-                        self.process_system_event(origin, event);
-                    }
-                    Err(e) => {
-                        error!(target: "mining", "Read message failed: {:?}", e);
-                    }
-                },
-                message = self.state.gatekeeper_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_gatekeeper_event(origin, event);
-                    }
-                    Err(e) => {
-                        error!(target: "mining", "Read message failed: {:?}", e);
-                    }
-                },
-            };
-            if ok.is_none() {
-                // All messages processed
-                break;
-            }
-        }
-        self.block_post_process();
-    }
-
-    fn prepare(&mut self) {
-        for worker in self.state.workers.values_mut() {
+        let report = MiningInfoUpdateEvent::new(block.block_number, block.now_ms);
+        self.eco_cache = EconomicCalcCache { sum_share, report };
+        for worker in self.workers.values_mut() {
             worker.heartbeat_flag = false;
         }
     }
 
-    fn block_post_process(&mut self) {
-        for worker_info in self.state.workers.values_mut() {
+    pub fn did_process_block(
+        &mut self,
+        block: &BlockInfo<'_>,
+        event_listener: &mut impl EconomicEventListener,
+    ) {
+        for worker_info in self.workers.values_mut() {
             trace!(target: "mining",
                 "[{}] block_post_process",
                 hex::encode(&worker_info.state.pubkey)
             );
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
-            worker_info
-                .state
-                .on_block_processed(self.block, &mut tracker);
+            worker_info.state.on_block_processed(block, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
                 trace!(
@@ -842,46 +770,41 @@ where
                         hex::encode(&worker_info.state.pubkey)
                     );
                     worker_info.unresponsive = false;
-                    self.report
+                    self.eco_cache
+                        .report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
                     #[cfg(feature = "gk-stat")]
                     {
                         worker_info.stat.last_gk_responsive_event =
                             pb::ResponsiveEvent::ExitUnresponsive as _;
-                        worker_info.stat.last_gk_responsive_event_at_block =
-                            self.block.block_number;
+                        worker_info.stat.last_gk_responsive_event_at_block = block.block_number;
                     }
-                    self.event_listener
-                        .on_finance_event(FinanceEvent::ExitUnresponsive, worker_info);
+                    event_listener.emit_event(EconomicEvent::ExitUnresponsive, worker_info);
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                if self.block.block_number - hb_sent_at
-                    > self.state.tokenomic_params.heartbeat_window
-                {
+                if block.block_number - hb_sent_at > self.tokenomic_params.heartbeat_window {
                     trace!(
                         target: "mining",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
                         hex::encode(&worker_info.state.pubkey),
-                        self.block.block_number,
+                        block.block_number,
                         hb_sent_at
                     );
-                    self.report.offline.push(worker_info.state.pubkey);
+                    self.eco_cache.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
 
                     #[cfg(feature = "gk-stat")]
                     {
                         worker_info.stat.last_gk_responsive_event =
                             pb::ResponsiveEvent::EnterUnresponsive as _;
-                        worker_info.stat.last_gk_responsive_event_at_block =
-                            self.block.block_number;
+                        worker_info.stat.last_gk_responsive_event_at_block = block.block_number;
                     }
-                    self.event_listener
-                        .on_finance_event(FinanceEvent::EnterUnresponsive, worker_info);
+                    event_listener.emit_event(EconomicEvent::EnterUnresponsive, worker_info);
                 }
             }
 
-            let params = &self.state.tokenomic_params;
+            let params = &self.tokenomic_params;
             if worker_info.unresponsive {
                 trace!(
                     target: "mining",
@@ -890,7 +813,7 @@ where
                 );
                 worker_info
                     .tokenomic
-                    .update_v_slash(params, self.block.block_number);
+                    .update_v_slash(params, block.block_number);
             } else if !worker_info.heartbeat_flag {
                 trace!(
                     target: "mining",
@@ -900,9 +823,70 @@ where
                 worker_info.tokenomic.update_v_idle(params);
             }
         }
+
+        let report = &self.eco_cache.report;
+
+        if !report.is_empty() {
+            debug!(target: "mining", "Report: {:?}", report);
+            self.egress.push_message(report);
+        }
     }
 
-    fn process_mining_report(&mut self, origin: MessageOrigin, event: MiningReportEvent) {
+    pub fn process_messages(
+        &mut self,
+        block: &BlockInfo<'_>,
+        event_listener: &mut impl EconomicEventListener,
+    ) {
+        loop {
+            let ok = phala_mq::select! {
+                message = self.mining_events => match message {
+                    Ok((_, event, origin)) => {
+                        trace!(target: "mining", "Processing mining report: {:?}, origin: {}",  event, origin);
+                        self.process_mining_report(origin, event, block, event_listener);
+                    }
+                    Err(e) => {
+                        error!(target: "mining", "Read message failed: {:?}", e);
+                    }
+                },
+                message = self.system_events => match message {
+                    Ok((_, event, origin)) => {
+                        trace!(target: "mining", "Processing system event: {:?}, origin: {}",  event, origin);
+                        self.process_system_event(origin, event, block, event_listener);
+                    }
+                    Err(e) => {
+                        error!(target: "mining", "Read message failed: {:?}", e);
+                    }
+                },
+                message = self.gatekeeper_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_gatekeeper_event(origin, event, block, event_listener);
+                    }
+                    Err(e) => {
+                        error!(target: "mining", "Read message failed: {:?}", e);
+                    }
+                },
+            };
+            if ok.is_none() {
+                // All messages processed
+                break;
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub fn test_process_messages(&mut self, block: &BlockInfo<'_>) {
+        self.will_process_block(block);
+        self.process_messages(block, &mut ());
+        self.did_process_block(block, &mut ());
+    }
+
+    fn process_mining_report(
+        &mut self,
+        origin: MessageOrigin,
+        event: MiningReportEvent,
+        block: &BlockInfo<'_>,
+        event_listener: &mut impl EconomicEventListener,
+    ) {
         let worker_pubkey = if let MessageOrigin::Worker(pubkey) = origin {
             pubkey
         } else {
@@ -930,7 +914,7 @@ where
                         false
                     };
 
-                let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
+                let worker_info = match self.workers.get_mut(&worker_pubkey) {
                     Some(info) => info,
                     None => {
                         error!(
@@ -945,7 +929,7 @@ where
 
                 #[cfg(feature = "gk-stat")]
                 {
-                    worker_info.stat.last_heartbeat_at_block = self.block.block_number;
+                    worker_info.stat.last_heartbeat_at_block = block.block_number;
                     worker_info.stat.last_heartbeat_for_block = challenge_block;
                 }
 
@@ -983,7 +967,7 @@ where
                 worker_info.heartbeat_flag = true;
 
                 let tokenomic = &mut worker_info.tokenomic;
-                tokenomic.update_p_instant(self.block.now_ms, iterations, contract_running);
+                tokenomic.update_p_instant(block.now_ms, iterations, contract_running);
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
@@ -993,10 +977,10 @@ where
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
-                    if self.state.unresp_fix {
+                    if self.unresp_fix {
                         worker_info
                             .tokenomic
-                            .update_v_recover(self.block.now_ms, self.block.block_number);
+                            .update_v_recover(block.now_ms, block.block_number);
                     }
                     fp!(0)
                 } else {
@@ -1006,15 +990,15 @@ where
                         hex::encode(&worker_info.state.pubkey)
                     );
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
-                        &self.state.tokenomic_params,
-                        self.sum_share,
-                        self.block.now_ms,
-                        self.block.block_number,
-                        self.state.phala_launched,
+                        &self.tokenomic_params,
+                        self.eco_cache.sum_share,
+                        block.now_ms,
+                        block.block_number,
+                        self.phala_launched,
                     );
 
                     // NOTE: keep the reporting order (vs the one while mining stop).
-                    self.report.settle.push(SettleInfo {
+                    self.eco_cache.report.settle.push(SettleInfo {
                         pubkey: worker_pubkey,
                         v: worker_info.tokenomic.v.to_bits(),
                         payout: payout.to_bits(),
@@ -1022,13 +1006,18 @@ where
                     });
                     payout
                 };
-                self.event_listener
-                    .on_finance_event(FinanceEvent::Heartbeat { payout }, worker_info);
+                event_listener.emit_event(EconomicEvent::Heartbeat { payout }, worker_info);
             }
         }
     }
 
-    fn process_system_event(&mut self, origin: MessageOrigin, event: SystemEvent) {
+    fn process_system_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: SystemEvent,
+        block: &BlockInfo<'_>,
+        event_listener: &mut impl EconomicEventListener,
+    ) {
         if !origin.is_pallet() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return;
@@ -1041,7 +1030,6 @@ where
         }) = &event
         {
             let _ = self
-                .state
                 .workers
                 .entry(*pubkey)
                 .or_insert_with(|| WorkerInfo::new(*pubkey));
@@ -1049,21 +1037,20 @@ where
 
         let log_on = log::log_enabled!(log::Level::Debug);
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
-        for worker_info in self.state.workers.values_mut() {
+        for worker_info in self.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info
                 .state
-                .process_event(self.block, &event, &mut tracker, log_on);
+                .process_event(block, &event, &mut tracker, log_on);
             if tracker.challenge_received {
-                self.event_listener
-                    .on_finance_event(FinanceEvent::HeartbeatChallenge, worker_info);
+                event_listener.emit_event(EconomicEvent::HeartbeatChallenge, worker_info);
             }
         }
 
         match &event {
             SystemEvent::WorkerEvent(e) => {
-                if let Some(worker) = self.state.workers.get_mut(&e.pubkey) {
+                if let Some(worker) = self.workers.get_mut(&e.pubkey) {
                     match &e.event {
                         WorkerEvent::Registered(info) => {
                             worker.tokenomic.confidence_level = info.confidence_level;
@@ -1084,10 +1071,10 @@ where
                                 v,
                                 v_init: v,
                                 v_deductible: fp!(0),
-                                v_update_at: self.block.now_ms,
-                                v_update_block: self.block.block_number,
+                                v_update_at: block.now_ms,
+                                v_update_block: block.block_number,
                                 iteration_last: 0,
-                                challenge_time_last: self.block.now_ms,
+                                challenge_time_last: block.now_ms,
                                 p_bench: FixedPoint::from_num(*init_p),
                                 p_instant: FixedPoint::from_num(*init_p),
                                 confidence_level: prev.confidence_level,
@@ -1096,8 +1083,7 @@ where
                                 #[cfg(feature = "gk-stat")]
                                 stat: Default::default(),
                             };
-                            self.event_listener
-                                .on_finance_event(FinanceEvent::MiningStart, worker);
+                            event_listener.emit_event(EconomicEvent::MiningStart, worker);
                         }
                         WorkerEvent::MiningStop => {
                             // TODO.kevin: report the final V?
@@ -1111,14 +1097,13 @@ where
 
                             // Just report the final V ATM.
                             // NOTE: keep the reporting order (vs the one while heartbeat).
-                            self.report.settle.push(SettleInfo {
+                            self.eco_cache.report.settle.push(SettleInfo {
                                 pubkey: worker.state.pubkey,
                                 v: worker.tokenomic.v.to_bits(),
                                 payout: 0,
                                 treasury: 0,
                             });
-                            self.event_listener
-                                .on_finance_event(FinanceEvent::MiningStop, worker);
+                            event_listener.emit_event(EconomicEvent::MiningStop, worker);
                         }
                         WorkerEvent::MiningEnterUnresponsive => {}
                         WorkerEvent::MiningExitUnresponsive => {}
@@ -1129,18 +1114,24 @@ where
         }
     }
 
-    fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+    fn process_gatekeeper_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: GatekeeperEvent,
+        _block: &BlockInfo<'_>,
+        event_listener: &mut impl EconomicEventListener,
+    ) {
         match event {
             GatekeeperEvent::NewRandomNumber(_random_number_event) => {
                 // Handled by Gatekeeper.
             }
             GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
-                    self.state.tokenomic_params = params.into();
+                    self.tokenomic_params = params.into();
                     info!(
                         target: "mining",
                         "Tokenomic parameter updated: {:#?}",
-                        &self.state.tokenomic_params
+                        &self.tokenomic_params
                     );
                 }
             }
@@ -1155,11 +1146,10 @@ where
                     // https://github.com/Phala-Network/phala-blockchain/issues/495
                     // https://forum.phala.network/t/topic/2753#timeline
                     // https://forum.phala.network/t/topic/2909
-                    for w in self.state.workers.values_mut() {
+                    for w in self.workers.values_mut() {
                         if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
                             w.tokenomic.v = w.tokenomic.v_init;
-                            self.event_listener
-                                .on_finance_event(FinanceEvent::RecoverV, w)
+                            event_listener.emit_event(EconomicEvent::RecoverV, w)
                         }
                     }
                 }
@@ -1169,15 +1159,29 @@ where
                     // Fixes:
                     // - https://github.com/Phala-Network/phala-blockchain/issues/693
                     // - https://github.com/Phala-Network/phala-blockchain/issues/676
-                    self.state.phala_launched = true;
+                    self.phala_launched = true;
                 }
             }
             GatekeeperEvent::UnrespFix => {
                 if origin.is_pallet() {
-                    self.state.unresp_fix = true;
+                    self.unresp_fix = true;
                 }
             }
         }
+    }
+
+    pub fn sum_share(&self) -> FixedPoint {
+        self.workers
+            .values()
+            .filter(|info| {
+                if self.phala_launched {
+                    !info.unresponsive && info.state.mining_state.is_some()
+                } else {
+                    !info.unresponsive
+                }
+            })
+            .map(|info| info.tokenomic.share())
+            .sum()
     }
 }
 
@@ -1702,7 +1706,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert_eq!(r.gk.workers.len(), 1);
@@ -1716,7 +1720,7 @@ pub mod tests {
                 init_v: 1,
                 init_p: 100,
             });
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert_eq!(
@@ -1735,7 +1739,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert_eq!(r.gk.workers.len(), 1);
@@ -1750,18 +1754,18 @@ pub mod tests {
                 init_p: 100,
             });
             worker0.challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Stop mining before the heartbeat response.
         with_block(3, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::MiningStop);
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         with_block(4, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         with_block(5, |block| {
@@ -1772,12 +1776,12 @@ pub mod tests {
                 init_p: 100,
             });
             worker0.challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Force enter unresponsive
         with_block(100, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert_eq!(
@@ -1795,7 +1799,7 @@ pub mod tests {
             let mut worker = r.for_worker(0);
             // Response the first challenge.
             worker.heartbeat(1, 2, 10000000);
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert_eq!(
             r.get_worker(0).waiting_heartbeats.len(),
@@ -1812,7 +1816,7 @@ pub mod tests {
             let mut worker = r.for_worker(0);
             // Response the second challenge.
             worker.heartbeat(2, 5, 10000000);
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert!(
@@ -1832,7 +1836,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -1844,7 +1848,7 @@ pub mod tests {
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
             });
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         block_number += 1;
@@ -1853,7 +1857,7 @@ pub mod tests {
         let v_snap = r.get_worker(0).tokenomic.v;
         r.gk.egress.clear();
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert!(!r.get_worker(0).unresponsive, "Worker should be online");
@@ -1871,7 +1875,7 @@ pub mod tests {
         let v_snap = r.get_worker(0).tokenomic.v;
         r.gk.egress.clear();
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert!(!r.get_worker(0).unresponsive, "Worker should be online");
@@ -1897,7 +1901,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -1910,7 +1914,7 @@ pub mod tests {
                 init_p: 100,
             });
             worker0.challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         let challenge_block = block_number;
 
@@ -1922,7 +1926,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker = r.for_worker(0);
             worker.heartbeat(1, challenge_block, 10000000);
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert!(!r.get_worker(0).unresponsive, "Worker should be online");
@@ -1951,7 +1955,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -1964,7 +1968,7 @@ pub mod tests {
                 init_p: 100,
             });
             worker0.challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert!(r.get_worker(0).state.mining_state.is_some());
@@ -1972,7 +1976,7 @@ pub mod tests {
         block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert!(!r.get_worker(0).unresponsive);
 
@@ -1981,7 +1985,7 @@ pub mod tests {
         block_number += 1;
         // Heartbeat timed out
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         assert!(r.get_worker(0).unresponsive);
@@ -2008,7 +2012,7 @@ pub mod tests {
         let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert_eq!(
             r.gk.egress.drain_mining_info_update_event().len(),
@@ -2032,7 +2036,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -2045,19 +2049,19 @@ pub mod tests {
                 init_p: 100,
             });
             worker0.challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         block_number += 1;
         // Heartbeat timed out
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         r.gk.egress.clear();
@@ -2066,7 +2070,7 @@ pub mod tests {
         let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert_eq!(
             r.gk.egress.drain_mining_info_update_event().len(),
@@ -2081,7 +2085,7 @@ pub mod tests {
         let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert_eq!(
             r.gk.egress.drain_mining_info_update_event().len(),
@@ -2105,7 +2109,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -2118,20 +2122,20 @@ pub mod tests {
                 init_p: 100,
             });
             worker0.challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         let challenge_block = block_number;
 
         block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         block_number += 1;
         // Heartbeat timed out
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         r.gk.egress.clear();
@@ -2142,7 +2146,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker = r.for_worker(0);
             worker.heartbeat(1, challenge_block, 10000000);
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert_eq!(
             v_snap,
@@ -2175,7 +2179,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -2188,7 +2192,7 @@ pub mod tests {
                 init_v: fp!(3000).to_bits(),
                 init_p: 100,
             });
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert!(r.get_worker(0).state.mining_state.is_some());
         assert_eq!(r.get_worker(0).tokenomic.p_bench, fp!(100));
@@ -2198,7 +2202,7 @@ pub mod tests {
         for _ in 0..3600 * 24 / 12 {
             block_number += 1;
             with_block(block_number, |block| {
-                r.gk.process_messages(block);
+                r.gk.test_process_messages(block);
             });
         }
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(3014.6899337932040476463));
@@ -2207,7 +2211,7 @@ pub mod tests {
         block_number += 1;
         r.for_worker(0).challenge();
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         // Check heartbeat updates
         assert_eq!(r.get_worker(0).tokenomic.challenge_time_last, 24000);
@@ -2216,7 +2220,7 @@ pub mod tests {
             .heartbeat(1, block_number, (110 * 7200 * 12 / 6) as u64);
         block_number += 1;
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(3000));
         assert_eq!(
@@ -2240,7 +2244,7 @@ pub mod tests {
         for _ in 0..=3600 / 12 + 10 {
             block_number += 1;
             with_block(block_number, |block| {
-                r.gk.process_messages(block);
+                r.gk.test_process_messages(block);
             });
         }
         assert!(r.get_worker(0).unresponsive);
@@ -2262,7 +2266,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
                 confidence_level: 2,
             }));
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -2275,25 +2279,25 @@ pub mod tests {
                 init_v: fp!(30000).to_bits(),
                 init_p: 3000,
             });
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         // Mine for 24h
         for _ in 0..7200 {
             block_number += 1;
             with_block(block_number, |block| {
-                r.gk.process_messages(block);
+                r.gk.test_process_messages(block);
             });
         }
         // Trigger payout
         block_number += 1;
         with_block(block_number, |block| {
             r.for_worker(0).challenge();
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         r.for_worker(0).heartbeat(1, block_number, 1000000 as u64);
         block_number += 1;
         with_block(block_number, |block| {
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
         // Check payout
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(29855.38985958385856094607));
@@ -2336,7 +2340,7 @@ pub mod tests {
                     confidence_level: 2,
                 }));
             }
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Start mining & send heartbeat challenge
@@ -2351,7 +2355,7 @@ pub mod tests {
                     init_p: 3000,
                 });
             }
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         for i in 0..=1 {
@@ -2370,7 +2374,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
             r.mq.dispatch_bound(&sender, msg::GatekeeperEvent::RepairV);
-            r.gk.process_messages(block);
+            r.gk.test_process_messages(block);
         });
 
         // Should repaired and rewarded

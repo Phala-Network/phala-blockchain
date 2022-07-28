@@ -572,12 +572,23 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .mq_messages()
             .map_err(|_| from_display("Can not get mq messages from storage"))?;
 
+        state.recv_mq.reset_local_index();
+
         let now_ms = state
             .chain_storage
             .timestamp_now()
             .ok_or_else(|| from_display("No timestamp found in block"))?;
 
-        state.recv_mq.reset_local_index();
+        let mut block = BlockInfo {
+            block_number,
+            now_ms,
+            storage: &state.chain_storage,
+            send_mq: &state.send_mq,
+            recv_mq: &mut state.recv_mq,
+            side_task_man: &mut self.side_task_man,
+        };
+
+        system.will_process_block(&mut block);
 
         for message in messages {
             use phala_types::messaging::SystemEvent;
@@ -607,23 +618,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     message.sender, message.destination
                 );
             }
-            state.recv_mq.dispatch(message);
-
-            let mut block = BlockInfo {
-                block_number,
-                now_ms,
-                storage: &state.chain_storage,
-                send_mq: &state.send_mq,
-                recv_mq: &mut state.recv_mq,
-                side_task_man: &mut self.side_task_man,
-            };
+            block.recv_mq.dispatch(message);
 
             system.process_messages(&mut block);
+        }
+        system.did_process_block(&mut block);
 
-            let n_unhandled = state.recv_mq.clear();
-            if n_unhandled > 0 {
-                warn!("There are {} unhandled messages dropped", n_unhandled);
-            }
+        let n_unhandled = block.recv_mq.clear();
+        if n_unhandled > 0 {
+            warn!("There are {} unhandled messages dropped", n_unhandled);
         }
 
         let block_time = now_ms / 1000;
