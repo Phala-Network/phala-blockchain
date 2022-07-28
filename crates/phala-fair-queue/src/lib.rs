@@ -266,11 +266,11 @@ mod test {
         let queue = FairQueue::new(15, 2);
         let (tx, mut rx) = mpsc::channel(1);
 
-        spawn_task(queue.clone(), 1, 1, 100, 5, tx.clone());
-        sleep_ms(10).await;
-        spawn_task(queue.clone(), 2, 1, 100, 5, tx.clone());
-        sleep_ms(10).await;
-        spawn_task(queue.clone(), 3, 1, 100, 5, tx.clone());
+        spawn_task(queue.clone(), 1, 1, 200, 5, tx.clone());
+        sleep_ms(30).await;
+        spawn_task(queue.clone(), 2, 1, 200, 5, tx.clone());
+        sleep_ms(30).await;
+        spawn_task(queue.clone(), 3, 1, 200, 5, tx.clone());
 
         drop(tx);
         let mut order = vec![];
@@ -307,11 +307,11 @@ mod test {
         let queue = FairQueue::new(10, 2);
         let (tx, mut rx) = mpsc::channel(1);
 
-        spawn_task(queue.clone(), 1, 1, 100, 5, tx.clone());
-        sleep_ms(10).await;
-        spawn_task(queue.clone(), 2, 1, 100, 5, tx.clone());
-        sleep_ms(10).await;
-        spawn_task(queue.clone(), 3, 1, 100, 5, tx.clone());
+        spawn_task(queue.clone(), 1, 1, 200, 5, tx.clone());
+        sleep_ms(30).await;
+        spawn_task(queue.clone(), 2, 1, 200, 5, tx.clone());
+        sleep_ms(30).await;
+        spawn_task(queue.clone(), 3, 1, 200, 5, tx.clone());
 
         drop(tx);
         let mut order = vec![];
@@ -367,9 +367,9 @@ mod test {
             let (tx, mut rx) = mpsc::channel(1);
 
             spawn_task(queue.clone(), 1, 1, 300, 10, tx.clone());
-            sleep_ms(10).await;
+            sleep_ms(30).await;
             spawn_task(queue.clone(), 2, 1, 200, 10, tx.clone());
-            sleep_ms(10).await;
+            sleep_ms(30).await;
             spawn_task(queue.clone(), 3, 1, 100, 10, tx.clone());
 
             drop(tx);
@@ -441,9 +441,9 @@ mod test {
             let (tx, mut rx) = mpsc::channel(1);
 
             spawn_task(queue.clone(), 1, 3, 300, 10, tx.clone());
-            sleep_ms(10).await;
+            sleep_ms(30).await;
             spawn_task(queue.clone(), 2, 2, 200, 10, tx.clone());
-            sleep_ms(10).await;
+            sleep_ms(30).await;
             spawn_task(queue.clone(), 3, 1, 100, 10, tx.clone());
 
             drop(tx);
