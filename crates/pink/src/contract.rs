@@ -226,8 +226,15 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let (result, effects) =
-            self.bare_call(storage, origin, input_data, rollback, block_number, now, None);
+        let (result, effects) = self.bare_call(
+            storage,
+            origin,
+            input_data,
+            rollback,
+            block_number,
+            now,
+            None,
+        );
         let mut rv = transpose_contract_result(&result)?;
         Ok((
             Decode::decode(&mut rv).map_err(|_| ExecError {

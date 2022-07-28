@@ -7309,6 +7309,7 @@ dependencies = [
  "base64 0.13.0",
  "bitcoin",
  "bitcoin_hashes",
+ "bitflags",
  "chrono",
  "ciborium",
  "derive_more",

@@ -327,6 +327,20 @@ pub mod messaging {
             /// Benchmark iterations since mining_start_time.
             iterations: u64,
         },
+        HeartbeatV2 {
+            /// The mining session id.
+            session_id: u32,
+            /// The challenge block number.
+            challenge_block: u32,
+            /// The challenge block timestamp.
+            challenge_time: u64,
+            /// Benchmark iterations since mining_start_time.
+            iterations: u64,
+            /// Number of current deployed clusters.
+            n_clusters: u32,
+            /// Number of current deployed contracts.
+            n_contracts: u32,
+        },
     }
 
     bind_topic!(MiningInfoUpdateEvent<BlockNumber>, b"^phala/mining/update");

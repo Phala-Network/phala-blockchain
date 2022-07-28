@@ -915,7 +915,21 @@ where
                 challenge_block,
                 challenge_time,
                 iterations,
+            }
+            | MiningReportEvent::HeartbeatV2 {
+                session_id,
+                challenge_block,
+                challenge_time,
+                iterations,
+                ..
             } => {
+                let contract_running =
+                    if let MiningReportEvent::HeartbeatV2 { n_clusters, .. } = event {
+                        n_clusters > 0
+                    } else {
+                        false
+                    };
+
                 let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
                     Some(info) => info,
                     None => {
@@ -969,7 +983,7 @@ where
                 worker_info.heartbeat_flag = true;
 
                 let tokenomic = &mut worker_info.tokenomic;
-                tokenomic.update_p_instant(self.block.now_ms, iterations);
+                tokenomic.update_p_instant(self.block.now_ms, iterations, contract_running);
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
@@ -1077,6 +1091,7 @@ where
                                 p_bench: FixedPoint::from_num(*init_p),
                                 p_instant: FixedPoint::from_num(*init_p),
                                 confidence_level: prev.confidence_level,
+                                contract_running: false,
 
                                 #[cfg(feature = "gk-stat")]
                                 stat: Default::default(),
@@ -1249,6 +1264,7 @@ mod tokenomic {
         #[serde(with = "serde_fp")]
         pub p_instant: FixedPoint,
         pub confidence_level: u8,
+        pub contract_running: bool,
 
         #[cfg(feature = "gk-stat")]
         pub stat: TokenomicStat,
@@ -1346,13 +1362,21 @@ mod tokenomic {
     }
 
     impl TokenomicInfo {
+        fn p(&self) -> FixedPoint {
+            if self.contract_running {
+                self.p_bench
+            } else {
+                self.p_instant
+            }
+        }
+
         /// case1: Idle, no event
         pub fn update_v_idle(&mut self, params: &Params) {
             let cost_idle = params.cost_k * self.p_bench + params.cost_b;
             let perf_multiplier = if self.p_bench == fp!(0) {
                 fp!(1)
             } else {
-                self.p_instant / self.p_bench
+                self.p() / self.p_bench
             };
             let delta_v = perf_multiplier * ((params.rho - fp!(1)) * self.v + cost_idle);
             let v = self.v + delta_v;
@@ -1453,11 +1477,11 @@ mod tokenomic {
         }
 
         pub fn share(&self) -> FixedPoint {
-            (square(self.v) + square(fp!(2) * self.p_instant * conf_score(self.confidence_level)))
-                .sqrt()
+            (square(self.v) + square(fp!(2) * self.p() * conf_score(self.confidence_level))).sqrt()
         }
 
-        pub fn update_p_instant(&mut self, now: u64, iterations: u64) {
+        pub fn update_p_instant(&mut self, now: u64, iterations: u64, contract_running: bool) {
+            self.contract_running = contract_running;
             if now <= self.challenge_time_last {
                 return;
             }
@@ -2289,13 +2313,13 @@ pub mod tests {
         };
 
         // Normal
-        info.update_p_instant(100_000, 1000);
+        info.update_p_instant(100_000, 1000, false);
         info.challenge_time_last = 90_000;
         info.iteration_last = 1000;
         assert_eq!(info.p_instant, fp!(60));
 
         // Reset
-        info.update_p_instant(200_000, 999);
+        info.update_p_instant(200_000, 999, false);
         assert_eq!(info.p_instant, fp!(0));
     }
 

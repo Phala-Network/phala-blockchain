@@ -46,7 +46,7 @@ pub mod pallet {
 	pub enum MinerState {
 		Ready,
 		MiningIdle,
-		MiningActive,
+		_Unused,
 		MiningUnresponsive,
 		MiningCoolingDown,
 	}
@@ -67,7 +67,7 @@ pub mod pallet {
 			// we still have to make sure the slashed V is periodically updated on the blockchain.
 			matches!(
 				self,
-				MinerState::MiningIdle | MinerState::MiningActive | MinerState::MiningUnresponsive
+				MinerState::MiningIdle | MinerState::MiningUnresponsive
 			)
 		}
 		fn is_mining(&self) -> bool {
@@ -573,6 +573,11 @@ pub mod pallet {
 						iterations,
 						challenge_time,
 						..
+					} |
+					MiningReportEvent::HeartbeatV2 {
+						iterations,
+						challenge_time,
+						..
 					} => {
 						// Handle with great care!
 						//
@@ -625,6 +630,7 @@ pub mod pallet {
 							Some(miner) => miner,
 							None => continue, // Skip non-existing miners
 						};
+						// The MiningActive is removed, is this logic need to be changed?
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -646,6 +652,7 @@ pub mod pallet {
 							Some(miner) => miner,
 							None => continue, // Skip non-existing miners
 						};
+						// The MiningActive is removed, is this logic need to be changed?
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -910,7 +917,7 @@ pub mod pallet {
 		/// Stops mining, entering cool down state
 		///
 		/// Requires:
-		/// 1. The miner is in Idle, MiningActive, or MiningUnresponsive state
+		/// 1. The miner is in MiningIdle, or MiningUnresponsive state
 		pub fn stop_mining(miner: T::AccountId) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)?;
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;

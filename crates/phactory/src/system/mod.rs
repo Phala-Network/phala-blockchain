@@ -339,7 +339,11 @@ trait WorkerStateMachineCallback {
     }
 }
 
-struct WorkerSMDelegate<'a>(&'a SignedMessageChannel);
+struct WorkerSMDelegate<'a> {
+    egress: &'a SignedMessageChannel,
+    n_clusters: u32,
+    n_contracts: u32,
+}
 
 impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     fn bench_iterations(&self) -> u64 {
@@ -357,7 +361,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
             iterations,
         };
         info!("Reporting benchmark: {:?}", report);
-        self.0.push_message(&report);
+        self.egress.push_message(&report);
     }
     fn heartbeat(
         &mut self,
@@ -366,14 +370,16 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
         challenge_time: u64,
         iterations: u64,
     ) {
-        let event = MiningReportEvent::Heartbeat {
+        let event = MiningReportEvent::HeartbeatV2 {
             session_id,
             challenge_block,
             challenge_time,
             iterations,
+            n_clusters: self.n_clusters,
+            n_contracts: self.n_contracts,
         };
         info!("System: sending {:?}", event);
-        self.0.push_message(&event);
+        self.egress.push_message(&event);
     }
 }
 
@@ -667,7 +673,11 @@ impl<Platform: pal::Platform> System<Platform> {
             }
         }
         self.worker_state
-            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
+            .on_block_processed(block, &mut WorkerSMDelegate{
+                egress: &self.egress,
+                n_clusters: self.contract_clusters.len() as _,
+                n_contracts: self.contracts.len() as _,
+            });
 
         if let Some(gatekeeper) = &mut self.gatekeeper {
             gatekeeper.process_messages(block);
@@ -734,11 +744,18 @@ impl<Platform: pal::Platform> System<Platform> {
             );
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+
+        let contract_running = !self.contract_clusters.is_empty();
+        benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
     }
 
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
         self.worker_state
-            .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
+            .process_event(block, event, &mut WorkerSMDelegate {
+                egress: &self.egress,
+                n_clusters: self.contract_clusters.len() as _,
+                n_contracts: self.contracts.len() as _,
+            }, true);
     }
 
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
