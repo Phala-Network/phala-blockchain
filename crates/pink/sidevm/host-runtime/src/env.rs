@@ -130,7 +130,7 @@ struct State {
     gas: u128,
     // Gas remain to next async yield point
     gas_to_breath: u128,
-    init_gas_to_breath: u128,
+    gas_per_breath: u128,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
@@ -170,7 +170,7 @@ impl Env {
                     id,
                     gas: 0,
                     gas_to_breath: 0,
-                    init_gas_to_breath: 0,
+                    gas_per_breath: 0,
                     resources: Default::default(),
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
@@ -250,10 +250,13 @@ impl Env {
         self.inner.lock().unwrap().state.gas = gas;
     }
 
-    pub fn set_gas_to_breath(&self, gas: u128) {
+    pub fn set_gas_per_breath(&self, gas: u128) {
+        self.inner.lock().unwrap().state.gas_per_breath = gas;
+    }
+
+    pub fn reset_gas_to_breath(&self) {
         let mut guard = self.inner.lock().unwrap();
-        guard.state.gas_to_breath = gas;
-        guard.state.init_gas_to_breath = gas;
+        guard.state.gas_to_breath = guard.state.gas_per_breath;
     }
 
     pub fn has_more_ready(&self) -> bool {
@@ -513,10 +516,10 @@ impl env::OcallFuncs for State {
 
     fn gas_remaining(&mut self) -> Result<u8> {
         pay(self, 100_000_000)?;
-        Ok(if self.init_gas_to_breath == 0 {
+        Ok(if self.gas_per_breath == 0 {
             100
         } else {
-            (self.gas_to_breath * 100 / self.init_gas_to_breath) as u8
+            (self.gas_to_breath * 100 / self.gas_per_breath) as u8
         })
     }
 }

@@ -18,7 +18,6 @@ pub struct WasmRun {
     id: VmId,
     env: env::Env,
     wasm_poll_entry: NativeFunc<(), i32>,
-    gas_per_breath: u128,
     scheduler: TaskScheduler<VmId>,
 }
 
@@ -33,6 +32,7 @@ impl WasmRun {
         code: &[u8],
         max_pages: u32,
         id: crate::VmId,
+        gas: u128,
         gas_per_breath: u128,
         cache_ops: DynCacheOps,
         scheduler: TaskScheduler<VmId>,
@@ -68,11 +68,12 @@ impl WasmRun {
             .get_memory("memory")
             .context("No memory exported")?;
         env.set_memory(memory.clone());
+        env.set_gas(gas);
+        env.set_gas_per_breath(gas_per_breath);
         Ok((
             WasmRun {
                 env: env.clone(),
                 wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
-                gas_per_breath,
                 scheduler,
                 id,
             },
@@ -86,7 +87,7 @@ impl Future for WasmRun {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let _guard = self.scheduler.poll_resume(cx, &self.id, self.env.weight());
-        self.env.set_gas_to_breath(self.gas_per_breath);
+        self.env.reset_gas_to_breath();
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {
                 if rv == 0 {
