@@ -124,11 +124,11 @@ impl Spawner {
             max_memory_pages,
             id,
             gas_per_breath,
+            gas,
             cache_ops,
             self.scheduler.clone(),
         )
         .context("Failed to create sidevm instance")?;
-        env.set_gas(gas);
         let spawner = self.runtime_handle.clone();
         let handle = self.runtime_handle.spawn(async move {
             let vmid = ShortId(&id);
