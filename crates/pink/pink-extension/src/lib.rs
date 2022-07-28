@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
@@ -52,12 +51,10 @@ pub enum PinkEvent {
     OspMessage(OspMessage),
     /// Contract has an on_block_end ink message and will emit this event on instantiation.
     OnBlockEndSelector(u32),
-    /// Start to transfer sidevm code
-    StartToTransferSidevmCode,
-    /// One chunk of sidevm code
-    SidevmCodeChunk(Cow<'static, [u8]>),
     /// Start the side VM.
     StartSidevm {
+        /// The hash of the sidevm code.
+        code_hash: Hash,
         /// Restart the instance when it has crashed
         auto_restart: bool,
     },
@@ -126,13 +123,8 @@ pub fn set_on_block_end_selector(selector: u32) {
 }
 
 /// Start a side VM instance
-pub fn start_sidevm(wasm_code: &'static [u8], auto_restart: bool) {
-    // `ink!` limit a single event size to 16KB. As a workaround, we chop the code in to 15KB chunks.
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartToTransferSidevmCode);
-    for chunk in wasm_code.chunks(1024 * 15) {
-        emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
-    }
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { auto_restart })
+pub fn start_sidevm(code_hash: Hash, auto_restart: bool) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { code_hash, auto_restart })
 }
 
 /// Push a message to the associated sidevm instance.

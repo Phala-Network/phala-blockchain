@@ -1280,6 +1280,8 @@ impl pallet_stakepool::Config for Runtime {
 }
 impl pallet_fat::Config for Runtime {
 	type Event = Event;
+	type InkCodeSizeLimit = ConstU32<{1024*1024*2}>;
+	type SidevmCodeSizeLimit = ConstU32<{1024*1024*2}>;
 }
 
 impl puppets::parachain_info::Config for Runtime {}

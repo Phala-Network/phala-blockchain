@@ -271,6 +271,7 @@ pub mod cluster {
     use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
+    use phala_types::contract::messaging::ResourceType;
     use pink::{
         runtime::{BoxedEventCallbacks, ExecSideEffects},
         types::{AccountId, Hash},
@@ -388,12 +389,35 @@ pub mod cluster {
             self.storage.set_key_seed(seed);
         }
 
-        pub fn upload_code(
+        pub fn upload_resource(
             &mut self,
             origin: AccountId,
-            code: Vec<u8>,
+            resource_type: ResourceType,
+            resource_data: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
-            self.storage.upload_code(origin, code)
+            match resource_type {
+                ResourceType::InkCode => {
+                    self.storage.upload_code(origin, resource_data)
+                }
+                ResourceType::SidevmCode => {
+                    self.storage.upload_sidevm_code(origin, resource_data)
+                }
+            }
+        }
+
+        pub fn get_resource(
+            &mut self,
+            resource_type: ResourceType,
+            hash: &Hash,
+        ) -> Option<Vec<u8>> {
+            match resource_type {
+                ResourceType::InkCode => {
+                    None
+                }
+                ResourceType::SidevmCode => {
+                    self.storage.get_sidevm_code(hash)
+                }
+            }
         }
 
         pub fn iter_contracts(&self) -> impl Iterator<Item = &ContractId> {
