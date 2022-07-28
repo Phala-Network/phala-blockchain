@@ -5,16 +5,15 @@ const { program } = require('commander');
 const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady, blake2AsHex } = require('@polkadot/util-crypto');
-const { numberToHex, hexToU8a, u8aConcat, u8aToHex } = require('@polkadot/util');
+const { hexToU8a, u8aConcat, u8aToHex } = require('@polkadot/util');
 
 const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
-const { poolSubAccount } = require('./utils/palletUtils');
+const { poolSubAccount, createMotion } = require('./utils/palletUtils');
 const { decorateStakePool } = require('./utils/displayUtils');
 const { createPRuntimeApi } = require('./utils/pruntime');
 const BN = require('bn.js');
-const { dir } = require('console');
 
 function run(afn) {
     function runner(...args) {
@@ -334,9 +333,31 @@ chain
     .action(run(async (thresholdStr, callHex) => {
         const api = await useApi();
         const threshold = parseInt(thresholdStr);
-        const lengthBound = ((callHex.length / 2) | 0) + 10;
-        const bareCall = api.createType('Call', callHex);
-        const call = api.tx.council.propose(threshold, bareCall, lengthBound);
+        const call = createMotion(api, threshold, callHex);
+        console.log(call.toHex());
+    }))
+
+chain
+    .command('external')
+    .description('generate a call to propose a majority external proposal')
+    .argument('<call>', 'the raw call in hex')
+    .action(run(async (callHex) => {
+        const api = await useApi();
+        // Examine
+        console.log('Building majority external proposal for:');
+        console.dir(api.createType('Call', callHex).toHuman(), {depth: 10})
+        // Calculate the threshold
+        const members = await api.query.council.members();
+        const totalMembers = members.length;
+        const threshold = Math.ceil(totalMembers * 0.75);
+        // Build motion
+        const hash = blake2AsHex(callHex);
+        const external = api.tx.democracy.externalProposeMajority(hash).method.toHex();
+        const motionCall = createMotion(api, threshold, external);
+        const call = api.tx.utility.batchAll([
+            api.tx.democracy.notePreimage(callHex),
+            motionCall,
+        ]);
         console.log(call.toHex());
     }))
 

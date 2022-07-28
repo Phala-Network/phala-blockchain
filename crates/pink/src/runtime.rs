@@ -190,7 +190,7 @@ mod tests {
 
     use crate::{
         runtime::{Contracts, Origin, PinkRuntime},
-        types::{ENOUGH, GAS_LIMIT},
+        types::{ENOUGH, QUERY_GAS_LIMIT},
     };
     pub use frame_support::weights::Weight;
 
@@ -215,7 +215,7 @@ mod tests {
             Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 ENOUGH,
-                GAS_LIMIT,
+                QUERY_GAS_LIMIT,
                 None,
                 wasm,
                 vec![],
@@ -228,7 +228,7 @@ mod tests {
                 Origin::signed(ALICE),
                 addr.clone(),
                 0,
-                GAS_LIMIT * 2,
+                QUERY_GAS_LIMIT * 2,
                 None,
                 <PinkRuntime as Config>::Schedule::get()
                     .limits

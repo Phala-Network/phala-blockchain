@@ -57,7 +57,7 @@ impl GuestWaker {
         }
     }
 
-    fn wake_by_ref(&self) {
+    pub(crate) fn wake_by_ref(&self) {
         if let Some(tasks) = self.inner.tasks.upgrade() {
             tasks.awake_wakers.lock().unwrap().push_back(self.inner.id);
         }

@@ -31,6 +31,7 @@ pub enum SystemMessage {
         block_number: u32,
         origin: AccountId,
         contract: AccountId,
+        nonce: Vec<u8>,
         output: Vec<u8>,
     },
 }

@@ -543,14 +543,15 @@ describe('A full stack', function () {
 
         it('can upload code with access control', async function () {
             let code = fs.readFileSync(wasmFile, 'hex');
+            let InkCode = 0;
             // For now, there is no way to check whether code is uploaded in script
             // since this requires monitering the async CodeUploaded event
             await assert.txAccepted(
-                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, InkCode, hex(code)),
                 alice,
             );
             await assert.txFailed(
-                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, InkCode, hex(code)),
                 bob,
             )
         });

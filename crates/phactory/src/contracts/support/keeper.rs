@@ -55,7 +55,7 @@ macro_rules! define_any_native_contract {
                 }
             }
 
-            pub(crate) fn handle_query(
+            pub(crate) async fn handle_query(
                 &self,
                 origin: Option<&runtime::AccountId>,
                 req: OpaqueQuery,
@@ -63,7 +63,7 @@ macro_rules! define_any_native_contract {
             ) -> Result<OpaqueReply, OpaqueError> {
                 match self {
                     $($name::$contract(me) => {
-                        let response = me.handle_query(origin, deopaque_query(req)?, context);
+                        let response = me.handle_query(origin, deopaque_query(&req)?, context).await;
                         Ok(response.encode())
                     })*
                 }
@@ -127,5 +127,9 @@ impl ContractsKeeper {
                 error!("Failed to restart sidevm instance: {:?}", err);
             }
         }
+    }
+
+    pub fn remove(&mut self, id: &ContractId) -> Option<FatContract> {
+        self.0.remove(id)
     }
 }

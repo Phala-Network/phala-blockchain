@@ -343,6 +343,7 @@ impl BtcLottery {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for BtcLottery {
     type Cmd = Command;
     type QReq = Request;
@@ -360,7 +361,7 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         _origin: Option<&chain::AccountId>,
         req: Request,

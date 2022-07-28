@@ -12,6 +12,7 @@ use crate::{
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
+use phala_fair_queue::FairQueue;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
 
@@ -33,13 +34,19 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, messaging::ContractOperation, CodeIndex},
+    contract::{
+        self,
+        messaging::{
+            BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
+            WorkerClusterReport, WorkerContractReport,
+        },
+        CodeIndex,
+    },
     messaging::{
-        AeadIV, BatchDispatchClusterKeyEvent, BatchRotateMasterKeyEvent, ClusterOperation,
-        Condition, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent, GatekeeperChange,
-        GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent,
-        SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
+        AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
+        DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
+        RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
     EcdhPublicKey, HandoverChallenge, HandoverChallengePayload, WorkerPublicKey,
 };
@@ -50,6 +57,7 @@ use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
 use std::convert::TryFrom;
+use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -421,7 +429,8 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
-    cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::BlockNumber>>,
+    cluster_key_distribution_events:
+        TypedReceiver<ClusterOperation<chain::AccountId, chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -570,10 +579,10 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
-    ) -> Result<
-        impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
-        OpaqueError,
-    > {
+        origin: Option<&chain::AccountId>,
+        query: OpaqueQuery,
+        query_queue: FairQueue<ContractId>,
+    ) -> Result<impl Future<Output = Result<OpaqueReply, OpaqueError>>, OpaqueError> {
         use pink::storage::Snapshot as _;
 
         let contract = self
@@ -595,9 +604,13 @@ impl<Platform: pal::Platform> System<Platform> {
             storage,
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
+            query_queue,
         };
-        Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
-            contract.handle_query(origin, req, &mut context)
+        let origin = origin.cloned();
+        Ok(async move {
+            contract
+                .handle_query(origin.as_ref(), query, &mut context)
+                .await
         })
     }
 
@@ -1079,7 +1092,7 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ClusterOperation<chain::BlockNumber>,
+        event: ClusterOperation<chain::AccountId, chain::BlockNumber>,
     ) -> Result<()> {
         match event {
             ClusterOperation::DispatchKeys(event) => {
@@ -1097,6 +1110,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 cluster: cluster_id,
                 log_handler,
             } => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
                 let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
                 if let Some(cluster) = cluster {
                     info!(
@@ -1106,6 +1123,42 @@ impl<Platform: pal::Platform> System<Platform> {
                     );
                     cluster.config.log_handler = Some(log_handler);
                 }
+            }
+            ClusterOperation::DestroyCluster(cluster_id) => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
+                let cluster = match self.contract_clusters.remove_cluster(&cluster_id) {
+                    // The cluster is not deployed on this worker, just ignore it.
+                    None => return Ok(()),
+                    Some(cluster) => cluster,
+                };
+                info!("Destroying cluster {}", hex_fmt::HexFmt(&cluster_id));
+                for contract in cluster.iter_contracts() {
+                    if let Some(contract) = self.contracts.remove(&contract) {
+                        contract.destroy(&self.sidevm_spawner);
+                    }
+                }
+            }
+            ClusterOperation::UploadResource {
+                origin,
+                cluster_id,
+                resource_type,
+                resource_data,
+            } => {
+                let cluster = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id)
+                    .context("Cluster not deployed")?;
+                let uploader = phala_types::messaging::AccountId(origin.clone().into());
+                let hash = cluster
+                    .upload_resource(origin, resource_type, resource_data)
+                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                info!(
+                    "Uploaded code to cluster {}, code_hash={:?}",
+                    cluster_id, hash
+                );
             }
         }
         Ok(())
@@ -1122,35 +1175,6 @@ impl<Platform: pal::Platform> System<Platform> {
             anyhow::bail!("Invalid origin {:?} for contract operation", sender);
         }
         match event {
-            ContractOperation::UploadCodeToCluster {
-                origin,
-                code,
-                cluster_id,
-            } => {
-                let cluster = self
-                    .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .context("Cluster not deployed")?;
-                let uploader = phala_types::messaging::AccountId(origin.clone().into());
-                let hash = cluster.upload_code(origin, code).map_err(|err| {
-                    let message = WorkerContractReport::CodeUploadFailed {
-                        cluster_id,
-                        uploader,
-                    };
-                    self.egress.push_message(&message);
-                    anyhow!("Failed to upload code: {:?}", err)
-                })?;
-                let message = WorkerContractReport::CodeUploaded {
-                    cluster_id,
-                    uploader,
-                    hash,
-                };
-                self.egress.push_message(&message);
-                info!(
-                    "Uploaded code to cluster {}, code_hash={:?}",
-                    cluster_id, hash
-                );
-            }
             ContractOperation::InstantiateCode { contract_info } => {
                 let cluster_id = contract_info.cluster_id;
                 let cluster = self
@@ -1599,9 +1623,6 @@ pub fn apply_pink_side_effects(
         egress.push_message(&message);
     }
 
-    const MAX_SIDEVM_CODE_SIZE: usize = 1024 * 1024 * 2;
-    let mut wasm_code = Vec::new();
-
     for (address, event) in effects.pink_events {
         let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
@@ -1629,22 +1650,20 @@ pub fn apply_pink_side_effects(
             PinkEvent::OnBlockEndSelector(selector) => {
                 contract.set_on_block_end_selector(selector);
             }
-            PinkEvent::StartToTransferSidevmCode => {
-                wasm_code.clear();
-            }
-            PinkEvent::SidevmCodeChunk(chunk) => {
-                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
-                    wasm_code.extend_from_slice(&chunk);
-                }
-            }
-            PinkEvent::StartSidevm { auto_restart } => {
-                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
-                    let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
-                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
-                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
+            PinkEvent::StartSidevm {
+                code_hash,
+                auto_restart,
+            } => {
+                let code_hash = code_hash.into();
+                let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
+                    Some(code) => code,
+                    None => {
+                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: code not found, code_hash={code_hash:?}");
+                        continue;
                     }
-                } else {
-                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: Code too large");
+                };
+                if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
+                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
@@ -1770,7 +1789,9 @@ mod tests {
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
         let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
-        let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
+        let code_hash = cluster
+            .upload_resource(ALICE.clone(), ResourceType::InkCode, wasm_bin)
+            .unwrap();
         let effects = keeper
             .instantiate_contract(
                 cluster_id,
@@ -1809,7 +1830,7 @@ mod tests {
 
         let mut env = ExecuteEnv {
             block: &mut block_info,
-            contract_clusters: &mut &mut keeper,
+            contract_clusters: &mut keeper,
             log_handler: None,
         };
 
@@ -1824,6 +1845,7 @@ mod tests {
             .into_iter()
             .map(|msg| (msg.sequence, msg.message))
             .collect();
+        // WorkerContractReport::ContractInstantiated
         insta::assert_debug_snapshot!(messages);
     }
 }

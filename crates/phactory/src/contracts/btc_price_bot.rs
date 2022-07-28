@@ -113,6 +113,7 @@ struct BtcPrice {
 // Alice is the pre-defined root account in dev mode
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for BtcPriceBot {
     type Cmd = Command;
     type QReq = Request;
@@ -256,7 +257,7 @@ impl contracts::NativeContract for BtcPriceBot {
     }
 
     // Handle a direct Query and respond to it. It shouldn't modify the contract state.
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&chain::AccountId>,
         req: Request,

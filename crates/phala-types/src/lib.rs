@@ -20,15 +20,12 @@ pub mod messaging {
     use codec::{Decode, Encode};
     use core::fmt::Debug;
     use scale_info::TypeInfo;
-    use sp_core::{H256, U256};
+    use sp_core::U256;
 
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::{
-        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity,
-        WorkerPublicKey,
-    };
+    use super::{EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey};
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -508,34 +505,6 @@ pub mod messaging {
         }
     }
 
-    bind_topic!(ClusterOperation<BlockNumber>, b"phala/cluster/key");
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum ClusterOperation<BlockNumber> {
-        // TODO.shelven: a better way for real large batch key distribution
-        /// MessageOrigin::Gatekeeper -> ALL
-        DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
-        /// Set the contract to receive the ink logs inside given cluster.
-        SetLogReceiver {
-            cluster: ContractClusterId,
-            /// The id of the contract to receive the ink logs.
-            log_handler: AccountId,
-        },
-    }
-
-    impl<BlockNumber> ClusterOperation<BlockNumber> {
-        pub fn batch_distribution(
-            secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
-            cluster: ContractClusterId,
-            expiration: BlockNumber,
-        ) -> ClusterOperation<BlockNumber> {
-            ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
-                secret_keys,
-                cluster,
-                expiration,
-            })
-        }
-    }
-
     pub type AeadIV = [u8; 12];
 
     /// Secret key encrypted with AES-256-GCM algorithm
@@ -594,13 +563,6 @@ pub mod messaging {
             }
             .encode()
         }
-    }
-
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct BatchDispatchClusterKeyEvent<BlockNumber> {
-        pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
-        pub cluster: ContractClusterId,
-        pub expiration: BlockNumber,
     }
 
     // Messages: Gatekeeper
@@ -662,45 +624,6 @@ pub mod messaging {
         pub k: U64F64Bits,
         // Slash calculation
         pub kappa: U64F64Bits,
-    }
-
-    // Pink messages
-
-    bind_topic!(WorkerClusterReport, b"phala/cluster/worker/report");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerClusterReport {
-        ClusterDeployed {
-            id: ContractClusterId,
-            pubkey: ClusterPublicKey,
-        },
-        ClusterDeploymentFailed {
-            id: ContractClusterId,
-        },
-    }
-
-    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerContractReport {
-        CodeUploaded {
-            cluster_id: ContractClusterId,
-            uploader: AccountId,
-            hash: H256,
-        },
-        CodeUploadFailed {
-            cluster_id: ContractClusterId,
-            uploader: AccountId,
-        },
-        ContractInstantiated {
-            id: ContractId,
-            cluster_id: ContractClusterId,
-            deployer: AccountId,
-            pubkey: ContractPublicKey,
-        },
-        ContractInstantiationFailed {
-            id: ContractId,
-            cluster_id: ContractClusterId,
-            deployer: AccountId,
-        },
     }
 }
 
