@@ -196,8 +196,10 @@ where
     }
 
     pub fn master_pubkey_uploaded(&mut self, master_pubkey: sr25519::Public) {
-        assert!(
-            self.master_key.public() == master_pubkey,
+        #[cfg(not(feature = "shadow-gk"))]
+        assert_eq!(
+            self.master_key.public(),
+            master_pubkey,
             "local and on-chain master key mismatch"
         );
         self.master_pubkey_on_chain = true;
