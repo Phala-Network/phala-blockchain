@@ -647,7 +647,7 @@ impl<Platform: pal::Platform> System<Platform> {
         Ok(ok.is_none())
     }
 
-    pub fn process_messages(&mut self, block: &mut BlockInfo) {
+    pub fn will_process_block(&mut self, block: &mut BlockInfo) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
@@ -660,6 +660,12 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.geoip_city_db.clone(),
             );
         }
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.will_process_block(block);
+        }
+    }
+
+    pub fn process_messages(&mut self, block: &mut BlockInfo) {
         loop {
             match self.process_next_message(block) {
                 Err(err) => {
@@ -672,17 +678,22 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
         }
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.process_messages(block);
+        }
+    }
+
+    pub fn did_process_block(&mut self, block: &mut BlockInfo) {
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.did_process_block(block);
+        }
+
         self.worker_state
             .on_block_processed(block, &mut WorkerSMDelegate{
                 egress: &self.egress,
                 n_clusters: self.contract_clusters.len() as _,
                 n_contracts: self.contracts.len() as _,
             });
-
-        if let Some(gatekeeper) = &mut self.gatekeeper {
-            gatekeeper.process_messages(block);
-            gatekeeper.emit_random_number(block.block_number);
-        }
 
         // Iterate over all contracts to handle their incoming commands.
         //
