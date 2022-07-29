@@ -72,7 +72,6 @@ members = [
 	"crates/phala-fair-queue",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
 
