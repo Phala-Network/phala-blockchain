@@ -8,6 +8,10 @@ use rbtree::RBTree;
 use thiserror::Error;
 use tokio::sync::oneshot::{channel, Receiver, Sender};
 
+pub use task_scheduler::TaskScheduler;
+
+mod task_scheduler;
+
 pub type VirtualTime = u128;
 
 pub trait FlowIdType: Clone + Send + Eq + Hash + Debug + 'static {}
