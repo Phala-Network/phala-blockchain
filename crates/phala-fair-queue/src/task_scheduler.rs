@@ -31,7 +31,7 @@ impl<TaskId: TaskIdType> TaskScheduler<TaskId> {
     pub fn poll_resume(
         &self,
         cx: &task::Context<'_>,
-        task_id: TaskId,
+        task_id: &TaskId,
         weight: u32,
     ) -> task::Poll<RunningGuard<TaskId>> {
         self.inner.lock().unwrap().poll_resume(cx, task_id, weight)
@@ -111,7 +111,7 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
     fn poll_resume(
         &mut self,
         cx: &task::Context<'_>,
-        id: TaskId,
+        id: &TaskId,
         weight: u32,
     ) -> task::Poll<RunningGuard<TaskId>> {
         self.maybe_reset_clock();
@@ -124,7 +124,7 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
         match task.state {
             TaskState::Idle => {
                 let ready = ReadyTask {
-                    id,
+                    id: id.clone(),
                     waker: cx.waker().clone(),
                 };
                 task.virtual_runtime = task.virtual_runtime.max(self.virtual_clock);
@@ -226,7 +226,7 @@ mod test {
     impl Future for TestTask {
         type Output = ();
         fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
-            let _guard = match self.scheduler.poll_resume(cx, self.id, self.weight) {
+            let _guard = match self.scheduler.poll_resume(cx, &self.id, self.weight) {
                 task::Poll::Ready(guard) => guard,
                 task::Poll::Pending => return task::Poll::Pending,
             };

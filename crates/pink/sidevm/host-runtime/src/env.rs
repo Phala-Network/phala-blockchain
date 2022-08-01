@@ -140,6 +140,7 @@ struct State {
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
     cache_ops: DynCacheOps,
+    weight: u32,
 }
 
 struct VmMemory(Option<Memory>);
@@ -179,6 +180,7 @@ impl Env {
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
                     cache_ops,
+                    weight: 1,
                 },
             })),
         }
@@ -256,6 +258,10 @@ impl Env {
 
     pub fn has_more_ready(&self) -> bool {
         !self.inner.lock().unwrap().state.awake_tasks.is_empty()
+    }
+
+    pub fn weight(&self) -> u32 {
+        self.inner.lock().unwrap().state.weight
     }
 }
 

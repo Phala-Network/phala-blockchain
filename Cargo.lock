@@ -8034,6 +8034,7 @@ dependencies = [
  "page_size",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
+ "phala-fair-queue",
  "pink-sidevm-env",
  "rand 0.8.5",
  "rustls-pemfile",
