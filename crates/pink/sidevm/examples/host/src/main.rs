@@ -1,5 +1,4 @@
-use pink_sidevm_host_runtime::service::service;
-use pink_sidevm_host_runtime::{instrument, CacheOps, DynCacheOps, OcallError};
+use pink_sidevm_host_runtime::{CacheOps, DynCacheOps, OcallError};
 
 use clap::{AppSettings, Parser};
 use once_cell::sync::Lazy;
@@ -24,7 +23,7 @@ pub struct Args {
     #[clap(long, default_value_t = 1)]
     workers: usize,
     /// The WASM program to run
-    program: String,
+    program: Option<String>,
 }
 
 fn simple_cache() -> DynCacheOps {
@@ -32,7 +31,7 @@ fn simple_cache() -> DynCacheOps {
     struct Ops;
     type OpResult<T> = Result<T, OcallError>;
     impl CacheOps for Ops {
-        fn get(&self, _contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+        fn get(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
             let cache = CACHE.read().unwrap();
             let value = cache.get(key).cloned();
             Ok(value)
@@ -64,36 +63,7 @@ fn simple_cache() -> DynCacheOps {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-
     env_logger::init();
-
-    let (run, spawner) = service(args.workers);
-    std::thread::spawn(move || {
-        run.blocking_run(|evt| {
-            println!("event: {:?}", evt);
-            std::process::exit(0);
-        });
-    });
-
-    println!("Reading {}...", args.program);
-    let mut wasm_bytes = std::fs::read(&args.program)?;
-    if !args.no_instrument {
-        println!("Instrumenting...");
-        wasm_bytes = instrument::instrument(&wasm_bytes)?;
-    }
-    println!("VM running...");
-    let (sender, handle) = spawner
-        .start(
-            &wasm_bytes,
-            1024,
-            Default::default(),
-            args.gas,
-            args.gas_per_breath,
-            simple_cache(),
-        )
-        .unwrap();
-    tokio::spawn(handle);
-    web_api::serve(sender).await.unwrap();
+    web_api::serve(Args::parse()).await.unwrap();
     Ok(())
 }
