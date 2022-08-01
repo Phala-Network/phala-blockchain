@@ -688,12 +688,14 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.did_process_block(block);
         }
 
-        self.worker_state
-            .on_block_processed(block, &mut WorkerSMDelegate{
+        self.worker_state.on_block_processed(
+            block,
+            &mut WorkerSMDelegate {
                 egress: &self.egress,
                 n_clusters: self.contract_clusters.len() as _,
                 n_contracts: self.contracts.len() as _,
-            });
+            },
+        );
 
         // Iterate over all contracts to handle their incoming commands.
         //
@@ -761,12 +763,16 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
-        self.worker_state
-            .process_event(block, event, &mut WorkerSMDelegate {
+        self.worker_state.process_event(
+            block,
+            event,
+            &mut WorkerSMDelegate {
                 egress: &self.egress,
                 n_clusters: self.contract_clusters.len() as _,
                 n_contracts: self.contracts.len() as _,
-            }, true);
+            },
+            true,
+        );
     }
 
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
@@ -1293,6 +1299,17 @@ impl<Platform: pal::Platform> System<Platform> {
                                     block.block_number,
                                 ),
                             )
+                            .map_err(|err| {
+                                let message = WorkerContractReport::ContractInstantiationFailed {
+                                    id: contract_id,
+                                    cluster_id,
+                                    deployer: phala_types::messaging::AccountId(
+                                        deployer.clone().into(),
+                                    ),
+                                };
+                                self.egress.push_message(&message);
+                                err
+                            })
                             .with_context(|| format!("Contract deployer: {:?}", deployer))?;
 
                         let cluster = self
