@@ -37,6 +37,9 @@ pub struct InitArgs {
     /// Run the database garbage collection at given interval in blocks
     #[cfg_attr(feature = "serde", serde(default))]
     pub gc_interval: chain::BlockNumber,
+
+    /// Number of cores used to run fat contracts
+    pub cores: u32,
 }
 
 pub fn git_revision() -> String {

@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result};
+use phala_fair_queue::TaskScheduler;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -11,12 +12,14 @@ use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
 use crate::env::DynCacheOps;
-use crate::{async_context, env};
+use crate::{async_context, env, VmId};
 
 pub struct WasmRun {
+    id: VmId,
     env: env::Env,
     wasm_poll_entry: NativeFunc<(), i32>,
     gas_per_breath: u128,
+    scheduler: TaskScheduler<VmId>,
 }
 
 impl Drop for WasmRun {
@@ -32,6 +35,7 @@ impl WasmRun {
         id: crate::VmId,
         gas_per_breath: u128,
         cache_ops: DynCacheOps,
+        scheduler: TaskScheduler<VmId>,
     ) -> Result<(WasmRun, env::Env)> {
         let compiler_env = std::env::var("WASMER_COMPILER");
         let compiler_env = compiler_env
@@ -69,6 +73,8 @@ impl WasmRun {
                 env: env.clone(),
                 wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
                 gas_per_breath,
+                scheduler,
+                id,
             },
             env,
         ))
@@ -79,6 +85,7 @@ impl Future for WasmRun {
     type Output = Result<i32, RuntimeError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let _guard = self.scheduler.poll_resume(cx, &self.id, self.env.weight());
         self.env.set_gas_to_breath(self.gas_per_breath);
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {

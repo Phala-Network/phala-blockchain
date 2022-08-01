@@ -58,6 +58,7 @@ use sp_io;
 
 use std::convert::TryFrom;
 use std::future::Future;
+use std::cell::Cell;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -446,7 +447,7 @@ pub struct System<Platform> {
     pub(crate) contracts: ContractsKeeper,
     pub(crate) contract_clusters: ClusterKeeper,
     #[serde(skip)]
-    #[serde(default = "create_sidevm_service")]
+    #[serde(default = "create_sidevm_service_default")]
     sidevm_spawner: Spawner,
 
     // Cached for query
@@ -455,8 +456,20 @@ pub struct System<Platform> {
     retired_versions: Vec<Condition>,
 }
 
-fn create_sidevm_service() -> Spawner {
-    let (service, spawner) = sidevm::service::service();
+thread_local! {
+    static N_WORKERS: Cell<usize> = Cell::new(2);
+}
+
+pub fn sidevm_config(n_workers: usize) {
+    N_WORKERS.with(|v| v.set(n_workers))
+}
+
+fn create_sidevm_service_default() -> Spawner {
+    create_sidevm_service(N_WORKERS.with(|n| n.get()))
+}
+
+fn create_sidevm_service(worker_threads: usize) -> Spawner {
+    let (service, spawner) = sidevm::service::service(worker_threads);
     spawner.spawn(service.run(|report| match report {
         Report::VmTerminated { id, reason } => {
             let id = hex_fmt::HexFmt(&id[..4]);
@@ -479,6 +492,7 @@ impl<Platform: pal::Platform> System<Platform> {
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
         contracts: ContractsKeeper,
+        worker_threads: usize,
     ) -> Self {
         // Trigger panic early if platform is not properly implemented.
         let _ = Platform::app_version();
@@ -511,7 +525,7 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_clusters: Default::default(),
             block_number: 0,
             now_ms: 0,
-            sidevm_spawner: create_sidevm_service(),
+            sidevm_spawner: create_sidevm_service(worker_threads),
             retired_versions: vec![],
         }
     }
@@ -1162,7 +1176,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
-                let uploader = phala_types::messaging::AccountId(origin.clone().into());
+                let _uploader = phala_types::messaging::AccountId(origin.clone().into());
                 let hash = cluster
                     .upload_resource(origin, resource_type, resource_data)
                     .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
@@ -1824,7 +1838,7 @@ mod tests {
             .send_mq
             .channel(MessageOrigin::Gatekeeper, signer.into());
         let mut block_info = builder.build();
-        let spawner = create_sidevm_service();
+        let spawner = create_sidevm_service(4);
 
         apply_pink_side_effects(
             effects,

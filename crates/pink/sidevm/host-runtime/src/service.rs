@@ -3,6 +3,7 @@ use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, trace, warn};
+use phala_fair_queue::TaskScheduler;
 use pink_sidevm_env::messages::AccountId;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -61,11 +62,13 @@ pub struct ServiceRun {
 pub struct Spawner {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,
+    scheduler: TaskScheduler<VmId>,
 }
 
-pub fn service() -> (ServiceRun, Spawner) {
+pub fn service(worker_threads: usize) -> (ServiceRun, Spawner) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
+        .max_blocking_threads(16)
+        .worker_threads(worker_threads.max(2))
         .enable_all()
         .build()
         .unwrap();
@@ -75,6 +78,7 @@ pub fn service() -> (ServiceRun, Spawner) {
     let spawner = Spawner {
         runtime_handle,
         report_tx,
+        scheduler: TaskScheduler::new(worker_threads as _),
     };
     (run, spawner)
 }
@@ -115,9 +119,15 @@ impl Spawner {
         cache_ops: DynCacheOps,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(128);
-        let (mut wasm_run, env) =
-            WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath, cache_ops)
-                .context("Failed to create sidevm instance")?;
+        let (mut wasm_run, env) = WasmRun::run(
+            wasm_bytes,
+            max_memory_pages,
+            id,
+            gas_per_breath,
+            cache_ops,
+            self.scheduler.clone(),
+        )
+        .context("Failed to create sidevm instance")?;
         env.set_gas(gas);
         let spawner = self.runtime_handle.clone();
         let handle = self.runtime_handle.spawn(async move {

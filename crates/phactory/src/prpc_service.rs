@@ -385,6 +385,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
+            self.args.cores as _,
         );
 
         let resp = pb::InitRuntimeResponse::new(

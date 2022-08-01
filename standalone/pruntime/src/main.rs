@@ -118,6 +118,9 @@ async fn main() -> Result<(), rocket::Error> {
     let env = env_logger::Env::default().default_filter_or("info");
     env_logger::Builder::from_env(env).format_timestamp_micros().init();
 
+    let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
+    info!("Bench cores: {}", cores);
+
     let init_args = {
         let args = args.clone();
         InitArgs {
@@ -132,6 +135,7 @@ async fn main() -> Result<(), rocket::Error> {
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
             max_checkpoint_files: args.max_checkpoint_files,
             gc_interval: args.gc_interval,
+            cores,
         }
     };
     info!("init_args: {:#?}", init_args);
@@ -139,10 +143,7 @@ async fn main() -> Result<(), rocket::Error> {
         panic!("Initialize Failed: {:?}", err);
     }
 
-    let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
-    info!("Bench cores: {}", bench_cores);
-
-    for i in 0..bench_cores {
+    for i in 0..cores {
         thread::Builder::new()
             .name(format!("bench-{}", i))
             .spawn(move || {

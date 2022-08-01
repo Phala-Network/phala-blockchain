@@ -45,13 +45,13 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, ContractId};
+use phala_fair_queue::FairQueue;
+use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::{EndpointType, WorkerEndpointPayload, WorkerRegistrationInfo};
 use std::time::Instant;
 use types::Error;
-use phala_fair_queue::FairQueue;
 
 pub use chain::BlockNumber;
 pub use contracts::pink;
@@ -455,6 +455,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         sealing_path: &str,
         storage_path: &str,
         remove_corrupted_checkpoint: bool,
+        n_workers: usize,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
@@ -491,7 +492,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file) {
+        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers) {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
                 Ok(Some(state))
@@ -511,9 +512,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint_reader<R: std::io::Read>(
         key: &[u8],
         reader: R,
+        n_workers: usize,
     ) -> anyhow::Result<Self> {
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
+        system::sidevm_config(n_workers);
         let loader: PhactoryLoader<_> =
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
         Ok(loader.0)

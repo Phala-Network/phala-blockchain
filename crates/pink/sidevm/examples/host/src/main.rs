@@ -21,6 +21,8 @@ pub struct Args {
     /// Don't instrument the program.
     #[clap(long)]
     no_instrument: bool,
+    #[clap(long, default_value_t = 1)]
+    workers: usize,
     /// The WASM program to run
     program: String,
 }
@@ -66,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init();
 
-    let (run, spawner) = service();
+    let (run, spawner) = service(args.workers);
     std::thread::spawn(move || {
         run.blocking_run(|evt| {
             println!("event: {:?}", evt);
