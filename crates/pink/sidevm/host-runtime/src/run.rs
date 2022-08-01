@@ -36,6 +36,7 @@ impl WasmRun {
         gas_per_breath: u128,
         cache_ops: DynCacheOps,
         scheduler: TaskScheduler<VmId>,
+        weight: u32,
     ) -> Result<(WasmRun, env::Env)> {
         let compiler_env = std::env::var("WASMER_COMPILER");
         let compiler_env = compiler_env
@@ -70,6 +71,7 @@ impl WasmRun {
         env.set_memory(memory.clone());
         env.set_gas(gas);
         env.set_gas_per_breath(gas_per_breath);
+        env.set_weight(weight);
         Ok((
             WasmRun {
                 env: env.clone(),

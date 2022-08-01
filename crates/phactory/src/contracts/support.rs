@@ -378,6 +378,7 @@ fn do_start_sidevm(
         gas,
         gas_per_breath,
         local_cache_ops(),
+        1, // TODO: set actual weight
     )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
