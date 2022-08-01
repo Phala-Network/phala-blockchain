@@ -31,7 +31,7 @@ fn simple_cache() -> DynCacheOps {
     struct Ops;
     type OpResult<T> = Result<T, OcallError>;
     impl CacheOps for Ops {
-        fn get(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
+        fn get(&self, _contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
             let cache = CACHE.read().unwrap();
             let value = cache.get(key).cloned();
             Ok(value)

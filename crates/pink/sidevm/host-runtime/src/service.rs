@@ -117,6 +117,7 @@ impl Spawner {
         gas: u128,
         gas_per_breath: u128,
         cache_ops: DynCacheOps,
+        weight: u32,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(128);
         let (mut wasm_run, env) = WasmRun::run(
@@ -127,6 +128,7 @@ impl Spawner {
             gas,
             cache_ops,
             self.scheduler.clone(),
+            weight,
         )
         .context("Failed to create sidevm instance")?;
         let spawner = self.runtime_handle.clone();

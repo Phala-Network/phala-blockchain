@@ -266,6 +266,10 @@ impl Env {
     pub fn weight(&self) -> u32 {
         self.inner.lock().unwrap().state.weight
     }
+
+    pub fn set_weight(&self, weight: u32) {
+        self.inner.lock().unwrap().state.weight = weight;
+    }
 }
 
 fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usize)> {

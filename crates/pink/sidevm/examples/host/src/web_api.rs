@@ -50,7 +50,7 @@ impl App {
         Ok(())
     }
 
-    async fn run_wasm(&self, mut wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
+    async fn run_wasm(&self, weight: u32, mut wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
         let mut inner = self.inner.lock().await;
         let id = inner.next_id;
         inner.next_id += 1;
@@ -78,6 +78,7 @@ impl App {
                 inner.args.gas,
                 inner.args.gas_per_breath,
                 crate::simple_cache(),
+                weight,
             )
             .unwrap();
         inner.instances.insert(id, sender);
@@ -176,13 +177,13 @@ async fn push_query(
     Ok(reply)
 }
 
-#[post("/run", data = "<data>")]
-async fn run(app: &State<App>, data: Data<'_>) -> Result<String, Custom<&'static str>> {
+#[post("/run/<weight>", data = "<data>")]
+async fn run(app: &State<App>, weight: u32, data: Data<'_>) -> Result<String, Custom<&'static str>> {
     let code = read_data(data)
         .await
         .ok_or(Custom(Status::BadRequest, "No message payload"))?;
     let id = app
-        .run_wasm(code)
+        .run_wasm(weight, code)
         .await
         .map_err(|reason| Custom(Status::InternalServerError, reason))?;
     Ok(id.to_string())
@@ -199,7 +200,7 @@ pub async fn serve(args: Args) -> anyhow::Result<()> {
     let app = App::new(spawner, args);
     if let Some(program) = program {
         let wasm_codes = std::fs::read(&program)?;
-        app.run_wasm(wasm_codes).await.map_err(|reason| {
+        app.run_wasm(1, wasm_codes).await.map_err(|reason| {
             anyhow::anyhow!("Failed to run wasm: {}", reason)
         })?;
     }
