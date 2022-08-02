@@ -64,6 +64,9 @@ fn simple_cache() -> DynCacheOps {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
+    if std::env::var("ROCKET_PORT").is_err() {
+        std::env::set_var("ROCKET_PORT", "8003");
+    }
     web_api::serve(Args::parse()).await.unwrap();
     Ok(())
 }

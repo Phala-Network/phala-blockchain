@@ -1,8 +1,16 @@
 use log::info;
-use core::hint::black_box;
 
 use pink_sidevm as sidevm;
 use sidevm::{logger::Logger, ocall};
+use std::ptr;
+
+pub fn black_box<T>(dummy: T) -> T {
+    unsafe {
+        let ret = ptr::read_volatile(&dummy);
+        std::mem::forget(dummy);
+        ret
+    }
+}
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;
@@ -25,34 +33,30 @@ fn count_prime(max: u128) -> usize {
 }
 
 pub async fn run() {
-    const MAX_NUM: u128 = 65536 * 128;
+    const MAX_NUM: u128 = 65536 * 16;
+    const UNIT: usize = 1;
 
     let since = now();
-    let start = iteration_counter();
+    let start = 0;
+    let mut counter = 0;
     loop {
         for _ in 0..UNIT {
             let _ = black_box(count_prime(black_box(MAX_NUM)));
         }
-        let count = ITERATION_COUNTER.fetch_add(1, Ordering::Relaxed);
-        if count % 100 == 0 {
-            let score = est_score(since, start);
-            debug!(
-                "Benchmark counnter increased to {}, est score={}",
-                count, score,
-            );
-            SCORE.store(score, Ordering::Relaxed);
-        }
+        counter += 1;
+        let score = est_score(since, start, counter) as f32 / 1000.0;
+        log::info!("Bench counter={counter}, est score={score:.3}");
         sidevm::time::maybe_rest().await;
     }
 }
 
-fn est_score(since: u64, start: u64) -> u64 {
+fn est_score(since: u64, start: u64, counter: u64) -> u64 {
     let now = now();
     if now <= since {
         return 0;
     }
     // Normalize to 6s (standard block time)
-    (ITERATION_COUNTER.load(Ordering::Relaxed) - start) * 6 / (now - since)
+    (counter - start) * (6000 / 8) / (now - since)
 }
 
 fn now() -> u64 {
