@@ -13,6 +13,7 @@ const { normalizeHex, praseBn, loadJson } = require('./utils/common');
 const { poolSubAccount, createMotion } = require('./utils/palletUtils');
 const { decorateStakePool } = require('./utils/displayUtils');
 const { createPRuntimeApi } = require('./utils/pruntime');
+const { resolveDefaultEndpoint } = require('./utils/builtinEndpoints');
 const BN = require('bn.js');
 
 function run(afn) {
@@ -44,7 +45,8 @@ function usePruntimeApi() {
 
 async function useApi() {
     let { substrateWsEndpoint, substrateNoRetry, at } = program.opts();
-    const wsProvider = new WsProvider(substrateWsEndpoint);
+    const endpoint = resolveDefaultEndpoint(substrateWsEndpoint);
+    const wsProvider = new WsProvider(endpoint);
     const api = await ApiPromise.create({
         provider: wsProvider,
         throwOnConnect: !substrateNoRetry,
@@ -117,6 +119,7 @@ function printObject(obj, depth=3, getter=true) {
 
 async function estimateFeeOn(endpoint, callHex) {
     // Create another API because we are not querying Phala
+    endpoint = resolveDefaultEndpoint(endpoint);
     const wsProvider = new WsProvider(endpoint);
     const api = await ApiPromise.create({
         provider: wsProvider,
@@ -135,7 +138,7 @@ async function estimateFeeOn(endpoint, callHex) {
 
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
-    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint. Supported builtin endpoints: phala, khala.', process.env.ENDPOINT || 'ws://localhost:9944')
     .option('--substrate-no-retry', false)
     .option('--at <hash>', 'access the state at a certain block', null)
     .option('--key-type <type>', 'key type', 'sr25519')
@@ -428,7 +431,7 @@ xcmp
     .option('--transact-weight <weight>', 'set RequireWeightAtMost in transact', '2000000000')
     .option(
         '--estimate-on-relay <ws-url>',
-        'specify the relay chain ws endpoint to enable transact call weight estimation'
+        'specify the relay chain ws endpoint to enable transact call weight estimation. supported builtin endpoints: polkadot, kusama.'
     )
     .argument('<data>', 'the raw transac data in hex')
     .action(run(async (data, opt) => {
