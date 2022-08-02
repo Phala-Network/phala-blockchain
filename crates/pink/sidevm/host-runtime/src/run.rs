@@ -88,7 +88,7 @@ impl Future for WasmRun {
     type Output = Result<i32, RuntimeError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let _guard = self.scheduler.poll_resume(cx, &self.id, self.env.weight());
+        let _guard = futures::ready!(self.scheduler.poll_resume(cx, &self.id, self.env.weight()));
         self.env.reset_gas_to_breath();
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {

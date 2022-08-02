@@ -66,9 +66,10 @@ pub struct Spawner {
 }
 
 pub fn service(worker_threads: usize) -> (ServiceRun, Spawner) {
+    let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(16)
-        .worker_threads(worker_threads.max(2))
+        .worker_threads(worker_threads + 2)
         .enable_all()
         .build()
         .unwrap();
@@ -124,15 +125,15 @@ impl Spawner {
             wasm_bytes,
             max_memory_pages,
             id,
-            gas_per_breath,
             gas,
+            gas_per_breath,
             cache_ops,
             self.scheduler.clone(),
             weight,
         )
         .context("Failed to create sidevm instance")?;
         let spawner = self.runtime_handle.clone();
-        let handle = self.runtime_handle.spawn(async move {
+        let handle = self.spawn(async move {
             let vmid = ShortId(&id);
             macro_rules! spawn_push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {
@@ -198,7 +199,7 @@ impl Spawner {
             }
         });
         let report_tx = self.report_tx.clone();
-        let handle = self.runtime_handle.spawn(async move {
+        let handle = self.spawn(async move {
             let vmid = ShortId(&id);
             let reason = match handle.await {
                 Ok(r) => r,
@@ -219,7 +220,10 @@ impl Spawner {
         Ok((cmd_tx, handle))
     }
 
-    pub fn spawn(&self, fut: impl Future<Output = ()> + Send + 'static) -> JoinHandle<()> {
+    pub fn spawn<O: Send + 'static>(
+        &self,
+        fut: impl Future<Output = O> + Send + 'static,
+    ) -> JoinHandle<O> {
         self.runtime_handle.spawn(fut)
     }
 }
