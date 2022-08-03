@@ -21,7 +21,8 @@ wasmer-compiler-llvm = { version = "2.3", optional = true }
 wasmer-engine = "2.3"
 wasmer-engine-universal = "2.3"
 wasmer-tunables = { path = "../../../wasmer-tunables" }
-parity-wasm = "0.42.2"
+wasmer-middlewares = "2.3"
+parity-wasm = "0.42"
 wasm-instrument = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 rand = "0.8.5"

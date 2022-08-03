@@ -116,7 +116,7 @@ impl Spawner {
         max_memory_pages: u32,
         id: VmId,
         gas: u128,
-        gas_per_breath: u128,
+        gas_per_breath: u64,
         cache_ops: DynCacheOps,
         weight: u32,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {

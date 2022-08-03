@@ -244,6 +244,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn it_works() {
         let scheduler = TaskScheduler::new(3);
         let mut tasks = vec![];

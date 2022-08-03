@@ -6,7 +6,6 @@ use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
 use sidevm::{
-    instrument::instrument,
     service::{CommandSender, ExitReason},
     OcallAborted, VmId,
 };
@@ -369,8 +368,7 @@ fn do_start_sidevm(
     let todo = "connect the gas to some where";
     let max_memory_pages: u32 = 1024; // 64MB
     let gas = u128::MAX;
-    let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
-    let code = instrument(code).context("Failed to instrument the wasm code")?;
+    let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
     let (sender, join_handle) = spawner.start(
         &code,
         max_memory_pages,
