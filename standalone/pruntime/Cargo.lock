@@ -4827,6 +4827,7 @@ dependencies = [
  "page_size",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
+ "phala-fair-queue",
  "pink-sidevm-env",
  "rand 0.8.5",
  "rustls-pemfile",
@@ -4841,6 +4842,7 @@ dependencies = [
  "wasmer-compiler-singlepass",
  "wasmer-engine",
  "wasmer-engine-universal",
+ "wasmer-middlewares",
  "wasmer-tunables",
  "wasmer-wasi-types",
  "webpki-roots 0.22.4",
@@ -7992,6 +7994,18 @@ dependencies = [
  "wasmer-artifact",
  "wasmer-compiler",
  "wasmer-types",
+]
+
+[[package]]
+name = "wasmer-middlewares"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7812438ed2f37203a37007cdb5332b8475cb2b16e15d51299b2647894e9ed3a"
+dependencies = [
+ "loupe",
+ "wasmer",
+ "wasmer-types",
+ "wasmer-vm",
 ]
 
 [[package]]
