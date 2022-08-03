@@ -161,7 +161,7 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
             "BUG: parking a non-running task"
         );
 
-        task.virtual_runtime += actual_cost;
+        task.virtual_runtime += actual_cost.max(1);
         task.state = TaskState::Idle;
         self.running_tasks -= 1;
         self.schedule();
