@@ -1,5 +1,5 @@
 [package]
-name = "phala-fair-queue"
+name = "phala-scheduler"
 version = "0.1.0"
 edition = "2021"
 

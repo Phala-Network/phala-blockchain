@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use phala_crypto::ecdh::EcdhPublicKey;
-use phala_fair_queue::FairQueue;
+use phala_scheduler::RequestScheduler;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
@@ -38,7 +38,7 @@ pub struct QueryContext {
     pub storage: ::pink::Storage,
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
-    pub query_queue: FairQueue<ContractId>,
+    pub query_scheduler: RequestScheduler<ContractId>,
 }
 
 impl NativeContext<'_, '_> {

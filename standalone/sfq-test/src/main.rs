@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use clap::Parser;
-use fq::FairQueue;
-use phala_fair_queue as fq;
+use fq::RequestScheduler;
+use phala_scheduler as fq;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::{get, launch, routes, State};
@@ -25,7 +25,7 @@ struct Stats {
 }
 
 struct App {
-    queue: fq::FairQueue<String>,
+    queue: fq::RequestScheduler<String>,
     stats: Mutex<HashMap<String, Stats>>,
 }
 
@@ -101,7 +101,7 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(App {
-            queue: FairQueue::new(args.backlog, args.depth),
+            queue: RequestScheduler::new(args.backlog, args.depth),
             stats: Default::default(),
         })
         .mount("/test", routes![test, dump])
