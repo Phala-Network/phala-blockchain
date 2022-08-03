@@ -1,5 +1,5 @@
 use anyhow::{Context as _, Result};
-use phala_fair_queue::TaskScheduler;
+use phala_scheduler::TaskScheduler;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};

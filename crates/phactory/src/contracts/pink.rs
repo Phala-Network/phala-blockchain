@@ -115,7 +115,7 @@ impl contracts::NativeContract for Pink {
         match req {
             Query::InkMessage(input_data) => {
                 let _guard = context
-                    .query_queue
+                    .query_scheduler
                     .acquire(self.id(), 1)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
