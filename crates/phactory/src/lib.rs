@@ -45,7 +45,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_fair_queue::FairQueue;
+use phala_scheduler::RequestScheduler;
 use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
@@ -258,15 +258,15 @@ pub struct Phactory<Platform> {
     #[serde(default)]
     last_storage_purge_at: chain::BlockNumber,
     #[serde(skip)]
-    #[serde(default = "default_fair_queue")]
-    query_dispatch_queue: FairQueue<ContractId>,
+    #[serde(default = "default_query_scheduler")]
+    query_scheduler: RequestScheduler<ContractId>,
 }
 
-fn default_fair_queue() -> FairQueue<ContractId> {
+fn default_query_scheduler() -> RequestScheduler<ContractId> {
     const FAIR_QUEUE_BACKLOG: usize = 32;
     const FAIR_QUEUE_THREADS: u32 = 8;
 
-    FairQueue::new(FAIR_QUEUE_BACKLOG, FAIR_QUEUE_THREADS)
+    RequestScheduler::new(FAIR_QUEUE_BACKLOG, FAIR_QUEUE_THREADS)
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -286,7 +286,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
-            query_dispatch_queue: default_fair_queue(),
+            query_scheduler: default_query_scheduler(),
         }
     }
 

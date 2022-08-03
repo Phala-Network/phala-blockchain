@@ -3,7 +3,7 @@ use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, trace, warn};
-use phala_fair_queue::TaskScheduler;
+use phala_scheduler::TaskScheduler;
 use pink_sidevm_env::messages::AccountId;
 use serde::{Deserialize, Serialize};
 use std::future::Future;

@@ -69,7 +69,7 @@ members = [
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
 	"crates/sgx-api-lite",
-	"crates/phala-fair-queue",
+	"crates/phala-scheduler",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"scripts/toml-upgrade-version",
