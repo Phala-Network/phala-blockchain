@@ -15,11 +15,8 @@ pub struct Args {
     #[clap(long, default_value_t = u128::MAX)]
     gas: u128,
     /// The gas limit for each poll.
-    #[clap(long, default_value_t = 1000_000_000_000_u128)]
-    gas_per_breath: u128,
-    /// Don't instrument the program.
-    #[clap(long)]
-    no_instrument: bool,
+    #[clap(long, default_value_t = 50_000_000_000_u64)]
+    gas_per_breath: u64,
     #[clap(long, default_value_t = 1)]
     workers: usize,
     /// The WASM program to run

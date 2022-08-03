@@ -12,7 +12,7 @@ use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
 use crate::env::DynCacheOps;
-use crate::{async_context, env, VmId};
+use crate::{async_context, env, metering::metering, VmId};
 
 pub struct WasmRun {
     id: VmId,
@@ -33,7 +33,7 @@ impl WasmRun {
         max_pages: u32,
         id: crate::VmId,
         gas: u128,
-        gas_per_breath: u128,
+        gas_per_breath: u64,
         cache_ops: DynCacheOps,
         scheduler: TaskScheduler<VmId>,
         weight: u32,
@@ -45,9 +45,9 @@ impl WasmRun {
             .unwrap_or("singlepass");
 
         let engine = match compiler_env {
-            "singlepass" => Universal::new(Singlepass::default()),
+            "singlepass" => Universal::new(metering(Singlepass::default())),
             #[cfg(feature = "wasmer-compiler-cranelift")]
-            "cranelift" => Universal::new(Cranelift::default()),
+            "cranelift" => Universal::new(metering(Cranelift::default())),
             #[cfg(feature = "wasmer-compiler-llvm")]
             "llvm" => Universal::new(LLVM::default()),
             _ => panic!("Unsupported compiler engine: {}", compiler_env),
@@ -68,14 +68,16 @@ impl WasmRun {
             .exports
             .get_memory("memory")
             .context("No memory exported")?;
+        let wasm_poll_entry = instance.exports.get_native_function("sidevm_poll")?;
         env.set_memory(memory.clone());
+        env.set_instance(instance);
         env.set_gas(gas);
         env.set_gas_per_breath(gas_per_breath);
         env.set_weight(weight);
         Ok((
             WasmRun {
                 env: env.clone(),
-                wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
+                wasm_poll_entry,
                 scheduler,
                 id,
             },
@@ -92,6 +94,9 @@ impl Future for WasmRun {
         self.env.reset_gas_to_breath();
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {
+                if let Err(err) = self.env.settle_gas() {
+                    return Poll::Ready(Err(RuntimeError::user(err.into())));
+                }
                 if rv == 0 {
                     if self.env.has_more_ready() {
                         cx.waker().wake_by_ref();
@@ -101,7 +106,13 @@ impl Future for WasmRun {
                     Poll::Ready(Ok(rv))
                 }
             }
-            Err(err) => Poll::Ready(Err(err)),
+            Err(err) => {
+                if self.env.is_stifled() {
+                    Poll::Ready(Err(RuntimeError::user(crate::env::OcallAborted::Stifled.into())))
+                } else {
+                    Poll::Ready(Err(err))
+                }
+            }
         }
     }
 }

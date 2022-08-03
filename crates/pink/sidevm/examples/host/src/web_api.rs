@@ -1,4 +1,3 @@
-use pink_sidevm_host_runtime::instrument;
 use rocket::data::ToByteUnit;
 use rocket::http::Status;
 use rocket::response::status::Custom;
@@ -50,7 +49,7 @@ impl App {
         Ok(())
     }
 
-    async fn run_wasm(&self, weight: u32, mut wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
+    async fn run_wasm(&self, weight: u32, wasm_bytes: Vec<u8>) -> Result<u32, &'static str> {
         let mut inner = self.inner.lock().await;
         let id = inner.next_id;
         inner.next_id += 1;
@@ -58,15 +57,6 @@ impl App {
         let mut vmid = [0u8; 32];
 
         vmid[0..4].copy_from_slice(&id.to_be_bytes());
-
-        // let mut wasm_bytes = std::fs::read(&args.program)?;
-        if !inner.args.no_instrument {
-            println!("Instrumenting...");
-            wasm_bytes = instrument::instrument(&wasm_bytes).map_err(|e| {
-                eprintln!("Failed to instrument wasm: {}", e);
-                "Failed to instrument wasm"
-            })?;
-        }
 
         println!("VM {id} running...");
         let (sender, handle) = inner

@@ -1,6 +1,7 @@
 mod async_context;
 mod env;
 pub mod instrument;
+mod metering;
 mod resource;
 mod run;
 pub mod service;
