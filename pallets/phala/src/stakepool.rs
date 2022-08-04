@@ -20,7 +20,6 @@ pub mod pallet {
 	use std::format;
 
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
-
 	use crate::basepool;
 	use crate::mining;
 	use crate::poolproxy::*;
@@ -34,6 +33,7 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
+			tokens::fungibles::{Create, Mutate},
 			Currency, Imbalance, LockIdentifier, LockableCurrency, OnUnbalanced, StorageVersion,
 			UnixTime, WithdrawReasons,
 		},
@@ -62,21 +62,6 @@ pub mod pallet {
 		}
 	}
 
-	/// The functions to manage user's native currency lock in the Balances pallet
-	pub trait Ledger<AccountId, Balance> {
-		/// Increases the locked amount for a user
-		///
-		/// Unsafe: it assumes there's enough free `amount`
-		fn ledger_accrue(who: &AccountId, amount: Balance);
-		/// Decreases the locked amount for a user
-		///
-		/// Optionally remove some dust by `Currency::slash` and move it to the Treasury.
-		/// Unsafe: it assumes there's enough locked `amount`
-		fn ledger_reduce(who: &AccountId, amount: Balance, dust: Balance);
-		/// Gets the locked amount of `who`
-		fn ledger_query(who: &AccountId) -> Balance;
-	}
-
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
@@ -84,6 +69,7 @@ pub mod pallet {
 		+ mining::Config
 		+ pallet_rmrk_core::Config
 		+ basepool::Config
+		+ pallet_assets::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
@@ -102,6 +88,12 @@ pub mod pallet {
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
+
+		#[pallet::constant]
+		type PPhaAssetId: Get<u32>;
+
+		#[pallet::constant]
+		type PawnShopAccountId: Get<T::AccountId>;
 
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -134,11 +126,6 @@ pub mod pallet {
 
 	#[pallet::storage]
 	pub type VaultAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
-
-	/// Mapping staker to it's the balance locked in all pools
-	#[pallet::storage]
-	#[pallet::getter(fn stake_ledger)]
-	pub type StakeLedger<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
 	/// Switch to enable the stake pool pallet (disabled by default)
 	#[pallet::storage]
@@ -465,6 +452,8 @@ pub mod pallet {
 		MissingCollectionId,
 
 		InvaildWithdrawSharesAmount,
+
+		AssetAccountNotExist,
 	}
 
 	#[pallet::call]
@@ -472,6 +461,8 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
@@ -519,7 +510,6 @@ pub mod pallet {
 			);
 			basepool::PoolCount::<T>::put(pid + 1);
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
-
 			Ok(())
 		}
 
@@ -907,8 +897,7 @@ pub mod pallet {
 			);
 			let rewards = pool_info.owner_reward;
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
-				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &target, rewards);
 			pool_info.owner_reward = Zero::zero();
 			basepool::pallet::Pools::<T>::insert(
 				pid,
@@ -1156,9 +1145,9 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let free = <T as mining::Config>::Currency::free_balance(&who);
-			let locked = Self::ledger_query(&who);
-			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
+			let free = pallet_assets::Pallet::<T>::maybe_balance(T::PPhaAssetId::get(), &who)
+				.ok_or(Error::<T>::AssetAccountNotExist)?;
+			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			let shares = basepool::Pallet::<T>::contribute(
@@ -1185,7 +1174,7 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				who.clone(),
 			)?;
-			Self::ledger_accrue(&who, a);
+			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &who, a);
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
@@ -1297,9 +1286,9 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let free = <T as mining::Config>::Currency::free_balance(&who);
-			let locked = Self::ledger_query(&who);
-			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
+			let free = pallet_assets::Pallet::<T>::maybe_balance(T::PPhaAssetId::get(), &who)
+				.ok_or(Error::<T>::AssetAccountNotExist)?;
+			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			let shares = basepool::Pallet::<T>::contribute(
@@ -1335,7 +1324,7 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				who.clone(),
 			)?;
-			Self::ledger_accrue(&who, a);
+			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &who, a);
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
@@ -1635,6 +1624,8 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		pub fn do_start_mining(
 			owner: &T::AccountId,
@@ -1724,6 +1715,8 @@ pub mod pallet {
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() {
+				mining::Pallet::<T>::withdraw_subsidy_pool(T::PawnShopAccountId::get(), rewards)
+					.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 				if basepool::balance_close_to_zero(pool_info.basepool.total_shares) {
 					Self::deposit_event(Event::<T>::RewardDismissedNoShare {
 						pid: pool_info.basepool.pid,
@@ -1862,7 +1855,11 @@ pub mod pallet {
 					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault_info.clone()),
 				);
 			} else {
-				Self::ledger_reduce(&userid, reduced, dust);
+				pallet_assets::Pallet::<T>::mint_into(
+					T::PPhaAssetId::get(),
+					&userid,
+					reduced + dust,
+				);
 				Self::deposit_event(Event::<T>::Withdrawal {
 					pid: pool_info.pid,
 					user: userid,
@@ -1940,26 +1937,14 @@ pub mod pallet {
 			}
 		}
 
-		/// Updates a user's locked balance. Doesn't check the amount is less than the free amount!
-		fn update_lock(who: &T::AccountId, amount: BalanceOf<T>) {
-			if amount == Zero::zero() {
-				<T as mining::Config>::Currency::remove_lock(STAKING_ID, who);
-			} else {
-				<T as mining::Config>::Currency::set_lock(
-					STAKING_ID,
-					who,
-					amount,
-					WithdrawReasons::all(),
-				);
-			}
-		}
-
 		/// Removes some dust amount from a user's account by Currency::slash.
 		fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(who, dust);
-				let actual_removed = imbalance.peek();
+				let actual_removed =
+					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust)
+						.expect("slash should success with correct amount: qed.");
+				let (_, imbalance) = <T as mining::Config>::Currency::pair(actual_removed.clone());
 				T::OnSlashed::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::DustRemoved {
 					user: who.clone(),
@@ -1998,13 +1983,19 @@ pub mod pallet {
 			match pool.settle_nft_slash(nft) {
 				// We don't slash on dust, because the share price is just unstable.
 				Some(slashed) if basepool::is_nondust_balance(slashed) => {
-					let (imbalance, _remaining) =
-						<T as mining::Config>::Currency::slash(&userid, slashed);
-					let actual_slashed = imbalance.peek();
+					let actual_slashed =
+						pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), &userid, slashed)
+							.expect("slash should success with correct amount: qed.");
+					let (_, imbalance) =
+						<T as mining::Config>::Currency::pair(actual_slashed.clone());
 					T::OnSlashed::on_unbalanced(imbalance);
 					// Dust is not considered because it's already merged into the slash if
 					// presents.
-					Self::ledger_reduce(&userid, actual_slashed, Zero::zero());
+					pallet_assets::Pallet::<T>::mint_into(
+						T::PPhaAssetId::get(),
+						&userid,
+						actual_slashed,
+					);
 					Self::deposit_event(Event::<T>::SlashSettled {
 						pid: pool.pid,
 						user: userid,
@@ -2025,6 +2016,8 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
@@ -2059,6 +2052,8 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Usually called on worker force unbinding (force == true), but it's also possible
@@ -2079,37 +2074,10 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {}
-	}
-
-	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T>
-	where
-		BalanceOf<T>: FixedPointConvert + Display,
-		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-	{
-		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
-			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
-			let new_b = b.saturating_add(amount);
-			StakeLedger::<T>::insert(who, new_b);
-			Self::update_lock(who, new_b);
-		}
-
-		fn ledger_reduce(who: &T::AccountId, amount: BalanceOf<T>, dust: BalanceOf<T>) {
-			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
-			let to_remove = amount + dust;
-			debug_assert!(b >= to_remove, "Cannot reduce lock more than it has");
-			let new_b = b.saturating_sub(to_remove);
-			StakeLedger::<T>::insert(who, new_b);
-			Self::update_lock(who, new_b);
-			if dust != Zero::zero() {
-				Self::remove_dust(who, dust);
-			}
-		}
-
-		fn ledger_query(who: &T::AccountId) -> BalanceOf<T> {
-			StakeLedger::<T>::get(who).unwrap_or_default()
-		}
 	}
 
 	fn pool_sub_account<T>(pid: u64, pubkey: &WorkerPublicKey) -> T
@@ -3409,8 +3377,6 @@ pub mod pallet {
 					1100 * DOLLARS
 				);
 				// Check total locks
-				assert_eq!(PhalaStakePool::stake_ledger(1), Some(101 * DOLLARS));
-				assert_eq!(PhalaStakePool::stake_ledger(2), Some(1010 * DOLLARS));
 				assert_eq!(Balances::locks(1), vec![the_lock(101 * DOLLARS)]);
 				assert_eq!(Balances::locks(2), vec![the_lock(1010 * DOLLARS)]);
 
@@ -3628,13 +3594,11 @@ pub mod pallet {
 					0,
 					100 * DOLLARS
 				));
-				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 100 * DOLLARS);
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(1),
 					1,
 					300 * DOLLARS
 				));
-				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 400 * DOLLARS);
 				assert_eq!(
 					ensure_stake_pool::<Test>(0).unwrap().basepool.total_value,
 					100 * DOLLARS
@@ -3674,7 +3638,6 @@ pub mod pallet {
 					0,
 					100 * DOLLARS
 				));
-				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 300 * DOLLARS);
 
 				// TODO: check queued withdraw
 				//   - withdraw 100 PHA
@@ -3738,8 +3701,6 @@ pub mod pallet {
 					300 * DOLLARS
 				));
 				// Settle everything
-				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 0);
-				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 0);
 				assert!(Balances::locks(1).is_empty());
 				assert!(Balances::locks(2).is_empty());
 				// Remove worker from the pools

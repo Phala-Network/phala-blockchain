@@ -79,6 +79,8 @@ pub mod v6 {
 		MiningBalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: mining::pallet::Config<Currency = <T as basepool::Config>::Currency>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = MiningBalanceOf<T>>,
 	{
 		if get_versions::<T>() == unified_versions::<T>(5) {
 			let mut weight: Weight = 0;
