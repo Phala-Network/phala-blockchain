@@ -4,10 +4,6 @@ use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
 use sp_runtime::Permill;
 
-
-pub struct InvestigationsLen;
-
-
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
 	pub basepool: basepool::BasePool<AccountId, Balance>,
@@ -37,7 +33,7 @@ pub struct StakePool<AccountId, Balance> {
 pub struct Vault<AccountId, Balance> {
 	pub basepool: basepool::BasePool<AccountId, Balance>,
 
-	pub user_id: AccountId,
+	pub pool_account_id: AccountId,
 
 	pub last_share_price_checkpoint: Balance,
 
