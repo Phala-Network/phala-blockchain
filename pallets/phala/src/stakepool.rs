@@ -93,7 +93,7 @@ pub mod pallet {
 		type PPhaAssetId: Get<u32>;
 
 		#[pallet::constant]
-		type PawnShopAccountId: Get<T::AccountId>;
+		type PawnShopAccountId: Get<Self::AccountId>;
 
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -1715,8 +1715,8 @@ pub mod pallet {
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() {
-				mining::Pallet::<T>::withdraw_subsidy_pool(T::PawnShopAccountId::get(), rewards)
-					.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+				mining::Pallet::<T>::withdraw_subsidy_pool(&T::PawnShopAccountId::get(), rewards)
+					.expect("this should not happen");
 				if basepool::balance_close_to_zero(pool_info.basepool.total_shares) {
 					Self::deposit_event(Event::<T>::RewardDismissedNoShare {
 						pid: pool_info.basepool.pid,
@@ -1942,9 +1942,9 @@ pub mod pallet {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
 				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust)
+					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust.clone())
 						.expect("slash should success with correct amount: qed.");
-				let (_, imbalance) = <T as mining::Config>::Currency::pair(actual_removed.clone());
+				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(who, dust);
 				T::OnSlashed::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::DustRemoved {
 					user: who.clone(),
@@ -1983,11 +1983,14 @@ pub mod pallet {
 			match pool.settle_nft_slash(nft) {
 				// We don't slash on dust, because the share price is just unstable.
 				Some(slashed) if basepool::is_nondust_balance(slashed) => {
-					let actual_slashed =
-						pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), &userid, slashed)
-							.expect("slash should success with correct amount: qed.");
-					let (_, imbalance) =
-						<T as mining::Config>::Currency::pair(actual_slashed.clone());
+					let actual_slashed = pallet_assets::Pallet::<T>::slash(
+						T::PPhaAssetId::get(),
+						&userid,
+						slashed.clone(),
+					)
+					.expect("slash should success with correct amount: qed.");
+					let (imbalance, _remaining) =
+						<T as mining::Config>::Currency::slash(&userid, slashed);
 					T::OnSlashed::on_unbalanced(imbalance);
 					// Dust is not considered because it's already merged into the slash if
 					// presents.
