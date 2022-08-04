@@ -13,7 +13,7 @@ struct App {
 }
 
 async fn read_data(data: Data<'_>) -> Option<Vec<u8>> {
-    let stream = data.open(100.mebibytes());
+    let stream = data.open(10000.mebibytes());
     let data = stream.into_bytes().await.ok()?;
     Some(data.into_inner())
 }
