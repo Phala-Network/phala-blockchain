@@ -234,8 +234,6 @@ pub mod pallet {
 						let property = basepool::Pallet::<T>::get_nft_attr(*cid, nftid)
 							.expect("get nft should not fail: qed.");
 						total_active_stakes += property.shares;
-						basepool::Pallet::<T>::burn_nft(*cid, nftid)
-							.expect("burn nft should not fail: qed.");
 					});
 			}
 			Ok(total_active_stakes)
