@@ -22,6 +22,7 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::basepool;
 	use crate::mining;
+	use crate::pawnshop;
 	use crate::poolproxy::*;
 	use crate::registry;
 
@@ -70,6 +71,8 @@ pub mod pallet {
 		+ pallet_rmrk_core::Config
 		+ basepool::Config
 		+ pallet_assets::Config
+		+ pallet_democracy::Config
+		+ pawnshop::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
@@ -88,12 +91,6 @@ pub mod pallet {
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
-
-		#[pallet::constant]
-		type PPhaAssetId: Get<u32>;
-
-		#[pallet::constant]
-		type PawnShopAccountId: Get<Self::AccountId>;
 
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -897,7 +894,11 @@ pub mod pallet {
 			);
 			let rewards = pool_info.owner_reward;
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &target, rewards);
+			pallet_assets::Pallet::<T>::mint_into(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&target,
+				rewards,
+			);
 			pool_info.owner_reward = Zero::zero();
 			basepool::pallet::Pools::<T>::insert(
 				pid,
@@ -1145,8 +1146,11 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let free = pallet_assets::Pallet::<T>::maybe_balance(T::PPhaAssetId::get(), &who)
-				.ok_or(Error::<T>::AssetAccountNotExist)?;
+			let free = pallet_assets::Pallet::<T>::maybe_balance(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&who,
+			)
+			.ok_or(Error::<T>::AssetAccountNotExist)?;
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
@@ -1174,14 +1178,31 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				who.clone(),
 			)?;
-			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &who, a);
+			pallet_assets::Pallet::<T>::burn_from(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&who,
+				a,
+			);
+
+			let mut account_status = pawnshop::pallet::StakerAccounts::<T>::get(who.clone())
+				.ok_or(pawnshop::Error::<T>::StakerAccountNotFound)?;
+
+			if !account_status
+				.invest_pools
+				.contains(&(pid, pool_info.basepool.cid))
+			{
+				account_status
+					.invest_pools
+					.push((pid, pool_info.basepool.cid));
+				pawnshop::pallet::StakerAccounts::<T>::insert(who.clone(), account_status);
+			}
+
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
 				amount: a,
 				shares,
 			});
-
 			Ok(())
 		}
 
@@ -1286,8 +1307,11 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let free = pallet_assets::Pallet::<T>::maybe_balance(T::PPhaAssetId::get(), &who)
-				.ok_or(Error::<T>::AssetAccountNotExist)?;
+			let free = pallet_assets::Pallet::<T>::maybe_balance(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&who,
+			)
+			.ok_or(Error::<T>::AssetAccountNotExist)?;
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
@@ -1324,7 +1348,25 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				who.clone(),
 			)?;
-			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &who, a);
+			pallet_assets::Pallet::<T>::burn_from(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&who,
+				a,
+			);
+
+			let mut account_status = pawnshop::pallet::StakerAccounts::<T>::get(who.clone())
+				.ok_or(pawnshop::Error::<T>::StakerAccountNotFound)?;
+
+			if !account_status
+				.invest_pools
+				.contains(&(pid, pool_info.basepool.cid))
+			{
+				account_status
+					.invest_pools
+					.push((pid, pool_info.basepool.cid));
+				pawnshop::pallet::StakerAccounts::<T>::insert(who.clone(), account_status);
+			}
+
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
@@ -1715,8 +1757,11 @@ pub mod pallet {
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() {
-				mining::Pallet::<T>::withdraw_subsidy_pool(&T::PawnShopAccountId::get(), rewards)
-					.expect("this should not happen");
+				mining::Pallet::<T>::withdraw_subsidy_pool(
+					&<T as pawnshop::Config>::PawnShopAccountId::get(),
+					rewards,
+				)
+				.expect("this should not happen");
 				if basepool::balance_close_to_zero(pool_info.basepool.total_shares) {
 					Self::deposit_event(Event::<T>::RewardDismissedNoShare {
 						pid: pool_info.basepool.pid,
@@ -1856,7 +1901,7 @@ pub mod pallet {
 				);
 			} else {
 				pallet_assets::Pallet::<T>::mint_into(
-					T::PPhaAssetId::get(),
+					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&userid,
 					reduced + dust,
 				);
@@ -1941,9 +1986,12 @@ pub mod pallet {
 		fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust.clone())
-						.expect("slash should success with correct amount: qed.");
+				let actual_removed = pallet_assets::Pallet::<T>::slash(
+					<T as pawnshop::Config>::PPhaAssetId::get(),
+					who,
+					dust.clone(),
+				)
+				.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(who, dust);
 				T::OnSlashed::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::DustRemoved {
@@ -1984,7 +2032,7 @@ pub mod pallet {
 				// We don't slash on dust, because the share price is just unstable.
 				Some(slashed) if basepool::is_nondust_balance(slashed) => {
 					let actual_slashed = pallet_assets::Pallet::<T>::slash(
-						T::PPhaAssetId::get(),
+						<T as pawnshop::Config>::PPhaAssetId::get(),
 						&userid,
 						slashed.clone(),
 					)
@@ -1995,7 +2043,7 @@ pub mod pallet {
 					// Dust is not considered because it's already merged into the slash if
 					// presents.
 					pallet_assets::Pallet::<T>::mint_into(
-						T::PPhaAssetId::get(),
+						<T as pawnshop::Config>::PPhaAssetId::get(),
 						&userid,
 						actual_slashed,
 					);

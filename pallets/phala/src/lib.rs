@@ -21,6 +21,7 @@ pub mod fat;
 pub mod mining;
 pub mod mq;
 pub mod ott;
+pub mod pawnshop;
 pub mod poolproxy;
 pub mod puppets;
 pub mod registry;
@@ -32,6 +33,7 @@ pub use fat as pallet_fat;
 pub use mining as pallet_mining;
 pub use mq as pallet_mq;
 pub use ott as pallet_ott;
+pub use pawnshop as pallet_pawnshop;
 pub use registry as pallet_registry;
 pub use stakepool as pallet_stakepool;
 
