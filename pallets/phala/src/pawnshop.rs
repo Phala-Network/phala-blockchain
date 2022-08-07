@@ -201,7 +201,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn unlock(origin: OriginFor<T>, vote_id: ReferendumIndex) -> DispatchResult {
-			ensure_root(origin)?;
+			ensure_signed(origin)?;
 			if Self::ensure_ongoing(vote_id) {
 				return Err(Error::<T>::ReferendumOngoing.into());
 			}
