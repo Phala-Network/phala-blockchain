@@ -2,7 +2,6 @@ pub use self::pallet::*;
 use crate::mining;
 
 use frame_support::traits::Currency;
-use sp_runtime::traits::Zero;
 
 pub type BalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -11,9 +10,7 @@ pub type BalanceOf<T> =
 pub mod pallet {
 	use crate::basepool;
 	use crate::mining;
-	use crate::poolproxy::*;
 	use crate::registry;
-	use crate::stakepool;
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
@@ -22,29 +19,20 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Create, Mutate},
-			tokens::nonfungibles::InspectEnumerable,
-			Currency,
-			ExistenceRequirement::KeepAlive,
-			LockableCurrency, StorageVersion, UnixTime,
+			tokens::fungibles::Mutate, tokens::nonfungibles::InspectEnumerable, Currency,
+			ExistenceRequirement::KeepAlive, LockableCurrency, StorageVersion,
 		},
 	};
 
-	use pallet_democracy::{AccountVote, ReferendumIndex};
+	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 
-	use fixed::types::U64F64 as FixedPoint;
-	use fixed_macro::types::U64F64 as fp;
+	use crate::balance_convert::FixedPointConvert;
 
-	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
+	use sp_std::{fmt::Display, prelude::*, result::Result};
 
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, result::Result};
+	use sp_runtime::traits::Zero;
 
-	use sp_runtime::{
-		traits::{CheckedSub, Member, TrailingZeroInput, Zero},
-		SaturatedConversion,
-	};
-
-	use frame_system::{pallet_prelude::*, Origin};
+	use frame_system::pallet_prelude::*;
 
 	use scale_info::TypeInfo;
 
@@ -118,6 +106,10 @@ pub mod pallet {
 		VoteAmountLargerThanTotalStakes,
 
 		NotEnoughFreeStakesToVote,
+
+		ReferendumInvalid,
+
+		ReferendumOngoing,
 	}
 
 	#[pallet::call]
@@ -139,7 +131,7 @@ pub mod pallet {
 				amount.clone(),
 				KeepAlive,
 			)?;
-			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &user, amount);
+			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &user, amount)?;
 
 			Ok(())
 		}
@@ -165,7 +157,7 @@ pub mod pallet {
 				amount.clone(),
 				KeepAlive,
 			)?;
-			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &user, amount);
+			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &user, amount)?;
 
 			Ok(())
 		}
@@ -179,8 +171,12 @@ pub mod pallet {
 			vote_id: ReferendumIndex,
 		) -> DispatchResult {
 			let user = ensure_signed(origin.clone())?;
+			if !Self::ensure_ongoing(vote_id) {
+				return Err(Error::<T>::ReferendumInvalid.into());
+			}
+
 			let active_stakes = Self::get_current_active_stakes(user.clone())?;
-			let mut account_status =
+			let account_status =
 				StakerAccounts::<T>::get(user.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
 			ensure!(
 				active_stakes >= aye_amount + nay_amount,
@@ -206,7 +202,9 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn unlock(origin: OriginFor<T>, vote_id: ReferendumIndex) -> DispatchResult {
 			ensure_root(origin)?;
-
+			if Self::ensure_ongoing(vote_id) {
+				return Err(Error::<T>::ReferendumOngoing.into());
+			}
 			VoteAccountMap::<T>::iter_prefix(vote_id).for_each(|(user, _)| {
 				AccountVoteMap::<T>::remove(user.clone(), vote_id);
 				Self::settle_user_locked(user).expect("useraccount should exist: qed.");
@@ -228,13 +226,12 @@ pub mod pallet {
 			let account_status =
 				StakerAccounts::<T>::get(who.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
 			let mut total_active_stakes: BalanceOf<T> = Zero::zero();
-			for (pid, cid) in &account_status.invest_pools {
-				let nftid_collect = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who)
-					.for_each(|nftid| {
-						let property = basepool::Pallet::<T>::get_nft_attr(*cid, nftid)
-							.expect("get nft should not fail: qed.");
-						total_active_stakes += property.shares;
-					});
+			for (_, cid) in &account_status.invest_pools {
+				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who).for_each(|nftid| {
+					let property = basepool::Pallet::<T>::get_nft_attr(*cid, nftid)
+						.expect("get nft should not fail: qed.");
+					total_active_stakes += property.shares;
+				});
 			}
 			Ok(total_active_stakes)
 		}
@@ -268,6 +265,17 @@ pub mod pallet {
 			StakerAccounts::<T>::insert(user, account_status);
 
 			Ok(())
+		}
+
+		fn ensure_ongoing(vote_id: ReferendumIndex) -> bool {
+			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id.clone());
+			match vote_info {
+				Some(info) => match info {
+					ReferendumInfo::Ongoing(_) => true,
+					_ => false,
+				},
+				None => false,
+			}
 		}
 	}
 }

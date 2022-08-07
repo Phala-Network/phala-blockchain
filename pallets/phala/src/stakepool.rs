@@ -1,7 +1,6 @@
 //! Pool for collaboratively mining staking
 
 pub use self::pallet::*;
-use crate::basepool;
 use crate::mining;
 use frame_support::traits::Currency;
 
@@ -34,9 +33,8 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Create, Mutate},
-			Currency, Imbalance, LockIdentifier, LockableCurrency, OnUnbalanced, StorageVersion,
-			UnixTime, WithdrawReasons,
+			tokens::fungibles::Mutate, Currency, LockableCurrency, OnUnbalanced, StorageVersion,
+			UnixTime,
 		},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
@@ -50,8 +48,6 @@ pub mod pallet {
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
-
-	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
 	const MAX_WHITELIST_LEN: u32 = 100;
 
@@ -898,7 +894,7 @@ pub mod pallet {
 				<T as pawnshop::Config>::PPhaAssetId::get(),
 				&target,
 				rewards,
-			);
+			)?;
 			pool_info.owner_reward = Zero::zero();
 			basepool::pallet::Pools::<T>::insert(
 				pid,
@@ -1061,7 +1057,7 @@ pub mod pallet {
 			let mut vault = ensure_vault::<T>(vault_pid)?;
 			Self::try_process_withdraw_queue(&mut vault.basepool);
 			let grace_period = T::GracePeriod::get();
-			let mut releasing_stake = Zero::zero();
+			let releasing_stake = Zero::zero();
 			for pid in vault.invest_pools.iter() {
 				let stake_pool = ensure_stake_pool::<T>(*pid)?;
 				let withdraw_vec: VecDeque<_> = stake_pool
@@ -1182,7 +1178,7 @@ pub mod pallet {
 				<T as pawnshop::Config>::PPhaAssetId::get(),
 				&who,
 				a,
-			);
+			)?;
 
 			let mut account_status = pawnshop::pallet::StakerAccounts::<T>::get(who.clone())
 				.ok_or(pawnshop::Error::<T>::StakerAccountNotFound)?;
@@ -1352,7 +1348,7 @@ pub mod pallet {
 				<T as pawnshop::Config>::PPhaAssetId::get(),
 				&who,
 				a,
-			);
+			)?;
 
 			let mut account_status = pawnshop::pallet::StakerAccounts::<T>::get(who.clone())
 				.ok_or(pawnshop::Error::<T>::StakerAccountNotFound)?;
@@ -1847,7 +1843,6 @@ pub mod pallet {
 			basepool::Pallet::<T>::push_withdraw_in_queue(
 				pool_info,
 				nft,
-				nft_id,
 				userid.clone(),
 				shares.clone(),
 				maybe_vault_pid,
@@ -1904,7 +1899,8 @@ pub mod pallet {
 					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&userid,
 					reduced + dust,
-				);
+				)
+				.expect("mint asset should not fail");
 				Self::deposit_event(Event::<T>::Withdrawal {
 					pid: pool_info.pid,
 					user: userid,
@@ -2046,7 +2042,8 @@ pub mod pallet {
 						<T as pawnshop::Config>::PPhaAssetId::get(),
 						&userid,
 						actual_slashed,
-					);
+					)
+					.expect("mint asset should not fail");
 					Self::deposit_event(Event::<T>::SlashSettled {
 						pid: pool.pid,
 						user: userid,

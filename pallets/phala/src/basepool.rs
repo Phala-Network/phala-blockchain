@@ -80,14 +80,14 @@ pub mod pallet {
 	where
 		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
-		pub fn remove_stake(&mut self, remove_shares: Balance, checked_shares: Balance) -> Balance {
+		pub fn remove_stake(&mut self, checked_shares: Balance) -> Balance {
 			let nft_price = self
 				.stakes
 				.to_fixed()
 				.checked_div(self.shares.to_fixed())
 				.expect("shares will not be zero: qed.");
 			self.stakes = bmul(checked_shares, &nft_price);
-			let (user_locked, user_dust) = extract_dust(self.stakes.clone());
+			let (_, user_dust) = extract_dust(self.stakes.clone());
 			user_dust
 		}
 		pub fn get_stake(&self) -> Balance {
@@ -255,7 +255,8 @@ pub mod pallet {
 					None => return,
 				};
 				nft.stakes = bmul(nft.shares, &price);
-				Pallet::<T>::set_nft_attr(self.cid, nft_id, &nft);
+				Pallet::<T>::set_nft_attr(self.cid, nft_id, &nft)
+					.expect("set attr should not fail");
 				let stake_ratio = match vault_shares.checked_div(self.total_shares.to_fixed()) {
 					Some(ratio) => BalanceOf::<T>::from_fixed(&ratio),
 					None => continue,
@@ -340,7 +341,6 @@ pub mod pallet {
 		pub fn push_withdraw_in_queue(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			nft: &mut NftAttr<BalanceOf<T>>,
-			nft_id: NftId,
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
 			maybe_vault_pid: Option<u64>,
@@ -488,7 +488,7 @@ pub mod pallet {
 				pool.total_value = Zero::zero();
 			}
 			pool.total_shares = total_shares;
-			let user_dust = nft.remove_stake(shares, user_shares);
+			let user_dust = nft.remove_stake(user_shares);
 			nft.shares = user_shares;
 
 			Some((amount, user_dust, removed_shares))
@@ -501,7 +501,7 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 			stakes: BalanceOf<T>,
 		) -> Result<NftId, DispatchError> {
-			let collection_info = pallet_rmrk_core::Collections::<T>::get(cid)
+			pallet_rmrk_core::Collections::<T>::get(cid)
 				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
 			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(cid);
 
@@ -542,14 +542,13 @@ pub mod pallet {
 		) -> Result<NftId, DispatchError> {
 			let mut total_stakes: BalanceOf<T> = Zero::zero();
 			let mut total_shares: BalanceOf<T> = Zero::zero();
-			let nftid_collect = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker)
-				.for_each(|nftid| {
-					let property =
-						Self::get_nft_attr(cid, nftid).expect("get nft should not fail: qed.");
-					total_stakes += property.stakes;
-					total_shares += property.shares;
-					Self::burn_nft(cid, nftid).expect("burn nft should not fail: qed.");
-				});
+			pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).for_each(|nftid| {
+				let property =
+					Self::get_nft_attr(cid, nftid).expect("get nft should not fail: qed.");
+				total_stakes += property.stakes;
+				total_shares += property.shares;
+				Self::burn_nft(cid, nftid).expect("burn nft should not fail: qed.");
+			});
 
 			Self::mint_nft(cid, staker, total_shares, total_stakes)
 		}
