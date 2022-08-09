@@ -13,8 +13,6 @@ mod start_sidevm {
     impl Contract {
         #[ink(constructor)]
         pub fn default() -> Self {
-            let hash = *include_bytes!("./sideprog.wasm.hash");
-            pink::start_sidevm(hash, true);
             Self {}
         }
         #[pink(on_block_end)]
@@ -24,7 +22,9 @@ mod start_sidevm {
             pink::push_sidevm_message(b"hello".to_vec());
         }
         #[ink(message)]
-        pub fn test(&self) {
+        pub fn start_sidevm(&self) {
+            let hash = *include_bytes!("./sideprog.wasm.hash");
+            pink::start_sidevm(hash, true);
         }
     }
 }
