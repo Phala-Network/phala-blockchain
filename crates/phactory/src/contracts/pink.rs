@@ -98,19 +98,13 @@ impl Pink {
     }
 }
 
-#[async_trait::async_trait]
-impl contracts::NativeContract for Pink {
-    type Cmd = Command;
-
-    type QReq = Query;
-
-    type QResp = Result<Response, QueryError>;
-
-    async fn handle_query(
+impl Pink {
+    pub(crate) async fn handle_query(
         &self,
         origin: Option<&AccountId>,
         req: Query,
         context: &mut contracts::QueryContext,
+        side_effects: &mut ExecSideEffects,
     ) -> Result<Response, QueryError> {
         match req {
             Query::InkMessage(input_data) => {
@@ -123,7 +117,7 @@ impl contracts::NativeContract for Pink {
                 let origin = origin.ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
 
-                let (ink_result, _effects) = self.instance.bare_call(
+                let (ink_result, effects) = self.instance.bare_call(
                     storage,
                     origin.clone(),
                     input_data,
@@ -137,6 +131,8 @@ impl contracts::NativeContract for Pink {
                 );
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
+                } else {
+                    *side_effects = effects.into_query_only_effects();
                 }
                 return Ok(Response::Payload(ink_result.encode()));
             }
@@ -176,7 +172,7 @@ impl contracts::NativeContract for Pink {
         }
     }
 
-    fn handle_command(
+    pub(crate) fn handle_command(
         &mut self,
         origin: MessageOrigin,
         cmd: Command,
@@ -229,7 +225,10 @@ impl contracts::NativeContract for Pink {
         }
     }
 
-    fn on_block_end(&mut self, context: &mut contracts::NativeContext) -> TransactionResult {
+    pub(crate) fn on_block_end(
+        &mut self,
+        context: &mut contracts::NativeContext,
+    ) -> TransactionResult {
         let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
             .expect("Pink cluster should always exists!");
         let effects = self
@@ -250,7 +249,7 @@ impl contracts::NativeContract for Pink {
         Ok(effects)
     }
 
-    fn snapshot(&self) -> Self {
+    pub(crate) fn snapshot(&self) -> Self {
         self.clone()
     }
 }
@@ -400,12 +399,8 @@ pub mod cluster {
             resource_data: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
             match resource_type {
-                ResourceType::InkCode => {
-                    self.storage.upload_code(origin, resource_data)
-                }
-                ResourceType::SidevmCode => {
-                    self.storage.upload_sidevm_code(origin, resource_data)
-                }
+                ResourceType::InkCode => self.storage.upload_code(origin, resource_data),
+                ResourceType::SidevmCode => self.storage.upload_sidevm_code(origin, resource_data),
             }
         }
 
@@ -415,12 +410,8 @@ pub mod cluster {
             hash: &Hash,
         ) -> Option<Vec<u8>> {
             match resource_type {
-                ResourceType::InkCode => {
-                    None
-                }
-                ResourceType::SidevmCode => {
-                    self.storage.get_sidevm_code(hash)
-                }
+                ResourceType::InkCode => None,
+                ResourceType::SidevmCode => self.storage.get_sidevm_code(hash),
             }
         }
 

@@ -13,7 +13,7 @@ use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
 use phala_scheduler::RequestScheduler;
-use pink::runtime::ExecSideEffects;
+use pink::{runtime::ExecSideEffects, types::AccountId};
 use runtime::BlockNumber;
 
 use crate::contracts;
@@ -56,6 +56,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
+use pink::runtime::PinkEvent;
 use std::convert::TryFrom;
 use std::future::Future;
 use std::cell::Cell;
@@ -597,7 +598,15 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: Option<&chain::AccountId>,
         query: OpaqueQuery,
         query_scheduler: RequestScheduler<ContractId>,
-    ) -> Result<impl Future<Output = Result<OpaqueReply, OpaqueError>>, OpaqueError> {
+    ) -> Result<
+        impl Future<
+            Output = Result<
+                (OpaqueReply, contracts::ContractClusterId, ExecSideEffects),
+                OpaqueError,
+            >,
+        >,
+        OpaqueError,
+    > {
         use pink::storage::Snapshot as _;
 
         let contract = self
@@ -626,6 +635,7 @@ impl<Platform: pal::Platform> System<Platform> {
             contract
                 .handle_query(origin.as_ref(), query, &mut context)
                 .await
+                .map(|(reply, effects)| (reply, cluster_id, effects))
         })
     }
 
@@ -693,23 +703,13 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
         }
+        self.process_contract_messages(block);
         if let Some(gatekeeper) = &mut self.gatekeeper {
             gatekeeper.process_messages(block);
         }
     }
 
-    pub fn did_process_block(&mut self, block: &mut BlockInfo) {
-        if let Some(gatekeeper) = &mut self.gatekeeper {
-            gatekeeper.did_process_block(block);
-        }
-
-        self.worker_state
-            .on_block_processed(block, &mut WorkerSMDelegate{
-                egress: &self.egress,
-                n_clusters: self.contract_clusters.len() as _,
-                n_contracts: self.contracts.len() as _,
-            });
-
+    fn process_contract_messages(&mut self, block: &mut BlockInfo) {
         // Iterate over all contracts to handle their incoming commands.
         //
         // Since the wasm contracts can instantiate new contracts, it means that it will mutate the `self.contracts`.
@@ -746,6 +746,24 @@ impl<Platform: pal::Platform> System<Platform> {
                     log_handler,
                 );
             }
+        }
+    }
+
+    pub fn did_process_block(&mut self, block: &mut BlockInfo) {
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.did_process_block(block);
+        }
+
+        self.worker_state.on_block_processed(
+            block,
+            &mut WorkerSMDelegate {
+                egress: &self.egress,
+                n_clusters: self.contract_clusters.len() as _,
+                n_contracts: self.contracts.len() as _,
+            },
+        );
+        let contract_ids: Vec<_> = self.contracts.keys().cloned().collect();
+        'outer: for key in contract_ids {
             let log_handler = self.get_system_message_handler_for_contract_id(&key);
             let contract = match self.contracts.get_mut(&key) {
                 None => continue 'outer,
@@ -776,12 +794,16 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
-        self.worker_state
-            .process_event(block, event, &mut WorkerSMDelegate {
+        self.worker_state.process_event(
+            block,
+            event,
+            &mut WorkerSMDelegate {
                 egress: &self.egress,
                 n_clusters: self.contract_clusters.len() as _,
                 n_contracts: self.contracts.len() as _,
-            }, true);
+            },
+            true,
+        );
     }
 
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
@@ -1559,6 +1581,30 @@ impl<P: pal::Platform> System<P> {
         self.check_retirement();
         Ok(())
     }
+
+    pub(crate) fn apply_side_effects(
+        &mut self,
+        cluster_id: phala_mq::ContractClusterId,
+        effects: ExecSideEffects,
+    ) {
+        let cluster = match self.contract_clusters.get_cluster_mut(&cluster_id) {
+            Some(cluster) => cluster,
+            None => {
+                error!(
+                    "Can not apply effects: cluster {:?} is not deployed",
+                    cluster_id
+                );
+                return;
+            }
+        };
+        apply_pink_events(
+            effects.pink_events,
+            cluster_id,
+            &mut self.contracts,
+            cluster,
+            &self.sidevm_spawner,
+        );
+    }
 }
 
 pub fn handle_contract_command_result(
@@ -1610,7 +1656,27 @@ pub fn apply_pink_side_effects(
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
 ) {
-    for (deployer, address) in effects.instantiated {
+    apply_instantiating_events(
+        effects.instantiated,
+        cluster_id,
+        contracts,
+        cluster,
+        block,
+        egress,
+    );
+    apply_pink_events(effects.pink_events, cluster_id, contracts, cluster, spawner);
+    apply_ink_side_effects(effects.ink_events, cluster_id, block, log_handler);
+}
+
+fn apply_instantiating_events(
+    instantiated_events: Vec<(AccountId, AccountId)>,
+    cluster_id: phala_mq::ContractClusterId,
+    contracts: &mut ContractsKeeper,
+    cluster: &mut Cluster,
+    block: &mut BlockInfo,
+    egress: &SignedMessageChannel,
+) {
+    for (deployer, address) in instantiated_events {
         let pink = Pink::from_address(address.clone(), cluster_id);
         let contract_id = ContractId::from(address.as_ref());
         let contract_key = get_contract_key(cluster.key(), &contract_id);
@@ -1648,8 +1714,16 @@ pub fn apply_pink_side_effects(
         info!("pink instantiate status: {:?}", message);
         egress.push_message(&message);
     }
+}
 
-    for (address, event) in effects.pink_events {
+pub(crate) fn apply_pink_events(
+    pink_events: Vec<(AccountId, PinkEvent)>,
+    cluster_id: phala_mq::ContractClusterId,
+    contracts: &mut ContractsKeeper,
+    cluster: &mut Cluster,
+    spawner: &Spawner,
+) {
+    for (address, event) in pink_events {
         let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
             Some(contract) => contract,
@@ -1661,7 +1735,6 @@ pub fn apply_pink_side_effects(
             }
         };
         let vmid = sidevm::ShortId(address.as_ref());
-        use pink::runtime::PinkEvent;
         match event {
             PinkEvent::Message(message) => {
                 contract.push_message(message.payload, message.topic);
@@ -1702,9 +1775,16 @@ pub fn apply_pink_side_effects(
             }
         }
     }
+}
 
+fn apply_ink_side_effects(
+    ink_events: Vec<(AccountId, Vec<crate::H256>, Vec<u8>)>,
+    cluster_id: phala_mq::ContractClusterId,
+    block: &mut BlockInfo,
+    log_handler: Option<CommandSender>,
+) {
     if let Some(log_handler) = log_handler {
-        for (contract, topics, payload) in effects.ink_events.into_iter() {
+        for (contract, topics, payload) in ink_events {
             if let Err(_) =
                 log_handler.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
                     contract: contract.into(),

@@ -64,6 +64,12 @@ pub enum PinkEvent {
     CacheOp(CacheOp),
 }
 
+impl PinkEvent {
+    pub fn allowed_in_query(&self) -> bool {
+        matches!(self, PinkEvent::StartSidevm { .. } | PinkEvent::SidevmMessage(_) | PinkEvent::CacheOp(_))
+    }
+}
+
 #[derive(Encode, Decode, Debug)]
 pub enum CacheOp {
     Set { key: Vec<u8>, value: Vec<u8> },
@@ -124,7 +130,10 @@ pub fn set_on_block_end_selector(selector: u32) {
 
 /// Start a side VM instance
 pub fn start_sidevm(code_hash: Hash, auto_restart: bool) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { code_hash, auto_restart })
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm {
+        code_hash,
+        auto_restart,
+    })
 }
 
 /// Push a message to the associated sidevm instance.

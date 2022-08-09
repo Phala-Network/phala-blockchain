@@ -6,6 +6,8 @@ use crate::benchmark::Flags;
 use crate::system::{chain_state, System};
 
 use super::*;
+use crate::contracts::ContractClusterId;
+use ::pink::runtime::ExecSideEffects;
 use chain::pallet_registry::{Attestation, AttestationValidator, IasFields, IasValidator};
 use parity_scale_codec::Encode;
 use pb::{
@@ -22,6 +24,7 @@ use phala_types::{
     contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
+use tokio::sync::oneshot::{channel, Sender};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -477,9 +480,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(messages)
     }
 
+    fn apply_side_effects(&mut self, cluster_id: ContractClusterId, effects: ExecSideEffects) {
+        let _ = self
+            .system()
+            .as_mut()
+            .map(move |system| system.apply_side_effects(cluster_id, effects));
+    }
+
     fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
+        effects_queue: Sender<(ContractClusterId, ExecSideEffects)>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
@@ -537,10 +548,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         )?;
 
         Ok(async move {
-            // Encode response
+            let (response, cluster_id, effects) = query_future.await?;
+
+            effects_queue
+                .send((cluster_id, effects))
+                .or(Err(from_display("Failed to apply side effects")))?;
+
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
-                result: contract::Data(query_future.await?),
+                result: contract::Data(response),
             };
             let response_data = response.encode();
 
@@ -781,7 +797,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
 #[derive(Clone)]
 pub struct RpcService<Platform> {
-    phactory: Arc<Mutex<Phactory<Platform>>>,
+    pub(crate) phactory: Arc<Mutex<Phactory<Platform>>>,
 }
 
 impl<Platform: pal::Platform> RpcService<Platform> {
@@ -941,7 +957,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        let query_fut = self.lock_phactory().contract_query(request)?;
+        let (tx, rx) = channel();
+        let phactory = self.phactory.clone();
+        tokio::spawn(async move {
+            if let Ok((cluster_id, effects)) = rx.await {
+                phactory
+                    .lock()
+                    .unwrap()
+                    .apply_side_effects(cluster_id, effects);
+            }
+        });
+        let query_fut = self.lock_phactory().contract_query(request, tx)?;
         query_fut.await
     }
 

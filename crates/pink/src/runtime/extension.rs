@@ -34,6 +34,16 @@ pub struct ExecSideEffects {
     pub instantiated: Vec<(AccountId, AccountId)>,
 }
 
+impl ExecSideEffects {
+    pub fn into_query_only_effects(mut self) -> Self {
+        self.pink_events
+            .retain(|(_, event)| event.allowed_in_query());
+        self.ink_events.clear();
+        self.instantiated.clear();
+        self
+    }
+}
+
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
     let event = super::Event::Contracts(pallet_contracts::Event::ContractEmitted {
