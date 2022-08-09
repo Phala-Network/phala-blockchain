@@ -1766,12 +1766,19 @@ pub(crate) fn apply_pink_events(
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
-                if let Err(err) = contract.push_message_to_sidevm(payload) {
+                if let Err(err) =
+                    contract.push_message_to_sidevm(SidevmCommand::PushMessage(payload))
+                {
                     error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::CacheOp(op) => {
                 pink::local_cache::local_cache_op(&address, op);
+            }
+            PinkEvent::StopSidevm => {
+                if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
+                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
+                }
             }
         }
     }

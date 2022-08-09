@@ -62,11 +62,19 @@ pub enum PinkEvent {
     SidevmMessage(Vec<u8>),
     /// CacheOperation
     CacheOp(CacheOp),
+    /// Stop the side VM instance if it is running.
+    StopSidevm,
 }
 
 impl PinkEvent {
     pub fn allowed_in_query(&self) -> bool {
-        matches!(self, PinkEvent::StartSidevm { .. } | PinkEvent::SidevmMessage(_) | PinkEvent::CacheOp(_))
+        matches!(
+            self,
+            PinkEvent::StartSidevm { .. }
+                | PinkEvent::SidevmMessage(_)
+                | PinkEvent::CacheOp(_)
+                | PinkEvent::StopSidevm
+        )
     }
 }
 
@@ -134,6 +142,14 @@ pub fn start_sidevm(code_hash: Hash, auto_restart: bool) {
         code_hash,
         auto_restart,
     })
+}
+
+/// Force stop the side VM instance if it is running
+///
+/// You should avoid to call this function. Instead, prefer let the side program exit gracefully
+/// by itself.
+pub fn force_stop_sidevm() {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StopSidevm)
 }
 
 /// Push a message to the associated sidevm instance.
