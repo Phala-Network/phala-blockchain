@@ -53,7 +53,7 @@ pub mod pallet {
 
 	impl Get<u32> for DescMaxLen {
 		fn get() -> u32 {
-			400
+			4400
 		}
 	}
 	/// The functions to manage user's native currency lock in the Balances pallet
