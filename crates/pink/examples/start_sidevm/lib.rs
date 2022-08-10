@@ -40,5 +40,8 @@ mod start_sidevm {
             // TODO: check permission if needed
             pink::force_stop_sidevm();
         }
+
+        #[ink(message)]
+        pub fn test(&self) {}
     }
 }
