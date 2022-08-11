@@ -503,6 +503,20 @@ pub mod pallet {
 			ScheduledTokenomicUpdate::<T>::put(new_params);
 			Ok(())
 		}
+
+		/// Force change miner_state into coolingdown
+		///
+		/// Temporarlly fix the coolingdown miner's state change issue. 
+		/// Function should be removed after stakepool-v2 is active.
+		/// Only authoried by root.
+		#[pallet::weight(1)]
+		pub fn force_coolingdown(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
+			ensure_root(origin)?;
+			let mut miner_info = Self::miners(&miner).ok_or(Error::<T>::MinerNotFound)?;
+			miner_info.state = MinerState::MiningCoolingDown;
+			Miners::<T>::insert(miner, &miner_info);
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -635,7 +649,10 @@ pub mod pallet {
 						if !miner_info.state.is_mining() {
 							continue;
 						}
-						miner_info.state = MinerState::MiningUnresponsive;
+						// Gk should not change state of a miner in coolingdown
+						if miner_info.state != MinerState::MiningCoolingDown {
+							miner_info.state = MinerState::MiningUnresponsive;
+						}
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive { miner: account });
 						Self::push_message(SystemEvent::new_worker_event(
