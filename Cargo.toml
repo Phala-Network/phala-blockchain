@@ -25,9 +25,10 @@ exclude = [
 	"subxt",
 	"vendor/webpki",
 	"vendor/ring",
-	"standalone/pruntime",
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
+	"crates/sgx-api-lite",
+	"standalone/pruntime",
 	"standalone/prouter",
 ]
 
@@ -68,7 +69,6 @@ members = [
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
-	"crates/sgx-api-lite",
 	"crates/phala-fair-queue",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
