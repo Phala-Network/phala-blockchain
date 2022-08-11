@@ -11,29 +11,30 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1", default-features = false, features = ["derive"] }
 
 primitive-types = { version = "0.11.0", default-features = false, features = ["codec", "byteorder"] }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false, optional = true }
 log = { version = "0.4.14", default-features = false }
 
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
 
-phala-types = { default-features = false, path = "../../crates/phala-types" }
-chrono = { version = "0.4", default-features = false }
-untrusted = { version = "0.7" }
-base64 = { version = "0.11", default-features = false, features = ["alloc"] }
+phala-types = { path = "../../crates/phala-types", default-features = false }
+# v0.4.20+ force required js_sys on WASM target which break runtime (nostd), so we have to pin v0.4.19
+chrono = { version = "=0.4.19", default-features = false }
+untrusted = { version = "0.9.0" }
+base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
 hex = { version = "0.4", default-features = false }
-hex-literal = "0.3.1"
+hex-literal = "0.3.4"
 serde_json = { version = "1.0.41", default-features = false, features = ["alloc"] }
 fixed = { version = "1.9", default-features = false }
 fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro" }
@@ -46,10 +47,10 @@ webpki = { version = "0.22", default-features = false, features = ["alloc"] }
 webpki_wasm = { package = "webpki", path = "../../vendor/webpki", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
 assert_matches = "1.4.0"
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.26" }
-rand = "0.7.3"
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+rand = "0.8.5"
 
 [features]
 default = ["std"]
@@ -57,13 +58,15 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-runtime/std",
-	"frame-support/std",
-	"frame-system/std",
 	"sp-io/std",
 	"sp-std/std",
-	"sp-core/full_crypto",
+	"sp-core/std",
+	"sp-application-crypto/std",
+	"frame-support/std",
+	"frame-system/std",
 	"frame-benchmarking/std",
 	"pallet-balances/std",
+	"pallet-randomness-collective-flip/std",
 	"log/std",
 	"phala-types/enable_serde",
 ]

@@ -6,7 +6,6 @@ name = "pink-extension-runtime"
 version = "0.1.3"
 edition = "2021"
 
-
 [dependencies]
 pink-extension = { version = "0.1", path = "../pink-extension" }
 reqwest-env-proxy = { version = "0.1", path = "../../reqwest-env-proxy" }

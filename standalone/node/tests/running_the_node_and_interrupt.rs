@@ -65,7 +65,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 		// there may exist a ref cycle that prevents the Client from being dropped properly.
 		//
 		// parity-db only writes the stats file on clean shutdown.
-		let stats_file = base_path.path().join("chains/dev/paritydb/full/stats.txt");
+		let stats_file = base_path.path().join("chains/phala_dev/paritydb/full/stats.txt");
 		assert!(std::path::Path::exists(&stats_file));
 	}
 
