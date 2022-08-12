@@ -674,6 +674,10 @@ pub mod pallet {
 						if !miner_info.state.is_mining() {
 							continue;
 						}
+						// Gk should not change state of a miner in coolingdown
+						if miner_info.state != MinerState::MiningCoolingDown {
+							miner_info.state = MinerState::MiningIdle;
+						}
 						miner_info.state = MinerState::MiningIdle;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponsive { miner: account });
