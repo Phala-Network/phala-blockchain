@@ -21,13 +21,13 @@ wasmer-compiler-llvm = { version = "2.3", optional = true }
 wasmer-engine = "2.3"
 wasmer-engine-universal = "2.3"
 wasmer-tunables = { path = "../../../wasmer-tunables" }
-parity-wasm = "0.42"
+parity-wasm = "0.42.2"
 wasm-instrument = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 rand = "0.8.5"
 thiserror = "1"
 libc = "0.2"
-scale = { version = "3", package = "parity-scale-codec" }
+scale = { version = "3.1", package = "parity-scale-codec" }
 tokio-rustls = "0.23"
 rustls-pemfile = "1"
 webpki-roots = "0.22"
