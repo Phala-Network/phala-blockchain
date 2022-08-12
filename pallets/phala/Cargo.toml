@@ -29,7 +29,7 @@ log = { version = "0.4.14", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
 
 phala-types = { path = "../../crates/phala-types", default-features = false }
-# v0.4.20+ force required js_sys on WASM target which break runtime (nostd), so we have to pin v0.4.19
+# TODO: v0.4.20+ force required js_sys on WASM target which break runtime (nostd), so we have to pin v0.4.19
 chrono = { version = "=0.4.19", default-features = false }
 untrusted = { version = "0.9.0" }
 base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }

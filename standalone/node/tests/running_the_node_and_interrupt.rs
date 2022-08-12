@@ -56,7 +56,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 		kill(Pid::from_raw(cmd.id().try_into().unwrap()), signal).unwrap();
 		assert_eq!(
-			common::wait_for(&mut cmd, 30).map(|x| x.success()),
+			common::wait_for(&mut cmd, 60).map(|x| x.success()),
 			Ok(true),
 			"the process must exit gracefully after signal {}",
 			signal,
