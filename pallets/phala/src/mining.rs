@@ -678,7 +678,6 @@ pub mod pallet {
 						if miner_info.state != MinerState::MiningCoolingDown {
 							miner_info.state = MinerState::MiningIdle;
 						}
-						miner_info.state = MinerState::MiningIdle;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponsive { miner: account });
 						Self::push_message(SystemEvent::new_worker_event(
