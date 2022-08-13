@@ -6,7 +6,7 @@ resolver = "2"
 
 [dependencies]
 log         = "0.4.14"
-chrono      = "0.4.19"
+chrono      = "0.4.22"
 base64      = "0.13.0"
 num-bigint  = "0.4.0"
 ring        = "0.16.20"
