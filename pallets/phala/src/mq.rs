@@ -12,6 +12,8 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 
+	use phala_types::contract::{command_topic, InkCommand};
+	use phala_types::messaging::ContractId;
 	use phala_types::messaging::{
 		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage,
 	};
@@ -238,10 +240,39 @@ pub mod pallet {
 		}
 
 		fn push_command<Cmd: ContractCommand + Encode>(command: Cmd) {
-			use phala_types::contract::command_topic;
 			let topic = command_topic(Cmd::contract_id());
 			let message = CommandPayload::Plain(command);
 			Self::push_message_to(topic, message);
+		}
+
+		/// Push an ink message to a contract running in pRuntime.
+		///
+		/// The message is scale encoded selector + args
+		///
+		/// # Example
+		///
+		/// Given the following contract method signature:
+		/// ```ignore
+		/// #[ink(message)]
+		/// fn foo(a: u32, b: u32);
+		/// ```
+		///
+		/// Suppose it's selector is `0xdeadbeaf`. Then we can invoke this method by:
+		///
+		/// ```ignore
+		/// let a = 1_u32;
+		/// let b = 2_u32;
+		/// let selector: [u8; 4] = hex_literal::hex!("deadbeaf");
+		/// let payload = (selector, a, b).encode();
+		/// Self::push_ink_message(account_id, payload);
+		/// ```
+		fn push_ink_message(contract_id: ContractId, message: Vec<u8>) {
+			let topic = command_topic(contract_id);
+			let command = CommandPayload::Plain(InkCommand::InkMessage {
+				nonce: Default::default(),
+				message,
+			});
+			Self::push_message_to(topic, command);
 		}
 
 		/// Enqueues a message to push in the beginning of the next block

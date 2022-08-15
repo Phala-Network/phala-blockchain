@@ -26,6 +26,11 @@ pub enum CodeIndex<CodeHash> {
     WasmCode(CodeHash),
 }
 
+#[derive(Decode, Encode, TypeInfo)]
+pub enum InkCommand {
+    InkMessage { nonce: Vec<u8>, message: Vec<u8> },
+}
+
 impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
     pub fn code_hash(&self) -> Vec<u8> {
         match self {
