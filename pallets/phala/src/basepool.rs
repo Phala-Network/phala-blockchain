@@ -106,6 +106,7 @@ pub mod pallet {
 
 	/// The number of total pools
 	#[pallet::storage]
+	#[pallet::getter(fn pool_count)]
 	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]

@@ -497,8 +497,8 @@ pub mod pallet {
 					payout_commission: None,
 					owner_reward: Zero::zero(),
 					cap: None,
-					workers: vec![],
-					cd_workers: vec![],
+					workers: VecDeque::new(),
+					cd_workers: VecDeque::new(),
 				}),
 			);
 			basepool::PoolCount::<T>::put(pid + 1);
@@ -546,7 +546,7 @@ pub mod pallet {
 						delta_price_ratio: None,
 						owner_shares: Zero::zero(),
 						last_share_price_checkpoint: Zero::zero(),
-						invest_pools: vec![],
+						invest_pools: VecDeque::new(),
 					},
 				),
 			);
@@ -616,7 +616,7 @@ pub mod pallet {
 			SubAccountPreimages::<T>::insert(miner, (pid, pubkey));
 
 			// update worker vector
-			workers.push(pubkey);
+			workers.push_back(pubkey);
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info),
@@ -1248,7 +1248,7 @@ pub mod pallet {
 				),
 			)?;
 			if !vault_info.invest_pools.contains(&pid) {
-				vault_info.invest_pools.push(pid);
+				vault_info.invest_pools.push_back(pid);
 			}
 			vault_info.basepool.free_stake -= a;
 			basepool::pallet::Pools::<T>::insert(
@@ -1721,7 +1721,7 @@ pub mod pallet {
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			// Mining::stop_mining will notify us how much it will release by `on_stopped`
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
-			pool_info.cd_workers.push(worker.clone());
+			pool_info.cd_workers.push_back(worker.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::StakePool(pool_info.clone()),
@@ -2013,7 +2013,7 @@ pub mod pallet {
 					// (TODO(mingxuan): should let remove_worker in stakepool call mining directly instead of stakepool -> mining -> stakepool
 					// and remove this cover code.)
 					if !pool.cd_workers.contains(&worker) {
-						pool.cd_workers.push(worker.clone());
+						pool.cd_workers.push_back(worker.clone());
 					}
 				}
 			});
@@ -3424,9 +3424,6 @@ pub mod pallet {
 					ensure_stake_pool::<Test>(1).unwrap().basepool.total_value,
 					1100 * DOLLARS
 				);
-				// Check total locks
-				assert_eq!(Balances::locks(1), vec![the_lock(101 * DOLLARS)]);
-				assert_eq!(Balances::locks(2), vec![the_lock(1010 * DOLLARS)]);
 
 				// Pool existence
 				assert_noop!(
@@ -3887,14 +3884,6 @@ pub mod pallet {
 			let pid = PhalaBasePool::pool_count();
 			assert_ok!(PhalaStakePool::create_vault(Origin::signed(owner)));
 			pid
-		}
-
-		fn the_lock(amount: Balance) -> pallet_balances::BalanceLock<Balance> {
-			pallet_balances::BalanceLock {
-				id: STAKING_ID,
-				amount,
-				reasons: pallet_balances::Reasons::All,
-			}
 		}
 
 		fn simulate_v_update(worker: u8, v_bits: u128) {

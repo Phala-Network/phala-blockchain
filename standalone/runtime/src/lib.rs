@@ -33,8 +33,9 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
-		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EnsureOneOf, ConstU16, ConstU32, AsEnsureOriginWithArg
+		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EnsureOneOf, ConstU16, ConstU32, AsEnsureOriginWithArg, ConstU64, ConstU128,
 	},
+	dispatch::Input,
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
 		DispatchClass, IdentityFee, Weight,
@@ -70,7 +71,7 @@ use sp_runtime::{
 		SaturatedConversion, StaticLookup,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill,
+	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, AccountId32
 };
 use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
@@ -106,6 +107,8 @@ pub use phala_pallets::{
 	pallet_registry,
 	pallet_mining,
 	pallet_stakepool,
+	pallet_basepool,
+	pallet_pawnshop,
 	pallet_fat,
 	puppets,
 };
@@ -1330,6 +1333,55 @@ impl pallet_fat::Config for Runtime {
 	type Event = Event;
 }
 
+parameter_types! {
+	pub const PPhaAssetId: u32 = 1;
+}
+
+pub struct PawnShopGet;
+
+impl Get<AccountId32> for PawnShopGet {
+	fn get() -> AccountId32 {
+		AccountId32::new([1; 32])
+	}
+}
+
+impl pallet_pawnshop::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type PPhaAssetId = PPhaAssetId;
+	type PawnShopAccountId = PawnShopGet;
+}
+
+impl pallet_basepool::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+
+parameter_types! {
+	pub const AssetDeposit: Balance = 1; // 1 Unit deposit to create asset
+	pub const ApprovalDeposit: Balance = 1;
+	pub const AssetsStringLimit: u32 = 50;
+	pub const MetadataDepositBase: Balance = 1;
+	pub const MetadataDepositPerByte: Balance = 1;
+}
+
+impl pallet_assets::Config for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type AssetId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type AssetDeposit = AssetDeposit;
+	type AssetAccountDeposit = ConstU128<10>;
+	type MetadataDepositBase = MetadataDepositBase;
+	type MetadataDepositPerByte = MetadataDepositPerByte;
+	type ApprovalDeposit = ApprovalDeposit;
+	type StringLimit = AssetsStringLimit;
+	type Freezer = ();
+	type Extra = ();
+	type WeightInfo = ();
+}
+
 impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
 
@@ -1339,6 +1391,7 @@ construct_runtime!(
 		NodeBlock = node_primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
+		Assets: pallet_assets,
 		System: frame_system,
 		Utility: pallet_utility,
 		Babe: pallet_babe,
@@ -1382,6 +1435,8 @@ construct_runtime!(
 		PhalaRegistry: pallet_registry,
 		PhalaMining: pallet_mining,
 		PhalaStakePool: pallet_stakepool,
+		PhalaPawnshop: pallet_pawnshop,
+		PhalaBasePool: pallet_basepool,
 		PhalaFatContracts: pallet_fat,
 
 		// Put them here to make sure pherry could be compiled with phala's metadata.
@@ -1443,6 +1498,19 @@ impl pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
 			Call::PhalaMq(mq_call) => Some(mq_call),
 			_ => None,
 		}
+	}
+}
+
+
+impl Decode for Runtime {
+	fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
+		Ok(Self)
+	}
+}
+
+impl Encode for Runtime {
+	fn size_hint(&self) -> usize {
+		0
 	}
 }
 
