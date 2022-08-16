@@ -1,0 +1,20 @@
+[workspace]
+[package]
+name = "disbot"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pink-sidevm = "0.1"
+log = "0.4"
+
+[dependencies.serenity]
+version = "0.11.5"
+default-features = false
+features = ["client", "gateway", "native_tls_backend", "model", "cache"]
+git = "https://github.com/kvinwang/serenity.git"
+branch = "sidevm"
+
