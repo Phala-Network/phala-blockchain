@@ -11,9 +11,6 @@ mod web_api;
 #[clap(about = "Demo sidevm host app", version, author)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub struct Args {
-    /// The gas limit for the program to consume.
-    #[clap(long, default_value_t = u128::MAX)]
-    gas: u128,
     /// The gas limit for each poll.
     #[clap(long, default_value_t = 50_000_000_000_u64)]
     gas_per_breath: u64,

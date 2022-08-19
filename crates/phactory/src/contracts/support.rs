@@ -365,15 +365,12 @@ fn do_start_sidevm(
     code: &[u8],
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    let todo = "connect the gas to some where";
     let max_memory_pages: u32 = 1024; // 64MB
-    let gas = u128::MAX;
     let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
     let (sender, join_handle) = spawner.start(
         &code,
         max_memory_pages,
         id,
-        gas,
         gas_per_breath,
         local_cache_ops(),
         1, // TODO: set actual weight

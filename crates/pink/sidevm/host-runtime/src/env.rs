@@ -127,8 +127,6 @@ pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 
 struct State {
     id: VmId,
-    // Total gas remain
-    gas: u128,
     gas_per_breath: u64,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
@@ -168,7 +166,6 @@ impl Env {
                 memory: VmMemory(None),
                 state: State {
                     id,
-                    gas: 0,
                     gas_per_breath: 0,
                     resources: Default::default(),
                     temp_return_value: Default::default(),
@@ -246,10 +243,6 @@ impl Env {
         })
     }
 
-    pub fn set_gas(&self, gas: u128) {
-        self.inner.lock().unwrap().state.gas = gas;
-    }
-
     pub fn set_gas_per_breath(&self, gas: u64) {
         self.inner.lock().unwrap().state.gas_per_breath = gas;
     }
@@ -278,10 +271,6 @@ impl Env {
 
     pub fn set_instance(&self, instance: Instance) {
         self.inner.lock().unwrap().state.instance = Some(instance);
-    }
-
-    pub fn settle_gas(&self) -> Result<(), OcallAborted> {
-        self.inner.lock().unwrap().state.settle_gas()
     }
 
     pub fn is_stifled(&self) -> bool {
@@ -553,15 +542,6 @@ impl State {
             metering::MeteringPoints::Remaining(_) => false,
             metering::MeteringPoints::Exhausted => true,
         }
-    }
-
-    fn settle_gas(&mut self) -> Result<(), OcallAborted> {
-        let comsumed = self.gas_per_breath.saturating_sub(self.gas_to_breath()) as u128;
-        if self.gas < comsumed {
-            return Err(OcallAborted::GasExhausted);
-        }
-        self.gas -= comsumed;
-        Ok(())
     }
 
     fn gas_to_breath(&self) -> u64 {

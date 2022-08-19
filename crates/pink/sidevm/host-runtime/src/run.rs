@@ -32,7 +32,6 @@ impl WasmRun {
         code: &[u8],
         max_pages: u32,
         id: crate::VmId,
-        gas: u128,
         gas_per_breath: u64,
         cache_ops: DynCacheOps,
         scheduler: TaskScheduler<VmId>,
@@ -71,7 +70,6 @@ impl WasmRun {
         let wasm_poll_entry = instance.exports.get_native_function("sidevm_poll")?;
         env.set_memory(memory.clone());
         env.set_instance(instance);
-        env.set_gas(gas);
         env.set_gas_per_breath(gas_per_breath);
         env.set_weight(weight);
         Ok((
@@ -94,9 +92,6 @@ impl Future for WasmRun {
         self.env.reset_gas_to_breath();
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {
-                if let Err(err) = self.env.settle_gas() {
-                    return Poll::Ready(Err(RuntimeError::user(err.into())));
-                }
                 if rv == 0 {
                     if self.env.has_more_ready() {
                         cx.waker().wake_by_ref();

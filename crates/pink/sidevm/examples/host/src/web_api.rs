@@ -65,7 +65,6 @@ impl App {
                 &wasm_bytes,
                 1024,
                 vmid,
-                inner.args.gas,
                 inner.args.gas_per_breath,
                 crate::simple_cache(),
                 weight,
