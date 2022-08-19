@@ -149,7 +149,8 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
         }
     }
 
-    fn park(&mut self, task_id: &TaskId, actual_cost: VirtualTime) {
+    /// Marks a task as finished and maybe schedule more tasks
+    fn park(&mut self, task_id: &TaskId, vruntime: VirtualTime) {
         let task = match self.tasks.get_mut(task_id) {
             Some(task) => task,
             None => return,
@@ -161,12 +162,13 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
             "BUG: parking a non-running task"
         );
 
-        task.virtual_runtime += actual_cost.max(1);
+        task.virtual_runtime += vruntime.max(1);
         task.state = TaskState::Idle;
         self.running_tasks -= 1;
         self.schedule();
     }
 
+    /// Tries to wake up ready tasks in the schedule queue untils all the cores are occupied
     fn schedule(&mut self) {
         while self.running_tasks < self.virtual_cores {
             let (vruntime, ready_task) = match self.ready_tasks.pop_first() {
@@ -202,8 +204,8 @@ impl<TaskId: TaskIdType> Drop for RunningGuard<TaskId> {
             let actual_cost = self
                 .actual_cost
                 .unwrap_or_else(|| self.start_time.elapsed().as_nanos() as VirtualTime);
-            let actual_cost = actual_cost / self.weight.max(1) as VirtualTime;
-            inner.lock().unwrap().park(&self.task_id, actual_cost);
+            let vruntime = actual_cost / self.weight.max(1) as VirtualTime;
+            inner.lock().unwrap().park(&self.task_id, vruntime);
         }
     }
 }
