@@ -27,13 +27,15 @@
 mod msg_routing;
 
 use codec::{Decode, Encode, MaxEncodedLen};
-use frame_election_provider_support::{onchain, ElectionDataProvider, ExtendedBalance, SequentialPhragmen, VoteWeight};
+use frame_election_provider_support::{
+	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
+};
 use frame_support::{
 	pallet_prelude::Get,
 	construct_runtime, parameter_types,
 	traits::{
 		Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
-		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EnsureOneOf, ConstU16, ConstU32, AsEnsureOriginWithArg, ConstU64, ConstU128,
+		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EnsureOneOf, ConstU16, ConstU32, AsEnsureOriginWithArg, ConstU64, ConstU128, EitherOfDiverse, 
 	},
 	dispatch::Input,
 	weights::{
@@ -67,11 +69,11 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	generic, impl_opaque_keys,
 	traits::{
-		self, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys,
+		self, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys, BlakeTwo256,
 		SaturatedConversion, StaticLookup,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, AccountId32
+	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, AccountId32, FixedU128,
 };
 use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
@@ -79,13 +81,13 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use pallet_balances::Call as BalancesCall;
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use pallet_staking::StakerStatus;
-#[cfg(any(feature = "std", feature = "native-nostd", test))]
+#[cfg(any(feature = "std", test))]
 pub use pallet_sudo::Call as SudoCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -112,11 +114,6 @@ pub use phala_pallets::{
 	pallet_fat,
 	puppets,
 };
-
-#[cfg(not(feature = "native-nostd-hasher"))]
-type Hasher = sp_runtime::traits::BlakeTwo256;
-#[cfg(feature = "native-nostd-hasher")]
-type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -227,10 +224,10 @@ impl frame_system::Config for Runtime {
 	type Index = Index;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
-	type Hashing = Hasher;
+	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = Indices;
-	type Header = generic::Header<BlockNumber, Hasher>;
+	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type Version = Version;
@@ -348,7 +345,7 @@ impl pallet_proxy::Config for Runtime {
 	type MaxProxies = MaxProxies;
 	type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
 	type MaxPending = MaxPending;
-	type CallHasher = Hasher;
+	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
@@ -466,6 +463,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = IdentityFee<Balance>;
@@ -563,7 +561,7 @@ impl pallet_staking::Config for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	/// A super-majority of the council can cancel the slash.
-	type SlashCancelOrigin = EnsureOneOf<
+	type SlashCancelOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 	>;
@@ -641,10 +639,10 @@ pub const MINER_MAX_ITERATIONS: u32 = 10;
 
 /// A source of random balance for NposSolver, which is meant to be run by the OCW election miner.
 pub struct OffchainRandomBalancing;
-impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
-	fn get() -> Option<(usize, ExtendedBalance)> {
+impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
+	fn get() -> Option<BalancingConfig> {
 		use sp_runtime::traits::TrailingZeroInput;
-		let iters = match MINER_MAX_ITERATIONS {
+		let iterations = match MINER_MAX_ITERATIONS {
 			0 => 0,
 			max => {
 				let seed = sp_io::offchain::random_seed();
@@ -655,7 +653,8 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 			},
 		};
 
-		Some((iters, 0))
+		let config = BalancingConfig { iterations, tolerance: 0 };
+		Some(config)
 	}
 }
 
@@ -740,7 +739,7 @@ impl pallet_bags_list::Config for Runtime {
 parameter_types! {
 	pub const PostUnbondPoolsWindow: u32 = 4;
 	pub const NominationPoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MinPointsToBalance: u32 = 10;
+	pub const MaxPointsToBalance: u8 = 10;
 }
 
 use sp_runtime::traits::Convert;
@@ -761,6 +760,8 @@ impl pallet_nomination_pools::Config for Runtime {
 	type WeightInfo = ();
 	type Event = Event;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type StakingInterface = pallet_staking::Pallet<Self>;
@@ -768,7 +769,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MaxMetadataLen = ConstU32<256>;
 	type MaxUnbonding = ConstU32<8>;
 	type PalletId = NominationPoolsPalletId;
-	type MinPointsToBalance = MinPointsToBalance;
+	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
 parameter_types! {
@@ -815,7 +816,7 @@ impl pallet_democracy::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
-	type CancelProposalOrigin = EnsureOneOf<
+	type CancelProposalOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 1, 1>,
 	>;
@@ -905,7 +906,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
 }
 
-type EnsureRootOrHalfCouncil = EnsureOneOf<
+type EnsureRootOrHalfCouncil = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -939,11 +940,11 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = EnsureOneOf<
+	type ApproveOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 	>;
-	type RejectOrigin = EnsureOneOf<
+	type RejectOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 	>;
@@ -958,6 +959,7 @@ impl pallet_treasury::Config for Runtime {
 	type SpendFunds = Bounties;
 	type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
 	type MaxApprovals = MaxApprovals;
+	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
 }
 
 parameter_types! {
@@ -1331,6 +1333,8 @@ impl pallet_rmrk_core::Config for Runtime {
 }
 impl pallet_fat::Config for Runtime {
 	type Event = Event;
+	type InkCodeSizeLimit = ConstU32<{1024*1024*2}>;
+	type SidevmCodeSizeLimit = ConstU32<{1024*1024*8}>;
 }
 
 parameter_types! {
@@ -1452,7 +1456,7 @@ construct_runtime!(
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
 /// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, Hasher>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
@@ -1602,6 +1606,12 @@ impl_runtime_apis! {
 			Historical::prove((fg_primitives::KEY_TYPE, authority_id))
 				.map(|p| p.encode())
 				.map(fg_primitives::OpaqueKeyOwnershipProof::new)
+		}
+	}
+
+	impl pallet_nomination_pools_runtime_api::NominationPoolsApi<Block, AccountId, Balance> for Runtime {
+		fn pending_rewards(member_account: AccountId) -> Balance {
+			NominationPools::pending_rewards(member_account)
 		}
 	}
 

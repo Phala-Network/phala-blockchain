@@ -104,6 +104,7 @@ impl GuessNumber {
 // Alice is the pre-defined root account in dev mode
 const ALICE: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for GuessNumber {
     type Cmd = Command;
     type QReq = Request;
@@ -156,7 +157,7 @@ impl contracts::NativeContract for GuessNumber {
     /// * `origin` - For off-chain Query, the sender can only be AccountId
     /// * `req` — Off-chain Query to handle
     /// * `context` - The simplified current block info
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&chain::AccountId>,
         req: Request,

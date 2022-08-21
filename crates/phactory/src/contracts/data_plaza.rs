@@ -249,6 +249,7 @@ impl DataPlaza {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for DataPlaza {
     type Cmd = Command;
     type QReq = Request;
@@ -295,7 +296,7 @@ impl contracts::NativeContract for DataPlaza {
         }
     }
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         _origin: Option<&chain::AccountId>,
         req: Request,

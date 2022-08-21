@@ -20,6 +20,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
+use std::collections::HashMap;
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -44,16 +45,17 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, ContractId};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
-use phala_types::WorkerRegistrationInfo;
+use phala_types::{EndpointType, WorkerEndpointPayload, WorkerRegistrationInfo};
 use std::time::Instant;
 use types::Error;
+use phala_fair_queue::FairQueue;
 
 pub use chain::BlockNumber;
 pub use contracts::pink;
-pub use prpc_service::dispatch_prpc_request;
+pub use prpc_service::RpcService;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
@@ -192,7 +194,15 @@ struct PersistentRuntimeData {
     dev_mode: bool,
 }
 
-impl PersistentRuntimeData {
+#[derive(Encode, Decode, Clone, Debug)]
+struct PersistentRuntimeDataV2 {
+    genesis_block_hash: H256,
+    sk: Sr25519SecretKey,
+    trusted_sk: bool,
+    dev_mode: bool,
+}
+
+impl PersistentRuntimeDataV2 {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
         let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
@@ -210,6 +220,14 @@ impl PersistentRuntimeData {
 #[derive(Encode, Decode, Clone, Debug)]
 enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
+    V2(PersistentRuntimeDataV2),
+}
+
+#[derive(Clone)]
+struct SignedEndpointCache {
+    endpoints: HashMap<EndpointType, Vec<u8>>,
+    endpoint_payload: WorkerEndpointPayload,
+    signature: Option<Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -223,9 +241,15 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
+    #[serde(skip)]
+    endpoint_cache: Option<SignedEndpointCache>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
+
+    // tmp key for WorkerKey handover encryption
+    #[serde(skip)]
+    pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
     #[serde(skip)]
     #[serde(default = "Instant::now")]
@@ -233,6 +257,16 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default)]
     last_storage_purge_at: chain::BlockNumber,
+    #[serde(skip)]
+    #[serde(default = "default_fair_queue")]
+    query_dispatch_queue: FairQueue<ContractId>,
+}
+
+fn default_fair_queue() -> FairQueue<ContractId> {
+    const FAIR_QUEUE_BACKLOG: usize = 32;
+    const FAIR_QUEUE_THREADS: u32 = 8;
+
+    FairQueue::new(FAIR_QUEUE_BACKLOG, FAIR_QUEUE_THREADS)
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -247,9 +281,12 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
+            endpoint_cache: None,
             side_task_man: Default::default(),
+            handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
+            query_dispatch_queue: default_fair_queue(),
         }
     }
 
@@ -282,16 +319,16 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         &self,
         genesis_block_hash: H256,
         predefined_identity_key: Option<sr25519::Pair>,
-    ) -> Result<PersistentRuntimeData> {
+    ) -> Result<PersistentRuntimeDataV2> {
         let data = if let Some(identity_sk) = predefined_identity_key {
-            self.save_runtime_data(genesis_block_hash, identity_sk, true)?
+            self.save_runtime_data(genesis_block_hash, identity_sk, false, true)?
         } else {
             match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
-                    self.save_runtime_data(genesis_block_hash, identity_sk, false)?
+                    self.save_runtime_data(genesis_block_hash, identity_sk, true, false)?
                 }
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
@@ -313,18 +350,20 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         &self,
         genesis_block_hash: H256,
         sr25519_sk: sr25519::Pair,
+        trusted_sk: bool,
         dev_mode: bool,
-    ) -> Result<PersistentRuntimeData> {
+    ) -> Result<PersistentRuntimeDataV2> {
         // Put in PresistentRuntimeData
         let sk = sr25519_sk.dump_secret_key();
 
-        let data = PersistentRuntimeData {
+        let data = PersistentRuntimeDataV2 {
             genesis_block_hash,
             sk,
+            trusted_sk,
             dev_mode,
         };
         {
-            let data = RuntimeDataSeal::V1(data.clone());
+            let data = RuntimeDataSeal::V2(data.clone());
             let encoded_vec = data.encode();
             info!("Length of encoded slice: {}", encoded_vec.len());
             let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
@@ -332,7 +371,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 .seal_data(filepath, &encoded_vec)
                 .map_err(Into::into)
                 .context("Failed to seal runtime data")?;
-            info!("Persistent Runtime Data saved");
+            info!("Persistent Runtime Data V2 saved");
         }
         Ok(data)
     }
@@ -340,7 +379,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn load_runtime_data(
         platform: &Platform,
         sealing_path: &str,
-    ) -> Result<PersistentRuntimeData, Error> {
+    ) -> Result<PersistentRuntimeDataV2, Error> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
@@ -348,7 +387,16 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
-            RuntimeDataSeal::V1(data) => Ok(data),
+            RuntimeDataSeal::V1(data) => {
+                Ok(PersistentRuntimeDataV2 {
+                    genesis_block_hash: data.genesis_block_hash,
+                    sk: data.sk,
+                    // key injection is impossible for legacy persistent data
+                    trusted_sk: true,
+                    dev_mode: data.dev_mode,
+                })
+            }
+            RuntimeDataSeal::V2(data) => Ok(data),
         }
     }
 }
@@ -543,7 +591,9 @@ impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Pl
     }
 }
 struct PhactoryLoader<Platform>(Phactory<Platform>);
-impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de> for PhactoryLoader<Platform> {
+impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de>
+    for PhactoryLoader<Platform>
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut factory = Phactory::load_state(deserializer)?;
         factory
@@ -568,7 +618,6 @@ fn generate_random_iv() -> aead::IV {
     nonce_vec
 }
 
-#[allow(dead_code)]
 fn generate_random_info() -> [u8; 32] {
     let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();

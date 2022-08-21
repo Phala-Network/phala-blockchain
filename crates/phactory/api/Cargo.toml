@@ -5,12 +5,12 @@ edition = "2018"
 resolver = "2"
 
 [dependencies]
-parity-scale-codec   = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0", default-features = false, features = ["derive"] }
+parity-scale-codec   = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1", default-features = false, features = ["derive"] }
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
 derive_more = "0.99.16"
-prost = { version = "0.8.0", default-features = false }
+prost = { version = "0.11.0", default-features = false }
 
 phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
 phala-types = { path = "../../../crates/phala-types", default-features = false }
@@ -19,14 +19,14 @@ phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
 
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "sp-finality-grandpa", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "frame-system", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "sp-core", default-features = false, features = ["full_crypto"] }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", package = "sp-application-crypto", default-features = false, features = ["full_crypto"] }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false, features = ["full_crypto"] }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false, features = ["full_crypto"] }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", default-features = false }
 
 # for pruntime_client
-async-trait = { version = "0.1.51", optional = true }
+async-trait = "0.1"
 anyhow = { version = "1.0.43", optional = true }
 log = { version = "0.4.14" }
 reqwest = { version = "0.11.4", optional = true }
@@ -56,7 +56,6 @@ std = [
 
 sgx = []
 pruntime-client = [
-    "async-trait",
     "anyhow",
     "reqwest",
 ]

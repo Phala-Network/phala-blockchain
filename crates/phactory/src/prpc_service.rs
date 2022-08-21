@@ -1,14 +1,27 @@
-use std::sync::{Mutex, MutexGuard};
+use std::convert::TryFrom;
+use std::future::Future;
+use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::system::System;
+use crate::benchmark::Flags;
+use crate::system::{chain_state, System};
 
 use super::*;
+use chain::pallet_registry::{Attestation, AttestationValidator, IasFields, IasValidator};
+use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
-use phala_types::{contract, WorkerPublicKey};
+use phala_crypto::{
+    key_share,
+    sr25519::{Persistence, KDF},
+};
+use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
+use phala_types::{
+    contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
+    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
+};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -28,22 +41,6 @@ fn now() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
     now.as_secs()
-}
-
-// Drop latest messages if needed to fit in size.
-fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages {
-    while messages.encoded_size() > size {
-        for (_, queue) in messages.iter_mut() {
-            if queue.pop().is_some() {
-                break;
-            }
-        }
-        messages.retain(|(_, q)| !q.is_empty());
-        if messages.is_empty() {
-            break;
-        }
-    }
-    messages
 }
 
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
@@ -329,7 +326,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         info!("CPU cores: {}", cpu_core_num);
 
         let cpu_feature_level: u32 = self.platform.cpu_feature_level();
-
         info!("CPU feature level: {}", cpu_feature_level);
 
         // Build WorkerRegistrationInfo
@@ -385,6 +381,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
+            rt_data.trusted_sk,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
@@ -410,6 +407,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         let skip_ra = self.skip_ra;
+        let validated_identity_key = self.system()?.validated_identity_key();
 
         let mut cached_resp = self
             .runtime_info
@@ -425,7 +423,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             cached_resp.encoded_runtime_info = runtime_info.encode();
         }
 
-        if !skip_ra {
+        // never generate RA report for a potentially injected identity key
+        // else he is able to fake a Secure Worker
+        if !skip_ra && validated_identity_key {
             if let Some(cached_attestation) = &cached_resp.attestation {
                 const MAX_ATTESTATION_AGE: u64 = 60 * 60;
                 if refresh_ra
@@ -458,8 +458,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     payload: Some(pb::AttestationReport {
                         report: attn_report,
                         signature: base64::decode(sig).map_err(from_display)?,
-                        signing_cert: base64::decode_config(cert, base64::STANDARD)
-                            .map_err(from_display)?,
+                        signing_cert: base64::decode(cert).map_err(from_display)?,
                     }),
                     timestamp: now(),
                 });
@@ -468,20 +467,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(cached_resp.clone())
     }
 
-    fn get_egress_messages(&mut self, output_buf_len: usize) -> RpcResult<pb::EgressMessages> {
+    fn get_egress_messages(&mut self) -> RpcResult<pb::EgressMessages> {
         let messages: Vec<_> = self
             .runtime_state
             .as_ref()
             .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
             .unwrap_or_default();
-        // Prune messages if needed to avoid the OUTPUT BUFFER overflow.
-        Ok(fit_size(messages, output_buf_len))
+        Ok(messages)
     }
 
     fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
-    ) -> RpcResult<impl FnOnce() -> RpcResult<pb::ContractQueryResponse>> {
+    ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
@@ -521,7 +519,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Origin
         let accid_origin = match origin {
             Some(origin) => {
-                use core::convert::TryFrom;
                 let accid = chain::AccountId::try_from(origin.as_slice())
                     .map_err(|_| from_display("Bad account id"))?;
                 Some(accid)
@@ -529,14 +526,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => None,
         };
 
+        let query_queue = self.query_dispatch_queue.clone();
         // Dispatch
-        let call = self.system()?.make_query(&head.id)?;
+        let query_future = self.system()?.make_query(
+            &head.id,
+            accid_origin.as_ref(),
+            data[data.len() - rest..].to_vec(),
+            query_queue,
+        )?;
 
-        Ok(move || {
+        Ok(async move {
             // Encode response
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
-                result: contract::Data(call(accid_origin.as_ref(), &data[data.len() - rest..])?),
+                result: contract::Data(query_future.await?),
             };
             let response_data = response.encode();
 
@@ -571,6 +574,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         state.recv_mq.reset_local_index();
 
+        let now_ms = state
+            .chain_storage
+            .timestamp_now()
+            .ok_or_else(|| from_display("No timestamp found in block"))?;
+
+        let mut block = BlockInfo {
+            block_number,
+            now_ms,
+            storage: &state.chain_storage,
+            send_mq: &state.send_mq,
+            recv_mq: &mut state.recv_mq,
+            side_task_man: &mut self.side_task_man,
+        };
+
+        system.will_process_block(&mut block);
+
         for message in messages {
             use phala_types::messaging::SystemEvent;
             macro_rules! log_message {
@@ -599,46 +618,29 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     message.sender, message.destination
                 );
             }
-            state.recv_mq.dispatch(message);
+            block.recv_mq.dispatch(message);
+
+            system.process_messages(&mut block);
         }
+        system.did_process_block(&mut block);
 
-        let mut guard = scopeguard::guard(&mut state.recv_mq, |mq| {
-            let n_unhandled = mq.clear();
-            if n_unhandled > 0 {
-                warn!("There are {} unhandled messages dropped", n_unhandled);
-            }
-        });
-
-        let now_ms = state
-            .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
+        let n_unhandled = block.recv_mq.clear();
+        if n_unhandled > 0 {
+            warn!("There are {} unhandled messages dropped", n_unhandled);
+        }
 
         let block_time = now_ms / 1000;
         let sys_time = now();
 
         // When delta time reaches 3600s, there are about 3600 / 12 = 300 blocks rest.
         // It need about 30 more seconds to sync up to date.
-        let ready = block_time + 3600 > sys_time;
+        let syncing = block_time + 3600 <= sys_time;
         debug!(
-            "block_time={}, sys_time={}, ready={}",
-            block_time, sys_time, ready
+            "block_time={}, sys_time={}, syncing={}",
+            block_time, sys_time, syncing
         );
-        benchmark::set_ready(ready);
+        benchmark::set_flag(Flags::SYNCING, syncing);
 
-        let storage = &state.chain_storage;
-        let side_task_man = &mut self.side_task_man;
-        let recv_mq = &mut *guard;
-        let mut block = BlockInfo {
-            block_number,
-            now_ms,
-            storage,
-            send_mq: &state.send_mq,
-            recv_mq,
-            side_task_man,
-        };
-
-        system.process_messages(&mut block);
         Ok(())
     }
 
@@ -655,73 +657,223 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.side_task_man.poll(&context);
         Ok(())
     }
-}
 
-pub fn dispatch_prpc_request<Platform>(
-    path: &[u8],
-    data: &[u8],
-    output_buf_len: usize,
-    phactory: &Mutex<Phactory<Platform>>,
-) -> (u16, Vec<u8>)
-where
-    Platform: pal::Platform + Serialize + DeserializeOwned,
-{
-    use prpc::server::{Error, ProtoError};
+    fn add_endpoint(
+        &mut self,
+        endpoint_type: EndpointType,
+        endpoint: Vec<u8>,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        let endpoints = if self.endpoint_cache.is_some() {
+            // update the endpoints instead of inserting
+            let mut endpoint_cache = self
+                .endpoint_cache
+                .clone()
+                .expect("SignedEndpointCache should be initialized");
 
-    let path = match std::str::from_utf8(path) {
-        Ok(path) => path,
-        Err(e) => {
-            error!("prpc_request: invalid path: {}", e);
-            return (400, b"Invalid path".to_vec());
-        }
-    };
-    info!("Dispatching request: {}", path);
+            endpoint_cache.endpoints.insert(endpoint_type, endpoint);
 
-    let mut server = PhactoryApiServer::new(RpcService {
-        output_buf_len,
-        phactory,
-    });
-    let (code, data) = match server.dispatch_request(path, data.to_vec()) {
-        Ok(data) => (200, data),
-        Err(err) => {
-            error!("Rpc error: {:?}", err);
-            let (code, err) = match err {
-                Error::NotFound => (404, ProtoError::new("Method Not Found")),
-                Error::DecodeError(err) => {
-                    (400, ProtoError::new(format!("DecodeError({:?})", err)))
-                }
-                Error::AppError(msg) => (500, ProtoError::new(msg)),
-                Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
+            endpoint_cache.endpoints
+        } else {
+            let mut endpoints = HashMap::new();
+            endpoints.insert(endpoint_type, endpoint);
+            endpoints
+        };
+
+        self.refresh_endpoint_signing_time(endpoints)
+    }
+
+    fn refresh_endpoint_signing_time(
+        &mut self,
+        endpoints: HashMap<EndpointType, Vec<u8>>,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        let state = self
+            .runtime_state
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let block_time: u64 = state
+            .chain_storage
+            .timestamp_now()
+            .ok_or_else(|| from_display("No timestamp found in block"))?;
+        let public_key = self
+            .system
+            .as_ref()
+            .map(|state| state.identity_key.public())
+            .expect("public_key should be set");
+        let mut endpoints_info = Vec::<EndpointInfo>::new();
+
+        for (endpoint_type, endpoint) in endpoints.iter() {
+            let endpoint_info = match endpoint_type {
+                EndpointType::I2P => EndpointInfo {
+                    endpoint: WorkerEndpoint::I2P(endpoint.clone()),
+                },
+                EndpointType::Http => EndpointInfo {
+                    endpoint: WorkerEndpoint::Http(endpoint.clone()),
+                },
             };
-            (code, prpc::codec::encode_message_to_vec(&err))
+            endpoints_info.push(endpoint_info);
         }
-    };
 
-    (code, data)
-}
+        let versioned_endpoints = VersionedWorkerEndpoints::V1(endpoints_info);
+        let endpoint_payload = WorkerEndpointPayload {
+            pubkey: public_key,
+            versioned_endpoints,
+            signing_time: block_time,
+        };
+        let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), None);
 
-pub struct RpcService<'a, Platform> {
-    output_buf_len: usize,
-    phactory: &'a Mutex<Phactory<Platform>>,
-}
+        self.endpoint_cache = Some(SignedEndpointCache {
+            endpoints,
+            endpoint_payload,
+            signature: None,
+        });
 
-impl<Platform> RpcService<'_, Platform> {
-    fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
-        self.phactory.lock().unwrap()
+        Ok(resp)
+    }
+
+    fn get_endpoint_info(&mut self) -> RpcResult<pb::GetEndpointResponse> {
+        if self.system.is_none() {
+            return Err(from_display("Runtime not initialized"));
+        }
+
+        if self.endpoint_cache.is_none() {
+            info!("Endpoint not found");
+            return Ok(pb::GetEndpointResponse::new(None, None));
+        }
+
+        let endpoint_cache = self
+            .endpoint_cache
+            .clone()
+            .expect("SignedEndpointInfo should be initialized");
+
+        let signature = if endpoint_cache.signature.is_none() {
+            let signature = self
+                .system
+                .as_ref()
+                .expect("Runtime should be initialized")
+                .identity_key
+                .clone()
+                .sign(&endpoint_cache.endpoint_payload.encode())
+                .encode();
+            self.endpoint_cache = Some(SignedEndpointCache {
+                endpoints: endpoint_cache.endpoints.clone(),
+                endpoint_payload: endpoint_cache.endpoint_payload.clone(),
+                signature: Some(signature.clone()),
+            });
+
+            signature
+        } else {
+            endpoint_cache
+                .signature
+                .as_ref()
+                .expect("Signature should be existed")
+                .clone()
+        };
+
+        let resp = pb::GetEndpointResponse::new(
+            Some(endpoint_cache.endpoint_payload.clone()),
+            Some(signature),
+        );
+
+        Ok(resp)
     }
 }
 
-/// A server that process all RPCs.
-impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
-    for RpcService<'_, Platform>
+#[derive(Clone)]
+pub struct RpcService<Platform> {
+    phactory: Arc<Mutex<Phactory<Platform>>>,
+}
+
+impl<Platform: pal::Platform> RpcService<Platform> {
+    pub fn new(platform: Platform) -> RpcService<Platform> {
+        RpcService {
+            phactory: Arc::new(Mutex::new(Phactory::new(platform))),
+        }
+    }
+}
+
+impl<Platform> RpcService<Platform>
+where
+    Platform: pal::Platform + Serialize + DeserializeOwned,
 {
+    pub fn dispatch_request(
+        &self,
+        path: &[u8],
+        data: &[u8],
+    ) -> impl Future<Output = (u16, Vec<u8>)> {
+        use prpc::server::{Error, ProtoError};
+        let path = String::from_utf8(path.to_vec());
+        let data = data.to_vec();
+
+        let mut server = PhactoryApiServer::new(self.clone());
+
+        async move {
+            let path = match path {
+                Ok(path) => path,
+                Err(e) => {
+                    error!("prpc_request: invalid path: {}", e);
+                    return (400, b"Invalid path".to_vec());
+                }
+            };
+            info!("Dispatching request: {}", path);
+
+            let (code, data) = match server.dispatch_request(&path, data).await {
+                Ok(data) => (200, data),
+                Err(err) => {
+                    error!("Rpc error: {:?}", err);
+                    let (code, err) = match err {
+                        Error::NotFound => (404, ProtoError::new("Method Not Found")),
+                        Error::DecodeError(err) => {
+                            (400, ProtoError::new(format!("DecodeError({:?})", err)))
+                        }
+                        Error::AppError(msg) => (500, ProtoError::new(msg)),
+                        Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
+                    };
+                    (code, prpc::codec::encode_message_to_vec(&err))
+                }
+            };
+            (code, data)
+        }
+    }
+}
+
+impl<Platform: pal::Platform> RpcService<Platform> {
+    pub fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
+        self.phactory.lock().unwrap()
+    }
+
+    fn create_attestation_report_on(&self, data: &[u8]) -> RpcResult<pb::Attestation> {
+        let phactory = self.lock_phactory();
+        let (attn_report, sig, cert) = match phactory.platform.create_attestation_report(&data) {
+            Ok(r) => r,
+            Err(e) => {
+                let message = format!("Failed to create attestation report: {:?}", e);
+                error!("{}", message);
+                return Err(from_display(message));
+            }
+        };
+        Ok(pb::Attestation {
+            version: 1,
+            provider: "SGX".to_string(),
+            payload: Some(pb::AttestationReport {
+                report: attn_report,
+                signature: base64::decode(sig).map_err(from_display)?,
+                signing_cert: base64::decode(cert).map_err(from_display)?,
+            }),
+            timestamp: now(),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+/// A server that process all RPCs.
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for RpcService<Platform> {
     /// Get basic information about Phactory state.
-    fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
+    async fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         Ok(self.lock_phactory().get_info())
     }
 
     /// Sync the parent chain header
-    fn sync_header(&mut self, request: pb::HeadersToSync) -> RpcResult<pb::SyncedTo> {
+    async fn sync_header(&mut self, request: pb::HeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         let authority_set_change = request.decode_authority_set_change()?;
         self.lock_phactory()
@@ -729,13 +881,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     }
 
     /// Sync the parachain header
-    fn sync_para_header(&mut self, request: pb::ParaHeadersToSync) -> RpcResult<pb::SyncedTo> {
+    async fn sync_para_header(
+        &mut self,
+        request: pb::ParaHeadersToSync,
+    ) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         self.lock_phactory()
             .sync_para_header(headers, request.proof)
     }
 
-    fn sync_combined_headers(
+    async fn sync_combined_headers(
         &mut self,
         request: pb::CombinedHeadersToSync,
     ) -> Result<pb::HeadersSyncedTo, prpc::server::Error> {
@@ -748,12 +903,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     }
 
     /// Dispatch blocks (Sync storage changes)"
-    fn dispatch_blocks(&mut self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
+    async fn dispatch_blocks(&mut self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
         self.lock_phactory().dispatch_block(blocks)
     }
 
-    fn init_runtime(
+    async fn init_runtime(
         &mut self,
         request: pb::InitRuntimeRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
@@ -767,7 +922,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         )
     }
 
-    fn get_runtime_info(
+    async fn get_runtime_info(
         &mut self,
         req: pb::GetRuntimeInfoRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
@@ -775,23 +930,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
             .get_runtime_info(req.force_refresh_ra, req.decode_operator()?)
     }
 
-    fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
-        // The ENCLAVE OUTPUT BUFFER is a fixed size big buffer.
-        assert!(self.output_buf_len >= 1024);
+    async fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
         self.lock_phactory()
-            .get_egress_messages(self.output_buf_len - 1024)
+            .get_egress_messages()
             .map(pb::GetEgressMessagesResponse::new)
     }
 
-    fn contract_query(
+    async fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        let do_query = self.lock_phactory().contract_query(request)?;
-        do_query()
+        let query_fut = self.lock_phactory().contract_query(request)?;
+        query_fut.await
     }
 
-    fn get_worker_state(
+    async fn get_worker_state(
         &mut self,
         request: pb::GetWorkerStateRequest,
     ) -> RpcResult<pb::WorkerState> {
@@ -813,8 +966,275 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         Ok(state)
     }
 
-    fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
+    async fn add_endpoint(
+        &mut self,
+        request: pb::AddEndpointRequest,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        self.lock_phactory()
+            .add_endpoint(request.decode_endpoint_type()?, request.endpoint)
+    }
+
+    async fn refresh_endpoint_signing_time(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
+        let mut phactory = self.lock_phactory();
+        let endpoints = phactory
+            .endpoint_cache
+            .as_ref()
+            .ok_or(from_display("Endpoint cache not initialized"))?
+            .endpoints
+            .clone();
+
+        phactory.refresh_endpoint_signing_time(endpoints)
+    }
+
+    async fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
+        self.lock_phactory().get_endpoint_info()
+    }
+
+    async fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
+        let mut phactory = self.lock_phactory();
+        let system = phactory.system()?;
+        let derive_key = system
+            .identity_key
+            .derive_sr25519_pair(&[b"PhalaI2PKey"])
+            .expect("should not fail with valid key");
+        Ok(pb::DerivePhalaI2pKeyResponse {
+            phala_i2p_key: derive_key.dump_secret_key().to_vec(),
+        })
+    }
+
+    async fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
         let echo_msg = request.echo_msg;
         Ok(pb::EchoMessage { echo_msg })
+    }
+
+    // WorkerKey Handover Server
+
+    async fn handover_create_challenge(
+        &mut self,
+        _request: (),
+    ) -> RpcResult<pb::HandoverChallenge> {
+        let mut phactory = self.lock_phactory();
+        let dev_mode = phactory.dev_mode;
+        let system = phactory.system()?;
+        let challenge = system.get_worker_key_challenge(dev_mode);
+        Ok(pb::HandoverChallenge::new(challenge))
+    }
+
+    async fn handover_start(
+        &mut self,
+        request: pb::HandoverChallengeResponse,
+    ) -> RpcResult<pb::HandoverWorkerKey> {
+        let mut phactory = self.lock_phactory();
+        let dev_mode = phactory.dev_mode;
+        let system = phactory.system()?;
+        let my_identity_key = system.identity_key.clone();
+
+        // 1. verify RA report
+        let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
+        let now_ms = system.now_ms;
+        let block_number = system.block_number;
+        let attestation = if dev_mode {
+            info!("Skip RA report check in dev mode");
+            None
+        } else {
+            let payload_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+            let raw_attestation = request
+                .attestation
+                .ok_or_else(|| from_display("Attestation not found"))?;
+            let payload = raw_attestation
+                .payload
+                .ok_or_else(|| from_display("Missing attestation payload"))?;
+            let attn_to_validate = Attestation::SgxIas {
+                ra_report: payload.report.as_bytes().to_vec(),
+                signature: payload.signature,
+                raw_signing_cert: payload.signing_cert,
+            };
+            // The time from attestation report is generated by IAS, thus trusted. By default, it's valid for 10h.
+            // By ensuring our system timestamp is within the valid period, we know that this pRuntime is not hold back by
+            // malicious workers.
+            IasValidator::validate(&attn_to_validate, &payload_hash, now_ms, false, vec![])
+                .map_err(|_| from_display("Invalid RA report"))?;
+            Some(attn_to_validate)
+        };
+        // 2. verify challenge validity to prevent replay attack
+        let challenge = challenge_handler.challenge;
+        if !system.verify_worker_key_challenge(&challenge) {
+            return Err(from_display("Invalid challenge"));
+        }
+        // 3. verify challenge block height and report timestamp
+        // only challenge within 150 blocks (30 minutes) is accepted
+        let challenge_height = challenge.payload.block_number;
+        if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
+            return Err(from_display("Outdated challenge"));
+        }
+        // 4. verify pruntime launch date
+        if !dev_mode {
+            let runtime_info = phactory
+                .runtime_info
+                .as_ref()
+                .ok_or_else(|| from_display("Runtime not initialized"))?;
+            let my_attn = runtime_info
+                .attestation
+                .as_ref()
+                .ok_or_else(|| from_display("My attestation not found"))?;
+            let my_attn_report = my_attn
+                .payload
+                .as_ref()
+                .ok_or_else(|| from_display("My RA report not found"))?;
+            let (my_ias_fields, _) =
+                IasFields::from_ias_report(&my_attn_report.report.as_bytes().to_vec())
+                    .map_err(|_| from_display("Invalid RA report"))?;
+            let my_mrenclave = my_ias_fields.extend_mrenclave();
+            let runtime_state = phactory.runtime_state()?;
+            let my_runtime_timestamp =
+                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &my_mrenclave)
+                    .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
+
+            let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
+            let mrenclave = match attestation {
+                Attestation::SgxIas {
+                    ra_report,
+                    signature: _,
+                    raw_signing_cert: _,
+                } => {
+                    let (ias_fields, _) = IasFields::from_ias_report(&ra_report)
+                        .map_err(|_| from_display("Invalid received RA report"))?;
+                    ias_fields.extend_mrenclave()
+                }
+            };
+            let req_runtime_timestamp =
+                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
+                    .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            if my_runtime_timestamp >= req_runtime_timestamp {
+                return Err(from_display("No handover for old pRuntime"));
+            }
+        } else {
+            info!("Skip pRuntime timestamp check in dev mode");
+        }
+
+        // Share the key with attestation
+        let ecdh_pubkey = challenge_handler.ecdh_pubkey;
+        let iv = crate::generate_random_iv();
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
+            &my_identity_key,
+            &[b"worker_key_handover"],
+            &ecdh_pubkey.0,
+            &my_identity_key.dump_secret_key(),
+            &iv,
+        )
+        .map_err(from_debug)?;
+        let encrypted_key = EncryptedKey {
+            ecdh_pubkey: sr25519::Public(ecdh_pubkey),
+            encrypted_key,
+            iv,
+        };
+        let runtime_state = phactory.runtime_state()?;
+        let genesis_block_hash = runtime_state.genesis_block_hash;
+        let encrypted_worker_key = EncryptedWorkerKey {
+            genesis_block_hash,
+            dev_mode,
+            encrypted_key,
+        };
+        let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+        let attestation = if dev_mode {
+            info!("Omit RA report in workerkey response in dev mode");
+            None
+        } else {
+            Some(self.create_attestation_report_on(&worker_key_hash)?)
+        };
+
+        Ok(pb::HandoverWorkerKey::new(
+            encrypted_worker_key,
+            attestation,
+        ))
+    }
+
+    // WorkerKey Handover Client
+
+    async fn handover_accept_challenge(
+        &mut self,
+        request: pb::HandoverChallenge,
+    ) -> RpcResult<pb::HandoverChallengeResponse> {
+        let mut phactory = self.lock_phactory();
+
+        // generate and save tmp key only for key handover encryption
+        let handover_key = crate::new_sr25519_key();
+        let handover_ecdh_key = handover_key
+            .derive_ecdh_key()
+            .expect("should never fail with valid key; qed.");
+        let ecdh_pubkey = phala_types::EcdhPublicKey(handover_ecdh_key.public());
+        phactory.handover_ecdh_key = Some(handover_ecdh_key);
+
+        let challenge = request.decode_challenge().map_err(from_display)?;
+        let challenge_handler = ChallengeHandlerInfo {
+            challenge: challenge.clone(),
+            ecdh_pubkey,
+        };
+        let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+        let attestation = if challenge.payload.dev_mode {
+            info!("Omit RA report in challenge response in dev mode");
+            None
+        } else {
+            Some(self.create_attestation_report_on(&handler_hash)?)
+        };
+
+        Ok(pb::HandoverChallengeResponse::new(
+            challenge_handler,
+            attestation,
+        ))
+    }
+
+    async fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
+        let mut phactory = self.lock_phactory();
+        let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
+
+        let dev_mode = encrypted_worker_key.dev_mode;
+        // verify RA report
+        if !dev_mode {
+            let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+            let raw_attestation = request
+                .attestation
+                .ok_or_else(|| from_display("Attestation not found"))?;
+            let payload = raw_attestation
+                .payload
+                .ok_or_else(|| from_display("Missing attestation payload"))?;
+            let attn_to_validate = Attestation::SgxIas {
+                ra_report: payload.report.as_bytes().to_vec(),
+                signature: payload.signature,
+                raw_signing_cert: payload.signing_cert,
+            };
+            IasValidator::validate(&attn_to_validate, &worker_key_hash, now(), false, vec![])
+                .map_err(|_| from_display("Invalid RA report"))?;
+        } else {
+            info!("Skip RA report check in dev mode");
+        }
+
+        let encrypted_key = encrypted_worker_key.encrypted_key;
+        let my_ecdh_key = phactory
+            .handover_ecdh_key
+            .as_ref()
+            .ok_or_else(|| from_display("Ecdh key not initialized"))?;
+        let secret = key_share::decrypt_secret_from(
+            my_ecdh_key,
+            &encrypted_key.ecdh_pubkey.0,
+            &encrypted_key.encrypted_key,
+            &encrypted_key.iv,
+        )
+        .map_err(from_debug)?;
+
+        // only seal if the key is successfully updated
+        phactory
+            .save_runtime_data(
+                encrypted_worker_key.genesis_block_hash,
+                sr25519::Pair::restore_from_secret_key(&secret),
+                false, // we are not sure whether this key is injected
+                dev_mode,
+            )
+            .map_err(from_display)?;
+
+        // clear cached RA report and handover ecdh key to prevent replay
+        phactory.runtime_info = None;
+        phactory.handover_ecdh_key = None;
+        Ok(())
     }
 }

@@ -60,6 +60,7 @@ impl Balances {
     }
 }
 
+#[async_trait::async_trait]
 impl contracts::NativeContract for Balances {
     type Cmd = Command;
     type QReq = Request;
@@ -154,7 +155,7 @@ impl contracts::NativeContract for Balances {
         }
     }
 
-    fn handle_query(
+    async fn handle_query(
         &self,
         origin: Option<&chain::AccountId>,
         req: Request,

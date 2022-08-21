@@ -198,7 +198,7 @@ pub mod async_side_task {
             default_messages: [SigningMessage; N],
             future: F,
         ) {
-            if !crate::benchmark::is_ready() {
+            if !crate::benchmark::check_flag(crate::benchmark::Flags::SYNCING) {
                 self.add_task(current_block, duration, default_messages, |_| None);
                 return;
             }

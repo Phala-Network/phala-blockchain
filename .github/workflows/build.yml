@@ -17,17 +17,17 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Build core blockchain
         run: cargo build -vv --profile testnet
       - name: Save core-blockchain binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: core-blockchain-binaries
           path: |
@@ -41,24 +41,49 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
-      - name: Build pRuntime
+      - name: Build pruntime
         run: make V=1 dist -C ./standalone/pruntime/gramine-build/
       - name: Save pruntime binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: pruntime-binaries
           path: |
             ./standalone/pruntime/bin/pruntime
             ./standalone/pruntime/bin/pruntime.manifest
             ./standalone/pruntime/bin/Rocket.toml
+
+  build-prouter:
+    name: Build prouter
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2022-07-11
+          override: true
+          target: wasm32-unknown-unknown
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - uses: ./.github/actions/install_toolchain
+      - name: Install prouter dependencies
+        run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc
+      - name: Build prouter
+        run: cd ./standalone/prouter/ && cargo build -vv
+      - name: Save prouter binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: prouter-binaries
+          path: |
+            ./standalone/prouter/target/release/prouter
 
   e2e-test:
     name: Run E2E tests
@@ -67,35 +92,34 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'true'
-      - uses: ./.github/actions/install_toolchain
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Setup Node.js environment
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
-          node-version: 16.x
+          node-version: 16
       - name: Install yarn 2
         run: sudo npm install -g yarn && yarn set version berry
       - name: Download core-blockchain binaries
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: core-blockchain-binaries
           path: ./target/release
       - name: Download pruntime binaries
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: pruntime-binaries
           path: ./standalone/pruntime/bin
       - name: Change permission
         run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/pruntime
       - name: Run E2E tests
-        run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && PRUNTIME_TYPE=gramine yarn test
+        run: yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && yarn test
       - name: Pack logs if failed
         if: failure()
         run: tar czvf e2e-logs.tar.gz e2e
@@ -114,11 +138,11 @@ jobs:
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2022-04-01
+          toolchain: nightly-2022-07-11
           override: true
           target: wasm32-unknown-unknown
           components: rustfmt
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain

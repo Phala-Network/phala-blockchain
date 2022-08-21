@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
@@ -13,6 +12,16 @@ pub use pink_extension_macro::contract;
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
 pub mod logger;
+pub mod predefined_accounts {
+    use ink_env;
+
+    // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
+    pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+
+    pub fn is_pallet(account_id: &ink_env::AccountId) -> bool {
+        account_id.as_ref() as &[u8] == &ACCOUNT_PALLET
+    }
+}
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
@@ -42,12 +51,10 @@ pub enum PinkEvent {
     OspMessage(OspMessage),
     /// Contract has an on_block_end ink message and will emit this event on instantiation.
     OnBlockEndSelector(u32),
-    /// Start to transfer sidevm code
-    StartToTransferSidevmCode,
-    /// One chunk of sidevm code
-    SidevmCodeChunk(Cow<'static, [u8]>),
     /// Start the side VM.
     StartSidevm {
+        /// The hash of the sidevm code.
+        code_hash: Hash,
         /// Restart the instance when it has crashed
         auto_restart: bool,
     },
@@ -116,13 +123,8 @@ pub fn set_on_block_end_selector(selector: u32) {
 }
 
 /// Start a side VM instance
-pub fn start_sidevm(wasm_code: &'static [u8], auto_restart: bool) {
-    // `ink!` limit a single event size to 16KB. As a workaround, we chop the code in to 15KB chunks.
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartToTransferSidevmCode);
-    for chunk in wasm_code.chunks(1024 * 15) {
-        emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
-    }
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { auto_restart })
+pub fn start_sidevm(code_hash: Hash, auto_restart: bool) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { code_hash, auto_restart })
 }
 
 /// Push a message to the associated sidevm instance.

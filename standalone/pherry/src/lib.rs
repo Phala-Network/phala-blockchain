@@ -13,6 +13,7 @@ use phaxt::{subxt, RpcClient};
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 
+mod endpoint;
 mod error;
 mod msg_sync;
 mod notify_client;
@@ -46,7 +47,7 @@ use notify_client::NotifyClient;
     author
 )]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
-struct Args {
+pub struct Args {
     #[clap(
         long,
         help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
@@ -67,6 +68,9 @@ struct Args {
 
     #[clap(long, help = "Skip registering the worker.")]
     no_register: bool,
+
+    #[clap(long, help = "Skip binding the worker endpoint.")]
+    no_bind: bool,
 
     #[clap(
         long,
@@ -108,6 +112,12 @@ struct Args {
         help = "pRuntime http endpoint"
     )]
     pruntime_endpoint: String,
+
+    #[clap(
+        long,
+        help = "pRuntime http endpoint to handover the key. The handover will only happen when the old pRuntime is synced."
+    )]
+    next_pruntime_endpoint: Option<String>,
 
     #[clap(default_value = "", long, help = "notify endpoint")]
     notify_endpoint: String,
@@ -208,6 +218,7 @@ struct Args {
 
 struct RunningFlags {
     worker_registered: bool,
+    endpoint_registered: bool,
     restart_failure_count: u32,
 }
 
@@ -1089,6 +1100,18 @@ async fn bridge(
             try_register_worker(&pr, &para_api, &mut signer, operator, &args).await?;
             flags.worker_registered = true;
         }
+        // Try bind worker endpoint
+        if !args.no_bind && info.public_key.is_some() {
+            // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await {
+                Ok(registered) => {
+                    flags.endpoint_registered = registered;
+                }
+                Err(e) => {
+                    error!("FailedToCallBindWorkerEndpoint: {:?}", e);
+                }
+            }
+        }
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -1252,6 +1275,23 @@ async fn bridge(
                     flags.worker_registered = true;
                 }
             }
+
+            if !args.no_bind {
+                if !flags.endpoint_registered && info.public_key.is_some() {
+                    // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+                    match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args)
+                        .await
+                    {
+                        Ok(registered) => {
+                            flags.endpoint_registered = registered;
+                        }
+                        Err(e) => {
+                            error!("FailedToCallBindWorkerEndpoint: {:?}", e);
+                        }
+                    }
+                }
+            }
+
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -1279,6 +1319,15 @@ async fn bridge(
             }
             flags.restart_failure_count = 0;
             info!("Waiting for new blocks");
+
+            // Launch key handover if required only when the old pRuntime is up-to-date
+            if args.next_pruntime_endpoint.is_some() {
+                let next_pr = pruntime_client::new_pruntime_client(
+                    args.next_pruntime_endpoint.clone().unwrap(),
+                );
+                handover_worker_key(&pr, &next_pr).await?;
+            }
+
             sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
             continue;
         }
@@ -1384,6 +1433,7 @@ pub async fn pherry_main() {
 
     let mut flags = RunningFlags {
         worker_registered: false,
+        endpoint_registered: false,
         restart_failure_count: 0,
     };
 
@@ -1458,4 +1508,13 @@ async fn sync_with_cached_headers(
         }
     }
     Ok(())
+}
+
+/// This function panics intentionally after the worker key handover finishes
+async fn handover_worker_key(server: &PrClient, client: &PrClient) -> Result<()> {
+    let challenge = server.handover_create_challenge(()).await?;
+    let response = client.handover_accept_challenge(challenge).await?;
+    let encrypted_key = server.handover_start(response).await?;
+    client.handover_receive(encrypted_key).await?;
+    panic!("Worker key handover done, the new pRuntime is ready to go");
 }

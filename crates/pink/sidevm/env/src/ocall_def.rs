@@ -58,6 +58,10 @@ pub trait OcallFuncs {
     #[ocall(id = 202)]
     fn oneshot_send(resource_id: i32, data: &[u8]) -> Result<()>;
 
+    /// Percentage of the gas remaining to the next breath
+    #[ocall(id = 203)]
+    fn gas_remaining() -> Result<u8>;
+
     /// Create a TCP socket, bind to given address and listen to incoming connections.
     ///
     /// If `tls_config` is not `None`, then the socket will be TLS encrypted.

@@ -50,6 +50,84 @@ pub struct IasFields {
 	pub confidence_level: u8,
 }
 
+impl IasFields {
+	pub fn from_ias_report(report: &[u8]) -> Result<(IasFields, i64), Error> {
+		// Validate related fields
+		let parsed_report: serde_json::Value =
+			serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
+
+		// Extract quote fields
+		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
+			.as_str()
+			.ok_or(Error::UnknownQuoteBodyFormat)?;
+		let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
+		let mr_enclave = &quote_body[112..144];
+		let mr_signer = &quote_body[176..208];
+		let isv_prod_id = &quote_body[304..306];
+		let isv_svn = &quote_body[306..308];
+		let report_data = &quote_body[368..432];
+
+		// Extract report time
+		let raw_report_timestamp = parsed_report["timestamp"]
+			.as_str()
+			.unwrap_or("UNKNOWN")
+			.to_owned() + "Z";
+		let report_timestamp = chrono::DateTime::parse_from_rfc3339(&raw_report_timestamp)
+			.or(Err(Error::BadIASReport))?
+			.timestamp();
+
+		// Filter valid `isvEnclaveQuoteStatus`
+		let quote_status = &parsed_report["isvEnclaveQuoteStatus"]
+			.as_str()
+			.unwrap_or("UNKNOWN");
+		let mut confidence_level: u8 = 128;
+		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+			confidence_level = 1;
+		} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+			confidence_level = 2;
+		} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+			confidence_level = 3;
+		} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+			confidence_level = 5;
+		}
+		if confidence_level == 128 {
+			return Err(Error::InvalidQuoteStatus);
+		}
+		if confidence_level < 5 {
+			// Filter AdvisoryIDs. `advisoryIDs` is optional
+			if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
+				for advisory_id in advisory_ids {
+					let advisory_id = advisory_id.as_str().ok_or(Error::BadIASReport)?;
+					if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+						confidence_level = 4;
+					}
+				}
+			}
+		}
+
+		Ok((
+			IasFields {
+				mr_enclave: mr_enclave.try_into().unwrap(),
+				mr_signer: mr_signer.try_into().unwrap(),
+				isv_prod_id: isv_prod_id.try_into().unwrap(),
+				isv_svn: isv_svn.try_into().unwrap(),
+				report_data: report_data.try_into().unwrap(),
+				confidence_level,
+			},
+			report_timestamp,
+		))
+	}
+
+	pub fn extend_mrenclave(&self) -> Vec<u8> {
+		let mut t_mrenclave = Vec::new();
+		t_mrenclave.extend_from_slice(&self.mr_enclave);
+		t_mrenclave.extend_from_slice(&self.isv_prod_id);
+		t_mrenclave.extend_from_slice(&self.isv_svn);
+		t_mrenclave.extend_from_slice(&self.mr_signer);
+		t_mrenclave
+	}
+}
+
 /// Attestation validator implementation for IAS
 pub struct IasValidator;
 impl AttestationValidator for IasValidator {
@@ -83,20 +161,6 @@ impl AttestationValidator for IasValidator {
 	}
 }
 
-fn extend_mrenclave(
-	mr_enclave: &[u8],
-	mr_signer: &[u8],
-	isv_prod_id: &[u8],
-	isv_svn: &[u8],
-) -> Vec<u8> {
-	let mut t_mrenclave = Vec::new();
-	t_mrenclave.extend_from_slice(mr_enclave);
-	t_mrenclave.extend_from_slice(isv_prod_id);
-	t_mrenclave.extend_from_slice(isv_svn);
-	t_mrenclave.extend_from_slice(mr_signer);
-	t_mrenclave
-}
-
 pub fn validate_ias_report(
 	report: &[u8],
 	signature: &[u8],
@@ -121,77 +185,23 @@ pub fn validate_ias_report(
 		time_now,
 	);
 	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
-	// Validate related fields
-	let parsed_report: serde_json::Value =
-		serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
 
-	// Extract quote fields
-	let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
-		.as_str()
-		.ok_or(Error::UnknownQuoteBodyFormat)?;
-	let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
-	let mr_enclave = &quote_body[112..144];
-	let mr_signer = &quote_body[176..208];
-	let isv_prod_id = &quote_body[304..306];
-	let isv_svn = &quote_body[306..308];
+	let (ias_fields, report_timestamp) = IasFields::from_ias_report(&report)?;
 
 	// Validate PRuntime
 	if verify_pruntime {
-		let t_mrenclave = extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
+		let t_mrenclave = ias_fields.extend_mrenclave();
 		if !pruntime_allowlist.contains(&t_mrenclave) {
 			return Err(Error::PRuntimeRejected);
 		}
 	}
 
 	// Validate time
-	let raw_report_timestamp = parsed_report["timestamp"]
-		.as_str()
-		.unwrap_or("UNKNOWN")
-		.to_owned()
-		+ "Z";
-	let report_timestamp = chrono::DateTime::parse_from_rfc3339(&raw_report_timestamp)
-		.or(Err(Error::BadIASReport))?
-		.timestamp();
 	if (now as i64 - report_timestamp) >= 7200 {
 		return Err(Error::OutdatedIASReport);
 	}
-	// Filter valid `isvEnclaveQuoteStatus`
-	let quote_status = &parsed_report["isvEnclaveQuoteStatus"]
-		.as_str()
-		.unwrap_or("UNKNOWN");
-	let mut confidence_level: u8 = 128;
-	if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
-		confidence_level = 1;
-	} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
-		confidence_level = 2;
-	} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
-		confidence_level = 3;
-	} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
-		confidence_level = 5;
-	}
-	if confidence_level == 128 {
-		return Err(Error::InvalidQuoteStatus);
-	}
-	if confidence_level < 5 {
-		// Filter AdvisoryIDs. `advisoryIDs` is optional
-		if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
-			for advisory_id in advisory_ids {
-				let advisory_id = advisory_id.as_str().ok_or(Error::BadIASReport)?;
-				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
-					confidence_level = 4;
-				}
-			}
-		}
-	}
-	// Check the following fields
-	Ok(IasFields {
-		mr_enclave: mr_enclave.try_into().unwrap(),
-		mr_signer: mr_signer.try_into().unwrap(),
-		isv_prod_id: isv_prod_id.try_into().unwrap(),
-		isv_svn: isv_svn.try_into().unwrap(),
-		report_data: (&quote_body[368..432]).try_into().unwrap(),
-		confidence_level,
-	})
+
+	Ok(ias_fields)
 }
 
 #[cfg(test)]

@@ -7,12 +7,18 @@ use sp_runtime::DispatchError;
 use crate::{
     runtime::{BoxedEventCallbacks, Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hash, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hash, QUERY_GAS_LIMIT, COMMAND_GAS_LIMIT, INSTANTIATE_GAS_LIMIT},
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
+
+fn _compilation_hint_for_kvdb(db: Storage) {
+    // TODO.kevin: Don't forget to clean up the disk space on cluster destroying when we switch to
+    // a KVDB backend.
+    let _dont_forget_to_clean_up_disk: storage::Storage<storage::InMemoryBackend> = db;
+}
 
 impl Default for Storage {
     fn default() -> Self {
@@ -80,7 +86,7 @@ impl Contract {
                 let result = Contracts::bare_instantiate(
                     origin.clone(),
                     0,
-                    GAS_LIMIT,
+                    INSTANTIATE_GAS_LIMIT,
                     None,
                     pallet_contracts_primitives::Code::Existing(code_hash),
                     input_data,
@@ -196,7 +202,12 @@ impl Contract {
         storage.execute_with(rollback, callbacks, move || {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            Contracts::bare_call(origin, addr, 0, GAS_LIMIT, None, input_data, true)
+            let gas_limit = if rollback {
+                QUERY_GAS_LIMIT
+            } else {
+                COMMAND_GAS_LIMIT
+            };
+            Contracts::bare_call(origin, addr, 0, gas_limit, None, input_data, true)
         })
     }
 
@@ -215,8 +226,15 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let (result, effects) =
-            self.bare_call(storage, origin, input_data, rollback, block_number, now, None);
+        let (result, effects) = self.bare_call(
+            storage,
+            origin,
+            input_data,
+            rollback,
+            block_number,
+            now,
+            None,
+        );
         let mut rv = transpose_contract_result(&result)?;
         Ok((
             Decode::decode(&mut rv).map_err(|_| ExecError {

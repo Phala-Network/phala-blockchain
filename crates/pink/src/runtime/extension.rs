@@ -18,6 +18,7 @@ use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_core::H256;
 use sp_runtime::DispatchError;
+use pallet_contracts::chain_extension::Result as ExtResult;
 
 use crate::{
     runtime::{get_call_elapsed, get_call_mode, CallMode},
@@ -79,15 +80,23 @@ pub fn get_side_effects() -> ExecSideEffects {
 }
 
 /// Contract extension for `pink contracts`
+#[derive(Default)]
 pub struct PinkExtension;
 
 impl ChainExtension<super::PinkRuntime> for PinkExtension {
-    fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+    fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> ExtResult<RetVal>
     where
         <E::T as SysConfig>::AccountId:
-            UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
+        UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
     {
         let mut env = env.buf_in_buf_out();
+        if env.ext_id() != 0 {
+            error!(target: "pink", "Unknown extension id: {:}", env.ext_id());
+            return Err(DispatchError::Other(
+                "PinkExtension::call: unknown extension id",
+            ))
+        }
+
         let address = env
             .ext()
             .address()
@@ -101,14 +110,14 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             let call = CallInCommand {
                 as_in_query: call_in_query,
             };
-            dispatch_ext_call!(func_id, call, env)
+            dispatch_ext_call!(env.func_id(), call, env)
         } else {
-            dispatch_ext_call!(func_id, call_in_query, env)
+            dispatch_ext_call!(env.func_id(), call_in_query, env)
         };
         let output = match result {
             Some(output) => output,
             None => {
-                error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
+                error!(target: "pink", "Called an unregistered `func_id`: {:}", env.func_id());
                 return Err(DispatchError::Other(
                     "PinkExtension::call: unknown function",
                 ));
@@ -119,6 +128,10 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
                 "PinkExtension::call: failed to write output",
             )))?;
         Ok(RetVal::Converging(0))
+    }
+
+    fn enabled() -> bool {
+        true
     }
 }
 
@@ -207,6 +220,14 @@ impl PinkExtBackend for CallInQuery {
         super::emit_log(&self.address, level, message.as_ref().into());
         DefaultPinkExtension::new(self).log(level, message)
     }
+
+    fn getrandom(&self, length: u8) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).getrandom(length)
+    }
+
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
 }
 
 struct CallInCommand {
@@ -283,5 +304,13 @@ impl PinkExtBackend for CallInCommand {
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
         self.as_in_query.log(level, message)
+    }
+
+    fn getrandom(&self, _length: u8) -> Result<Vec<u8>, Self::Error> {
+        Err("getrandom is not allowed in command".into())
+    }
+
+    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+        Ok(true)
     }
 }

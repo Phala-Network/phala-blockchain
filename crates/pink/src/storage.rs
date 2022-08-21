@@ -136,6 +136,23 @@ where
         .0
         .map(|v| v.code_hash)
     }
+
+    pub fn upload_sidevm_code(
+        &mut self,
+        account: AccountId,
+        code: Vec<u8>,
+    ) -> Result<Hash, DispatchError> {
+        Ok(self.execute_with(false, None, || {
+            crate::runtime::Pink::put_sidevm_code(account, code)
+        }).0)
+    }
+
+    pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
+        self.execute_with(false, None, || {
+            crate::runtime::Pink::sidevm_codes(&hash).map(|v| v.code)
+        })
+        .0
+    }
 }
 
 impl Serialize for Storage<InMemoryBackend> {

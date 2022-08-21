@@ -6,19 +6,14 @@ resolver = "2"
 
 [dependencies]
 log         = "0.4.14"
-chrono      = "0.4.19"
+chrono      = "0.4.22"
 base64      = "0.13.0"
 num-bigint  = "0.4.0"
 ring        = "0.16.20"
-rust-crypto = "0.2.36"
-rand        = "0.7.3"
+rand        = "0.8"
 regex       = "1.5.5"
-yasna       = { git = "https://github.com/Phala-Network/yasna.rs", branch = "phala", features = ["chrono", "bit-vec", "num-bigint"] }
-rustls      = { version = "0.19.1", features = ["dangerous_configuration"] }
-webpki      = { version = "0.21", features = ["std"] }
 bitcoin     = { version = "0.27.0", features = ["use-serde"]}
 bitcoin_hashes = { version = "0.10.0", default-features = false }
-woothee     = { version = "0.11.0" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -29,7 +24,6 @@ hex-literal = "0.3"
 hex_fmt = "0.3"
 anyhow = { version = "1.0", default-features = false }
 thiserror = { version = "1.0", default-features = false }
-bit-vec = { version = "0.6.3", default-features = false }
 itertools = { version = "0.10.1", default-features = false }
 lazy_static = { version = "1.4.0", default-features = false }
 
@@ -41,32 +35,30 @@ phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
 pink = { path = "../pink" }
 
-sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24", features = ["disable_target_static_assertions"] }
-sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-parity-scale-codec   = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive", "full", "chain-error"] }
+sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27", features = ["disable_target_static_assertions"] }
+sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+parity-scale-codec   = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
 # Phala specific
 runtime = { path = "../../standalone/runtime", package = "phala-node-runtime", default-features = false, features = ["std"] }
 phala-pallets = { path = "../../pallets/phala", default-features = false }
-phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
+phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "sgx"] }
 phactory-api = { path = "./api", default-features = false, features = ["serde"] }
 phactory-pal = { path = "./pal", default-features = false }
-
-csv-core = { version = "0.1.10", default-features = false }
 
 # for light_validation
 derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.15", default-features = false, features = ["derive-codec"] }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-frame-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24"}
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
@@ -86,10 +78,13 @@ maxminddb = "0.17"
 glob = "0.3"
 sidevm = { version = "0.1.0", package = "pink-sidevm-host-runtime", path = "../pink/sidevm/host-runtime" }
 tokio = { version = "1", features = ["full"] }
+bitflags = "1"
+async-trait = "0.1.56"
+phala-fair-queue = { path = "../phala-fair-queue" }
 
 [dev-dependencies]
 insta = "1.7.2"
-rmp-serde = "0.15.5"
+rmp-serde = "1"
 serde_path_to_error = "0.1.5"
 ron = "0.7.0"
 ciborium = "0.2.0"

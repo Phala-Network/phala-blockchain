@@ -1,0 +1,19 @@
+[workspace]
+[package]
+name = "telebot"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sidevm = { package = "pink-sidevm", version = "0.1" }
+log = "0.4"
+futures = "0.3"
+
+[dependencies.telegram-bot]
+git = "https://github.com/kvinwang/telegram-bot"
+branch = "sidevm"
+default-features = false
+features = ["sidevm-runtime"]

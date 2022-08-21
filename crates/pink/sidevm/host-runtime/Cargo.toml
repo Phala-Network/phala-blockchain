@@ -13,21 +13,21 @@ loupe = "0.1.3"
 pink-sidevm-env = { path = "../env", features = ["host"] }
 thread_local = "1.1"
 tokio = { version = "1.17.0", features = ["full"] }
-wasmer = "2.2.1"
-wasmer-wasi-types = "2.2.1"
-wasmer-compiler-singlepass = "2.2.1"
-wasmer-compiler-cranelift = { version = "2.2.1", optional = true }
-wasmer-compiler-llvm = { version = "2.2.1", optional = true }
-wasmer-engine = "2.2.1"
-wasmer-engine-universal = "2.2.1"
+wasmer = "2.3"
+wasmer-wasi-types = "2.3"
+wasmer-compiler-singlepass = "2.3"
+wasmer-compiler-cranelift = { version = "2.3", optional = true }
+wasmer-compiler-llvm = { version = "2.3", optional = true }
+wasmer-engine = "2.3"
+wasmer-engine-universal = "2.3"
 wasmer-tunables = { path = "../../../wasmer-tunables" }
-parity-wasm = "0.42"
+parity-wasm = "0.42.2"
 wasm-instrument = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 rand = "0.8.5"
 thiserror = "1"
 libc = "0.2"
-scale = { version = "3", package = "parity-scale-codec" }
+scale = { version = "3.1", package = "parity-scale-codec" }
 tokio-rustls = "0.23"
 rustls-pemfile = "1"
 webpki-roots = "0.22"

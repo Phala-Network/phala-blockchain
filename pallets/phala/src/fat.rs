@@ -8,20 +8,21 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::StorageVersion};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
+	use sp_runtime::AccountId32;
 	use sp_std::prelude::*;
 
 	use crate::{mq::MessageOriginInfo, registry};
 	// Re-export
 	pub use crate::attestation::{Attestation, IasValidator};
 	use phala_types::{
-		contract::messaging::{ClusterEvent, ContractOperation},
 		contract::{
+			messaging::{
+				ClusterEvent, ClusterOperation, ContractOperation, ResourceType,
+				WorkerClusterReport, WorkerContractReport,
+			},
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
-		messaging::{
-			bind_topic, ClusterOperation, DecodedMessage, MessageOrigin, WorkerClusterReport,
-			WorkerContractReport,
-		},
+		messaging::{bind_topic, DecodedMessage, MessageOrigin},
 		ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
 
@@ -46,6 +47,8 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type InkCodeSizeLimit: Get<u32>;
+		type SidevmCodeSizeLimit: Get<u32>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -95,15 +98,6 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			worker: WorkerPublicKey,
 		},
-		CodeUploaded {
-			cluster: ContractClusterId,
-			uploader: H256,
-			hash: H256,
-		},
-		CodeUploadFailed {
-			cluster: ContractClusterId,
-			uploader: H256,
-		},
 		Instantiating {
 			contract: ContractId,
 			cluster: ContractClusterId,
@@ -128,6 +122,9 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			log_handler: ContractId,
 		},
+		ClusterDestroyed {
+			cluster: ContractClusterId,
+		},
 	}
 
 	#[pallet::error]
@@ -141,6 +138,7 @@ pub mod pallet {
 		NoWorkerSpecified,
 		InvalidSender,
 		WorkerNotFound,
+		PayloadTooLarge,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -159,7 +157,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::mq::Config + crate::registry::Config,
-		T::AccountId: AsRef<[u8]>,
+		T: frame_system::Config<AccountId = AccountId32>,
 	{
 		#[pallet::weight(0)]
 		pub fn add_cluster(
@@ -203,10 +201,11 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn upload_code_to_cluster(
+		pub fn cluster_upload_resource(
 			origin: OriginFor<T>,
-			code: Vec<u8>,
 			cluster_id: ContractClusterId,
+			resource_type: ResourceType,
+			resource_data: Vec<u8>,
 		) -> DispatchResult {
 			let origin: T::AccountId = ensure_signed(origin)?;
 			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
@@ -214,13 +213,22 @@ pub mod pallet {
 				check_cluster_permission::<T>(&origin, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
 			);
-			Self::push_message(
-				ContractOperation::<CodeHash<T>, T::AccountId>::UploadCodeToCluster {
-					origin,
-					code,
-					cluster_id,
-				},
+
+			let size_limit = match resource_type {
+				ResourceType::InkCode => T::InkCodeSizeLimit::get(),
+				ResourceType::SidevmCode => T::SidevmCodeSizeLimit::get(),
+			} as usize;
+			ensure!(
+				resource_data.len() <= size_limit,
+				Error::<T>::PayloadTooLarge
 			);
+
+			Self::push_message(ClusterOperation::<_, T::BlockNumber>::UploadResource {
+				origin,
+				cluster_id,
+				resource_type,
+				resource_data,
+			});
 			Ok(())
 		}
 
@@ -276,14 +284,28 @@ pub mod pallet {
 				Error::<T>::ClusterPermissionDenied
 			);
 
-			Self::push_message(ClusterOperation::<T::BlockNumber>::SetLogReceiver {
-				cluster,
-				log_handler,
-			});
+			Self::push_message(
+				ClusterOperation::<T::AccountId, T::BlockNumber>::SetLogReceiver {
+					cluster,
+					log_handler,
+				},
+			);
 			Self::deposit_event(Event::ClusterSetLogReceiver {
 				cluster,
 				log_handler,
 			});
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn cluster_destroy(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
+			ensure_root(origin)?;
+
+			Clusters::<T>::take(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
+			Self::push_message(
+				ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster),
+			);
+			Self::deposit_event(Event::ClusterDestroyed { cluster });
 			Ok(())
 		}
 	}
@@ -364,26 +386,6 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
-				WorkerContractReport::CodeUploaded {
-					cluster_id,
-					uploader,
-					hash,
-				} => {
-					Self::deposit_event(Event::CodeUploaded {
-						cluster: cluster_id,
-						uploader,
-						hash,
-					});
-				}
-				WorkerContractReport::CodeUploadFailed {
-					cluster_id,
-					uploader,
-				} => {
-					Self::deposit_event(Event::CodeUploadFailed {
-						cluster: cluster_id,
-						uploader,
-					});
-				}
 				WorkerContractReport::ContractInstantiated {
 					id,
 					cluster_id,

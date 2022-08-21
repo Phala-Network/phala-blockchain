@@ -4,35 +4,33 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sha2 = "0.9.6"
+sha2 = "0.10.2"
 log = "0.4.14"
-pallet-contracts = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-contracts-proc-macro = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+pallet-contracts = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+pallet-contracts-proc-macro = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24"}
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-sandbox = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-sandbox = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
 
-scale = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0", default-features = false, features = ["derive", "serde", "decode"] }
-parity-wasm = { version = "0.41.0", default-features = false }
-pwasm-utils = { version = "0.16", default-features = false }
-wasmi-validation = { version = "0.3.0", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1", default-features = false, features = ["derive", "serde", "decode"] }
+parity-wasm = { version = "0.42.2", default-features = false }
+wasmi-validation = { version = "0.5.0", default-features = false }
 
 paste = "1.0"
-pretty_assertions = "0.7.2"
 wat = "1.0"
 call-trace = "*"
 impl-serde = "0.3.1"

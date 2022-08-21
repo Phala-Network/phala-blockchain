@@ -151,7 +151,7 @@ const types = {
         "_enum": {
             "Ready": null,
             "MiningIdle": null,
-            "MiningActive": null,
+            "Unused": null,
             "MiningUnresponsive": null,
             "MiningCoolingDown": null
         }
@@ -176,7 +176,7 @@ const types = {
     },
     "GatekeeperChange": {
         "_enum": {
-            "GatekeeperRegistered": "NewGatekeeperEvent",
+            "Registered": "NewGatekeeperEvent",
         }
     },
     "GatekeeperEvent": {

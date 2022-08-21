@@ -22,14 +22,14 @@ overflow-checks = true
 resolver = "2"
 
 exclude = [
-	"substrate",
 	"subxt",
-	"webpki",
-	"ring",
-	"native-nostd-hasher",
-	"standalone/pruntime",
+	"vendor/webpki",
+	"vendor/ring",
 	"crates/pink/examples",
 	"crates/pink/sidevm/examples",
+	"crates/sgx-api-lite",
+	"standalone/pruntime",
+	"standalone/prouter",
 ]
 
 members = [
@@ -40,6 +40,7 @@ members = [
 	"standalone/pherry",
 	"standalone/replay",
 	"standalone/headers-cache",
+	"standalone/sfq-test",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",
@@ -68,8 +69,18 @@ members = [
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
+	"crates/phala-fair-queue",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
+
+[patch.crates-io]
+rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocket" }
+
+# Forked 0.18.0 with additional port zstd-sys dependency upgrade
+rocksdb = { git = "https://github.com/jasl/rust-rocksdb", branch = "v0.18" }
+
+# For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }

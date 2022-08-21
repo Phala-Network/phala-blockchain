@@ -283,7 +283,7 @@ pub fn fd_prestat_get(
     _fd: __wasi_fd_t,
     _buf: WasmPtr<__wasi_prestat_t>,
 ) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    __WASI_EBADF
 }
 
 pub fn fd_prestat_dir_name(

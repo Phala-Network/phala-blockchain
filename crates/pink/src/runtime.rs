@@ -100,6 +100,7 @@ parameter_types! {
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const RelaxedMaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const TransactionByteFee: u64 = 0;
+    pub const MaxStorageKeyLen: u32 = 128;
 
     pub DefaultSchedule: Schedule<PinkRuntime> = Default::default();
 }
@@ -130,6 +131,7 @@ impl Config for PinkRuntime {
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
     type RelaxedMaxCodeLen = RelaxedMaxCodeLen;
+    type MaxStorageKeyLen = MaxStorageKeyLen;
 }
 
 #[derive(Clone, Copy)]
@@ -188,7 +190,7 @@ mod tests {
 
     use crate::{
         runtime::{Contracts, Origin, PinkRuntime},
-        types::{ENOUGH, GAS_LIMIT},
+        types::{ENOUGH, QUERY_GAS_LIMIT},
     };
     pub use frame_support::weights::Weight;
 
@@ -213,7 +215,7 @@ mod tests {
             Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 ENOUGH,
-                GAS_LIMIT,
+                QUERY_GAS_LIMIT,
                 None,
                 wasm,
                 vec![],
@@ -226,7 +228,7 @@ mod tests {
                 Origin::signed(ALICE),
                 addr.clone(),
                 0,
-                GAS_LIMIT * 2,
+                QUERY_GAS_LIMIT * 2,
                 None,
                 <PinkRuntime as Config>::Schedule::get()
                     .limits

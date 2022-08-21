@@ -22,11 +22,12 @@ use sc_chain_spec::{ChainSpecExtension, Properties};
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
 use node_runtime::{
+	wasm_binary_unwrap,
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
-	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
+	DemocracyConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, wasm_binary_unwrap,
-	PhalaRegistryConfig,
+	TechnicalCommitteeConfig, NominationPoolsConfig,
+	PhalaRegistryConfig, AssetsConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::{currency::*, time::*};
@@ -445,6 +446,7 @@ pub fn testnet_genesis(
 			}).collect(),
 			..Default::default()
 		},
+		assets: AssetsConfig::default(),
 		democracy: DemocracyConfig::default(),
 		elections: ElectionsConfig {
 			members: endowed_accounts.iter()
@@ -491,7 +493,11 @@ pub fn testnet_genesis(
 		phala_registry,
 		phala_mining: Default::default(),
 		transaction_payment: Default::default(),
-		nomination_pools: Default::default(),
+		nomination_pools: NominationPoolsConfig {
+			min_create_bond: 10 * DOLLARS,
+			min_join_bond: 1 * DOLLARS,
+			..Default::default()
+		},
 	}
 }
 

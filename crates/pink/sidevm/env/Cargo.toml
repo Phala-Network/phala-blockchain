@@ -4,16 +4,19 @@ homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 edition = "2021"
 name = "pink-sidevm-env"
-version = "0.1.5"
+version = "0.1.7"
 
 [dependencies]
-pink-sidevm-macro = {path = "../macro", version = "0.1.0"}
+pink-sidevm-macro = { version = "0.1.0", path = "../macro" }
 
 cfg-if = "1.0.0"
 derive_more = "0.99.17"
 num_enum = "0.5.7"
-scale = {package = "parity-scale-codec", version = "3", default-features = false, features = ["derive", "std"]}
-tinyvec = {version = "1.5.1", features = ["alloc"]}
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = [
+    "derive",
+    "std",
+] }
+tinyvec = { version = "1.5.1", features = ["alloc"] }
 log = "0.4.16"
 futures = "0.3"
 

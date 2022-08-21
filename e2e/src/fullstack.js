@@ -12,7 +12,7 @@ const { types, typeAlias } = require('./utils/typeoverride');
 
 const { Process, TempDir } = require('./utils/pm');
 const { PRuntimeApi } = require('./utils/pruntime');
-const { checkUntil, skipSlowTest } = require('./utils');
+const { checkUntil, skipSlowTest, sleep } = require('./utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
@@ -36,7 +36,7 @@ describe('A full stack', function () {
         // Check binary files
         [pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
         // Bring up a cluster
-        cluster = new Cluster(2, pathNode, pathRelayer, pathPRuntime, tmpPath);
+        cluster = new Cluster(4, pathNode, pathRelayer, pathPRuntime, tmpPath);
         await cluster.start();
         // APIs
         api = await cluster.api;
@@ -142,7 +142,7 @@ describe('A full stack', function () {
                 return info.registered;
             }, 4 * 6000), 'not registered in time');
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
@@ -185,7 +185,7 @@ describe('A full stack', function () {
                 return info.registered;
             }, 4 * 6000), 'not registered in time');
 
-            // Check if the role is Gatekeeper
+            // Check if the on-chain role is Gatekeeper
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
@@ -226,6 +226,279 @@ describe('A full stack', function () {
                 seq = seq.unwrap().toNumber();
                 return seq >= seqStart + 1;
             }, 500 * 6000), 'ingress stale');
+        });
+
+        it('can be unregistered', async function () {
+            const info = await pruntime[1].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.unregisterGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Check if the role is no longer Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[1].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
+                return info.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not unregistered');
+        });
+
+        it('can be re-registered before rotation', async function () {
+            const info = await pruntime[1].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+
+            // Check if the on-chain role is Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[1].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+                return gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not registered as gatekeeper');
+            // the GK should resume without restart
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[1].getInfo();
+                return info.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
+            }, 4 * 6000), 'gatekeeper role not changed')
+        });
+    });
+
+    describe('Master Key Rotation', () => {
+        it('can register and un-reg gatekeeper4', async function () {
+            // Register worker4 as Gatekeeper
+            const info = await pruntime[3].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.forceRegisterWorker(
+                        hex(info.publicKey),
+                        hex(info.ecdhPublicKey),
+                        null,
+                    )
+                ),
+                alice,
+            );
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                return info.registered;
+            }, 4 * 6000), 'not registered in time');
+
+            // Check if the on-chain role is Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+                return gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not registered as gatekeeper');
+
+            assert.isTrue(
+                await cluster.waitWorkerExitAndRestart(3, 10 * 6000),
+                'worker4 restart timeout'
+            );
+
+            // Ensure it is up-to-date
+            const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
+            let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
+            seqStart = seqStart.unwrap().toNumber();
+            assert.isTrue(await checkUntil(async () => {
+                let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
+                seq = seq.unwrap().toNumber();
+                return seq >= seqStart + 1;
+            }, 500 * 6000), 'ingress stale');
+
+            // Unregister
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.unregisterGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Check if the role is no longer Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
+                return info.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not unregistered');
+        });
+
+        it('can rotate master key', async function () {
+            const info = await pruntime[0].getInfo();
+            const old_master_pubkey = hex(info.gatekeeper.masterPublicKey);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.rotateMasterKey()
+                ),
+                alice,
+            );
+            // only one rotation is allowed one time
+            await assert.txFailed(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.rotateMasterKey()
+                ),
+                alice,
+            )
+
+            assert.isTrue(await checkUntil(async () => {
+                const info1 = await pruntime[0].getInfo();
+                const info2 = await pruntime[1].getInfo();
+                return hex(info1.gatekeeper.masterPublicKey) != old_master_pubkey
+                    && hex(info1.gatekeeper.masterPublicKey) == hex(info2.gatekeeper.masterPublicKey);
+            }, 4 * 6000), 'local master key not rotated');
+
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[0].getInfo();
+                const masterPubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
+                // console.log(`Master PubKey: ${masterPubkey}`);
+                return masterPubkey == hex(info.gatekeeper.masterPublicKey);
+            }, 4 * 6000), 'on-chain master key not updated');
+        });
+
+        it('will kill unregistered gatekeeper', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                return info.gatekeeper.role == 0;
+            }, 4 * 6000), 'outdated gatekeeper not remove');
+        });
+
+        it('can re-register the gatekeeper4 after rotation', async function () {
+            // Register worker4 as Gatekeeper
+            const info = await pruntime[3].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.forceRegisterWorker(
+                        hex(info.publicKey),
+                        hex(info.ecdhPublicKey),
+                        null,
+                    )
+                ),
+                alice,
+            );
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                return info.registered;
+            }, 4 * 6000), 'not registered in time');
+
+            // Check if the on-chain role is Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[3].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+                return gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not registered as gatekeeper');
+
+            assert.isTrue(
+                await cluster.waitWorkerExitAndRestart(3, 10 * 6000),
+                'worker4 restart timeout'
+            );
+
+            // Ensure it is up-to-date
+            const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
+            let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
+            seqStart = seqStart.unwrap().toNumber();
+            assert.isTrue(await checkUntil(async () => {
+                let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
+                seq = seq.unwrap().toNumber();
+                return seq >= seqStart + 1;
+            }, 500 * 6000), 'ingress stale');
+        });
+    });
+
+    describe('Gatekeeper3 after rotation', () => {
+        it('can be registered after rotation', async function () {
+            // Register worker3 as Gatekeeper
+            const info = await pruntime[2].getInfo();
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.forceRegisterWorker(
+                        hex(info.publicKey),
+                        hex(info.ecdhPublicKey),
+                        null,
+                    )
+                ),
+                alice,
+            );
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
+                ),
+                alice,
+            );
+            // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[2].getInfo();
+                return info.registered;
+            }, 4 * 6000), 'not registered in time');
+
+            // Check if the on-chain role is Gatekeeper
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[2].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+                return gatekeepers.includes(hex(info.publicKey));
+            }, 4 * 6000), 'not registered as gatekeeper');
+        });
+
+        it('can receive master key', async function () {
+            // Wait for the successful dispatch of master key
+            // pRuntime[2] should be down
+            assert.isTrue(
+                await cluster.waitWorkerExitAndRestart(2, 10 * 6000),
+                'worker1 restart timeout'
+            );
+            const dataDir = "data";
+            assert.isTrue(
+                fs.existsSync(`${tmpPath}/pruntime2/${dataDir}/protected_files/master_key.seal`),
+                'master key not received'
+            );
+        });
+
+        it('becomes active', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[2].getInfo();
+                return info.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
+            }, 1000))
+
+            // Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
+        });
+
+        it('post-mines blocks', async function () {
+            const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
+            let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
+            seqStart = seqStart.unwrap().toNumber();
+            assert.isTrue(await checkUntil(async () => {
+                let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
+                seq = seq.unwrap().toNumber();
+                return seq >= seqStart + 1;
+            }, 500 * 6000), 'ingress stale');
+        });
+
+        it('syncs latest master key', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[2].getInfo();
+                const masterPubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
+                // console.log(`Master PubKey: ${masterPubkey}`);
+                return masterPubkey == hex(info.gatekeeper.masterPublicKey);
+            }, 1000));
         });
     });
 
@@ -270,14 +543,15 @@ describe('A full stack', function () {
 
         it('can upload code with access control', async function () {
             let code = fs.readFileSync(wasmFile, 'hex');
+            let InkCode = 0;
             // For now, there is no way to check whether code is uploaded in script
             // since this requires monitering the async CodeUploaded event
             await assert.txAccepted(
-                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, InkCode, hex(code)),
                 alice,
             );
             await assert.txFailed(
-                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, InkCode, hex(code)),
                 bob,
             )
         });
@@ -319,6 +593,28 @@ describe('A full stack', function () {
                 api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
                 alice,
             );
+        });
+    });
+
+    describe('Workerkey handover', () => {
+        it('can handover worker key', async function () {
+            await cluster.launchKeyHandoverAndWait();
+
+            const workers = cluster.key_handover_cluster.workers.map(w => w.api);
+            const server_info = await workers[0].getInfo();
+
+            assert.isTrue(await checkUntil(async () => {
+                const dataDir = "data";
+                return fs.existsSync(`${tmpPath}/pruntime_key_client/${dataDir}/protected_files/runtime-data.seal`);
+            }, 6000), 'key not received');
+
+            await cluster.restartKeyHandoverClient();
+            assert.isTrue(await checkUntil(async () => {
+                // info.publicKey can be null since client worker will be initiated after the finish of server worker syncing
+                let info = await workers[1].getInfo();
+                return info.publicKey != null
+                    && hex(info.publicKey) == hex(server_info.publicKey);
+            }, 6000), 'key handover failed');
         });
     });
 
@@ -369,123 +665,6 @@ describe('A full stack', function () {
         it('can stop mining')
         it('settles after the cooling down period')
     })
-
-    describe.skip('Miner workflow', () => {
-
-        let stash, controller, reward;
-        before(function () {
-            stash = keyring.addFromUri(mnemonicGenerate());
-            controller = keyring.addFromUri(mnemonicGenerate());
-            reward = keyring.addFromUri(mnemonicGenerate());
-        });
-
-        async function getNonce(address) {
-            const info = await api.query.system.account(address);
-            return info.nonce.toNumber();
-        }
-        async function waitTxAccepted(account, nonce) {
-            await checkUntil(async () => {
-                return await getNonce(account) == nonce + 1;
-            });
-        }
-
-        it('can fund the accounts', async function () {
-            const unit10 = 10 * 1e12;
-            const nonce = await getNonce(alice.address)
-            await api.tx.balances.transfer(stash.address, unit10).signAndSend(alice, { nonce: nonce });
-            await api.tx.balances.transfer(controller.address, unit10).signAndSend(alice, { nonce: nonce + 1 });
-            await api.tx.balances.transfer(reward.address, unit10).signAndSend(alice, { nonce: nonce + 2 });
-
-            await waitTxAccepted(alice.address, nonce + 2);
-            const stashInfo = await api.query.system.account(stash.address);
-            const controllerInfo = await api.query.system.account(controller.address);
-            assert.equal(stashInfo.data.free.toNumber(), unit10);
-            assert.equal(controllerInfo.data.free.toNumber(), unit10);
-        });
-
-        it('can create a stash', async function () {
-            const nonce = await getNonce(stash.address);
-            await api.tx.phalaModule.setStash(controller.address)
-                .signAndSend(stash, { nonce });
-
-            await waitTxAccepted(stash.address, nonce);
-            assert.equal(
-                await api.query.phalaModule.stash(controller.address),
-                stash.address,
-                'controller stash mismatch');
-            assert.equal(
-                (await api.query.phalaModule.stashState(stash.address)).controller,
-                controller.address,
-                'controller stash mismatch');
-        });
-
-        it('can set payout preference', async function () {
-            // commission: 50%, target: reward address
-            await assert.txAccepted(
-                api.tx.phalaModule.setPayoutPrefs(50, reward.address),
-                controller);
-
-            const stashInfo = await api.query.phalaModule.stashState(stash.address);
-            assert.equal(stashInfo.payoutPrefs.commission.toNumber(), 50, 'failed to set commission');
-            assert.equal(stashInfo.payoutPrefs.target, reward.address, 'failed to set payout target');
-        });
-
-        it('can force register a worker', async function () {
-            const pubkey = '0x0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaModule.forceRegisterWorker(stash.address, 'fake_mid', pubkey)),
-                root);
-
-            const workerInfo = await api.query.phalaModule.workerState(stash.address);
-            assert.equal(workerInfo.status.toNumber(), 0);
-        });
-
-        it('can start mining', async function () {
-            await assert.txAccepted(
-                api.tx.phalaModule.startMiningIntention(),
-                controller);
-            // Get into the next mining round
-            const { events } = await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
-                root);
-
-            assertEvents(events, [
-                ['sudo', 'Sudid'],
-                ['system', 'ExtrinsicSuccess']
-            ]);
-
-            const { status } = await api.query.phalaModule.workerState(stash.address);
-            assert.equal(status.toNumber(), 1);
-            // MiningState
-            const miningStatus = await api.query.phalaModule.miningState(stash.address);
-            assert.isTrue(miningStatus.isMining.valueOf());
-            assert.isTrue(miningStatus.startBlock.isSome);
-        });
-
-        it('can stop mining', async function () {
-            await assert.txAccepted(
-                api.tx.phalaModule.stopMiningIntention(),
-                controller);
-            const { events } = await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
-                root);
-
-            assertEvents(events, [
-                ['phalaModule', 'GotCredits', [undefined, 200, 200]],
-                ['sudo', 'Sudid'],
-                ['system', 'ExtrinsicSuccess'],
-            ], true);
-
-            const { status } = await api.query.phalaModule.workerState(stash.address);
-            assert.equal(status.toNumber(), 0);
-            // MiningState
-            const miningStatus = await api.query.phalaModule.miningState(stash.address);
-            assert.isFalse(miningStatus.isMining.valueOf());
-            assert.isTrue(miningStatus.startBlock.isNone);
-        });
-    })
-
 });
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
@@ -569,6 +748,10 @@ class Cluster {
             workers.push({});
         }
         this.workers = workers;
+        this.key_handover_cluster = {
+            workers: [{}, {}],
+            relayer: {},
+        };
     }
 
     async start() {
@@ -584,7 +767,9 @@ class Cluster {
             ...this.workers.map(w => [
                 w.processPRuntime.kill('SIGKILL'),
                 w.processRelayer.kill()
-            ]).flat()
+            ]).flat(),
+            this.key_handover_cluster.relayer.processRelayer.kill(),
+            ...this.key_handover_cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
         ]);
     }
 
@@ -606,7 +791,7 @@ class Cluster {
     async _reservePorts() {
         const [wsPort, ...workerPorts] = await Promise.all([
             portfinder.getPortPromise({ port: 9944 }),
-            ...this.workers.map(() => portfinder.getPortPromise({ port: 8000, stopPort: 9900 }))
+            ...this.workers.map((w, i) => portfinder.getPortPromise({ port: 8100 + i * 10 }))
         ]);
         this.wsPort = wsPort;
         this.workers.forEach((w, i) => w.port = workerPorts[i]);
@@ -627,12 +812,74 @@ class Cluster {
         const AVAILBLE_ACCOUNTS = [
             '//Alice',
             '//Bob',
+            '//Charlie',
+            '//Dave',
+            '//Eve',
+            '//Fredie',
         ];
         const w = this.workers[i];
         const gasAccountKey = AVAILBLE_ACCOUNTS[i];
         const key = '0'.repeat(63) + (i + 1).toString();
         w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
         w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+    }
+
+    async launchKeyHandoverAndWait() {
+        const cluster = this.key_handover_cluster;
+
+        const [...workerPorts] = await Promise.all([
+            ...cluster.workers.map((w, i) => portfinder.getPortPromise({ port: 8200 + i * 10 }))
+        ]);
+        cluster.workers.forEach((w, i) => w.port = workerPorts[i]);
+
+        const server = cluster.workers[0];
+        const client = cluster.workers[1];
+        server.processPRuntime = newPRuntime(server.port, this.tmpPath, `pruntime_key_server`);
+        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
+
+        const gasAccountKey = '//Fredie';
+        const key = '0'.repeat(62) + '10';
+        cluster.relayer.processRelayer = newRelayer(this.wsPort, server.port, this.tmpPath, gasAccountKey, key, `pruntime_key_relayer`, client.port);
+
+        await Promise.all([
+            ...cluster.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
+            waitRelayerOutput(cluster.relayer.processRelayer)
+        ]);
+
+        cluster.workers.forEach(w => {
+            w.api = new PRuntimeApi(`http://localhost:${w.port}`);
+        })
+    }
+
+    async restartKeyHandoverClient() {
+        const cluster = this.key_handover_cluster;
+        await checkUntil(async () => {
+            return cluster.relayer.processRelayer.stopped
+        }, 6000);
+
+        const client = cluster.workers[1];
+        const gasAccountKey = '//Fredie';
+        cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
+
+        await waitRelayerOutput(cluster.relayer.processRelayer);
+    }
+
+    // Returns false if waiting is timeout; otherwise it restarts the pherry and the key handover client
+    async waitKeyHandoverClientExitAndRestart(timeout) {
+        const w = this.cluster.workers[1];
+        const succeed = await checkUntil(async () => {
+            return w.processPRuntime.stopped && w.processRelayer.stopped
+        }, timeout);
+        if (!succeed) {
+            return false;
+        }
+        const client = cluster.workers[1];
+        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
+        // connect the pherry to the new pRuntime and inject no key
+        cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
+        await waitPRuntimeOutput(client.processPRuntime);
+        await waitRelayerOutput(cluster.relayer.processRelayer);
+        return true;
     }
 
     async _launchAndWait() {
@@ -664,7 +911,7 @@ function waitRelayerOutput(p) {
     return p.startAndWaitForOutput(/runtime_info: InitRuntimeResp/);
 }
 function waitNodeOutput(p) {
-    return p.startAndWaitForOutput(/Starting BABE Authorship worker/);
+    return p.startAndWaitForOutput(/Imported #1/);
 }
 
 
@@ -710,21 +957,30 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
             env: {
                 ...process.env,
                 ROCKET_PORT: teePort.toString(),
+                RUST_LOG: 'debug'
             }
         }
     ], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relayer') {
+function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'relayer', keyClientPort = '') {
+    const args = [
+        '--no-wait',
+        `--mnemonic=${gasAccountKey}`,
+        `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
+        `--pruntime-endpoint=http://localhost:${teePort}`,
+        '--dev-wait-block-ms=1000',
+    ];
+
+    if (key) {
+        args.push(`--inject-key=${key}`);
+    }
+    if (keyClientPort) {
+        args.push(`--next-pruntime-endpoint=http://localhost:${keyClientPort}`);
+    }
+
     return new Process([
-        pathRelayer, [
-            '--no-wait',
-            `--mnemonic=${gasAccountKey}`,
-            `--inject-key=${key}`,
-            `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-            `--pruntime-endpoint=http://localhost:${teePort}`,
-            '--dev-wait-block-ms=1000',
-        ]
+        pathRelayer, args
     ], { logPath: `${tmpPath}/${name}.log` });
 }
 

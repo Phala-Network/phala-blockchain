@@ -4,7 +4,7 @@ use scale_info::TypeInfo;
 #[subxt::subxt(runtime_metadata_path = "metadata_files/khala_metadata.scale")]
 pub mod khala {
     #[subxt(substitute_type = "phala_mq::types::SignedMessage")]
-    pub use phala_types::messaging::SignedMessage;
+    pub use ::phala_types::messaging::SignedMessage;
 
     #[subxt(substitute_type = "polkadot_parachain::primitives::Id")]
     pub use crate::ParaId;

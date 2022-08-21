@@ -73,6 +73,7 @@ pub async fn maybe_sync_mq_egress(
                 Ok(extrinsic) => {
                     let api = ParachainApi::from(api.client.clone());
                     let err_report = err_report.clone();
+                    let extrinsic = crate::subxt::Encoded(extrinsic.encoded().to_vec());
                     tokio::spawn(async move {
                         const TIMEOUT: u64 = 120;
                         let fut = api.client.rpc().submit_extrinsic(extrinsic);

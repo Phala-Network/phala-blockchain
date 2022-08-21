@@ -12,6 +12,7 @@ use crate::{
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
+use phala_fair_queue::FairQueue;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
 
@@ -19,12 +20,13 @@ use crate::contracts;
 use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
+pub use master_key::RotatedMasterKey;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
-    aead,
-    ecdh::{self, EcdhKey},
-    sr25519::KDF,
+    ecdh::EcdhKey,
+    key_share,
+    sr25519::{Persistence, Signing, KDF},
 };
 use phala_mq::{
     traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
@@ -32,19 +34,30 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, messaging::ContractOperation, CodeIndex},
-    messaging::{
-        AeadIV, BatchDispatchClusterKeyEvent, ClusterOperation, Condition, DispatchMasterKeyEvent,
-        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, PRuntimeManagementEvent, SystemEvent, WorkerClusterReport,
-        WorkerContractReport, WorkerEvent,
+    contract::{
+        self,
+        messaging::{
+            BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
+            WorkerClusterReport, WorkerContractReport,
+        },
+        CodeIndex,
     },
-    EcdhPublicKey, WorkerPublicKey,
+    messaging::{
+        AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
+        DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
+        RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+    },
+    EcdhPublicKey, HandoverChallenge, HandoverChallengePayload, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
 use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+use sp_io;
+
+use std::convert::TryFrom;
+use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -69,6 +82,10 @@ pub enum TransactionError {
     BadDecimal,
     DestroyNotAllowed,
     ChannelError,
+    // for gatekeeper
+    NotGatekeeper,
+    MasterKeyLeakage,
+    BadSenderSignature,
     // for pdiem
     BadAccountInfo,
     BadLedgerInfo,
@@ -322,7 +339,11 @@ trait WorkerStateMachineCallback {
     }
 }
 
-struct WorkerSMDelegate<'a>(&'a SignedMessageChannel);
+struct WorkerSMDelegate<'a> {
+    egress: &'a SignedMessageChannel,
+    n_clusters: u32,
+    n_contracts: u32,
+}
 
 impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     fn bench_iterations(&self) -> u64 {
@@ -340,7 +361,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
             iterations,
         };
         info!("Reporting benchmark: {:?}", report);
-        self.0.push_message(&report);
+        self.egress.push_message(&report);
     }
     fn heartbeat(
         &mut self,
@@ -349,14 +370,16 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
         challenge_time: u64,
         iterations: u64,
     ) {
-        let event = MiningReportEvent::Heartbeat {
+        let event = MiningReportEvent::HeartbeatV2 {
             session_id,
             challenge_block,
             challenge_time,
             iterations,
+            n_clusters: self.n_clusters,
+            n_contracts: self.n_contracts,
         };
         info!("System: sending {:?}", event);
-        self.0.push_message(&event);
+        self.egress.push_message(&event);
     }
 }
 
@@ -405,17 +428,19 @@ pub struct System<Platform> {
     pruntime_management_events: TypedReceiver<PRuntimeManagementEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
-    key_distribution_events: TypedReceiver<KeyDistribution>,
-    cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::BlockNumber>>,
+    key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
+    cluster_key_distribution_events:
+        TypedReceiver<ClusterOperation<chain::AccountId, chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
+    pub(crate) trusted_identity_key: bool,
+    #[serde(skip)]
+    last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
     worker_state: WorkerState,
     // Gatekeeper
-    #[serde(with = "more::option_key_bytes")]
-    master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
@@ -425,8 +450,8 @@ pub struct System<Platform> {
     sidevm_spawner: Spawner,
 
     // Cached for query
-    block_number: BlockNumber,
-    now_ms: u64,
+    pub(crate) block_number: BlockNumber,
+    pub(crate) now_ms: u64,
     retired_versions: Vec<Condition>,
 }
 
@@ -450,6 +475,7 @@ impl<Platform: pal::Platform> System<Platform> {
         geoip_city_db: String,
         identity_key: sr25519::Pair,
         ecdh_key: EcdhKey,
+        trusted_identity_key: bool,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
         contracts: ContractsKeeper,
@@ -460,7 +486,6 @@ impl<Platform: pal::Platform> System<Platform> {
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key.0, &platform);
 
         System {
             platform,
@@ -478,8 +503,9 @@ impl<Platform: pal::Platform> System<Platform> {
             contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
             ecdh_key,
+            trusted_identity_key,
+            last_challenge: None,
             worker_state: WorkerState::new(pubkey),
-            master_key,
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
@@ -490,10 +516,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn get_system_message_handler(
-        &mut self,
-        cluster_id: &ContractId,
-    ) -> Option<CommandSender> {
+    pub fn get_system_message_handler(&mut self, cluster_id: &ContractId) -> Option<CommandSender> {
         let handler_contract_id = self
             .contract_clusters
             .get_cluster_mut(cluster_id)
@@ -514,13 +537,52 @@ impl<Platform: pal::Platform> System<Platform> {
         self.get_system_message_handler(&cluster_id)
     }
 
+    // The IdentityKey is considered valid in two situations:
+    //
+    // 1. It's generated by pRuntime thus is safe;
+    // 2. It's handovered, but we find out that it was successfully registered as a worker on-chain;
+    pub fn validated_identity_key(&self) -> bool {
+        self.trusted_identity_key || self.worker_state.registered
+    }
+
+    pub fn get_worker_key_challenge(
+        &mut self,
+        dev_mode: bool,
+    ) -> HandoverChallenge<chain::BlockNumber> {
+        let payload = HandoverChallengePayload {
+            block_number: self.block_number,
+            now: self.now_ms,
+            dev_mode,
+            nonce: crate::generate_random_info(),
+        };
+        let signature = self.identity_key.sign_data(&payload.encode());
+        let challenge = HandoverChallenge { payload, signature };
+        self.last_challenge = Some(challenge.clone());
+        challenge
+    }
+
+    pub fn verify_worker_key_challenge(
+        &mut self,
+        challenge: &HandoverChallenge<chain::BlockNumber>,
+    ) -> bool {
+        let challenge_match = if self.last_challenge.as_ref() != Some(challenge) {
+            info!("Unknown challenge: {:?}", challenge);
+            false
+        } else {
+            true
+        };
+        // Clear used one-time challenge
+        self.last_challenge = None;
+        challenge_match
+    }
+
     pub fn make_query(
         &mut self,
         contract_id: &ContractId,
-    ) -> Result<
-        impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
-        OpaqueError,
-    > {
+        origin: Option<&chain::AccountId>,
+        query: OpaqueQuery,
+        query_queue: FairQueue<ContractId>,
+    ) -> Result<impl Future<Output = Result<OpaqueReply, OpaqueError>>, OpaqueError> {
         use pink::storage::Snapshot as _;
 
         let contract = self
@@ -542,9 +604,13 @@ impl<Platform: pal::Platform> System<Platform> {
             storage,
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
+            query_queue,
         };
-        Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
-            contract.handle_query(origin, req, &mut context)
+        let origin = origin.cloned();
+        Ok(async move {
+            contract
+                .handle_query(origin.as_ref(), query, &mut context)
+                .await
         })
     }
 
@@ -581,7 +647,7 @@ impl<Platform: pal::Platform> System<Platform> {
         Ok(ok.is_none())
     }
 
-    pub fn process_messages(&mut self, block: &mut BlockInfo) {
+    pub fn will_process_block(&mut self, block: &mut BlockInfo) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
@@ -594,6 +660,12 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.geoip_city_db.clone(),
             );
         }
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.will_process_block(block);
+        }
+    }
+
+    pub fn process_messages(&mut self, block: &mut BlockInfo) {
         loop {
             match self.process_next_message(block) {
                 Err(err) => {
@@ -606,13 +678,22 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
         }
-        self.worker_state
-            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
-
         if let Some(gatekeeper) = &mut self.gatekeeper {
             gatekeeper.process_messages(block);
-            gatekeeper.emit_random_number(block.block_number);
         }
+    }
+
+    pub fn did_process_block(&mut self, block: &mut BlockInfo) {
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.did_process_block(block);
+        }
+
+        self.worker_state
+            .on_block_processed(block, &mut WorkerSMDelegate{
+                egress: &self.egress,
+                n_clusters: self.contract_clusters.len() as _,
+                n_contracts: self.contracts.len() as _,
+            });
 
         // Iterate over all contracts to handle their incoming commands.
         //
@@ -674,11 +755,18 @@ impl<Platform: pal::Platform> System<Platform> {
             );
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+
+        let contract_running = !self.contract_clusters.is_empty();
+        benchmark::set_flag(benchmark::Flags::CONTRACT_RUNNING, contract_running);
     }
 
     fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
         self.worker_state
-            .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
+            .process_event(block, event, &mut WorkerSMDelegate {
+                egress: &self.egress,
+                n_clusters: self.contract_clusters.len() as _,
+                n_contracts: self.contracts.len() as _,
+            }, true);
     }
 
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
@@ -709,50 +797,62 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
-        if self.master_key.is_none() {
+    /// Update local sealed master keys if the received history is longer than existing one.
+    ///
+    /// Panic if `self.gatekeeper` is None since it implies a need for resync from the start as gk
+    fn set_master_key_history(&mut self, master_key_history: Vec<RotatedMasterKey>) {
+        if self.gatekeeper.is_none() {
             master_key::seal(
                 self.sealing_path.clone(),
-                &master_key,
+                &master_key_history,
                 &self.identity_key,
                 &self.platform,
             );
-            self.master_key = Some(master_key);
+            crate::maybe_remove_checkpoints(&self.sealing_path);
+            panic!("Received master key, please restart pRuntime and pherry to sync as Gatekeeper");
+        }
 
-            if need_restart {
-                crate::maybe_remove_checkpoints(&self.storage_path);
-                panic!("Received master key, please restart pRuntime and pherry");
-            }
-        } else if let Some(my_master_key) = &self.master_key {
-            // TODO(shelven): remove this assertion after we enable master key rotation
-            assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
+        if self
+            .gatekeeper
+            .as_mut()
+            .expect("checked; qed.")
+            .set_master_key_history(&master_key_history)
+        {
+            master_key::seal(
+                self.sealing_path.clone(),
+                &master_key_history,
+                &self.identity_key,
+                &self.platform,
+            );
         }
     }
 
-    fn init_gatekeeper(&mut self, block: &mut BlockInfo) {
-        assert!(
-            self.master_key.is_some(),
-            "Gatekeeper initialization without master key"
-        );
+    fn init_gatekeeper(
+        &mut self,
+        block: &mut BlockInfo,
+        master_key_history: Vec<RotatedMasterKey>,
+    ) {
         assert!(
             self.gatekeeper.is_none(),
             "Duplicated gatekeeper initialization"
         );
+        assert!(
+            !master_key_history.is_empty(),
+            "Init gatekeeper with no master key"
+        );
 
+        let master_key = sr25519::Pair::restore_from_secret_key(
+            &master_key_history
+                .first()
+                .expect("empty master key history")
+                .secret,
+        );
         let gatekeeper = gk::Gatekeeper::new(
-            self.master_key
-                .as_ref()
-                .expect("checked master key above; qed.")
-                .clone(),
+            master_key_history,
             block.recv_mq,
-            block.send_mq.channel(
-                MessageOrigin::Gatekeeper,
-                self.master_key
-                    .as_ref()
-                    .expect("checked master key above; qed.")
-                    .clone()
-                    .into(),
-            ),
+            block
+                .send_mq
+                .channel(MessageOrigin::Gatekeeper, master_key.into()),
         );
         self.gatekeeper = Some(gatekeeper);
     }
@@ -763,19 +863,38 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: MessageOrigin,
         event: GatekeeperLaunch,
     ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
         info!("Incoming gatekeeper launch event: {:?}", event);
         match event {
-            GatekeeperLaunch::FirstGatekeeper(new_gatekeeper_event) => {
-                self.process_first_gatekeeper_event(block, origin, new_gatekeeper_event)
+            GatekeeperLaunch::FirstGatekeeper(event) => {
+                self.process_first_gatekeeper_event(block, origin, event)
             }
-            GatekeeperLaunch::MasterPubkeyOnChain(_) => {
+            GatekeeperLaunch::MasterPubkeyOnChain(event) => {
                 info!(
                     "Gatekeeper launches on chain in block {}",
                     block.block_number
                 );
                 if let Some(gatekeeper) = &mut self.gatekeeper {
-                    gatekeeper.master_pubkey_uploaded();
+                    gatekeeper.master_pubkey_uploaded(event.master_pubkey);
                 }
+            }
+            GatekeeperLaunch::RotateMasterKey(event) => {
+                info!(
+                    "Master key rotation req round {} in block {}",
+                    event.rotation_id, block.block_number
+                );
+                self.process_master_key_rotation_request(block, origin, event);
+            }
+            GatekeeperLaunch::MasterPubkeyRotated(event) => {
+                info!(
+                    "Rotated Master Pubkey {} on chain in block {}",
+                    hex::encode(event.master_pubkey),
+                    block.block_number
+                );
             }
         }
     }
@@ -784,13 +903,14 @@ impl<Platform: pal::Platform> System<Platform> {
     fn process_first_gatekeeper_event(
         &mut self,
         block: &mut BlockInfo,
-        origin: MessageOrigin,
+        _origin: MessageOrigin,
         event: NewGatekeeperEvent,
     ) {
-        if !origin.is_pallet() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        }
+        // ATTENTION: the first gk cannot resume if its original master_key.seal is lost,
+        // since there is no tx recorded on-chain that shares the key to itself
+        //
+        // Solution: always unregister the first gk after the second gk receives the key,
+        // thank god we only need to do this once for each blockchain
 
         // double check the first gatekeeper is valid on chain
         if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
@@ -801,22 +921,35 @@ impl<Platform: pal::Platform> System<Platform> {
             panic!("System state poisoned");
         }
 
+        let mut master_key_history = master_key::try_unseal(
+            self.sealing_path.clone(),
+            &self.identity_key.0,
+            &self.platform,
+        );
         let my_pubkey = self.identity_key.public();
-        // if the first gatekeeper reboots, it will possess the master key,
-        // and should not re-generate it
         if my_pubkey == event.pubkey {
-            if self.master_key.is_none() {
+            // if the first gatekeeper reboots, it will possess the master key, and should not re-generate it
+            if master_key_history.is_empty() {
                 info!("Gatekeeper: generate master key as the first gatekeeper");
-                // generate master key as the first gatekeeper
-                // no need to restart
+                // generate master key as the first gatekeeper, no need to restart
                 let master_key = crate::new_sr25519_key();
-                self.set_master_key(master_key.clone(), false);
+                master_key_history.push(RotatedMasterKey {
+                    rotation_id: 0,
+                    block_height: 0,
+                    secret: master_key.dump_secret_key(),
+                });
+                // manually seal the first master key for the first gk
+                master_key::seal(
+                    self.sealing_path.clone(),
+                    &master_key_history,
+                    &self.identity_key,
+                    &self.platform,
+                );
             }
 
-            let master_key = self
-                .master_key
-                .as_ref()
-                .expect("should never be none; qed.");
+            let master_key = sr25519::Pair::restore_from_secret_key(
+                &master_key_history.first().expect("checked; qed.").secret,
+            );
             // upload the master key on chain via worker egress
             info!(
                 "Gatekeeper: upload master key {} on chain",
@@ -828,16 +961,40 @@ impl<Platform: pal::Platform> System<Platform> {
             self.egress.push_message(&master_pubkey);
         }
 
-        if self.master_key.is_some() {
+        // other gatekeepers will has keys after key sharing and reboot
+        // init the gatekeeper if there is any master key to start slient syncing
+        if !master_key_history.is_empty() {
             info!("Init gatekeeper in block {}", block.block_number);
-            self.init_gatekeeper(block);
+            self.init_gatekeeper(block, master_key_history);
         }
 
         if my_pubkey == event.pubkey {
             self.gatekeeper
                 .as_mut()
-                .expect("gatekeeper must be initializaed here; qed.")
+                .expect("gatekeeper must be initializaed; qed.")
                 .register_on_chain();
+        }
+    }
+
+    /// Rotate the master key
+    ///
+    /// All the gatekeepers will generate the key, and only one will get published due to the nature of message queue.
+    ///
+    /// The generated master key will be shared to all the gatekeepers (include this one), and only then will they really
+    /// update the master key on-chain.
+    fn process_master_key_rotation_request(
+        &mut self,
+        block: &mut BlockInfo,
+        _origin: MessageOrigin,
+        event: RotateMasterKeyEvent,
+    ) {
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            info!("Gatekeeper：Rotate master key");
+            gatekeeper.process_master_key_rotation_request(
+                block,
+                event,
+                self.identity_key.0.clone(),
+            );
         }
     }
 
@@ -849,8 +1006,11 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         info!("Incoming gatekeeper change event: {:?}", event);
         match event {
-            GatekeeperChange::GatekeeperRegistered(new_gatekeeper_event) => {
-                self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
+            GatekeeperChange::Registered(event) => {
+                self.process_new_gatekeeper_event(block, origin, event)
+            }
+            GatekeeperChange::Unregistered(event) => {
+                self.process_remove_gatekeeper_event(block, origin, event)
             }
         }
     }
@@ -887,18 +1047,53 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_key_distribution_event(
+    /// Turn gatekeeper to silent syncing. The real cleanup will happen in next key rotation since it will have no chance
+    /// to continuce syncing.
+    ///
+    /// There is no meaning to remove the master_key.seal file
+    fn process_remove_gatekeeper_event(
         &mut self,
         _block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: KeyDistribution,
+        event: RemoveGatekeeperEvent,
+    ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if my_pubkey == event.pubkey && self.gatekeeper.is_some() {
+            self.gatekeeper
+                .as_mut()
+                .expect("checked; qed.")
+                .unregister_on_chain();
+        }
+    }
+
+    fn process_key_distribution_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: KeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
-                if let Err(err) =
-                    self.process_master_key_distribution(origin, dispatch_master_key_event)
-                {
+            KeyDistribution::MasterKeyDistribution(event) => {
+                if let Err(err) = self.process_master_key_distribution(origin, event) {
                     error!("Failed to process master key distribution event: {:?}", err);
+                };
+            }
+            KeyDistribution::MasterKeyRotation(event) => {
+                if let Err(err) = self.process_batch_rotate_master_key(block, origin, event) {
+                    error!(
+                        "Failed to process batch master key rotation event: {:?}",
+                        err
+                    );
+                };
+            }
+            KeyDistribution::MasterKeyHistory(event) => {
+                if let Err(err) = self.process_master_key_history(origin, event) {
+                    error!("Failed to process master key history event: {:?}", err);
                 };
             }
         }
@@ -908,7 +1103,7 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ClusterOperation<chain::BlockNumber>,
+        event: ClusterOperation<chain::AccountId, chain::BlockNumber>,
     ) -> Result<()> {
         match event {
             ClusterOperation::DispatchKeys(event) => {
@@ -926,6 +1121,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 cluster: cluster_id,
                 log_handler,
             } => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
                 let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
                 if let Some(cluster) = cluster {
                     info!(
@@ -935,6 +1134,42 @@ impl<Platform: pal::Platform> System<Platform> {
                     );
                     cluster.config.log_handler = Some(log_handler);
                 }
+            }
+            ClusterOperation::DestroyCluster(cluster_id) => {
+                if !origin.is_pallet() {
+                    error!("Invalid origin {:?} sent a {:?}", origin, event);
+                    anyhow::bail!("Invalid origin");
+                }
+                let cluster = match self.contract_clusters.remove_cluster(&cluster_id) {
+                    // The cluster is not deployed on this worker, just ignore it.
+                    None => return Ok(()),
+                    Some(cluster) => cluster,
+                };
+                info!("Destroying cluster {}", hex_fmt::HexFmt(&cluster_id));
+                for contract in cluster.iter_contracts() {
+                    if let Some(contract) = self.contracts.remove(&contract) {
+                        contract.destroy(&self.sidevm_spawner);
+                    }
+                }
+            }
+            ClusterOperation::UploadResource {
+                origin,
+                cluster_id,
+                resource_type,
+                resource_data,
+            } => {
+                let cluster = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id)
+                    .context("Cluster not deployed")?;
+                let uploader = phala_types::messaging::AccountId(origin.clone().into());
+                let hash = cluster
+                    .upload_resource(origin, resource_type, resource_data)
+                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                info!(
+                    "Uploaded code to cluster {}, code_hash={:?}",
+                    cluster_id, hash
+                );
             }
         }
         Ok(())
@@ -951,35 +1186,6 @@ impl<Platform: pal::Platform> System<Platform> {
             anyhow::bail!("Invalid origin {:?} for contract operation", sender);
         }
         match event {
-            ContractOperation::UploadCodeToCluster {
-                origin,
-                code,
-                cluster_id,
-            } => {
-                let cluster = self
-                    .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .context("Cluster not deployed")?;
-                let uploader = phala_types::messaging::AccountId(origin.clone().into());
-                let hash = cluster.upload_code(origin, code).map_err(|err| {
-                    let message = WorkerContractReport::CodeUploadFailed {
-                        cluster_id,
-                        uploader,
-                    };
-                    self.egress.push_message(&message);
-                    anyhow!("Failed to upload code: {:?}", err)
-                })?;
-                let message = WorkerContractReport::CodeUploaded {
-                    cluster_id,
-                    uploader,
-                    hash,
-                };
-                self.egress.push_message(&message);
-                info!(
-                    "Uploaded code to cluster {}, code_hash={:?}",
-                    cluster_id, hash
-                );
-            }
             ContractOperation::InstantiateCode { contract_info } => {
                 let cluster_id = contract_info.cluster_id;
                 let cluster = self
@@ -1110,7 +1316,9 @@ impl<Platform: pal::Platform> System<Platform> {
         Ok(())
     }
 
-    // This function is used to decrypt the key encrypted by `encrypt_key_to()`
+    /// Decrypt the key encrypted by `encrypt_key_to()`
+    ///
+    /// This function could panic a lot, thus should only handle data from other pRuntimes.
     fn decrypt_key_from(
         &self,
         ecdh_pubkey: &EcdhPublicKey,
@@ -1121,12 +1329,10 @@ impl<Platform: pal::Platform> System<Platform> {
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
-        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
-            .expect("Should never failed with valid ecdh key; qed.");
-        let mut key_buff = encrypted_key.clone();
-        let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])
-            .expect("Failed to decrypt dispatched key");
-        sr25519::Pair::from_seed_slice(secret_key).expect("Key seed must be correct; qed.")
+        let secret =
+            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, &encrypted_key, &iv)
+                .expect("Failed to decrypt dispatched key");
+        sr25519::Pair::restore_from_secret_key(&secret)
     }
 
     /// Process encrypted master key from mq
@@ -1145,7 +1351,123 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pair =
                 self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
-            self.set_master_key(master_pair, true);
+            self.set_master_key_history(vec![RotatedMasterKey {
+                rotation_id: 0,
+                block_height: 0,
+                secret: master_pair.dump_secret_key(),
+            }]);
+        }
+        Ok(())
+    }
+
+    fn process_master_key_history(
+        &mut self,
+        origin: MessageOrigin,
+        event: DispatchMasterKeyHistoryEvent<chain::BlockNumber>,
+    ) -> Result<(), TransactionError> {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return Err(TransactionError::BadOrigin);
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if my_pubkey == event.dest {
+            let master_key_history: Vec<RotatedMasterKey> = event
+                .encrypted_master_key_history
+                .iter()
+                .map(|(rotation_id, block_height, key)| RotatedMasterKey {
+                    rotation_id: *rotation_id,
+                    block_height: *block_height,
+                    secret: self
+                        .decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv)
+                        .dump_secret_key(),
+                })
+                .collect();
+            self.set_master_key_history(master_key_history);
+        }
+        Ok(())
+    }
+
+    /// Decrypt the rotated master key
+    ///
+    /// The new master key takes effect immediately after the GatekeeperRegistryEvent::RotatedMasterPubkey is sent
+    fn process_batch_rotate_master_key(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: BatchRotateMasterKeyEvent,
+    ) -> Result<(), TransactionError> {
+        // ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain pubkey
+        // is updated, which may cause problem in the future.
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return Err(TransactionError::BadOrigin.into());
+        }
+
+        // check the event sender identity and signature to ensure it's not forged with a leaked master key and really from
+        // a gatekeeper
+        let data = event.data_be_signed();
+        let sig = sp_core::sr25519::Signature::try_from(event.sig.as_slice())
+            .or(Err(TransactionError::BadSenderSignature))?;
+        if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
+            return Err(TransactionError::BadSenderSignature.into());
+        }
+        // valid master key but from a non-gk
+        if !chain_state::is_gatekeeper(&event.sender, block.storage) {
+            error!("Fatal error: Forged batch master key rotation {:?}", event);
+            return Err(TransactionError::MasterKeyLeakage);
+        }
+
+        let my_pubkey = self.identity_key.public();
+        // for normal worker
+        if self.gatekeeper.is_none() {
+            if event.secret_keys.contains_key(&my_pubkey) {
+                panic!(
+                    "Batch rotate master key to a normal worker {:?}",
+                    &my_pubkey
+                );
+            }
+            return Ok(());
+        }
+
+        // for gatekeeper (both active or unregistered)
+        if event.secret_keys.contains_key(&my_pubkey) {
+            let encrypted_key = &event.secret_keys[&my_pubkey];
+            let new_master_key = self.decrypt_key_from(
+                &encrypted_key.ecdh_pubkey,
+                &encrypted_key.encrypted_key,
+                &encrypted_key.iv,
+            );
+            info!("Worker: successfully decrypt received rotated master key");
+            let gatekeeper = self.gatekeeper.as_mut().expect("checked; qed.");
+            if gatekeeper.append_master_key(RotatedMasterKey {
+                rotation_id: event.rotation_id,
+                block_height: self.block_number,
+                secret: new_master_key.dump_secret_key(),
+            }) {
+                master_key::seal(
+                    self.sealing_path.clone(),
+                    &gatekeeper.master_key_history(),
+                    &self.identity_key,
+                    &self.platform,
+                );
+            }
+        }
+
+        if self
+            .gatekeeper
+            .as_mut()
+            .expect("checked; qed.")
+            .switch_master_key(event.rotation_id, self.block_number)
+        {
+            // This is a valid GK in syncing, the needed master key should already be dispatched before the restart this
+            // pRuntime.
+            info!("Worker: rotate master key with received master key history");
+        } else {
+            // This is an unregistered GK whose master key is not outdated yet, it 's still sliently syncing. It cannot
+            // do silent syncing anymore since it does not know the rotated key.
+            info!("Worker: master key rotation received, stop unregistered gatekeeper silent syncing and cleanup");
+            self.gatekeeper = None;
         }
         Ok(())
     }
@@ -1194,20 +1516,20 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn gatekeeper_status(&self) -> GatekeeperStatus {
+        let has_gatekeeper = self.gatekeeper.is_some();
         let active = match &self.gatekeeper {
             Some(gk) => gk.registered_on_chain(),
             None => false,
         };
-        let has_key = self.master_key.is_some();
-        let role = match (has_key, active) {
+        let role = match (has_gatekeeper, active) {
             (true, true) => GatekeeperRole::Active,
             (true, false) => GatekeeperRole::Dummy,
             _ => GatekeeperRole::None,
         };
         let master_public_key = self
-            .master_key
+            .gatekeeper
             .as_ref()
-            .map(|k| hex::encode(&k.public()))
+            .map(|gk| hex::encode(&gk.master_pubkey()))
             .unwrap_or_default();
         GatekeeperStatus {
             role: role.into(),
@@ -1252,7 +1574,14 @@ pub fn handle_contract_command_result(
         Some(cluster) => cluster,
     };
     apply_pink_side_effects(
-        effects, cluster_id, contracts, cluster, block, egress, spawner, log_handler,
+        effects,
+        cluster_id,
+        contracts,
+        cluster,
+        block,
+        egress,
+        spawner,
+        log_handler,
     );
 }
 
@@ -1305,9 +1634,6 @@ pub fn apply_pink_side_effects(
         egress.push_message(&message);
     }
 
-    const MAX_SIDEVM_CODE_SIZE: usize = 1024 * 1024 * 2;
-    let mut wasm_code = Vec::new();
-
     for (address, event) in effects.pink_events {
         let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
@@ -1335,22 +1661,20 @@ pub fn apply_pink_side_effects(
             PinkEvent::OnBlockEndSelector(selector) => {
                 contract.set_on_block_end_selector(selector);
             }
-            PinkEvent::StartToTransferSidevmCode => {
-                wasm_code.clear();
-            }
-            PinkEvent::SidevmCodeChunk(chunk) => {
-                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
-                    wasm_code.extend_from_slice(&chunk);
-                }
-            }
-            PinkEvent::StartSidevm { auto_restart } => {
-                if wasm_code.len() < MAX_SIDEVM_CODE_SIZE {
-                    let wasm_code = std::mem::replace(&mut wasm_code, vec![]);
-                    if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
-                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
+            PinkEvent::StartSidevm {
+                code_hash,
+                auto_restart,
+            } => {
+                let code_hash = code_hash.into();
+                let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
+                    Some(code) => code,
+                    None => {
+                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: code not found, code_hash={code_hash:?}");
+                        continue;
                     }
-                } else {
-                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: Code too large");
+                };
+                if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
+                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
@@ -1433,8 +1757,8 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::storage_prefix;
-    use crate::storage::Storage;
+    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+    use crate::storage::{Storage, StorageExt};
     use parity_scale_codec::Decode;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
@@ -1448,6 +1772,16 @@ pub mod chain_state {
             .unwrap_or_default();
 
         gatekeepers.contains(pubkey)
+    }
+
+    /// Return `None` if given pruntime hash is not allowed on-chain
+    pub fn get_pruntime_added_at(
+        chain_storage: &Storage,
+        runtime_hash: &Vec<u8>,
+    ) -> Option<chain::BlockNumber> {
+        let key =
+            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
+        chain_storage.get_decoded(&key).unwrap_or(None)
     }
 }
 
@@ -1466,7 +1800,9 @@ mod tests {
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
         let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
-        let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
+        let code_hash = cluster
+            .upload_resource(ALICE.clone(), ResourceType::InkCode, wasm_bin)
+            .unwrap();
         let effects = keeper
             .instantiate_contract(
                 cluster_id,
@@ -1505,7 +1841,7 @@ mod tests {
 
         let mut env = ExecuteEnv {
             block: &mut block_info,
-            contract_clusters: &mut &mut keeper,
+            contract_clusters: &mut keeper,
             log_handler: None,
         };
 
@@ -1520,6 +1856,7 @@ mod tests {
             .into_iter()
             .map(|msg| (msg.sequence, msg.message))
             .collect();
+        // WorkerContractReport::ContractInstantiated
         insta::assert_debug_snapshot!(messages);
     }
 }

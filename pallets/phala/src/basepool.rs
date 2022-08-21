@@ -104,6 +104,10 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
+
+	#[pallet::storage]
+	#[pallet::getter(fn next_nft_id)]
+	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
 	/// The number of total pools
 	#[pallet::storage]
 	#[pallet::getter(fn pool_count)]
@@ -137,6 +141,8 @@ pub mod pallet {
 		PoolDoesNotExist,
 
 		PoolTypeNotMatch,
+
+		NoAvailableNftId,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -504,11 +510,12 @@ pub mod pallet {
 		) -> Result<NftId, DispatchError> {
 			pallet_rmrk_core::Collections::<T>::get(cid)
 				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
-			let nft_id = pallet_rmrk_core::NextNftId::<T>::get(cid);
+			let nft_id = Self::get_next_nft_id(cid)?;
 
 			pallet_rmrk_core::Pallet::<T>::mint_nft(
 				Origin::<T>::Signed(pallet_id()).into(),
 				Some(contributer),
+				nft_id,
 				cid,
 				None,
 				None,
@@ -567,6 +574,14 @@ pub mod pallet {
 				pallet_rmrk_core::Pallet::<T>::properties((cid, Some(nft_id), key))
 					.ok_or(Error::<T>::MissCollectionId)?;
 			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
+		}
+
+		pub fn get_next_nft_id(collection_id: CollectionId) -> Result<NftId, Error<T>> {
+			NextNftId::<T>::try_mutate(collection_id, |id| {
+				let current_id = *id;
+				*id = id.checked_add(1).ok_or(Error::<T>::NoAvailableNftId)?;
+				Ok(current_id)
+			})
 		}
 
 		#[frame_support::transactional]

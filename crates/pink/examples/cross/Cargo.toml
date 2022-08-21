@@ -9,13 +9,13 @@ resolver = "2"
 [workspace]
 
 [dependencies]
-ink_primitives = { version = "3.1.0", default-features = false }
-ink_metadata = { version = "3.1.0", default-features = false, features = ["derive"], optional = true }
-ink_env = { version = "3.1.0", default-features = false }
-ink_storage = { version = "3.1.0", default-features = false }
-ink_lang = { version = "3.1.0", default-features = false }
+ink_primitives = { version = "3.3.1", default-features = false }
+ink_metadata = { version = "3.3.1", default-features = false, features = ["derive"], optional = true }
+ink_env = { version = "3.3.1", default-features = false }
+ink_storage = { version = "3.3.1", default-features = false }
+ink_lang = { version = "3.3.1", default-features = false }
 
-scale = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0", default-features = false, features = ["derive"], optional = true }
 
 flip = { path = "../flip", default-features = false, features = ["ink-as-dependency"] }
