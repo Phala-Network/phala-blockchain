@@ -295,6 +295,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Governance,
 	Staking,
+	StakePoolManager,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -319,6 +320,19 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Elections(..) | Call::Treasury(..)
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::StakePoolManager => matches!(
+                c,
+                Call::Utility { .. }
+                    | Call::PhalaStakePool(pallet_stakepool::Call::add_worker { .. })
+                    | Call::PhalaStakePool(pallet_stakepool::Call::remove_worker { .. })
+                    | Call::PhalaStakePool(pallet_stakepool::Call::start_mining { .. })
+                    | Call::PhalaStakePool(pallet_stakepool::Call::stop_mining { .. })
+                    | Call::PhalaStakePool(pallet_stakepool::Call::restart_mining { .. })
+                    | Call::PhalaStakePool(pallet_stakepool::Call::reclaim_pool_worker { .. })
+                    | Call::PhalaStakePool(pallet_stakepool::Call::create { .. })
+                    | Call::PhalaRegistry(pallet_registry::Call::register_worker { .. })
+                    | Call::PhalaMq(pallet_mq::Call::sync_offchain_message { .. })
+            ),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
