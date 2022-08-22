@@ -1,5 +1,4 @@
-use pink_sidevm_host_runtime::service::service;
-use pink_sidevm_host_runtime::{instrument, CacheOps, DynCacheOps, OcallError};
+use pink_sidevm_host_runtime::{CacheOps, DynCacheOps, OcallError};
 
 use clap::{AppSettings, Parser};
 use once_cell::sync::Lazy;
@@ -12,17 +11,13 @@ mod web_api;
 #[clap(about = "Demo sidevm host app", version, author)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub struct Args {
-    /// The gas limit for the program to consume.
-    #[clap(long, default_value_t = u128::MAX)]
-    gas: u128,
     /// The gas limit for each poll.
-    #[clap(long, default_value_t = 1000_000_000_000_u128)]
-    gas_per_breath: u128,
-    /// Don't instrument the program.
-    #[clap(long)]
-    no_instrument: bool,
+    #[clap(long, default_value_t = 50_000_000_000_u64)]
+    gas_per_breath: u64,
+    #[clap(long, default_value_t = 1)]
+    workers: usize,
     /// The WASM program to run
-    program: String,
+    program: Option<String>,
 }
 
 fn simple_cache() -> DynCacheOps {
@@ -62,36 +57,10 @@ fn simple_cache() -> DynCacheOps {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-
     env_logger::init();
-
-    let (run, spawner) = service();
-    std::thread::spawn(move || {
-        run.blocking_run(|evt| {
-            println!("event: {:?}", evt);
-            std::process::exit(0);
-        });
-    });
-
-    println!("Reading {}...", args.program);
-    let mut wasm_bytes = std::fs::read(&args.program)?;
-    if !args.no_instrument {
-        println!("Instrumenting...");
-        wasm_bytes = instrument::instrument(&wasm_bytes)?;
+    if std::env::var("ROCKET_PORT").is_err() {
+        std::env::set_var("ROCKET_PORT", "8003");
     }
-    println!("VM running...");
-    let (sender, handle) = spawner
-        .start(
-            &wasm_bytes,
-            1024,
-            Default::default(),
-            args.gas,
-            args.gas_per_breath,
-            simple_cache(),
-        )
-        .unwrap();
-    tokio::spawn(handle);
-    web_api::serve(sender).await.unwrap();
+    web_api::serve(Args::parse()).await.unwrap();
     Ok(())
 }

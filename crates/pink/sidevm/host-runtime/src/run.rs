@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result};
+use phala_scheduler::TaskScheduler;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -11,12 +12,13 @@ use wasmer_compiler_singlepass::Singlepass;
 use wasmer_tunables::LimitingTunables;
 
 use crate::env::DynCacheOps;
-use crate::{async_context, env};
+use crate::{async_context, env, metering::metering, VmId};
 
 pub struct WasmRun {
+    id: VmId,
     env: env::Env,
     wasm_poll_entry: NativeFunc<(), i32>,
-    gas_per_breath: u128,
+    scheduler: TaskScheduler<VmId>,
 }
 
 impl Drop for WasmRun {
@@ -30,8 +32,10 @@ impl WasmRun {
         code: &[u8],
         max_pages: u32,
         id: crate::VmId,
-        gas_per_breath: u128,
+        gas_per_breath: u64,
         cache_ops: DynCacheOps,
+        scheduler: TaskScheduler<VmId>,
+        weight: u32,
     ) -> Result<(WasmRun, env::Env)> {
         let compiler_env = std::env::var("WASMER_COMPILER");
         let compiler_env = compiler_env
@@ -40,9 +44,9 @@ impl WasmRun {
             .unwrap_or("singlepass");
 
         let engine = match compiler_env {
-            "singlepass" => Universal::new(Singlepass::default()),
+            "singlepass" => Universal::new(metering(Singlepass::default())),
             #[cfg(feature = "wasmer-compiler-cranelift")]
-            "cranelift" => Universal::new(Cranelift::default()),
+            "cranelift" => Universal::new(metering(Cranelift::default())),
             #[cfg(feature = "wasmer-compiler-llvm")]
             "llvm" => Universal::new(LLVM::default()),
             _ => panic!("Unsupported compiler engine: {}", compiler_env),
@@ -63,12 +67,17 @@ impl WasmRun {
             .exports
             .get_memory("memory")
             .context("No memory exported")?;
+        let wasm_poll_entry = instance.exports.get_native_function("sidevm_poll")?;
         env.set_memory(memory.clone());
+        env.set_instance(instance);
+        env.set_gas_per_breath(gas_per_breath);
+        env.set_weight(weight);
         Ok((
             WasmRun {
                 env: env.clone(),
-                wasm_poll_entry: instance.exports.get_native_function("sidevm_poll")?,
-                gas_per_breath,
+                wasm_poll_entry,
+                scheduler,
+                id,
             },
             env,
         ))
@@ -79,7 +88,8 @@ impl Future for WasmRun {
     type Output = Result<i32, RuntimeError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.env.set_gas_to_breath(self.gas_per_breath);
+        let _guard = futures::ready!(self.scheduler.poll_resume(cx, &self.id, self.env.weight()));
+        self.env.reset_gas_to_breath();
         match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
             Ok(rv) => {
                 if rv == 0 {
@@ -91,7 +101,13 @@ impl Future for WasmRun {
                     Poll::Ready(Ok(rv))
                 }
             }
-            Err(err) => Poll::Ready(Err(err)),
+            Err(err) => {
+                if self.env.is_stifled() {
+                    Poll::Ready(Err(RuntimeError::user(crate::env::OcallAborted::Stifled.into())))
+                } else {
+                    Poll::Ready(Err(err))
+                }
+            }
         }
     }
 }

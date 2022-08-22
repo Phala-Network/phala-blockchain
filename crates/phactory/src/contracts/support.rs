@@ -1,12 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use phala_crypto::ecdh::EcdhPublicKey;
-use phala_fair_queue::FairQueue;
+use phala_scheduler::RequestScheduler;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
 use sidevm::{
-    instrument::instrument,
     service::{CommandSender, ExitReason},
     OcallAborted, VmId,
 };
@@ -39,7 +38,7 @@ pub struct QueryContext {
     pub storage: ::pink::Storage,
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
-    pub query_queue: FairQueue<ContractId>,
+    pub query_scheduler: RequestScheduler<ContractId>,
 }
 
 impl NativeContext<'_, '_> {
@@ -366,18 +365,15 @@ fn do_start_sidevm(
     code: &[u8],
     id: VmId,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
-    let todo = "connect the gas to some where";
     let max_memory_pages: u32 = 1024; // 64MB
-    let gas = u128::MAX;
-    let gas_per_breath = 1_000_000_000_000_u128; // about 1 sec
-    let code = instrument(code).context("Failed to instrument the wasm code")?;
+    let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
     let (sender, join_handle) = spawner.start(
         &code,
         max_memory_pages,
         id,
-        gas,
         gas_per_breath,
         local_cache_ops(),
+        1, // TODO: set actual weight
     )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();

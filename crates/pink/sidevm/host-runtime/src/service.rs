@@ -3,6 +3,7 @@ use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, trace, warn};
+use phala_scheduler::TaskScheduler;
 use pink_sidevm_env::messages::AccountId;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -61,11 +62,14 @@ pub struct ServiceRun {
 pub struct Spawner {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,
+    scheduler: TaskScheduler<VmId>,
 }
 
-pub fn service() -> (ServiceRun, Spawner) {
+pub fn service(worker_threads: usize) -> (ServiceRun, Spawner) {
+    let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
+        .max_blocking_threads(16)
+        .worker_threads(worker_threads + 2)
         .enable_all()
         .build()
         .unwrap();
@@ -75,6 +79,7 @@ pub fn service() -> (ServiceRun, Spawner) {
     let spawner = Spawner {
         runtime_handle,
         report_tx,
+        scheduler: TaskScheduler::new(worker_threads as _),
     };
     (run, spawner)
 }
@@ -110,17 +115,23 @@ impl Spawner {
         wasm_bytes: &[u8],
         max_memory_pages: u32,
         id: VmId,
-        gas: u128,
-        gas_per_breath: u128,
+        gas_per_breath: u64,
         cache_ops: DynCacheOps,
+        weight: u32,
     ) -> Result<(CommandSender, JoinHandle<ExitReason>)> {
         let (cmd_tx, mut cmd_rx) = channel(128);
-        let (mut wasm_run, env) =
-            WasmRun::run(wasm_bytes, max_memory_pages, id, gas_per_breath, cache_ops)
-                .context("Failed to create sidevm instance")?;
-        env.set_gas(gas);
+        let (mut wasm_run, env) = WasmRun::run(
+            wasm_bytes,
+            max_memory_pages,
+            id,
+            gas_per_breath,
+            cache_ops,
+            self.scheduler.clone(),
+            weight,
+        )
+        .context("Failed to create sidevm instance")?;
         let spawner = self.runtime_handle.clone();
-        let handle = self.runtime_handle.spawn(async move {
+        let handle = self.spawn(async move {
             let vmid = ShortId(&id);
             macro_rules! spawn_push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {
@@ -186,7 +197,7 @@ impl Spawner {
             }
         });
         let report_tx = self.report_tx.clone();
-        let handle = self.runtime_handle.spawn(async move {
+        let handle = self.spawn(async move {
             let vmid = ShortId(&id);
             let reason = match handle.await {
                 Ok(r) => r,
@@ -207,7 +218,10 @@ impl Spawner {
         Ok((cmd_tx, handle))
     }
 
-    pub fn spawn(&self, fut: impl Future<Output = ()> + Send + 'static) -> JoinHandle<()> {
+    pub fn spawn<O: Send + 'static>(
+        &self,
+        fut: impl Future<Output = O> + Send + 'static,
+    ) -> JoinHandle<O> {
         self.runtime_handle.spawn(fut)
     }
 }

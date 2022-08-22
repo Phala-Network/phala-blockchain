@@ -15,7 +15,7 @@ use tokio::{
     sync::mpsc::{error::SendError, Sender},
     sync::oneshot::Sender as OneshotSender,
 };
-use wasmer::{imports, Function, ImportObject, Memory, Store, WasmerEnv};
+use wasmer::{imports, Function, ImportObject, Instance, Memory, Store, WasmerEnv};
 
 use env::{
     messages::{AccountId, QueryRequest, SystemMessage},
@@ -25,6 +25,7 @@ use env::{
 use pink_sidevm_env as env;
 use scale::Encode;
 use thread_local::ThreadLocal;
+use wasmer_middlewares::metering;
 
 use crate::{
     async_context::{get_task_cx, set_task_env, GuestWaker},
@@ -126,11 +127,7 @@ pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 
 struct State {
     id: VmId,
-    // Total gas remain
-    gas: u128,
-    // Gas remain to next async yield point
-    gas_to_breath: u128,
-    init_gas_to_breath: u128,
+    gas_per_breath: u64,
     resources: ResourceKeeper,
     temp_return_value: ThreadLocal<Cell<Option<Vec<u8>>>>,
     ocall_trace_enabled: bool,
@@ -140,6 +137,8 @@ struct State {
     awake_tasks: Arc<TaskSet>,
     current_task: i32,
     cache_ops: DynCacheOps,
+    weight: u32,
+    instance: Option<Instance>,
 }
 
 struct VmMemory(Option<Memory>);
@@ -167,9 +166,7 @@ impl Env {
                 memory: VmMemory(None),
                 state: State {
                     id,
-                    gas: 0,
-                    gas_to_breath: 0,
-                    init_gas_to_breath: 0,
+                    gas_per_breath: 0,
                     resources: Default::default(),
                     temp_return_value: Default::default(),
                     ocall_trace_enabled: false,
@@ -179,6 +176,8 @@ impl Env {
                     awake_tasks: Arc::new(TaskSet::with_task0()),
                     current_task: 0,
                     cache_ops,
+                    weight: 1,
+                    instance: None,
                 },
             })),
         }
@@ -244,18 +243,38 @@ impl Env {
         })
     }
 
-    pub fn set_gas(&self, gas: u128) {
-        self.inner.lock().unwrap().state.gas = gas;
+    pub fn set_gas_per_breath(&self, gas: u64) {
+        self.inner.lock().unwrap().state.gas_per_breath = gas;
     }
 
-    pub fn set_gas_to_breath(&self, gas: u128) {
-        let mut guard = self.inner.lock().unwrap();
-        guard.state.gas_to_breath = gas;
-        guard.state.init_gas_to_breath = gas;
+    pub fn reset_gas_to_breath(&self) {
+        let guard = self.inner.lock().unwrap();
+        let instance = guard
+            .state
+            .instance
+            .as_ref()
+            .expect("BUG: missing instance in env");
+        metering::set_remaining_points(&instance, guard.state.gas_per_breath);
     }
 
     pub fn has_more_ready(&self) -> bool {
         !self.inner.lock().unwrap().state.awake_tasks.is_empty()
+    }
+
+    pub fn weight(&self) -> u32 {
+        self.inner.lock().unwrap().state.weight
+    }
+
+    pub fn set_weight(&self, weight: u32) {
+        self.inner.lock().unwrap().state.weight = weight;
+    }
+
+    pub fn set_instance(&self, instance: Instance) {
+        self.inner.lock().unwrap().state.instance = Some(instance);
+    }
+
+    pub fn is_stifled(&self) -> bool {
+        self.inner.lock().unwrap().state.is_stifled()
     }
 }
 
@@ -466,9 +485,9 @@ impl env::OcallFuncs for State {
 
     fn getrandom(&mut self, buf: &mut [u8]) -> Result<()> {
         use rand::RngCore;
-        const RANDOM_BYTE_WEIGHT: usize = 100_000_000;
+        const RANDOM_BYTE_WEIGHT: usize = 1_000_000;
 
-        pay(self, (RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
+        self.pay((RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
         rand::thread_rng().fill_bytes(buf);
         Ok(())
     }
@@ -506,12 +525,45 @@ impl env::OcallFuncs for State {
     }
 
     fn gas_remaining(&mut self) -> Result<u8> {
-        pay(self, 100_000_000)?;
-        Ok(if self.init_gas_to_breath == 0 {
+        self.pay(1_000_000)?;
+        Ok(if self.gas_per_breath == 0 {
             100
         } else {
-            (self.gas_to_breath * 100 / self.init_gas_to_breath) as u8
+            (self.gas_to_breath() * 100 / self.gas_per_breath) as u8
         })
+    }
+
+}
+
+impl State {
+    fn is_stifled(&mut self) -> bool {
+        let instance = self.instance.as_ref().expect("BUG: instance is not set");
+        match metering::get_remaining_points(&instance) {
+            metering::MeteringPoints::Remaining(_) => false,
+            metering::MeteringPoints::Exhausted => true,
+        }
+    }
+
+    fn gas_to_breath(&self) -> u64 {
+        let instance = self.instance.as_ref().expect("BUG: instance is not set");
+        match metering::get_remaining_points(&instance) {
+            metering::MeteringPoints::Remaining(v) => v,
+            metering::MeteringPoints::Exhausted => 0,
+        }
+    }
+
+    fn set_gas_to_breath(&self, gas: u64) {
+        let instance = self.instance.as_ref().expect("BUG: instance is not set");
+        metering::set_remaining_points(&instance, gas);
+    }
+
+    fn pay(&mut self, cost: u64) -> Result<(), OcallAborted> {
+        let gas = self.gas_to_breath();
+        if cost > gas {
+            return Err(OcallAborted::Stifled);
+        }
+        self.set_gas_to_breath(gas - cost);
+        Ok(())
     }
 }
 
@@ -630,17 +682,5 @@ impl std::error::Error for OcallAborted {}
 
 fn gas(env: &Env, cost: u32) -> Result<(), OcallAborted> {
     let mut env = env.inner.lock().unwrap();
-    pay(&mut env.state, cost as _)
-}
-
-fn pay(state: &mut State, cost: u128) -> Result<(), OcallAborted> {
-    if cost > state.gas {
-        return Err(OcallAborted::GasExhausted);
-    }
-    if cost > state.gas_to_breath {
-        return Err(OcallAborted::Stifled);
-    }
-    state.gas -= cost;
-    state.gas_to_breath -= cost;
-    Ok(())
+    env.state.pay(cost as _)
 }

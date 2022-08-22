@@ -80,7 +80,7 @@ sidevm = { version = "0.1.0", package = "pink-sidevm-host-runtime", path = "../p
 tokio = { version = "1", features = ["full"] }
 bitflags = "1"
 async-trait = "0.1.56"
-phala-fair-queue = { path = "../phala-fair-queue" }
+phala-scheduler = { path = "../phala-scheduler" }
 
 [dev-dependencies]
 insta = "1.7.2"

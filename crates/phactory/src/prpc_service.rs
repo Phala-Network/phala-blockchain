@@ -385,6 +385,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
+            self.args.cores as _,
         );
 
         let resp = pb::InitRuntimeResponse::new(
@@ -526,13 +527,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => None,
         };
 
-        let query_queue = self.query_dispatch_queue.clone();
+        let query_scheduler = self.query_scheduler.clone();
         // Dispatch
         let query_future = self.system()?.make_query(
             &head.id,
             accid_origin.as_ref(),
             data[data.len() - rest..].to_vec(),
-            query_queue,
+            query_scheduler,
         )?;
 
         Ok(async move {
