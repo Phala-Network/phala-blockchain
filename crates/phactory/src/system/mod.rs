@@ -457,6 +457,7 @@ pub struct System<Platform> {
 }
 
 thread_local! {
+    // Used only when deserializing the Spawner.
     static N_WORKERS: Cell<usize> = Cell::new(2);
 }
 
