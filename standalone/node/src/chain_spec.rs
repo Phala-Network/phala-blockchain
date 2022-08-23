@@ -27,7 +27,7 @@ use node_runtime::{
 	DemocracyConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
 	TechnicalCommitteeConfig, NominationPoolsConfig,
-	PhalaRegistryConfig,
+	PhalaRegistryConfig, AssetsConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::{currency::*, time::*};
@@ -446,6 +446,7 @@ pub fn testnet_genesis(
 			}).collect(),
 			..Default::default()
 		},
+		assets: AssetsConfig::default(),
 		democracy: DemocracyConfig::default(),
 		elections: ElectionsConfig {
 			members: endowed_accounts.iter()
