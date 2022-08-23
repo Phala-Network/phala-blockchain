@@ -189,8 +189,8 @@ pub mod pallet {
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
 		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
 		///   [`MinerBindings`](mining::pallet::MinerBindings))
-		PoolWorkerAdded { 
-			pid: u64, 
+		PoolWorkerAdded {
+			pid: u64,
 			worker: WorkerPublicKey,
 			miner: T::AccountId,
 		},
@@ -377,7 +377,7 @@ pub mod pallet {
 			pid: u64,
 			worker: WorkerPublicKey,
 			amount: BalanceOf<T>,
-		}
+		},
 	}
 
 	#[pallet::error]

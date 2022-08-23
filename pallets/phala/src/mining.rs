@@ -12,8 +12,8 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion, LockableCurrency,
-			UnixTime,
+			Currency, ExistenceRequirement::KeepAlive, LockableCurrency, OnUnbalanced, Randomness,
+			StorageVersion, UnixTime,
 		},
 		PalletId,
 	};
@@ -288,7 +288,7 @@ pub mod pallet {
 		/// - [`NextSessionId`] for the miner is incremented
 		/// - [`Stakes`] for the miner is updated
 		/// - [`OnlineMiners`] is incremented
-		MinerStarted { 
+		MinerStarted {
 			miner: T::AccountId,
 			init_v: u128,
 			init_p: u32,
@@ -368,10 +368,7 @@ pub mod pallet {
 			payout: u128,
 		},
 		/// Benchmark Updated
-		BenchmarkUpdated {
-			miner: T::AccountId,
-			p_instant: u32,
-		}
+		BenchmarkUpdated { miner: T::AccountId, p_instant: u32 },
 	}
 
 	#[pallet::error]
@@ -573,8 +570,8 @@ pub mod pallet {
 						iterations,
 						challenge_time,
 						..
-					} |
-					MiningReportEvent::HeartbeatV2 {
+					}
+					| MiningReportEvent::HeartbeatV2 {
 						iterations,
 						challenge_time,
 						..
@@ -600,7 +597,7 @@ pub mod pallet {
 							.benchmark
 							.update(now, iterations, challenge_time_sec)
 							.expect("Benchmark report must be valid; qed.");
-						Self::deposit_event(Event::<T>::BenchmarkUpdated { 
+						Self::deposit_event(Event::<T>::BenchmarkUpdated {
 							miner: miner.clone(),
 							p_instant: miner_info.benchmark.p_instant,
 						});
@@ -906,11 +903,11 @@ pub mod pallet {
 					init_p: p,
 				},
 			));
-			Self::deposit_event(Event::<T>::MinerStarted { 
+			Self::deposit_event(Event::<T>::MinerStarted {
 				miner,
 				init_v: ve.to_bits(),
 				init_p: p,
-			 });
+			});
 			Ok(())
 		}
 

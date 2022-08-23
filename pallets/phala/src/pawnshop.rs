@@ -10,6 +10,7 @@ pub type BalanceOf<T> =
 pub mod pallet {
 	use crate::basepool;
 	use crate::mining;
+	use crate::poolproxy::PoolProxy;
 	use crate::registry;
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -26,7 +27,7 @@ pub mod pallet {
 
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 
-	use crate::balance_convert::FixedPointConvert;
+	use crate::balance_convert::{mul as bmul, FixedPointConvert};
 
 	use sp_std::{fmt::Display, prelude::*, result::Result};
 
@@ -138,18 +139,12 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn redempt(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+		pub fn redeem(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			let active_stakes = Self::get_current_active_stakes(user.clone())?;
-			let account_status =
-				StakerAccounts::<T>::get(user.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
 			ensure!(
 				amount <= active_stakes,
 				Error::<T>::RedemptAmountLargerThanTotalStakes,
-			);
-			ensure!(
-				active_stakes - amount >= account_status.locked,
-				Error::<T>::NotEnoughFreeStakesToRedempt,
 			);
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
@@ -171,45 +166,39 @@ pub mod pallet {
 			vote_id: ReferendumIndex,
 		) -> DispatchResult {
 			let user = ensure_signed(origin.clone())?;
-			if !Self::ensure_ongoing(vote_id) {
+			if !Self::is_ongoing(vote_id) {
 				return Err(Error::<T>::ReferendumInvalid.into());
 			}
 
 			let active_stakes = Self::get_current_active_stakes(user.clone())?;
-			let account_status =
-				StakerAccounts::<T>::get(user.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
 			ensure!(
 				active_stakes >= aye_amount + nay_amount,
 				Error::<T>::VoteAmountLargerThanTotalStakes,
 			);
-			ensure!(
-				active_stakes - aye_amount - nay_amount >= account_status.locked,
-				Error::<T>::NotEnoughFreeStakesToVote,
-			);
-			VoteAccountMap::<T>::insert(
-				vote_id,
-				user.clone(),
-				(aye_amount.clone(), nay_amount.clone()),
-			);
+			VoteAccountMap::<T>::insert(vote_id, user.clone(), (aye_amount, nay_amount));
 			AccountVoteMap::<T>::insert(user.clone(), vote_id, ());
 			let account_vote = Self::accumulate_account_vote(vote_id);
 			pallet_democracy::Pallet::<T>::vote(origin, vote_id, account_vote)?;
-			Self::settle_user_locked(user)?;
+			Self::update_user_locked(user)?;
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn unlock(origin: OriginFor<T>, vote_id: ReferendumIndex) -> DispatchResult {
+		pub fn unlock(
+			origin: OriginFor<T>,
+			vote_id: ReferendumIndex,
+			max_iterations: u32,
+		) -> DispatchResult {
 			ensure_signed(origin)?;
-			if Self::ensure_ongoing(vote_id) {
+			if Self::is_ongoing(vote_id) {
 				return Err(Error::<T>::ReferendumOngoing.into());
 			}
 			VoteAccountMap::<T>::iter_prefix(vote_id).for_each(|(user, _)| {
 				AccountVoteMap::<T>::remove(user.clone(), vote_id);
-				Self::settle_user_locked(user).expect("useraccount should exist: qed.");
+				Self::update_user_locked(user).expect("useraccount should exist: qed.");
 			});
-			VoteAccountMap::<T>::remove_prefix(vote_id, None);
+			VoteAccountMap::<T>::clear_prefix(vote_id, max_iterations, None);
 
 			Ok(())
 		}
@@ -226,16 +215,37 @@ pub mod pallet {
 			let account_status =
 				StakerAccounts::<T>::get(who.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
 			let mut total_active_stakes: BalanceOf<T> = Zero::zero();
-			for (_, cid) in &account_status.invest_pools {
+			for (pid, cid) in &account_status.invest_pools {
 				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who).for_each(|nftid| {
 					let property = basepool::Pallet::<T>::get_nft_attr(*cid, nftid)
 						.expect("get nft should not fail: qed.");
-					total_active_stakes += property.shares;
+					let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
+						.expect("get pool should not fail: qed.");
+					match pool_proxy {
+						PoolProxy::Vault(res) => {
+							match res.basepool.share_price() {
+								Some(price) => {
+									total_active_stakes += bmul(property.shares, &price);
+								}
+								None => (),
+							};
+						}
+						PoolProxy::StakePool(res) => {
+							match res.basepool.share_price() {
+								Some(price) => {
+									total_active_stakes += bmul(property.shares, &price);
+								}
+								None => (),
+							};
+						}
+						_other => (),
+					};
 				});
 			}
 			Ok(total_active_stakes)
 		}
 
+		// TODO(mingxuan): Optimize to O(1) in the future.
 		fn accumulate_account_vote(vote_id: ReferendumIndex) -> AccountVote<BalanceOf<T>> {
 			let mut total_aye_amount: BalanceOf<T> = Zero::zero();
 			let mut total_nay_amount: BalanceOf<T> = Zero::zero();
@@ -250,14 +260,12 @@ pub mod pallet {
 			}
 		}
 
-		fn settle_user_locked(user: T::AccountId) -> DispatchResult {
-			let mut max_lock = Zero::zero();
+		fn update_user_locked(user: T::AccountId) -> DispatchResult {
+			let mut max_lock: BalanceOf<T> = Zero::zero();
 			AccountVoteMap::<T>::iter_prefix(user.clone()).for_each(|(vote_id, ())| {
 				let (aye_amount, nay_amount) = VoteAccountMap::<T>::get(vote_id, user.clone())
 					.expect("reverse indexing must success: qed.");
-				if max_lock < aye_amount + nay_amount {
-					max_lock = aye_amount + nay_amount;
-				}
+				max_lock = max_lock.max(aye_amount + nay_amount);
 			});
 			let mut account_status =
 				StakerAccounts::<T>::get(user.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
@@ -267,7 +275,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn ensure_ongoing(vote_id: ReferendumIndex) -> bool {
+		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
 			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id.clone());
 			match vote_info {
 				Some(info) => match info {

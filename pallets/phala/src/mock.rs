@@ -1,13 +1,16 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, mining, mq, ott, registry, stakepool, pawnshop,
+	basepool, mining, mq, ott, pawnshop, registry, stakepool,
 };
 
 use frame_support::{
+	ord_parameter_types,
 	pallet_prelude::{ConstU32, Decode, Encode},
 	parameter_types,
-	ord_parameter_types,
-	traits::{AsEnsureOriginWithArg, GenesisBuild, OnFinalize, OnInitialize, ConstU64, ConstU128, EnsureOneOf, EqualPrivilegeOnly, SortedMembers},
+	traits::{
+		AsEnsureOriginWithArg, ConstU128, ConstU64, EnsureOneOf, EqualPrivilegeOnly, GenesisBuild,
+		OnFinalize, OnInitialize, SortedMembers,
+	},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -133,7 +136,6 @@ pub const CENTS: Balance = DOLLARS / 100;
 pub const DAYS: u64 = 24 * 3600;
 pub const HOURS: u64 = 3600;
 
-
 pub struct OneToFive;
 impl SortedMembers<u64> for OneToFive {
 	fn sorted_members() -> Vec<u64> {
@@ -242,15 +244,15 @@ impl pawnshop::Config for Test {
 }
 
 parameter_types! {
-    pub const LaunchPeriod: u64 = 7 * DAYS;
-    pub const VotingPeriod: u64 = 7 * DAYS;
-    pub const FastTrackVotingPeriod: u64 = 3 * HOURS;
-    pub const InstantAllowed: bool = true;
-    pub const MinimumDeposit: Balance = 10 * DOLLARS;
-    pub const EnactmentPeriod: u64 = 8 * DAYS;
-    pub const CooloffPeriod: u64 = 7 * DAYS;
-    pub const MaxVotes: u32 = 100;
-    pub const MaxProposals: u32 = 100;
+	pub const LaunchPeriod: u64 = 7 * DAYS;
+	pub const VotingPeriod: u64 = 7 * DAYS;
+	pub const FastTrackVotingPeriod: u64 = 3 * HOURS;
+	pub const InstantAllowed: bool = true;
+	pub const MinimumDeposit: Balance = 10 * DOLLARS;
+	pub const EnactmentPeriod: u64 = 8 * DAYS;
+	pub const CooloffPeriod: u64 = 7 * DAYS;
+	pub const MaxVotes: u32 = 100;
+	pub const MaxProposals: u32 = 100;
 	pub const PreimageByteDeposit: Balance = 1;
 }
 
@@ -268,41 +270,41 @@ impl pallet_democracy::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type EnactmentPeriod = EnactmentPeriod;
-    type LaunchPeriod = LaunchPeriod;
-    type VotingPeriod = VotingPeriod;
-    type VoteLockingPeriod = EnactmentPeriod; // Same as EnactmentPeriod
-    type MinimumDeposit = MinimumDeposit;
-    /// A straight majority of the council can decide what their next motion is.
-    type ExternalOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    /// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-    type ExternalMajorityOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    /// A unanimous council can have the next scheduled referendum be a straight default-carries
-    /// (NTB) vote.
-    type ExternalDefaultOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    /// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
-    /// be tabled immediately and with a shorter voting/enactment period.
-    type FastTrackOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    type InstantOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    type InstantAllowed = InstantAllowed;
-    type FastTrackVotingPeriod = FastTrackVotingPeriod;
-    // To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-    type CancellationOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    // To cancel a proposal before it has been passed, the technical committee must be unanimous or
-    // Root must agree.
-    type CancelProposalOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    type BlacklistOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    // Any single technical committee member may veto a coming council proposal, however they can
-    // only do it once and it lasts only for the cooloff period.
-    type VetoOrigin = frame_system::EnsureSignedBy<OneToFive, u64>;
-    type CooloffPeriod = CooloffPeriod;
-    type PreimageByteDeposit = PreimageByteDeposit;
-    type OperationalPreimageOrigin = frame_system::EnsureSignedBy<Six, u64>;
-    type Slash = ();
-    type Scheduler = Scheduler;
-    type PalletsOrigin = OriginCaller;
-    type MaxVotes = MaxVotes;
-    type WeightInfo = ();
-    type MaxProposals = MaxProposals;
+	type LaunchPeriod = LaunchPeriod;
+	type VotingPeriod = VotingPeriod;
+	type VoteLockingPeriod = EnactmentPeriod; // Same as EnactmentPeriod
+	type MinimumDeposit = MinimumDeposit;
+	/// A straight majority of the council can decide what their next motion is.
+	type ExternalOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
+	type ExternalMajorityOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	/// A unanimous council can have the next scheduled referendum be a straight default-carries
+	/// (NTB) vote.
+	type ExternalDefaultOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
+	/// be tabled immediately and with a shorter voting/enactment period.
+	type FastTrackOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type InstantOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type InstantAllowed = InstantAllowed;
+	type FastTrackVotingPeriod = FastTrackVotingPeriod;
+	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
+	type CancellationOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
+	// Root must agree.
+	type CancelProposalOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type BlacklistOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	// Any single technical committee member may veto a coming council proposal, however they can
+	// only do it once and it lasts only for the cooloff period.
+	type VetoOrigin = frame_system::EnsureSignedBy<OneToFive, u64>;
+	type CooloffPeriod = CooloffPeriod;
+	type PreimageByteDeposit = PreimageByteDeposit;
+	type OperationalPreimageOrigin = frame_system::EnsureSignedBy<Six, u64>;
+	type Slash = ();
+	type Scheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
+	type MaxVotes = MaxVotes;
+	type WeightInfo = ();
+	type MaxProposals = MaxProposals;
 }
 
 parameter_types! {

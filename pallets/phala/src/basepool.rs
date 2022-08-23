@@ -13,7 +13,10 @@ pub mod pallet {
 	use crate::poolproxy::*;
 	use crate::registry;
 
-	pub use rmrk_traits::{primitives::{CollectionId, NftId}, Property, Nft};
+	pub use rmrk_traits::{
+		primitives::{CollectionId, NftId},
+		Nft, Property,
+	};
 
 	use super::{extract_dust, is_nondust_balance, BalanceOf};
 
@@ -106,7 +109,6 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-
 	#[pallet::storage]
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
@@ -145,6 +147,8 @@ pub mod pallet {
 		PoolTypeNotMatch,
 
 		NoAvailableNftId,
+
+		InvalidSharePrice,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -536,11 +540,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn burn_nft(cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
-			pallet_rmrk_core::Pallet::<T>::nft_burn(
-				cid,
-				nft_id,
-				MAX_RECURSIONS,
-			)?;
+			pallet_rmrk_core::Pallet::<T>::nft_burn(cid, nft_id, MAX_RECURSIONS)?;
 
 			Ok(())
 		}
@@ -601,12 +601,7 @@ pub mod pallet {
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				encode_attr.try_into().unwrap();
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
-			pallet_rmrk_core::Pallet::<T>::do_set_property(
-				cid,
-				Some(nft_id),
-				key,
-				value,
-			)?;
+			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Ok(())
 		}
