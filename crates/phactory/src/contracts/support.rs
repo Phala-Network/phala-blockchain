@@ -258,8 +258,10 @@ impl FatContract {
         code: Vec<u8>,
         auto_restart: bool,
     ) -> Result<()> {
-        if self.sidevm_info.is_some() {
-            bail!("Sidevm can only be started once");
+        if let Some(info) = &self.sidevm_info {
+            if let SidevmHandle::Running(_) = &*info.handle.lock().unwrap() {
+                bail!("Sidevm can only be started once");
+            }
         }
         let handle = do_start_sidevm(spawner, &code, self.contract_id.0)?;
         self.sidevm_info = Some(SidevmInfo {
@@ -302,7 +304,7 @@ impl FatContract {
         Ok(())
     }
 
-    pub(crate) fn push_message_to_sidevm(&self, message: Vec<u8>) -> Result<()> {
+    pub(crate) fn push_message_to_sidevm(&self, message: sidevm::service::Command) -> Result<()> {
         let handle = self
             .sidevm_info
             .as_ref()
@@ -321,7 +323,7 @@ impl FatContract {
             }
             SidevmHandle::Running(tx) => tx.clone(),
         };
-        let result = tx.try_send(sidevm::service::Command::PushMessage(message));
+        let result = tx.try_send(message);
         if let Err(err) = result {
             use tokio::sync::mpsc::error::TrySendError;
             match err {

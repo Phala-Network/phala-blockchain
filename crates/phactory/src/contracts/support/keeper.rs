@@ -1,3 +1,4 @@
+use pink::runtime::ExecSideEffects;
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 use std::collections::BTreeMap;
@@ -18,9 +19,10 @@ use super::QueryContext;
 type ContractMap = BTreeMap<ContractId, FatContract>;
 
 macro_rules! define_any_native_contract {
-    (pub enum $name:ident { $($contract:ident ($contract_type: tt),)* }) => {
+    (pub enum $name:ident { Pink(Pink), $($contract:ident ($contract_type: tt),)* }) => {
         #[derive(Encode, Decode)]
         pub enum $name {
+            Pink(Pink),
             $($contract($contract_type),)*
         }
 
@@ -32,6 +34,10 @@ macro_rules! define_any_native_contract {
                 context: &mut NativeContext,
             ) -> TransactionResult {
                 match self {
+                    Self::Pink(me) => {
+                        let cmd = Decode::decode(&mut &cmd[..]).or(Err(TransactionError::BadInput))?;
+                        me.handle_command(origin, cmd, context)
+                    }
                     $(Self::$contract(me) => {
                         let cmd = Decode::decode(&mut &cmd[..]).or(Err(TransactionError::BadInput))?;
                         me.handle_command(origin, cmd, context)
@@ -41,6 +47,9 @@ macro_rules! define_any_native_contract {
 
             pub(crate) fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
                 match self {
+                    Self::Pink(me) => {
+                        me.on_block_end(context)
+                    }
                     $(Self::$contract(me) => {
                         me.on_block_end(context)
                     })*
@@ -49,6 +58,9 @@ macro_rules! define_any_native_contract {
 
             pub(crate) fn snapshot(&self) -> Self {
                 match self {
+                    Self::Pink(me) => {
+                        Self::Pink(me.snapshot())
+                    }
                     $($name::$contract(me) => {
                         Self::$contract(me.snapshot())
                     })*
@@ -60,16 +72,26 @@ macro_rules! define_any_native_contract {
                 origin: Option<&runtime::AccountId>,
                 req: OpaqueQuery,
                 context: &mut QueryContext,
-            ) -> Result<OpaqueReply, OpaqueError> {
+            ) -> Result<(OpaqueReply, ExecSideEffects), OpaqueError> {
                 match self {
+                    Self::Pink(me) => {
+                        let mut effects = ExecSideEffects::default();
+                        let response = me.handle_query(origin, deopaque_query(&req)?, context, &mut effects).await;
+                        Ok((response.encode(), effects))
+                    }
                     $($name::$contract(me) => {
                         let response = me.handle_query(origin, deopaque_query(&req)?, context).await;
-                        Ok(response.encode())
+                        Ok((response.encode(), Default::default()))
                     })*
                 }
             }
         }
 
+        impl From<Pink> for $name {
+            fn from(c: Pink) -> Self {
+                $name::Pink(c)
+            }
+        }
         $(
             impl From<$contract_type> for $name {
                 fn from(c: $contract_type) -> Self {

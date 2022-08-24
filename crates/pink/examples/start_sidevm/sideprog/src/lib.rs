@@ -23,6 +23,10 @@ async fn main() {
                     info!("Received message: {}", text_message);
                     let number = sidevm::ocall::local_cache_get(b"block_number");
                     info!("Current block number: {:?}", number);
+                    if text_message == "stop" {
+                        info!("Received 'stop', exiting...");
+                        break;
+                    }
                 } else {
                     info!("Input message channel closed");
                     break;

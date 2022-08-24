@@ -2,6 +2,7 @@ SIDE_WASM=sideprog/target/wasm32-unknown-unknown/release/sideprog.wasm
 
 target/ink/start_sidevm.contract: sideprog.wasm
 	cargo contract build --release
+	cp target/ink/start_sidevm.* .
 
 sideprog.wasm: ${SIDE_WASM}
 	cp ${SIDE_WASM} .
