@@ -22,7 +22,7 @@ pub mod pallet {
 	use crate::basepool;
 	use crate::mining;
 	use crate::pawnshop;
-	use crate::poolproxy::*;
+	use crate::poolproxy::{StakePool, Vault, PoolProxy, ensure_stake_pool, ensure_vault};
 	use crate::registry;
 
 	use fixed::types::U64F64 as FixedPoint;
@@ -461,8 +461,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
@@ -550,7 +549,7 @@ pub mod pallet {
 							cid: collection_id,
 						},
 						pool_account_id: user_id.clone(),
-						delta_price_ratio: None,
+						commission: None,
 						owner_shares: Zero::zero(),
 						last_share_price_checkpoint: Zero::zero(),
 						invest_pools: VecDeque::new(),
@@ -763,7 +762,7 @@ pub mod pallet {
 				Error::<T>::UnauthorizedPoolOwner
 			);
 
-			pool_info.delta_price_ratio = Some(payout_commission);
+			pool_info.commission = Some(payout_commission);
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(pool_info),
@@ -945,7 +944,6 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				target.clone(),
 				shares.clone(),
-				rewards,
 			)?;
 			Self::withdraw_from_vault(origin, pool_info.basepool.pid, shares)?;
 			pool_info.owner_shares -= shares;
@@ -986,7 +984,7 @@ pub mod pallet {
 			if current_price <= pool_info.last_share_price_checkpoint {
 				return Ok(());
 			}
-			let delta_price = pool_info.delta_price_ratio.unwrap_or_default()
+			let delta_price = pool_info.commission.unwrap_or_default()
 				* (current_price - pool_info.last_share_price_checkpoint);
 			let new_price = current_price - delta_price;
 			let adjust_shares = bdiv(pool_info.basepool.total_value, &new_price.to_fixed())
@@ -1162,11 +1160,6 @@ pub mod pallet {
 				&mut pool_info.basepool,
 				who.clone(),
 				amount,
-				Some(
-					|x: &basepool::pallet::BasePool<T::AccountId, BalanceOf<T>>,
-					 y: &mut basepool::NftAttr<BalanceOf<T>>,
-					 z: T::AccountId| {},
-				),
 			)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
@@ -1247,13 +1240,6 @@ pub mod pallet {
 				&mut pool_info.basepool,
 				vault_info.pool_account_id.clone(),
 				amount,
-				Some(
-					|x: &basepool::pallet::BasePool<T::AccountId, BalanceOf<T>>,
-					 y: &mut basepool::NftAttr<BalanceOf<T>>,
-					 z: T::AccountId| {
-						Self::maybe_settle_nft_slash(x, y, z);
-					},
-				),
 			)?;
 			if !vault_info.invest_pools.contains(&pid) {
 				vault_info.invest_pools.push_back(pid);
@@ -1323,13 +1309,6 @@ pub mod pallet {
 				&mut pool_info.basepool,
 				who.clone(),
 				amount,
-				Some(
-					|x: &basepool::pallet::BasePool<T::AccountId, BalanceOf<T>>,
-					 y: &mut basepool::NftAttr<BalanceOf<T>>,
-					 z: T::AccountId| {
-						Self::maybe_settle_nft_slash(x, y, z);
-					},
-				),
 			)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
@@ -1670,8 +1649,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
 		pub fn do_start_mining(
 			owner: &T::AccountId,
@@ -1878,9 +1856,7 @@ pub mod pallet {
 			if basepool::is_nondust_balance(nft.shares) {
 				return false;
 			}
-			Self::remove_dust(&userid, nft.get_stake());
 			pool_info.total_shares -= nft.shares;
-			pool_info.total_value -= nft.get_stake();
 			true
 		}
 
@@ -1892,10 +1868,9 @@ pub mod pallet {
 			nft_id: NftId,
 			userid: T::AccountId,
 		) {
-			Self::maybe_settle_nft_slash(&pool_info, nft, userid.clone());
 			// Overflow warning: remove_stake is carefully written to avoid precision error.
 			// (I hope so)
-			let (reduced, dust, withdrawn_shares) =
+			let (reduced, withdrawn_shares) =
 				basepool::Pallet::<T>::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
 					.expect("There are enough withdrawing_shares; qed.");
 			if let Some(pid) = VaultAccountAssignments::<T>::get(userid.clone()) {
@@ -1911,7 +1886,7 @@ pub mod pallet {
 				pallet_assets::Pallet::<T>::mint_into(
 					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&userid,
-					reduced + dust,
+					reduced,
 				)
 				.expect("mint asset should not fail");
 				Self::deposit_event(Event::<T>::Withdrawal {
@@ -2032,41 +2007,6 @@ pub mod pallet {
 			});
 		}
 
-		fn maybe_settle_nft_slash(
-			pool: &basepool::pallet::BasePool<T::AccountId, BalanceOf<T>>,
-			nft: &mut basepool::NftAttr<BalanceOf<T>>,
-			userid: T::AccountId,
-		) {
-			match pool.settle_nft_slash(nft) {
-				// We don't slash on dust, because the share price is just unstable.
-				Some(slashed) if basepool::is_nondust_balance(slashed) => {
-					let actual_slashed = pallet_assets::Pallet::<T>::slash(
-						<T as pawnshop::Config>::PPhaAssetId::get(),
-						&userid,
-						slashed.clone(),
-					)
-					.expect("slash should success with correct amount: qed.");
-					let (imbalance, _remaining) =
-						<T as mining::Config>::Currency::slash(&userid, slashed);
-					T::OnSlashed::on_unbalanced(imbalance);
-					// Dust is not considered because it's already merged into the slash if
-					// presents.
-					pallet_assets::Pallet::<T>::mint_into(
-						<T as pawnshop::Config>::PPhaAssetId::get(),
-						&userid,
-						actual_slashed,
-					)
-					.expect("mint asset should not fail");
-					Self::deposit_event(Event::<T>::SlashSettled {
-						pid: pool.pid,
-						user: userid,
-						amount: actual_slashed,
-					});
-				}
-				_ => (),
-			}
-		}
-
 		pub(crate) fn migration_remove_assignments() -> Weight {
 			let writes = SubAccountAssignments::<T>::drain().count();
 			T::DbWeight::get().writes(writes as _)
@@ -2077,8 +2017,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
@@ -2113,8 +2052,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Usually called on worker force unbinding (force == true), but it's also possible
@@ -2135,8 +2073,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {}
 	}
@@ -2302,7 +2239,7 @@ pub mod pallet {
 						},
 						pool_account_id: 3899606504431772022,
 						last_share_price_checkpoint: 0,
-						delta_price_ratio: None,
+						commission: None,
 						owner_shares: 0,
 						invest_pools: vec![],
 					})),
@@ -2322,13 +2259,11 @@ pub mod pallet {
 					pool_info.basepool.cid,
 					1,
 					1000 * DOLLARS,
-					1000 * DOLLARS,
 				));
 
 				assert_ok!(PhalaBasePool::get_nft_attr(pool_info.basepool.cid, 0));
 				let nft_attr = PhalaBasePool::get_nft_attr(pool_info.basepool.cid, 0).unwrap();
 				assert_eq!(nft_attr.shares, 1000 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 1000 * DOLLARS);
 			});
 		}
 
@@ -2343,12 +2278,10 @@ pub mod pallet {
 					pool_info.basepool.cid,
 					1,
 					1000 * DOLLARS,
-					1000 * DOLLARS,
 				));
 				assert_ok!(PhalaBasePool::mint_nft(
 					pool_info.basepool.cid,
 					1,
-					2000 * DOLLARS,
 					2000 * DOLLARS,
 				));
 				let nftid_arr: Vec<NftId> =
@@ -2364,7 +2297,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool_info.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 3000 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 3000 * DOLLARS);
 				assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 					pool_info.basepool.cid,
 					2
@@ -2379,7 +2311,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool_info.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 0 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 0 * DOLLARS);
 			});
 		}
 
@@ -2394,11 +2325,9 @@ pub mod pallet {
 					pool_info.basepool.cid,
 					1,
 					1000 * DOLLARS,
-					1000 * DOLLARS,
 				));
 				let mut nft_attr = PhalaBasePool::get_nft_attr(pool_info.basepool.cid, 0).unwrap();
 				nft_attr.shares = 5000 * DOLLARS;
-				nft_attr.set_stake(5000 * DOLLARS);
 				assert_ok!(PhalaBasePool::set_nft_attr(
 					pool_info.basepool.cid,
 					0,
@@ -2406,7 +2335,6 @@ pub mod pallet {
 				));
 				let nft_attr = PhalaBasePool::get_nft_attr(pool_info.basepool.cid, 0).unwrap();
 				assert_eq!(nft_attr.shares, 5000 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 5000 * DOLLARS);
 			});
 		}
 
@@ -2437,7 +2365,7 @@ pub mod pallet {
 					40 * DOLLARS,
 					&mut nft_attr,
 				) {
-					Some((amout, user_dust, removed_shares)) => return,
+					Some((amout, removed_shares)) => return,
 					_ => panic!(),
 				}
 			});
@@ -2476,7 +2404,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 80 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 80 * DOLLARS);
 				let mut nftid_arr: Vec<NftId> =
 					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 				nftid_arr.retain(|x| {
@@ -2487,7 +2414,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 			});
 		}
 
@@ -2524,7 +2450,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 80 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 80 * DOLLARS);
 				let mut nftid_arr: Vec<NftId> =
 					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 				nftid_arr.retain(|x| {
@@ -2535,7 +2460,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
 				assert_eq!(vault_info.basepool.total_value, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
@@ -2598,7 +2522,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(stakepool_info.basepool.cid, nftid_arr[0]).unwrap();
 				assert_eq!(nft_attr.shares, 50 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 50 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_value, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 130 * DOLLARS);
 				assert_eq!(vault_info.basepool.free_stake, 80 * DOLLARS);
@@ -2652,7 +2575,6 @@ pub mod pallet {
 				)
 				.unwrap();
 				assert_eq!(nft_attr.shares, 30 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 30 * DOLLARS);
 			});
 		}
 
@@ -2711,7 +2633,6 @@ pub mod pallet {
 				)
 				.unwrap();
 				assert_eq!(nft_attr.shares, 200 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 200 * DOLLARS);
 				let vault_info = ensure_vault::<Test>(0).unwrap();
 				assert_eq!(vault_info.basepool.total_value, 1300 * DOLLARS);
 				assert_eq!(vault_info.basepool.total_shares, 1300 * DOLLARS);
@@ -2792,7 +2713,7 @@ pub mod pallet {
 				));
 				let vault_info = ensure_vault::<Test>(0).unwrap();
 				assert_eq!(
-					vault_info.delta_price_ratio.unwrap(),
+					vault_info.commission.unwrap(),
 					Permill::from_percent(50)
 				);
 				assert_ok!(PhalaStakePool::maybe_gain_owner_shares(
@@ -2874,7 +2795,6 @@ pub mod pallet {
 				let nft_attr =
 					PhalaBasePool::get_nft_attr(pool.basepool.cid, item.unwrap().nft_id).unwrap();
 				assert_eq!(nft_attr.shares, 300 * DOLLARS);
-				assert_eq!(nft_attr.get_stake(), 300 * DOLLARS);
 				let mut nftid_arr: Vec<NftId> =
 					pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 				nftid_arr.retain(|x| {

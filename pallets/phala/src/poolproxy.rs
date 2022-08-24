@@ -38,7 +38,7 @@ pub struct Vault<AccountId, Balance> {
 
 	pub last_share_price_checkpoint: Balance,
 
-	pub delta_price_ratio: Option<Permill>,
+	pub commission: Option<Permill>,
 
 	pub owner_shares: Balance,
 
