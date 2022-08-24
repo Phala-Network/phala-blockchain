@@ -3,17 +3,17 @@ use crate::{
     types::{AccountId, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
-use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
+use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, KeyValueDB};
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 mod backend;
 
-pub type InMemoryBackend = phala_trie_storage::InMemoryBackend<Hashing>;
+pub type KeyValueDBBackend = phala_trie_storage::KeyValueDBBackend<Hashing>;
 
-pub fn new_in_memory_backend() -> InMemoryBackend {
-    let db = MemoryDB::default();
+pub fn new_backend() -> KeyValueDBBackend {
+    let db = KeyValueDB::new();
     // V1 is same as V0 for an empty trie.
     sp_state_machine::TrieBackend::new(
         db,
@@ -25,9 +25,9 @@ pub trait CommitTransaction: StorageBackend<Hashing> {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction);
 }
 
-impl CommitTransaction for InMemoryBackend {
+impl CommitTransaction for KeyValueDBBackend {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction) {
-        let mut storage = sp_std::mem::replace(self, new_in_memory_backend()).into_storage();
+        let storage = sp_std::mem::replace(self, new_backend()).into_storage();
         storage.consolidate(transaction);
         *self = sp_state_machine::TrieBackend::new(storage, root);
     }
@@ -155,7 +155,7 @@ where
     }
 }
 
-impl Serialize for Storage<InMemoryBackend> {
+impl Serialize for Storage<KeyValueDBBackend> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -165,7 +165,7 @@ impl Serialize for Storage<InMemoryBackend> {
     }
 }
 
-impl<'de> Deserialize<'de> for Storage<InMemoryBackend> {
+impl<'de> Deserialize<'de> for Storage<KeyValueDBBackend> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
