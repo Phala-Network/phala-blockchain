@@ -63,6 +63,11 @@ where
     TrieBackend::new(mdb, root)
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+enum TrieState<V0> {
+    V0(V0),
+}
+
 #[cfg(feature = "serde")]
 pub fn serialize_trie_backend<H: Hasher, S>(
     trie: &TrieBackend<MemoryDB<H>, H>,
@@ -74,7 +79,7 @@ where
 {
     let root = trie.root();
     let kvs: im::HashMap<_, _> = trie.backend_storage().clone().drain();
-    (root, kvs).serialize(serializer)
+    TrieState::V0((root, kvs)).serialize(serializer)
 }
 
 #[cfg(feature = "serde")]
@@ -85,8 +90,7 @@ where
     H::Out: Codec + Deserialize<'de>,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, im::HashMap<_, (Vec<u8>, i32)>) =
-        Deserialize::deserialize(deserializer)?;
+    let TrieState::V0((root, kvs)) = Deserialize::deserialize(deserializer)?;
     let mdb = MemoryDB::from_inner(kvs);
     let backend = TrieBackend::new(mdb, root);
     Ok(backend)
