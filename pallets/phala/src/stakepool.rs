@@ -6,9 +6,6 @@ use frame_support::traits::Currency;
 
 type BalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as mining::Config>::Currency as Currency<
-	<T as frame_system::Config>::AccountId,
->>::NegativeImbalance;
 
 #[allow(unused_variables)]
 #[frame_support::pallet]
@@ -22,20 +19,17 @@ pub mod pallet {
 	use crate::basepool;
 	use crate::mining;
 	use crate::pawnshop;
-	use crate::poolproxy::{StakePool, Vault, PoolProxy, ensure_stake_pool, ensure_vault};
+	use crate::poolproxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool, Vault};
 	use crate::registry;
 
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
 
-	use super::{BalanceOf, NegativeImbalanceOf};
+	use super::BalanceOf;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{
-			tokens::fungibles::Mutate, Currency, LockableCurrency, OnUnbalanced, StorageVersion,
-			UnixTime,
-		},
+		traits::{tokens::fungibles::Mutate, LockableCurrency, StorageVersion, UnixTime},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
@@ -87,9 +81,6 @@ pub mod pallet {
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
-
-		/// The handler to absorb the slashed amount.
-		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
 		/// The origin that can turn on or off mining
 		type MiningSwitchOrigin: EnsureOrigin<Self::Origin>;
@@ -309,17 +300,6 @@ pub mod pallet {
 		/// There's no affected state.
 		RewardDismissedDust {
 			pid: u64,
-			amount: BalanceOf<T>,
-		},
-		/// Some dust stake is removed
-		///
-		/// Triggered when the remaining stake of a user is too small after withdrawal or slash.
-		///
-		/// Affected states:
-		/// - the balance of the locking ledger of the contributor at [`StakeLedger`] is set to 0
-		/// - the user's dust stake is moved to treasury
-		DustRemoved {
-			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
 		/// A worker is removed from a pool.
@@ -1052,6 +1032,7 @@ pub mod pallet {
 		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
 		/// Note: This function doesn't guarantee no-op when there's error.
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn vault_check_and_maybe_force_withdraw(
 			origin: OriginFor<T>,
 			vault_pid: u64,
@@ -1063,7 +1044,7 @@ pub mod pallet {
 			let mut vault = ensure_vault::<T>(vault_pid)?;
 			Self::try_process_withdraw_queue(&mut vault.basepool);
 			let grace_period = T::GracePeriod::get();
-			let releasing_stake = Zero::zero();
+			let mut releasing_stake = Zero::zero();
 			for pid in vault.invest_pools.iter() {
 				let stake_pool = ensure_stake_pool::<T>(*pid)?;
 				let withdraw_vec: VecDeque<_> = stake_pool
@@ -1082,7 +1063,7 @@ pub mod pallet {
 						.basepool
 						.share_price()
 						.expect("pool must have price: qed.");
-					let releasing_stake = bmul(nft.shares.clone(), &price);
+					releasing_stake += bmul(nft.shares.clone(), &price);
 				}
 			}
 			basepool::pallet::Pools::<T>::insert(
@@ -1154,13 +1135,9 @@ pub mod pallet {
 			)
 			.ok_or(Error::<T>::AssetAccountNotExist)?;
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
-			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
-			// a lot of weird edge cases when dealing with pending slash.
-			let shares = basepool::Pallet::<T>::contribute(
-				&mut pool_info.basepool,
-				who.clone(),
-				amount,
-			)?;
+
+			let shares =
+				basepool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
 
@@ -1305,11 +1282,8 @@ pub mod pallet {
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
-			let shares = basepool::Pallet::<T>::contribute(
-				&mut pool_info.basepool,
-				who.clone(),
-				amount,
-			)?;
+			let shares =
+				basepool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
 
@@ -1963,25 +1937,6 @@ pub mod pallet {
 				} else {
 					break;
 				}
-			}
-		}
-
-		/// Removes some dust amount from a user's account by Currency::slash.
-		fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
-			debug_assert!(dust != Zero::zero());
-			if dust != Zero::zero() {
-				let actual_removed = pallet_assets::Pallet::<T>::slash(
-					<T as pawnshop::Config>::PPhaAssetId::get(),
-					who,
-					dust.clone(),
-				)
-				.expect("slash should success with correct amount: qed.");
-				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(who, dust);
-				T::OnSlashed::on_unbalanced(imbalance);
-				Self::deposit_event(Event::<T>::DustRemoved {
-					user: who.clone(),
-					amount: actual_removed,
-				});
 			}
 		}
 
@@ -2712,10 +2667,7 @@ pub mod pallet {
 					500 * DOLLARS
 				));
 				let vault_info = ensure_vault::<Test>(0).unwrap();
-				assert_eq!(
-					vault_info.commission.unwrap(),
-					Permill::from_percent(50)
-				);
+				assert_eq!(vault_info.commission.unwrap(), Permill::from_percent(50));
 				assert_ok!(PhalaStakePool::maybe_gain_owner_shares(
 					Origin::signed(3),
 					0

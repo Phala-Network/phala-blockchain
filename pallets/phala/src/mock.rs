@@ -241,6 +241,7 @@ impl pawnshop::Config for Test {
 	type Currency = Balances;
 	type PPhaAssetId = PPhaAssetId;
 	type PawnShopAccountId = ConstU32<1>;
+	type OnSlashed = ();
 }
 
 parameter_types! {
@@ -339,7 +340,6 @@ impl stakepool::Config for Test {
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type OnSlashed = ();
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }

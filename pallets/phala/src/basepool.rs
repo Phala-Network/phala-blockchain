@@ -206,7 +206,7 @@ pub mod pallet {
 					vault.pool_account_id.clone(),
 				)
 				.expect("merge nft shoule always success: qed.");
-				let mut nft = Pallet::<T>::get_nft_attr(self.cid, nft_id)
+				let nft = Pallet::<T>::get_nft_attr(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
 				let mut vault_shares = nft.shares.to_fixed();
 				let withdraw_vec: VecDeque<_> = self
@@ -254,8 +254,7 @@ pub mod pallet {
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			account_id: T::AccountId,
 			amount: BalanceOf<T>,
-		) -> Result<BalanceOf<T>, DispatchError>
-		{
+		) -> Result<BalanceOf<T>, DispatchError> {
 			ensure!(
 				// There's no share, meaning the pool is empty;
 				pool.total_shares == Zero::zero()
@@ -309,7 +308,12 @@ pub mod pallet {
 				.share_price()
 				.expect("In withdraw case, price should always exists;");
 
-			let mut maybe_vault = maybe_vault_pid.map(|pid| (pid, ensure_vault::<T>(pid).expect("pid should always linked to a pool")));
+			let mut maybe_vault = maybe_vault_pid.map(|pid| {
+				(
+					pid,
+					ensure_vault::<T>(pid).expect("pid should always linked to a pool"),
+				)
+			});
 			for withdrawinfo in &in_queue_nfts {
 				let in_queue_nft = Self::get_nft_attr(pool.cid, withdrawinfo.nft_id)
 					.expect("get nft attr should always success; qed.");
@@ -322,13 +326,9 @@ pub mod pallet {
 				}
 			}
 			if let Some((pid, vault)) = maybe_vault {
-				Pools::<T>::insert(
-					pid,
-					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault),
-				);
+				Pools::<T>::insert(pid, PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault));
 			}
 
-			let amount = bmul(shares, &price);
 			let split_nft_id = Self::mint_nft(pool.cid, pallet_id(), shares)
 				.expect("mint nft should always success");
 			nft.shares = nft
@@ -390,8 +390,7 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_nft(pool.cid, account_id, shares)
-				.expect("mint should always success; qed.");
+			Self::mint_nft(pool.cid, account_id, shares).expect("mint should always success; qed.");
 			pool.total_shares += shares;
 			pool.total_value += amount;
 			pool.free_stake += amount;

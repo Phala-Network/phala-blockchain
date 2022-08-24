@@ -1279,7 +1279,6 @@ impl pallet_stakepool::Config for Runtime {
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
@@ -1354,6 +1353,7 @@ impl pallet_pawnshop::Config for Runtime {
 	type Currency = Balances;
 	type PPhaAssetId = PPhaAssetId;
 	type PawnShopAccountId = PawnShopGet;
+	type OnSlashed = Treasury;
 }
 
 impl pallet_basepool::Config for Runtime {

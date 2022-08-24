@@ -6,6 +6,10 @@ use frame_support::traits::Currency;
 pub type BalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+type NegativeImbalanceOf<T> = <<T as mining::Config>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::basepool;
@@ -15,13 +19,13 @@ pub mod pallet {
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
-	use super::BalanceOf;
+	use super::{BalanceOf, NegativeImbalanceOf};
 
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
 			tokens::fungibles::Mutate, tokens::nonfungibles::InspectEnumerable, Currency,
-			ExistenceRequirement::KeepAlive, LockableCurrency, StorageVersion,
+			ExistenceRequirement::KeepAlive, LockableCurrency, OnUnbalanced, StorageVersion,
 		},
 	};
 
@@ -57,6 +61,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type PawnShopAccountId: Get<Self::AccountId>;
+
+		/// The handler to absorb the slashed amount.
+		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -94,7 +101,19 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {}
+	pub enum Event<T: Config> {
+		/// Some dust stake is removed
+		///
+		/// Triggered when the remaining stake of a user is too small after withdrawal or slash.
+		///
+		/// Affected states:
+		/// - the balance of the locking ledger of the contributor at [`StakeLedger`] is set to 0
+		/// - the user's dust stake is moved to treasury
+		DustRemoved {
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -211,6 +230,24 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32>,
 		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
+		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
+			debug_assert!(dust != Zero::zero());
+			if dust != Zero::zero() {
+				let actual_removed =
+					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust.clone())
+						.expect("slash should success with correct amount: qed.");
+				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(
+					&<mining::pallet::Pallet<T>>::account_id(),
+					dust,
+				);
+				T::OnSlashed::on_unbalanced(imbalance);
+				Self::deposit_event(Event::<T>::DustRemoved {
+					user: who.clone(),
+					amount: actual_removed,
+				});
+			}
+		}
+
 		fn get_current_active_stakes(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
 			let account_status =
 				StakerAccounts::<T>::get(who.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
