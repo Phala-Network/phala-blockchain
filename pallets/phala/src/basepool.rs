@@ -98,6 +98,9 @@ pub mod pallet {
 	pub type Pools<T: Config> =
 		StorageMap<_, Twox64Concat, u64, PoolProxy<T::AccountId, BalanceOf<T>>>;
 
+	#[pallet::storage]
+	pub(super) type NftLocks<T: Config> = StorageMap<_, Twox64Concat, (CollectionId, NftId), ()>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {}
@@ -125,6 +128,8 @@ pub mod pallet {
 		NoAvailableNftId,
 
 		InvalidSharePrice,
+
+		AttrLocked,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -144,6 +149,32 @@ pub mod pallet {
 		pub value_subscribers: VecDeque<u64>,
 
 		pub cid: CollectionId,
+	}
+
+	#[derive(Encode, Decode, TypeInfo, PartialEq, Eq, RuntimeDebug)]
+	pub struct NftGuard<T: Config> {
+		cid: CollectionId,
+		nftid: NftId,
+		pub attr: NftAttr<BalanceOf<T>>,
+	}
+
+	impl<T: Config> Drop for NftGuard<T> {
+		fn drop(&mut self) {
+			NftLocks::<T>::remove((self.cid, self.nftid));
+		}
+	}
+
+	impl<T: Config> NftGuard<T> {
+		pub fn save(self) -> DispatchResult
+		where
+			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+			BalanceOf<T>:
+				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		{
+			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
+			Ok(())
+		}
+		pub fn unlock(self) {}
 	}
 
 	impl<AccountId, Balance> BasePool<AccountId, Balance>
@@ -191,6 +222,7 @@ pub mod pallet {
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+
 			T: Config<AccountId = AccountId>,
 		{
 			self.total_value += rewards;
@@ -206,21 +238,23 @@ pub mod pallet {
 					vault.pool_account_id.clone(),
 				)
 				.expect("merge nft shoule always success: qed.");
-				let nft = Pallet::<T>::get_nft_attr(self.cid, nft_id)
+
+				let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
-				let mut vault_shares = nft.shares.to_fixed();
+				let mut vault_shares = nft_guard.attr.shares.to_fixed();
+				nft_guard.unlock();
+
 				let withdraw_vec: VecDeque<_> = self
 					.withdraw_queue
 					.iter()
 					.filter(|x| x.user == vault.pool_account_id)
 					.collect();
 				for withdraw_info in &withdraw_vec {
-					let withdraw_nft = Pallet::<T>::get_nft_attr(self.cid, withdraw_info.nft_id)
+					let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, withdraw_info.nft_id)
 						.expect("get nft attr should always success: qed.");
+					let withdraw_nft = &nft_guard.attr;
 					vault_shares += withdraw_nft.shares.to_fixed();
 				}
-				Pallet::<T>::set_nft_attr(self.cid, nft_id, &nft)
-					.expect("set attr should not fail");
 				let stake_ratio = match vault_shares.checked_div(self.total_shares.to_fixed()) {
 					Some(ratio) => BalanceOf::<T>::from_fixed(&ratio),
 					None => continue,
@@ -250,6 +284,24 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 	{
 		#[frame_support::transactional]
+		pub fn get_nft_attr_guard(
+			cid: CollectionId,
+			nftid: NftId,
+		) -> Result<NftGuard<T>, DispatchError> {
+			let nft = Self::get_nft_attr(cid, nftid)?;
+			if let Some(_) = NftLocks::<T>::get((cid, nftid)) {
+				Err(Error::<T>::AttrLocked)?;
+			}
+			NftLocks::<T>::insert((cid, nftid), ());
+			let guard = NftGuard {
+				cid,
+				nftid,
+				attr: nft.clone(),
+			};
+			Ok(guard)
+		}
+
+		#[frame_support::transactional]
 		pub fn contribute(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			account_id: T::AccountId,
@@ -266,13 +318,10 @@ pub mod pallet {
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
-			let nft = Self::get_nft_attr(pool.cid, nft_id)?;
-
+			let mut nft_guard = Self::get_nft_attr_guard(pool.cid, nft_id)?;
 			let shares = Self::add_stake_to_new_nft(pool, account_id, amount);
-			// Lock the funds
-
-			Self::set_nft_attr(pool.cid, nft_id, &nft)
-				.expect("set nft attr should always success; qed.");
+			nft_guard.attr.shares += shares;
+			nft_guard.save()?;
 
 			Ok(shares)
 		}
@@ -315,8 +364,9 @@ pub mod pallet {
 				)
 			});
 			for withdrawinfo in &in_queue_nfts {
-				let in_queue_nft = Self::get_nft_attr(pool.cid, withdrawinfo.nft_id)
-					.expect("get nft attr should always success; qed.");
+				let nft_guard = Self::get_nft_attr_guard(pool.cid, withdrawinfo.nft_id)?;
+				let in_queue_nft = nft_guard.attr.clone();
+				nft_guard.unlock();
 				let withdraw_amount = bmul(in_queue_nft.shares.clone(), &price);
 				nft.shares += in_queue_nft.shares;
 				Self::burn_nft(pool.cid, withdrawinfo.nft_id)
@@ -372,8 +422,10 @@ pub mod pallet {
 			};
 			let mut budget = pool.free_stake + releasing_stake;
 			for request in &pool.withdraw_queue {
-				let withdraw_nft = Self::get_nft_attr(pool.cid, request.nft_id)
+				let nft_guard = Self::get_nft_attr_guard(pool.cid, request.nft_id)
 					.expect("get nftattr should always success; qed.");
+				let withdraw_nft = nft_guard.attr.clone();
+				nft_guard.unlock();
 				let amount = bmul(withdraw_nft.shares, &price);
 				if amount > budget {
 					// Run out of budget, let's check if the request is still in the grace period
@@ -478,8 +530,10 @@ pub mod pallet {
 		) -> Result<NftId, DispatchError> {
 			let mut total_shares: BalanceOf<T> = Zero::zero();
 			pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).for_each(|nftid| {
-				let property =
-					Self::get_nft_attr(cid, nftid).expect("get nft should not fail: qed.");
+				let nft_guard =
+					Self::get_nft_attr_guard(cid, nftid).expect("get nft should not fail: qed.");
+				let property = nft_guard.attr.clone();
+				nft_guard.unlock();
 				total_shares += property.shares;
 				Self::burn_nft(cid, nftid).expect("burn nft should not fail: qed.");
 			});

@@ -246,17 +246,16 @@ pub mod pallet {
 			}
 		}
 
-		pub fn maybe_update_account_status(who: &T::AccountId, pid: u64, cid: CollectionId) -> DispatchResult {
-			let mut account_status = StakerAccounts::<T>::get(who.clone())
-				.ok_or(Error::<T>::StakerAccountNotFound)?;
+		pub fn maybe_update_account_status(
+			who: &T::AccountId,
+			pid: u64,
+			cid: CollectionId,
+		) -> DispatchResult {
+			let mut account_status =
+				StakerAccounts::<T>::get(who.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
 
-			if !account_status
-				.invest_pools
-				.contains(&(pid, cid))
-			{
-				account_status
-					.invest_pools
-					.push((pid, cid));
+			if !account_status.invest_pools.contains(&(pid, cid)) {
+				account_status.invest_pools.push((pid, cid));
 				StakerAccounts::<T>::insert(who.clone(), account_status);
 			}
 			Ok(())
