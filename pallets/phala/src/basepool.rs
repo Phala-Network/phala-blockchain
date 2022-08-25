@@ -541,7 +541,7 @@ pub mod pallet {
 			Self::mint_nft(cid, staker, total_shares)
 		}
 
-		pub fn get_nft_attr(
+		fn get_nft_attr(
 			cid: CollectionId,
 			nft_id: NftId,
 		) -> Result<NftAttr<BalanceOf<T>>, DispatchError> {
@@ -565,7 +565,7 @@ pub mod pallet {
 		}
 
 		#[frame_support::transactional]
-		pub fn set_nft_attr(
+		fn set_nft_attr(
 			cid: CollectionId,
 			nft_id: NftId,
 			nft_attr: &NftAttr<BalanceOf<T>>,

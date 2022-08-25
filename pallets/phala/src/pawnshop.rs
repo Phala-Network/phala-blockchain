@@ -267,8 +267,9 @@ pub mod pallet {
 			let mut total_active_stakes: BalanceOf<T> = Zero::zero();
 			for (pid, cid) in &account_status.invest_pools {
 				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who).for_each(|nftid| {
-					let property = basepool::Pallet::<T>::get_nft_attr(*cid, nftid)
+					let property_guard = basepool::Pallet::<T>::get_nft_attr_guard(*cid, nftid)
 						.expect("get nft should not fail: qed.");
+					let property = &property_guard.attr;
 					let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
 						.expect("get pool should not fail: qed.");
 					match pool_proxy {
