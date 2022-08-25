@@ -19,7 +19,7 @@ use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
 use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, TrieMut};
 
-pub use kvdb::KeyValueDB;
+pub use kvdb::{KeyValueDB, global_init};
 pub use memdb::GenericMemoryDB as MemoryDB;
 
 /// Storage key.
@@ -43,7 +43,7 @@ where
     H::Out: Codec,
 {
     fn default() -> Self {
-        todo!("")
+        Self(TrieBackend::new(KeyValueDB::new(), Default::default()))
     }
 }
 

@@ -10,7 +10,9 @@ use parity_scale_codec::{Decode, Encode};
 use sp_state_machine::{DBValue, DefaultError, TrieBackendStorage};
 
 use librocksdb_sys as ffi;
-use rocksdb::{AsColumnFamilyRef, DBAccess, MultiThreaded, SnapshotWithThreadMode, TransactionDB};
+use rocksdb::{
+    AsColumnFamilyRef, DBAccess, MultiThreaded, Options, SnapshotWithThreadMode, TransactionDB,
+};
 
 use crate::{
     memdb::{HashKey, KeyFunction},
@@ -24,6 +26,25 @@ pub struct KeyValueDB<H: Hasher> {
     db_snapshot: *const c_void,
     hashed_null_node: H::Out,
     null_node_data: DBValue,
+}
+
+pub fn global_init(from_scratch: bool) {
+    let mut guard = GLOBAL_KVDB_INSTANCE.lock().unwrap();
+    if guard.is_some() {
+        panic!("Global KVDB has already been initialized")
+    }
+    let mut options = Options::default();
+    options.set_max_open_files(1000);
+    if from_scratch {
+        options.create_if_missing(true);
+        options.set_error_if_exists(true);
+    } else {
+        options.create_if_missing(false);
+        options.set_error_if_exists(false);
+    };
+    let db = TransactionDB::open(&options, &Default::default(), "./state_db")
+        .expect("Faile to open KVDB");
+    *guard = Some(Arc::new(db));
 }
 
 impl<H: Hasher> KeyValueDB<H> {

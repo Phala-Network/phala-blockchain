@@ -365,6 +365,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             genesis_block_hash,
         };
 
+        phala_trie_storage::global_init(true);
         // Initialize other states
         runtime_state.chain_storage.load(genesis_state.into_iter());
 
