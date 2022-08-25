@@ -1,6 +1,6 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, mining, mq, ott, pawnshop, registry, stakepool,
+	basepool, mining, mq, ott, pawnshop, registry, stakepoolv2, vault,
 };
 
 use frame_support::{
@@ -49,7 +49,8 @@ frame_support::construct_runtime!(
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
-		PhalaStakePool: stakepool::{Pallet, Event<T>},
+		PhalaStakePool: stakepoolv2::{Pallet, Event<T>},
+		PhalaVault: vault::{Pallet, Event<T>},
 		PhalaPawnshop: pawnshop::{Pallet, Event<T>},
 		PhalaBasePool: basepool::{Pallet, Event<T>},
 		PhalaOneshotTransfer: ott::{Pallet, Event<T>},
@@ -333,7 +334,7 @@ impl pallet_assets::Config for Test {
 	type WeightInfo = ();
 }
 
-impl stakepool::Config for Test {
+impl stakepoolv2::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
@@ -342,6 +343,11 @@ impl stakepool::Config for Test {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
+}
+
+impl vault::Config for Test {
+	type Event = Event;
+	type Currency = Balances;
 }
 
 impl basepool::Config for Test {

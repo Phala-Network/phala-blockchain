@@ -25,7 +25,8 @@ pub mod pawnshop;
 pub mod poolproxy;
 pub mod puppets;
 pub mod registry;
-pub mod stakepool;
+pub mod stakepoolv2;
+pub mod vault;
 
 // Alias
 pub use basepool as pallet_basepool;
@@ -35,7 +36,8 @@ pub use mq as pallet_mq;
 pub use ott as pallet_ott;
 pub use pawnshop as pallet_pawnshop;
 pub use registry as pallet_registry;
-pub use stakepool as pallet_stakepool;
+pub use stakepoolv2 as pallet_stakepool;
+pub use vault as pallet_vault;
 
 #[cfg(feature = "native")]
 use sp_core::hashing;

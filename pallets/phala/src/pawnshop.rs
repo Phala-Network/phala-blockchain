@@ -16,6 +16,7 @@ pub mod pallet {
 	use crate::mining;
 	use crate::poolproxy::PoolProxy;
 	use crate::registry;
+	use crate::vault;
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
@@ -139,6 +140,7 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as mining::Config>::Currency>,
+		T: Config + vault::Config,
 	{
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
@@ -227,7 +229,12 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+		T: Config + vault::Config,
 	{
+		pub fn get_asset_id() -> u32 {
+			T::PPhaAssetId::get()
+		}
+
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {

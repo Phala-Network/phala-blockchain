@@ -12,6 +12,8 @@ pub mod pallet {
 	use crate::mining;
 	use crate::poolproxy::*;
 	use crate::registry;
+	use crate::vault;
+	use crate::pawnshop;
 
 	pub use rmrk_traits::{
 		primitives::{CollectionId, NftId},
@@ -23,7 +25,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::nonfungibles::InspectEnumerable, LockableCurrency, StorageVersion, UnixTime,
+			tokens::nonfungibles::InspectEnumerable, LockableCurrency, StorageVersion, UnixTime, tokens::fungibles::Mutate,
 		},
 	};
 
@@ -67,7 +69,8 @@ pub mod pallet {
 		+ mining::Config
 		+ Encode
 		+ Decode
-		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
+		+ pallet_assets::Config
+		+ pallet_democracy::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
@@ -103,7 +106,33 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {}
+	pub enum Event<T: Config> {
+		/// A withdrawal request is inserted to a queue
+		///
+		/// Affected states:
+		/// - a new item is inserted to or an old item is being replaced by the new item in the
+		///   withdraw queue in [`StakePools`]
+		WithdrawalQueued {
+			pid: u64,
+			user: T::AccountId,
+			shares: BalanceOf<T>,
+		},
+		/// Some stake was withdrawn from a pool
+		///
+		/// The lock in [`Balances`](pallet_balances::pallet::Pallet) is updated to release the
+		/// locked stake.
+		///
+		/// Affected states:
+		/// - the stake related fields in [`StakePools`]
+		/// - the user staking account at [`PoolStakers`]
+		/// - the locking ledger of the contributor at [`StakeLedger`]
+		Withdrawal {
+			pid: u64,
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+			shares: BalanceOf<T>,
+		},
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -170,6 +199,8 @@ pub mod pallet {
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+			T: Config + pawnshop::Config + vault::Config,
 		{
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
@@ -222,8 +253,9 @@ pub mod pallet {
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
-
+			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 			T: Config<AccountId = AccountId>,
+			T: Config + pawnshop::Config + vault::Config,
 		{
 			self.total_value += rewards;
 			if need_update_free_stake {
@@ -282,6 +314,8 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+		T: Config + pawnshop::Config + vault::Config,
 	{
 		#[frame_support::transactional]
 		pub fn get_nft_attr_guard(
@@ -582,6 +616,150 @@ pub mod pallet {
 			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Ok(())
+		}
+
+		/// Tries to withdraw a specific amount from a pool.
+		///
+		/// The withdraw request would be delayed if the free stake is not enough, otherwise
+		/// withdraw from the free stake immediately.
+		///
+		/// The updates are made in `pool_info` and `user_info`. It's up to the caller to persist
+		/// the data.
+		///
+		/// Requires:
+		/// 1. The user's pending slash is already settled.
+		/// 2. The pool must has shares and stake (or it can cause division by zero error)
+		pub fn try_withdraw(
+			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
+			shares: BalanceOf<T>,
+			maybe_vault_pid: Option<u64>,
+		) -> DispatchResult {
+			Self::push_withdraw_in_queue(
+				pool_info,
+				nft,
+				userid.clone(),
+				shares.clone(),
+				maybe_vault_pid,
+			)?;
+			Self::deposit_event(Event::<T>::WithdrawalQueued {
+				pid: pool_info.pid,
+				user: userid.clone(),
+				shares: shares,
+			});
+			Self::try_process_withdraw_queue(pool_info);
+
+			Ok(())
+		}
+
+		pub fn maybe_remove_dust(
+			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
+			nft: &NftAttr<BalanceOf<T>>,
+		) -> bool {
+			if is_nondust_balance(nft.shares) {
+				return false;
+			}
+			pool_info.total_shares -= nft.shares;
+			true
+		}
+
+		///should be very carful to avoid the vault_info got mutable ref outside the function and saved after this function called
+		pub fn do_withdraw_shares(
+			withdrawing_shares: BalanceOf<T>,
+			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
+			nft: &mut NftAttr<BalanceOf<T>>,
+			userid: T::AccountId,
+		) {
+			// Overflow warning: remove_stake is carefully written to avoid precision error.
+			// (I hope so)
+			let (reduced, withdrawn_shares) =
+				Self::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
+					.expect("There are enough withdrawing_shares; qed.");
+			if let Some(pid) = vault::pallet::VaultAccountAssignments::<T>::get(userid.clone()) {
+				let mut vault_info =
+					ensure_vault::<T>(pid).expect("get vault should success: qed.");
+				vault_info.basepool.free_stake += reduced;
+
+				Pools::<T>::insert(pid, PoolProxy::Vault(vault_info.clone()));
+			} else {
+				pallet_assets::Pallet::<T>::mint_into(
+					pawnshop::Pallet::<T>::get_asset_id(),
+					&userid,
+					reduced,
+				)
+				.expect("mint asset should not fail");
+				Self::deposit_event(Event::<T>::Withdrawal {
+					pid: pool_info.pid,
+					user: userid,
+					amount: reduced,
+					shares: withdrawn_shares,
+				});
+			}
+		}
+
+		/// Tries to fulfill the withdraw queue with the newly freed stake
+		pub fn try_process_withdraw_queue(
+			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
+		) {
+			// The share price shouldn't change at any point in this function. So we can calculate
+			// only once at the beginning.
+			let price = match pool_info.share_price() {
+				Some(price) => price,
+				None => return,
+			};
+
+			while is_nondust_balance(pool_info.free_stake) {
+				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
+					// Must clear the pending reward before any stake change
+					let mut withdraw_nft_guard =
+						Self::get_nft_attr_guard(pool_info.cid, withdraw.nft_id)
+							.expect("get nftattr should always success; qed.");
+					let mut withdraw_nft = withdraw_nft_guard.attr.clone();
+					// Try to fulfill the withdraw requests as much as possible
+					let free_shares = if price == fp!(0) {
+						withdraw_nft.shares // 100% slashed
+					} else {
+						bdiv(pool_info.free_stake, &price)
+					};
+					// This is the shares to withdraw immedately. It should NOT contain any dust
+					// because we ensure (1) `free_shares` is not dust earlier, and (2) the shares
+					// in any withdraw request mustn't be dust when inserting and updating it.
+					let withdrawing_shares = free_shares.min(withdraw_nft.shares);
+					debug_assert!(
+						is_nondust_balance(withdrawing_shares),
+						"withdrawing_shares must be positive"
+					);
+					// Actually remove the fulfilled withdraw request. Dust in the user shares is
+					// considered but it in the request is ignored.
+					Self::do_withdraw_shares(
+						withdrawing_shares,
+						pool_info,
+						&mut withdraw_nft,
+						withdraw.user.clone(),
+					);
+					withdraw_nft_guard.attr = withdraw_nft.clone();
+					withdraw_nft_guard
+						.save()
+						.expect("save nft should always success");
+					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
+					// queue
+					if withdraw_nft.shares == Zero::zero()
+						|| Self::maybe_remove_dust(pool_info, &withdraw_nft)
+					{
+						pool_info.withdraw_queue.pop_front();
+						Self::burn_nft(pool_info.cid, withdraw.nft_id)
+							.expect("burn nft should always success");
+					} else {
+						*pool_info
+							.withdraw_queue
+							.front_mut()
+							.expect("front exists as just checked; qed.") = withdraw;
+					}
+				} else {
+					break;
+				}
+			}
 		}
 	}
 }
