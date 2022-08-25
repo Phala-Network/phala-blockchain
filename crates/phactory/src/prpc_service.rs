@@ -357,6 +357,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let contracts = contracts::ContractsKeeper::default();
 
+        phala_trie_storage::global_init(true);
+
         let mut runtime_state = RuntimeState {
             send_mq,
             recv_mq,
@@ -364,8 +366,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             chain_storage: Default::default(),
             genesis_block_hash,
         };
-
-        phala_trie_storage::global_init(true);
         // Initialize other states
         runtime_state.chain_storage.load(genesis_state.into_iter());
 

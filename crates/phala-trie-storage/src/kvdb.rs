@@ -42,7 +42,8 @@ pub fn global_init(from_scratch: bool) {
         options.create_if_missing(false);
         options.set_error_if_exists(false);
     };
-    let db = TransactionDB::open(&options, &Default::default(), "./state_db")
+    let todo = "Use env or take from arg";
+    let db = TransactionDB::open(&options, &Default::default(), "/data/protected_files/state_db")
         .expect("Faile to open KVDB");
     *guard = Some(Arc::new(db));
 }
