@@ -45,13 +45,9 @@ pub mod pallet {
 
 	const MAX_WHITELIST_LEN: u32 = 100;
 
-	pub struct DescMaxLen;
+	type DescMaxLen = ConstU32<4400>;
 
-	impl Get<u32> for DescMaxLen {
-		fn get() -> u32 {
-			4400
-		}
-	}
+	type DescStr = BoundedVec<u8, DescMaxLen>;
 
 	#[pallet::config]
 	pub trait Config:
@@ -136,7 +132,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn pool_descriptions)]
 	pub type PoolDescriptions<T: Config> =
-		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, super::DescMaxLen>>;
+		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, DescMaxLen>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -800,7 +796,7 @@ pub mod pallet {
 		pub fn set_pool_description(
 			origin: OriginFor<T>,
 			pid: u64,
-			description: BoundedVec<u8, DescMaxLen>,
+			description: DescStr,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let pool_info = ensure_stake_pool::<T>(pid)?;
