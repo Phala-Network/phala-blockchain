@@ -266,7 +266,7 @@ pub mod pallet {
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
-			let mut nft = Self::get_nft_attr(pool.cid, nft_id)?;
+			let nft = Self::get_nft_attr(pool.cid, nft_id)?;
 
 			let shares = Self::add_stake_to_new_nft(pool, account_id, amount);
 			// Lock the funds
@@ -346,6 +346,12 @@ pub mod pallet {
 			});
 
 			Ok(())
+		}
+
+		pub fn cosume_new_pid() -> u64 {
+			let pid = PoolCount::<T>::get();
+			PoolCount::<T>::put(pid + 1);
+			pid
 		}
 
 		pub fn has_expired_withdrawal(

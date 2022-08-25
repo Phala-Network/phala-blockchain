@@ -137,8 +137,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as mining::Config>::Currency>,
 	{
 		#[pallet::weight(0)]
@@ -227,8 +226,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
-		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
@@ -246,6 +244,22 @@ pub mod pallet {
 					amount: actual_removed,
 				});
 			}
+		}
+
+		pub fn maybe_update_account_status(who: &T::AccountId, pid: u64, cid: CollectionId) -> DispatchResult {
+			let mut account_status = StakerAccounts::<T>::get(who.clone())
+				.ok_or(Error::<T>::StakerAccountNotFound)?;
+
+			if !account_status
+				.invest_pools
+				.contains(&(pid, cid))
+			{
+				account_status
+					.invest_pools
+					.push((pid, cid));
+				StakerAccounts::<T>::insert(who.clone(), account_status);
+			}
+			Ok(())
 		}
 
 		fn get_current_active_stakes(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
