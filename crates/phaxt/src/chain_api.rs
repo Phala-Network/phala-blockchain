@@ -13,7 +13,8 @@ impl ChainApi {
         let hash = self
             .rpc()
             .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(1))))
-            .await?;
+            .await
+            .context("Failed get the HASH of block 1")?;
         let addr = subxt::dynamic::storage_root("ParachainSystem", "ValidationData");
         let validation_data = self
             .storage()
@@ -34,7 +35,8 @@ impl ChainApi {
         let set_id = self
             .storage()
             .fetch(&address, block_hash)
-            .await?
+            .await
+            .context("Failed to get current set_id")?
             .ok_or(anyhow!("No set id"))?;
         Ok(set_id.as_u128().ok_or(anyhow!("Invalid set id"))? as _)
     }
@@ -45,7 +47,7 @@ impl ChainApi {
             .storage()
             .fetch(&address, hash)
             .await
-            .or(Err(anyhow!("Failed to fetch paraid")))?
+            .context("Failed to get current set_id")?
             .ok_or(anyhow!("No paraid found"))?;
         let id = id
             .at(0)
