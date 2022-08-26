@@ -13,3 +13,4 @@ anyhow = "1"
 subxt = { path = "../../subxt/subxt" }
 phala-types = { path = "../phala-types" }
 phala-node-rpc-ext-types = { path = "../phala-node-rpc-ext/types" }
+phala-pallets = { path = "../../pallets/phala" }

@@ -1,0 +1,41 @@
+use parity_scale_codec::Encode;
+use phala_pallets::pallet_registry::Attestation;
+use subxt::{tx::StaticTxPayload, utils::Encoded};
+
+pub fn register_worker(
+    pruntime_info: Vec<u8>,
+    attestation: Attestation,
+) -> StaticTxPayload<Encoded> {
+    let args = (Encoded(pruntime_info), attestation).encode();
+    StaticTxPayload::new(
+        "PhalaRegistry",
+        "register_worker",
+        Encoded(args),
+        Default::default(),
+    )
+    .unvalidated()
+}
+
+pub fn update_worker_endpoint(
+    signed_endpoint: Vec<u8>,
+    signature: Vec<u8>,
+) -> StaticTxPayload<Encoded> {
+    let args = (Encoded(signed_endpoint), signature).encode();
+    StaticTxPayload::new(
+        "PhalaRegistry",
+        "update_worker_endpoint",
+        Encoded(args),
+        Default::default(),
+    )
+    .unvalidated()
+}
+
+pub fn sync_offchain_message(message: Vec<u8>) -> StaticTxPayload<Encoded> {
+    StaticTxPayload::new(
+        "PhalaMq",
+        "sync_offchain_message",
+        Encoded(message),
+        Default::default(),
+    )
+    .unvalidated()
+}

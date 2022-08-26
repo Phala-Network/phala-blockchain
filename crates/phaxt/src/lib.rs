@@ -3,21 +3,14 @@ use std::ops::Deref;
 
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use subxt::{
+    ext::sp_core::sr25519,
+    tx::{PolkadotExtrinsicParams, PolkadotExtrinsicParamsBuilder},
+};
 
 mod chain_api;
 pub mod dynamic;
 pub mod rpc;
-
-#[subxt::subxt(runtime_metadata_path = "metadata_files/khala_metadata.scale")]
-pub mod parachain {
-    #[subxt(substitute_type = "phala_mq::types::SignedMessage")]
-    pub use ::phala_types::messaging::SignedMessage;
-
-    #[subxt(substitute_type = "polkadot_parachain::primitives::Id")]
-    pub use crate::ParaId;
-}
-// #[subxt::subxt(runtime_metadata_path = "metadata_files/kusama_metadata.scale")]
-// pub mod relaychain {}
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, PartialOrd, Ord, Debug)]
 pub struct ParaId(pub u32);
@@ -25,11 +18,6 @@ pub struct ParaId(pub u32);
 pub type StorageProof = Vec<Vec<u8>>;
 pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
 pub type PairSigner = subxt::tx::PairSigner<Config, sr25519::Pair>;
-
-use subxt::{
-    ext::sp_core::sr25519,
-    tx::{PolkadotExtrinsicParams, PolkadotExtrinsicParamsBuilder},
-};
 pub type ExtrinsicParams = PolkadotExtrinsicParams<subxt::SubstrateConfig>;
 pub type ExtrinsicParamsBuilder = PolkadotExtrinsicParamsBuilder<subxt::SubstrateConfig>;
 pub use subxt::PolkadotConfig as Config;

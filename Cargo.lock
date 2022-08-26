@@ -7833,6 +7833,7 @@ dependencies = [
  "anyhow",
  "parity-scale-codec",
  "phala-node-rpc-ext-types",
+ "phala-pallets",
  "phala-types",
  "scale-info",
  "serde",

@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
+use phala_pallets::pallet_registry::Attestation;
 use sp_core::crypto::AccountId32;
 use sp_runtime::generic::Era;
 use std::cmp;
@@ -375,16 +376,6 @@ async fn get_authority_with_proof_at(
     })
 }
 
-async fn get_paraid(api: &ParachainApi, hash: Option<Hash>) -> Result<u32, Error> {
-    let query = phaxt::parachain::storage().parachain_info().parachain_id();
-    api.storage()
-        .fetch(&query, hash)
-        .await
-        .or(Err(Error::ParachainIdNotFound))?
-        .ok_or(Error::ParachainIdNotFound)
-        .map(|id| id.0)
-}
-
 /// Returns the next set_id change by a binary search on the known blocks
 ///
 /// `known_blocks` must have at least one block with block justification, otherwise raise an error
@@ -635,7 +626,7 @@ async fn get_finalized_header(
     para_api: &ParachainApi,
     last_header_hash: Hash,
 ) -> Result<Option<(Header, Vec<Vec<u8>> /*proof*/)>> {
-    let para_id = get_paraid(para_api, None).await?;
+    let para_id = para_api.get_paraid(None).await?;
     get_finalized_header_with_paraid(api, para_id, last_header_hash).await
 }
 
@@ -883,19 +874,14 @@ async fn register_worker(
     let payload = attestation
         .payload
         .ok_or(anyhow!("Missing attestation payload"))?;
-    let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
-        .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation =
-        phaxt::parachain::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
-            ra_report: payload.report.as_bytes().to_vec(),
-            signature: payload.signature,
-            raw_signing_cert: payload.signing_cert,
-        };
+    let attestation = Attestation::SgxIas {
+        ra_report: payload.report.as_bytes().to_vec(),
+        signature: payload.signature,
+        raw_signing_cert: payload.signing_cert,
+    };
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
-    let tx = phaxt::parachain::tx()
-        .phala_registry()
-        .register_worker(pruntime_info, attestation);
+    let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation);
     let ret = para_api
         .tx()
         .sign_and_submit_then_watch(&tx, signer, params)

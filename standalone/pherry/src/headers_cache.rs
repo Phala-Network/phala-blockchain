@@ -182,7 +182,7 @@ async fn grab_headers(
     let mut skip_justitication = justification_interval;
     let mut grabbed = 0;
 
-    let para_id = crate::get_paraid(para_api, None).await?;
+    let para_id = para_api.get_paraid(None).await?;
     info!("para_id: {}", para_id);
 
     for block_number in start_at.. {

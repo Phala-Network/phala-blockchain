@@ -1,12 +1,14 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context, Result};
 use subxt::ext::scale_value::At;
 use subxt::rpc::NumberOrHex;
-
-use anyhow::Result;
 
 use crate::{BlockNumber, ChainApi, Hash};
 
 impl ChainApi {
+    pub fn paras_heads_key(&self, para_id: u32) -> Result<Vec<u8>> {
+        crate::dynamic::paras_heads_key(para_id, &self.metadata())
+    }
+
     pub async fn relay_parent_number(&self) -> Result<BlockNumber> {
         let hash = self
             .rpc()
@@ -16,7 +18,8 @@ impl ChainApi {
         let validation_data = self
             .storage()
             .fetch(&addr, hash)
-            .await?
+            .await
+            .context("Failed to fetch validation data")?
             .ok_or(anyhow!("ValidationData not found"))?;
         let number = validation_data
             .at("relay_parent_number")
@@ -24,10 +27,6 @@ impl ChainApi {
             .as_u128()
             .ok_or(anyhow!("No relay_parent_number"))?;
         Ok(number as _)
-    }
-
-    pub fn paras_heads_key(&self, para_id: u32) -> Result<Vec<u8>> {
-        crate::dynamic::paras_heads_key(para_id, &self.metadata())
     }
 
     pub async fn current_set_id(&self, block_hash: Option<Hash>) -> Result<u64> {
@@ -38,5 +37,21 @@ impl ChainApi {
             .await?
             .ok_or(anyhow!("No set id"))?;
         Ok(set_id.as_u128().ok_or(anyhow!("Invalid set id"))? as _)
+    }
+
+    pub async fn get_paraid(&self, hash: Option<Hash>) -> Result<u32> {
+        let address = subxt::dynamic::storage_root("ParachainInfo", "ParachainId");
+        let id = self
+            .storage()
+            .fetch(&address, hash)
+            .await
+            .or(Err(anyhow!("Failed to fetch paraid")))?
+            .ok_or(anyhow!("No paraid found"))?;
+        let id = id
+            .at(0)
+            .ok_or(anyhow!("Invalid paraid"))?
+            .as_u128()
+            .ok_or(anyhow!("Invalid paraid"))?;
+        Ok(id as _)
     }
 }
