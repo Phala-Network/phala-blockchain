@@ -109,6 +109,7 @@ pub use phala_pallets::{
 	pallet_registry,
 	pallet_mining,
 	pallet_stakepool,
+	pallet_vault,
 	pallet_basepool,
 	pallet_pawnshop,
 	pallet_fat,
@@ -1282,6 +1283,10 @@ impl pallet_stakepool::Config for Runtime {
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
+impl pallet_vault::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
 parameter_types! {
 	pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
 	pub const ItemDeposit: Balance = 0; // 1/100 UNIT deposit to create item
@@ -1439,6 +1444,7 @@ construct_runtime!(
 		PhalaRegistry: pallet_registry,
 		PhalaMining: pallet_mining,
 		PhalaStakePool: pallet_stakepool,
+		PhalaVault: pallet_vault,
 		PhalaPawnshop: pallet_pawnshop,
 		PhalaBasePool: pallet_basepool,
 		PhalaFatContracts: pallet_fat,
