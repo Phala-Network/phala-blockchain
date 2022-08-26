@@ -10,10 +10,10 @@ pub type BalanceOf<T> =
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::mining;
+	use crate::pawnshop;
 	use crate::poolproxy::*;
 	use crate::registry;
 	use crate::vault;
-	use crate::pawnshop;
 
 	pub use rmrk_traits::{
 		primitives::{CollectionId, NftId},
@@ -25,7 +25,8 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::nonfungibles::InspectEnumerable, LockableCurrency, StorageVersion, UnixTime, tokens::fungibles::Mutate,
+			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, LockableCurrency,
+			StorageVersion, UnixTime,
 		},
 	};
 
@@ -171,13 +172,13 @@ pub mod pallet {
 
 		pub total_value: Balance,
 
-		pub free_stake: Balance,
-
 		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId>>,
 
 		pub value_subscribers: VecDeque<u64>,
 
 		pub cid: CollectionId,
+
+		pub pool_account_id: AccountId,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, PartialEq, Eq, RuntimeDebug)]
@@ -238,6 +239,18 @@ pub mod pallet {
 			self.total_value = new_stake;
 		}
 
+		pub fn get_free_stakes<T: Config>(&self) -> Balance
+		where
+			T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
+			T: Config<AccountId = AccountId>,
+			T: Config + pawnshop::Config + vault::Config,
+		{
+			pallet_assets::Pallet::<T>::balance(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&self.pool_account_id,
+			)
+		}
+
 		// Distributes additional rewards to the current share holders.
 		//
 		// Additional rewards contribute to the face value of the pool shares. The value of each
@@ -245,11 +258,8 @@ pub mod pallet {
 		//
 		// Warning: `total_reward` mustn't be zero.
 		// TODO(mingxuan): must be checked carfully before final merge.
-		pub fn distribute_reward<T: Config>(
-			&mut self,
-			rewards: Balance,
-			need_update_free_stake: bool,
-		) where
+		pub fn distribute_reward<T: Config>(&mut self, rewards: Balance)
+		where
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
@@ -258,16 +268,12 @@ pub mod pallet {
 			T: Config + pawnshop::Config + vault::Config,
 		{
 			self.total_value += rewards;
-			if need_update_free_stake {
-				self.free_stake += rewards;
-			}
-
 			for vault_staker in &self.value_subscribers {
 				let mut vault = ensure_vault::<T>(*vault_staker)
 					.expect("vault in value_subscribers should always exist: qed.");
 				let nft_id = Pallet::<T>::merge_or_init_nft_for_staker(
 					self.cid,
-					vault.pool_account_id.clone(),
+					vault.basepool.pool_account_id.clone(),
 				)
 				.expect("merge nft shoule always success: qed.");
 
@@ -279,7 +285,7 @@ pub mod pallet {
 				let withdraw_vec: VecDeque<_> = self
 					.withdraw_queue
 					.iter()
-					.filter(|x| x.user == vault.pool_account_id)
+					.filter(|x| x.user == vault.basepool.pool_account_id)
 					.collect();
 				for withdraw_info in &withdraw_vec {
 					let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, withdraw_info.nft_id)
@@ -296,7 +302,7 @@ pub mod pallet {
 					*vault_staker,
 					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault.clone()),
 				);
-				vault.basepool.distribute_reward::<T>(settled_stake, false);
+				vault.basepool.distribute_reward::<T>(settled_stake);
 			}
 		}
 	}
@@ -377,7 +383,6 @@ pub mod pallet {
 			nft: &mut NftAttr<BalanceOf<T>>,
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
-			maybe_vault_pid: Option<u64>,
 		) -> DispatchResult {
 			// Remove the existing withdraw request in the queue if there is any.
 			let (in_queue_nfts, new_withdraw_queue): (VecDeque<_>, VecDeque<_>) = pool
@@ -387,30 +392,14 @@ pub mod pallet {
 				.partition(|withdraw| withdraw.user == account_id);
 			// only one nft withdraw request should be in the queue
 			pool.withdraw_queue = new_withdraw_queue;
-			let price = pool
-				.share_price()
-				.expect("In withdraw case, price should always exists;");
 
-			let mut maybe_vault = maybe_vault_pid.map(|pid| {
-				(
-					pid,
-					ensure_vault::<T>(pid).expect("pid should always linked to a pool"),
-				)
-			});
 			for withdrawinfo in &in_queue_nfts {
 				let nft_guard = Self::get_nft_attr_guard(pool.cid, withdrawinfo.nft_id)?;
 				let in_queue_nft = nft_guard.attr.clone();
 				nft_guard.unlock();
-				let withdraw_amount = bmul(in_queue_nft.shares.clone(), &price);
 				nft.shares += in_queue_nft.shares;
 				Self::burn_nft(pool.cid, withdrawinfo.nft_id)
 					.expect("burn nft attr should always success; qed.");
-				if let Some((_, vault)) = &mut maybe_vault {
-					vault.basepool.free_stake += withdraw_amount;
-				}
-			}
-			if let Some((pid, vault)) = maybe_vault {
-				Pools::<T>::insert(pid, PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault));
 			}
 
 			let split_nft_id = Self::mint_nft(pool.cid, pallet_id(), shares)
@@ -445,7 +434,7 @@ pub mod pallet {
 			releasing_stake: BalanceOf<T>,
 		) -> bool {
 			debug_assert!(
-				pool.free_stake == Zero::zero(),
+				pool.get_free_stakes::<T>() == Zero::zero(),
 				"We really don't want to have free stake and withdraw requests at the same time"
 			);
 
@@ -454,7 +443,7 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => price,
 				_ => return false,
 			};
-			let mut budget = pool.free_stake + releasing_stake;
+			let mut budget = pool.get_free_stakes::<T>() + releasing_stake;
 			for request in &pool.withdraw_queue {
 				let nft_guard = Self::get_nft_attr_guard(pool.cid, request.nft_id)
 					.expect("get nftattr should always success; qed.");
@@ -482,10 +471,18 @@ pub mod pallet {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_nft(pool.cid, account_id, shares).expect("mint should always success; qed.");
+			Self::mint_nft(pool.cid, account_id.clone(), shares)
+				.expect("mint should always success; qed.");
 			pool.total_shares += shares;
 			pool.total_value += amount;
-			pool.free_stake += amount;
+			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&account_id,
+				&pool.pool_account_id,
+				amount,
+				true,
+			)
+			.expect("transfer should not fail");
 			shares
 		}
 
@@ -494,11 +491,12 @@ pub mod pallet {
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			shares: BalanceOf<T>,
 			nft: &mut NftAttr<BalanceOf<T>>,
+			userid: &T::AccountId,
 		) -> Option<(BalanceOf<T>, BalanceOf<T>)> {
 			let price = pool.share_price()?;
 			let amount = bmul(shares, &price);
 
-			let amount = amount.min(pool.free_stake);
+			let amount = amount.min(pool.get_free_stakes::<T>());
 
 			let user_shares = nft.shares.checked_sub(&shares)?;
 			let (user_shares, shares_dust) = extract_dust(user_shares);
@@ -507,11 +505,18 @@ pub mod pallet {
 			let total_shares = pool.total_shares.checked_sub(&removed_shares)?;
 
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
+
+			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&pool.pool_account_id,
+				&userid,
+				amount,
+				true,
+			)
+			.expect("transfer should not fail");
 			if total_stake > Zero::zero() {
-				pool.free_stake -= amount;
 				pool.total_value -= amount;
 			} else {
-				pool.free_stake = Zero::zero();
 				pool.total_value = Zero::zero();
 			}
 			pool.total_shares = total_shares;
@@ -634,15 +639,8 @@ pub mod pallet {
 			nft: &mut NftAttr<BalanceOf<T>>,
 			userid: T::AccountId,
 			shares: BalanceOf<T>,
-			maybe_vault_pid: Option<u64>,
 		) -> DispatchResult {
-			Self::push_withdraw_in_queue(
-				pool_info,
-				nft,
-				userid.clone(),
-				shares.clone(),
-				maybe_vault_pid,
-			)?;
+			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares.clone())?;
 			Self::deposit_event(Event::<T>::WithdrawalQueued {
 				pid: pool_info.pid,
 				user: userid.clone(),
@@ -674,34 +672,18 @@ pub mod pallet {
 			// Overflow warning: remove_stake is carefully written to avoid precision error.
 			// (I hope so)
 			let (reduced, withdrawn_shares) =
-				Self::remove_stake_from_nft(pool_info, withdrawing_shares, nft)
+				Self::remove_stake_from_nft(pool_info, withdrawing_shares, nft, &userid)
 					.expect("There are enough withdrawing_shares; qed.");
-			if let Some(pid) = vault::pallet::VaultAccountAssignments::<T>::get(userid.clone()) {
-				let mut vault_info =
-					ensure_vault::<T>(pid).expect("get vault should success: qed.");
-				vault_info.basepool.free_stake += reduced;
-
-				Pools::<T>::insert(pid, PoolProxy::Vault(vault_info.clone()));
-			} else {
-				pallet_assets::Pallet::<T>::mint_into(
-					pawnshop::Pallet::<T>::get_asset_id(),
-					&userid,
-					reduced,
-				)
-				.expect("mint asset should not fail");
-				Self::deposit_event(Event::<T>::Withdrawal {
-					pid: pool_info.pid,
-					user: userid,
-					amount: reduced,
-					shares: withdrawn_shares,
-				});
-			}
+			Self::deposit_event(Event::<T>::Withdrawal {
+				pid: pool_info.pid,
+				user: userid,
+				amount: reduced,
+				shares: withdrawn_shares,
+			});
 		}
 
 		/// Tries to fulfill the withdraw queue with the newly freed stake
-		pub fn try_process_withdraw_queue(
-			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
-		) {
+		pub fn try_process_withdraw_queue(pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>) {
 			// The share price shouldn't change at any point in this function. So we can calculate
 			// only once at the beginning.
 			let price = match pool_info.share_price() {
@@ -709,7 +691,7 @@ pub mod pallet {
 				None => return,
 			};
 
-			while is_nondust_balance(pool_info.free_stake) {
+			while is_nondust_balance(pool_info.get_free_stakes::<T>()) {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let mut withdraw_nft_guard =
@@ -720,7 +702,7 @@ pub mod pallet {
 					let free_shares = if price == fp!(0) {
 						withdraw_nft.shares // 100% slashed
 					} else {
-						bdiv(pool_info.free_stake, &price)
+						bdiv(pool_info.get_free_stakes::<T>(), &price)
 					};
 					// This is the shares to withdraw immedately. It should NOT contain any dust
 					// because we ensure (1) `free_shares` is not dust earlier, and (2) the shares
@@ -761,6 +743,16 @@ pub mod pallet {
 				}
 			}
 		}
+	}
+	pub fn create_staker_account<T>(pid: u64, owner: T) -> T
+	where
+		T: Encode + Decode,
+	{
+		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
+		// stake pool miner
+		(b"basepool/", hash)
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
+			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 }
 

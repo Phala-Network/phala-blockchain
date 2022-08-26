@@ -2,7 +2,7 @@
 
 pub use self::pallet::*;
 use crate::mining;
-use frame_support::traits::Currency; 
+use frame_support::traits::Currency;
 
 type BalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -21,21 +21,18 @@ pub mod pallet {
 	use crate::pawnshop;
 	use crate::poolproxy::{ensure_stake_pool, ensure_vault, PoolProxy, Vault};
 	use crate::registry;
-    use crate::stakepoolv2;
+	use crate::stakepoolv2;
 
 	use super::BalanceOf;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{tokens::fungibles::Mutate, LockableCurrency, StorageVersion, UnixTime},
+		traits::{LockableCurrency, StorageVersion, UnixTime},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
-	use sp_runtime::{
-		traits::{TrailingZeroInput, Zero},
-		Permill, SaturatedConversion,
-	};
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, };
+	use sp_runtime::{traits::Zero, Permill, SaturatedConversion};
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*};
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
@@ -49,7 +46,7 @@ pub mod pallet {
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
 		+ pawnshop::Config
-        + stakepoolv2::Config
+		+ stakepoolv2::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
@@ -69,28 +66,28 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-        PoolCreated {
+		PoolCreated {
 			owner: T::AccountId,
 			pid: u64,
 		},
 
-        VaultCommissionSet {
+		VaultCommissionSet {
 			pid: u64,
 			commission: u32,
 		},
 
-        OwnerSharesStartWithdraw {
+		OwnerSharesStartWithdraw {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
 		},
 
-        OwnerSharesGained {
+		OwnerSharesGained {
 			pid: u64,
 			shares: BalanceOf<T>,
 		},
 
-        Contribution {
+		Contribution {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
@@ -100,19 +97,19 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-        UnauthorizedPoolOwner,
+		UnauthorizedPoolOwner,
 
-        InvaildWithdrawSharesAmount,
+		InvaildWithdrawSharesAmount,
 
-        NoRewardToClaim,
+		NoRewardToClaim,
 
-        AssetAccountNotExist,
+		AssetAccountNotExist,
 
-        InvalidWithdrawalAmount,
+		InvalidWithdrawalAmount,
 
-        InsufficientBalance,
+		InsufficientBalance,
 
-        InsufficientContribution,
+		InsufficientContribution,
 	}
 
 	#[pallet::call]
@@ -143,7 +140,8 @@ pub mod pallet {
 				None,
 				symbol,
 			)?;
-			let account_id = vault_staker_account(pid, owner.clone());
+			let account_id =
+				basepool::pallet::create_staker_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::Vault(Vault::<T::AccountId, BalanceOf<T>> {
@@ -152,12 +150,11 @@ pub mod pallet {
 						owner: owner.clone(),
 						total_shares: Zero::zero(),
 						total_value: Zero::zero(),
-						free_stake: Zero::zero(),
 						withdraw_queue: VecDeque::new(),
 						value_subscribers: VecDeque::new(),
 						cid: collection_id,
+						pool_account_id: account_id.clone(),
 					},
-					pool_account_id: account_id.clone(),
 					commission: None,
 					owner_shares: Zero::zero(),
 					last_share_price_checkpoint: Zero::zero(),
@@ -303,7 +300,7 @@ pub mod pallet {
 					.basepool
 					.withdraw_queue
 					.iter()
-					.filter(|x| x.user == vault.pool_account_id)
+					.filter(|x| x.user == vault.basepool.pool_account_id)
 					.collect();
 				// the length of vec should be 1
 				for withdraw in withdraw_vec {
@@ -331,7 +328,7 @@ pub mod pallet {
 						.basepool
 						.withdraw_queue
 						.iter()
-						.filter(|x| x.user == vault.pool_account_id)
+						.filter(|x| x.user == vault.basepool.pool_account_id)
 						.collect();
 					// the length of vec should be 1
 					for withdraw in withdraw_vec {
@@ -391,11 +388,6 @@ pub mod pallet {
 			basepool::Pallet::<T>::merge_or_init_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
-			)?;
-			pallet_assets::Pallet::<T>::burn_from(
-				<T as pawnshop::Config>::PPhaAssetId::get(),
-				&who,
-				a,
 			)?;
 
 			pawnshop::Pallet::<T>::maybe_update_account_status(&who, pid, pool_info.basepool.cid)?;
@@ -462,7 +454,6 @@ pub mod pallet {
 				&mut nft,
 				who.clone(),
 				shares,
-				None,
 			)?;
 
 			nft_guard.save()?;
@@ -474,15 +465,5 @@ pub mod pallet {
 
 			Ok(())
 		}
-    }
-    fn vault_staker_account<T>(pid: u64, owner: T) -> T
-	where
-		T: Encode + Decode,
-	{
-		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
-		// stake pool miner
-		(b"vault/", hash)
-			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
-			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 }

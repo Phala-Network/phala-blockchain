@@ -29,12 +29,15 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{tokens::fungibles::Mutate, LockableCurrency, StorageVersion, UnixTime},
+		traits::{
+			tokens::fungibles::{Mutate, Transfer},
+			LockableCurrency, StorageVersion, UnixTime,
+		},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
 	use sp_runtime::{
-		traits::{Saturating, TrailingZeroInput, Zero},
+		traits::{TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec};
@@ -461,6 +464,10 @@ pub mod pallet {
 				None,
 				symbol,
 			)?;
+			let account_id =
+				basepool::pallet::create_staker_account::<T::AccountId>(pid, owner.clone());
+			let (owner_account, lock_account) =
+				create_owner_and_lock_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::StakePool(StakePool::<T::AccountId, BalanceOf<T>> {
@@ -469,16 +476,17 @@ pub mod pallet {
 						owner: owner.clone(),
 						total_shares: Zero::zero(),
 						total_value: Zero::zero(),
-						free_stake: Zero::zero(),
 						withdraw_queue: VecDeque::new(),
 						value_subscribers: VecDeque::new(),
 						cid: collection_id,
+						pool_account_id: account_id.clone(),
 					},
 					payout_commission: None,
-					owner_reward: Zero::zero(),
 					cap: None,
 					workers: VecDeque::new(),
 					cd_workers: VecDeque::new(),
+					lock_account,
+					owner_account,
 				}),
 			);
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
@@ -770,21 +778,21 @@ pub mod pallet {
 			target: T::AccountId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			let pool_info = ensure_stake_pool::<T>(pid)?;
 			// Add pool owner's reward if applicable
 			ensure!(
 				who == pool_info.basepool.owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
-			let rewards = pool_info.owner_reward;
+			let rewards = pool_info.get_owner_stakes::<T>();
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			pallet_assets::Pallet::<T>::mint_into(
+			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&pool_info.owner_account,
 				&target,
 				rewards,
+				true,
 			)?;
-			pool_info.owner_reward = Zero::zero();
-			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
 				pid,
 				user: who,
@@ -872,7 +880,7 @@ pub mod pallet {
 			);
 			let mut free = Zero::zero();
 			if let Some((_, vault_info)) = &maybe_vault {
-				free = vault_info.basepool.free_stake;
+				free = vault_info.basepool.get_free_stakes::<T>();
 			} else {
 				free = pallet_assets::Pallet::<T>::maybe_balance(
 					<T as pawnshop::Config>::PPhaAssetId::get(),
@@ -890,7 +898,6 @@ pub mod pallet {
 				if !vault_info.invest_pools.contains(&pid) {
 					vault_info.invest_pools.push_back(pid);
 				}
-				vault_info.basepool.free_stake -= a;
 				basepool::pallet::Pools::<T>::insert(
 					vault_pid.clone(),
 					PoolProxy::Vault(vault_info.clone()),
@@ -920,12 +927,6 @@ pub mod pallet {
 				who.clone(),
 			)?;
 			if let None = maybe_vault_pid {
-				pallet_assets::Pallet::<T>::burn_from(
-					<T as pawnshop::Config>::PPhaAssetId::get(),
-					&who,
-					a,
-				)?;
-
 				pawnshop::Pallet::<T>::maybe_update_account_status(
 					&who,
 					pid,
@@ -1005,7 +1006,6 @@ pub mod pallet {
 				&mut nft,
 				who.clone(),
 				shares,
-				maybe_vault_pid,
 			)?;
 			nft_guard.save()?;
 			let nft_id = basepool::Pallet::<T>::merge_or_init_nft_for_staker(
@@ -1109,7 +1109,7 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			stake: BalanceOf<T>,
 		) -> DispatchResult {
-			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			let pool_info = ensure_stake_pool::<T>(pid)?;
 			// origin must be owner of pool
 			ensure!(
 				&pool_info.basepool.owner == owner,
@@ -1117,7 +1117,7 @@ pub mod pallet {
 			);
 			// check free stake
 			ensure!(
-				pool_info.basepool.free_stake >= stake,
+				pool_info.basepool.get_free_stakes::<T>() >= stake,
 				Error::<T>::InsufficientFreeStake
 			);
 			// check wheather we have add this worker
@@ -1127,7 +1127,13 @@ pub mod pallet {
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
-			pool_info.basepool.free_stake -= stake;
+			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&pool_info.basepool.pool_account_id,
+				&pool_info.lock_account,
+				stake,
+				true,
+			)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 			Self::deposit_event(Event::<T>::MiningStarted {
 				pid,
@@ -1200,12 +1206,22 @@ pub mod pallet {
 					return;
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
-				pool_info.owner_reward.saturating_accrue(commission);
+
+				pallet_assets::Pallet::<T>::mint_into(
+					<T as pawnshop::Config>::PPhaAssetId::get(),
+					&pool_info.owner_account,
+					commission,
+				)
+				.expect("mint into should be success");
 				let to_distribute = rewards - commission;
+				pallet_assets::Pallet::<T>::mint_into(
+					<T as pawnshop::Config>::PPhaAssetId::get(),
+					&pool_info.basepool.pool_account_id,
+					to_distribute,
+				)
+				.expect("mint into should be success");
 				let distributed = if basepool::is_nondust_balance(to_distribute) {
-					pool_info
-						.basepool
-						.distribute_reward::<T>(to_distribute, true);
+					pool_info.basepool.distribute_reward::<T>(to_distribute);
 					true
 				} else if to_distribute > Zero::zero() {
 					Self::deposit_event(Event::<T>::RewardDismissedDust {
@@ -1246,7 +1262,14 @@ pub mod pallet {
 			}
 
 			// With the worker being cleaned, those stake now are free
-			pool_info.basepool.free_stake.saturating_accrue(returned);
+			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+				<T as pawnshop::Config>::PPhaAssetId::get(),
+				&pool_info.lock_account,
+				&pool_info.basepool.pool_account_id,
+				returned,
+				true,
+			)
+			.expect("transfer should not fail");
 
 			basepool::Pallet::<T>::try_process_withdraw_queue(&mut pool_info.basepool);
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
@@ -1356,7 +1379,21 @@ pub mod pallet {
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
-	#[cfg(test)]
+	pub fn create_owner_and_lock_account<T>(pid: u64, owner: T) -> (T, T)
+	where
+		T: Encode + Decode,
+	{
+		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
+		let owner_account = (b"stakeowner/", hash)
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
+			.expect("Decoding zero-padded account id should always succeed; qed");
+		let lock_account = (b"stakelock/", hash)
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
+			.expect("Decoding zero-padded account id should always succeed; qed");
+		return (owner_account, lock_account);
+	}
+
+	/*#[cfg(test)]
 	mod test {
 		use crate::basepool;
 		use crate::poolproxy::*;
@@ -3136,5 +3173,5 @@ pub mod pallet {
 				},
 			}));
 		}
-	}
+	}*/
 }

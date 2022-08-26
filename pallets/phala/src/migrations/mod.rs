@@ -12,7 +12,13 @@ type MiningBalanceOf<T> =
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
-	fat::Config + mining::Config + mq::Config + registry::Config + stakepoolv2::Config + basepool::Config + vault::Config
+	fat::Config
+	+ mining::Config
+	+ mq::Config
+	+ registry::Config
+	+ stakepoolv2::Config
+	+ basepool::Config
+	+ vault::Config
 {
 }
 impl<T> PhalaPallets for T where
