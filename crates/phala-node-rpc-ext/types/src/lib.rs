@@ -1,6 +1,6 @@
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Storage key.
 #[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode, TypeInfo)]
@@ -26,7 +26,6 @@ pub struct StorageChanges {
 
 /// Response for the `pha_getStorageChanges` RPC.
 pub type GetStorageChangesResponse = Vec<StorageChanges>;
-
 
 // Stuffs to convert ChildStorageCollection and StorageCollection types,
 // in order to dump the keys values into hex strings instead of list of dec numbers.
