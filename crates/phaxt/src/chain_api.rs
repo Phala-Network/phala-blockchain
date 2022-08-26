@@ -1,12 +1,28 @@
 use anyhow::{anyhow, Context, Result};
-use subxt::ext::scale_value::At;
+use parity_scale_codec::Encode;
 use subxt::rpc::NumberOrHex;
+use subxt::{ext::scale_value::At, metadata::EncodeStaticType};
 
 use crate::{BlockNumber, ChainApi, Hash};
 
 impl ChainApi {
+    pub fn storage_key(
+        &self,
+        pallet_name: &str,
+        entry_name: &str,
+        key: &impl Encode,
+    ) -> Result<Vec<u8>> {
+        let key = EncodeStaticType(key);
+        let address = subxt::dynamic::storage(pallet_name, entry_name, vec![key]);
+        Ok(subxt::storage::utils::storage_address_bytes(
+            &address,
+            &self.metadata(),
+        )?)
+    }
+
     pub fn paras_heads_key(&self, para_id: u32) -> Result<Vec<u8>> {
-        crate::dynamic::paras_heads_key(para_id, &self.metadata())
+        let id = crate::ParaId(para_id);
+        self.storage_key("Paras", "Heads", &id)
     }
 
     pub async fn relay_parent_number(&self) -> Result<BlockNumber> {
