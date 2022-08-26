@@ -191,10 +191,9 @@ pub async fn fetch_genesis_storage(
     api: &ParachainApi,
     pos: BlockNumber,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
-    let pos = subxt::BlockNumber::from(NumberOrHex::Number(pos.into()));
-    let hash = api.client.rpc().block_hash(Some(pos)).await?;
+    let pos = subxt::rpc::BlockNumber::from(NumberOrHex::Number(pos.into()));
+    let hash = api.rpc().block_hash(Some(pos)).await?;
     let response = api
-        .client
         .extra_rpc()
         .storage_pairs(StorageKey(vec![]), hash)
         .await?;
@@ -203,8 +202,8 @@ pub async fn fetch_genesis_storage(
 }
 
 async fn finalized_number(api: &ParachainApi) -> Result<BlockNumber> {
-    let hash = api.client.rpc().finalized_head().await?;
-    let header = api.client.rpc().header(Some(hash)).await?;
+    let hash = api.rpc().finalized_head().await?;
+    let header = api.rpc().header(Some(hash)).await?;
     Ok(header.ok_or(anyhow::anyhow!("Header not found"))?.number)
 }
 
@@ -215,7 +214,7 @@ async fn wait_for_block(
 ) -> Result<()> {
     loop {
         let finalized = finalized_number(api).await.unwrap_or(0);
-        let state = api.client.extra_rpc().system_sync_state().await?;
+        let state = api.extra_rpc().system_sync_state().await?;
         if block <= state.current_block as BlockNumber && block <= finalized.max(assume_finalized) {
             return Ok(());
         }
@@ -284,12 +283,10 @@ pub async fn replay(args: Args) -> Result<()> {
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::fetch_storage_changes(&api.client, None, block_number, block_number).await
-            {
+            match pherry::fetch_storage_changes(&api, None, block_number, block_number).await {
                 Ok(mut blocks) => {
                     let mut block = blocks.pop().expect("Expected one block");
-                    let (header, _hash) =
-                        pherry::get_header_at(&api.client, Some(block_number)).await?;
+                    let (header, _hash) = pherry::get_header_at(&api, Some(block_number)).await?;
                     block.block_header = header;
                     log::info!("Replaying block {}", block_number);
                     let mut factory = factory.lock().await;

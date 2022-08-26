@@ -1,12 +1,12 @@
 use anyhow::Result;
 use log::{error, info};
-use phaxt::subxt::extrinsic::Signer;
 use std::time::Duration;
 
 use crate::{
     chain_client::{mq_next_sequence, update_signer_nonce},
     types::{ParachainApi, PrClient, SrSigner},
 };
+use phaxt::subxt::tx::Signer as _;
 pub use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 pub enum Error {
@@ -62,21 +62,19 @@ pub async fn maybe_sync_mq_egress(
             info!("Submitting message: {}", msg_info);
 
             let params = crate::mk_params(api, longevity, tip).await?;
-            let extrinsic = api
-                .tx()
+            let tx = phaxt::parachain::tx()
                 .phala_mq()
-                .sync_offchain_message(message)?
-                .create_signed(signer, params)
-                .await;
+                .sync_offchain_message(message);
+            let extrinsic = api.tx().create_signed(&tx, signer, params).await;
             signer.increment_nonce();
             match extrinsic {
                 Ok(extrinsic) => {
-                    let api = ParachainApi::from(api.client.clone());
+                    let api = ParachainApi::from(api.clone());
                     let err_report = err_report.clone();
-                    let extrinsic = crate::subxt::Encoded(extrinsic.encoded().to_vec());
+                    let extrinsic = crate::subxt::utils::Encoded(extrinsic.encoded().to_vec());
                     tokio::spawn(async move {
                         const TIMEOUT: u64 = 120;
-                        let fut = api.client.rpc().submit_extrinsic(extrinsic);
+                        let fut = api.rpc().submit_extrinsic(extrinsic);
                         let result = tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
                         match result {
                             Err(_) => {
@@ -85,7 +83,7 @@ pub async fn maybe_sync_mq_egress(
                             }
                             Ok(Err(err)) => {
                                 error!("Error submitting message {}: {:?}", msg_info, err);
-                                use phaxt::subxt::{rpc::RpcError, BasicError as SubxtError};
+                                use phaxt::subxt::{rpc::RpcError, Error as SubxtError};
                                 let report = match err {
                                     SubxtError::Rpc(RpcError::Custom(err)) => {
                                         if err.contains("bad signature") {

@@ -157,8 +157,8 @@ pub async fn grap_storage_changes_to_file(
 }
 
 pub async fn get_set_id(api: &RelaychainApi, block: BlockNumber) -> Result<(u64, bool)> {
-    let (block, hash) = crate::get_block_at(&api.client, Some(block)).await?;
-    let set_id = api.storage().grandpa().current_set_id(Some(hash)).await?;
+    let (block, hash) = crate::get_block_at(api, Some(block)).await?;
+    let set_id = crate::current_set_id(api, Some(hash)).await?;
     Ok((set_id, block.justifications.is_some()))
 }
 
@@ -177,12 +177,8 @@ async fn grab_headers(
         return Ok(0);
     }
 
-    let header_hash = crate::get_header_hash(&api.client, Some(start_at - 1)).await?;
-    let mut last_set = api
-        .storage()
-        .grandpa()
-        .current_set_id(Some(header_hash))
-        .await?;
+    let header_hash = crate::get_header_hash(api, Some(start_at - 1)).await?;
+    let mut last_set = crate::current_set_id(api, Some(header_hash)).await?;
     let mut skip_justitication = justification_interval;
     let mut grabbed = 0;
 
@@ -194,22 +190,20 @@ async fn grab_headers(
         let justifications;
         let hash;
         if skip_justitication == 0 {
-            let (block, header_hash) =
-                match crate::get_block_at(&api.client, Some(block_number)).await {
-                    Ok(x) => x,
-                    Err(e) => {
-                        if e.to_string().contains("not found") {
-                            break;
-                        }
-                        return Err(e);
+            let (block, header_hash) = match crate::get_block_at(api, Some(block_number)).await {
+                Ok(x) => x,
+                Err(e) => {
+                    if e.to_string().contains("not found") {
+                        break;
                     }
-                };
+                    return Err(e);
+                }
+            };
             header = block.block.header;
             justifications = block.justifications;
             hash = header_hash;
         } else {
-            let (hdr, hdr_hash) = match crate::get_header_at(&api.client, Some(block_number)).await
-            {
+            let (hdr, hdr_hash) = match crate::get_header_at(&api, Some(block_number)).await {
                 Ok(x) => x,
                 Err(e) => {
                     if e.to_string().contains("not found") {
@@ -222,7 +216,7 @@ async fn grab_headers(
             hash = hdr_hash;
             justifications = None;
         };
-        let set_id = api.storage().grandpa().current_set_id(Some(hash)).await?;
+        let set_id = crate::current_set_id(api, Some(hash)).await?;
         let mut justifications = justifications;
         let authority_set_change = if last_set != set_id {
             info!(
@@ -231,8 +225,7 @@ async fn grab_headers(
             );
             if justifications.is_none() {
                 justifications = Some(
-                    api.client
-                        .rpc()
+                    api.rpc()
                         .block(Some(hash))
                         .await?
                         .ok_or(anyhow!("Failed to fetch block"))?
@@ -291,7 +284,7 @@ async fn grab_para_headers(
     let mut grabbed = 0;
 
     for block_number in start_at.. {
-        let header = match crate::get_header_at(&api.client, Some(block_number)).await {
+        let header = match crate::get_header_at(api, Some(block_number)).await {
             Err(e) if e.to_string().contains("not found") => {
                 break;
             }
@@ -322,7 +315,7 @@ async fn grab_storage_changes(
 
     for from in (start_at..=to).step_by(batch_size as _) {
         let to = to.min(from.saturating_add(batch_size - 1));
-        let headers = crate::fetch_storage_changes(&api.client, None, from, to).await?;
+        let headers = crate::fetch_storage_changes(api, None, from, to).await?;
         for header in headers {
             f(header)?;
             grabbed += 1;
@@ -336,14 +329,13 @@ pub async fn fetch_genesis_info(
     api: &RelaychainApi,
     genesis_block_number: BlockNumber,
 ) -> Result<GenesisBlockInfo> {
-    let genesis_block = crate::get_block_at(&api.client, Some(genesis_block_number))
+    let genesis_block = crate::get_block_at(api, Some(genesis_block_number))
         .await?
         .0
         .block;
     let hash = api
-        .client
         .rpc()
-        .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(
+        .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(
             genesis_block_number as _,
         ))))
         .await?
