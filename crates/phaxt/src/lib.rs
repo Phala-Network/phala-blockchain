@@ -52,5 +52,10 @@ pub async fn connect(uri: &str) -> Result<ChainApi> {
     let client = Client::from_url(uri)
         .await
         .context("Failed to connect to substrate")?;
+    let update_client = client.subscribe_to_updates();
+    tokio::spawn(async move {
+        let result = update_client.perform_runtime_updates().await;
+        eprintln!("Runtime update failed with result={:?}", result);
+    });
     Ok(ChainApi(client))
 }

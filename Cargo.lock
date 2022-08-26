@@ -7839,6 +7839,7 @@ dependencies = [
  "serde",
  "serde_json",
  "subxt",
+ "tokio",
 ]
 
 [[package]]
