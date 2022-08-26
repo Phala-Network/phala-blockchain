@@ -1,6 +1,6 @@
 use phaxt::ParachainApi;
 
-use phaxt::khala::runtime_types::{
+use phaxt::parachain::runtime_types::{
     phala_types::{worker_endpoint_v1::WorkerEndpoint, VersionedWorkerEndpoints},
     sp_core::sr25519::Public,
 };
@@ -12,10 +12,12 @@ pub async fn get_endpoint_info_by_pubkey(
     pubkey: [u8; 32],
     endpoint_type: EndpointType,
 ) -> Option<Vec<u8>> {
+    let query = phaxt::parachain::storage()
+        .phala_registry()
+        .endpoints(&Public(pubkey));
     let endpoint_storage = api
         .storage()
-        .phala_registry()
-        .endpoints(&Public(pubkey), None)
+        .fetch(&query, None)
         .await
         .ok()?;
 

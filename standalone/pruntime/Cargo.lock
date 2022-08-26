@@ -4364,10 +4364,10 @@ dependencies = [
  "phactory-pal",
  "phala-async-executor",
  "phala-crypto",
- "phala-fair-queue",
  "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
+ "phala-scheduler",
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
@@ -4455,15 +4455,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "typenum",
-]
-
-[[package]]
-name = "phala-fair-queue"
-version = "0.1.0"
-dependencies = [
- "rbtree",
- "thiserror",
- "tokio",
 ]
 
 [[package]]
@@ -4599,6 +4590,15 @@ version = "0.1.0"
 dependencies = [
  "log",
  "rocket",
+]
+
+[[package]]
+name = "phala-scheduler"
+version = "0.1.0"
+dependencies = [
+ "rbtree",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -4827,7 +4827,7 @@ dependencies = [
  "page_size",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
- "phala-fair-queue",
+ "phala-scheduler",
  "pink-sidevm-env",
  "rand 0.8.5",
  "rustls-pemfile",

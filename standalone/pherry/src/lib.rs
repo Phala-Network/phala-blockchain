@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use codec::Decode;
 use phaxt::rpc::ExtraRpcExt as _;
 use phaxt::{subxt, RpcClient};
-use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
+use sp_core::{crypto::Pair, sr25519};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 
 mod endpoint;
@@ -229,10 +229,10 @@ struct BlockSyncState {
 }
 
 async fn get_header_hash<T: subxt::Config>(
-    client: &subxt::Client<T>,
+    client: &phaxt::Client<T>,
     h: Option<u32>,
 ) -> Result<T::Hash> {
-    let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
+    let pos = h.map(|h| subxt::rpc::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client
             .rpc()
@@ -245,7 +245,7 @@ async fn get_header_hash<T: subxt::Config>(
 }
 
 async fn get_block_at<T: subxt::Config>(
-    client: &subxt::Client<T>,
+    client: &phaxt::Client<T>,
     h: Option<u32>,
 ) -> Result<(SignedBlock<T::Header, T::Extrinsic>, T::Hash)> {
     let hash = get_header_hash(client, h).await?;
@@ -259,7 +259,7 @@ async fn get_block_at<T: subxt::Config>(
 }
 
 pub async fn get_header_at<T: subxt::Config>(
-    client: &subxt::Client<T>,
+    client: &phaxt::Client<T>,
     h: Option<u32>,
 ) -> Result<(T::Header, T::Hash)> {
     let hash = get_header_hash(client, h).await?;
@@ -273,7 +273,7 @@ pub async fn get_header_at<T: subxt::Config>(
 }
 
 async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) -> Result<Block> {
-    let (block, hash) = get_block_at(&api.client, h).await?;
+    let (block, hash) = get_block_at(api, h).await?;
     info!("get_block: Got block {:?} hash {}", h, hash.to_string());
     return Ok(block);
 }
@@ -338,9 +338,7 @@ pub async fn batch_sync_storage_changes(
 
     for from in (from..=to).step_by(batch_size as _) {
         let to = to.min(from.saturating_add(batch_size - 1));
-        let storage_changes = fetcher
-            .fetch_storage_changes(&api.client, cache, from, to)
-            .await?;
+        let storage_changes = fetcher.fetch_storage_changes(api, cache, from, to).await?;
         let r = req_dispatch_block(pr, storage_changes).await?;
         log::debug!("  ..dispatch_block: {:?}", r);
     }
@@ -352,13 +350,14 @@ async fn get_authority_with_proof_at(
     hash: Hash,
 ) -> Result<AuthoritySetChange> {
     // Storage
-    let authority_set_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
-    let id_key = phaxt::storage_key(phaxt::kusama::grandpa::storage::CurrentSetId);
+    let id_key = phaxt::relaychain::storage()
+        .grandpa()
+        .current_set_id()
+        .to_bytes();
     // Authority set
     let value = api
-        .client
         .rpc()
-        .storage(&authority_set_key, Some(hash))
+        .storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
         .await?
         .expect("No authority key found")
         .0;
@@ -367,15 +366,10 @@ async fn get_authority_with_proof_at(
         .into();
 
     // Set id
-    let id = api
-        .storage()
-        .grandpa()
-        .current_set_id(Some(hash))
-        .await
-        .map_err(|_| Error::NoSetIdAtBlock)?;
+    let id = crate::current_set_id(api, Some(hash)).await?;
     // Proof
     let proof =
-        chain_client::read_proofs(&api, Some(hash), vec![authority_set_key, id_key]).await?;
+        chain_client::read_proofs(&api, Some(hash), vec![GRANDPA_AUTHORITIES_KEY, &id_key]).await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
@@ -383,11 +377,12 @@ async fn get_authority_with_proof_at(
 }
 
 async fn get_paraid(api: &ParachainApi, hash: Option<Hash>) -> Result<u32, Error> {
+    let query = phaxt::parachain::storage().parachain_info().parachain_id();
     api.storage()
-        .parachain_info()
-        .parachain_id(hash)
+        .fetch(&query, hash)
         .await
-        .or(Err(Error::ParachainIdNotFound))
+        .or(Err(Error::ParachainIdNotFound))?
+        .ok_or(Error::ParachainIdNotFound)
         .map(|id| id.0)
 }
 
@@ -416,12 +411,7 @@ async fn bisec_setid_change(
     while l <= r {
         let mid = (l + r) / 2;
         let hash = headers[mid as usize].hash();
-        let set_id = api
-            .storage()
-            .grandpa()
-            .current_set_id(Some(hash))
-            .await
-            .map_err(|_| Error::NoSetIdAtBlock)?;
+        let set_id = crate::current_set_id(api, Some(hash)).await?;
         // Left: set_id == last_id, Right: set_id > last_id
         if set_id == last_id {
             l = mid + 1;
@@ -515,13 +505,8 @@ async fn batch_sync_block(
         } else {
             // Construct the authority set from the last block we have synced (the genesis)
             let number = &block_buf.first().unwrap().block.header.number - 1;
-            let hash = api.client.rpc().block_hash(Some(number.into())).await?;
-            let set_id = api
-                .storage()
-                .grandpa()
-                .current_set_id(hash)
-                .await
-                .map_err(|_| Error::NoSetIdAtBlock)?;
+            let hash = api.rpc().block_hash(Some(number.into())).await?;
+            let set_id = crate::current_set_id(api, hash).await?;
             let set = (number, set_id);
             sync_state.authory_set_state = Some(set.clone());
             set
@@ -663,7 +648,6 @@ async fn get_finalized_header_with_paraid(
     let para_head_storage_key = chain_client::paras_heads_key(para_id);
 
     let raw_header = api
-        .client
         .rpc()
         .storage(&para_head_storage_key, Some(last_header_hash))
         .await?;
@@ -683,8 +667,7 @@ async fn get_finalized_header_with_paraid(
         .or(Err(Error::FailedToDecode))?;
 
     let header_proof =
-        chain_client::read_proof(api, Some(last_header_hash), para_head_storage_key.clone())
-            .await?;
+        chain_client::read_proof(api, Some(last_header_hash), &para_head_storage_key).await?;
     Ok(Some((para_fin_header, header_proof)))
 }
 
@@ -710,7 +693,7 @@ async fn maybe_sync_waiting_parablocks(
         }
     }
     if fin_header.is_none() {
-        let last_header_hash = get_header_hash(&api.client, Some(info.headernum - 1)).await?;
+        let last_header_hash = get_header_hash(api, Some(info.headernum - 1)).await?;
         fin_header = get_finalized_header(&api, &para_api, last_header_hash)
             .await?
             .map(|(h, proof)| (h.number, proof));
@@ -784,8 +767,8 @@ async fn sync_parachain_header(
         info!("parachain headers not found in cache");
         for b in next_headernum..=para_fin_block_number {
             info!("fetching parachain header {}", b);
-            let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
-            let hash = para_api.client.rpc().block_hash(Some(num)).await?;
+            let num = subxt::rpc::BlockNumber::from(NumberOrHex::Number(b.into()));
+            let hash = para_api.rpc().block_hash(Some(num)).await?;
             let hash = match hash {
                 Some(hash) => hash,
                 None => {
@@ -794,7 +777,6 @@ async fn sync_parachain_header(
                 }
             };
             let header = para_api
-                .client
                 .rpc()
                 .header(Some(hash))
                 .await?
@@ -826,17 +808,16 @@ async fn resolve_start_header(
         return Ok(0);
     }
     let h1 = para_api
-        .client
         .rpc()
-        .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(1))))
+        .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(1))))
         .await?;
+    let query = phaxt::parachain::storage()
+        .parachain_system()
+        .validation_data();
     let validation_data = para_api
         .storage()
-        .parachain_system()
-        .validation_data(h1)
-        .await
-        .ok()
-        .flatten()
+        .fetch(&query, h1)
+        .await?
         .ok_or(Error::ParachainValidationDataNotFound)?;
     Ok((validation_data.relay_parent_number - 1) as BlockNumber)
 }
@@ -861,11 +842,10 @@ async fn init_runtime(
     let genesis_info = match genesis_info {
         Some(genesis_info) => genesis_info,
         None => {
-            let genesis_block = get_block_at(&api.client, Some(start_header)).await?.0.block;
+            let genesis_block = get_block_at(api, Some(start_header)).await?.0.block;
             let hash = api
-                .client
                 .rpc()
-                .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(
+                .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(
                     start_header as _,
                 ))))
                 .await?
@@ -918,18 +898,19 @@ async fn register_worker(
     let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
         .map_err(|_| anyhow!("Decode pruntime info failed"))?;
     let attestation =
-        phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
+        phaxt::parachain::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),
             signature: payload.signature,
             raw_signing_cert: payload.signing_cert,
         };
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
+    let tx = phaxt::parachain::tx()
+        .phala_registry()
+        .register_worker(pruntime_info, attestation);
     let ret = para_api
         .tx()
-        .phala_registry()
-        .register_worker(pruntime_info, attestation)?
-        .sign_and_submit_then_watch(signer, params)
+        .sign_and_submit_then_watch(&tx, signer, params)
         .await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
@@ -965,7 +946,7 @@ async fn try_register_worker(
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
-async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Result<()> {
+async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Result<()> {
     loop {
         let state = client.extra_rpc().system_sync_state().await?;
         info!(
@@ -981,10 +962,8 @@ async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Resul
     }
 }
 
-pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<T>> {
-    subxt::ClientBuilder::new()
-        .set_url(uri)
-        .build()
+pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<phaxt::Client<T>> {
+    phaxt::Client::from_url(uri)
         .await
         .context("Failed to connect to substrate")
 }
@@ -1013,8 +992,8 @@ async fn bridge(
     if !args.no_wait {
         // Don't start our worker until the substrate node is synced
         info!("Waiting for substrate to sync blocks...");
-        wait_until_synced(&api.client).await?;
-        wait_until_synced(&para_api.client).await?;
+        wait_until_synced(&api).await?;
+        wait_until_synced(&para_api).await?;
         info!("Substrate sync blocks done");
     }
 
@@ -1028,7 +1007,7 @@ async fn bridge(
     let pr = pruntime_client::new_pruntime_client(args.pruntime_endpoint.clone());
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
-    let mut signer: SrSigner = subxt::PairSigner::new(pair);
+    let mut signer = SrSigner::new(pair);
     let nc = NotifyClient::new(&args.notify_endpoint);
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
@@ -1203,7 +1182,7 @@ async fn bridge(
             }
         }
 
-        let latest_block = get_block_at(&api.client, None).await?.0.block;
+        let latest_block = get_block_at(&api, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(ref b) = sync_state.blocks.first() {
             if b.block.header.number >= info.blocknum {
@@ -1388,7 +1367,6 @@ async fn mk_params(
 ) -> Result<phaxt::ExtrinsicParamsBuilder> {
     let era = if longevity > 0 {
         let header = api
-            .client
             .rpc()
             .header(<Option<Hash>>::None)
             .await?
@@ -1517,4 +1495,14 @@ async fn handover_worker_key(server: &PrClient, client: &PrClient) -> Result<()>
     let encrypted_key = server.handover_start(response).await?;
     client.handover_receive(encrypted_key).await?;
     panic!("Worker key handover done, the new pRuntime is ready to go");
+}
+
+async fn current_set_id(api: &RelaychainApi, block_hash: Option<phaxt::Hash>) -> Result<u64> {
+    let query = phaxt::relaychain::storage().grandpa().current_set_id();
+    let set_id = api
+        .storage()
+        .fetch(&query, block_hash)
+        .await?
+        .ok_or(anyhow!("No set id"))?;
+    Ok(set_id)
 }
