@@ -1,5 +1,6 @@
 use parity_scale_codec::Encode;
 use phala_pallets::pallet_registry::Attestation;
+use phala_types::messaging::SignedMessage;
 use subxt::{tx::StaticTxPayload, utils::Encoded};
 
 pub fn register_worker(
@@ -30,11 +31,11 @@ pub fn update_worker_endpoint(
     .unvalidated()
 }
 
-pub fn sync_offchain_message(message: Vec<u8>) -> StaticTxPayload<Encoded> {
+pub fn sync_offchain_message(message: SignedMessage) -> StaticTxPayload<SignedMessage> {
     StaticTxPayload::new(
         "PhalaMq",
         "sync_offchain_message",
-        Encoded(message),
+        message,
         Default::default(),
     )
     .unvalidated()
