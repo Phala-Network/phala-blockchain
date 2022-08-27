@@ -679,6 +679,7 @@ async fn maybe_sync_waiting_parablocks(
     info: &PhactoryInfo,
     batch_window: BlockNumber,
 ) -> Result<()> {
+    info!("Syncing waiting parablocks...");
     let mut fin_header = None;
     if let Some(cache) = &cache_client {
         let mut cached_headers = cache
