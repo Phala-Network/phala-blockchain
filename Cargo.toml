@@ -69,7 +69,6 @@ members = [
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
-	"crates/sgx-api-lite",
 	"crates/phala-scheduler",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
@@ -83,5 +82,5 @@ rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocke
 rocksdb = { git = "https://github.com/jasl/rust-rocksdb", branch = "v0.18" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.27" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28" }
