@@ -368,10 +368,10 @@ impl Client {
         let status = response.status();
         info!("Requested cache from {url} ({})", status.as_u16());
         if !status.is_success() {
-            return Err(anyhow!(
+            anyhow::bail!(
                 "Failed to fetch data from cache with status={}",
                 status.as_u16()
-            ));
+            );
         }
         let body = response.bytes().await.map_err(|err| {
             error!("Failed to read cache response: {err}");
