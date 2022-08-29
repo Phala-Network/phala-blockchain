@@ -7,7 +7,7 @@ use phaxt::{
 };
 use std::io::{Read, Write};
 
-use log::info;
+use log::{error, info, warn};
 
 pub use phactory_api::blocks::{AuthoritySetChange, BlockHeaderWithChanges, GenesisBlockInfo};
 
@@ -361,8 +361,27 @@ impl Client {
     }
 
     async fn request<T: Decode>(&self, url: &str) -> Result<T> {
-        let body = reqwest::get(url).await?.bytes().await?;
-        Ok(T::decode(&mut &body[..])?)
+        let response = reqwest::get(url).await.map_err(|err| {
+            warn!("Failed to fetch data from cache: {err}");
+            err
+        })?;
+        let status = response.status();
+        info!("Requested cache from {url} ({})", status.as_u16());
+        if !status.is_success() {
+            anyhow::bail!(
+                "Failed to fetch data from cache with status={}",
+                status.as_u16()
+            );
+        }
+        let body = response.bytes().await.map_err(|err| {
+            error!("Failed to read cache response: {err}");
+            err
+        })?;
+        let decoded = T::decode(&mut &body[..]).map_err(|err| {
+            error!("Failed to decode cache response: {err}");
+            err
+        })?;
+        Ok(decoded)
     }
 
     pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {

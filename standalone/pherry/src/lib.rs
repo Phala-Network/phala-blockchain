@@ -679,12 +679,17 @@ async fn maybe_sync_waiting_parablocks(
     info: &PhactoryInfo,
     batch_window: BlockNumber,
 ) -> Result<()> {
+    info!("Syncing waiting parablocks...");
     let mut fin_header = None;
     if let Some(cache) = &cache_client {
         let mut cached_headers = cache
             .get_headers(info.headernum - 1)
             .await
             .unwrap_or_default();
+        if cached_headers.len() > 1 {
+            info!("The relaychain header is not staying at a justification checkpoint, skipping to sync paraheaders...");
+            return Ok(());
+        }
         if cached_headers.len() == 1 {
             fin_header = cached_headers
                 .remove(0)
@@ -701,7 +706,8 @@ async fn maybe_sync_waiting_parablocks(
     let (fin_header_num, proof) = match fin_header {
         Some(num) => num,
         None => {
-            return Err(anyhow!("The pRuntime is waiting for paraheaders, but pherry failed to get the fin_header_num"));
+            info!("No finalized paraheader found, skipping to sync paraheaders...");
+            return Ok(());
         }
     };
 
@@ -1141,6 +1147,7 @@ async fn bridge(
         }
         if args.parachain
             && !args.disable_sync_waiting_paraheaders
+            // `round == 0` is for old pruntimes which don't return `waiting_for_paraheaders`
             && (info.waiting_for_paraheaders || round == 0)
         {
             maybe_sync_waiting_parablocks(
