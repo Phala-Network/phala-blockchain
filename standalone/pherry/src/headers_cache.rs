@@ -158,7 +158,7 @@ pub async fn grap_storage_changes_to_file(
 
 pub async fn get_set_id(api: &RelaychainApi, block: BlockNumber) -> Result<(u64, bool)> {
     let (block, hash) = crate::get_block_at(api, Some(block)).await?;
-    let set_id = crate::current_set_id(api, Some(hash)).await?;
+    let set_id = api.current_set_id(Some(hash)).await?;
     Ok((set_id, block.justifications.is_some()))
 }
 
@@ -178,11 +178,11 @@ async fn grab_headers(
     }
 
     let header_hash = crate::get_header_hash(api, Some(start_at - 1)).await?;
-    let mut last_set = crate::current_set_id(api, Some(header_hash)).await?;
+    let mut last_set = api.current_set_id(Some(header_hash)).await?;
     let mut skip_justitication = justification_interval;
     let mut grabbed = 0;
 
-    let para_id = crate::get_paraid(para_api, None).await?;
+    let para_id = para_api.get_paraid(None).await?;
     info!("para_id: {}", para_id);
 
     for block_number in start_at.. {
@@ -216,7 +216,7 @@ async fn grab_headers(
             hash = hdr_hash;
             justifications = None;
         };
-        let set_id = crate::current_set_id(api, Some(hash)).await?;
+        let set_id = api.current_set_id(Some(hash)).await?;
         let mut justifications = justifications;
         let authority_set_change = if last_set != set_id {
             info!(

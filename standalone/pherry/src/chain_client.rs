@@ -91,11 +91,6 @@ pub async fn mq_next_sequence(
     Ok(seq)
 }
 
-pub fn paras_heads_key(para_id: u32) -> Vec<u8> {
-    let id = phaxt::relaychain::runtime_types::polkadot_parachain::primitives::Id(para_id);
-    phaxt::relaychain::storage().paras().heads(&id).to_bytes()
-}
-
 pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
     Decode::decode(&mut head.as_slice()).or(Err(Error::FailedToDecode))
 }

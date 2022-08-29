@@ -323,12 +323,6 @@ async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Resul
     }
 }
 
-pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<phaxt::Client<T>> {
-    phaxt::Client::from_url(uri)
-        .await
-        .context("Connect to substrate")
-}
-
 pub async fn prouter_daemon(args: &Args, i2pd: &I2pd) -> Result<()> {
     let mut restart_failure_count: u32 = 0;
     loop {
@@ -467,7 +461,7 @@ async fn main() {
         Arc::new(Mutex::new(None))
     } else {
         let para_uri: &str = &args.substrate_ws_endpoint;
-        let connected_para_api: ParachainApi = subxt_connect(para_uri)
+        let connected_para_api: ParachainApi = phaxt::connect(para_uri)
             .await
             .expect("should connect to parachain")
             .into();

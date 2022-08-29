@@ -3462,13 +3462,16 @@ dependencies = [
 name = "phaxt"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "parity-scale-codec",
  "phala-node-rpc-ext-types",
+ "phala-pallets",
  "phala-types",
  "scale-info",
  "serde",
  "serde_json",
  "subxt",
+ "tokio",
 ]
 
 [[package]]

@@ -18,9 +18,7 @@ async fn update_worker_endpoint(
     let signed_endpoint = Decode::decode(&mut &encoded_endpoint_payload[..])
         .map_err(|_| anyhow!("Decode signed endpoint failed"))?;
     let params = crate::mk_params(para_api, args.longevity, args.tip).await?;
-    let tx = phaxt::parachain::tx()
-        .phala_registry()
-        .update_worker_endpoint(signed_endpoint, signature);
+    let tx = phaxt::dynamic::tx::update_worker_endpoint(signed_endpoint, signature);
     let ret = para_api
         .tx()
         .sign_and_submit_then_watch(&tx, signer, params)

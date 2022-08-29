@@ -7,6 +7,7 @@ use crate::{
     types::{ParachainApi, PrClient, SrSigner},
 };
 use phaxt::subxt::tx::Signer as _;
+
 pub use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 pub enum Error {
@@ -62,9 +63,7 @@ pub async fn maybe_sync_mq_egress(
             info!("Submitting message: {}", msg_info);
 
             let params = crate::mk_params(api, longevity, tip).await?;
-            let tx = phaxt::parachain::tx()
-                .phala_mq()
-                .sync_offchain_message(message);
+            let tx = phaxt::dynamic::tx::sync_offchain_message(message);
             let extrinsic = api.tx().create_signed(&tx, signer, params).await;
             signer.increment_nonce();
             match extrinsic {

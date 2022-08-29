@@ -5,7 +5,6 @@ use sp_runtime::{generic::SignedBlock as SpSignedBlock, OpaqueExtrinsic};
 
 pub use sp_core::storage::{StorageData, StorageKey};
 
-pub use parachain::runtime_types::phala_mq::types::*;
 pub use phaxt::{self, *};
 pub use subxt::rpc::NumberOrHex;
 

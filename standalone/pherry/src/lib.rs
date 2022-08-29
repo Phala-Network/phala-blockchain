@@ -1,5 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
+use phala_pallets::pallet_registry::Attestation;
 use sp_core::crypto::AccountId32;
 use sp_runtime::generic::Era;
 use std::cmp;
@@ -39,6 +40,8 @@ use clap::{AppSettings, Parser};
 use headers_cache::Client as CacheClient;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
+
+pub use phaxt::connect as subxt_connect;
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -350,10 +353,7 @@ async fn get_authority_with_proof_at(
     hash: Hash,
 ) -> Result<AuthoritySetChange> {
     // Storage
-    let id_key = phaxt::relaychain::storage()
-        .grandpa()
-        .current_set_id()
-        .to_bytes();
+    let id_key = phaxt::dynamic::storage_key("Grandpa", "CurrentSetId");
     // Authority set
     let value = api
         .rpc()
@@ -366,7 +366,7 @@ async fn get_authority_with_proof_at(
         .into();
 
     // Set id
-    let id = crate::current_set_id(api, Some(hash)).await?;
+    let id = api.current_set_id(Some(hash)).await?;
     // Proof
     let proof =
         chain_client::read_proofs(&api, Some(hash), vec![GRANDPA_AUTHORITIES_KEY, &id_key]).await?;
@@ -374,16 +374,6 @@ async fn get_authority_with_proof_at(
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
     })
-}
-
-async fn get_paraid(api: &ParachainApi, hash: Option<Hash>) -> Result<u32, Error> {
-    let query = phaxt::parachain::storage().parachain_info().parachain_id();
-    api.storage()
-        .fetch(&query, hash)
-        .await
-        .or(Err(Error::ParachainIdNotFound))?
-        .ok_or(Error::ParachainIdNotFound)
-        .map(|id| id.0)
 }
 
 /// Returns the next set_id change by a binary search on the known blocks
@@ -411,7 +401,7 @@ async fn bisec_setid_change(
     while l <= r {
         let mid = (l + r) / 2;
         let hash = headers[mid as usize].hash();
-        let set_id = crate::current_set_id(api, Some(hash)).await?;
+        let set_id = api.current_set_id(Some(hash)).await?;
         // Left: set_id == last_id, Right: set_id > last_id
         if set_id == last_id {
             l = mid + 1;
@@ -506,7 +496,7 @@ async fn batch_sync_block(
             // Construct the authority set from the last block we have synced (the genesis)
             let number = &block_buf.first().unwrap().block.header.number - 1;
             let hash = api.rpc().block_hash(Some(number.into())).await?;
-            let set_id = crate::current_set_id(api, hash).await?;
+            let set_id = api.current_set_id(hash).await?;
             let set = (number, set_id);
             sync_state.authory_set_state = Some(set.clone());
             set
@@ -636,7 +626,7 @@ async fn get_finalized_header(
     para_api: &ParachainApi,
     last_header_hash: Hash,
 ) -> Result<Option<(Header, Vec<Vec<u8>> /*proof*/)>> {
-    let para_id = get_paraid(para_api, None).await?;
+    let para_id = para_api.get_paraid(None).await?;
     get_finalized_header_with_paraid(api, para_id, last_header_hash).await
 }
 
@@ -645,7 +635,7 @@ async fn get_finalized_header_with_paraid(
     para_id: u32,
     last_header_hash: Hash,
 ) -> Result<Option<(Header, Vec<Vec<u8>> /*proof*/)>> {
-    let para_head_storage_key = chain_client::paras_heads_key(para_id);
+    let para_head_storage_key = api.paras_heads_key(para_id)?;
 
     let raw_header = api
         .rpc()
@@ -813,19 +803,8 @@ async fn resolve_start_header(
     if !is_parachain {
         return Ok(0);
     }
-    let h1 = para_api
-        .rpc()
-        .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(1))))
-        .await?;
-    let query = phaxt::parachain::storage()
-        .parachain_system()
-        .validation_data();
-    let validation_data = para_api
-        .storage()
-        .fetch(&query, h1)
-        .await?
-        .ok_or(Error::ParachainValidationDataNotFound)?;
-    Ok((validation_data.relay_parent_number - 1) as BlockNumber)
+    let number = para_api.relay_parent_number().await?;
+    Ok((number - 1) as BlockNumber)
 }
 
 async fn init_runtime(
@@ -901,19 +880,14 @@ async fn register_worker(
     let payload = attestation
         .payload
         .ok_or(anyhow!("Missing attestation payload"))?;
-    let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
-        .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-    let attestation =
-        phaxt::parachain::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
-            ra_report: payload.report.as_bytes().to_vec(),
-            signature: payload.signature,
-            raw_signing_cert: payload.signing_cert,
-        };
+    let attestation = Attestation::SgxIas {
+        ra_report: payload.report.as_bytes().to_vec(),
+        signature: payload.signature,
+        raw_signing_cert: payload.signing_cert,
+    };
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
-    let tx = phaxt::parachain::tx()
-        .phala_registry()
-        .register_worker(pruntime_info, attestation);
+    let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation);
     let ret = para_api
         .tx()
         .sign_and_submit_then_watch(&tx, signer, params)
@@ -968,12 +942,6 @@ async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Resul
     }
 }
 
-pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<phaxt::Client<T>> {
-    phaxt::Client::from_url(uri)
-        .await
-        .context("Failed to connect to substrate")
-}
-
 async fn bridge(
     args: &Args,
     flags: &mut RunningFlags,
@@ -981,7 +949,7 @@ async fn bridge(
 ) -> Result<()> {
     // Connect to substrate
 
-    let api: RelaychainApi = subxt_connect(&args.substrate_ws_endpoint).await?.into();
+    let api: RelaychainApi = subxt_connect(&args.substrate_ws_endpoint).await?;
     info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
 
     let para_uri: &str = if args.parachain {
@@ -989,7 +957,7 @@ async fn bridge(
     } else {
         &args.substrate_ws_endpoint
     };
-    let para_api: ParachainApi = subxt_connect(para_uri).await?.into();
+    let para_api: ParachainApi = subxt_connect(para_uri).await?;
     info!(
         "Connected to parachain node at: {}",
         args.collator_ws_endpoint
@@ -1502,14 +1470,4 @@ async fn handover_worker_key(server: &PrClient, client: &PrClient) -> Result<()>
     let encrypted_key = server.handover_start(response).await?;
     client.handover_receive(encrypted_key).await?;
     panic!("Worker key handover done, the new pRuntime is ready to go");
-}
-
-async fn current_set_id(api: &RelaychainApi, block_hash: Option<phaxt::Hash>) -> Result<u64> {
-    let query = phaxt::relaychain::storage().grandpa().current_set_id();
-    let set_id = api
-        .storage()
-        .fetch(&query, block_hash)
-        .await?
-        .ok_or(anyhow!("No set id"))?;
-    Ok(set_id)
 }
