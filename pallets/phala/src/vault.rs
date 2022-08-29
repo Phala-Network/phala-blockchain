@@ -124,7 +124,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn create_vault(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pid = basepool::Pallet::<T>::cosume_new_pid();
+			let pid = basepool::Pallet::<T>::consume_new_pid();
 			// TODO(mingxuan): create_collection should return cid
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 			// Create a NFT collection related to the new stake pool
@@ -144,7 +144,7 @@ pub mod pallet {
 				basepool::pallet::create_staker_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
-				PoolProxy::Vault(Vault::<T::AccountId, BalanceOf<T>> {
+				PoolProxy::Vault(Vault {
 					basepool: basepool::BasePool {
 						pid,
 						owner: owner.clone(),
@@ -175,7 +175,7 @@ pub mod pallet {
 		pub fn set_vault_payout_pref(
 			origin: OriginFor<T>,
 			pid: u64,
-			payout_commission: Permill,
+			payout_commission: Option<Permill>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
@@ -185,13 +185,14 @@ pub mod pallet {
 				Error::<T>::UnauthorizedPoolOwner
 			);
 
-			pool_info.commission = Some(payout_commission);
+			pool_info.commission = payout_commission;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 
-			Self::deposit_event(Event::<T>::VaultCommissionSet {
-				pid,
-				commission: payout_commission.deconstruct(),
-			});
+			let mut commission: u32 = 0;
+			if let Some(ratio) = payout_commission {
+				commission = ratio.deconstruct();
+			}
+			Self::deposit_event(Event::<T>::VaultCommissionSet { pid, commission });
 
 			Ok(())
 		}
@@ -220,11 +221,8 @@ pub mod pallet {
 				.share_price()
 				.expect("price must exist when owner_shares exist");
 			let rewards = bmul(shares, &price);
-			let nft_id = basepool::Pallet::<T>::mint_nft(
-				pool_info.basepool.cid,
-				target.clone(),
-				shares.clone(),
-			)?;
+			let nft_id =
+				basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares.clone())?;
 			Self::withdraw_from_vault(origin, pool_info.basepool.pid, shares)?;
 			pool_info.owner_shares -= shares;
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
@@ -461,7 +459,7 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				who.clone(),
 			)?;
-			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info.clone()));
+			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 
 			Ok(())
 		}

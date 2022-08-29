@@ -134,8 +134,7 @@ pub mod pallet {
 	/// Mapping for pools that store their descriptions set by owner
 	#[pallet::storage]
 	#[pallet::getter(fn pool_descriptions)]
-	pub type PoolDescriptions<T: Config> =
-		StorageMap<_, Twox64Concat, u64, BoundedVec<u8, DescMaxLen>>;
+	pub type PoolDescriptions<T: Config> = StorageMap<_, Twox64Concat, u64, DescStr>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -448,7 +447,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pid = basepool::Pallet::<T>::cosume_new_pid();
+			let pid = basepool::Pallet::<T>::consume_new_pid();
 			// TODO(mingxuan): create_collection should return cid
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 			// Create a NFT collection related to the new stake pool
@@ -470,7 +469,7 @@ pub mod pallet {
 				create_owner_and_lock_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
-				PoolProxy::StakePool(StakePool::<T::AccountId, BalanceOf<T>> {
+				PoolProxy::StakePool(StakePool {
 					basepool: basepool::BasePool {
 						pid,
 						owner: owner.clone(),
@@ -479,7 +478,7 @@ pub mod pallet {
 						withdraw_queue: VecDeque::new(),
 						value_subscribers: VecDeque::new(),
 						cid: collection_id,
-						pool_account_id: account_id.clone(),
+						pool_account_id: account_id,
 					},
 					payout_commission: None,
 					cap: None,
@@ -644,7 +643,7 @@ pub mod pallet {
 		pub fn set_payout_pref(
 			origin: OriginFor<T>,
 			pid: u64,
-			payout_commission: Permill,
+			payout_commission: Option<Permill>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
@@ -654,13 +653,14 @@ pub mod pallet {
 				Error::<T>::UnauthorizedPoolOwner
 			);
 
-			pool_info.payout_commission = Some(payout_commission);
+			pool_info.payout_commission = payout_commission;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 
-			Self::deposit_event(Event::<T>::PoolCommissionSet {
-				pid,
-				commission: payout_commission.deconstruct(),
-			});
+			let mut commission: u32 = 0;
+			if let Some(ratio) = payout_commission {
+				commission = ratio.deconstruct();
+			}
+			Self::deposit_event(Event::<T>::PoolCommissionSet { pid, commission });
 
 			Ok(())
 		}
@@ -807,6 +807,7 @@ pub mod pallet {
 		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
 		/// Note: This function doesn't guarantee no-op when there's error.
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
 			ensure_signed(origin)?;
 			let now = <T as registry::Config>::UnixTime::now()
@@ -825,7 +826,7 @@ pub mod pallet {
 			}
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool.clone()));
 			if basepool::Pallet::<T>::has_expired_withdrawal(
-				&mut pool.basepool,
+				&pool.basepool,
 				now,
 				grace_period,
 				releasing_stake,
@@ -833,7 +834,7 @@ pub mod pallet {
 				for worker in pool.workers.iter() {
 					let miner: T::AccountId = pool_sub_account(pid, &worker);
 					if !pool.cd_workers.contains(&worker) {
-						Self::do_stop_mining(&pool.basepool.owner, pid, worker.clone())?;
+						Self::do_stop_mining(&pool.basepool.owner, pid, *worker)?;
 					}
 				}
 			}
@@ -889,7 +890,6 @@ pub mod pallet {
 				.ok_or(Error::<T>::AssetAccountNotExist)?;
 			}
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
-			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			let shares =
 				basepool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
@@ -1331,7 +1331,7 @@ pub mod pallet {
 				let mut pool_info =
 					ensure_stake_pool::<T>(pid).expect("Stake pool must exist; qed.");
 				Self::handle_pool_new_reward(&mut pool_info, reward);
-				basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
+				basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 			}
 		}
 	}
@@ -2195,7 +2195,7 @@ pub mod pallet {
 				set_block_1();
 				setup_workers(1);
 				setup_stake_pool_with_workers(1, &[1]);
-				let str_hello: BoundedVec<u8, DescMaxLen> =
+				let str_hello: DescStr =
 					("hello").as_bytes().to_vec().try_into().unwrap();
 				assert_ok!(PhalaStakePool::set_pool_description(
 					Origin::signed(1),
@@ -2204,7 +2204,7 @@ pub mod pallet {
 				));
 				let list = PhalaStakePool::pool_descriptions(0).unwrap();
 				assert_eq!(list, str_hello);
-				let str_bye: BoundedVec<u8, DescMaxLen> =
+				let str_bye: DescStr =
 					("bye").as_bytes().to_vec().try_into().unwrap();
 				assert_noop!(
 					PhalaStakePool::set_pool_description(Origin::signed(2), 0, str_bye,),

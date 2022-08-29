@@ -122,11 +122,7 @@ pub mod pallet {
 
 		RedemptAmountLargerThanTotalStakes,
 
-		NotEnoughFreeStakesToRedempt,
-
 		VoteAmountLargerThanTotalStakes,
-
-		NotEnoughFreeStakesToVote,
 
 		ReferendumInvalid,
 
@@ -149,7 +145,7 @@ pub mod pallet {
 			<T as mining::Config>::Currency::transfer(
 				&user,
 				&T::PawnShopAccountId::get(),
-				amount.clone(),
+				amount,
 				KeepAlive,
 			)?;
 			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &user, amount)?;
@@ -161,7 +157,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn redeem(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
-			let active_stakes = Self::get_current_active_stakes(user.clone())?;
+			let active_stakes = Self::get_net_value(user.clone())?;
 			ensure!(
 				amount <= active_stakes,
 				Error::<T>::RedemptAmountLargerThanTotalStakes,
@@ -169,7 +165,7 @@ pub mod pallet {
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
-				amount.clone(),
+				amount,
 				KeepAlive,
 			)?;
 			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &user, amount)?;
@@ -190,13 +186,13 @@ pub mod pallet {
 				return Err(Error::<T>::ReferendumInvalid.into());
 			}
 
-			let active_stakes = Self::get_current_active_stakes(user.clone())?;
+			let active_stakes = Self::get_net_value(user.clone())?;
 			ensure!(
 				active_stakes >= aye_amount + nay_amount,
 				Error::<T>::VoteAmountLargerThanTotalStakes,
 			);
-			VoteAccountMap::<T>::insert(vote_id, user.clone(), (aye_amount, nay_amount));
-			AccountVoteMap::<T>::insert(user.clone(), vote_id, ());
+			VoteAccountMap::<T>::insert(vote_id, &user, (aye_amount, nay_amount));
+			AccountVoteMap::<T>::insert(&user, vote_id, ());
 			let account_vote = Self::accumulate_account_vote(vote_id);
 			pallet_democracy::Pallet::<T>::vote(origin, vote_id, account_vote)?;
 			Self::update_user_locked(user)?;
@@ -214,11 +210,18 @@ pub mod pallet {
 			if Self::is_ongoing(vote_id) {
 				return Err(Error::<T>::ReferendumOngoing.into());
 			}
-			VoteAccountMap::<T>::iter_prefix(vote_id).for_each(|(user, _)| {
+			let mut rounds: u32 = 0;
+			let prefix_arr: Vec<_> = VoteAccountMap::<T>::iter_prefix(vote_id).collect();
+			for (user, _) in &prefix_arr {
 				AccountVoteMap::<T>::remove(user.clone(), vote_id);
-				Self::update_user_locked(user).expect("useraccount should exist: qed.");
-			});
-			VoteAccountMap::<T>::clear_prefix(vote_id, max_iterations, None);
+				Self::update_user_locked(user.clone()).expect("useraccount should exist: qed.");
+				if rounds >= max_iterations {
+					break;
+				} else {
+					VoteAccountMap::<T>::remove(vote_id, user);
+					rounds += 1;
+				}
+			}
 
 			Ok(())
 		}
@@ -239,7 +242,7 @@ pub mod pallet {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
 				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust.clone())
+					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust)
 						.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(
 					&<mining::pallet::Pallet<T>>::account_id(),
@@ -259,18 +262,18 @@ pub mod pallet {
 			cid: CollectionId,
 		) -> DispatchResult {
 			let mut account_status =
-				StakerAccounts::<T>::get(who.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
+				StakerAccounts::<T>::get(&who).ok_or(Error::<T>::StakerAccountNotFound)?;
 
 			if !account_status.invest_pools.contains(&(pid, cid)) {
 				account_status.invest_pools.push((pid, cid));
-				StakerAccounts::<T>::insert(who.clone(), account_status);
+				StakerAccounts::<T>::insert(who, account_status);
 			}
 			Ok(())
 		}
 
-		fn get_current_active_stakes(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
+		fn get_net_value(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
 			let account_status =
-				StakerAccounts::<T>::get(who.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
+				StakerAccounts::<T>::get(&who).ok_or(Error::<T>::StakerAccountNotFound)?;
 			let mut total_active_stakes: BalanceOf<T> = Zero::zero();
 			for (pid, cid) in &account_status.invest_pools {
 				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who).for_each(|nftid| {
@@ -279,25 +282,13 @@ pub mod pallet {
 					let property = &property_guard.attr;
 					let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
 						.expect("get pool should not fail: qed.");
-					match pool_proxy {
-						PoolProxy::Vault(res) => {
-							match res.basepool.share_price() {
-								Some(price) => {
-									total_active_stakes += bmul(property.shares, &price);
-								}
-								None => (),
-							};
-						}
-						PoolProxy::StakePool(res) => {
-							match res.basepool.share_price() {
-								Some(price) => {
-									total_active_stakes += bmul(property.shares, &price);
-								}
-								None => (),
-							};
-						}
-						_other => (),
+					let basepool = &match pool_proxy {
+						PoolProxy::Vault(p) => p.basepool,
+						PoolProxy::StakePool(p) => p.basepool,
 					};
+					if let Some(price) = basepool.share_price() {
+						total_active_stakes += bmul(property.shares, &price);
+					}
 				});
 			}
 			Ok(total_active_stakes)
@@ -326,7 +317,7 @@ pub mod pallet {
 				max_lock = max_lock.max(aye_amount + nay_amount);
 			});
 			let mut account_status =
-				StakerAccounts::<T>::get(user.clone()).ok_or(Error::<T>::StakerAccountNotFound)?;
+				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
 			account_status.locked = max_lock;
 			StakerAccounts::<T>::insert(user, account_status);
 
@@ -335,13 +326,7 @@ pub mod pallet {
 
 		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
 			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id.clone());
-			match vote_info {
-				Some(info) => match info {
-					ReferendumInfo::Ongoing(_) => true,
-					_ => false,
-				},
-				None => false,
-			}
+			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
 		}
 	}
 }

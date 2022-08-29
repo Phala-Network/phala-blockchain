@@ -279,6 +279,7 @@ pub mod pallet {
 
 				let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
+				// The share held by the vault
 				let mut vault_shares = nft_guard.attr.shares.to_fixed();
 				nft_guard.unlock();
 
@@ -290,6 +291,7 @@ pub mod pallet {
 				for withdraw_info in &withdraw_vec {
 					let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, withdraw_info.nft_id)
 						.expect("get nft attr should always success: qed.");
+					// The share in the pool's withdraw queue
 					let withdraw_nft = &nft_guard.attr;
 					vault_shares += withdraw_nft.shares.to_fixed();
 				}
@@ -298,10 +300,6 @@ pub mod pallet {
 					None => continue,
 				};
 				let settled_stake = bmul(stake_ratio, &rewards.to_fixed());
-				Pools::<T>::insert(
-					*vault_staker,
-					PoolProxy::<T::AccountId, BalanceOf<T>>::Vault(vault.clone()),
-				);
 				vault.basepool.distribute_reward::<T>(settled_stake);
 			}
 		}
@@ -323,7 +321,6 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + pawnshop::Config + vault::Config,
 	{
-		#[frame_support::transactional]
 		pub fn get_nft_attr_guard(
 			cid: CollectionId,
 			nftid: NftId,
@@ -336,7 +333,7 @@ pub mod pallet {
 			let guard = NftGuard {
 				cid,
 				nftid,
-				attr: nft.clone(),
+				attr: nft,
 			};
 			Ok(guard)
 		}
@@ -384,6 +381,14 @@ pub mod pallet {
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
 		) -> DispatchResult {
+			if let None = pool.share_price() {
+				nft.shares = nft
+					.shares
+					.checked_sub(&shares)
+					.ok_or(Error::<T>::InvalidShareToWithdraw)?;
+				return Ok(());
+			}
+
 			// Remove the existing withdraw request in the queue if there is any.
 			let (in_queue_nfts, new_withdraw_queue): (VecDeque<_>, VecDeque<_>) = pool
 				.withdraw_queue
@@ -421,7 +426,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn cosume_new_pid() -> u64 {
+		pub fn consume_new_pid() -> u64 {
 			let pid = PoolCount::<T>::get();
 			PoolCount::<T>::put(pid + 1);
 			pid
@@ -640,10 +645,10 @@ pub mod pallet {
 			userid: T::AccountId,
 			shares: BalanceOf<T>,
 		) -> DispatchResult {
-			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares.clone())?;
+			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
 			Self::deposit_event(Event::<T>::WithdrawalQueued {
 				pid: pool_info.pid,
-				user: userid.clone(),
+				user: userid,
 				shares: shares,
 			});
 			Self::try_process_withdraw_queue(pool_info);
