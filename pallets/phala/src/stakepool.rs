@@ -1168,7 +1168,7 @@ pub mod pallet {
 				} else {
 					false
 				};
-				if distributed || commission > Zero::zero() {
+				if distributed || commission >= Zero::zero() {
 					Self::deposit_event(Event::<T>::RewardReceived {
 						pid: pool_info.pid,
 						to_owner: commission,
