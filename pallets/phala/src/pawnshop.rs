@@ -120,7 +120,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		StakerAccountNotFound,
 
-		RedemptAmountLargerThanTotalStakes,
+		RedeemAmountExceedsTotalStake,
 
 		VoteAmountLargerThanTotalStakes,
 
@@ -160,7 +160,7 @@ pub mod pallet {
 			let active_stakes = Self::get_net_value(user.clone())?;
 			ensure!(
 				amount <= active_stakes,
-				Error::<T>::RedemptAmountLargerThanTotalStakes,
+				Error::<T>::RedeemAmountExceedsTotalStake,
 			);
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
@@ -250,7 +250,7 @@ pub mod pallet {
 				);
 				T::OnSlashed::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::DustRemoved {
-					user: who.clone(),
+					user: who,
 					amount: actual_removed,
 				});
 			}
