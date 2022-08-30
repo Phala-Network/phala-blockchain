@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use pink::chain_extension::HttpResponse;
 use pink_extension as pink;
 
@@ -60,7 +62,7 @@ impl<'a> S3<'a> {
 
     /// Get object metadata from given bucket
     ///
-    /// Returns Error::RequestFailed(404) it is not exists
+    /// Returns Error::RequestFailed(404) it does not exist.
     pub fn head(&self, bucket_name: &str, object_key: &str) -> Result<Head, Error> {
         let response = self.request("HEAD", bucket_name, object_key, None)?;
         for (k, v) in response.headers {
@@ -75,7 +77,7 @@ impl<'a> S3<'a> {
 
     /// Get object value from bucket `bucket_name` with key `object_key`.
     ///
-    /// Returns Error::RequestFailed(404) it is not exists
+    /// Returns Error::RequestFailed(404) it does not exist.
     pub fn get(&self, bucket_name: &str, object_key: &str) -> Result<Vec<u8>, Error> {
         Ok(self.request("GET", bucket_name, object_key, None)?.body)
     }
@@ -88,7 +90,7 @@ impl<'a> S3<'a> {
 
     /// Delete given object from bucket `bucket_name` with key `object_key`.
     ///
-    /// Returns Error::RequestFailed(404) it is not exists
+    /// Returns Error::RequestFailed(404) it does not exist.
     pub fn delete(&self, bucket_name: &str, object_key: &str) -> Result<(), Error> {
         self.request("DELETE", bucket_name, object_key, None)
             .map(|_| ())
