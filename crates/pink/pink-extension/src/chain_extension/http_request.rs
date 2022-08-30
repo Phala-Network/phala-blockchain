@@ -38,6 +38,25 @@ impl HttpResponse {
     }
 }
 
+#[macro_export]
+macro_rules! http_req {
+    ($method: expr, $url: expr, $data: expr, $headers: expr) => {{
+        use $crate::chain_extension::{HttpRequest, HttpResponse};
+        let headers = $headers;
+        let body = $data;
+        let request = HttpRequest {
+            url: $url.into(),
+            method: $method.into(),
+            headers,
+            body,
+        };
+        $crate::ext().http_request(request)
+    }};
+    ($method: expr, $url: expr, $data: expr) => {{
+        $crate::http_req!($method, $url, $data, Default::default())
+    }};
+}
+
 /// Make a simple HTTP GET request
 ///
 /// # Arguments
@@ -61,15 +80,7 @@ impl HttpResponse {
 #[macro_export]
 macro_rules! http_get {
     ($url: expr, $headers: expr) => {{
-        use $crate::chain_extension::{HttpRequest, HttpResponse};
-        let headers = $headers;
-        let request = HttpRequest {
-            url: $url.into(),
-            method: "GET".into(),
-            headers,
-            body: Default::default(),
-        };
-        $crate::ext().http_request(request)
+        $crate::http_req!("GET", $url, Default::default(), $headers)
     }};
     ($url: expr) => {{
         $crate::http_get!($url, Default::default())
@@ -100,18 +111,33 @@ macro_rules! http_get {
 #[macro_export]
 macro_rules! http_post {
     ($url: expr, $data: expr, $headers: expr) => {{
-        use $crate::chain_extension::{HttpRequest, HttpResponse};
-        let headers = $headers;
-        let body = $data.into();
-        let request = HttpRequest {
-            url: $url.into(),
-            method: "POST".into(),
-            headers,
-            body,
-        };
-        $crate::ext().http_request(request)
+        $crate::http_req!("POST", $url, $data.into(), $headers)
     }};
     ($url: expr, $data: expr) => {{
         $crate::http_post!($url, $data, Default::default())
+    }};
+}
+
+/// Make a simple HTTP PUT request
+///
+/// # Arguments
+/// url: The destination URL
+/// data: The payload to PUT
+/// headers: The headers to send with the request
+///
+/// # Examples
+///
+/// ```ignore
+/// use pink_extension::http_put;
+/// let response = http_put!("https://example.com/", b"Hello, world!");
+/// assert_eq!(response.status_code, 200);
+/// ```
+#[macro_export]
+macro_rules! http_put {
+    ($url: expr, $data: expr, $headers: expr) => {{
+        $crate::http_req!("PUT", $url, $data.into(), $headers)
+    }};
+    ($url: expr, $data: expr) => {{
+        $crate::http_put!($url, $data, Default::default())
     }};
 }

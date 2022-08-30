@@ -58,6 +58,7 @@ members = [
 	"crates/phala-rocket-middleware",
 	"crates/pink",
 	"crates/pink/pink-extension",
+	"crates/pink/pink-s3",
 	"crates/pink/pink-extension-runtime",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",

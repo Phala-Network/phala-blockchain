@@ -5,6 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
+use ink_lang::EnvAccess;
 use scale::{Decode, Encode};
 
 pub use pink_extension_macro::contract;
@@ -172,6 +173,10 @@ impl Environment for PinkEnvironment {
     type Timestamp = <ink_env::DefaultEnvironment as Environment>::Timestamp;
 
     type ChainExtension = chain_extension::PinkExt;
+}
+
+pub fn env() -> EnvAccess<'static, PinkEnvironment> {
+    Default::default()
 }
 
 #[cfg(feature = "runtime_utils")]

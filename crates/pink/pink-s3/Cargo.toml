@@ -1,0 +1,29 @@
+[package]
+description = "Simple S3 client for Phala's pink"
+homepage = "https://github.com/Phala-Network/phala-blockchain"
+license = "Apache-2.0"
+name = "pink-s3"
+version = "0.1.2"
+edition = "2021"
+keywords = ["fat-contract", "pink", "ink", "S3"]
+
+[dependencies]
+pink-extension = { version = "0.1.16", default-features = false, path = "../pink-extension" }
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
+sha2 = { version = "0.10.2", default-features = false }
+hmac = { version = "0.12.1", default-features = false }
+base16 = { version = "0.2.1", default-features = false, features = ["alloc"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+pink-extension-runtime = { version = "0.1" }
+
+[features]
+default = ["std"]
+std = [
+    "scale/std",
+    "scale-info/std",
+    "pink-extension/std",
+    "chrono/std"
+]
