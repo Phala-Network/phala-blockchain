@@ -148,7 +148,7 @@ pub mod pallet {
 				amount,
 				KeepAlive,
 			)?;
-			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &user, amount)?;
+			Self::mint_into(T::PPhaAssetId::get(), &user, amount)?;
 
 			Ok(())
 		}
@@ -168,7 +168,7 @@ pub mod pallet {
 				amount,
 				KeepAlive,
 			)?;
-			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &user, amount)?;
+			Self::burn_from(T::PPhaAssetId::get(), &user, amount)?;
 
 			Ok(())
 		}
@@ -210,16 +210,18 @@ pub mod pallet {
 			if Self::is_ongoing(vote_id) {
 				return Err(Error::<T>::ReferendumOngoing.into());
 			}
-			let mut rounds: u32 = 0;
-			let prefix_arr: Vec<_> = VoteAccountMap::<T>::iter_prefix(vote_id).collect();
-			for (user, _) in &prefix_arr {
-				AccountVoteMap::<T>::remove(user.clone(), vote_id);
-				Self::update_user_locked(user.clone()).expect("useraccount should exist: qed.");
-				if rounds >= max_iterations {
-					break;
+			let mut iter = VoteAccountMap::<T>::iter_prefix(vote_id).drain();
+			let mut i = 0;
+			loop {
+				if let Some((user, _)) = iter.next() {
+					AccountVoteMap::<T>::remove(user.clone(), vote_id);
+					Self::update_user_locked(user.clone()).expect("useraccount should exist: qed.");
+					if i >= max_iterations {
+						break;
+					}
+					i += 1;
 				} else {
-					VoteAccountMap::<T>::remove(vote_id, user);
-					rounds += 1;
+					break;
 				}
 			}
 
@@ -250,10 +252,28 @@ pub mod pallet {
 				);
 				T::OnSlashed::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::DustRemoved {
-					user: who,
+					user: who.clone(),
 					amount: actual_removed,
 				});
 			}
+		}
+
+		pub fn mint_into(
+			asset_id: u32,
+			target: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			pallet_assets::Pallet::<T>::mint_into(asset_id, &target, amount)?;
+			Ok(())
+		}
+
+		pub fn burn_from(
+			asset_id: u32,
+			target: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			pallet_assets::Pallet::<T>::burn_from(asset_id, &target, amount)?;
+			Ok(())
 		}
 
 		pub fn maybe_update_account_status(

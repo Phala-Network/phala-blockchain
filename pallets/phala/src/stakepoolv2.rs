@@ -29,10 +29,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{
-			tokens::fungibles::{Mutate, Transfer},
-			LockableCurrency, StorageVersion, UnixTime,
-		},
+		traits::{tokens::fungibles::Transfer, LockableCurrency, StorageVersion, UnixTime},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
@@ -465,7 +462,7 @@ pub mod pallet {
 			)?;
 			let account_id =
 				basepool::pallet::create_staker_account::<T::AccountId>(pid, owner.clone());
-			let (owner_account, lock_account) =
+			let (owner_reward_account, lock_account) =
 				create_owner_and_lock_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
@@ -485,7 +482,7 @@ pub mod pallet {
 					workers: VecDeque::new(),
 					cd_workers: VecDeque::new(),
 					lock_account,
-					owner_account,
+					owner_reward_account,
 				}),
 			);
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
@@ -788,7 +785,7 @@ pub mod pallet {
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as pawnshop::Config>::PPhaAssetId::get(),
-				&pool_info.owner_account,
+				&pool_info.owner_reward_account,
 				&target,
 				rewards,
 				true,
@@ -1207,14 +1204,14 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 
-				pallet_assets::Pallet::<T>::mint_into(
+				pawnshop::Pallet::<T>::mint_into(
 					<T as pawnshop::Config>::PPhaAssetId::get(),
-					&pool_info.owner_account,
+					&pool_info.owner_reward_account,
 					commission,
 				)
 				.expect("mint into should be success");
 				let to_distribute = rewards - commission;
-				pallet_assets::Pallet::<T>::mint_into(
+				pawnshop::Pallet::<T>::mint_into(
 					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&pool_info.basepool.pool_account_id,
 					to_distribute,
@@ -1255,6 +1252,7 @@ pub mod pallet {
 				// and creating a logical pending slash. The actual slash happens with the pending
 				// slash to individuals is settled.
 				pool_info.basepool.slash(slashed);
+				//TODO(mingxuan): Burn the PPHA and transfer the amount to treasury when slash is active
 				Self::deposit_event(Event::<T>::PoolSlashed {
 					pid,
 					amount: slashed,
@@ -1384,13 +1382,13 @@ pub mod pallet {
 		T: Encode + Decode,
 	{
 		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
-		let owner_account = (b"stakeowner/", hash)
+		let owner_reward_account = (b"stakeowner/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed");
 		let lock_account = (b"stakelock/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed");
-		return (owner_account, lock_account);
+		return (owner_reward_account, lock_account);
 	}
 
 	/*#[cfg(test)]

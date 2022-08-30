@@ -110,6 +110,8 @@ pub mod pallet {
 		InsufficientBalance,
 
 		InsufficientContribution,
+
+		VaultPriceIsZero,
 	}
 
 	#[pallet::call]
@@ -219,7 +221,7 @@ pub mod pallet {
 			let price = pool_info
 				.basepool
 				.share_price()
-				.expect("price must exist when owner_shares exist");
+				.ok_or(Error::<T>::VaultPriceIsZero)?;
 			let rewards = bmul(shares, &price);
 			let nft_id =
 				basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares.clone())?;
@@ -309,13 +311,13 @@ pub mod pallet {
 					let price = stake_pool
 						.basepool
 						.share_price()
-						.expect("pool must have price: qed.");
+						.ok_or(Error::<T>::VaultPriceIsZero)?;
 					releasing_stake += bmul(nft_guard.attr.shares.clone(), &price);
 				}
 			}
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(vault.clone()));
 			if basepool::Pallet::<T>::has_expired_withdrawal(
-				&mut vault.basepool,
+				&vault.basepool,
 				now,
 				grace_period,
 				releasing_stake,

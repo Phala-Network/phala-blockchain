@@ -27,7 +27,7 @@ pub struct StakePool<AccountId, Balance> {
 
 	pub lock_account: AccountId,
 
-	pub owner_account: AccountId,
+	pub owner_reward_account: AccountId,
 }
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -62,7 +62,7 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 	{
 		pallet_assets::Pallet::<T>::balance(
 			<T as pawnshop::Config>::PPhaAssetId::get(),
-			&self.owner_account,
+			&self.owner_reward_account,
 		)
 	}
 

@@ -269,6 +269,7 @@ pub mod pallet {
 		{
 			self.total_value += rewards;
 			for vault_staker in &self.value_subscribers {
+				// The share held by the vault
 				let mut vault = ensure_vault::<T>(*vault_staker)
 					.expect("vault in value_subscribers should always exist: qed.");
 				let nft_id = Pallet::<T>::merge_or_init_nft_for_staker(
@@ -279,10 +280,10 @@ pub mod pallet {
 
 				let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
-				// The share held by the vault
 				let mut vault_shares = nft_guard.attr.shares.to_fixed();
 				nft_guard.unlock();
 
+				// The share in the pool's withdraw queue
 				let withdraw_vec: VecDeque<_> = self
 					.withdraw_queue
 					.iter()
@@ -291,7 +292,7 @@ pub mod pallet {
 				for withdraw_info in &withdraw_vec {
 					let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, withdraw_info.nft_id)
 						.expect("get nft attr should always success: qed.");
-					// The share in the pool's withdraw queue
+
 					let withdraw_nft = &nft_guard.attr;
 					vault_shares += withdraw_nft.shares.to_fixed();
 				}
