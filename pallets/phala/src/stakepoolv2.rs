@@ -429,6 +429,8 @@ pub mod pallet {
 		InvaildWithdrawSharesAmount,
 
 		AssetAccountNotExist,
+
+		VaultIsLocked,
 	}
 
 	#[pallet::call]
@@ -960,6 +962,10 @@ pub mod pallet {
 			let mut who = ensure_signed(origin)?;
 			if let Some(vault_pid) = maybe_vault_pid {
 				let vault_info = ensure_vault::<T>(vault_pid)?;
+				ensure!(
+					vault::pallet::VaultLocks::<T>::contains_key(vault_pid),
+					Error::<T>::VaultIsLocked
+				);
 				ensure!(
 					who == vault_info.basepool.owner,
 					Error::<T>::UnauthorizedPoolOwner

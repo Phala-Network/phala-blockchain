@@ -63,6 +63,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type VaultAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
 
+	#[pallet::storage]
+	pub type VaultLocks<T: Config> = StorageMap<_, Twox64Concat, u64, ()>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -315,6 +318,9 @@ pub mod pallet {
 					releasing_stake += bmul(nft_guard.attr.shares.clone(), &price);
 				}
 			}
+			if vault.basepool.withdraw_queue.len() <= 0 {
+				VaultLocks::<T>::remove(vault_pid);
+			}
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(vault.clone()));
 			if basepool::Pallet::<T>::has_expired_withdrawal(
 				&vault.basepool,
@@ -322,6 +328,7 @@ pub mod pallet {
 				grace_period,
 				releasing_stake,
 			) {
+				VaultLocks::<T>::insert(vault_pid, ());
 				for pid in vault.invest_pools.iter() {
 					let stake_pool = ensure_stake_pool::<T>(*pid)?;
 					let withdraw_vec: VecDeque<_> = stake_pool
