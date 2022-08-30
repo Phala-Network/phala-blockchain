@@ -29,9 +29,9 @@ pub struct Head {
 pub struct S3<'a> {
     endpoint: &'a str,
     region: &'a str,
-    host: String,
     access_key: &'a str,
     secret_key: &'a str,
+    virtual_host_mode: bool,
 }
 
 impl<'a> S3<'a> {
@@ -42,22 +42,23 @@ impl<'a> S3<'a> {
         access_key: &'a str,
         secret_key: &'a str,
     ) -> Result<Self, Error> {
-        let https_scheme = "https://";
-        if !endpoint.starts_with(https_scheme) {
-            return Err(Error::InvalidEndpoint);
-        }
-        let host_start = https_scheme.len();
-        let host = endpoint[host_start..].to_owned();
-        if host.contains('/') {
-            return Err(Error::InvalidEndpoint);
-        }
         Ok(Self {
             endpoint,
             region,
-            host,
             access_key,
             secret_key,
+            virtual_host_mode: false,
         })
+    }
+
+    /// Turn on virtual host mode
+    ///
+    /// AWS S3 requires virtual host mode for newly created buckets.
+    pub fn virtual_host_mode(self) -> Self {
+        Self {
+            virtual_host_mode: true,
+            ..self
+        }
     }
 
     /// Get object metadata from given bucket
@@ -107,15 +108,25 @@ impl<'a> S3<'a> {
         let service = "s3";
         let payload_hash = format!("{:x}", Sha256::digest(value.unwrap_or_default()));
 
+        let host = if self.virtual_host_mode {
+            format!("{}.{}", bucket_name, self.endpoint)
+        } else {
+            self.endpoint.to_owned()
+        };
+
         // Get current time: datestamp (e.g. 20220727) and amz_date (e.g. 20220727T141618Z)
         let (datestamp, amz_date) = times();
 
         // 1. Create canonical request
-        let canonical_uri = format!("/{}/{}", bucket_name, object_key); // bucket name included unlike s3
+        let canonical_uri = if self.virtual_host_mode {
+            format!("/{}", object_key)
+        } else {
+            format!("/{}/{}", bucket_name, object_key)
+        };
         let canonical_querystring = "";
         let canonical_headers = format!(
             "host:{}\nx-amz-content-sha256:{}\nx-amz-date:{}\n",
-            self.host, payload_hash, amz_date
+            host, payload_hash, amz_date
         );
         let signed_headers = "host;x-amz-content-sha256;x-amz-date";
         let canonical_request = format!(
@@ -168,7 +179,7 @@ impl<'a> S3<'a> {
         };
 
         // Make HTTP PUT request
-        let request_url = format!("{}/{}/{}", self.endpoint, bucket_name, object_key);
+        let request_url = format!("https://{}{}", host, canonical_uri);
         let response = pink::http_req!(method, request_url, body.to_vec(), headers);
 
         if response.status_code / 100 != 2 {
@@ -233,12 +244,14 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // I don't care to expose them.
-        let endpoint = "https://s3.kvin.wang:8443";
+        let endpoint = "s3.kvin.wang:8443";
         let region = "garage";
         let access_key = "GKb36294dbfd49a894b19c20cb";
         let secret_key = "c36c43f1ae5bcb27733753a633fb5df82cc57832822275a761d711637bb268d5";
 
-        let s3 = s3::S3::new(endpoint, region, access_key, secret_key).unwrap();
+        let s3 = s3::S3::new(endpoint, region, access_key, secret_key)
+            .unwrap()
+            .virtual_host_mode(); // virtual host mode is required for newly created AWS S3 buckets.
 
         let bucket = "fat-1";
         let object_key = "path/to/foo";

@@ -9,12 +9,14 @@ Simple pure Rust AWS S3 Client for Phala network's pink environment.
 
 use pink_s3 as s3;
 
-let endpoint = "https://s3.ap-southeast-1.amazonaws.com";
+let endpoint = "s3.ap-southeast-1.amazonaws.com";
 let region = "ap-southeast-1";
 let access_key = "<Put your S3 access key here>";
 let secret_key = "<Put your S3 access secret key here>";
 
-let s3 = s3::S3::new(endpoint, region, access_key, secret_key).unwrap();
+let s3 = s3::S3::new(endpoint, region, access_key, secret_key)
+    .unwrap()
+    .virtual_host_mode(); // virtual host mode is required for newly created AWS S3 buckets.
 
 let bucket = "my-wallet";
 let object_key = "path/to/foo";

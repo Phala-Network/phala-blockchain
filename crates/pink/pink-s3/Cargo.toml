@@ -3,7 +3,7 @@ description = "Simple S3 client for Phala's pink"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 name = "pink-s3"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 keywords = ["fat-contract", "pink", "ink", "S3"]
 
