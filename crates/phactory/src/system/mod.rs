@@ -566,7 +566,14 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         dev_mode: bool,
     ) -> HandoverChallenge<chain::BlockNumber> {
+        let sgx_target_info = if dev_mode {
+            vec![]
+        } else {
+            let my_target_info = sgx_api_lite::target_info().unwrap();
+            sgx_api_lite::encode(&my_target_info).to_vec()
+        };
         let payload = HandoverChallengePayload {
+            sgx_target_info,
             block_number: self.block_number,
             now: self.now_ms,
             dev_mode,

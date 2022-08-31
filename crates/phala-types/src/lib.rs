@@ -695,6 +695,7 @@ pub struct WorkerIdentity {
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct HandoverChallengePayload<BlockNumber> {
+    pub sgx_target_info: Vec<u8>,
     // The challenge is only considered valid within 150 blocks (~30 min)
     pub block_number: BlockNumber,
     pub now: u64,
@@ -713,6 +714,7 @@ pub struct HandoverChallenge<BlockNumber> {
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct ChallengeHandlerInfo<BlockNumber> {
     pub challenge: HandoverChallenge<BlockNumber>,
+    pub sgx_local_report: Vec<u8>,
     pub ecdh_pubkey: EcdhPublicKey,
 }
 

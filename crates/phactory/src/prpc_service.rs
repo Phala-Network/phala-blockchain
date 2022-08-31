@@ -1076,6 +1076,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let my_identity_key = system.identity_key.clone();
 
         // 1. verify RA report
+        // this also ensure the message integrity
         let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
         let block_ms = system.now_ms / 1000;
         let block_number = system.block_number;
@@ -1107,13 +1108,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         if !system.verify_worker_key_challenge(&challenge) {
             return Err(from_display("Invalid challenge"));
         }
-        // 3. verify challenge block height and report timestamp
+        // 3. verify sgx local attestation report to ensure the handover pRuntimes are on the same machine
+        if !dev_mode {
+            let recv_local_report =
+                unsafe { sgx_api_lite::decode(&challenge_handler.sgx_local_report).unwrap() };
+            sgx_api_lite::verify(recv_local_report)
+                .map_err(|_| from_display("No remote handover"))?;
+        } else {
+            info!("Skip pRuntime local attesatation check in dev mode");
+        }
+        // 4. verify challenge block height and report timestamp
         // only challenge within 150 blocks (30 minutes) is accepted
         let challenge_height = challenge.payload.block_number;
         if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
             return Err(from_display("Outdated challenge"));
         }
-        // 4. verify pruntime launch date
+        // 5. verify pruntime launch date
         if !dev_mode {
             let runtime_info = phactory
                 .runtime_info
@@ -1151,6 +1161,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             let req_runtime_timestamp =
                 chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
                     .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            // ATTENTION.shelven: relax this check for easy testing and restore it for release
             if my_runtime_timestamp >= req_runtime_timestamp {
                 return Err(from_display("No handover for old pRuntime"));
             }
@@ -1216,8 +1227,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
+        // generate local attesatation report to ensure the handover pRuntimes are on the same machine
+        let sgx_local_report = if challenge.payload.dev_mode {
+            vec![]
+        } else {
+            let its_target_info =
+                unsafe { sgx_api_lite::decode(&challenge.payload.sgx_target_info).unwrap() };
+            // the report data does not matter since we only care about the origin
+            let report = sgx_api_lite::report(&its_target_info, &[0; 64]).unwrap();
+            sgx_api_lite::encode(&report).to_vec()
+        };
+
         let challenge_handler = ChallengeHandlerInfo {
             challenge: challenge.clone(),
+            sgx_local_report,
             ecdh_pubkey,
         };
         let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
@@ -1225,7 +1248,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             info!("Omit RA report in challenge response in dev mode");
             None
         } else {
-            info!("Attn on challenge info: {:?}", &challenge_handler);
             Some(create_attestation_report_on(
                 &phactory.platform,
                 &handler_hash,
