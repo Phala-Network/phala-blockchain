@@ -221,14 +221,8 @@ pub mod pallet {
 				Error::<T>::InvaildWithdrawSharesAmount
 			);
 			ensure!(shares > Zero::zero(), Error::<T>::NoRewardToClaim);
-			let price = pool_info
-				.basepool
-				.share_price()
-				.ok_or(Error::<T>::VaultPriceIsZero)?;
-			let rewards = bmul(shares, &price);
 			let nft_id =
 				basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares.clone())?;
-			Self::withdraw_from_vault(origin, pool_info.basepool.pid, shares)?;
 			pool_info.owner_shares -= shares;
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 			Self::deposit_event(Event::<T>::OwnerSharesStartWithdraw {
@@ -363,7 +357,7 @@ pub mod pallet {
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn contribute_to_vault(
+		pub fn contribute(
 			origin: OriginFor<T>,
 			pid: u64,
 			amount: BalanceOf<T>,
@@ -418,7 +412,7 @@ pub mod pallet {
 		/// - else the withdrawal would be queued and delayed until there is enough free stake.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn withdraw_from_vault(
+		pub fn withdraw(
 			origin: OriginFor<T>,
 			pid: u64,
 			shares: BalanceOf<T>,
