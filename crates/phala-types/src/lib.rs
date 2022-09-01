@@ -829,9 +829,8 @@ pub enum SignedContentType {
     MqMessage = 0,
     RpcResponse = 1,
     EndpointInfo = 2,
-    HandoverChallenge = 3,
-    MasterKeyRotation = 4,
-    MasterKeyStore = 5,
+    MasterKeyRotation = 3,
+    MasterKeyStore = 4,
 }
 
 pub fn wrap_content_to_sign(data: &[u8], sigtype: SignedContentType) -> Cow<[u8]> {

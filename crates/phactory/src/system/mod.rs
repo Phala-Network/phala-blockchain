@@ -572,9 +572,7 @@ impl<Platform: pal::Platform> System<Platform> {
             dev_mode,
             nonce: crate::generate_random_info(),
         };
-        let encoded = payload.encode();
-        let wrapped = wrap_content_to_sign(&encoded, SignedContentType::HandoverChallenge);
-        let signature = self.identity_key.sign_data(&wrapped);
+        let signature = self.identity_key.sign_data(&payload.encode());
         let challenge = HandoverChallenge { payload, signature };
         self.last_challenge = Some(challenge.clone());
         challenge
