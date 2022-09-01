@@ -133,6 +133,7 @@ pub mod pallet {
 		ClusterNotFound,
 		ClusterNotDeployed,
 		ClusterPermissionDenied,
+		NoClusterOnGatekeeper,
 		DuplicatedContract,
 		DuplicatedDeployment,
 		NoWorkerSpecified,
@@ -162,16 +163,18 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn add_cluster(
 			origin: OriginFor<T>,
+			owner: T::AccountId,
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
-			// TODO.shelven: permission check?
-			let origin: T::AccountId = ensure_signed(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
+			let gatekeepers = registry::Gatekeeper::<T>::get();
 			let workers = deploy_workers
 				.iter()
 				.map(|worker| {
+					ensure!(!gatekeepers.contains(&worker), Error::<T>::NoClusterOnGatekeeper);
 					let worker_info =
 						registry::Workers::<T>::get(worker).ok_or(Error::<T>::WorkerNotFound)?;
 					Ok(WorkerIdentity {
@@ -182,7 +185,7 @@ pub mod pallet {
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let cluster_info = ClusterInfo {
-				owner: origin,
+				owner,
 				permission,
 				workers: deploy_workers,
 			};

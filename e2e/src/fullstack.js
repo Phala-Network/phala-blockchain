@@ -510,21 +510,42 @@ describe('A full stack', function () {
 
         it('can create cluster', async function () {
             const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
-            const runtime0 = await pruntime[0].getInfo();
-            const runtime1 = await pruntime[1].getInfo();
-            const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.addCluster(perm, [hex(runtime0.publicKey), hex(runtime1.publicKey)]),
+            const runtime2 = await pruntime[2].getInfo();
+            const runtime3 = await pruntime[3].getInfo();
+
+            // unregister pRuntimes first since cluster cannot be deployed to gatekeepers
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.unregisterGatekeeper(hex(runtime2.publicKey))
+                ),
                 alice,
             );
-            assertEvents(events, [
-                ['balances', 'Withdraw'],
-                ['phalaFatContracts', 'ClusterCreated']
-            ]);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.unregisterGatekeeper(hex(runtime3.publicKey))
+                ),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const runtime2 = await pruntime[2].getInfo();
+                const runtime3 = await pruntime[3].getInfo();
+                const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+                // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
+                return runtime2.gatekeeper.role != 2 && !gatekeepers.includes(hex(runtime2.publicKey)) &&
+                    runtime3.gatekeeper.role != 2 && !gatekeepers.includes(hex(runtime3.publicKey));
+            }, 4 * 6000), 'not unregistered');
 
-            const { event } = events[1];
-            clusterId = hex(event.toJSON().data[0]);
-            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
-            assert.isTrue(clusterInfo.isSome);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaFatContracts.addCluster(alice.address, perm, [hex(runtime2.publicKey), hex(runtime3.publicKey)])),
+                alice,
+            );
+
+            assert.isTrue(await checkUntil(async () => {
+                const clusters = await api.query.phalaFatContracts.clusters.entries();
+                clusterId = clusters[0][0].args[0].toString();
+                return clusters.length == 1;
+            }, 4 * 6000), 'cluster creation failed');
         });
 
         it('can generate cluster key', async function () {
