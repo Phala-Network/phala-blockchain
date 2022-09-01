@@ -48,7 +48,8 @@ use phala_types::{
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
         RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
-    EcdhPublicKey, HandoverChallenge, HandoverChallengePayload, WorkerPublicKey,
+    wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, HandoverChallengePayload,
+    SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -57,9 +58,9 @@ use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
 use pink::runtime::PinkEvent;
+use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
-use std::cell::Cell;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -1446,6 +1447,7 @@ impl<Platform: pal::Platform> System<Platform> {
         let data = event.data_be_signed();
         let sig = sp_core::sr25519::Signature::try_from(event.sig.as_slice())
             .or(Err(TransactionError::BadSenderSignature))?;
+        let data = wrap_content_to_sign(&data, SignedContentType::MasterKeyRotation);
         if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
             return Err(TransactionError::BadSenderSignature.into());
         }

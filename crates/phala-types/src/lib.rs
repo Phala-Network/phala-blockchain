@@ -3,6 +3,7 @@ extern crate alloc;
 
 pub mod contract;
 
+use alloc::borrow::Cow;
 use alloc::str::FromStr;
 use alloc::string::ParseError;
 use alloc::vec::Vec;
@@ -820,5 +821,29 @@ pub enum PayoutReason {
 impl Default for PayoutReason {
     fn default() -> Self {
         PayoutReason::OnlineReward
+    }
+}
+
+#[repr(u8)]
+pub enum SignedContentType {
+    MqMessage = 0,
+    RpcResponse = 1,
+    EndpointInfo = 2,
+    MasterKeyRotation = 3,
+    MasterKeyStore = 4,
+}
+
+pub fn wrap_content_to_sign(data: &[u8], sigtype: SignedContentType) -> Cow<[u8]> {
+    match sigtype {
+        // We don't wrap mq messages for backward compatibility.
+        SignedContentType::MqMessage => data.into(),
+        _ => {
+            let mut wrapped: Vec<u8> = Vec::new();
+            // MessageOrigin::Reserved.encode() == 0xff
+            wrapped.push(0xff);
+            wrapped.push(sigtype as u8);
+            wrapped.extend_from_slice(data);
+            wrapped.into()
+        }
     }
 }

@@ -1,3 +1,5 @@
+use phala_types::{wrap_content_to_sign, SignedContentType};
+
 use super::*;
 
 // For bin_api
@@ -96,8 +98,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Sign the output payload
         let str_payload = payload.to_string();
         let signature: Option<String> = self.system.as_ref().map(|state| {
-            let bytes = str_payload.as_bytes();
-            let sig = state.identity_key.sign(bytes).0;
+            let bytes =
+                wrap_content_to_sign(str_payload.as_bytes(), SignedContentType::RpcResponse);
+            let sig = state.identity_key.sign(&bytes).0;
             hex::encode(&sig)
         });
         let output_json = json!({
