@@ -38,6 +38,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             "number_of_clusters": info.number_of_clusters,
             "number_of_contracts": info.number_of_contracts,
             "waiting_for_paraheaders": info.waiting_for_paraheaders,
+            "network_status": info.network_status,
         }))
     }
 

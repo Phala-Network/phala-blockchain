@@ -34,10 +34,13 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
-use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
 use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory_api::prpc::InitRuntimeResponse;
 use phactory_api::storage_sync::{StorageSynchronizer, Synchronizer};
+use phactory_api::{
+    blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
+    prpc::NetworkConfig,
+};
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
@@ -45,9 +48,9 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_scheduler::RequestScheduler;
 use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
+use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use phala_types::{EndpointType, WorkerEndpointPayload, WorkerRegistrationInfo};
 use std::time::Instant;
@@ -260,6 +263,9 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
     query_scheduler: RequestScheduler<ContractId>,
+
+    #[serde(default)]
+    netconfig: Option<NetworkConfig>,
 }
 
 fn default_query_scheduler() -> RequestScheduler<ContractId> {
@@ -287,6 +293,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
             query_scheduler: default_query_scheduler(),
+            netconfig: Default::default(),
         }
     }
 
@@ -399,11 +406,33 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             RuntimeDataSeal::V2(data) => Ok(data),
         }
     }
+
+    pub fn set_netconfig(&mut self, config: NetworkConfig) {
+        self.netconfig = Some(config);
+        self.reconfigure_network();
+    }
+
+    fn reconfigure_network(&self) {
+        let config = match &self.netconfig {
+            None => return,
+            Some(config) => config,
+        };
+        fn reconfig_one(name: &str, value: &str) {
+            if value.is_empty() {
+                std::env::remove_var(name);
+            } else {
+                std::env::set_var(name, value);
+            }
+        }
+        reconfig_one("all_proxy", &config.all_proxy);
+        reconfig_one("i2p_proxy", &config.i2p_proxy);
+    }
 }
 
 impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
+        self.reconfigure_network();
         if let Some(system) = &mut self.system {
             system.on_restored()?;
         }

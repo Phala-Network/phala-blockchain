@@ -31,6 +31,8 @@ fn main() {
         "WorkerStat",
         "BenchState",
         "MiningState",
+        "NetworkConfig",
+        "NetworkStatus",
     ] {
         builder = builder.type_attribute(
             r#type,
