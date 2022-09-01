@@ -1119,7 +1119,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         }
         // 4. verify challenge block height and report timestamp
         // only challenge within 150 blocks (30 minutes) is accepted
-        let challenge_height = challenge.payload.block_number;
+        let challenge_height = challenge.block_number;
         if !(challenge_height <= block_number && block_number - challenge_height <= 150) {
             return Err(from_display("Outdated challenge"));
         }
@@ -1228,11 +1228,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
         let challenge = request.decode_challenge().map_err(from_display)?;
         // generate local attesatation report to ensure the handover pRuntimes are on the same machine
-        let sgx_local_report = if challenge.payload.dev_mode {
+        let sgx_local_report = if challenge.dev_mode {
             vec![]
         } else {
             let its_target_info =
-                unsafe { sgx_api_lite::decode(&challenge.payload.sgx_target_info).unwrap() };
+                unsafe { sgx_api_lite::decode(&challenge.sgx_target_info).unwrap() };
             // the report data does not matter since we only care about the origin
             let report = sgx_api_lite::report(&its_target_info, &[0; 64]).unwrap();
             sgx_api_lite::encode(&report).to_vec()
@@ -1244,7 +1244,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             ecdh_pubkey,
         };
         let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
-        let attestation = if challenge.payload.dev_mode {
+        let attestation = if challenge.dev_mode {
             info!("Omit RA report in challenge response in dev mode");
             None
         } else {

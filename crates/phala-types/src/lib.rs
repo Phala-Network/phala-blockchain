@@ -693,22 +693,15 @@ pub struct WorkerIdentity {
     pub ecdh_pubkey: EcdhPublicKey,
 }
 
+/// One-time Challenge for WorkerKey handover
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct HandoverChallengePayload<BlockNumber> {
+pub struct HandoverChallenge<BlockNumber> {
     pub sgx_target_info: Vec<u8>,
     // The challenge is only considered valid within 150 blocks (~30 min)
     pub block_number: BlockNumber,
     pub now: u64,
     pub dev_mode: bool,
     pub nonce: [u8; 32],
-}
-
-/// One-time Challenge for WorkerKey handover
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct HandoverChallenge<BlockNumber> {
-    pub payload: HandoverChallengePayload<BlockNumber>,
-    // Signature on encoded challenge payload
-    pub signature: Sr25519Signature,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]

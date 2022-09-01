@@ -48,8 +48,7 @@ use phala_types::{
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
         RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
-    wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, HandoverChallengePayload,
-    SignedContentType, WorkerPublicKey,
+    wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -572,15 +571,13 @@ impl<Platform: pal::Platform> System<Platform> {
             let my_target_info = sgx_api_lite::target_info().unwrap();
             sgx_api_lite::encode(&my_target_info).to_vec()
         };
-        let payload = HandoverChallengePayload {
+        let challenge = HandoverChallenge {
             sgx_target_info,
             block_number: self.block_number,
             now: self.now_ms,
             dev_mode,
             nonce: crate::generate_random_info(),
         };
-        let signature = self.identity_key.sign_data(&payload.encode());
-        let challenge = HandoverChallenge { payload, signature };
         self.last_challenge = Some(challenge.clone());
         challenge
     }
