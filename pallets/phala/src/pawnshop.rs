@@ -160,28 +160,28 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			is_at_most: bool,
 		) -> DispatchResult {
-			let mut amount = amount;
+			let mut actural_amount = amount;
 			let user = ensure_signed(origin)?;
 			let active_stakes = Self::get_net_value(user.clone())?;
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
 			if is_at_most {
-				if amount + staker_status.locked > active_stakes {
-					amount = active_stakes - staker_status.locked;
+				if actural_amount + staker_status.locked > active_stakes {
+					actural_amount = active_stakes - staker_status.locked;
 				}
 			} else {
 				ensure!(
-					amount + staker_status.locked <= active_stakes,
+					actural_amount + staker_status.locked <= active_stakes,
 					Error::<T>::RedeemAmountExceedsAvaliableStake,
 				);
 			}
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
-				amount,
+				actural_amount,
 				KeepAlive,
 			)?;
-			Self::burn_from(T::PPhaAssetId::get(), &user, amount)?;
+			Self::burn_from(T::PPhaAssetId::get(), &user, actural_amount)?;
 
 			Ok(())
 		}
