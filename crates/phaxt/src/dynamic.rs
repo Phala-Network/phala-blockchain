@@ -1,6 +1,3 @@
-use anyhow::Result;
-use subxt::{metadata::EncodeStaticType, Metadata};
-
 pub mod tx;
 
 pub fn storage_key(pallet: &str, entry: &str) -> Vec<u8> {

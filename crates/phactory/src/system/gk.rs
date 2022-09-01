@@ -18,7 +18,7 @@ use phala_types::{
         RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent,
         WorkerEventWithKey,
     },
-    EcdhPublicKey, WorkerPublicKey,
+    wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};
@@ -363,6 +363,8 @@ where
             sig: vec![],
         };
         let data_to_sign = event.data_be_signed();
+        let data_to_sign =
+            wrap_content_to_sign(&data_to_sign, SignedContentType::MasterKeyRotation);
         event.sig = identity_key.sign(&data_to_sign).0.to_vec();
         self.egress
             .push_message(&KeyDistribution::<chain::BlockNumber>::MasterKeyRotation(

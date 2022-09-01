@@ -24,6 +24,7 @@ use phala_types::{
     contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
     VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
 };
+use phala_types::{wrap_content_to_sign, SignedContentType};
 use tokio::sync::oneshot::{channel, Sender};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -763,13 +764,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .expect("SignedEndpointInfo should be initialized");
 
         let signature = if endpoint_cache.signature.is_none() {
+            let data_to_sign = endpoint_cache.endpoint_payload.encode();
+            let wrapped_data = wrap_content_to_sign(&data_to_sign, SignedContentType::EndpointInfo);
             let signature = self
                 .system
                 .as_ref()
                 .expect("Runtime should be initialized")
                 .identity_key
                 .clone()
-                .sign(&endpoint_cache.endpoint_payload.encode())
+                .sign(&wrapped_data)
                 .encode();
             self.endpoint_cache = Some(SignedEndpointCache {
                 endpoints: endpoint_cache.endpoints.clone(),
