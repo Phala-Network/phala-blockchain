@@ -104,9 +104,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
 
-	#[pallet::storage]
-	pub type VaultAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
-
 	/// Switch to enable the stake pool pallet (disabled by default)
 	#[pallet::storage]
 	#[pallet::getter(fn mining_enabled)]

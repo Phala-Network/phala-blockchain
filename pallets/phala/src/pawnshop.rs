@@ -120,7 +120,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		StakerAccountNotFound,
 
-		RedeemAmountExceedsTotalStake,
+		RedeemAmountExceedsAvaliableStake,
 
 		VoteAmountLargerThanTotalStakes,
 
@@ -155,13 +155,26 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn redeem(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+		pub fn redeem(
+			origin: OriginFor<T>,
+			amount: BalanceOf<T>,
+			is_at_most: bool,
+		) -> DispatchResult {
+			let mut amount = amount;
 			let user = ensure_signed(origin)?;
 			let active_stakes = Self::get_net_value(user.clone())?;
-			ensure!(
-				amount <= active_stakes,
-				Error::<T>::RedeemAmountExceedsTotalStake,
-			);
+			let staker_status =
+				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
+			if is_at_most {
+				if amount + staker_status.locked > active_stakes {
+					amount = active_stakes - staker_status.locked;
+				}
+			} else {
+				ensure!(
+					amount + staker_status.locked <= active_stakes,
+					Error::<T>::RedeemAmountExceedsAvaliableStake,
+				);
+			}
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,

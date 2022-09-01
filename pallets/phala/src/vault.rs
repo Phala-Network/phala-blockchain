@@ -357,11 +357,7 @@ pub mod pallet {
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn contribute(
-			origin: OriginFor<T>,
-			pid: u64,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
+		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
@@ -412,11 +408,7 @@ pub mod pallet {
 		/// - else the withdrawal would be queued and delayed until there is enough free stake.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn withdraw(
-			origin: OriginFor<T>,
-			pid: u64,
-			shares: BalanceOf<T>,
-		) -> DispatchResult {
+		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
 			let collection_id = pool_info.basepool.cid;
