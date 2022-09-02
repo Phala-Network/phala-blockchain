@@ -7313,7 +7313,6 @@ dependencies = [
  "phala-trie-storage",
  "phala-types",
  "pink",
- "pink-sidevm-host-runtime",
  "prpc",
  "rand 0.8.5",
  "regex",
@@ -7325,6 +7324,7 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "serde_path_to_error",
+ "sidevm-host-runtime",
  "sp-application-crypto",
  "sp-core",
  "sp-externalities",
@@ -8006,92 +8006,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-sidevm"
-version = "0.1.9"
-dependencies = [
- "derive_more",
- "futures",
- "hyper",
- "lazy_static",
- "log",
- "parity-scale-codec",
- "pin-project",
- "pink-sidevm-env",
- "pink-sidevm-logger",
- "pink-sidevm-macro",
- "tokio",
-]
-
-[[package]]
-name = "pink-sidevm-env"
-version = "0.1.7"
-dependencies = [
- "cfg-if",
- "derive_more",
- "futures",
- "log",
- "num_enum",
- "parity-scale-codec",
- "pink-sidevm-macro",
- "tinyvec",
-]
-
-[[package]]
-name = "pink-sidevm-host-runtime"
+name = "pink-utils"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "dashmap",
- "futures",
- "hex_fmt",
- "libc",
- "log",
- "loupe",
- "once_cell",
- "page_size",
+ "hex",
+ "ink_env",
+ "ink_lang",
+ "ink_metadata",
+ "ink_prelude",
+ "ink_primitives",
+ "ink_storage",
  "parity-scale-codec",
- "parity-wasm 0.42.2",
- "phala-scheduler",
- "pink-sidevm-env",
- "rand 0.8.5",
- "rustls-pemfile",
- "serde",
- "thiserror",
- "thread_local",
- "tokio",
- "tokio-proxy",
- "tokio-rustls 0.23.4",
- "wasm-instrument",
- "wasmer",
- "wasmer-compiler-cranelift",
- "wasmer-compiler-llvm",
- "wasmer-compiler-singlepass",
- "wasmer-engine",
- "wasmer-engine-universal",
- "wasmer-middlewares",
- "wasmer-tunables",
- "wasmer-wasi-types",
- "webpki-roots 0.22.4",
-]
-
-[[package]]
-name = "pink-sidevm-logger"
-version = "0.1.1"
-dependencies = [
- "log",
- "pink-sidevm-env",
-]
-
-[[package]]
-name = "pink-sidevm-macro"
-version = "0.1.1"
-dependencies = [
- "heck 0.4.0",
- "insta",
- "proc-macro-crate",
- "proc-macro2 1.0.40",
- "rustfmt-snippet",
- "syn 1.0.98",
+ "pink-extension 0.1.16",
+ "pink-extension-runtime 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "scale-info",
 ]
 
 [[package]]
@@ -9290,6 +9218,15 @@ dependencies = [
 [[package]]
 name = "rustfmt-snippet"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.40",
+]
+
+[[package]]
+name = "rustfmt-snippet"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f5e687f088721017e263dedd91e4c7f45f54d5b37afa6eea95fdc34a8b80c80"
 dependencies = [
  "proc-macro2 1.0.40",
 ]
@@ -10959,6 +10896,95 @@ name = "shlex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
+
+[[package]]
+name = "sidevm"
+version = "0.1.9"
+dependencies = [
+ "derive_more",
+ "futures",
+ "hyper",
+ "lazy_static",
+ "log",
+ "parity-scale-codec",
+ "pin-project",
+ "sidevm-env",
+ "sidevm-logger",
+ "sidevm-macro",
+ "tokio",
+]
+
+[[package]]
+name = "sidevm-env"
+version = "0.1.7"
+dependencies = [
+ "cfg-if",
+ "derive_more",
+ "futures",
+ "log",
+ "num_enum",
+ "parity-scale-codec",
+ "sidevm-macro",
+ "tinyvec",
+]
+
+[[package]]
+name = "sidevm-host-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dashmap",
+ "futures",
+ "hex_fmt",
+ "libc",
+ "log",
+ "loupe",
+ "once_cell",
+ "page_size",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "phala-scheduler",
+ "rand 0.8.5",
+ "rustls-pemfile",
+ "serde",
+ "sidevm-env",
+ "thiserror",
+ "thread_local",
+ "tokio",
+ "tokio-proxy",
+ "tokio-rustls 0.23.4",
+ "wasm-instrument",
+ "wasmer",
+ "wasmer-compiler-cranelift",
+ "wasmer-compiler-llvm",
+ "wasmer-compiler-singlepass",
+ "wasmer-engine",
+ "wasmer-engine-universal",
+ "wasmer-middlewares",
+ "wasmer-tunables",
+ "wasmer-wasi-types",
+ "webpki-roots 0.22.4",
+]
+
+[[package]]
+name = "sidevm-logger"
+version = "0.1.1"
+dependencies = [
+ "log",
+ "sidevm-env",
+]
+
+[[package]]
+name = "sidevm-macro"
+version = "0.1.1"
+dependencies = [
+ "heck 0.4.0",
+ "insta",
+ "proc-macro-crate",
+ "proc-macro2 1.0.40",
+ "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 1.0.98",
+]
 
 [[package]]
 name = "signal-hook"
