@@ -8006,6 +8006,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pink-utils"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "ink_env",
+ "ink_lang",
+ "ink_metadata",
+ "ink_prelude",
+ "ink_primitives",
+ "ink_storage",
+ "parity-scale-codec",
+ "pink-extension 0.1.16",
+ "pink-extension-runtime 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "scale-info",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
