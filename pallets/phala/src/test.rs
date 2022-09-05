@@ -13,7 +13,7 @@ use frame_support::{
 	traits::tokens::fungibles::{Create, Inspect},
 };
 use hex_literal::hex;
-use sp_runtime::AccountId32;
+use sp_runtime::{testing::H256, AccountId32};
 
 use crate::mock::{
 	ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1, setup_workers,
@@ -24,7 +24,7 @@ use crate::mock::{
 use crate::mock::{
 	Balances, PhalaBasePool, PhalaMining, PhalaRegistry, PhalaStakePool, System, Timestamp,
 };
-
+use pallet_democracy::AccountVote;
 use phala_types::WorkerPublicKey;
 
 #[test]
@@ -105,6 +105,159 @@ fn test_redeem() {
 		assert_eq!(free, 20 * DOLLARS);
 		let ppha_free = get_balance(1);
 		assert_eq!(ppha_free, 20 * DOLLARS);
+	});
+}
+
+#[test]
+fn test_vote() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
+			H256::zero(),
+			pallet_democracy::VoteThreshold::SimpleMajority,
+			1000,
+		);
+		let vote_id2 = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
+			H256::zero(),
+			pallet_democracy::VoteThreshold::SimpleMajority,
+			1000,
+		);
+		assert_eq!(vote_id, 0);
+		assert_eq!(vote_id2, 1);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			100 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			100 * DOLLARS
+		));
+		assert_noop!(
+			pawnshop::pallet::Pallet::<Test>::vote(
+				Origin::signed(1),
+				90 * DOLLARS,
+				90 * DOLLARS,
+				0
+			),
+			pawnshop::Error::<Test>::VoteAmountLargerThanTotalStakes,
+		);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(1),
+			20 * DOLLARS,
+			10 * DOLLARS,
+			0
+		));
+		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_eq!(account1_status.locked, 30 * DOLLARS);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(1),
+			40 * DOLLARS,
+			20 * DOLLARS,
+			1
+		));
+		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_eq!(account1_status.locked, 60 * DOLLARS);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(2),
+			20 * DOLLARS,
+			30 * DOLLARS,
+			0
+		));
+		let vote = pawnshop::pallet::Pallet::<Test>::accumulate_account_vote(0);
+		let (aye, nay) = match vote {
+			AccountVote::Split { aye, nay } => (aye, nay),
+			_ => panic!(),
+		};
+		assert_eq!(aye, 40 * DOLLARS);
+		assert_eq!(nay, 40 * DOLLARS);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(1),
+			5 * DOLLARS,
+			10 * DOLLARS,
+			1
+		));
+		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_eq!(account1_status.locked, 30 * DOLLARS);
+	});
+}
+
+#[test]
+fn test_unlock() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
+			H256::zero(),
+			pallet_democracy::VoteThreshold::SimpleMajority,
+			1000,
+		);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			100 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			100 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(1),
+			20 * DOLLARS,
+			10 * DOLLARS,
+			0
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(2),
+			20 * DOLLARS,
+			10 * DOLLARS,
+			0
+		));
+		assert_noop!(
+			pawnshop::pallet::Pallet::<Test>::unlock(Origin::signed(3), 0, 1),
+			pawnshop::Error::<Test>::ReferendumOngoing,
+		);
+		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(0);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::unlock(
+			Origin::signed(3),
+			0,
+			1
+		));
+		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_eq!(account1_status.locked, 0 * DOLLARS);
+		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		assert_eq!(account2_status.locked, 30 * DOLLARS);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::unlock(
+			Origin::signed(3),
+			0,
+			2
+		));
+		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		assert_eq!(account2_status.locked, 0 * DOLLARS);
+		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
+			H256::zero(),
+			pallet_democracy::VoteThreshold::SimpleMajority,
+			1000,
+		);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(1),
+			20 * DOLLARS,
+			10 * DOLLARS,
+			vote_id
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+			Origin::signed(2),
+			20 * DOLLARS,
+			10 * DOLLARS,
+			vote_id
+		));
+		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(1);
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::unlock(
+			Origin::signed(3),
+			1,
+			2
+		));
+		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_eq!(account1_status.locked, 0 * DOLLARS);
+		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		assert_eq!(account2_status.locked, 0 * DOLLARS);
 	});
 }
 

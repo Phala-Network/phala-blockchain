@@ -78,6 +78,8 @@ pub mod pallet {
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
+	const MAX_ITERARTIONS: u32 = 100;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -130,6 +132,8 @@ pub mod pallet {
 		ReferendumInvalid,
 
 		ReferendumOngoing,
+
+		IterationsIsNotVaild,
 	}
 
 	#[pallet::call]
@@ -232,16 +236,20 @@ pub mod pallet {
 			if Self::is_ongoing(vote_id) {
 				return Err(Error::<T>::ReferendumOngoing.into());
 			}
+			ensure!(
+				max_iterations > 0 && max_iterations <= MAX_ITERARTIONS,
+				Error::<T>::IterationsIsNotVaild
+			);
 			let mut iter = VoteAccountMap::<T>::iter_prefix(vote_id).drain();
 			let mut i = 0;
 			loop {
 				if let Some((user, _)) = iter.next() {
 					AccountVoteMap::<T>::remove(user.clone(), vote_id);
 					Self::update_user_locked(user.clone()).expect("useraccount should exist: qed.");
+					i += 1;
 					if i >= max_iterations {
 						break;
 					}
-					i += 1;
 				} else {
 					break;
 				}
@@ -343,7 +351,7 @@ pub mod pallet {
 		}
 
 		// TODO(mingxuan): Optimize to O(1) in the future.
-		fn accumulate_account_vote(vote_id: ReferendumIndex) -> AccountVote<BalanceOf<T>> {
+		pub fn accumulate_account_vote(vote_id: ReferendumIndex) -> AccountVote<BalanceOf<T>> {
 			let mut total_aye_amount: BalanceOf<T> = Zero::zero();
 			let mut total_nay_amount: BalanceOf<T> = Zero::zero();
 			VoteAccountMap::<T>::iter_prefix(vote_id).for_each(|(_, (aye_amount, nay_amount))| {
