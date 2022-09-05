@@ -5,7 +5,7 @@ use crate::{
 
 use frame_support::{
 	ord_parameter_types,
-	pallet_prelude::{ConstU32, Decode, Encode},
+	pallet_prelude::{ConstU32, Decode, Encode, Get},
 	parameter_types,
 	traits::{
 		AsEnsureOriginWithArg, ConstU128, ConstU64, EnsureOneOf, EqualPrivilegeOnly, GenesisBuild,
@@ -21,7 +21,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
-use frame_support::dispatch::Input;
+use frame_support::{dispatch::Input, PalletId};
 
 use frame_system::EnsureRoot;
 pub(crate) type Balance = u128;
@@ -241,7 +241,7 @@ impl pawnshop::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type PPhaAssetId = PPhaAssetId;
-	type PawnShopAccountId = ConstU32<1>;
+	type PawnShopAccountId = ConstU64<1234>;
 	type OnSlashed = ();
 }
 

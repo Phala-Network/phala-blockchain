@@ -25,8 +25,11 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Mutate, tokens::nonfungibles::InspectEnumerable, Currency,
-			ExistenceRequirement::KeepAlive, LockableCurrency, OnUnbalanced, StorageVersion,
+			tokens::fungibles::{Inspect, Mutate},
+			tokens::nonfungibles::InspectEnumerable,
+			Currency,
+			ExistenceRequirement::{AllowDeath, KeepAlive},
+			LockableCurrency, OnUnbalanced, StorageVersion,
 		},
 	};
 
@@ -149,7 +152,13 @@ pub mod pallet {
 				KeepAlive,
 			)?;
 			Self::mint_into(T::PPhaAssetId::get(), &user, amount)?;
-
+			StakerAccounts::<T>::insert(
+				&user,
+				FinanceAccount::<BalanceOf<T>> {
+					invest_pools: vec![],
+					locked: Zero::zero(),
+				},
+			);
 			Ok(())
 		}
 
@@ -179,7 +188,7 @@ pub mod pallet {
 				&T::PawnShopAccountId::get(),
 				&user,
 				actural_amount,
-				KeepAlive,
+				AllowDeath,
 			)?;
 			Self::burn_from(T::PPhaAssetId::get(), &user, actural_amount)?;
 
@@ -305,9 +314,15 @@ pub mod pallet {
 		}
 
 		fn get_net_value(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
-			let account_status =
-				StakerAccounts::<T>::get(&who).ok_or(Error::<T>::StakerAccountNotFound)?;
-			let mut total_active_stakes: BalanceOf<T> = Zero::zero();
+			let mut total_active_stakes: BalanceOf<T> =
+				<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
+					T::PPhaAssetId::get(),
+					&who,
+				);
+			let account_status = match StakerAccounts::<T>::get(&who) {
+				Some(account_status) => account_status,
+				None => return Ok(total_active_stakes),
+			};
 			for (pid, cid) in &account_status.invest_pools {
 				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who).for_each(|nftid| {
 					let property_guard = basepool::Pallet::<T>::get_nft_attr_guard(*cid, nftid)

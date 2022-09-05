@@ -47,3 +47,6 @@ use sp_io::hashing;
 
 #[cfg(test)]
 mod mock;
+
+#[cfg(test)]
+mod test;
