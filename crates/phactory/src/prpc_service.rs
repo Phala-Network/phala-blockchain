@@ -130,6 +130,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }),
             number_of_clusters: number_of_clusters as _,
             number_of_contracts: number_of_contracts as _,
+            network_status: Some(pb::NetworkStatus {
+                public_rpc_port: self.args.public_port.map(Into::into),
+                config: self.netconfig.clone(),
+            }),
         }
     }
 
@@ -704,19 +708,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         endpoints: HashMap<EndpointType, Vec<u8>>,
     ) -> RpcResult<pb::GetEndpointResponse> {
-        let state = self
-            .runtime_state
-            .as_mut()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let block_time: u64 = state
-            .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
-        let public_key = self
-            .system
-            .as_ref()
-            .map(|state| state.identity_key.public())
-            .expect("public_key should be set");
+        let system = self.system()?;
+        let block_time: u64 = system.now_ms;
+        let public_key = system.identity_key.public();
         let mut endpoints_info = Vec::<EndpointInfo>::new();
 
         for (endpoint_type, endpoint) in endpoints.iter() {
@@ -764,16 +758,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .expect("SignedEndpointInfo should be initialized");
 
         let signature = if endpoint_cache.signature.is_none() {
-            let data_to_sign = endpoint_cache.endpoint_payload.encode();
-            let wrapped_data = wrap_content_to_sign(&data_to_sign, SignedContentType::EndpointInfo);
-            let signature = self
-                .system
-                .as_ref()
-                .expect("Runtime should be initialized")
-                .identity_key
-                .clone()
-                .sign(&wrapped_data)
-                .encode();
+            let signature = self.sign_endpoint_payload(&endpoint_cache.endpoint_payload)?;
             self.endpoint_cache = Some(SignedEndpointCache {
                 endpoints: endpoint_cache.endpoints.clone(),
                 endpoint_payload: endpoint_cache.endpoint_payload.clone(),
@@ -796,6 +781,35 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         Ok(resp)
     }
+
+    pub fn sign_endpoint_info(
+        &mut self,
+        versioned_endpoints: VersionedWorkerEndpoints,
+    ) -> RpcResult<pb::GetEndpointResponse> {
+        let system = self.system()?;
+        let pubkey = system.identity_key.public();
+        let signing_time = system.now_ms;
+        let payload = WorkerEndpointPayload {
+            pubkey,
+            versioned_endpoints,
+            signing_time,
+        };
+        let signature = self.sign_endpoint_payload(&payload)?;
+
+        Ok(pb::GetEndpointResponse::new(Some(payload), Some(signature)))
+    }
+
+    fn sign_endpoint_payload(&mut self, payload: &WorkerEndpointPayload) -> RpcResult<Vec<u8>> {
+        let data_to_sign = payload.encode();
+        let wrapped_data = wrap_content_to_sign(&data_to_sign, SignedContentType::EndpointInfo);
+        let signature = self
+            .system()?
+            .identity_key
+            .clone()
+            .sign(&wrapped_data)
+            .encode();
+        Ok(signature)
+    }
 }
 
 #[derive(Clone)]
@@ -817,23 +831,15 @@ where
 {
     pub fn dispatch_request(
         &self,
-        path: &[u8],
+        path: String,
         data: &[u8],
     ) -> impl Future<Output = (u16, Vec<u8>)> {
         use prpc::server::{Error, ProtoError};
-        let path = String::from_utf8(path.to_vec());
         let data = data.to_vec();
 
         let mut server = PhactoryApiServer::new(self.clone());
 
         async move {
-            let path = match path {
-                Ok(path) => path,
-                Err(e) => {
-                    error!("prpc_request: invalid path: {}", e);
-                    return (400, b"Invalid path".to_vec());
-                }
-            };
             info!("Dispatching request: {}", path);
 
             let (code, data) = match server.dispatch_request(&path, data).await {
@@ -1018,6 +1024,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
     async fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
         self.lock_phactory().get_endpoint_info()
+    }
+
+    async fn sign_endpoint_info(
+        &mut self,
+        request: pb::SignEndpointsRequest,
+    ) -> Result<pb::GetEndpointResponse, prpc::server::Error> {
+        self.lock_phactory()
+            .sign_endpoint_info(VersionedWorkerEndpoints::V1(request.decode_endpoints()?))
     }
 
     async fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
@@ -1265,6 +1279,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         // clear cached RA report and handover ecdh key to prevent replay
         phactory.runtime_info = None;
         phactory.handover_ecdh_key = None;
+        Ok(())
+    }
+
+    async fn config_network(
+        &mut self,
+        request: super::NetworkConfig,
+    ) -> Result<(), prpc::server::Error> {
+        self.lock_phactory().set_netconfig(request);
         Ok(())
     }
 }
