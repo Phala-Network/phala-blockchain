@@ -4,7 +4,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 edition = "2021"
 name = "sidevm"
-version = "0.1.9"
+version = "0.1.10"
 
 [dependencies]
 sidevm-env = { version = "0.1.6", path = "../env" }
