@@ -879,11 +879,10 @@ pub mod pallet {
 			if let Some((_, vault_info)) = &maybe_vault {
 				free = vault_info.basepool.get_free_stakes::<T>();
 			} else {
-				free = pallet_assets::Pallet::<T>::maybe_balance(
+				free = pallet_assets::Pallet::<T>::balance(
 					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&who,
-				)
-				.ok_or(Error::<T>::AssetAccountNotExist)?;
+				);
 			}
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// a lot of weird edge cases when dealing with pending slash.

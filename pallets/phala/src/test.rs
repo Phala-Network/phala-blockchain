@@ -1,3 +1,6 @@
+/// todo after simple ut finished
+/// 1.测试在用户对池子投资前提下的redeem，vote，unlock（net_value）
+/// 2.测试distribute_reward（依赖对stakepool和vault的单测基本完成）
 use crate::basepool;
 use crate::mining;
 use crate::pawnshop;
@@ -22,10 +25,13 @@ use crate::mock::{
 };
 // Pallets
 use crate::mock::{
-	Balances, PhalaBasePool, PhalaMining, PhalaRegistry, PhalaStakePool, System, Timestamp,
+	Balances, PhalaBasePool, PhalaMining, PhalaPawnshop, PhalaRegistry, PhalaStakePool, PhalaVault,
+	System, Timestamp,
 };
 use pallet_democracy::AccountVote;
 use phala_types::WorkerPublicKey;
+use rmrk_traits::primitives::{CollectionId, NftId};
+use sp_std::collections::vec_deque::VecDeque;
 
 #[test]
 fn test_pool_subaccount() {
@@ -261,139 +267,6 @@ fn test_unlock() {
 	});
 }
 
-fn mock_asset_id() {
-	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
-		<Test as pawnshop::Config>::PPhaAssetId::get(),
-		1,
-		true,
-		1,
-	);
-}
-
-fn get_balance(account_id: u64) -> u128 {
-	<pallet_assets::pallet::Pallet<Test> as Inspect<u64>>::balance(
-		<Test as pawnshop::Config>::PPhaAssetId::get(),
-		&account_id,
-	)
-}
-
-/*#[test]
-fn test_create() {
-	// Check this fixed: <https://github.com/Phala-Network/phala-blockchain/issues/285>
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
-		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
-		PhalaStakePool::on_finalize(1);
-		assert_matches!(
-			take_events().as_slice(),
-			[
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 0,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 0
-				}),
-				TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 0 }),
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 1,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 1
-				}),
-				TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 1 }),
-			]
-		);
-		assert_eq!(
-			basepool::Pools::<Test>::get(0),
-			Some(PoolProxy::<u64, Balance>::StakePool(StakePool::<
-				u64,
-				Balance,
-			> {
-				basepool: basepool::BasePool {
-					pid: 0,
-					owner: 1,
-					total_shares: 0,
-					total_value: 0,
-					free_stake: 0,
-					withdraw_queue: VecDeque::new(),
-					value_subscribers: VecDeque::new(),
-					cid: 0,
-				},
-				payout_commission: None,
-				owner_reward: 0,
-				cap: None,
-				workers: vec![],
-				cd_workers: vec![],
-			})),
-		);
-		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
-	});
-}
-
-#[test]
-fn test_create_vault() {
-	// Check this fixed: <https://github.com/Phala-Network/phala-blockchain/issues/285>
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		assert_ok!(PhalaStakePool::create_vault(Origin::signed(1)));
-		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
-		PhalaStakePool::on_finalize(1);
-		assert_matches!(
-			take_events().as_slice(),
-			[
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 0,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 0
-				}),
-				TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 0 }),
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 1,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 1
-				}),
-				TestEvent::PhalaStakePool(Event::PoolCreated { owner: 1, pid: 1 }),
-			]
-		);
-		assert_eq!(
-			basepool::Pools::<Test>::get(0),
-			Some(PoolProxy::Vault(Vault::<u64, Balance> {
-				basepool: basepool::BasePool {
-					pid: 0,
-					owner: 1,
-					total_shares: 0,
-					total_value: 0,
-					free_stake: 0,
-					withdraw_queue: VecDeque::new(),
-					value_subscribers: VecDeque::new(),
-					cid: 0,
-				},
-				pool_account_id: 3899606504431772022,
-				last_share_price_checkpoint: 0,
-				commission: None,
-				owner_shares: 0,
-				invest_pools: vec![],
-			})),
-		);
-		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
-	});
-}
-
 #[test]
 fn test_mint_nft() {
 	new_test_ext().execute_with(|| {
@@ -406,11 +279,17 @@ fn test_mint_nft() {
 			1,
 			1000 * DOLLARS,
 		));
-
-		assert_ok!(PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0));
+		{
+			assert_ok!(PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0));
+			assert_noop!(
+				PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0),
+				basepool::Error::<Test>::AttrLocked
+			);
+		}
 		let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0)
 			.unwrap()
-			.attr;
+			.attr
+			.clone();
 		assert_eq!(nft_attr.shares, 1000 * DOLLARS);
 	});
 }
@@ -432,21 +311,19 @@ fn test_merge_or_init_nft() {
 			1,
 			2000 * DOLLARS,
 		));
-		let nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		let nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 		assert_eq!(nftid_arr.len(), 2);
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 			pool_info.basepool.cid,
 			1
 		));
-		let nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		let nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
 		assert_eq!(nftid_arr.len(), 1);
 		{
-			let nft_attr =
-				PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, nftid_arr[0])
-					.unwrap()
-					.attr;
+			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
 			assert_eq!(nft_attr.shares, 3000 * DOLLARS);
 		}
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
@@ -461,10 +338,10 @@ fn test_merge_or_init_nft() {
 		});
 		assert_eq!(nftid_arr.len(), 1);
 		{
-			let nft_attr =
-				PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, nftid_arr[0])
-					.unwrap()
-					.attr;
+			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
 			assert_eq!(nft_attr.shares, 0 * DOLLARS);
 		}
 	});
@@ -485,7 +362,7 @@ fn test_set_nft_attr() {
 		{
 			let mut nft_attr_guard =
 				PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0).unwrap();
-			let mut nft_attr = nft_attr_guard.attr;
+			let mut nft_attr = nft_attr_guard.attr.clone();
 			nft_attr.shares = 5000 * DOLLARS;
 			nft_attr_guard.attr = nft_attr;
 			assert_ok!(nft_attr_guard.save());
@@ -493,7 +370,8 @@ fn test_set_nft_attr() {
 		{
 			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0)
 				.unwrap()
-				.attr;
+				.attr
+				.clone();
 			assert_eq!(nft_attr.shares, 5000 * DOLLARS);
 		}
 	});
@@ -502,13 +380,20 @@ fn test_set_nft_attr() {
 #[test]
 fn test_remove_stake_from_nft() {
 	new_test_ext().execute_with(|| {
+		mock_asset_id();
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+		let pool_info = ensure_stake_pool::<Test>(0).unwrap();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(1),
 			0,
-			50 * DOLLARS
+			50 * DOLLARS,
+			None,
 		));
 		let mut nftid_arr: Vec<NftId> =
 			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
@@ -518,15 +403,16 @@ fn test_remove_stake_from_nft() {
 		});
 		assert_eq!(nftid_arr.len(), 1);
 		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut nft_attr =
-			PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr;
+		let mut nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+			.unwrap()
+			.attr
+			.clone();
 		assert_eq!(pool.basepool.share_price().unwrap(), 1);
 		match PhalaBasePool::remove_stake_from_nft(
 			&mut pool.basepool,
 			40 * DOLLARS,
 			&mut nft_attr,
+			&1,
 		) {
 			Some((amout, removed_shares)) => return,
 			_ => panic!(),
@@ -534,6 +420,185 @@ fn test_remove_stake_from_nft() {
 	});
 }
 
+#[test]
+fn test_create_stakepool() {
+	new_test_ext().execute_with(|| {
+		set_block_1();
+		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::create(Origin::signed(
+			1
+		)));
+		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::create(Origin::signed(
+			2
+		)));
+		assert_matches!(
+			take_events().as_slice(),
+			[
+				TestEvent::Uniques(pallet_uniques::Event::Created {
+					collection: 0,
+					creator: _,
+					owner: _
+				}),
+				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
+					issuer: _,
+					collection_id: 0
+				}),
+				TestEvent::PhalaStakePool(stakepoolv2::Event::PoolCreated { owner: 1, pid: 0 }),
+				TestEvent::Uniques(pallet_uniques::Event::Created {
+					collection: 1,
+					creator: _,
+					owner: _
+				}),
+				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
+					issuer: _,
+					collection_id: 1
+				}),
+				TestEvent::PhalaStakePool(stakepoolv2::Event::PoolCreated { owner: 2, pid: 1 }),
+			]
+		);
+		assert_eq!(
+			basepool::Pools::<Test>::get(0),
+			Some(PoolProxy::<u64, Balance>::StakePool(StakePool::<
+				u64,
+				Balance,
+			> {
+				basepool: basepool::BasePool {
+					pid: 0,
+					owner: 1,
+					total_shares: 0,
+					total_value: 0,
+					withdraw_queue: VecDeque::new(),
+					value_subscribers: VecDeque::new(),
+					cid: 0,
+					pool_account_id: 7813586407040180578,
+				},
+				payout_commission: None,
+				lock_account: 7165064715018794099,
+				cap: None,
+				workers: VecDeque::new(),
+				cd_workers: VecDeque::new(),
+				owner_reward_account: 7959953347784569971,
+			})),
+		);
+		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
+	});
+}
+
+#[test]
+fn test_create_vault() {
+	new_test_ext().execute_with(|| {
+		set_block_1();
+		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(1)));
+		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(2)));
+		assert_matches!(
+			take_events().as_slice(),
+			[
+				TestEvent::Uniques(pallet_uniques::Event::Created {
+					collection: 0,
+					creator: _,
+					owner: _
+				}),
+				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
+					issuer: _,
+					collection_id: 0
+				}),
+				TestEvent::PhalaVault(vault::Event::PoolCreated { owner: 1, pid: 0 }),
+				TestEvent::Uniques(pallet_uniques::Event::Created {
+					collection: 1,
+					creator: _,
+					owner: _
+				}),
+				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
+					issuer: _,
+					collection_id: 1
+				}),
+				TestEvent::PhalaVault(vault::Event::PoolCreated { owner: 2, pid: 1 }),
+			]
+		);
+		assert_eq!(
+			basepool::Pools::<Test>::get(0),
+			Some(PoolProxy::Vault(Vault::<u64, Balance> {
+				basepool: basepool::BasePool {
+					pid: 0,
+					owner: 1,
+					total_shares: 0,
+					total_value: 0,
+					withdraw_queue: VecDeque::new(),
+					value_subscribers: VecDeque::new(),
+					cid: 0,
+					pool_account_id: 7813586407040180578,
+				},
+				last_share_price_checkpoint: 0,
+				commission: None,
+				owner_shares: 0,
+				invest_pools: VecDeque::new(),
+			})),
+		);
+		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
+	});
+}
+
+fn mock_asset_id() {
+	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
+		<Test as pawnshop::Config>::PPhaAssetId::get(),
+		1,
+		true,
+		1,
+	);
+}
+
+fn get_balance(account_id: u64) -> u128 {
+	<pallet_assets::pallet::Pallet<Test> as Inspect<u64>>::balance(
+		<Test as pawnshop::Config>::PPhaAssetId::get(),
+		&account_id,
+	)
+}
+
+fn setup_stake_pool_with_workers(owner: u64, workers: &[u8]) -> u64 {
+	let pid = PhalaBasePool::pool_count();
+	assert_ok!(PhalaStakePool::create(Origin::signed(owner)));
+	for id in workers {
+		assert_ok!(PhalaStakePool::add_worker(
+			Origin::signed(owner),
+			pid,
+			worker_pubkey(*id),
+		));
+	}
+	pid
+}
+
+fn setup_vault(owner: u64) -> u64 {
+	let pid = PhalaBasePool::pool_count();
+	assert_ok!(PhalaVault::create(Origin::signed(owner)));
+	pid
+}
+
+fn simulate_v_update(worker: u8, v_bits: u128) {
+	use phala_types::messaging::{
+		DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
+	};
+	let block = System::block_number();
+	let now = Timestamp::now();
+	assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
+		MiningInfoUpdateEvent<BlockNumber>,
+	> {
+		sender: MessageOrigin::Gatekeeper,
+		destination: Topic::new(*b"^phala/mining/update"),
+		payload: MiningInfoUpdateEvent::<BlockNumber> {
+			block_number: block,
+			timestamp_ms: now,
+			offline: vec![],
+			recovered_to_online: vec![],
+			settle: vec![SettleInfo {
+				pubkey: worker_pubkey(worker),
+				v: v_bits,
+				payout: 0,
+				treasury: 0,
+			}],
+		},
+	}));
+}
+
+/*
 #[test]
 fn test_contibute() {
 	new_test_ext().execute_with(|| {
@@ -1981,48 +2046,4 @@ fn restart_mining_should_work() {
 		assert_eq!(pool0.basepool.free_stake, 499 * DOLLARS);
 	});
 }
-
-fn setup_stake_pool_with_workers(owner: u64, workers: &[u8]) -> u64 {
-	let pid = PhalaBasePool::pool_count();
-	assert_ok!(PhalaStakePool::create(Origin::signed(owner)));
-	for id in workers {
-		assert_ok!(PhalaStakePool::add_worker(
-			Origin::signed(owner),
-			pid,
-			worker_pubkey(*id),
-		));
-	}
-	pid
-}
-
-fn setup_vault(owner: u64) -> u64 {
-	let pid = PhalaBasePool::pool_count();
-	assert_ok!(PhalaStakePool::create_vault(Origin::signed(owner)));
-	pid
-}
-
-fn simulate_v_update(worker: u8, v_bits: u128) {
-	use phala_types::messaging::{
-		DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
-	};
-	let block = System::block_number();
-	let now = Timestamp::now();
-	assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
-		MiningInfoUpdateEvent<BlockNumber>,
-	> {
-		sender: MessageOrigin::Gatekeeper,
-		destination: Topic::new(*b"^phala/mining/update"),
-		payload: MiningInfoUpdateEvent::<BlockNumber> {
-			block_number: block,
-			timestamp_ms: now,
-			offline: vec![],
-			recovered_to_online: vec![],
-			settle: vec![SettleInfo {
-				pubkey: worker_pubkey(worker),
-				v: v_bits,
-				payout: 0,
-				treasury: 0,
-			}],
-		},
-	}));
-}*/
+*/

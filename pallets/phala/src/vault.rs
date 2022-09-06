@@ -127,7 +127,7 @@ pub mod pallet {
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn create_vault(origin: OriginFor<T>) -> DispatchResult {
+		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let pid = basepool::Pallet::<T>::consume_new_pid();
 			// TODO(mingxuan): create_collection should return cid
