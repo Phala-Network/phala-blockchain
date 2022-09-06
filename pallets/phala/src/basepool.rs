@@ -356,11 +356,7 @@ pub mod pallet {
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
-			let mut nft_guard = Self::get_nft_attr_guard(pool.cid, nft_id)?;
 			let shares = Self::add_stake_to_new_nft(pool, account_id, amount);
-			nft_guard.attr.shares += shares;
-			nft_guard.save()?;
-
 			Ok(shares)
 		}
 
@@ -564,7 +560,8 @@ pub mod pallet {
 		pub fn burn_nft(cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
 			pallet_rmrk_core::Pallet::<T>::nft_burn(cid, nft_id, MAX_RECURSIONS)?;
-
+			//TODO(mingxuan): wait for rmrk fix
+			pallet_uniques::Pallet::<T>::do_burn(cid, nft_id, |_, _| Ok(()))?;
 			Ok(())
 		}
 
@@ -582,7 +579,6 @@ pub mod pallet {
 				total_shares += property.shares;
 				Self::burn_nft(cid, nftid).expect("burn nft should not fail: qed.");
 			});
-
 			Self::mint_nft(cid, staker, total_shares)
 		}
 
@@ -756,7 +752,7 @@ pub mod pallet {
 	{
 		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
 		// stake pool miner
-		(b"basepool/", hash)
+		(b"bp/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}

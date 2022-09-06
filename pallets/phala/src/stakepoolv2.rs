@@ -859,7 +859,7 @@ pub mod pallet {
 					who == vault_info.basepool.owner,
 					Error::<T>::UnauthorizedPoolOwner
 				);
-				who = vault_info.basepool.owner.clone();
+				who = vault_info.basepool.pool_account_id.clone();
 				maybe_vault = Some((vault_pid, vault_info));
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
@@ -888,7 +888,6 @@ pub mod pallet {
 			// a lot of weird edge cases when dealing with pending slash.
 			let shares =
 				basepool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
-
 			if let Some((vault_pid, vault_info)) = &mut maybe_vault {
 				if !vault_info.invest_pools.contains(&pid) {
 					vault_info.invest_pools.push_back(pid);
@@ -935,7 +934,6 @@ pub mod pallet {
 				amount: a,
 				shares,
 			});
-
 			Ok(())
 		}
 
@@ -1384,10 +1382,10 @@ pub mod pallet {
 		T: Encode + Decode,
 	{
 		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
-		let owner_reward_account = (b"stakeowner/", hash)
+		let owner_reward_account = (b"so/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed");
-		let lock_account = (b"stakelock/", hash)
+		let lock_account = (b"sl/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed");
 		return (owner_reward_account, lock_account);

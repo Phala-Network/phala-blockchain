@@ -279,6 +279,11 @@ fn test_mint_nft() {
 			1,
 			1000 * DOLLARS,
 		));
+		assert_ok!(PhalaBasePool::mint_nft(
+			pool_info.basepool.cid,
+			2,
+			500 * DOLLARS,
+		));
 		{
 			assert_ok!(PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0));
 			assert_noop!(
@@ -291,6 +296,11 @@ fn test_mint_nft() {
 			.attr
 			.clone();
 		assert_eq!(nft_attr.shares, 1000 * DOLLARS);
+		let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 1)
+			.unwrap()
+			.attr
+			.clone();
+		assert_eq!(nft_attr.shares, 500 * DOLLARS);
 	});
 }
 
@@ -469,14 +479,14 @@ fn test_create_stakepool() {
 					withdraw_queue: VecDeque::new(),
 					value_subscribers: VecDeque::new(),
 					cid: 0,
-					pool_account_id: 7813586407040180578,
+					pool_account_id: 16637257129592320098,
 				},
 				payout_commission: None,
-				lock_account: 7165064715018794099,
+				lock_account: 16637257129592319091,
 				cap: None,
 				workers: VecDeque::new(),
 				cd_workers: VecDeque::new(),
-				owner_reward_account: 7959953347784569971,
+				owner_reward_account: 16637257129592319859,
 			})),
 		);
 		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
@@ -525,7 +535,7 @@ fn test_create_vault() {
 					withdraw_queue: VecDeque::new(),
 					value_subscribers: VecDeque::new(),
 					cid: 0,
-					pool_account_id: 7813586407040180578,
+					pool_account_id: 16637257129592320098,
 				},
 				last_share_price_checkpoint: 0,
 				commission: None,
@@ -534,6 +544,116 @@ fn test_create_vault() {
 			})),
 		);
 		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
+	});
+}
+
+#[test]
+fn test_contribute() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		set_block_1();
+		setup_workers(2);
+		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+		assert_noop!(
+			PhalaStakePool::contribute(Origin::signed(1), 0, 50 * DOLLARS, None,),
+			stakepoolv2::Error::<Test>::InsufficientBalance,
+		);
+
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+			Origin::signed(1),
+			0,
+			50 * DOLLARS,
+			None
+		));
+		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+			Origin::signed(2),
+			0,
+			50 * DOLLARS,
+			None
+		));
+		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+			Origin::signed(1),
+			0,
+			30 * DOLLARS,
+			None
+		));
+
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(nft_attr.shares, 80 * DOLLARS);
+		}
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(nft_attr.shares, 50 * DOLLARS);
+		}
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(pool.basepool.total_shares, 130 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 130 * DOLLARS);
+		let free = get_balance(pool.basepool.pool_account_id);
+		assert_eq!(free, 130 * DOLLARS);
+
+		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(1)));
+		assert_ok!(vault::pallet::Pallet::<Test>::contribute(
+			Origin::signed(2),
+			1,
+			200 * DOLLARS,
+		));
+		let pool = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool.basepool.total_shares, 200 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
+		let free = get_balance(pool.basepool.pool_account_id);
+		assert_eq!(free, 200 * DOLLARS);
+
+		assert_noop!(
+			PhalaStakePool::contribute(Origin::signed(2), 0, 10 * DOLLARS, Some(1),),
+			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner,
+		);
+		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+			Origin::signed(1),
+			0,
+			100 * DOLLARS,
+			Some(1)
+		));
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(pool.basepool.total_shares, 230 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 230 * DOLLARS);
+		let mut buf = VecDeque::new();
+		buf.push_back(1);
+		assert_eq!(pool.basepool.value_subscribers, buf);
+		let pool = ensure_vault::<Test>(1).unwrap();
+		assert_eq!(pool.basepool.total_shares, 200 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
+		let free = get_balance(pool.basepool.pool_account_id);
+		assert_eq!(free, 100 * DOLLARS);
 	});
 }
 
