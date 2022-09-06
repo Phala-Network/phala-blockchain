@@ -133,7 +133,6 @@ pub mod pallet {
 		ClusterNotFound,
 		ClusterNotDeployed,
 		ClusterPermissionDenied,
-		NoClusterOnGatekeeper,
 		DuplicatedContract,
 		DuplicatedDeployment,
 		NoWorkerSpecified,
@@ -170,11 +169,9 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
-			let gatekeepers = registry::Gatekeeper::<T>::get();
 			let workers = deploy_workers
 				.iter()
 				.map(|worker| {
-					ensure!(!gatekeepers.contains(&worker), Error::<T>::NoClusterOnGatekeeper);
 					let worker_info =
 						registry::Workers::<T>::get(worker).ok_or(Error::<T>::WorkerNotFound)?;
 					Ok(WorkerIdentity {

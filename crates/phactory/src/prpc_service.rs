@@ -383,6 +383,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let system = system::System::new(
             self.platform.clone(),
+            self.dev_mode,
             self.args.sealing_path.clone(),
             self.args.storage_path.clone(),
             false,
@@ -1060,9 +1061,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         _request: (),
     ) -> RpcResult<pb::HandoverChallenge> {
         let mut phactory = self.lock_phactory();
-        let dev_mode = phactory.dev_mode;
         let system = phactory.system()?;
-        let challenge = system.get_worker_key_challenge(dev_mode);
+        let challenge = system.get_worker_key_challenge();
         Ok(pb::HandoverChallenge::new(challenge))
     }
 

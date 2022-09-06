@@ -104,6 +104,7 @@ pub enum TransactionError {
     // for contract
     CodeNotFound,
     DuplicatedClusterDeploy,
+    NoClusterOnGatekeeper,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -420,6 +421,7 @@ fn get_contract_key(cluster_key: &sr25519::Pair, contract_id: &ContractId) -> sr
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
+    dev_mode: bool,
     pub(crate) sealing_path: String,
     pub(crate) storage_path: String,
     enable_geoprobing: bool,
@@ -484,6 +486,7 @@ fn create_sidevm_service(worker_threads: usize) -> Spawner {
 impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
         platform: Platform,
+        dev_mode: bool,
         sealing_path: String,
         storage_path: String,
         enable_geoprobing: bool,
@@ -505,6 +508,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
         System {
             platform,
+            dev_mode,
             sealing_path,
             storage_path,
             enable_geoprobing,
@@ -561,11 +565,8 @@ impl<Platform: pal::Platform> System<Platform> {
         self.trusted_identity_key || self.worker_state.registered
     }
 
-    pub fn get_worker_key_challenge(
-        &mut self,
-        dev_mode: bool,
-    ) -> HandoverChallenge<chain::BlockNumber> {
-        let sgx_target_info = if dev_mode {
+    pub fn get_worker_key_challenge(&mut self) -> HandoverChallenge<chain::BlockNumber> {
+        let sgx_target_info = if self.dev_mode {
             vec![]
         } else {
             let my_target_info = sgx_api_lite::target_info().unwrap();
@@ -575,7 +576,7 @@ impl<Platform: pal::Platform> System<Platform> {
             sgx_target_info,
             block_number: self.block_number,
             now: self.now_ms,
-            dev_mode,
+            dev_mode: self.dev_mode,
             nonce: crate::generate_random_info(),
         };
         self.last_challenge = Some(challenge.clone());
@@ -897,6 +898,8 @@ impl<Platform: pal::Platform> System<Platform> {
                 .channel(MessageOrigin::Gatekeeper, master_key.into()),
         );
         self.gatekeeper = Some(gatekeeper);
+
+        // TODO: clear up existing clusters
     }
 
     fn process_gatekeeper_launch_event(
@@ -1524,6 +1527,10 @@ impl<Platform: pal::Platform> System<Platform> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return Err(TransactionError::BadOrigin.into());
+        }
+
+        if !self.dev_mode && self.gatekeeper.is_some() {
+            return Err(TransactionError::NoClusterOnGatekeeper.into());
         }
 
         let my_pubkey = self.identity_key.public();
