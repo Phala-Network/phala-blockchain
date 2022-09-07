@@ -512,19 +512,17 @@ describe('A full stack', function () {
             const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
             const runtime0 = await pruntime[0].getInfo();
             const runtime1 = await pruntime[1].getInfo();
-            const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.addCluster(perm, [hex(runtime0.publicKey), hex(runtime1.publicKey)]),
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaFatContracts.addCluster(alice.address, perm, [hex(runtime0.publicKey), hex(runtime1.publicKey)])),
                 alice,
             );
-            assertEvents(events, [
-                ['balances', 'Withdraw'],
-                ['phalaFatContracts', 'ClusterCreated']
-            ]);
 
-            const { event } = events[1];
-            clusterId = hex(event.toJSON().data[0]);
-            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
-            assert.isTrue(clusterInfo.isSome);
+            assert.isTrue(await checkUntil(async () => {
+                const clusters = await api.query.phalaFatContracts.clusters.entries();
+                clusterId = clusters[0][0].args[0].toString();
+                return clusters.length == 1;
+            }, 4 * 6000), 'cluster creation failed');
         });
 
         it('can generate cluster key', async function () {

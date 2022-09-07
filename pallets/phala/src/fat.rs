@@ -162,11 +162,11 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn add_cluster(
 			origin: OriginFor<T>,
+			owner: T::AccountId,
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
-			// TODO.shelven: permission check?
-			let origin: T::AccountId = ensure_signed(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
 			let workers = deploy_workers
@@ -182,7 +182,7 @@ pub mod pallet {
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let cluster_info = ClusterInfo {
-				owner: origin,
+				owner,
 				permission,
 				workers: deploy_workers,
 			};
