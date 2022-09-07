@@ -177,7 +177,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::weight(0)]
-		pub fn set_vault_payout_pref(
+		pub fn set_payout_pref(
 			origin: OriginFor<T>,
 			pid: u64,
 			payout_commission: Option<Permill>,

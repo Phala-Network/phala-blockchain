@@ -787,7 +787,7 @@ pub mod pallet {
 				&pool_info.owner_reward_account,
 				&target,
 				rewards,
-				true,
+				false,
 			)?;
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
 				pid,

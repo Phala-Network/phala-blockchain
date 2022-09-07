@@ -1,6 +1,5 @@
 /// todo after simple ut finished
 /// 1.测试在用户对池子投资前提下的redeem，vote，unlock（net_value）
-/// 2.测试distribute_reward（依赖对stakepool和vault的单测基本完成）
 use crate::basepool;
 use crate::mining;
 use crate::pawnshop;
@@ -32,6 +31,7 @@ use crate::mock::{
 use pallet_democracy::AccountVote;
 use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 use rmrk_traits::primitives::{CollectionId, NftId};
+use sp_runtime::Permill;
 use sp_std::collections::vec_deque::VecDeque;
 
 #[test]
@@ -684,6 +684,186 @@ fn test_set_pool_description() {
 }
 
 #[test]
+fn test_staker_whitelist() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(3),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]);
+
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			40 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			0,
+			40 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(3),
+			0,
+			40 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::add_staker_to_whitelist(
+			Origin::signed(1),
+			0,
+			2,
+		));
+		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
+		assert_eq!(whitelist, [2]);
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			10 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			0,
+			40 * DOLLARS,
+			None
+		));
+		assert_noop!(
+			PhalaStakePool::contribute(Origin::signed(3), 0, 40 * DOLLARS, None),
+			stakepoolv2::Error::<Test>::NotInContributeWhitelist
+		);
+		assert_ok!(PhalaStakePool::add_staker_to_whitelist(
+			Origin::signed(1),
+			0,
+			3,
+		));
+		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
+		assert_eq!(whitelist, [2, 3]);
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(3),
+			0,
+			20 * DOLLARS,
+			None
+		));
+		PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
+		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
+		assert_eq!(whitelist, [3]);
+		assert_noop!(
+			PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS, None),
+			stakepoolv2::Error::<Test>::NotInContributeWhitelist
+		);
+		PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
+		assert!(PhalaStakePool::pool_whitelist(0).is_none());
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(3),
+			0,
+			20 * DOLLARS,
+			None
+		));
+	});
+}
+
+#[test]
+fn test_pool_cap() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(3),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]); // pid = 0
+
+		assert_eq!(ensure_stake_pool::<Test>(0).unwrap().cap, None);
+		// Pool existence
+		assert_noop!(
+			PhalaStakePool::set_cap(Origin::signed(2), 100, 1),
+			basepool::Error::<Test>::PoolDoesNotExist,
+		);
+		// Owner only
+		assert_noop!(
+			PhalaStakePool::set_cap(Origin::signed(2), 0, 1),
+			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner,
+		);
+		// Cap to 1000 PHA
+		assert_ok!(PhalaStakePool::set_cap(Origin::signed(1), 0, 100 * DOLLARS));
+		assert_eq!(
+			ensure_stake_pool::<Test>(0).unwrap().cap,
+			Some(100 * DOLLARS)
+		);
+		// Check cap shouldn't be less than the current stake
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			10 * DOLLARS,
+			None
+		));
+		assert_noop!(
+			PhalaStakePool::set_cap(Origin::signed(1), 0, 9 * DOLLARS),
+			stakepoolv2::Error::<Test>::InadequateCapacity,
+		);
+		// Stake to the cap
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			90 * DOLLARS,
+			None
+		));
+		// Exceed the cap
+		assert_noop!(
+			PhalaStakePool::contribute(Origin::signed(2), 0, 90 * DOLLARS, None),
+			stakepoolv2::Error::<Test>::StakeExceedsCapacity,
+		);
+
+		// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
+		// can be maintained after the contribution
+		assert_ok!(PhalaStakePool::start_mining(
+			Origin::signed(1),
+			0,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		assert_ok!(PhalaStakePool::withdraw(
+			Origin::signed(1),
+			0,
+			100 * DOLLARS,
+			None
+		));
+		assert_noop!(
+			PhalaStakePool::contribute(Origin::signed(2), 0, 101 * DOLLARS, None),
+			stakepoolv2::Error::<Test>::StakeExceedsCapacity
+		);
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			0,
+			100 * DOLLARS,
+			None
+		));
+	});
+}
+
+#[test]
 fn test_add_worker() {
 	new_test_ext().execute_with(|| {
 		set_block_1();
@@ -1000,6 +1180,55 @@ fn test_reclaim() {
 }
 
 #[test]
+fn restart_mining_should_work() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]); // pid=0
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			0,
+			200 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::start_mining(
+			Origin::signed(1),
+			0,
+			worker_pubkey(1),
+			150 * DOLLARS
+		));
+		// Bad cases
+		assert_noop!(
+			PhalaStakePool::restart_mining(Origin::signed(1), 0, worker_pubkey(1), 50 * DOLLARS),
+			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
+		);
+		assert_noop!(
+			PhalaStakePool::restart_mining(Origin::signed(1), 0, worker_pubkey(1), 150 * DOLLARS),
+			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
+		);
+		// Happy path
+		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool0.basepool.pool_account_id), 50 * DOLLARS);
+		assert_ok!(PhalaStakePool::restart_mining(
+			Origin::signed(1),
+			0,
+			worker_pubkey(1),
+			151 * DOLLARS
+		));
+		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool0.basepool.pool_account_id), 49 * DOLLARS);
+	});
+}
+
+#[test]
 fn test_for_cdworkers() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
@@ -1076,6 +1305,11 @@ fn test_on_reward_for_vault() {
 		setup_workers(1);
 		setup_vault(3); // pid = 0
 		setup_stake_pool_with_workers(1, &[1]);
+		assert_ok!(PhalaStakePool::set_payout_pref(
+			Origin::signed(1),
+			1,
+			Some(Permill::from_percent(50))
+		));
 		assert_ok!(vault::pallet::Pallet::<Test>::contribute(
 			Origin::signed(3),
 			0,
@@ -1107,11 +1341,12 @@ fn test_on_reward_for_vault() {
 			treasury: 0,
 		}]);
 		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
-		assert_eq!(get_balance(pool.basepool.pool_account_id), 100 * DOLLARS);
-		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
+		assert_eq!(get_balance(pool.owner_reward_account), 50 * DOLLARS);
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 50 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 150 * DOLLARS);
 		assert_eq!(pool.basepool.total_shares, 100 * DOLLARS);
 		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.basepool.total_value, 150 * DOLLARS);
+		assert_eq!(vault_info.basepool.total_value, 125 * DOLLARS);
 		assert_eq!(
 			get_balance(vault_info.basepool.pool_account_id),
 			50 * DOLLARS
@@ -1121,6 +1356,153 @@ fn test_on_reward_for_vault() {
 			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
 		);
 		assert_eq!(free, 1600 * DOLLARS);
+	});
+}
+
+#[test]
+fn test_claim_owner_rewards() {
+	use crate::mining::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]); // pid = 0
+		assert_ok!(PhalaStakePool::set_payout_pref(
+			Origin::signed(1),
+			0,
+			Some(Permill::from_percent(50))
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			100 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			0,
+			400 * DOLLARS,
+			None
+		));
+		PhalaStakePool::on_reward(&vec![SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: FixedPoint::from_num(1000u32).to_bits(),
+			treasury: 0,
+		}]);
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool.owner_reward_account), 500 * DOLLARS);
+		assert_ok!(PhalaStakePool::claim_owner_rewards(Origin::signed(1), 0, 1));
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool.owner_reward_account), 0 * DOLLARS);
+		assert_eq!(get_balance(1), 900 * DOLLARS);
+	});
+}
+
+#[test]
+fn test_vault_owner_shares() {
+	use crate::mining::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(3),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_vault(3); // pid = 0
+		assert_ok!(PhalaVault::set_payout_pref(
+			Origin::signed(3),
+			0,
+			Some(Permill::from_percent(50))
+		));
+		setup_stake_pool_with_workers(1, &[1]);
+		assert_ok!(PhalaVault::contribute(Origin::signed(3), 0, 100 * DOLLARS));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(3),
+			1,
+			50 * DOLLARS,
+			Some(0)
+		));
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.commission.unwrap(), Permill::from_percent(50));
+		assert_ok!(PhalaVault::maybe_gain_owner_shares(Origin::signed(3), 0));
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.owner_shares, 0);
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			1,
+			50 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::start_mining(
+			Origin::signed(1),
+			1,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		PhalaStakePool::on_reward(&vec![SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: FixedPoint::from_num(100u32).to_bits(),
+			treasury: 0,
+		}]);
+		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 100 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.basepool.total_value, 150 * DOLLARS);
+		assert_eq!(
+			get_balance(vault_info.basepool.pool_account_id),
+			50 * DOLLARS
+		);
+		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
+		assert_ok!(PhalaVault::maybe_gain_owner_shares(Origin::signed(3), 0));
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.owner_shares, 20 * DOLLARS);
+		assert_eq!(vault_info.basepool.total_shares, 120 * DOLLARS);
+		assert_noop!(
+			PhalaVault::claim_owner_shares(Origin::signed(3), 0, 4, 50 * DOLLARS),
+			vault::Error::<Test>::InvaildWithdrawSharesAmount
+		);
+		assert_ok!(PhalaVault::claim_owner_shares(
+			Origin::signed(3),
+			0,
+			4,
+			10 * DOLLARS
+		));
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.owner_shares, 10 * DOLLARS);
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(vault_info.basepool.cid).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(vault_info.basepool.cid, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(4)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let nft_attr = PhalaBasePool::get_nft_attr_guard(vault_info.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(nft_attr.shares, 10 * DOLLARS);
+		}
 	});
 }
 
@@ -1298,73 +1680,6 @@ fn test_vault_withdraw() {
 }
 
 #[test]
-fn test_vault_owner_shares() {
-	use crate::mining::pallet::OnReward;
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(1);
-		setup_vault(3); // pid = 0
-		assert_ok!(PhalaStakePool::set_vault_payout_pref(
-			Origin::signed(3),
-			0,
-			Permill::from_percent(50)
-		));
-		setup_stake_pool_with_workers(1, &[1]);
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(3),
-			0,
-			1000 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::vault_investment(
-			Origin::signed(3),
-			0,
-			1,
-			500 * DOLLARS
-		));
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.commission.unwrap(), Permill::from_percent(50));
-		assert_ok!(PhalaStakePool::maybe_gain_owner_shares(
-			Origin::signed(3),
-			0
-		));
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.owner_shares, 0);
-		// Staker2 contribute 1000 PHA and start mining
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			1,
-			500 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			1,
-			worker_pubkey(1),
-			500 * DOLLARS
-		));
-		PhalaStakePool::on_reward(&vec![SettleInfo {
-			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(1000u32).to_bits(),
-			treasury: 0,
-		}]);
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
-		assert_eq!(pool.basepool.free_stake, 1500 * DOLLARS);
-		assert_eq!(pool.basepool.total_value, 2000 * DOLLARS);
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.basepool.total_value, 1500 * DOLLARS);
-		assert_eq!(vault_info.basepool.free_stake, 500 * DOLLARS);
-		assert_eq!(vault_info.basepool.total_shares, 1000 * DOLLARS);
-		assert_ok!(PhalaStakePool::maybe_gain_owner_shares(
-			Origin::signed(3),
-			0
-		));
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.owner_shares, 200 * DOLLARS);
-		assert_eq!(vault_info.basepool.total_shares, 1200 * DOLLARS);
-	});
-}
-
-#[test]
 fn test_withdraw() {
 	new_test_ext().execute_with(|| {
 		set_block_1();
@@ -1538,119 +1853,6 @@ fn test_check_and_maybe_force_withdraw() {
 }
 
 #[test]
-fn test_on_reward() {
-	use crate::mining::pallet::OnReward;
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(1);
-		setup_stake_pool_with_workers(1, &[1]);
-
-		assert_ok!(PhalaStakePool::set_payout_pref(
-			Origin::signed(1),
-			0,
-			Permill::from_percent(50)
-		));
-		// Staker2 contribute 1000 PHA and start mining
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			2000 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			0,
-			worker_pubkey(1),
-			1000 * DOLLARS
-		));
-		PhalaStakePool::on_reward(&vec![SettleInfo {
-			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(2000u32).to_bits(),
-			treasury: 0,
-		}]);
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool.owner_reward, 1000 * DOLLARS);
-		assert_eq!(pool.basepool.free_stake, 2000 * DOLLARS);
-		assert_eq!(pool.basepool.total_value, 3000 * DOLLARS);
-	});
-}
-
-#[test]
-fn test_pool_cap() {
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(1);
-		setup_stake_pool_with_workers(1, &[1]); // pid = 0
-
-		assert_eq!(ensure_stake_pool::<Test>(0).unwrap().cap, None);
-		// Pool existence
-		assert_noop!(
-			PhalaStakePool::set_cap(Origin::signed(2), 100, 1),
-			basepool::Error::<Test>::PoolDoesNotExist,
-		);
-		// Owner only
-		assert_noop!(
-			PhalaStakePool::set_cap(Origin::signed(2), 0, 1),
-			Error::<Test>::UnauthorizedPoolOwner,
-		);
-		// Cap to 1000 PHA
-		assert_ok!(PhalaStakePool::set_cap(
-			Origin::signed(1),
-			0,
-			1000 * DOLLARS
-		));
-		assert_eq!(
-			ensure_stake_pool::<Test>(0).unwrap().cap,
-			Some(1000 * DOLLARS)
-		);
-		// Check cap shouldn't be less than the current stake
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(1),
-			0,
-			100 * DOLLARS
-		));
-		assert_noop!(
-			PhalaStakePool::set_cap(Origin::signed(1), 0, 99 * DOLLARS),
-			Error::<Test>::InadequateCapacity,
-		);
-		// Stake to the cap
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(1),
-			0,
-			900 * DOLLARS
-		));
-		// Exceed the cap
-		assert_noop!(
-			PhalaStakePool::contribute(Origin::signed(2), 0, 900 * DOLLARS),
-			Error::<Test>::StakeExceedsCapacity,
-		);
-
-		// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
-		// can be maintained after the contribution
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			0,
-			worker_pubkey(1),
-			1000 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::withdraw(
-			Origin::signed(1),
-			0,
-			1000 * DOLLARS
-		));
-		assert_noop!(
-			PhalaStakePool::contribute(Origin::signed(2), 0, 1001 * DOLLARS),
-			Error::<Test>::StakeExceedsCapacity
-		);
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			1000 * DOLLARS
-		));
-	});
-}
-
-#[test]
 fn test_stake() {
 	new_test_ext().execute_with(|| {
 		set_block_1();
@@ -1715,113 +1917,6 @@ fn test_stake() {
 			),
 			Error::<Test>::InsufficientBalance,
 		);
-	});
-}
-
-#[test]
-fn test_claim_owner_rewards() {
-	use crate::mining::pallet::OnReward;
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(1);
-		setup_stake_pool_with_workers(1, &[1]); // pid = 0
-		assert_ok!(PhalaStakePool::set_payout_pref(
-			Origin::signed(1),
-			0,
-			Permill::from_percent(50)
-		));
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(1),
-			0,
-			100 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			400 * DOLLARS
-		));
-		PhalaStakePool::on_reward(&vec![SettleInfo {
-			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(1000u32).to_bits(),
-			treasury: 0,
-		}]);
-		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool.owner_reward, 500 * DOLLARS);
-		assert_ok!(PhalaStakePool::claim_owner_rewards(Origin::signed(1), 0, 1));
-		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool.owner_reward, 0 * DOLLARS);
-	});
-}
-#[test]
-fn test_staker_whitelist() {
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(1);
-		setup_stake_pool_with_workers(1, &[1]);
-
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(1),
-			0,
-			40 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			40 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(3),
-			0,
-			40 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::add_staker_to_whitelist(
-			Origin::signed(1),
-			0,
-			2,
-		));
-		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
-		assert_eq!(whitelist, [2]);
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(1),
-			0,
-			10 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			40 * DOLLARS
-		));
-		assert_noop!(
-			PhalaStakePool::contribute(Origin::signed(3), 0, 40 * DOLLARS),
-			Error::<Test>::NotInContributeWhitelist
-		);
-		assert_ok!(PhalaStakePool::add_staker_to_whitelist(
-			Origin::signed(1),
-			0,
-			3,
-		));
-		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
-		assert_eq!(whitelist, [2, 3]);
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(3),
-			0,
-			20 * DOLLARS,
-		));
-		PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
-		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
-		assert_eq!(whitelist, [3]);
-		assert_noop!(
-			PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS,),
-			Error::<Test>::NotInContributeWhitelist
-		);
-		PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
-		assert!(PhalaStakePool::pool_whitelist(0).is_none());
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(3),
-			0,
-			20 * DOLLARS,
-		));
 	});
 }
 
@@ -2086,55 +2181,6 @@ fn subaccount_preimage() {
 		let subaccount: u64 = pool_sub_account(0, &worker_pubkey(1));
 		let preimage = SubAccountPreimages::<Test>::get(subaccount);
 		assert_eq!(preimage, Some((0, worker_pubkey(1))));
-	});
-}
-
-#[test]
-fn restart_mining_should_work() {
-	new_test_ext().execute_with(|| {
-		setup_workers(1);
-		setup_stake_pool_with_workers(1, &[1]); // pid=0
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			2000 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			0,
-			worker_pubkey(1),
-			1500 * DOLLARS
-		));
-		// Bad cases
-		assert_noop!(
-			PhalaStakePool::restart_mining(
-				Origin::signed(1),
-				0,
-				worker_pubkey(1),
-				500 * DOLLARS
-			),
-			Error::<Test>::CannotRestartWithLessStake
-		);
-		assert_noop!(
-			PhalaStakePool::restart_mining(
-				Origin::signed(1),
-				0,
-				worker_pubkey(1),
-				1500 * DOLLARS
-			),
-			Error::<Test>::CannotRestartWithLessStake
-		);
-		// Happy path
-		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool0.basepool.free_stake, 500 * DOLLARS);
-		assert_ok!(PhalaStakePool::restart_mining(
-			Origin::signed(1),
-			0,
-			worker_pubkey(1),
-			1501 * DOLLARS
-		));
-		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool0.basepool.free_stake, 499 * DOLLARS);
 	});
 }
 */

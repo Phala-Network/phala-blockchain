@@ -514,7 +514,7 @@ pub mod pallet {
 				&pool.pool_account_id,
 				&userid,
 				amount,
-				true,
+				false,
 			)
 			.expect("transfer should not fail");
 			if total_stake > Zero::zero() {
