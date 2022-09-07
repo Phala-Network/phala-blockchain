@@ -302,6 +302,7 @@ pub mod pallet {
 				};
 				let settled_stake = bmul(stake_ratio, &rewards.to_fixed());
 				vault.basepool.distribute_reward::<T>(settled_stake);
+				Pools::<T>::insert(*vault_staker, PoolProxy::Vault(vault));
 			}
 		}
 	}

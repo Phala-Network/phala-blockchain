@@ -8,6 +8,7 @@ use crate::poolproxy::*;
 use crate::stakepoolv2;
 use crate::vault;
 use assert_matches::assert_matches;
+use fixed::types::U64F64 as FixedPoint;
 use fixed_macro::types::U64F64 as fp;
 use frame_support::traits::Currency;
 use frame_support::{
@@ -29,7 +30,7 @@ use crate::mock::{
 	System, Timestamp,
 };
 use pallet_democracy::AccountVote;
-use phala_types::WorkerPublicKey;
+use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 use rmrk_traits::primitives::{CollectionId, NftId};
 use sp_std::collections::vec_deque::VecDeque;
 
@@ -1054,6 +1055,75 @@ fn test_for_cdworkers() {
 	});
 }
 
+#[test]
+fn test_on_reward_for_vault() {
+	use crate::mining::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(3),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_vault(3); // pid = 0
+		setup_stake_pool_with_workers(1, &[1]);
+		assert_ok!(vault::pallet::Pallet::<Test>::contribute(
+			Origin::signed(3),
+			0,
+			100 * DOLLARS
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(3),
+			1,
+			50 * DOLLARS,
+			Some(0)
+		));
+		// Staker2 contribute 1000 PHA and start mining
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			1,
+			50 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::start_mining(
+			Origin::signed(1),
+			1,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		PhalaStakePool::on_reward(&vec![SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: FixedPoint::from_num(100u32).to_bits(),
+			treasury: 0,
+		}]);
+		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 100 * DOLLARS);
+		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
+		assert_eq!(pool.basepool.total_shares, 100 * DOLLARS);
+		let vault_info = ensure_vault::<Test>(0).unwrap();
+		assert_eq!(vault_info.basepool.total_value, 150 * DOLLARS);
+		assert_eq!(
+			get_balance(vault_info.basepool.pool_account_id),
+			50 * DOLLARS
+		);
+		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
+		let free = <Test as mining::Config>::Currency::free_balance(
+			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
+		);
+		assert_eq!(free, 1600 * DOLLARS);
+	});
+}
+
 fn mock_asset_id() {
 	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
 		<Test as pawnshop::Config>::PPhaAssetId::get(),
@@ -1224,53 +1294,6 @@ fn test_vault_withdraw() {
 		assert_eq!(vault_info.basepool.total_value, 1300 * DOLLARS);
 		assert_eq!(vault_info.basepool.total_shares, 1300 * DOLLARS);
 		assert_eq!(vault_info.basepool.free_stake, 900 * DOLLARS);
-	});
-}
-
-#[test]
-fn test_on_reward_for_vault() {
-	use crate::mining::pallet::OnReward;
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(1);
-		setup_vault(3); // pid = 0
-		setup_stake_pool_with_workers(1, &[1]);
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(3),
-			0,
-			1000 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::vault_investment(
-			Origin::signed(3),
-			0,
-			1,
-			500 * DOLLARS
-		));
-		// Staker2 contribute 1000 PHA and start mining
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			1,
-			500 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			1,
-			worker_pubkey(1),
-			500 * DOLLARS
-		));
-		PhalaStakePool::on_reward(&vec![SettleInfo {
-			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(1000u32).to_bits(),
-			treasury: 0,
-		}]);
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
-		assert_eq!(pool.basepool.free_stake, 1500 * DOLLARS);
-		assert_eq!(pool.basepool.total_value, 2000 * DOLLARS);
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.basepool.total_value, 1500 * DOLLARS);
-		assert_eq!(vault_info.basepool.free_stake, 500 * DOLLARS);
-		assert_eq!(vault_info.basepool.total_shares, 1000 * DOLLARS);
 	});
 }
 
