@@ -47,7 +47,7 @@ pub mod pallet {
 
 	type DescMaxLen = ConstU32<4400>;
 
-	type DescStr = BoundedVec<u8, DescMaxLen>;
+	pub type DescStr = BoundedVec<u8, DescMaxLen>;
 
 	#[pallet::config]
 	pub trait Config:
@@ -1129,7 +1129,7 @@ pub mod pallet {
 				&pool_info.basepool.pool_account_id,
 				&pool_info.lock_account,
 				stake,
-				true,
+				false,
 			)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 			Self::deposit_event(Event::<T>::MiningStarted {
@@ -1265,7 +1265,7 @@ pub mod pallet {
 				&pool_info.lock_account,
 				&pool_info.basepool.pool_account_id,
 				returned,
-				true,
+				false,
 			)
 			.expect("transfer should not fail");
 
