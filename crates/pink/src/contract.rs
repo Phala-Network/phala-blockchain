@@ -91,7 +91,7 @@ impl Contract {
                     pallet_contracts_primitives::Code::Existing(code_hash),
                     input_data,
                     salt.clone(),
-                    true,
+                    false,
                 );
                 log::info!("Contract instantiation result: {:?}", &result);
                 match result.result {
@@ -207,7 +207,7 @@ impl Contract {
             } else {
                 COMMAND_GAS_LIMIT
             };
-            Contracts::bare_call(origin, addr, 0, gas_limit, None, input_data, true)
+            Contracts::bare_call(origin, addr, 0, gas_limit, None, input_data, false)
         })
     }
 
