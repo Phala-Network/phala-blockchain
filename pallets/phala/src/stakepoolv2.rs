@@ -829,6 +829,13 @@ pub mod pallet {
 			) {
 				for worker in pool.workers.iter() {
 					let miner: T::AccountId = pool_sub_account(pid, &worker);
+					let miner_info = match mining::pallet::Pallet::<T>::miners(&miner) {
+						Some(miner) => miner,
+						None => continue, // Skip non-existing miners
+					};
+					if !miner_info.state.is_mining() {
+						continue;
+					}
 					if !pool.cd_workers.contains(&worker) {
 						Self::do_stop_mining(&pool.basepool.owner, pid, *worker)?;
 					}
@@ -849,11 +856,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			pid: u64,
 			amount: BalanceOf<T>,
-			maybe_vault_pid: Option<u64>,
+			as_vault: Option<u64>,
 		) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			let mut maybe_vault = None;
-			if let Some(vault_pid) = maybe_vault_pid {
+			if let Some(vault_pid) = as_vault {
 				let vault_info = ensure_vault::<T>(vault_pid)?;
 				ensure!(
 					who == vault_info.basepool.owner,
@@ -875,15 +882,13 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
-			let mut free = Zero::zero();
-			if let Some((_, vault_info)) = &maybe_vault {
-				free = vault_info.basepool.get_free_stakes::<T>();
-			} else {
-				free = pallet_assets::Pallet::<T>::balance(
+			let free = match &maybe_vault {
+				Some((_, vault_info)) => vault_info.basepool.get_free_stakes::<T>(),
+				_ => pallet_assets::Pallet::<T>::balance(
 					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&who,
-				);
-			}
+				),
+			};
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// a lot of weird edge cases when dealing with pending slash.
 			let shares =
@@ -920,12 +925,8 @@ pub mod pallet {
 				pool_info.basepool.cid,
 				who.clone(),
 			)?;
-			if let None = maybe_vault_pid {
-				pawnshop::Pallet::<T>::maybe_update_account_status(
-					&who,
-					pid,
-					pool_info.basepool.cid,
-				)?;
+			if as_vault.is_none() {
+				pawnshop::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
 			}
 
 			Self::deposit_event(Event::<T>::Contribution {
@@ -951,10 +952,10 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			pid: u64,
 			shares: BalanceOf<T>,
-			maybe_vault_pid: Option<u64>,
+			as_vault: Option<u64>,
 		) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
-			if let Some(vault_pid) = maybe_vault_pid {
+			if let Some(vault_pid) = as_vault {
 				let vault_info = ensure_vault::<T>(vault_pid)?;
 				ensure!(
 					!vault::pallet::VaultLocks::<T>::contains_key(vault_pid),
@@ -1204,15 +1205,10 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 
-				pawnshop::Pallet::<T>::mint_into(
-					<T as pawnshop::Config>::PPhaAssetId::get(),
-					&pool_info.owner_reward_account,
-					commission,
-				)
-				.expect("mint into should be success");
+				pawnshop::Pallet::<T>::mint_into(&pool_info.owner_reward_account, commission)
+					.expect("mint into should be success");
 				let to_distribute = rewards - commission;
 				pawnshop::Pallet::<T>::mint_into(
-					<T as pawnshop::Config>::PPhaAssetId::get(),
 					&pool_info.basepool.pool_account_id,
 					to_distribute,
 				)
@@ -1388,6 +1384,6 @@ pub mod pallet {
 		let lock_account = (b"sl/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed");
-		return (owner_reward_account, lock_account);
+		(owner_reward_account, lock_account)
 	}
 }

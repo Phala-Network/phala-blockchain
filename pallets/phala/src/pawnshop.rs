@@ -155,7 +155,7 @@ pub mod pallet {
 				amount,
 				KeepAlive,
 			)?;
-			Self::mint_into(T::PPhaAssetId::get(), &user, amount)?;
+			Self::mint_into(&user, amount)?;
 			StakerAccounts::<T>::insert(
 				&user,
 				FinanceAccount::<BalanceOf<T>> {
@@ -194,7 +194,7 @@ pub mod pallet {
 				actural_amount,
 				AllowDeath,
 			)?;
-			Self::burn_from(T::PPhaAssetId::get(), &user, actural_amount)?;
+			Self::burn_from(&user, actural_amount)?;
 
 			Ok(())
 		}
@@ -288,25 +288,17 @@ pub mod pallet {
 			}
 		}
 
-		pub fn mint_into(
-			asset_id: u32,
-			target: &T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
-			pallet_assets::Pallet::<T>::mint_into(asset_id, &target, amount)?;
+		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
+			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &target, amount)?;
 			Ok(())
 		}
 
-		pub fn burn_from(
-			asset_id: u32,
-			target: &T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(asset_id, &target, amount)?;
+		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
+			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &target, amount)?;
 			Ok(())
 		}
 
-		pub fn maybe_update_account_status(
+		pub fn maybe_subscribe_to_pool(
 			who: &T::AccountId,
 			pid: u64,
 			cid: CollectionId,

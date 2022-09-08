@@ -27,7 +27,9 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{LockableCurrency, StorageVersion, UnixTime},
+		traits::{
+			tokens::nonfungibles::InspectEnumerable, LockableCurrency, StorageVersion, UnixTime,
+		},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
@@ -322,9 +324,9 @@ pub mod pallet {
 				grace_period,
 				releasing_stake,
 			) {
-				VaultLocks::<T>::insert(vault_pid, ());
 				for pid in vault.invest_pools.iter() {
 					let stake_pool = ensure_stake_pool::<T>(*pid)?;
+					let mut total_shares = Zero::zero();
 					let withdraw_vec: VecDeque<_> = stake_pool
 						.basepool
 						.withdraw_queue
@@ -337,14 +339,29 @@ pub mod pallet {
 							stake_pool.basepool.cid,
 							withdraw.nft_id,
 						)?;
-						stakepoolv2::Pallet::<T>::withdraw(
-							Origin::<T>::Signed(vault.basepool.owner.clone()).into(),
-							stake_pool.basepool.pid,
-							nft_guard.attr.shares,
-							Some(vault_pid),
-						)?;
+						total_shares += nft_guard.attr.shares;
 					}
+					pallet_uniques::Pallet::<T>::owned_in_collection(
+						&stake_pool.basepool.cid,
+						&vault.basepool.pool_account_id,
+					)
+					.for_each(|nftid| {
+						let property_guard = basepool::Pallet::<T>::get_nft_attr_guard(
+							stake_pool.basepool.cid,
+							nftid,
+						)
+						.expect("get nft should not fail: qed.");
+						let property = &property_guard.attr;
+						total_shares += property.shares;
+					});
+					stakepoolv2::Pallet::<T>::withdraw(
+						Origin::<T>::Signed(vault.basepool.owner.clone()).into(),
+						stake_pool.basepool.pid,
+						total_shares,
+						Some(vault_pid),
+					)?;
 				}
+				VaultLocks::<T>::insert(vault_pid, ());
 			}
 
 			Ok(())
@@ -387,7 +404,7 @@ pub mod pallet {
 				who.clone(),
 			)?;
 
-			pawnshop::Pallet::<T>::maybe_update_account_status(&who, pid, pool_info.basepool.cid)?;
+			pawnshop::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
 
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,

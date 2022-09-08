@@ -353,7 +353,7 @@ pub mod pallet {
                 || pool.total_value > Zero::zero(),
 				Error::<T>::PoolBankrupt
 			);
-			let nft_id = Self::merge_or_init_nft_for_staker(pool.cid, account_id.clone())?;
+			Self::merge_or_init_nft_for_staker(pool.cid, account_id.clone())?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
@@ -436,11 +436,6 @@ pub mod pallet {
 			grace_period: u64,
 			releasing_stake: BalanceOf<T>,
 		) -> bool {
-			debug_assert!(
-				pool.get_free_stakes::<T>() == Zero::zero(),
-				"We really don't want to have free stake and withdraw requests at the same time"
-			);
-
 			// If the pool is bankrupt, or there's no share, we just skip this pool.
 			let price = match pool.share_price() {
 				Some(price) if price != fp!(0) => price,
@@ -745,6 +740,7 @@ pub mod pallet {
 					break;
 				}
 			}
+			println!("{}", pool_info.withdraw_queue.len());
 		}
 	}
 	pub fn create_staker_account<T>(pid: u64, owner: T) -> T

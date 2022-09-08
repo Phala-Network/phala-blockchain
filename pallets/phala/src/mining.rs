@@ -70,7 +70,7 @@ pub mod pallet {
 				MinerState::MiningIdle | MinerState::MiningUnresponsive
 			)
 		}
-		fn is_mining(&self) -> bool {
+		pub fn is_mining(&self) -> bool {
 			matches!(
 				self,
 				MinerState::MiningIdle | MinerState::MiningUnresponsive
