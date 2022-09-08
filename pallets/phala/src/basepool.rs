@@ -740,7 +740,6 @@ pub mod pallet {
 					break;
 				}
 			}
-			println!("{}", pool_info.withdraw_queue.len());
 		}
 	}
 	pub fn create_staker_account<T>(pid: u64, owner: T) -> T
