@@ -1506,6 +1506,246 @@ fn test_vault_owner_shares() {
 	});
 }
 
+#[test]
+fn test_withdraw() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(3),
+			500 * DOLLARS
+		));
+		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
+			Origin::signed(99),
+			5000 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(2);
+		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(2),
+			0,
+			300 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			300 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(3),
+			0,
+			300 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePool::start_mining(
+			Origin::signed(1),
+			0,
+			worker_pubkey(1),
+			400 * DOLLARS
+		));
+		assert_ok!(PhalaStakePool::start_mining(
+			Origin::signed(1),
+			0,
+			worker_pubkey(2),
+			300 * DOLLARS
+		));
+		assert_ok!(PhalaStakePool::withdraw(
+			Origin::signed(2),
+			0,
+			300 * DOLLARS,
+			None
+		));
+		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let mut item = pool
+			.basepool
+			.withdraw_queue
+			.clone()
+			.into_iter()
+			.find(|x| x.user == 2);
+		{
+			let nft_attr =
+				PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, item.unwrap().nft_id)
+					.unwrap()
+					.attr
+					.clone();
+			assert_eq!(nft_attr.shares, 100 * DOLLARS);
+		}
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(user_nft_attr.shares, 0 * DOLLARS);
+		}
+		assert_eq!(get_balance(2), 400 * DOLLARS);
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(99),
+			0,
+			300 * DOLLARS,
+			None
+		));
+		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(pool.basepool.withdraw_queue.len(), 0);
+		assert_eq!(get_balance(2), 500 * DOLLARS);
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(user_nft_attr.shares, 0 * DOLLARS);
+		}
+		assert_ok!(PhalaStakePool::withdraw(
+			Origin::signed(1),
+			0,
+			200 * DOLLARS,
+			None
+		));
+		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(pool.basepool.withdraw_queue.len(), 0);
+		assert_eq!(get_balance(1), 400 * DOLLARS);
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
+		}
+		let pid = setup_vault(99);
+		assert_ok!(PhalaVault::contribute(Origin::signed(1), 1, 300 * DOLLARS,));
+		assert_ok!(PhalaVault::contribute(Origin::signed(99), 1, 300 * DOLLARS,));
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(99),
+			0,
+			500 * DOLLARS,
+			Some(1)
+		));
+		assert_ok!(PhalaVault::withdraw(Origin::signed(1), 1, 200 * DOLLARS,));
+		let mut pool = ensure_vault::<Test>(1).unwrap();
+		let mut item = pool
+			.basepool
+			.withdraw_queue
+			.clone()
+			.into_iter()
+			.find(|x| x.user == 1);
+		{
+			let nft_attr =
+				PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, item.unwrap().nft_id)
+					.unwrap()
+					.attr
+					.clone();
+			assert_eq!(nft_attr.shares, 100 * DOLLARS);
+		}
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(1).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(1, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
+		}
+		assert_eq!(get_balance(1), 200 * DOLLARS);
+		assert_ok!(PhalaStakePool::withdraw(
+			Origin::signed(3),
+			0,
+			200 * DOLLARS,
+			None
+		));
+		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 300 * DOLLARS);
+		assert_ok!(PhalaStakePool::withdraw(
+			Origin::signed(99),
+			0,
+			400 * DOLLARS,
+			Some(1)
+		));
+		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let mut vault = ensure_vault::<Test>(1).unwrap();
+		let mut item = pool
+			.basepool
+			.withdraw_queue
+			.clone()
+			.into_iter()
+			.find(|x| x.user == vault.basepool.pool_account_id);
+		{
+			let nft_attr =
+				PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, item.unwrap().nft_id)
+					.unwrap()
+					.attr
+					.clone();
+			assert_eq!(nft_attr.shares, 100 * DOLLARS);
+		}
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
+			nft.owner
+				== rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(
+					vault.basepool.pool_account_id,
+				)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
+		}
+		assert_eq!(get_balance(vault.basepool.pool_account_id), 300 * DOLLARS);
+		let mut nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(1).collect();
+		nftid_arr.retain(|x| {
+			let nft = pallet_rmrk_core::Nfts::<Test>::get(1, x).unwrap();
+			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(1)
+		});
+		assert_eq!(nftid_arr.len(), 1);
+		{
+			let user_nft_attr = PhalaBasePool::get_nft_attr_guard(vault.basepool.cid, nftid_arr[0])
+				.unwrap()
+				.attr
+				.clone();
+			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
+		}
+	});
+}
+
 fn mock_asset_id() {
 	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
 		<Test as pawnshop::Config>::PPhaAssetId::get(),
@@ -1568,234 +1808,6 @@ fn simulate_v_update(worker: u8, v_bits: u128) {
 }
 
 /*
-#[test]
-fn test_withdraw_from_vault() {
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(2);
-		setup_vault(3); // pid = 0
-		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 1
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(3),
-			0,
-			50 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(2),
-			0,
-			50 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(3),
-			0,
-			30 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::vault_investment(
-			Origin::signed(3),
-			0,
-			1,
-			80 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::withdraw_from_vault(
-			Origin::signed(3),
-			0,
-			80 * DOLLARS
-		));
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.basepool.total_value, 80 * DOLLARS);
-		assert_eq!(vault_info.basepool.total_shares, 80 * DOLLARS);
-		assert_eq!(vault_info.basepool.free_stake, 0 * DOLLARS);
-		assert_eq!(vault_info.basepool.withdraw_queue.len(), 1);
-		let nft_attr = PhalaBasePool::get_nft_attr_guard(
-			vault_info.basepool.cid,
-			vault_info.basepool.withdraw_queue[0].nft_id,
-		)
-		.unwrap()
-		.attr;
-		assert_eq!(nft_attr.shares, 30 * DOLLARS);
-	});
-}
-
-#[test]
-fn test_vault_withdraw() {
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(2);
-		setup_vault(3); // pid = 0
-		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 1
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(3),
-			0,
-			500 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(2),
-			0,
-			500 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::contribute_to_vault(
-			Origin::signed(3),
-			0,
-			300 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::vault_investment(
-			Origin::signed(3),
-			0,
-			1,
-			800 * DOLLARS
-		));
-		let stakepool_info = ensure_stake_pool::<Test>(1).unwrap();
-		assert_eq!(stakepool_info.basepool.total_value, 800 * DOLLARS);
-		assert_eq!(stakepool_info.basepool.total_shares, 800 * DOLLARS);
-		assert_eq!(stakepool_info.basepool.free_stake, 800 * DOLLARS);
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			1,
-			worker_pubkey(1),
-			400 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::vault_withdraw(
-			Origin::signed(3),
-			1,
-			0,
-			600 * DOLLARS
-		));
-		let stakepool_info = ensure_stake_pool::<Test>(1).unwrap();
-		assert_eq!(stakepool_info.basepool.total_value, 400 * DOLLARS);
-		assert_eq!(stakepool_info.basepool.total_shares, 400 * DOLLARS);
-		assert_eq!(stakepool_info.basepool.free_stake, 0 * DOLLARS);
-		assert_eq!(stakepool_info.basepool.withdraw_queue.len(), 1);
-		let nft_attr = PhalaBasePool::get_nft_attr_guard(
-			stakepool_info.basepool.cid,
-			stakepool_info.basepool.withdraw_queue[0].nft_id,
-		)
-		.unwrap()
-		.attr;
-		assert_eq!(nft_attr.shares, 200 * DOLLARS);
-		let vault_info = ensure_vault::<Test>(0).unwrap();
-		assert_eq!(vault_info.basepool.total_value, 1300 * DOLLARS);
-		assert_eq!(vault_info.basepool.total_shares, 1300 * DOLLARS);
-		assert_eq!(vault_info.basepool.free_stake, 900 * DOLLARS);
-	});
-}
-
-#[test]
-fn test_withdraw() {
-	new_test_ext().execute_with(|| {
-		set_block_1();
-		setup_workers(2);
-		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
-		assert_ok!(PhalaStakePool::contribute(
-			Origin::signed(2),
-			0,
-			1000 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			0,
-			worker_pubkey(1),
-			400 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::start_mining(
-			Origin::signed(1),
-			0,
-			worker_pubkey(2),
-			100 * DOLLARS
-		));
-		assert_ok!(PhalaStakePool::withdraw(
-			Origin::signed(2),
-			0,
-			800 * DOLLARS
-		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut item = pool
-			.basepool
-			.withdraw_queue
-			.clone()
-			.into_iter()
-			.find(|x| x.user == 2);
-		{
-			let nft_attr =
-				PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, item.unwrap().nft_id)
-					.unwrap()
-					.attr;
-			assert_eq!(nft_attr.shares, 300 * DOLLARS);
-			let mut nftid_arr: Vec<NftId> =
-				pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
-			nftid_arr.retain(|x| {
-				let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
-				nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
-			});
-			let user_nft_attr =
-				PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-					.unwrap()
-					.attr;
-			assert_eq!(user_nft_attr.shares, 200 * DOLLARS);
-			assert_ok!(PhalaStakePool::contribute(
-				Origin::signed(3),
-				0,
-				1000 * DOLLARS
-			));
-			let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-			assert_eq!(pool.basepool.withdraw_queue.len(), 0);
-			let mut nftid_arr: Vec<NftId> =
-				pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
-			nftid_arr.retain(|x| {
-				let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
-				nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(3)
-			});
-			assert_eq!(nftid_arr.len(), 1);
-			let nft_attr =
-				PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-					.unwrap()
-					.attr;
-			assert_eq!(nft_attr.shares, 1000 * DOLLARS);
-			assert_eq!(pool.basepool.total_value, 1200 * DOLLARS);
-		}
-		assert_ok!(PhalaStakePool::withdraw(
-			Origin::signed(3),
-			0,
-			900 * DOLLARS
-		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut item = pool
-			.basepool
-			.withdraw_queue
-			.clone()
-			.into_iter()
-			.find(|x| x.user == 3);
-		let nft_attr =
-			PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, item.unwrap().nft_id)
-				.unwrap()
-				.attr;
-		assert_eq!(nft_attr.shares, 200 * DOLLARS);
-		assert_ok!(PhalaStakePool::withdraw(Origin::signed(3), 0, 50 * DOLLARS));
-		let mut nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(0).collect();
-		nftid_arr.retain(|x| {
-			let nft = pallet_rmrk_core::Nfts::<Test>::get(0, x).unwrap();
-			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(3)
-		});
-		let user_nft_attr =
-			PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr;
-		assert_eq!(user_nft_attr.shares, 250 * DOLLARS);
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut item = pool
-			.basepool
-			.withdraw_queue
-			.clone()
-			.into_iter()
-			.find(|x| x.user == 3);
-		let nft_attr =
-			PhalaBasePool::get_nft_attr_guard(pool.basepool.cid, item.unwrap().nft_id)
-				.unwrap()
-				.attr;
-		assert_eq!(nft_attr.shares, 50 * DOLLARS);
-	});
-}
-
 #[test]
 fn test_check_and_maybe_force_withdraw() {
 	new_test_ext().execute_with(|| {

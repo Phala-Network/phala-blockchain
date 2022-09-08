@@ -957,14 +957,14 @@ pub mod pallet {
 			if let Some(vault_pid) = maybe_vault_pid {
 				let vault_info = ensure_vault::<T>(vault_pid)?;
 				ensure!(
-					vault::pallet::VaultLocks::<T>::contains_key(vault_pid),
+					!vault::pallet::VaultLocks::<T>::contains_key(vault_pid),
 					Error::<T>::VaultIsLocked
 				);
 				ensure!(
 					who == vault_info.basepool.owner,
 					Error::<T>::UnauthorizedPoolOwner
 				);
-				who = vault_info.basepool.owner.clone();
+				who = vault_info.basepool.pool_account_id.clone();
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			let collection_id = pool_info.basepool.cid;

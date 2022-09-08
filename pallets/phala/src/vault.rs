@@ -279,7 +279,7 @@ pub mod pallet {
 		/// Note: This function doesn't guarantee no-op when there's error.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn vault_check_and_maybe_force_withdraw(
+		pub fn check_and_maybe_force_withdraw(
 			origin: OriginFor<T>,
 			vault_pid: u64,
 		) -> DispatchResult {
