@@ -98,7 +98,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
 		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
+			let mut w = Weight::zero();
 			let old = Self::on_chain_storage_version();
 			w += T::DbWeight::get().reads(1);
 
@@ -106,6 +106,7 @@ pub mod pallet {
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
 			}
+
 			w
 		}
 	}
@@ -166,7 +167,7 @@ pub mod pallet {
 		}
 
 		#[test]
-		fn insufficent_funds() {
+		fn insufficient_funds() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
 

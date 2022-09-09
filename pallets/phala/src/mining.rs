@@ -1142,6 +1142,7 @@ pub mod pallet {
 
 		use phala_types::messaging::TokenomicParameters as TokenomicParams;
 
+		#[allow(dead_code)]
 		pub fn initialize<T: Config>() -> Weight {
 			log::info!("phala_pallet::mining: initialize()");
 			let block_sec = 12;
@@ -1184,6 +1185,7 @@ pub mod pallet {
 			T::DbWeight::get().writes(2)
 		}
 
+		#[allow(dead_code)]
 		pub(crate) fn signal_phala_launch<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
@@ -1191,13 +1193,7 @@ pub mod pallet {
 			T::DbWeight::get().writes(1)
 		}
 
-		pub(crate) fn trigger_unresp_fix<T: Config>() -> Weight {
-			use crate::mq::pallet::MessageOriginInfo;
-			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::UnrespFix);
-			T::DbWeight::get().writes(1)
-		}
-
+		#[allow(dead_code)]
 		pub(crate) fn enable_phala_tokenomic<T: Config>() -> Weight
 		where
 			super::BalanceOf<T>: crate::balance_convert::FixedPointConvert,

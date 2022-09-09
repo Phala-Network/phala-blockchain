@@ -1484,11 +1484,6 @@ pub mod pallet {
 			}
 			WithdrawalTimestamps::<T>::put(&t);
 		}
-
-		pub(crate) fn migration_remove_assignments() -> Weight {
-			let writes = SubAccountAssignments::<T>::drain().count();
-			T::DbWeight::get().writes(writes as _)
-		}
 	}
 
 	impl<T: Config> mining::OnReward for Pallet<T>
@@ -2618,7 +2613,6 @@ pub mod pallet {
 
 		#[test]
 		fn test_force_assign_reward() {
-			use crate::mining::pallet::OnReward;
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(1);
@@ -2644,7 +2638,7 @@ pub mod pallet {
 				assert_eq!(pool.reward_acc.get(), fp!(0));
 				assert_eq!(pool.owner_reward, fp!(0));
 				let input = vec![(0, 500 * DOLLARS)];
-				PhalaStakePool::force_assign_reward(Origin::root(), input);
+				PhalaStakePool::force_assign_reward(Origin::root(), input).expect("Shouldn't fail");
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				assert_eq!(pool.reward_acc.get(), fp!(0.5));
 				assert_eq!(pool.owner_reward, 250 * DOLLARS);
@@ -2773,14 +2767,14 @@ pub mod pallet {
 				));
 				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
 				assert_eq!(staker4.shares, 60 * DOLLARS);
-				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2).expect("Shouldn't fail");
 				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
 				assert_eq!(whitelist, [3]);
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS,),
 					Error::<Test>::NotInContributeWhitelist
 				);
-				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3).expect("Shouldn't fail");
 				assert!(PhalaStakePool::pool_whitelist(0).is_none());
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(3),

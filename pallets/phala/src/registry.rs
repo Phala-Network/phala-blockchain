@@ -235,7 +235,7 @@ pub mod pallet {
 		/// Sets [`BenchmarkDuration`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_set_benchmark_duration(origin: OriginFor<T>, value: u32) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			BenchmarkDuration::<T>::put(value);
@@ -245,7 +245,7 @@ pub mod pallet {
 		/// Force register a worker with the given pubkey with sudo permission
 		///
 		/// For test only.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
@@ -278,7 +278,7 @@ pub mod pallet {
 		/// Force register a topic pubkey
 		///
 		/// For test only.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_register_topic_pubkey(
 			origin: OriginFor<T>,
 			topic: Vec<u8>,
@@ -292,7 +292,7 @@ pub mod pallet {
 		/// Register a gatekeeper.
 		///
 		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn register_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
@@ -337,7 +337,7 @@ pub mod pallet {
 		/// Unregister a gatekeeper
 		///
 		/// At least one gatekeeper should be available
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
@@ -365,7 +365,7 @@ pub mod pallet {
 		}
 
 		/// Rotate the master key
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
