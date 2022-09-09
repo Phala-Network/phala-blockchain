@@ -26,7 +26,7 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     ecdh::EcdhKey,
     key_share,
-    sr25519::{Persistence, Signing, KDF},
+    sr25519::{Persistence, KDF},
 };
 use phala_mq::{
     traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,

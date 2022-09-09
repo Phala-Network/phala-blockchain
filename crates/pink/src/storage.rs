@@ -7,6 +7,7 @@ use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, Memor
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
+use sp_state_machine::backend::AsTrieBackend;
 
 mod backend;
 
@@ -15,10 +16,10 @@ pub type InMemoryBackend = phala_trie_storage::InMemoryBackend<Hashing>;
 pub fn new_in_memory_backend() -> InMemoryBackend {
     let db = MemoryDB::default();
     // V1 is same as V0 for an empty trie.
-    sp_state_machine::TrieBackend::new(
+    sp_state_machine::TrieBackendBuilder::new(
         db,
         sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>(),
-    )
+    ).build()
 }
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
@@ -29,7 +30,7 @@ impl CommitTransaction for InMemoryBackend {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction) {
         let mut storage = sp_std::mem::replace(self, new_in_memory_backend()).into_storage();
         storage.consolidate(transaction);
-        *self = sp_state_machine::TrieBackend::new(storage, root);
+        *self = sp_state_machine::TrieBackendBuilder::new(storage, root).build();
     }
 }
 
@@ -60,7 +61,7 @@ where
 
 impl<Backend> Storage<Backend>
 where
-    Backend: StorageBackend<Hashing> + CommitTransaction,
+    Backend: StorageBackend<Hashing> + CommitTransaction + AsTrieBackend<Hashing>,
 {
     pub fn execute_with<R>(
         &mut self,
@@ -68,7 +69,7 @@ where
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
-        let backend = self.backend.as_trie_backend().expect("No trie backend?");
+        let backend = self.backend.as_trie_backend();
 
         let mut overlay = OverlayedChanges::default();
         overlay.start_transaction();
@@ -160,7 +161,7 @@ impl Serialize for Storage<InMemoryBackend> {
     where
         S: serde::Serializer,
     {
-        let trie = self.backend.as_trie_backend().unwrap();
+        let trie = self.backend.as_trie_backend();
         serialize_trie_backend(trie, serializer)
     }
 }
