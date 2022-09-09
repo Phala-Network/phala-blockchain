@@ -25,7 +25,6 @@ exclude = [
 	"subxt",
 	"vendor/webpki",
 	"vendor/ring",
-	"crates/sgx-api-lite",
 	"standalone/pruntime",
 	"standalone/prouter",
 ]
