@@ -136,6 +136,7 @@ async fn main() -> Result<(), rocket::Error> {
             max_checkpoint_files: args.max_checkpoint_files,
             gc_interval: args.gc_interval,
             cores,
+            public_port: args.public_port,
         }
     };
     info!("init_args: {:#?}", init_args);

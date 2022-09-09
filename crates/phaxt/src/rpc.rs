@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use phala_node_rpc_ext_types::GetStorageChangesResponse;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
-    rpc::{ClientT, rpc_params},
-    sp_core::storage::{StorageData, StorageKey},
-    BasicError as Error, Client, Config, RpcClient,
+    ext::sp_core::storage::{StorageData, StorageKey},
+    rpc::{rpc_params, ClientT, RpcClient},
+    Config, Error, OnlineClient,
 };
 
 pub trait ExtraRpcExt {
@@ -12,7 +14,7 @@ pub trait ExtraRpcExt {
     fn extra_rpc(&self) -> ExtraRpcClient<Self::Config>;
 }
 
-impl<C: Config> ExtraRpcExt for Client<C> {
+impl<C: Config> ExtraRpcExt for OnlineClient<C> {
     type Config = C;
     fn extra_rpc(&self) -> ExtraRpcClient<Self::Config> {
         ExtraRpcClient {
@@ -23,7 +25,7 @@ impl<C: Config> ExtraRpcExt for Client<C> {
 }
 
 pub struct ExtraRpcClient<'a, Config> {
-    client: &'a RpcClient,
+    client: &'a Arc<RpcClient>,
     _config: std::marker::PhantomData<Config>,
 }
 
@@ -54,7 +56,10 @@ impl<'a, T: Config> ExtraRpcClient<'a, T> {
 
     /// Fetch block syncing status
     pub async fn system_sync_state(&self) -> Result<SyncState, Error> {
-        Ok(self.client.request("system_syncState", rpc_params![]).await?)
+        Ok(self
+            .client
+            .request("system_syncState", rpc_params![])
+            .await?)
     }
 }
 

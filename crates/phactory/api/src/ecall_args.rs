@@ -40,6 +40,9 @@ pub struct InitArgs {
 
     /// Number of cores used to run fat contracts
     pub cores: u32,
+
+    /// The public rpc port with acl enabled
+    pub public_port: Option<u16>,
 }
 
 pub fn git_revision() -> String {

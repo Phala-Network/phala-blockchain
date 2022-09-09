@@ -5,6 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
+use ink_lang::EnvAccess;
 use scale::{Decode, Encode};
 
 pub use pink_extension_macro::contract;
@@ -62,6 +63,20 @@ pub enum PinkEvent {
     SidevmMessage(Vec<u8>),
     /// CacheOperation
     CacheOp(CacheOp),
+    /// Stop the side VM instance if it is running.
+    StopSidevm,
+}
+
+impl PinkEvent {
+    pub fn allowed_in_query(&self) -> bool {
+        matches!(
+            self,
+            PinkEvent::StartSidevm { .. }
+                | PinkEvent::SidevmMessage(_)
+                | PinkEvent::CacheOp(_)
+                | PinkEvent::StopSidevm
+        )
+    }
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -124,7 +139,18 @@ pub fn set_on_block_end_selector(selector: u32) {
 
 /// Start a side VM instance
 pub fn start_sidevm(code_hash: Hash, auto_restart: bool) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { code_hash, auto_restart })
+    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm {
+        code_hash,
+        auto_restart,
+    })
+}
+
+/// Force stop the side VM instance if it is running
+///
+/// You should avoid to call this function. Instead, prefer let the side program exit gracefully
+/// by itself.
+pub fn force_stop_sidevm() {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StopSidevm)
 }
 
 /// Push a message to the associated sidevm instance.
@@ -147,6 +173,10 @@ impl Environment for PinkEnvironment {
     type Timestamp = <ink_env::DefaultEnvironment as Environment>::Timestamp;
 
     type ChainExtension = chain_extension::PinkExt;
+}
+
+pub fn env() -> EnvAccess<'static, PinkEnvironment> {
+    Default::default()
 }
 
 #[cfg(feature = "runtime_utils")]

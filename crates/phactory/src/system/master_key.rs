@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::vec::Vec;
 
 use parity_scale_codec::{Decode, Encode};
+use phala_types::{wrap_content_to_sign, SignedContentType};
 use sp_core::sr25519;
 
 use phala_crypto::sr25519::{Signature, Signing, Sr25519SecretKey};
@@ -56,7 +57,9 @@ pub fn seal(
     let payload = MasterKeyHistory {
         rotations: master_key_history.clone(),
     };
-    let signature = identity_key.sign_data(&payload.encode());
+    let encoded = payload.encode();
+    let wrapped = wrap_content_to_sign(&encoded, SignedContentType::MasterKeyStore);
+    let signature = identity_key.sign_data(&wrapped);
 
     let data = MasterKeySeal::V2(PersistentMasterKeyHistory { payload, signature });
     let filepath = master_key_file_path(sealing_path);
@@ -105,8 +108,10 @@ pub fn try_unseal(
             }]
         }
         MasterKeySeal::V2(data) => {
+            let encoded = data.payload.encode();
+            let wrapped = wrap_content_to_sign(&encoded, SignedContentType::MasterKeyStore);
             assert!(
-                identity_key.verify_data(&data.signature, &data.payload.encode()),
+                identity_key.verify_data(&data.signature, &wrapped),
                 "Broken sealed master key history"
             );
             data.payload.rotations

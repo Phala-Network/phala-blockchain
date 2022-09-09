@@ -5,12 +5,11 @@ use sp_runtime::{generic::SignedBlock as SpSignedBlock, OpaqueExtrinsic};
 
 pub use sp_core::storage::{StorageData, StorageKey};
 
-pub use khala::runtime_types::phala_mq::types::*;
 pub use phaxt::{self, *};
 pub use subxt::rpc::NumberOrHex;
 
 pub type PrClient = pruntime_client::PRuntimeClient;
-pub type SrSigner = subxt::PairSigner<Config, sr25519::Pair>;
+pub type SrSigner = subxt::tx::PairSigner<Config, sr25519::Pair>;
 
 pub type SignedBlock<Hdr, Ext> = SpSignedBlock<sp_runtime::generic::Block<Hdr, Ext>>;
 
@@ -28,7 +27,7 @@ pub struct NotifyReq {
 
 pub mod utils {
     use super::StorageProof;
-    use phaxt::subxt::ReadProof;
+    use phaxt::subxt::rpc::ReadProof;
     pub fn raw_proof<T>(read_proof: ReadProof<T>) -> StorageProof {
         read_proof.proof.into_iter().map(|p| p.0).collect()
     }

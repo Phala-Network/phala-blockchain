@@ -161,8 +161,10 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         Echo => 1.mebibytes(),
         HandoverCreateChallenge => 10.kibibytes(),
         HandoverStart => 10.kibibytes(),
-        HandoverAcceptChallenge => 10.kilobytes(),
-        HandoverReceive => 10.kilobytes(),
+        HandoverAcceptChallenge => 10.kibibytes(),
+        HandoverReceive => 10.kibibytes(),
+        SignEndpointInfo => 32.kibibytes(),
+        ConfigNetwork => 10.kibibytes(),
     }
 }
 
@@ -178,7 +180,6 @@ fn limit_for_method(method: &str, limits: &Limits) -> ByteUnit {
 
 #[post("/<method>", data = "<data>")]
 async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
-    let path_bytes = method.as_bytes();
     let limit = limit_for_method(&method, limits);
     let data = match read_data(data, limit).await {
         ReadData::Ok(data) => data,
@@ -190,7 +191,7 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
         }
     };
 
-    let (status_code, output) = runtime::ecall_prpc_request(path_bytes, &data).await;
+    let (status_code, output) = runtime::ecall_prpc_request(method, &data).await;
     if let Some(status) = Status::from_code(status_code) {
         Custom(status, output)
     } else {
@@ -202,7 +203,7 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
 #[post("/<method>", data = "<data>")]
 async fn prpc_proxy_acl(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
-    let permitted_method: [&str; 2] = ["contract_query", "get_info"];
+    let permitted_method = ["PhactoryAPI.ContractQuery", "PhactoryAPI.GetInfo"];
     if !permitted_method.contains(&&method[..]) {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);

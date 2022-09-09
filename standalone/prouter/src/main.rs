@@ -307,7 +307,7 @@ pub async fn daemon_run(mut i2pd: I2pd, args: &Args) -> Result<()> {
     Ok(())
 }
 
-async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Result<()> {
+async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Result<()> {
     loop {
         let state = client.extra_rpc().system_sync_state().await?;
         info!(
@@ -321,14 +321,6 @@ async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Resul
         }
         sleep(Duration::from_secs(5)).await;
     }
-}
-
-pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<T>> {
-    subxt::ClientBuilder::new()
-        .set_url(uri)
-        .build()
-        .await
-        .context("Connect to substrate")
 }
 
 pub async fn prouter_daemon(args: &Args, i2pd: &I2pd) -> Result<()> {
@@ -469,7 +461,7 @@ async fn main() {
         Arc::new(Mutex::new(None))
     } else {
         let para_uri: &str = &args.substrate_ws_endpoint;
-        let connected_para_api: ParachainApi = subxt_connect(para_uri)
+        let connected_para_api: ParachainApi = phaxt::connect(para_uri)
             .await
             .expect("should connect to parachain")
             .into();
@@ -477,7 +469,7 @@ async fn main() {
         if !args.no_wait {
             // Don't start the router until the substrate node is synced
             info!("Waiting for substrate to sync blocks...");
-            wait_until_synced(&connected_para_api.client)
+            wait_until_synced(&connected_para_api)
                 .await
                 .expect("should wait for sync");
             info!("Substrate sync blocks done");

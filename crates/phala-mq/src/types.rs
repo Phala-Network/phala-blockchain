@@ -50,6 +50,9 @@ pub enum MessageOrigin {
     #[display(fmt = "Cluster({})", "hex::encode(_0)")]
     #[serde(with = "more::scale_bytes")]
     Cluster(ContractClusterId),
+    /// Reserved, we use this prefix to indicate the signed content is not a mq message
+    #[codec(index = 255)]
+    Reserved,
 }
 
 impl Hash for MessageOrigin {

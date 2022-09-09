@@ -401,7 +401,7 @@ pub mod pallet {
 				let in_queue_nft = nft_guard.attr.clone();
 				nft_guard.unlock();
 				nft.shares += in_queue_nft.shares;
-				Self::burn_nft(pool.cid, withdrawinfo.nft_id)
+				Self::burn_nft(&pallet_id(), pool.cid, withdrawinfo.nft_id)
 					.expect("burn nft attr should always success; qed.");
 			}
 
@@ -553,11 +553,9 @@ pub mod pallet {
 		}
 
 		#[frame_support::transactional]
-		pub fn burn_nft(cid: CollectionId, nft_id: NftId) -> DispatchResult {
+		pub fn burn_nft(owner: &T::AccountId, cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
-			pallet_rmrk_core::Pallet::<T>::nft_burn(cid, nft_id, MAX_RECURSIONS)?;
-			//TODO(mingxuan): wait for rmrk fix
-			pallet_uniques::Pallet::<T>::do_burn(cid, nft_id, |_, _| Ok(()))?;
+			pallet_rmrk_core::Pallet::<T>::nft_burn(owner.clone(), cid, nft_id, MAX_RECURSIONS)?;
 			Ok(())
 		}
 
@@ -573,7 +571,7 @@ pub mod pallet {
 				let property = nft_guard.attr.clone();
 				nft_guard.unlock();
 				total_shares += property.shares;
-				Self::burn_nft(cid, nftid).expect("burn nft should not fail: qed.");
+				Self::burn_nft(&staker, cid, nftid).expect("burn nft should not fail: qed.");
 			});
 			Self::mint_nft(cid, staker, total_shares)
 		}
@@ -728,7 +726,7 @@ pub mod pallet {
 						|| Self::maybe_remove_dust(pool_info, &withdraw_nft)
 					{
 						pool_info.withdraw_queue.pop_front();
-						Self::burn_nft(pool_info.cid, withdraw.nft_id)
+						Self::burn_nft(&pallet_id(), pool_info.cid, withdraw.nft_id)
 							.expect("burn nft should always success");
 					} else {
 						*pool_info

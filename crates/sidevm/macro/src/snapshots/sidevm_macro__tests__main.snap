@@ -1,0 +1,13 @@
+---
+source: crates/sidevm/macro/src/tests.rs
+assertion_line: 29
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+#[no_mangle]
+fn sidevm_main_future() -> std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()>>> {
+    async fn the_main() {
+        sleep(1).await
+    }
+    Box::pin(the_main())
+}
+

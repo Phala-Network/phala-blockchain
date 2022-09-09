@@ -18,11 +18,10 @@ async fn update_worker_endpoint(
     let signed_endpoint = Decode::decode(&mut &encoded_endpoint_payload[..])
         .map_err(|_| anyhow!("Decode signed endpoint failed"))?;
     let params = crate::mk_params(para_api, args.longevity, args.tip).await?;
+    let tx = phaxt::dynamic::tx::update_worker_endpoint(signed_endpoint, signature);
     let ret = para_api
         .tx()
-        .phala_registry()
-        .update_worker_endpoint(signed_endpoint, signature)?
-        .sign_and_submit_then_watch(signer, params)
+        .sign_and_submit_then_watch(&tx, signer, params)
         .await;
     if ret.is_err() {
         error!("FailedToCallBindWorkerEndpoint: {:?}", ret);
@@ -40,8 +39,8 @@ pub async fn try_update_worker_endpoint(
 ) -> Result<bool> {
     let info = pr.get_endpoint_info(()).await?;
     let encoded_endpoint_payload = match info.encoded_endpoint_payload {
-       None => return Ok(false),  // Early return if no endpoint payload is available
-       Some(payload) => payload,
+        None => return Ok(false), // Early return if no endpoint payload is available
+        Some(payload) => payload,
     };
     let signature = info.signature.ok_or(anyhow!("No endpoint signature"))?;
     info!("Binding worker's endpoint...");

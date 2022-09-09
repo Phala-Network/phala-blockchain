@@ -194,8 +194,8 @@ async fn main() -> anyhow::Result<()> {
                 justification_interval,
                 output,
             } => {
-                let api = pherry::subxt_connect(&node_uri).await?.into();
-                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let api = pherry::subxt_connect(&node_uri).await?;
+                let para_api = pherry::subxt_connect(&para_node_uri).await?;
                 let output = File::create(output)?;
                 let count = cache::grap_headers_to_file(
                     &api,
@@ -214,7 +214,7 @@ async fn main() -> anyhow::Result<()> {
                 count,
                 output,
             } => {
-                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let para_api = pherry::subxt_connect(&para_node_uri).await?;
                 let output = File::create(output)?;
                 let count =
                     cache::grap_para_headers_to_file(&para_api, from_block, count, output).await?;
@@ -227,7 +227,7 @@ async fn main() -> anyhow::Result<()> {
                 batch_size,
                 output,
             } => {
-                let para_api = pherry::subxt_connect(&para_node_uri).await?.into();
+                let para_api = pherry::subxt_connect(&para_node_uri).await?;
                 let output = File::create(output)?;
                 let count = cache::grap_storage_changes_to_file(
                     &para_api, from_block, count, batch_size, output,
@@ -240,7 +240,7 @@ async fn main() -> anyhow::Result<()> {
                 from_block,
                 output,
             } => {
-                let api = pherry::subxt_connect(&node_uri).await?.into();
+                let api = pherry::subxt_connect(&node_uri).await?;
                 let mut output = File::create(output)?;
                 let info = cache::fetch_genesis_info(&api, from_block).await?;
                 output.write_all(info.encode().as_ref())?;
@@ -320,7 +320,7 @@ async fn main() -> anyhow::Result<()> {
             web_api::serve(&db).await?;
         }
         Action::ShowSetId { uri, block } => {
-            let api = pherry::subxt_connect(&uri).await?.into();
+            let api = pherry::subxt_connect(&uri).await?;
             let id = cache::get_set_id(&api, block).await?;
             println!("{:?}", id);
         }

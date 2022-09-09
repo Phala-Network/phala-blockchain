@@ -58,7 +58,7 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub async fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
+pub async fn ecall_prpc_request(path: String, data: &[u8]) -> (u16, Vec<u8>) {
     let (code, data) = APPLICATION.dispatch_request(path, data).await;
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
