@@ -1,22 +1,24 @@
-use crate::*;
+#[allow(unused_imports)]
 use frame_support::{
 	traits::{Currency, Get, StorageVersion},
 	weights::Weight,
 };
+#[allow(unused_imports)]
 use log;
 
+use crate::*;
+
+#[allow(dead_code)]
 type MiningBalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
 	fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config
-{
-}
+{}
 impl<T> PhalaPallets for T where
 	T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config
-{
-}
+{}
 
 type Versions = (
 	StorageVersion,
@@ -26,6 +28,7 @@ type Versions = (
 	StorageVersion,
 );
 
+#[allow(dead_code)]
 fn get_versions<T: PhalaPallets>() -> Versions {
 	(
 		StorageVersion::get::<fat::Pallet<T>>(),
@@ -36,6 +39,7 @@ fn get_versions<T: PhalaPallets>() -> Versions {
 	)
 }
 
+#[allow(dead_code)]
 fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
 	(
 		StorageVersion::new(version),
@@ -46,6 +50,7 @@ fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
 	)
 }
 
+#[allow(dead_code)]
 fn set_unified_version<T: PhalaPallets>(version: u16) {
 	StorageVersion::new(version).put::<fat::Pallet<T>>();
 	StorageVersion::new(version).put::<mining::Pallet<T>>();

@@ -40,7 +40,7 @@ frame_support::construct_runtime! {
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(2 * WEIGHT_PER_SECOND);
+        frame_system::limits::BlockWeights::simple_max(WEIGHT_PER_SECOND.saturating_mul(2));
     pub static ExistentialDeposit: u64 = 0;
 }
 
@@ -96,7 +96,7 @@ parameter_types! {
     pub const SurchargeReward: u64 = 500_000;
     pub const MaxValueSize: u32 = 16_384;
     pub const DeletionQueueDepth: u32 = 1024;
-    pub const DeletionWeightLimit: Weight = 500_000_000_000;
+    pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const RelaxedMaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const TransactionByteFee: u64 = 0;
@@ -107,7 +107,7 @@ parameter_types! {
 
 impl Convert<Weight, Balance> for PinkRuntime {
     fn convert(w: Weight) -> Balance {
-        w as _
+        w.ref_time() as _
     }
 }
 
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     pub fn crypto_hashes_test() {
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        const GAS_LIMIT: Weight = 1_000_000_000_000_000;
+        const GAS_LIMIT: Weight = Weight::from_ref_time(1_000_000_000_000_000);
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
@@ -296,12 +296,16 @@ mod tests {
 
     pub mod exec {
         use sp_runtime::traits::BlakeTwo256;
-        use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageTransactionCache};
+        use sp_state_machine::{
+            backend::AsTrieBackend,
+            Ext, OverlayedChanges, StorageTransactionCache,
+        };
+
         pub type InMemoryBackend = sp_state_machine::InMemoryBackend<BlakeTwo256>;
 
         pub fn execute_with<R>(f: impl FnOnce() -> R) -> R {
             let state = InMemoryBackend::default();
-            let backend = state.as_trie_backend().unwrap();
+            let backend = state.as_trie_backend();
 
             let mut overlay = OverlayedChanges::default();
             overlay.start_transaction();
