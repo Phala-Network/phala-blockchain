@@ -328,7 +328,7 @@ pub mod pallet {
 			nftid: NftId,
 		) -> Result<NftGuard<T>, DispatchError> {
 			let nft = Self::get_nft_attr(cid, nftid)?;
-			if let Some(_) = NftLocks::<T>::get((cid, nftid)) {
+			if NftLocks::<T>::get((cid, nftid)).is_some() {
 				Err(Error::<T>::AttrLocked)?;
 			}
 			NftLocks::<T>::insert((cid, nftid), ());
@@ -379,7 +379,7 @@ pub mod pallet {
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
 		) -> DispatchResult {
-			if let None = pool.share_price() {
+			if pool.share_price().is_none() {
 				nft.shares = nft
 					.shares
 					.checked_sub(&shares)
@@ -507,7 +507,7 @@ pub mod pallet {
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as pawnshop::Config>::PPhaAssetId::get(),
 				&pool.pool_account_id,
-				&userid,
+				userid,
 				amount,
 				false,
 			)
@@ -640,7 +640,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::WithdrawalQueued {
 				pid: pool_info.pid,
 				user: userid,
-				shares: shares,
+				shares,
 			});
 			Self::try_process_withdraw_queue(pool_info);
 

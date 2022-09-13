@@ -4,10 +4,7 @@ use crate::pawnshop;
 use crate::poolproxy::*;
 use crate::stakepoolv2;
 use crate::vault;
-use assert_matches::assert_matches;
 use fixed::types::U64F64 as FixedPoint;
-use fixed_macro::types::U64F64 as fp;
-use frame_support::traits::Currency;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
@@ -18,17 +15,13 @@ use sp_runtime::{testing::H256, AccountId32};
 
 use crate::mock::{
 	ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1, setup_workers,
-	setup_workers_linked_operators, take_events, teleport_to_block, worker_pubkey, Balance,
-	BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
+	setup_workers_linked_operators, worker_pubkey, Balance, Origin, Test, DOLLARS,
 };
 // Pallets
-use crate::mock::{
-	Balances, PhalaBasePool, PhalaMining, PhalaPawnshop, PhalaRegistry, PhalaStakePool, PhalaVault,
-	System, Timestamp,
-};
+use crate::mock::{PhalaBasePool, PhalaMining, PhalaRegistry, PhalaStakePool, PhalaVault};
 use pallet_democracy::AccountVote;
 use phala_types::{messaging::SettleInfo, WorkerPublicKey};
-use rmrk_traits::primitives::{CollectionId, NftId};
+use rmrk_traits::primitives::NftId;
 use sp_runtime::Permill;
 use sp_std::collections::vec_deque::VecDeque;
 
@@ -190,7 +183,7 @@ fn test_vote() {
 fn test_unlock() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
+		let _vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
 			H256::zero(),
 			pallet_democracy::VoteThreshold::SimpleMajority,
 			1000,
@@ -393,7 +386,7 @@ fn test_remove_stake_from_nft() {
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
-		let pool_info = ensure_stake_pool::<Test>(0).unwrap();
+		let _pool_info = ensure_stake_pool::<Test>(0).unwrap();
 		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
 			Origin::signed(1),
 			100 * DOLLARS
@@ -423,7 +416,7 @@ fn test_remove_stake_from_nft() {
 			&mut nft_attr,
 			&1,
 		) {
-			Some((amout, removed_shares)) => return,
+			Some((_amount, _removed_shares)) => return,
 			_ => panic!(),
 		}
 	});
@@ -439,31 +432,6 @@ fn test_create_stakepool() {
 		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::create(Origin::signed(
 			2
 		)));
-		assert_matches!(
-			take_events().as_slice(),
-			[
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 0,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 0
-				}),
-				TestEvent::PhalaStakePool(stakepoolv2::Event::PoolCreated { owner: 1, pid: 0 }),
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 1,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 1
-				}),
-				TestEvent::PhalaStakePool(stakepoolv2::Event::PoolCreated { owner: 2, pid: 1 }),
-			]
-		);
 		assert_eq!(
 			basepool::Pools::<Test>::get(0),
 			Some(PoolProxy::<u64, Balance>::StakePool(StakePool::<
@@ -498,31 +466,6 @@ fn test_create_vault() {
 		set_block_1();
 		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(1)));
 		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(2)));
-		assert_matches!(
-			take_events().as_slice(),
-			[
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 0,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 0
-				}),
-				TestEvent::PhalaVault(vault::Event::PoolCreated { owner: 1, pid: 0 }),
-				TestEvent::Uniques(pallet_uniques::Event::Created {
-					collection: 1,
-					creator: _,
-					owner: _
-				}),
-				TestEvent::RmrkCore(pallet_rmrk_core::Event::CollectionCreated {
-					issuer: _,
-					collection_id: 1
-				}),
-				TestEvent::PhalaVault(vault::Event::PoolCreated { owner: 2, pid: 1 }),
-			]
-		);
 		assert_eq!(
 			basepool::Pools::<Test>::get(0),
 			Some(PoolProxy::Vault(Vault::<u64, Balance> {
@@ -755,14 +698,22 @@ fn test_staker_whitelist() {
 			20 * DOLLARS,
 			None
 		));
-		PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
+		assert_ok!(PhalaStakePool::remove_staker_from_whitelist(
+			Origin::signed(1),
+			0,
+			2
+		));
 		let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
 		assert_eq!(whitelist, [3]);
 		assert_noop!(
 			PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS, None),
 			stakepoolv2::Error::<Test>::NotInContributeWhitelist
 		);
-		PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
+		assert_ok!(PhalaStakePool::remove_staker_from_whitelist(
+			Origin::signed(1),
+			0,
+			3
+		));
 		assert!(PhalaStakePool::pool_whitelist(0).is_none());
 		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(3),
@@ -981,7 +932,7 @@ fn test_start_mining() {
 			100 * DOLLARS
 		));
 		assert_eq!(PhalaMining::online_miners(), 1);
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (30000 * DOLLARS, 100 * DOLLARS));
@@ -1027,12 +978,12 @@ fn test_force_unbind() {
 		assert_ok!(PhalaMining::unbind(Origin::signed(101), sub_account));
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stakepoolv2::pallet::WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(1)), false);
 		// Check the mining is ready
 		let miner = PhalaMining::miners(&sub_account).unwrap();
 		assert_eq!(miner.state, mining::MinerState::Ready);
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
@@ -1043,7 +994,7 @@ fn test_force_unbind() {
 			worker_pubkey(2),
 			100 * DOLLARS
 		));
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
@@ -1059,7 +1010,7 @@ fn test_force_unbind() {
 		assert!(!stakepoolv2::WorkerAssignments::<Test>::contains_key(
 			&worker_pubkey(2)
 		));
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(2)), false);
 		// Check the mining is stopped
 		let miner = PhalaMining::miners(&sub_account).unwrap();
@@ -1099,7 +1050,7 @@ fn test_stop_mining() {
 			100 * DOLLARS,
 			None
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
@@ -1109,7 +1060,7 @@ fn test_stop_mining() {
 			worker_pubkey(1),
 			100 * DOLLARS,
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
@@ -1118,7 +1069,7 @@ fn test_stop_mining() {
 			0,
 			worker_pubkey(1),
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
@@ -1170,7 +1121,7 @@ fn test_reclaim() {
 			0,
 			worker_pubkey(1),
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
@@ -1269,7 +1220,7 @@ fn test_for_cdworkers() {
 			0,
 			worker_pubkey(1),
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
 		elapse_cool_down();
 		assert_ok!(PhalaStakePool::reclaim_pool_worker(
@@ -1277,7 +1228,7 @@ fn test_for_cdworkers() {
 			0,
 			worker_pubkey(1),
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.cd_workers, []);
 	});
 }
@@ -1338,7 +1289,7 @@ fn test_on_reward_for_vault() {
 			payout: FixedPoint::from_num(100u32).to_bits(),
 			treasury: 0,
 		}]);
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert_eq!(get_balance(pool.owner_reward_account), 50 * DOLLARS);
 		assert_eq!(get_balance(pool.basepool.pool_account_id), 50 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 150 * DOLLARS);
@@ -1461,7 +1412,7 @@ fn test_vault_owner_shares() {
 			payout: FixedPoint::from_num(100u32).to_bits(),
 			treasury: 0,
 		}]);
-		let mut pool = ensure_stake_pool::<Test>(1).unwrap();
+		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert_eq!(get_balance(pool.basepool.pool_account_id), 100 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
 		let vault_info = ensure_vault::<Test>(0).unwrap();
@@ -1563,8 +1514,8 @@ fn test_withdraw() {
 			300 * DOLLARS,
 			None
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut item = pool
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		let item = pool
 			.basepool
 			.withdraw_queue
 			.clone()
@@ -1599,7 +1550,7 @@ fn test_withdraw() {
 			300 * DOLLARS,
 			None
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.basepool.withdraw_queue.len(), 0);
 		assert_eq!(get_balance(2), 500 * DOLLARS);
 		let mut nftid_arr: Vec<NftId> =
@@ -1622,7 +1573,7 @@ fn test_withdraw() {
 			200 * DOLLARS,
 			None
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.basepool.withdraw_queue.len(), 0);
 		assert_eq!(get_balance(1), 400 * DOLLARS);
 		let mut nftid_arr: Vec<NftId> =
@@ -1639,7 +1590,7 @@ fn test_withdraw() {
 				.clone();
 			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
 		}
-		let pid = setup_vault(99);
+		let _pid = setup_vault(99);
 		assert_ok!(PhalaVault::contribute(Origin::signed(1), 1, 300 * DOLLARS,));
 		assert_ok!(PhalaVault::contribute(Origin::signed(99), 1, 300 * DOLLARS,));
 		assert_ok!(PhalaStakePool::contribute(
@@ -1649,8 +1600,8 @@ fn test_withdraw() {
 			Some(1)
 		));
 		assert_ok!(PhalaVault::withdraw(Origin::signed(1), 1, 200 * DOLLARS,));
-		let mut pool = ensure_vault::<Test>(1).unwrap();
-		let mut item = pool
+		let pool = ensure_vault::<Test>(1).unwrap();
+		let item = pool
 			.basepool
 			.withdraw_queue
 			.clone()
@@ -1685,7 +1636,7 @@ fn test_withdraw() {
 			200 * DOLLARS,
 			None
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool.basepool.pool_account_id), 300 * DOLLARS);
 		assert_ok!(PhalaStakePool::withdraw(
 			Origin::signed(99),
@@ -1693,9 +1644,9 @@ fn test_withdraw() {
 			400 * DOLLARS,
 			Some(1)
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut vault = ensure_vault::<Test>(1).unwrap();
-		let mut item = pool
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		let vault = ensure_vault::<Test>(1).unwrap();
+		let item = pool
 			.basepool
 			.withdraw_queue
 			.clone()
@@ -1797,7 +1748,7 @@ fn test_check_and_maybe_force_withdraw() {
 			worker_pubkey(1),
 		));
 		elapse_seconds(864000);
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool.basepool.pool_account_id), 0 * DOLLARS);
 		assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
 		assert_ok!(PhalaStakePool::reclaim_pool_worker(
@@ -1805,10 +1756,10 @@ fn test_check_and_maybe_force_withdraw() {
 			0,
 			worker_pubkey(1)
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool.basepool.pool_account_id), 0 * DOLLARS);
 		assert_eq!(pool.cd_workers, []);
-		let mut item = pool
+		let item = pool
 			.basepool
 			.withdraw_queue
 			.clone()
@@ -1841,7 +1792,7 @@ fn test_check_and_maybe_force_withdraw() {
 			Origin::signed(3),
 			0
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.cd_workers, [worker_pubkey(2)]);
 		elapse_seconds(864000);
 		assert_ok!(PhalaStakePool::reclaim_pool_worker(
@@ -1881,9 +1832,9 @@ fn test_check_and_maybe_force_withdraw() {
 			Origin::signed(4),
 			pid
 		));
-		let mut vault = ensure_vault::<Test>(1).unwrap();
+		let vault = ensure_vault::<Test>(1).unwrap();
 		assert_eq!(get_balance(vault.basepool.pool_account_id), 0 * DOLLARS);
-		let mut item = vault
+		let item = vault
 			.basepool
 			.withdraw_queue
 			.clone()
@@ -1902,8 +1853,8 @@ fn test_check_and_maybe_force_withdraw() {
 			Origin::signed(4),
 			pid
 		));
-		let mut pool = ensure_stake_pool::<Test>(0).unwrap();
-		let mut item = pool
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		let item = pool
 			.basepool
 			.withdraw_queue
 			.clone()
@@ -1941,7 +1892,8 @@ fn mock_asset_id() {
 		1,
 		true,
 		1,
-	);
+	)
+	.expect("create should success .qed");
 }
 
 fn get_balance(account_id: u64) -> u128 {
@@ -1968,30 +1920,4 @@ fn setup_vault(owner: u64) -> u64 {
 	let pid = PhalaBasePool::pool_count();
 	assert_ok!(PhalaVault::create(Origin::signed(owner)));
 	pid
-}
-
-fn simulate_v_update(worker: u8, v_bits: u128) {
-	use phala_types::messaging::{
-		DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
-	};
-	let block = System::block_number();
-	let now = Timestamp::now();
-	assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
-		MiningInfoUpdateEvent<BlockNumber>,
-	> {
-		sender: MessageOrigin::Gatekeeper,
-		destination: Topic::new(*b"^phala/mining/update"),
-		payload: MiningInfoUpdateEvent::<BlockNumber> {
-			block_number: block,
-			timestamp_ms: now,
-			offline: vec![],
-			recovered_to_online: vec![],
-			settle: vec![SettleInfo {
-				pubkey: worker_pubkey(worker),
-				v: v_bits,
-				payout: 0,
-				treasury: 0,
-			}],
-		},
-	}));
 }

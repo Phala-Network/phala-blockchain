@@ -529,7 +529,7 @@ pub mod pallet {
 			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExists);
 			// too many workers may cause performance regression
 			ensure!(
-				workers.len() + 1 <= T::MaxPoolWorkers::get() as usize,
+				workers.len() < T::MaxPoolWorkers::get() as usize,
 				Error::<T>::WorkersExceedLimit
 			);
 
@@ -814,7 +814,7 @@ pub mod pallet {
 			let grace_period = T::GracePeriod::get();
 			let mut releasing_stake = Zero::zero();
 			for worker in pool.cd_workers.iter() {
-				let miner: T::AccountId = pool_sub_account(pid, &worker);
+				let miner: T::AccountId = pool_sub_account(pid, worker);
 				let stakes: BalanceOf<T> = mining::pallet::Stakes::<T>::get(&miner)
 					.expect("workers have no stakes recorded; qed.");
 				// TODO(mingxuan): handle slash
@@ -828,7 +828,7 @@ pub mod pallet {
 				releasing_stake,
 			) {
 				for worker in pool.workers.iter() {
-					let miner: T::AccountId = pool_sub_account(pid, &worker);
+					let miner: T::AccountId = pool_sub_account(pid, worker);
 					let miner_info = match mining::pallet::Pallet::<T>::miners(&miner) {
 						Some(miner) => miner,
 						None => continue, // Skip non-existing miners
@@ -836,7 +836,7 @@ pub mod pallet {
 					if !miner_info.state.is_mining() {
 						continue;
 					}
-					if !pool.cd_workers.contains(&worker) {
+					if !pool.cd_workers.contains(worker) {
 						Self::do_stop_mining(&pool.basepool.owner, pid, *worker)?;
 					}
 				}
@@ -898,14 +898,11 @@ pub mod pallet {
 					vault_info.invest_pools.push_back(pid);
 				}
 				basepool::pallet::Pools::<T>::insert(
-					vault_pid.clone(),
+					*vault_pid,
 					PoolProxy::Vault(vault_info.clone()),
 				);
-				if !pool_info.basepool.value_subscribers.contains(&vault_pid) {
-					pool_info
-						.basepool
-						.value_subscribers
-						.push_back(vault_pid.clone());
+				if !pool_info.basepool.value_subscribers.contains(vault_pid) {
+					pool_info.basepool.value_subscribers.push_back(*vault_pid);
 				}
 			}
 			// We have new free stake now, try to handle the waiting withdraw queue
@@ -965,7 +962,7 @@ pub mod pallet {
 					who == vault_info.basepool.owner,
 					Error::<T>::UnauthorizedPoolOwner
 				);
-				who = vault_info.basepool.pool_account_id.clone();
+				who = vault_info.basepool.pool_account_id;
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			let collection_id = pool_info.basepool.cid;
@@ -978,7 +975,7 @@ pub mod pallet {
 			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft_guard =
 				basepool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id)?;
-			let mut nft = &mut nft_guard.attr;
+			let nft = &mut nft_guard.attr;
 			let in_queue_shares = match pool_info
 				.basepool
 				.withdraw_queue
@@ -999,17 +996,10 @@ pub mod pallet {
 				basepool::is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
 				Error::<T>::InvalidWithdrawalAmount
 			);
-			basepool::Pallet::<T>::try_withdraw(
-				&mut pool_info.basepool,
-				&mut nft,
-				who.clone(),
-				shares,
-			)?;
+			basepool::Pallet::<T>::try_withdraw(&mut pool_info.basepool, nft, who.clone(), shares)?;
 			nft_guard.save()?;
-			let nft_id = basepool::Pallet::<T>::merge_or_init_nft_for_staker(
-				pool_info.basepool.cid,
-				who.clone(),
-			)?;
+			let nft_id =
+				basepool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 
 			Ok(())
@@ -1124,7 +1114,7 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
+			mining::pallet::Pallet::<T>::start_mining(miner, stake)?;
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as pawnshop::Config>::PPhaAssetId::get(),
 				&pool_info.basepool.pool_account_id,
@@ -1132,10 +1122,10 @@ pub mod pallet {
 				stake,
 				false,
 			)?;
-			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
+			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 			Self::deposit_event(Event::<T>::MiningStarted {
 				pid,
-				worker: worker,
+				worker,
 				amount: stake,
 			});
 
@@ -1165,7 +1155,7 @@ pub mod pallet {
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			// Mining::stop_mining will notify us how much it will release by `on_stopped`
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
-			pool_info.cd_workers.push_back(worker.clone());
+			pool_info.cd_workers.push_back(worker);
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 			Ok(())
 		}
@@ -1175,8 +1165,7 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
-			let (orig_stake, slashed) =
-				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
+			let (orig_stake, slashed) = mining::Pallet::<T>::reclaim(sub_account, check_cooldown)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
 			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
@@ -1279,13 +1268,13 @@ pub mod pallet {
 					pool.remove_worker(worker);
 					Self::deposit_event(Event::<T>::PoolWorkerRemoved {
 						pid,
-						worker: worker.clone(),
+						worker: *worker,
 					});
 					// To adjust the case that skip stakepool::stop_mining when call remove_worker
 					// (TODO(mingxuan): should let remove_worker in stakepool call mining directly instead of stakepool -> mining -> stakepool
 					// and remove this cover code.)
-					if !pool.cd_workers.contains(&worker) {
-						pool.cd_workers.push_back(worker.clone());
+					if !pool.cd_workers.contains(worker) {
+						pool.cd_workers.push_back(*worker);
 					}
 				}
 			});

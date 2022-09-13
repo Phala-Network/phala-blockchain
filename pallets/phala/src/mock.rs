@@ -5,11 +5,10 @@ use crate::{
 
 use frame_support::{
 	ord_parameter_types,
-	pallet_prelude::{ConstU32, Decode, Encode, Get},
+	pallet_prelude::{ConstU32, Decode, Encode},
 	parameter_types,
 	traits::{
-		AsEnsureOriginWithArg, ConstU128, ConstU64, EnsureOneOf, EqualPrivilegeOnly, GenesisBuild,
-		OnFinalize, OnInitialize, SortedMembers,
+		AsEnsureOriginWithArg, ConstU128, ConstU64, EqualPrivilegeOnly, GenesisBuild, SortedMembers,
 	},
 };
 use frame_support_test::TestRandomness;
@@ -21,7 +20,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
-use frame_support::{dispatch::Input, PalletId};
+use frame_support::dispatch::Input;
 
 use frame_system::EnsureRoot;
 pub(crate) type Balance = u128;
@@ -361,7 +360,7 @@ impl ott::Config for Test {
 }
 
 impl Decode for Test {
-	fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
+	fn decode<I: Input>(_input: &mut I) -> Result<Self, codec::Error> {
 		Ok(Self)
 	}
 }
@@ -508,20 +507,4 @@ pub fn elapse_seconds(sec: u64) {
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
 	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);
-}
-
-pub fn teleport_to_block(n: u64) {
-	let now = System::block_number();
-	PhalaStakePool::on_finalize(now);
-	PhalaMining::on_finalize(now);
-	PhalaRegistry::on_finalize(now);
-	PhalaMq::on_finalize(now);
-	System::on_finalize(now);
-	System::set_block_number(n);
-	System::on_initialize(System::block_number());
-	PhalaMq::on_initialize(System::block_number());
-	PhalaRegistry::on_initialize(System::block_number());
-	PhalaMining::on_initialize(System::block_number());
-	PhalaStakePool::on_initialize(System::block_number());
-	PhalaBasePool::on_initialize(System::block_number());
 }

@@ -1055,7 +1055,7 @@ pub mod pallet {
 		fn confidence_score(confidence_level: u8) -> FixedPoint {
 			use fixed_macro::types::U64F64 as fp;
 			const SCORES: [FixedPoint; 5] = [fp!(1), fp!(1), fp!(1), fp!(0.8), fp!(0.7)];
-			if 1 <= confidence_level && confidence_level <= 5 {
+			if (1..=5).contains(&confidence_level) {
 				SCORES[confidence_level as usize - 1]
 			} else {
 				SCORES[0]
@@ -1129,86 +1129,6 @@ pub mod pallet {
 			Pallet::<T>::queue_message(GatekeeperEvent::TokenomicParametersChanged(
 				self.tokenomic_parameters.clone(),
 			));
-		}
-	}
-
-	pub(crate) mod migrations {
-		use super::{Config, CoolDownPeriod, Pallet, TokenomicParameters};
-		use fixed_macro::types::U64F64 as fp;
-		use frame_support::pallet_prelude::*;
-
-		use phala_types::messaging::TokenomicParameters as TokenomicParams;
-
-		pub fn initialize<T: Config>() -> Weight {
-			log::info!("phala_pallet::mining: initialize()");
-			let block_sec = 12;
-			let hour_sec = 3600;
-			let day_sec = 24 * hour_sec;
-			let year_sec = 365 * day_sec;
-			// Initialize with Khala tokenomic parameters
-			let pha_rate = fp!(0.84);
-			let rho = fp!(1.000000666600231); // hourly: 1.00020,  1.0002 ** (1/300) convert to per-block
-			let slash_rate = fp!(0.001) * block_sec / hour_sec; // hourly rate: 0.001, convert to per-block
-			let budget_per_block = fp!(60000) * block_sec / day_sec;
-			let v_max = fp!(30000);
-			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
-			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
-			let treasury_ratio = fp!(0.2);
-			let heartbeat_window = 10; // 10 blocks
-			let rig_k = fp!(0.3) / pha_rate;
-			let rig_b = fp!(0) / pha_rate;
-			let re = fp!(1.5);
-			let k = fp!(50);
-			let kappa = fp!(1);
-			// Write storage
-			CoolDownPeriod::<T>::put(604800); // 7 days
-			TokenomicParameters::<T>::put(TokenomicParams {
-				pha_rate: pha_rate.to_bits(),
-				rho: rho.to_bits(),
-				budget_per_block: budget_per_block.to_bits(),
-				v_max: v_max.to_bits(),
-				cost_k: cost_k.to_bits(),
-				cost_b: cost_b.to_bits(),
-				slash_rate: slash_rate.to_bits(),
-				treasury_ratio: treasury_ratio.to_bits(),
-				heartbeat_window: 10,
-				rig_k: rig_k.to_bits(),
-				rig_b: rig_b.to_bits(),
-				re: re.to_bits(),
-				k: k.to_bits(),
-				kappa: kappa.to_bits(),
-			});
-			T::DbWeight::get().writes(2)
-		}
-
-		pub(crate) fn signal_phala_launch<T: Config>() -> Weight {
-			use crate::mq::pallet::MessageOriginInfo;
-			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::PhalaLaunched);
-			T::DbWeight::get().writes(1)
-		}
-
-		pub(crate) fn trigger_unresp_fix<T: Config>() -> Weight {
-			use crate::mq::pallet::MessageOriginInfo;
-			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::UnrespFix);
-			T::DbWeight::get().writes(1)
-		}
-
-		pub(crate) fn enable_phala_tokenomic<T: Config>() -> Weight
-		where
-			super::BalanceOf<T>: crate::balance_convert::FixedPointConvert,
-		{
-			let encoded_params = hex_literal::hex!["b81e85eb51b81e450000000000000000fd7eb4062f0b00000100000000000000482aa913d044d8e0bb0000000000000000000000000000003075000000000000255a8ed66500000000000000000000009d3473f8f34f030000000000000000000000000000000000000000000000000033333333333333330000000000000000140000003b1c318036762473000000000000000000000000000000000000000000000000000000000000008001000000000000000000000000000000320000000000000000000000000000000100000000000000"];
-			let phala_params = TokenomicParams::decode(&mut &encoded_params[..])
-				.expect("Hardcoded TokenomicParams is valid; qed.");
-			super::ScheduledTokenomicUpdate::<T>::put(phala_params);
-			// Update the halving schedule
-			let now = frame_system::Pallet::<T>::block_number();
-			let interval: T::BlockNumber = 1296000_u32.into(); // 180 days in 12s
-			super::MiningStartBlock::<T>::put(now);
-			super::MiningHalvingInterval::<T>::put(interval);
-			T::DbWeight::get().reads_writes(1, 3)
 		}
 	}
 
@@ -1469,42 +1389,6 @@ pub mod pallet {
 		}
 
 		#[test]
-		fn khala_tokenomics() {
-			new_test_ext().execute_with(|| {
-				migrations::initialize::<Test>();
-				let params = TokenomicParameters::<Test>::get().unwrap();
-				let tokenomic = Tokenomic::<Test>::new(params);
-
-				assert_eq!(tokenomic.minimal_stake(1000), 1581_138830073177);
-
-				assert_eq!(
-					tokenomic.ve(1000 * DOLLARS, 1000, 1),
-					fp!(2035.71428571428571430895)
-				);
-				assert_eq!(
-					tokenomic.ve(1000 * DOLLARS, 1000, 2),
-					fp!(2035.71428571428571430895)
-				);
-				assert_eq!(
-					tokenomic.ve(1000 * DOLLARS, 1000, 3),
-					fp!(2035.71428571428571430895)
-				);
-				assert_eq!(
-					tokenomic.ve(1000 * DOLLARS, 1000, 4),
-					fp!(1899.99999999999999999225)
-				);
-				assert_eq!(
-					tokenomic.ve(1000 * DOLLARS, 1000, 5),
-					fp!(1832.14285714285714283387)
-				);
-				assert_eq!(
-					tokenomic.ve(5000 * DOLLARS, 2000, 4),
-					fp!(7999.99999999999999991944)
-				);
-			});
-		}
-
-		#[test]
 		fn test_benchmark_report() {
 			use phala_types::messaging::{DecodedMessage, MessageOrigin, MiningReportEvent, Topic};
 			new_test_ext().execute_with(|| {
@@ -1647,13 +1531,6 @@ pub mod pallet {
 						payout: 0,
 					})
 				);
-			});
-		}
-
-		#[test]
-		fn phala_params_migration_not_crash() {
-			new_test_ext().execute_with(|| {
-				migrations::enable_phala_tokenomic::<Test>();
 			});
 		}
 	}

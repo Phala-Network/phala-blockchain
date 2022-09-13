@@ -242,15 +242,11 @@ pub mod pallet {
 			);
 			let mut iter = VoteAccountMap::<T>::iter_prefix(vote_id).drain();
 			let mut i = 0;
-			loop {
-				if let Some((user, _)) = iter.next() {
-					AccountVoteMap::<T>::remove(user.clone(), vote_id);
-					Self::update_user_locked(user.clone()).expect("useraccount should exist: qed.");
-					i += 1;
-					if i >= max_iterations {
-						break;
-					}
-				} else {
+			for (user, _) in iter.by_ref() {
+				AccountVoteMap::<T>::remove(user.clone(), vote_id);
+				Self::update_user_locked(user.clone()).expect("useraccount should exist: qed.");
+				i += 1;
+				if i >= max_iterations {
 					break;
 				}
 			}
@@ -289,12 +285,12 @@ pub mod pallet {
 		}
 
 		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), &target, amount)?;
+			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), &target, amount)?;
+			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
@@ -324,7 +320,7 @@ pub mod pallet {
 				None => return Ok(total_active_stakes),
 			};
 			for (pid, cid) in &account_status.invest_pools {
-				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &who).for_each(|nftid| {
+				pallet_uniques::Pallet::<T>::owned_in_collection(cid, &who).for_each(|nftid| {
 					let property_guard = basepool::Pallet::<T>::get_nft_attr_guard(*cid, nftid)
 						.expect("get nft should not fail: qed.");
 					let property = &property_guard.attr;
@@ -373,7 +369,7 @@ pub mod pallet {
 		}
 
 		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
-			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id.clone());
+			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id);
 			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
 		}
 	}

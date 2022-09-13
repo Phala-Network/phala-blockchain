@@ -223,8 +223,7 @@ pub mod pallet {
 				Error::<T>::InvaildWithdrawSharesAmount
 			);
 			ensure!(shares > Zero::zero(), Error::<T>::NoRewardToClaim);
-			let nft_id =
-				basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares.clone())?;
+			let nft_id = basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares)?;
 			pool_info.owner_shares -= shares;
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 			Self::deposit_event(Event::<T>::OwnerSharesStartWithdraw {
@@ -311,10 +310,10 @@ pub mod pallet {
 						.basepool
 						.share_price()
 						.ok_or(Error::<T>::VaultPriceIsZero)?;
-					releasing_stake += bmul(nft_guard.attr.shares.clone(), &price);
+					releasing_stake += bmul(nft_guard.attr.shares, &price);
 				}
 			}
-			if vault.basepool.withdraw_queue.len() <= 0 {
+			if vault.basepool.withdraw_queue.is_empty() {
 				VaultLocks::<T>::remove(vault_pid);
 			}
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(vault.clone()));
@@ -438,7 +437,7 @@ pub mod pallet {
 			// is called. Or the property of the nft will be overwrote incorrectly.
 			let mut nft_guard =
 				basepool::Pallet::<T>::get_nft_attr_guard(pool_info.basepool.cid, nft_id)?;
-			let mut nft = &mut nft_guard.attr;
+			let nft = &mut nft_guard.attr;
 			let in_queue_shares = match pool_info
 				.basepool
 				.withdraw_queue
@@ -459,18 +458,11 @@ pub mod pallet {
 				basepool::is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
 				Error::<T>::InvalidWithdrawalAmount
 			);
-			basepool::Pallet::<T>::try_withdraw(
-				&mut pool_info.basepool,
-				&mut nft,
-				who.clone(),
-				shares,
-			)?;
+			basepool::Pallet::<T>::try_withdraw(&mut pool_info.basepool, nft, who.clone(), shares)?;
 
 			nft_guard.save()?;
-			let nft_id = basepool::Pallet::<T>::merge_or_init_nft_for_staker(
-				pool_info.basepool.cid,
-				who.clone(),
-			)?;
+			let nft_id =
+				basepool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 
 			Ok(())
