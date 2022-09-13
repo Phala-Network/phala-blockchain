@@ -168,6 +168,24 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
+		pub fn redeem_all(origin: OriginFor<T>) -> DispatchResult {
+			let user = ensure_signed(origin)?;
+			let active_stakes = Self::get_net_value(user.clone())?;
+			let staker_status =
+				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
+			let withdraw_amount = active_stakes - staker_status.locked;
+			<T as mining::Config>::Currency::transfer(
+				&T::PawnShopAccountId::get(),
+				&user,
+				withdraw_amount,
+				AllowDeath,
+			)?;
+			Self::burn_from(&user, withdraw_amount)?;
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn redeem(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
