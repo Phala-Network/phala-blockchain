@@ -93,6 +93,10 @@ impl Pink {
         contract_address_to_id(&self.instance.address)
     }
 
+    pub fn address(&self) -> AccountId {
+        self.instance.address.clone()
+    }
+
     pub fn set_on_block_end_selector(&mut self, selector: u32) {
         self.instance.set_on_block_end_selector(selector)
     }
@@ -278,7 +282,7 @@ pub mod cluster {
     use runtime::BlockNumber;
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
-    use sp_runtime::DispatchError;
+    use sp_runtime::{AccountId32, DispatchError};
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Default, Serialize, Deserialize)]
@@ -382,6 +386,14 @@ pub mod cluster {
 
         pub fn key(&self) -> &sr25519::Pair {
             &self.key
+        }
+
+        pub fn system_contract(&mut self) -> Option<AccountId32> {
+            self.storage.system_contract()
+        }
+
+        pub fn set_system_contract(&mut self, contract: AccountId32) {
+            self.storage.set_system_contract(contract);
         }
 
         pub fn set_id(&mut self, id: &ContractClusterId) {

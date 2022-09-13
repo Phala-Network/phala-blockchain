@@ -1,10 +1,10 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use proc_macro_crate::{crate_name, FoundCrate};
 use syn::{parse_macro_input, Result};
 
-mod contract;
 mod chain_extension;
+mod contract;
+mod driver_system;
 
 /// A drop-in replacement for `ink_lang::contract` with pink-specific feature extensions.
 ///
@@ -27,8 +27,28 @@ pub fn chain_extension(_: TokenStream, input: TokenStream) -> TokenStream {
     output.into()
 }
 
+/// Mark an ink trait as pink's system contract
+#[proc_macro_attribute]
+pub fn system(arg: TokenStream, input: TokenStream) -> TokenStream {
+    let config = parse_macro_input!(arg as TokenStream2);
+    let module = parse_macro_input!(input as TokenStream2);
+    let module = driver_system::patch(module, config, driver_system::InterfaceType::System);
+    module.into()
+}
+
+/// Mark an ink trait as pink's driver contract
+#[proc_macro_attribute]
+pub fn driver(arg: TokenStream, input: TokenStream) -> TokenStream {
+    let config = parse_macro_input!(arg as TokenStream2);
+    let module = parse_macro_input!(input as TokenStream2);
+    let module = driver_system::patch(module, config, driver_system::InterfaceType::Driver);
+    module.into()
+}
+
+#[cfg(not(test))]
 fn find_crate_name(origin: &str) -> Result<syn::Ident> {
     use proc_macro2::Span;
+    use proc_macro_crate::{crate_name, FoundCrate};
     let name = match crate_name(origin) {
         Ok(FoundCrate::Itself) => syn::Ident::new("crate", Span::call_site()),
         Ok(FoundCrate::Name(alias)) => syn::Ident::new(&alias, Span::call_site()),
@@ -37,4 +57,11 @@ fn find_crate_name(origin: &str) -> Result<syn::Ident> {
         }
     };
     Ok(name)
+}
+
+#[cfg(test)]
+fn find_crate_name(origin: &str) -> Result<syn::Ident> {
+    use heck::ToSnakeCase;
+    use proc_macro2::Span;
+    Ok(syn::Ident::new(&origin.to_snake_case(), Span::call_site()))
 }

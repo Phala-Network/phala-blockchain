@@ -79,6 +79,10 @@ pub mod pallet {
 	pub type ClusterWorkers<T> =
 		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>, ValueQuery>;
 
+	/// The pink-system contract code used to deploy new clusters
+	#[pallet::storage]
+	pub type PinkSystemCode<T> = StorageValue<_, Vec<u8>, OptionQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -182,7 +186,7 @@ pub mod pallet {
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let cluster_info = ClusterInfo {
-				owner,
+				owner: owner.clone(),
 				permission,
 				workers: deploy_workers,
 			};
@@ -196,7 +200,11 @@ pub mod pallet {
 
 			Clusters::<T>::insert(&cluster, &cluster_info);
 			Self::deposit_event(Event::ClusterCreated { cluster });
-			Self::push_message(ClusterEvent::DeployCluster { cluster, workers });
+			Self::push_message(ClusterEvent::DeployCluster {
+				owner,
+				cluster,
+				workers,
+			});
 			Ok(())
 		}
 
@@ -306,6 +314,16 @@ pub mod pallet {
 				ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster),
 			);
 			Self::deposit_event(Event::ClusterDestroyed { cluster });
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_pink_system_code(
+			origin: OriginFor<T>,
+			code: BoundedVec<u8, T::InkCodeSizeLimit>,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			PinkSystemCode::<T>::put(code);
 			Ok(())
 		}
 	}

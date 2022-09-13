@@ -27,6 +27,7 @@ exclude = [
 	"vendor/ring",
 	"standalone/pruntime",
 	"standalone/prouter",
+	"crates/pink-libs/system",
 ]
 
 members = [

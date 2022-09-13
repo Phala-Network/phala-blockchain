@@ -1,14 +1,16 @@
-use std::borrow::Cow;
 use std::time::Duration;
+use std::{borrow::Cow, convert::TryFrom};
 
 use frame_support::log::error;
-use pallet_contracts::chain_extension::Result as ExtResult;
 use pallet_contracts::chain_extension::{
-    ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
+    ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal, SysConfig,
+    UncheckedFrom,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
-    chain_extension::{HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded},
+    chain_extension::{
+        self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
+    },
     dispatch_ext_call, CacheOp, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
@@ -262,6 +264,15 @@ impl PinkExtBackend for CallInQuery {
     ) -> Result<bool, Self::Error> {
         DefaultPinkExtension::new(self).ecdsa_verify_prehashed(signature, message_hash, pubkey)
     }
+
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        crate::runtime::Pink::system_contract()
+            .map(|address| {
+                ext::AccountId::try_from(address.as_ref())
+                    .expect("Convert from AccountId32 to ink_env::AccountId should always success")
+            })
+            .ok_or(DispatchError::Other("No system contract installed"))
+    }
 }
 
 struct CallInCommand {
@@ -374,5 +385,9 @@ impl PinkExtBackend for CallInCommand {
     ) -> Result<bool, Self::Error> {
         self.as_in_query
             .ecdsa_verify_prehashed(signature, message_hash, pubkey)
+    }
+
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        self.as_in_query.system_contract_id()
     }
 }

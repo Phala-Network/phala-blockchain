@@ -24,6 +24,9 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
 
+    #[pallet::storage]
+    pub(crate) type SystemContractId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
+
     /// The seed used to derive custom keys in `ink!` contract.
     ///
     /// All contracts in a cluster shares the same seed. When deriving a key from the seed, the
@@ -37,6 +40,11 @@ pub mod pallet {
     #[pallet::getter(fn sidevm_codes)]
     pub(crate) type SidevmCodes<T: Config> =
         StorageMap<_, Twox64Concat, T::Hash, WasmCode<T::AccountId>>;
+
+    /// The system contract address
+    #[pallet::storage]
+    #[pallet::getter(fn system_contract)]
+    pub(crate) type SystemContract<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
@@ -77,6 +85,10 @@ pub mod pallet {
             let hash = T::Hashing::hash(&code);
             <SidevmCodes<T>>::insert(hash, WasmCode { owner, code });
             hash
+        }
+
+        pub fn set_system_contract(address: T::AccountId) {
+            <SystemContract<T>>::put(address);
         }
     }
 }

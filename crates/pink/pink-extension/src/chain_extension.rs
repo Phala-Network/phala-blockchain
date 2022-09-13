@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 use ink_lang as ink;
 
+pub use ink_env::AccountId;
 pub use http_request::{HttpRequest, HttpResponse};
 pub use signing::SigType;
 
@@ -103,6 +104,9 @@ pub trait PinkExt {
         message_hash: Hash,
         pubkey: EcdsaPublicKey,
     ) -> bool;
+    /// Get the contract id of the preinstalled pink-system
+    #[ink(extension = 15, handle_status = false, returns_result = false)]
+    fn system_contract_id() -> AccountId;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

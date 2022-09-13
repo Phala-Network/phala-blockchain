@@ -41,15 +41,16 @@ impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
 }
 
 pub mod messaging {
-    use alloc::{vec::Vec, collections::BTreeMap};
+    use alloc::{collections::BTreeMap, vec::Vec};
     use codec::{Decode, Encode};
     use core::fmt::Debug;
     use scale_info::TypeInfo;
 
     use super::{ContractClusterId, ContractInfo};
-    use phala_mq::{bind_topic, ContractId, AccountId};
-    use crate::{WorkerIdentity, ClusterPublicKey, ContractPublicKey, WorkerPublicKey};
     use crate::messaging::EncryptedKey;
+    use crate::{ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey};
+    use phala_mq::{bind_topic, AccountId, ContractId};
+    use sp_core::crypto::AccountId32;
 
     type MqAccountId = AccountId;
 
@@ -58,6 +59,7 @@ pub mod messaging {
     pub enum ClusterEvent {
         // TODO.shelven: enable add and remove workers
         DeployCluster {
+            owner: AccountId32,
             cluster: ContractClusterId,
             workers: Vec<WorkerIdentity>,
         },
@@ -117,6 +119,8 @@ pub mod messaging {
         pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
         pub cluster: ContractClusterId,
         pub expiration: BlockNumber,
+        /// The owner of the cluster
+        pub owner: AccountId32,
     }
 
     bind_topic!(ClusterOperation<AccountId, BlockNumber>, b"phala/cluster/key");
@@ -150,16 +154,16 @@ pub mod messaging {
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             expiration: BlockNumber,
+            owner: AccountId32,
         ) -> Self {
             ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
                 expiration,
+                owner,
             })
         }
     }
-
-
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]

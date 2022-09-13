@@ -8007,11 +8007,14 @@ dependencies = [
 name = "pink-extension-macro"
 version = "0.1.4"
 dependencies = [
+ "heck 0.4.0",
  "ink_lang_ir",
  "ink_lang_macro",
+ "insta",
  "proc-macro-crate",
  "proc-macro2 1.0.40",
  "quote 1.0.20",
+ "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.98",
  "unzip3",
 ]

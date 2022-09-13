@@ -22,7 +22,7 @@ log = "0.4.17"
 insta = "1.7.2"
 
 [features]
-default = ["std", "runtime_utils"]
+default = ["std", "runtime_utils", "ink-as-dependency"]
 std = [
     "ink_metadata/std",
     "ink_env/std",

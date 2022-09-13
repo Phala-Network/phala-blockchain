@@ -89,6 +89,10 @@ impl ext::PinkExtBackend for MockExtension {
         Ok(IS_COMMAND_MODE.with(|mode| mode.get()))
     }
 
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        Err("No default system contract id".into())
+    }
+
     type Error = String;
 
     fn ecdsa_sign_prehashed(
