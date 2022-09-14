@@ -2,10 +2,7 @@ use std::borrow::Cow;
 use std::{fmt::Display, str::FromStr, time::Duration};
 
 use pink_extension::{
-    chain_extension::{
-        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
-        StorageQuotaExceeded, VerifyArgs,
-    },
+    chain_extension::{HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded},
     EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
@@ -101,31 +98,41 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(response)
     }
 
-    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
+    fn sign(
+        &self,
+        sigtype: SigType,
+        key: Cow<[u8]>,
+        message: Cow<[u8]>,
+    ) -> Result<Vec<u8>, Self::Error> {
         macro_rules! sign_with {
             ($sigtype:ident) => {{
-                let pair =
-                    sp_core::$sigtype::Pair::from_seed_slice(&args.key).or(Err("Invalid key"))?;
-                let signature = pair.sign(&args.message);
+                let pair = sp_core::$sigtype::Pair::from_seed_slice(&key).or(Err("Invalid key"))?;
+                let signature = pair.sign(&message);
                 let signature: &[u8] = signature.as_ref();
                 signature.to_vec()
             }};
         }
 
-        Ok(match args.sigtype {
+        Ok(match sigtype {
             SigType::Sr25519 => sign_with!(sr25519),
             SigType::Ed25519 => sign_with!(ed25519),
             SigType::Ecdsa => sign_with!(ecdsa),
         })
     }
 
-    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
+    fn verify(
+        &self,
+        sigtype: SigType,
+        pubkey: Cow<[u8]>,
+        message: Cow<[u8]>,
+        signature: Cow<[u8]>,
+    ) -> Result<bool, Self::Error> {
         macro_rules! verify_with {
             ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+                sp_core::$sigtype::Pair::verify_weak(&signature, &message, &pubkey)
             }};
         }
-        Ok(match args.sigtype {
+        Ok(match sigtype {
             SigType::Sr25519 => verify_with!(sr25519),
             SigType::Ed25519 => verify_with!(ed25519),
             SigType::Ecdsa => verify_with!(ecdsa),
@@ -142,16 +149,16 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(key.as_ref().secret.to_bytes().to_vec())
     }
 
-    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
+    fn get_public_key(&self, sigtype: SigType, key: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
         macro_rules! public_key_with {
             ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::from_seed_slice(&args.key)
+                sp_core::$sigtype::Pair::from_seed_slice(&key)
                     .or(Err("Invalid key"))?
                     .public()
                     .to_raw_vec()
             }};
         }
-        let pubkey = match args.sigtype {
+        let pubkey = match sigtype {
             SigType::Ed25519 => public_key_with!(ed25519),
             SigType::Sr25519 => public_key_with!(sr25519),
             SigType::Ecdsa => public_key_with!(ecdsa),

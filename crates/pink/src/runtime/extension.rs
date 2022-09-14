@@ -8,10 +8,7 @@ use pallet_contracts::chain_extension::{
 };
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
-    chain_extension::{
-        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SignArgs,
-        StorageQuotaExceeded, VerifyArgs,
-    },
+    chain_extension::{HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded},
     dispatch_ext_call, CacheOp, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
@@ -166,12 +163,23 @@ impl PinkExtBackend for CallInQuery {
         DefaultPinkExtension::new(self).http_request(request)
     }
 
-    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
-        DefaultPinkExtension::new(self).sign(args)
+    fn sign(
+        &self,
+        sigtype: SigType,
+        key: Cow<[u8]>,
+        message: Cow<[u8]>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).sign(sigtype, key, message)
     }
 
-    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
-        DefaultPinkExtension::new(self).verify(args)
+    fn verify(
+        &self,
+        sigtype: SigType,
+        pubkey: Cow<[u8]>,
+        message: Cow<[u8]>,
+        signature: Cow<[u8]>,
+    ) -> Result<bool, Self::Error> {
+        DefaultPinkExtension::new(self).verify(sigtype, pubkey, message, signature)
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
@@ -187,8 +195,8 @@ impl PinkExtBackend for CallInQuery {
         Ok(priviate_key.to_vec())
     }
 
-    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
-        DefaultPinkExtension::new(self).get_public_key(args)
+    fn get_public_key(&self, sigtype: SigType, key: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).get_public_key(sigtype, key)
     }
 
     fn cache_set(
@@ -271,21 +279,31 @@ impl PinkExtBackend for CallInCommand {
             "http_request can only be called in query mode",
         ));
     }
-
-    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
-        self.as_in_query.sign(args)
+    fn sign(
+        &self,
+        sigtype: SigType,
+        key: Cow<[u8]>,
+        message: Cow<[u8]>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.sign(sigtype, key, message)
     }
 
-    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
-        self.as_in_query.verify(args)
+    fn verify(
+        &self,
+        sigtype: SigType,
+        pubkey: Cow<[u8]>,
+        message: Cow<[u8]>,
+        signature: Cow<[u8]>,
+    ) -> Result<bool, Self::Error> {
+        self.as_in_query.verify(sigtype, pubkey, message, signature)
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
         self.as_in_query.derive_sr25519_key(salt)
     }
 
-    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
-        self.as_in_query.get_public_key(args)
+    fn get_public_key(&self, sigtype: SigType, key: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.get_public_key(sigtype, key)
     }
 
     fn cache_set(
