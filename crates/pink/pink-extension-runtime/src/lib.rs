@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 use std::{fmt::Display, str::FromStr, time::Duration};
 
-use pink_extension::chain_extension::{
-    HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
-    StorageQuotaExceeded, VerifyArgs,
+use pink_extension::{
+    chain_extension::{
+        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
+        StorageQuotaExceeded, VerifyArgs,
+    },
+    EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -198,6 +201,31 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn is_running_in_command(&self) -> Result<bool, Self::Error> {
         Ok(false)
+    }
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        let pair = sp_core::ecdsa::Pair::from_seed_slice(&key).or(Err("Invalid key"))?;
+        let signature = pair.sign_prehashed(&message_hash);
+        Ok(signature.0)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        let public = sp_core::ecdsa::Public(pubkey);
+        let sig = sp_core::ecdsa::Signature(signature);
+        Ok(sp_core::ecdsa::Pair::verify_prehashed(
+            &sig,
+            &message_hash,
+            &public,
+        ))
     }
 }
 

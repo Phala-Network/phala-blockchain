@@ -1,6 +1,8 @@
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
 
+use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
+
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum SigType {
@@ -70,6 +72,20 @@ pub fn verify(message: &[u8], pubkey: &[u8], signature: &[u8], sigtype: SigType)
         signature: signature.into(),
     };
     crate::ext().verify(args)
+}
+
+/// Sign a prehashed message with a ECDSA priviate key
+pub fn ecdsa_sign_prehashed(key: &[u8], message_hash: Hash) -> EcdsaSignature {
+    crate::ext().ecdsa_sign_prehashed(key, message_hash)
+}
+
+/// Verify a prehashed message with a ECDSA pubkey and signature.
+pub fn ecdsa_verify_prehashed(
+    signature: EcdsaSignature,
+    message_hash: Hash,
+    pubkey: EcdsaPublicKey,
+) -> bool {
+    crate::ext().ecdsa_verify_prehashed(signature, message_hash, pubkey)
 }
 
 /// Derive a key pair from the contract key

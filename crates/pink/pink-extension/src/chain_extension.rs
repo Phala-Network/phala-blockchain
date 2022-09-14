@@ -6,6 +6,8 @@ use ink_lang as ink;
 pub use http_request::{HttpRequest, HttpResponse};
 pub use signing::{PublicKeyForArgs, SigType, SignArgs, VerifyArgs};
 
+use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
+
 mod http_request;
 pub mod signing;
 
@@ -91,6 +93,16 @@ pub trait PinkExt {
     /// Check if it is running in a Command context.
     #[ink(extension = 12, handle_status = false, returns_result = false)]
     fn is_running_in_command() -> bool;
+
+    #[ink(extension = 13, handle_status = false, returns_result = false)]
+    fn ecdsa_sign_prehashed(key: &[u8], message_hash: Hash) -> EcdsaSignature;
+
+    #[ink(extension = 14, handle_status = false, returns_result = false)]
+    fn ecdsa_verify_prehashed(
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> bool;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

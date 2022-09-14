@@ -1,5 +1,7 @@
-use pink_extension::chain_extension as ext;
+use std::borrow::Cow;
+
 use pink_extension::chain_extension::mock::mock_all_with;
+use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
 
 pub struct MockExtension;
@@ -76,6 +78,23 @@ impl ext::PinkExtBackend for MockExtension {
     }
 
     type Error = String;
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        super::DefaultPinkExtension::new(self).ecdsa_sign_prehashed(key, message_hash)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        super::DefaultPinkExtension::new(self).ecdsa_verify_prehashed(signature, message_hash, pubkey)
+    }
 }
 
 thread_local! {

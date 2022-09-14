@@ -2,23 +2,22 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use frame_support::log::error;
+use pallet_contracts::chain_extension::Result as ExtResult;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
-use pink_extension::CacheOp;
 use pink_extension::{
     chain_extension::{
         HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SignArgs,
         StorageQuotaExceeded, VerifyArgs,
     },
-    dispatch_ext_call, PinkEvent,
+    dispatch_ext_call, CacheOp, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_core::H256;
 use sp_runtime::DispatchError;
-use pallet_contracts::chain_extension::Result as ExtResult;
 
 use crate::{
     runtime::{get_call_elapsed, get_call_mode, CallMode},
@@ -97,14 +96,14 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> ExtResult<RetVal>
     where
         <E::T as SysConfig>::AccountId:
-        UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
+            UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
     {
         let mut env = env.buf_in_buf_out();
         if env.ext_id() != 0 {
             error!(target: "pink", "Unknown extension id: {:}", env.ext_id());
             return Err(DispatchError::Other(
                 "PinkExtension::call: unknown extension id",
-            ))
+            ));
         }
 
         let address = env
@@ -238,6 +237,23 @@ impl PinkExtBackend for CallInQuery {
     fn is_running_in_command(&self) -> Result<bool, Self::Error> {
         Ok(false)
     }
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        DefaultPinkExtension::new(self).ecdsa_sign_prehashed(key, message_hash)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        DefaultPinkExtension::new(self).ecdsa_verify_prehashed(signature, message_hash, pubkey)
+    }
 }
 
 struct CallInCommand {
@@ -322,5 +338,23 @@ impl PinkExtBackend for CallInCommand {
 
     fn is_running_in_command(&self) -> Result<bool, Self::Error> {
         Ok(true)
+    }
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        self.as_in_query.ecdsa_sign_prehashed(key, message_hash)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        self.as_in_query
+            .ecdsa_verify_prehashed(signature, message_hash, pubkey)
     }
 }
