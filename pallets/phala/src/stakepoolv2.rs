@@ -425,8 +425,6 @@ pub mod pallet {
 
 		InvaildWithdrawSharesAmount,
 
-		AssetAccountNotExist,
-
 		VaultIsLocked,
 	}
 

@@ -65,18 +65,6 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 			&self.owner_reward_account,
 		)
 	}
-
-	pub fn get_lock_stakes<T>(&self) -> Balance
-	where
-		T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
-		T: basepool::Config<AccountId = AccountId>,
-		T: basepool::Config + pawnshop::Config + vault::Config,
-	{
-		pallet_assets::Pallet::<T>::balance(
-			<T as pawnshop::Config>::PPhaAssetId::get(),
-			&self.lock_account,
-		)
-	}
 }
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]

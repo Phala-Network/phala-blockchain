@@ -18,7 +18,9 @@ use crate::mock::{
 	setup_workers_linked_operators, worker_pubkey, Balance, Origin, Test, DOLLARS,
 };
 // Pallets
-use crate::mock::{PhalaBasePool, PhalaMining, PhalaRegistry, PhalaStakePool, PhalaVault};
+use crate::mock::{
+	PhalaBasePool, PhalaMining, PhalaPawnshop, PhalaRegistry, PhalaStakePool, PhalaVault,
+};
 use pallet_democracy::AccountVote;
 use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 use rmrk_traits::primitives::NftId;
@@ -45,10 +47,7 @@ fn test_pawn() {
 		assert_eq!(free, 0);
 		let free = <Test as mining::Config>::Currency::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			100 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
 		let free = <Test as mining::Config>::Currency::free_balance(
 			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
 		);
@@ -64,11 +63,8 @@ fn test_pawn() {
 fn test_redeem() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			100 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::redeem(
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaPawnshop::redeem(
 			Origin::signed(1),
 			50 * DOLLARS,
 			false
@@ -89,20 +85,42 @@ fn test_redeem() {
 			},
 		);
 		assert_noop!(
-			pawnshop::pallet::Pallet::<Test>::redeem(Origin::signed(1), 50 * DOLLARS, false),
+			PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS, false),
 			pawnshop::Error::<Test>::RedeemAmountExceedsAvaliableStake
 		);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::redeem(
-			Origin::signed(1),
-			50 * DOLLARS,
-			true
-		));
+		assert_ok!(PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS, true));
 		let free = <Test as mining::Config>::Currency::free_balance(
 			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
 		);
 		assert_eq!(free, 20 * DOLLARS);
 		let ppha_free = get_balance(1);
 		assert_eq!(ppha_free, 20 * DOLLARS);
+	});
+}
+
+#[test]
+fn test_redeem_all() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
+		set_block_1();
+		setup_workers(2);
+		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
+		assert_ok!(PhalaStakePool::contribute(
+			Origin::signed(1),
+			0,
+			50 * DOLLARS,
+			None
+		));
+		let free = <Test as mining::Config>::Currency::free_balance(2);
+		assert_eq!(free, 2000 * DOLLARS);
+		assert_ok!(PhalaPawnshop::redeem_all(Origin::signed(1)));
+		let free = <Test as mining::Config>::Currency::free_balance(1);
+		assert_eq!(free, 950 * DOLLARS);
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaPawnshop::redeem_all(Origin::signed(2)));
+		let free = <Test as mining::Config>::Currency::free_balance(2);
+		assert_eq!(free, 2000 * DOLLARS);
 	});
 }
 
@@ -122,24 +140,13 @@ fn test_vote() {
 		);
 		assert_eq!(vote_id, 0);
 		assert_eq!(vote_id2, 1);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			100 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			100 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 100 * DOLLARS));
 		assert_noop!(
-			pawnshop::pallet::Pallet::<Test>::vote(
-				Origin::signed(1),
-				90 * DOLLARS,
-				90 * DOLLARS,
-				0
-			),
+			PhalaPawnshop::vote(Origin::signed(1), 90 * DOLLARS, 90 * DOLLARS, 0),
 			pawnshop::Error::<Test>::VoteAmountLargerThanTotalStakes,
 		);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(1),
 			20 * DOLLARS,
 			10 * DOLLARS,
@@ -147,7 +154,7 @@ fn test_vote() {
 		));
 		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 30 * DOLLARS);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(1),
 			40 * DOLLARS,
 			20 * DOLLARS,
@@ -155,20 +162,20 @@ fn test_vote() {
 		));
 		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 60 * DOLLARS);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(2),
 			20 * DOLLARS,
 			30 * DOLLARS,
 			0
 		));
-		let vote = pawnshop::pallet::Pallet::<Test>::accumulate_account_vote(0);
+		let vote = PhalaPawnshop::accumulate_account_vote(0);
 		let (aye, nay) = match vote {
 			AccountVote::Split { aye, nay } => (aye, nay),
 			_ => panic!(),
 		};
 		assert_eq!(aye, 40 * DOLLARS);
 		assert_eq!(nay, 40 * DOLLARS);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(1),
 			5 * DOLLARS,
 			10 * DOLLARS,
@@ -188,45 +195,31 @@ fn test_unlock() {
 			pallet_democracy::VoteThreshold::SimpleMajority,
 			1000,
 		);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			100 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			100 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(1),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			0
 		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(2),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			0
 		));
 		assert_noop!(
-			pawnshop::pallet::Pallet::<Test>::unlock(Origin::signed(3), 0, 1),
+			PhalaPawnshop::unlock(Origin::signed(3), 0, 1),
 			pawnshop::Error::<Test>::ReferendumOngoing,
 		);
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(0);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::unlock(
-			Origin::signed(3),
-			0,
-			1
-		));
+		assert_ok!(PhalaPawnshop::unlock(Origin::signed(3), 0, 1));
 		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 0 * DOLLARS);
 		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 30 * DOLLARS);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::unlock(
-			Origin::signed(3),
-			0,
-			2
-		));
+		assert_ok!(PhalaPawnshop::unlock(Origin::signed(3), 0, 2));
 		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 0 * DOLLARS);
 		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
@@ -234,24 +227,20 @@ fn test_unlock() {
 			pallet_democracy::VoteThreshold::SimpleMajority,
 			1000,
 		);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(1),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			vote_id
 		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::vote(
+		assert_ok!(PhalaPawnshop::vote(
 			Origin::signed(2),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			vote_id
 		));
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(1);
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::unlock(
-			Origin::signed(3),
-			1,
-			2
-		));
+		assert_ok!(PhalaPawnshop::unlock(Origin::signed(3), 1, 2));
 		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 0 * DOLLARS);
 		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
@@ -387,10 +376,7 @@ fn test_remove_stake_from_nft() {
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
 		let _pool_info = ensure_stake_pool::<Test>(0).unwrap();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			100 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
 		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(1),
 			0,
@@ -426,12 +412,8 @@ fn test_remove_stake_from_nft() {
 fn test_create_stakepool() {
 	new_test_ext().execute_with(|| {
 		set_block_1();
-		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::create(Origin::signed(
-			1
-		)));
-		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::create(Origin::signed(
-			2
-		)));
+		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+		assert_ok!(PhalaStakePool::create(Origin::signed(2)));
 		assert_eq!(
 			basepool::Pools::<Test>::get(0),
 			Some(PoolProxy::<u64, Balance>::StakePool(StakePool::<
@@ -464,8 +446,8 @@ fn test_create_stakepool() {
 fn test_create_vault() {
 	new_test_ext().execute_with(|| {
 		set_block_1();
-		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(1)));
-		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(2)));
+		assert_ok!(PhalaVault::create(Origin::signed(1)));
+		assert_ok!(PhalaVault::create(Origin::signed(2)));
 		assert_eq!(
 			basepool::Pools::<Test>::get(0),
 			Some(PoolProxy::Vault(Vault::<u64, Balance> {
@@ -502,27 +484,21 @@ fn test_contribute() {
 		);
 
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(1),
 			0,
 			50 * DOLLARS,
 			None
 		));
-		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(2),
 			0,
 			50 * DOLLARS,
 			None
 		));
-		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(1),
 			0,
 			30 * DOLLARS,
@@ -563,12 +539,8 @@ fn test_contribute() {
 		let free = get_balance(pool.basepool.pool_account_id);
 		assert_eq!(free, 130 * DOLLARS);
 
-		assert_ok!(vault::pallet::Pallet::<Test>::create(Origin::signed(1)));
-		assert_ok!(vault::pallet::Pallet::<Test>::contribute(
-			Origin::signed(2),
-			1,
-			200 * DOLLARS,
-		));
+		assert_ok!(PhalaVault::create(Origin::signed(1)));
+		assert_ok!(PhalaVault::contribute(Origin::signed(2), 1, 200 * DOLLARS,));
 		let pool = ensure_vault::<Test>(1).unwrap();
 		assert_eq!(pool.basepool.total_shares, 200 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
@@ -579,7 +551,7 @@ fn test_contribute() {
 			PhalaStakePool::contribute(Origin::signed(2), 0, 10 * DOLLARS, Some(1),),
 			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner,
 		);
-		assert_ok!(stakepoolv2::pallet::Pallet::<Test>::contribute(
+		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(1),
 			0,
 			100 * DOLLARS,
@@ -628,18 +600,9 @@ fn test_set_pool_description() {
 fn test_staker_whitelist() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(3),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]);
@@ -728,18 +691,9 @@ fn test_staker_whitelist() {
 fn test_pool_cap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(3),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
@@ -882,14 +836,8 @@ fn test_start_mining() {
 		mock_asset_id();
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(99),
-			50000 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(99), 50000 * DOLLARS));
 		// Cannot start mining without a bound worker
 		assert_noop!(
 			PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
@@ -947,14 +895,8 @@ fn test_force_unbind() {
 		setup_workers_linked_operators(2);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
 		setup_stake_pool_with_workers(2, &[2]); // pid = 1
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(1),
 			0,
@@ -1022,14 +964,8 @@ fn test_force_unbind() {
 fn test_stop_mining() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 		// Cannot start mining without a bound worker
@@ -1081,14 +1017,8 @@ fn test_stop_mining() {
 fn test_reclaim() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 		// Basic setup
@@ -1132,14 +1062,8 @@ fn test_reclaim() {
 fn restart_mining_should_work() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid=0
 		assert_ok!(PhalaStakePool::contribute(
@@ -1181,14 +1105,8 @@ fn restart_mining_should_work() {
 fn test_for_cdworkers() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 		// Cannot start mining without a bound worker
@@ -1238,18 +1156,9 @@ fn test_on_reward_for_vault() {
 	use crate::mining::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(3),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_vault(3); // pid = 0
@@ -1259,11 +1168,7 @@ fn test_on_reward_for_vault() {
 			1,
 			Some(Permill::from_percent(50))
 		));
-		assert_ok!(vault::pallet::Pallet::<Test>::contribute(
-			Origin::signed(3),
-			0,
-			100 * DOLLARS
-		));
+		assert_ok!(PhalaVault::contribute(Origin::signed(3), 0, 100 * DOLLARS));
 		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(3),
 			1,
@@ -1313,14 +1218,8 @@ fn test_claim_owner_rewards() {
 	use crate::mining::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
@@ -1361,18 +1260,9 @@ fn test_vault_owner_shares() {
 	use crate::mining::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(3),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_vault(3); // pid = 0
@@ -1459,22 +1349,10 @@ fn test_vault_owner_shares() {
 fn test_withdraw() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(3),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(99),
-			5000 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(99), 5000 * DOLLARS));
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
@@ -1699,22 +1577,10 @@ fn test_withdraw() {
 fn test_check_and_maybe_force_withdraw() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(1),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(2),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(3),
-			500 * DOLLARS
-		));
-		assert_ok!(pawnshop::pallet::Pallet::<Test>::pawn(
-			Origin::signed(99),
-			500 * DOLLARS
-		));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(Origin::signed(99), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0

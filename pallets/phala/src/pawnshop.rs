@@ -171,9 +171,12 @@ pub mod pallet {
 		pub fn redeem_all(origin: OriginFor<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			let active_stakes = Self::get_net_value(user.clone())?;
+			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
+				T::AccountId,
+			>>::balance(T::PPhaAssetId::get(), &user);
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
-			let withdraw_amount = active_stakes - staker_status.locked;
+			let withdraw_amount = (active_stakes - staker_status.locked).min(free_stakes);
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
@@ -189,30 +192,37 @@ pub mod pallet {
 		pub fn redeem(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
-			is_at_most: bool,
+			best_effort: bool,
 		) -> DispatchResult {
-			let mut actural_amount = amount;
+			let mut actual_amount = amount;
 			let user = ensure_signed(origin)?;
+			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
+				T::AccountId,
+			>>::balance(T::PPhaAssetId::get(), &user);
+			ensure!(
+				amount <= free_stakes,
+				Error::<T>::RedeemAmountExceedsAvaliableStake
+			);
 			let active_stakes = Self::get_net_value(user.clone())?;
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
-			if is_at_most {
-				if actural_amount + staker_status.locked > active_stakes {
-					actural_amount = active_stakes - staker_status.locked;
+			if best_effort {
+				if actual_amount + staker_status.locked > active_stakes {
+					actual_amount = (active_stakes - staker_status.locked).min(free_stakes);
 				}
 			} else {
 				ensure!(
-					actural_amount + staker_status.locked <= active_stakes,
+					actual_amount + staker_status.locked <= active_stakes,
 					Error::<T>::RedeemAmountExceedsAvaliableStake,
 				);
 			}
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
-				actural_amount,
+				actual_amount,
 				AllowDeath,
 			)?;
-			Self::burn_from(&user, actural_amount)?;
+			Self::burn_from(&user, actual_amount)?;
 
 			Ok(())
 		}

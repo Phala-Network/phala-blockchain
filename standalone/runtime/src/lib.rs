@@ -299,6 +299,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Governance,
 	Staking,
+	StakePoolManager,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -323,6 +324,19 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Elections(..) | Call::Treasury(..)
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::StakePoolManager => matches!(
+				c,
+				Call::Utility { .. }
+					| Call::PhalaStakePool(pallet_stakepool::Call::add_worker { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::remove_worker { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::start_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::stop_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::restart_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::reclaim_pool_worker { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::create { .. })
+					| Call::PhalaRegistry(pallet_registry::Call::register_worker { .. })
+					| Call::PhalaMq(pallet_mq::Call::sync_offchain_message { .. })
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1371,11 +1385,14 @@ impl pallet_basepool::Config for Runtime {
 }
 
 parameter_types! {
-	pub const AssetDeposit: Balance = 1; // 1 Unit deposit to create asset
-	pub const ApprovalDeposit: Balance = 1;
-	pub const AssetsStringLimit: u32 = 50;
-	pub const MetadataDepositBase: Balance = 1;
-	pub const MetadataDepositPerByte: Balance = 1;
+    pub const AssetDeposit: Balance = 1 * CENTS; // 1 CENTS deposit to create asset
+    pub const ApprovalDeposit: Balance = 1 * CENTS;
+    pub const AssetsStringLimit: u32 = 50;
+    pub const AssetAccountDeposit: u128 = 1 * DOLLARS;
+    /// Key = 32 bytes, Value = 36 bytes (32+1+1+1+1)
+    // https://github.com/paritytech/substrate/blob/069917b/frame/assets/src/lib.rs#L257L271
+    pub const MetadataDepositBase: Balance = deposit(1, 68);
+    pub const MetadataDepositPerByte: Balance = deposit(0, 1);
 }
 
 impl pallet_assets::Config for Runtime {

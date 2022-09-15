@@ -2,7 +2,7 @@ pub use self::pallet::*;
 use crate::mining;
 
 use frame_support::traits::Currency;
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 
 pub type BalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -752,20 +752,9 @@ pub mod pallet {
 	}
 }
 
-use sp_runtime::traits::AtLeast32BitUnsigned;
-
 /// Returns true if `n` is close to zero (1000 pico, or 1e-8).
 pub fn balance_close_to_zero<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
 	n <= B::from(1000u32)
-}
-
-/// Returns true if `a` and `b` are close enough (1000 pico, or 1e-8)
-pub fn balances_nearly_equal<B: AtLeast32BitUnsigned + Copy>(a: B, b: B) -> bool {
-	if a > b {
-		balance_close_to_zero(a - b)
-	} else {
-		balance_close_to_zero(b - a)
-	}
 }
 
 /// Returns true if `n` is a non-trivial positive balance
