@@ -1,6 +1,6 @@
 use crate::*;
 use frame_support::{
-	traits::{Currency, Get, StorageVersion},
+	traits::{Get, StorageVersion},
 	weights::Weight,
 };
 use log;

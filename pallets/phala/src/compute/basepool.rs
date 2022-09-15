@@ -1,7 +1,5 @@
 pub use self::pallet::*;
-use crate::mining;
 
-use frame_support::traits::Currency;
 use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 
 #[frame_support::pallet]
@@ -23,8 +21,8 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, LockableCurrency,
-			StorageVersion, UnixTime,
+			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, StorageVersion,
+			UnixTime,
 		},
 	};
 

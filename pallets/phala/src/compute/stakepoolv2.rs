@@ -1,10 +1,7 @@
 //! Pool for collaboratively mining staking
 
 pub use self::pallet::*;
-use crate::mining;
-use frame_support::traits::Currency;
 
-#[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
 	#[cfg(not(feature = "std"))]
@@ -26,7 +23,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{tokens::fungibles::Transfer, LockableCurrency, StorageVersion, UnixTime},
+		traits::{tokens::fungibles::Transfer, StorageVersion, UnixTime},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
@@ -960,7 +957,6 @@ pub mod pallet {
 				who = vault_info.basepool.pool_account_id;
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
-			let collection_id = pool_info.basepool.cid;
 			let nft_id = basepool::Pallet::<T>::merge_or_init_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
@@ -993,7 +989,7 @@ pub mod pallet {
 			);
 			basepool::Pallet::<T>::try_withdraw(&mut pool_info.basepool, nft, who.clone(), shares)?;
 			nft_guard.save()?;
-			let nft_id =
+			let _nft_id =
 				basepool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 
@@ -1343,7 +1339,12 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
-		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {}
+		fn on_stopped(
+			_worker: &WorkerPublicKey,
+			_orig_stake: BalanceOf<T>,
+			_slashed: BalanceOf<T>,
+		) {
+		}
 	}
 
 	pub fn pool_sub_account<T>(pid: u64, pubkey: &WorkerPublicKey) -> T

@@ -1,7 +1,4 @@
 pub use self::pallet::*;
-use crate::mining;
-
-use frame_support::traits::Currency;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -22,7 +19,7 @@ pub mod pallet {
 			tokens::nonfungibles::InspectEnumerable,
 			Currency,
 			ExistenceRequirement::{AllowDeath, KeepAlive},
-			LockableCurrency, OnUnbalanced, StorageVersion,
+			OnUnbalanced, StorageVersion,
 		},
 	};
 

@@ -1,10 +1,7 @@
 //! Pool for collaboratively mining staking
 
 pub use self::pallet::*;
-use crate::mining;
-use frame_support::traits::Currency;
 
-#[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
 	#[cfg(not(feature = "std"))]
@@ -24,9 +21,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{
-			tokens::nonfungibles::InspectEnumerable, LockableCurrency, StorageVersion, UnixTime,
-		},
+		traits::{tokens::nonfungibles::InspectEnumerable, StorageVersion, UnixTime},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
@@ -220,7 +215,7 @@ pub mod pallet {
 				Error::<T>::InvaildWithdrawSharesAmount
 			);
 			ensure!(shares > Zero::zero(), Error::<T>::NoRewardToClaim);
-			let nft_id = basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares)?;
+			let _nft_id = basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares)?;
 			pool_info.owner_shares -= shares;
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 			Self::deposit_event(Event::<T>::OwnerSharesStartWithdraw {
@@ -424,7 +419,6 @@ pub mod pallet {
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
-			let collection_id = pool_info.basepool.cid;
 			let nft_id = basepool::Pallet::<T>::merge_or_init_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
@@ -458,7 +452,7 @@ pub mod pallet {
 			basepool::Pallet::<T>::try_withdraw(&mut pool_info.basepool, nft, who.clone(), shares)?;
 
 			nft_guard.save()?;
-			let nft_id =
+			let _nft_id =
 				basepool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 

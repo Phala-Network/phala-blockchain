@@ -8,7 +8,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, StorageVersion, UnixTime},
+		traits::{StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;

@@ -13,8 +13,8 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			Currency, ExistenceRequirement::KeepAlive, LockableCurrency, OnUnbalanced, Randomness,
-			StorageVersion, UnixTime,
+			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
+			UnixTime,
 		},
 		PalletId,
 	};
