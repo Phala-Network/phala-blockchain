@@ -56,6 +56,10 @@ frame_support::construct_runtime!(
 	}
 );
 
+impl crate::PhalaConfig for Test {
+	type Currency = Balances;
+}
+
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 2;
 	pub const BlockHashCount: u64 = 250;
@@ -162,7 +166,6 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 
 impl registry::Config for Test {
 	type Event = Event;
-	type Currency = Balances;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;
@@ -223,7 +226,6 @@ impl mining::Config for Test {
 	type Event = Event;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
-	type Currency = Balances;
 	type Randomness = TestRandomness<Self>;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
@@ -238,7 +240,6 @@ parameter_types! {
 
 impl pawnshop::Config for Test {
 	type Event = Event;
-	type Currency = Balances;
 	type PPhaAssetId = PPhaAssetId;
 	type PawnShopAccountId = ConstU64<1234>;
 	type OnSlashed = ();
@@ -335,7 +336,6 @@ impl pallet_assets::Config for Test {
 
 impl stakepoolv2::Config for Test {
 	type Event = Event;
-	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
@@ -346,17 +346,14 @@ impl stakepoolv2::Config for Test {
 
 impl vault::Config for Test {
 	type Event = Event;
-	type Currency = Balances;
 }
 
 impl basepool::Config for Test {
 	type Event = Event;
-	type Currency = Balances;
 }
 
 impl ott::Config for Test {
 	type Event = Event;
-	type Currency = Balances;
 }
 
 pub struct MockValidator;

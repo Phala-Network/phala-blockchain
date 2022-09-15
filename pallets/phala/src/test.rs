@@ -19,7 +19,7 @@ use crate::mock::{
 };
 // Pallets
 use crate::mock::{
-	PhalaBasePool, PhalaMining, PhalaPawnshop, PhalaRegistry, PhalaStakePool, PhalaVault,
+	Balances, PhalaBasePool, PhalaMining, PhalaPawnshop, PhalaRegistry, PhalaStakePool, PhalaVault,
 };
 use pallet_democracy::AccountVote;
 use phala_types::{messaging::SettleInfo, WorkerPublicKey};
@@ -41,18 +41,14 @@ fn test_pool_subaccount() {
 fn test_pawn() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let free = <Test as mining::Config>::Currency::free_balance(
-			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
-		);
+		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 0);
-		let free = <Test as mining::Config>::Currency::free_balance(1);
+		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
-		let free = <Test as mining::Config>::Currency::free_balance(
-			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
-		);
+		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 100 * DOLLARS);
-		let free = <Test as mining::Config>::Currency::free_balance(1);
+		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
 		let ppha_free = get_balance(1);
 		assert_eq!(ppha_free, 100 * DOLLARS);
@@ -65,11 +61,9 @@ fn test_redeem() {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
 		assert_ok!(PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS,));
-		let free = <Test as mining::Config>::Currency::free_balance(1);
+		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = <Test as mining::Config>::Currency::free_balance(
-			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
-		);
+		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 50 * DOLLARS);
 		let ppha_free = get_balance(1);
 		assert_eq!(ppha_free, 50 * DOLLARS);
@@ -101,14 +95,14 @@ fn test_redeem_all() {
 			50 * DOLLARS,
 			None
 		));
-		let free = <Test as mining::Config>::Currency::free_balance(2);
+		let free = Balances::free_balance(2);
 		assert_eq!(free, 2000 * DOLLARS);
 		assert_ok!(PhalaPawnshop::redeem_all(Origin::signed(1)));
-		let free = <Test as mining::Config>::Currency::free_balance(1);
+		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 100 * DOLLARS));
 		assert_ok!(PhalaPawnshop::redeem_all(Origin::signed(2)));
-		let free = <Test as mining::Config>::Currency::free_balance(2);
+		let free = Balances::free_balance(2);
 		assert_eq!(free, 2000 * DOLLARS);
 	});
 }
@@ -1195,9 +1189,7 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		let free = <Test as mining::Config>::Currency::free_balance(
-			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
-		);
+		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }

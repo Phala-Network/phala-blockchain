@@ -13,6 +13,7 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::{BalanceOf, PhalaConfig};
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -23,10 +24,8 @@ pub mod pallet {
 	use sp_std::vec::Vec;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + PhalaConfig {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-		type Currency: Currency<Self::AccountId>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -55,9 +54,6 @@ pub mod pallet {
 		DestinationAlreadyBlacklisted,
 	}
 
-	type BalanceOf<T> =
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Distributes some amounts to each specified accounts and mark the sender and destination
@@ -83,7 +79,7 @@ pub mod pallet {
 			// Try to transfer (the entire call will be rolledback if there's no enough funds)
 			let mut blacklisted = Vec::<T::AccountId>::new();
 			for (dest, amount) in &transfers {
-				T::Currency::transfer(&who, dest, *amount, KeepAlive)?;
+				<T as PhalaConfig>::Currency::transfer(&who, dest, *amount, KeepAlive)?;
 				BlacklistedAccounts::<T>::insert(dest, ());
 				blacklisted.push(dest.clone());
 			}

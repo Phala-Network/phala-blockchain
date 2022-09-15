@@ -58,11 +58,8 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + crate::PhalaConfig {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-		/// The currency in which fees are paid and contract balances are held.
-		type Currency: Currency<Self::AccountId>;
 
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;

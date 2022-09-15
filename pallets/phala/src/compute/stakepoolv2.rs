@@ -4,9 +4,6 @@ pub use self::pallet::*;
 use crate::mining;
 use frame_support::traits::Currency;
 
-type BalanceOf<T> =
-	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
@@ -25,7 +22,7 @@ pub mod pallet {
 
 	use fixed::types::U64F64 as FixedPoint;
 
-	use super::BalanceOf;
+	use crate::BalanceOf;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -52,6 +49,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
+		+ crate::PhalaConfig
 		+ registry::Config
 		+ mining::Config
 		+ pallet_rmrk_core::Config
@@ -61,7 +59,6 @@ pub mod pallet {
 		+ pawnshop::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 
 		#[pallet::constant]
 		type MinContribution: Get<BalanceOf<Self>>;

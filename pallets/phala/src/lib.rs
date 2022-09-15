@@ -16,28 +16,36 @@ use utils::{attestation, balance_convert, constants};
 pub mod migrations;
 pub mod utils;
 
-pub mod basepool;
+pub mod compute;
 pub mod fat;
-pub mod mining;
 pub mod mq;
 pub mod ott;
-pub mod pawnshop;
-pub mod poolproxy;
 pub mod puppets;
 pub mod registry;
-pub mod stakepoolv2;
-pub mod vault;
+
+use compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
+
+use frame_support::traits::LockableCurrency;
+pub trait PhalaConfig: frame_system::Config {
+	type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+}
+type BalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
+	<T as frame_system::Config>::AccountId,
+>>::Balance;
+type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
 
 // Alias
-pub use basepool as pallet_basepool;
+pub use compute::basepool as pallet_basepool;
+pub use compute::mining as pallet_mining;
+pub use compute::pawnshop as pallet_pawnshop;
+pub use compute::stakepoolv2 as pallet_stakepool;
+pub use compute::vault as pallet_vault;
 pub use fat as pallet_fat;
-pub use mining as pallet_mining;
 pub use mq as pallet_mq;
 pub use ott as pallet_ott;
-pub use pawnshop as pallet_pawnshop;
 pub use registry as pallet_registry;
-pub use stakepoolv2 as pallet_stakepool;
-pub use vault as pallet_vault;
 
 #[cfg(feature = "native")]
 use sp_core::hashing;

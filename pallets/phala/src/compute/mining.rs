@@ -7,6 +7,7 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
+	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
 	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
 		dispatch::DispatchResult,
@@ -190,12 +191,11 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + mq::Config + registry::Config {
+	pub trait Config: frame_system::Config + PhalaConfig + mq::Config + registry::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type ExpectedBlockTimeSec: Get<u32>;
 		type MinInitP: Get<u32>;
 
-		type Currency: LockableCurrency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
@@ -410,13 +410,6 @@ pub mod pallet {
 		/// Internal error. A miner should never start with existing stake in the storage.
 		InternalErrorCannotStartWithExistingStake,
 	}
-
-	type BalanceOf<T> =
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-	type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
-		<T as frame_system::Config>::AccountId,
-	>>::NegativeImbalance;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -963,14 +956,14 @@ pub mod pallet {
 
 		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
 			let wallet = Self::account_id();
-			<T as Config>::Currency::transfer(&wallet, target, value, KeepAlive)
+			<T as PhalaConfig>::Currency::transfer(&wallet, target, value, KeepAlive)
 		}
 
 		pub fn withdraw_imbalance_from_subsidy_pool(
 			value: BalanceOf<T>,
 		) -> Result<NegativeImbalanceOf<T>, DispatchError> {
 			let wallet = Self::account_id();
-			<T as Config>::Currency::withdraw(
+			<T as PhalaConfig>::Currency::withdraw(
 				&wallet,
 				value,
 				WithdrawReasons::TRANSFER,
