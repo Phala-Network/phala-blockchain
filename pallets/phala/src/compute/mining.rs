@@ -2,7 +2,6 @@
 
 pub use self::pallet::*;
 
-#[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
@@ -159,21 +158,21 @@ pub mod pallet {
 	}
 
 	pub trait OnReward {
-		fn on_reward(settle: &[SettleInfo]) {}
+		fn on_reward(_settle: &[SettleInfo]) {}
 	}
 
 	pub trait OnUnbound {
 		/// Called when a worker was unbound from a miner.
 		///
 		/// `force` is set if the unbinding caused an unexpected miner shutdown.
-		fn on_unbound(worker: &WorkerPublicKey, force: bool) {}
+		fn on_unbound(_worker: &WorkerPublicKey, _force: bool) {}
 	}
 
 	pub trait OnStopped<Balance> {
 		/// Called with a miner is stopped and can already calculate the final slash and stake.
 		///
 		/// It guarantees the number will be the same as the return value of `reclaim()`
-		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
+		fn on_stopped(_worker: &WorkerPublicKey, _orig_stake: Balance, _slashed: Balance) {}
 	}
 
 	/// The stats of a mining session
@@ -582,7 +581,7 @@ pub mod pallet {
 						// code assumes the Miners, Workers, and worker score must exist.
 						let miner = Self::ensure_worker_bound(&worker)?;
 						let mut miner_info = Self::miners(&miner).expect("Bound miner; qed.");
-						let worker =
+						let _worker =
 							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
 						let now = Self::now_sec();
 						let challenge_time_sec = challenge_time / 1000;
@@ -1029,7 +1028,6 @@ pub mod pallet {
 		fn rig_cost(&self, p: u32) -> FixedPoint {
 			let cost_k = FixedPoint::from_bits(self.params.rig_k);
 			let cost_b = FixedPoint::from_bits(self.params.rig_b);
-			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
 			let p = FixedPoint::from_num(p);
 			cost_k * p + cost_b
 		}
@@ -1039,7 +1037,6 @@ pub mod pallet {
 		fn op_cost(&self, p: u32) -> FixedPoint {
 			let cost_k = FixedPoint::from_bits(self.params.cost_k);
 			let cost_b = FixedPoint::from_bits(self.params.cost_b);
-			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
 			let p = FixedPoint::from_num(p);
 			cost_k * p + cost_b
 		}
@@ -1103,7 +1100,7 @@ pub mod pallet {
 					cost_b: cost_b.to_bits(),
 					slash_rate: slash_rate.to_bits(),
 					treasury_ratio: treasury_ratio.to_bits(),
-					heartbeat_window: 10,
+					heartbeat_window,
 					rig_k: rig_k.to_bits(),
 					rig_b: rig_b.to_bits(),
 					re: re.to_bits(),
