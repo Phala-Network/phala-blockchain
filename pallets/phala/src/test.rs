@@ -64,11 +64,7 @@ fn test_redeem() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::redeem(
-			Origin::signed(1),
-			50 * DOLLARS,
-			false
-		));
+		assert_ok!(PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS,));
 		let free = <Test as mining::Config>::Currency::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
 		let free = <Test as mining::Config>::Currency::free_balance(
@@ -85,16 +81,9 @@ fn test_redeem() {
 			},
 		);
 		assert_noop!(
-			PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS, false),
+			PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS),
 			pawnshop::Error::<Test>::RedeemAmountExceedsAvaliableStake
 		);
-		assert_ok!(PhalaPawnshop::redeem(Origin::signed(1), 50 * DOLLARS, true));
-		let free = <Test as mining::Config>::Currency::free_balance(
-			&<Test as pawnshop::Config>::PawnShopAccountId::get(),
-		);
-		assert_eq!(free, 20 * DOLLARS);
-		let ppha_free = get_balance(1);
-		assert_eq!(ppha_free, 20 * DOLLARS);
 	});
 }
 

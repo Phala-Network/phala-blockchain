@@ -189,12 +189,7 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn redeem(
-			origin: OriginFor<T>,
-			amount: BalanceOf<T>,
-			best_effort: bool,
-		) -> DispatchResult {
-			let mut actual_amount = amount;
+		pub fn redeem(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
@@ -206,23 +201,17 @@ pub mod pallet {
 			let active_stakes = Self::get_net_value(user.clone())?;
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
-			if best_effort {
-				if actual_amount + staker_status.locked > active_stakes {
-					actual_amount = (active_stakes - staker_status.locked).min(free_stakes);
-				}
-			} else {
-				ensure!(
-					actual_amount + staker_status.locked <= active_stakes,
-					Error::<T>::RedeemAmountExceedsAvaliableStake,
-				);
-			}
+			ensure!(
+				amount + staker_status.locked <= active_stakes,
+				Error::<T>::RedeemAmountExceedsAvaliableStake,
+			);
 			<T as mining::Config>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
-				actual_amount,
+				amount,
 				AllowDeath,
 			)?;
-			Self::burn_from(&user, actual_amount)?;
+			Self::burn_from(&user, amount)?;
 
 			Ok(())
 		}
