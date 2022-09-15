@@ -68,8 +68,6 @@ pub mod pallet {
 		+ registry::Config
 		+ pallet_rmrk_core::Config
 		+ mining::Config
-		+ Encode
-		+ Decode
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
 	{

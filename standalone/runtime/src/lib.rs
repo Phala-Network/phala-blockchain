@@ -1532,19 +1532,6 @@ impl pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
 	}
 }
 
-
-impl Decode for Runtime {
-	fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
-		Ok(Self)
-	}
-}
-
-impl Encode for Runtime {
-	fn size_hint(&self) -> usize {
-		0
-	}
-}
-
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {

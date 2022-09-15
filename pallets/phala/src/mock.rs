@@ -359,18 +359,6 @@ impl ott::Config for Test {
 	type Currency = Balances;
 }
 
-impl Decode for Test {
-	fn decode<I: Input>(_input: &mut I) -> Result<Self, codec::Error> {
-		Ok(Self)
-	}
-}
-
-impl Encode for Test {
-	fn size_hint(&self) -> usize {
-		0
-	}
-}
-
 pub struct MockValidator;
 impl AttestationValidator for MockValidator {
 	fn validate(

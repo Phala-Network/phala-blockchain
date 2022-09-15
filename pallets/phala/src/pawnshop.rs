@@ -54,8 +54,6 @@ pub mod pallet {
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
 		+ basepool::Config
-		+ Encode
-		+ Decode
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
