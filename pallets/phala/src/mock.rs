@@ -1,6 +1,6 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, mining, mq, ott, pawnshop, registry, stakepoolv2, vault,
+	basepool, mining, mq, pawnshop, registry, stakepoolv2, vault,
 };
 
 use frame_support::{
@@ -50,7 +50,6 @@ frame_support::construct_runtime!(
 		PhalaVault: vault::{Pallet, Event<T>},
 		PhalaPawnshop: pawnshop::{Pallet, Event<T>},
 		PhalaBasePool: basepool::{Pallet, Event<T>},
-		PhalaOneshotTransfer: ott::{Pallet, Event<T>},
 	}
 );
 
@@ -347,10 +346,6 @@ impl vault::Config for Test {
 }
 
 impl basepool::Config for Test {
-	type Event = Event;
-}
-
-impl ott::Config for Test {
 	type Event = Event;
 }
 

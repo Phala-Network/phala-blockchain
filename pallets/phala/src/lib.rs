@@ -19,7 +19,6 @@ pub mod utils;
 pub mod compute;
 pub mod fat;
 pub mod mq;
-pub mod ott;
 pub mod puppets;
 pub mod registry;
 
@@ -44,7 +43,6 @@ pub use compute::stakepoolv2 as pallet_stakepool;
 pub use compute::vault as pallet_vault;
 pub use fat as pallet_fat;
 pub use mq as pallet_mq;
-pub use ott as pallet_ott;
 pub use registry as pallet_registry;
 
 #[cfg(feature = "native")]
