@@ -5,16 +5,30 @@ use frame_support::{
 };
 use log;
 
+use rmrk_traits::primitives::{CollectionId, NftId};
+
 type MiningBalanceOf<T> =
 	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
-	fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config
+	fat::Config
+	+ mining::Config
+	+ mq::Config
+	+ registry::Config
+	+ stakepoolv2::Config
+	+ basepool::Config
+	+ vault::Config
 {
 }
 impl<T> PhalaPallets for T where
-	T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config
+	T: fat::Config
+		+ mining::Config
+		+ mq::Config
+		+ registry::Config
+		+ stakepoolv2::Config
+		+ basepool::Config
+		+ vault::Config
 {
 }
 
@@ -32,7 +46,7 @@ fn get_versions<T: PhalaPallets>() -> Versions {
 		StorageVersion::get::<mining::Pallet<T>>(),
 		StorageVersion::get::<mq::Pallet<T>>(),
 		StorageVersion::get::<registry::Pallet<T>>(),
-		StorageVersion::get::<stakepool::Pallet<T>>(),
+		StorageVersion::get::<stakepoolv2::Pallet<T>>(),
 	)
 }
 
@@ -51,7 +65,7 @@ fn set_unified_versoin<T: PhalaPallets>(version: u16) {
 	StorageVersion::new(version).put::<mining::Pallet<T>>();
 	StorageVersion::new(version).put::<mq::Pallet<T>>();
 	StorageVersion::new(version).put::<registry::Pallet<T>>();
-	StorageVersion::new(version).put::<stakepool::Pallet<T>>();
+	StorageVersion::new(version).put::<stakepoolv2::Pallet<T>>();
 }
 
 pub mod v6 {
@@ -70,12 +84,15 @@ pub mod v6 {
 	where
 		T: PhalaPallets,
 		MiningBalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
-		T: mining::pallet::Config<Currency = <T as stakepool::pallet::Config>::Currency>,
+		T: mining::pallet::Config<Currency = <T as basepool::Config>::Currency>,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32>,
+		T: pallet_assets::Config<Balance = MiningBalanceOf<T>>,
 	{
 		if get_versions::<T>() == unified_versions::<T>(5) {
 			let mut weight: Weight = 0;
 			log::info!("Ᵽ migrating phala-pallets to v6");
-			weight += stakepool::Pallet::<T>::migration_remove_assignments();
+			weight += stakepoolv2::Pallet::<T>::migration_remove_assignments();
 			log::info!("Ᵽ pallets migrated to v6");
 
 			set_unified_versoin::<T>(6);

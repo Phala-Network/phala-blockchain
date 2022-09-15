@@ -27,9 +27,9 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey,
-		WorkerRegistrationInfo, wrap_content_to_sign, SignedContentType,
+		wrap_content_to_sign, ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
+		SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity,
+		WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -495,7 +495,8 @@ pub mod pallet {
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
-			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyRotation);
+			let data_to_sign =
+				wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyRotation);
 
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),

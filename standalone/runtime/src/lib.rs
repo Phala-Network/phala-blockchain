@@ -35,8 +35,9 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
-		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EitherOfDiverse, ConstU16, ConstU32
+		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EnsureOneOf, ConstU16, ConstU32, AsEnsureOriginWithArg, ConstU64, ConstU128, EitherOfDiverse, 
 	},
+	dispatch::Input,
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
 		DispatchClass, IdentityFee, Weight,
@@ -72,7 +73,7 @@ use sp_runtime::{
 		SaturatedConversion, StaticLookup,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedPointNumber, FixedU128, Perbill, Percent, Permill, Perquintill,
+	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, AccountId32, FixedU128,
 };
 use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
@@ -108,6 +109,9 @@ pub use phala_pallets::{
 	pallet_registry,
 	pallet_mining,
 	pallet_stakepool,
+	pallet_vault,
+	pallet_basepool,
+	pallet_pawnshop,
 	pallet_fat,
 	puppets,
 };
@@ -321,18 +325,18 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
 			ProxyType::StakePoolManager => matches!(
-                c,
-                Call::Utility { .. }
-                    | Call::PhalaStakePool(pallet_stakepool::Call::add_worker { .. })
-                    | Call::PhalaStakePool(pallet_stakepool::Call::remove_worker { .. })
-                    | Call::PhalaStakePool(pallet_stakepool::Call::start_mining { .. })
-                    | Call::PhalaStakePool(pallet_stakepool::Call::stop_mining { .. })
-                    | Call::PhalaStakePool(pallet_stakepool::Call::restart_mining { .. })
-                    | Call::PhalaStakePool(pallet_stakepool::Call::reclaim_pool_worker { .. })
-                    | Call::PhalaStakePool(pallet_stakepool::Call::create { .. })
-                    | Call::PhalaRegistry(pallet_registry::Call::register_worker { .. })
-                    | Call::PhalaMq(pallet_mq::Call::sync_offchain_message { .. })
-            ),
+				c,
+				Call::Utility { .. }
+					| Call::PhalaStakePool(pallet_stakepool::Call::add_worker { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::remove_worker { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::start_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::stop_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::restart_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::reclaim_pool_worker { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::create { .. })
+					| Call::PhalaRegistry(pallet_registry::Call::register_worker { .. })
+					| Call::PhalaMq(pallet_mq::Call::sync_offchain_message { .. })
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1294,14 +1298,118 @@ impl pallet_stakepool::Config for Runtime {
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
+}
+impl pallet_vault::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+parameter_types! {
+	pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
+	pub const ItemDeposit: Balance = 0; // 1/100 UNIT deposit to create item
+	pub const StringLimit: u32 = 52100;
+	pub const KeyLimit: u32 = 32000; // Max 32 bytes per key
+	pub const ValueLimit: u32 = 512000; // Max 64 bytes per value
+	pub const UniquesMetadataDepositBase: Balance = 0;
+	pub const AttributeDepositBase: Balance = 0;
+	pub const DepositPerByte: Balance = 0;
+}
+impl pallet_uniques::Config for Runtime {
+	type Event = Event;
+	type CollectionId = u32;
+	type ItemId = u32;
+	type Currency = Balances;
+	type ForceOrigin = EnsureRoot<AccountId>;
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<AccountId>>;
+	type Locker = pallet_rmrk_core::Pallet<Runtime>;
+	type CollectionDeposit = CollectionDeposit;
+	type ItemDeposit = ItemDeposit;
+	type MetadataDepositBase = UniquesMetadataDepositBase;
+	type AttributeDepositBase = AttributeDepositBase;
+	type DepositPerByte = DepositPerByte;
+	type StringLimit = StringLimit;
+	type KeyLimit = KeyLimit;
+	type ValueLimit = ValueLimit;
+	type WeightInfo = ();
+}
+parameter_types! {
+	pub ClassBondAmount: Balance = 100;
+	pub MaxMetadataLength: u32 = 256;
+	pub const MaxRecursions: u32 = 10;
+	pub const ResourceSymbolLimit: u32 = 10;
+	pub const PartsLimit: u32 = 10;
+	pub const MaxPriorities: u32 = 3;
+	pub const CollectionSymbolLimit: u32 = 100;
+	pub const MaxResourcesOnMint: u32 = 100;
+}
+impl pallet_rmrk_core::Config for Runtime {
+	type Event = Event;
+	type ProtocolOrigin = EnsureRoot<AccountId>;
+	type MaxRecursions = MaxRecursions;
+	type ResourceSymbolLimit = ResourceSymbolLimit;
+	type PartsLimit = PartsLimit;
+	type MaxPriorities = MaxPriorities;
+	type CollectionSymbolLimit = CollectionSymbolLimit;
+	type MaxResourcesOnMint = MaxResourcesOnMint;
 }
 impl pallet_fat::Config for Runtime {
 	type Event = Event;
 	type InkCodeSizeLimit = ConstU32<{1024*1024*2}>;
 	type SidevmCodeSizeLimit = ConstU32<{1024*1024*8}>;
+}
+
+parameter_types! {
+	pub const PPhaAssetId: u32 = 1;
+}
+
+pub struct PawnShopGet;
+
+impl Get<AccountId32> for PawnShopGet {
+	fn get() -> AccountId32 {
+		AccountId32::new([1; 32])
+	}
+}
+
+impl pallet_pawnshop::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type PPhaAssetId = PPhaAssetId;
+	type PawnShopAccountId = PawnShopGet;
+	type OnSlashed = Treasury;
+}
+
+impl pallet_basepool::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+
+parameter_types! {
+    pub const AssetDeposit: Balance = 1 * CENTS; // 1 CENTS deposit to create asset
+    pub const ApprovalDeposit: Balance = 1 * CENTS;
+    pub const AssetsStringLimit: u32 = 50;
+    pub const AssetAccountDeposit: u128 = 1 * DOLLARS;
+    /// Key = 32 bytes, Value = 36 bytes (32+1+1+1+1)
+    // https://github.com/paritytech/substrate/blob/069917b/frame/assets/src/lib.rs#L257L271
+    pub const MetadataDepositBase: Balance = deposit(1, 68);
+    pub const MetadataDepositPerByte: Balance = deposit(0, 1);
+}
+
+impl pallet_assets::Config for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type AssetId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type AssetDeposit = AssetDeposit;
+	type AssetAccountDeposit = ConstU128<10>;
+	type MetadataDepositBase = MetadataDepositBase;
+	type MetadataDepositPerByte = MetadataDepositPerByte;
+	type ApprovalDeposit = ApprovalDeposit;
+	type StringLimit = AssetsStringLimit;
+	type Freezer = ();
+	type Extra = ();
+	type WeightInfo = ();
 }
 
 impl puppets::parachain_info::Config for Runtime {}
@@ -1313,6 +1421,7 @@ construct_runtime!(
 		NodeBlock = node_primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
+		Assets: pallet_assets,
 		System: frame_system,
 		Utility: pallet_utility,
 		Babe: pallet_babe,
@@ -1356,11 +1465,18 @@ construct_runtime!(
 		PhalaRegistry: pallet_registry,
 		PhalaMining: pallet_mining,
 		PhalaStakePool: pallet_stakepool,
+		PhalaVault: pallet_vault,
+		PhalaPawnshop: pallet_pawnshop,
+		PhalaBasePool: pallet_basepool,
 		PhalaFatContracts: pallet_fat,
 
 		// Put them here to make sure pherry could be compiled with phala's metadata.
 		ParachainInfo: puppets::parachain_info,
 		ParachainSystem: puppets::parachain_system,
+
+		//NFT
+		Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
+		RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
 	}
 );
 
