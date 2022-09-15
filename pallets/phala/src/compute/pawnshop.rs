@@ -1,14 +1,4 @@
 pub use self::pallet::*;
-use crate::mining;
-
-use frame_support::traits::Currency;
-
-pub type BalanceOf<T> =
-	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-type NegativeImbalanceOf<T> = <<T as mining::Config>::Currency as Currency<
-	<T as frame_system::Config>::AccountId,
->>::NegativeImbalance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -20,7 +10,7 @@ pub mod pallet {
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
-	use super::{BalanceOf, NegativeImbalanceOf};
+	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
 
 	use frame_support::{
 		pallet_prelude::*,
@@ -29,7 +19,7 @@ pub mod pallet {
 			tokens::nonfungibles::InspectEnumerable,
 			Currency,
 			ExistenceRequirement::{AllowDeath, KeepAlive},
-			LockableCurrency, OnUnbalanced, StorageVersion,
+			OnUnbalanced, StorageVersion,
 		},
 	};
 
@@ -48,6 +38,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
+		+ crate::PhalaConfig
 		+ registry::Config
 		+ pallet_rmrk_core::Config
 		+ mining::Config
@@ -57,7 +48,6 @@ pub mod pallet {
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 		#[pallet::constant]
 		type PPhaAssetId: Get<u32>;
 
@@ -140,14 +130,14 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: pallet_democracy::Config<Currency = <T as mining::Config>::Currency>,
+		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn pawn(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
-			<T as mining::Config>::Currency::transfer(
+			<T as PhalaConfig>::Currency::transfer(
 				&user,
 				&T::PawnShopAccountId::get(),
 				amount,
@@ -175,7 +165,7 @@ pub mod pallet {
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
 			let withdraw_amount = (active_stakes - staker_status.locked).min(free_stakes);
-			<T as mining::Config>::Currency::transfer(
+			<T as PhalaConfig>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
 				withdraw_amount,
@@ -203,7 +193,7 @@ pub mod pallet {
 				amount + staker_status.locked <= active_stakes,
 				Error::<T>::RedeemAmountExceedsAvaliableStake,
 			);
-			<T as mining::Config>::Currency::transfer(
+			<T as PhalaConfig>::Currency::transfer(
 				&T::PawnShopAccountId::get(),
 				&user,
 				amount,
@@ -287,7 +277,7 @@ pub mod pallet {
 				let actual_removed =
 					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust)
 						.expect("slash should success with correct amount: qed.");
-				let (imbalance, _remaining) = <T as mining::Config>::Currency::slash(
+				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<mining::pallet::Pallet<T>>::account_id(),
 					dust,
 				);

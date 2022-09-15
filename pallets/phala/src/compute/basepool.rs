@@ -1,11 +1,6 @@
 pub use self::pallet::*;
-use crate::mining;
 
-use frame_support::traits::Currency;
 use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
-
-pub type BalanceOf<T> =
-	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -14,19 +9,20 @@ pub mod pallet {
 	use crate::poolproxy::*;
 	use crate::registry;
 	use crate::vault;
+	use crate::BalanceOf;
 
 	pub use rmrk_traits::{
 		primitives::{CollectionId, NftId},
 		Nft, Property,
 	};
 
-	use super::{extract_dust, is_nondust_balance, BalanceOf};
+	use super::{extract_dust, is_nondust_balance};
 
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, LockableCurrency,
-			StorageVersion, UnixTime,
+			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, StorageVersion,
+			UnixTime,
 		},
 	};
 
@@ -65,6 +61,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
+		+ crate::PhalaConfig
 		+ registry::Config
 		+ pallet_rmrk_core::Config
 		+ mining::Config
@@ -72,7 +69,6 @@ pub mod pallet {
 		+ pallet_democracy::Config
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]

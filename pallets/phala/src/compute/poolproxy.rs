@@ -6,6 +6,8 @@ use scale_info::TypeInfo;
 use sp_runtime::Permill;
 use sp_std::collections::vec_deque::VecDeque;
 
+use crate::BalanceOf;
+
 use frame_support::pallet_prelude::*;
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
@@ -75,7 +77,7 @@ pub enum PoolProxy<AccountId, Balance> {
 
 pub fn ensure_stake_pool<T: basepool::Config>(
 	pid: u64,
-) -> Result<StakePool<T::AccountId, basepool::BalanceOf<T>>, basepool::Error<T>> {
+) -> Result<StakePool<T::AccountId, BalanceOf<T>>, basepool::Error<T>> {
 	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
 		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
 	match pool_proxy {
@@ -86,7 +88,7 @@ pub fn ensure_stake_pool<T: basepool::Config>(
 
 pub fn ensure_vault<T: basepool::Config>(
 	pid: u64,
-) -> Result<Vault<T::AccountId, basepool::BalanceOf<T>>, basepool::Error<T>> {
+) -> Result<Vault<T::AccountId, BalanceOf<T>>, basepool::Error<T>> {
 	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
 		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
 	match pool_proxy {

@@ -1,14 +1,13 @@
 use crate::*;
 use frame_support::{
-	traits::{Currency, Get, StorageVersion},
+	traits::{Get, StorageVersion},
 	weights::Weight,
 };
 use log;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
-type MiningBalanceOf<T> =
-	<<T as mining::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+use crate::BalanceOf;
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
@@ -83,11 +82,10 @@ pub mod v6 {
 	pub fn migrate<T>() -> Weight
 	where
 		T: PhalaPallets,
-		MiningBalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
-		T: mining::pallet::Config<Currency = <T as basepool::Config>::Currency>,
+		BalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = MiningBalanceOf<T>>,
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		if get_versions::<T>() == unified_versions::<T>(5) {
 			let mut weight: Weight = 0;
