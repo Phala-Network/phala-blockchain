@@ -29,7 +29,7 @@ mod system {
 
     impl System {
         #[ink(constructor)]
-        pub fn new() -> Self {
+        pub fn default() -> Self {
             ink_lang::utils::initialize_contract(|me: &mut Self| me.owner = Self::env().caller())
         }
 

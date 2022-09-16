@@ -1554,16 +1554,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &event.cluster);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-
             let system_code = block
                 .storage
                 .pink_system_code()
                 .unwrap_or_else(|| pink::DEFAULT_SYSTEM_CODE.to_vec());
-
-            info!(
-                "Worker: creating cluster {}, owner={}",
-                event.cluster, event.owner
-            );
+            info!("Worker: creating cluster {}, owner={}", event.cluster, event.owner);
             // register cluster
             let cluster = self
                 .contract_clusters
@@ -1571,7 +1566,8 @@ impl<Platform: pal::Platform> System<Platform> {
             let code_hash = cluster
                 .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
                 .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
-            let selector = vec![0x9b, 0xae, 0x9d, 0x5e]; // System::new
+            info!("Worker: pink system code hash {}", code_hash);
+            let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
 
             let (pink, effects) = Pink::instantiate(
                 event.cluster,
