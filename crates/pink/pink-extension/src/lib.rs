@@ -28,6 +28,8 @@ const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
+pub type EcdsaPublicKey = [u8; 33];
+pub type EcdsaSignature = [u8; 65];
 
 /// A phala-mq message
 #[derive(Encode, Decode, Debug)]

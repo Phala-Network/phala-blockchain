@@ -1,5 +1,8 @@
-use pink_extension::chain_extension as ext;
+use std::borrow::Cow;
+
+use pink_extension::chain_extension::SigType;
 use pink_extension::chain_extension::mock::mock_all_with;
+use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
 
 pub struct MockExtension;
@@ -23,20 +26,31 @@ impl ext::PinkExtBackend for MockExtension {
         super::DefaultPinkExtension::new(self).http_request(request)
     }
 
-    fn sign(&self, args: ext::SignArgs) -> Result<Vec<u8>, Self::Error> {
-        super::DefaultPinkExtension::new(self).sign(args)
+    fn sign(
+        &self,
+        sigtype: SigType,
+        key: Cow<[u8]>,
+        message: Cow<[u8]>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        super::DefaultPinkExtension::new(self).sign(sigtype, key, message)
     }
 
-    fn verify(&self, args: ext::VerifyArgs) -> Result<bool, Self::Error> {
-        super::DefaultPinkExtension::new(self).verify(args)
+    fn verify(
+        &self,
+        sigtype: SigType,
+        pubkey: Cow<[u8]>,
+        message: Cow<[u8]>,
+        signature: Cow<[u8]>,
+    ) -> Result<bool, Self::Error> {
+        super::DefaultPinkExtension::new(self).verify(sigtype, pubkey, message, signature)
     }
 
     fn derive_sr25519_key(&self, salt: std::borrow::Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
         super::DefaultPinkExtension::new(self).derive_sr25519_key(salt)
     }
 
-    fn get_public_key(&self, args: ext::PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
-        super::DefaultPinkExtension::new(self).get_public_key(args)
+    fn get_public_key(&self, sigtype: SigType, key: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        super::DefaultPinkExtension::new(self).get_public_key(sigtype, key)
     }
 
     fn cache_set(
@@ -76,6 +90,27 @@ impl ext::PinkExtBackend for MockExtension {
     }
 
     type Error = String;
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        super::DefaultPinkExtension::new(self).ecdsa_sign_prehashed(key, message_hash)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        super::DefaultPinkExtension::new(self).ecdsa_verify_prehashed(
+            signature,
+            message_hash,
+            pubkey,
+        )
+    }
 }
 
 thread_local! {
