@@ -176,16 +176,19 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "for dev"]
     fn show_patch_result() {
         let stream = patch(
             syn::parse_quote! {
+                #[ink::trait_definition(namespace = "pink_system")]
                 pub trait System {
                     #[ink(message)]
                     fn get_driver(&self, name: String) -> Option<AccountId>;
 
                     #[ink(message)]
                     fn set_driver(&self, name: String, driver: AccountId);
+
+                    #[ink(message)]
+                    fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()>;
                 }
             },
             syn::parse_quote!(),
