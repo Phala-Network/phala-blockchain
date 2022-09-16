@@ -1240,9 +1240,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
                 if cluster.system_contract().is_none() {
-                    return Err(anyhow::anyhow!(
-                        "The system contract of the cluster is missing, Cannot deploy contract"
-                    ));
+                    anyhow::bail!("The system contract is missing, Cannot deploy contract");
                 }
                 // We generate a unique key for each contract instead of
                 // sharing the same cluster key to prevent replay attack
@@ -1570,7 +1568,6 @@ impl<Platform: pal::Platform> System<Platform> {
             let cluster = self
                 .contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
-            // TODO: on error, mark the cluster to invalid state?
             let actual_hash = cluster
                 .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
                 .or(Err(TransactionError::FaileToUploadResourceToCluster))?;
