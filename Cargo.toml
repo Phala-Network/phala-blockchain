@@ -29,6 +29,7 @@ exclude = [
 	"standalone/prouter",
 	"crates/pink-libs/system",
 	"crates/pink-libs/sidevmop",
+	"e2e/res/check_system",
 ]
 
 members = [

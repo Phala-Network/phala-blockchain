@@ -503,8 +503,9 @@ describe('A full stack', function () {
     });
 
     describe('Cluster & Contract', () => {
-        let wasmFile = './res/flipper.wasm';
-        let codeHash = hex('0x5b1f7f0b85908c168c0d0ca65efae0e916455bf527b8589d3e655311ec7b1f2c');
+        let contractFile = './res/check_system/target/ink/check_system.contract';
+        let contract = JSON.parse(fs.readFileSync(contractFile)).source;
+        let codeHash = hex(contract.hash);
         let initSelector = hex('0xed4b9d1b'); // for default() function
         let clusterId;
 
@@ -523,6 +524,11 @@ describe('A full stack', function () {
                 clusterId = clusters[0][0].args[0].toString();
                 return clusters.length == 1;
             }, 4 * 6000), 'cluster creation failed');
+
+            assert.isTrue(await checkUntil(async () => {
+                let info = await pruntime[0].getInfo();
+                return info.numberOfClusters == 1;
+            }, 4 * 6000), 'cluster creation in pruntime failed');
         });
 
         it('can generate cluster key', async function () {
@@ -540,7 +546,7 @@ describe('A full stack', function () {
         });
 
         it('can upload code with access control', async function () {
-            let code = fs.readFileSync(wasmFile, 'hex');
+            let code = hex(contract.wasm);
             let InkCode = 0;
             // For now, there is no way to check whether code is uploaded in script
             // since this requires monitering the async CodeUploaded event
@@ -581,7 +587,8 @@ describe('A full stack', function () {
 
             assert.isTrue(await checkUntil(async () => {
                 let clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
-                return clusterContracts.length == 1;
+                // A system contract and the user deployed one.
+                return clusterContracts.length == 2;
             }, 4 * 6000), 'instantiation failed');
         });
 
@@ -591,6 +598,17 @@ describe('A full stack', function () {
                 api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
                 alice,
             );
+        });
+
+        it('can destory cluster', async function () {
+            await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaFatContracts.clusterDestroy(clusterId)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                let info = await pruntime[0].getInfo();
+                return info.numberOfClusters == 0;
+            }, 4 * 6000), 'destroy cluster failed');
         });
     });
 
