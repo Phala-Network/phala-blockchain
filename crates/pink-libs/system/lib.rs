@@ -4,6 +4,8 @@ extern crate alloc;
 
 use pink_extension as pink;
 
+pub use system::System;
+
 #[pink::contract(env = PinkEnvironment)]
 mod system {
     use super::pink;
@@ -75,8 +77,8 @@ mod system {
         #[ink(message)]
         fn deploy_sidevm_to(
             &self,
-            code_hash: pink::Hash,
             contract_id: AccountId,
+            code_hash: pink::Hash,
         ) -> Result<()> {
             self.ensure_admin()?;
             pink::deploy_sidevm_to(contract_id, code_hash);
@@ -114,7 +116,7 @@ mod system {
 
             let driver_id = [1u8; 32].into();
             system
-                .set_driver("Hello".into(), driver_id)
+                .set_driver(driver_name.into(), driver_id)
                 .expect("Set driver failed");
             let driver = system.get_driver(driver_name.into());
             assert_eq!(driver, Some(driver_id));

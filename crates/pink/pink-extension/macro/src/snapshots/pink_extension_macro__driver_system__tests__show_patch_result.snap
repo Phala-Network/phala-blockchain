@@ -23,28 +23,10 @@ mod _pink_system_impl {
     pub enum SystemRef {
         Instance(AccountId),
         #[cfg(feature = "std")]
-        Mock(
-            &'static mut dyn System<
-                Env = PinkEnvironment,
-                __ink_TraitInfo = TraitInfo,
-                getDriverOutput = Option<AccountId>,
-                setDriverOutput = (),
-                deploySidevmToOutput = Result<()>,
-            >,
-        ),
+        Mock,
     }
     #[cfg(feature = "std")]
-    static mut MOCK: Option<
-        Box<
-            dyn System<
-                Env = PinkEnvironment,
-                __ink_TraitInfo = TraitInfo,
-                getDriverOutput = Option<AccountId>,
-                setDriverOutput = (),
-                deploySidevmToOutput = Result<()>,
-            >,
-        >,
-    > = None;
+    thread_local! { static MOCK : core :: cell :: RefCell < Option < Box < dyn System < Env = PinkEnvironment , __ink_TraitInfo = TraitInfo , getDriverOutput = Option < AccountId > , setDriverOutput = () , deploySidevmToOutput = Result < () > , > , >> , > = Default :: default () ; }
     impl SystemRef {
         #[cfg(feature = "std")]
         pub fn mock_with(
@@ -56,14 +38,14 @@ mod _pink_system_impl {
                     deploySidevmToOutput = Result<()>,
                 > + 'static,
         ) {
-            unsafe { MOCK = Some(Box::new(contract)) }
+            MOCK.with(|x| {
+                *x.borrow_mut() = Some(Box::new(contract));
+            });
         }
         pub fn instance() -> Self {
             #[cfg(feature = "std")]
-            unsafe {
-                if let Some(mocked) = MOCK.as_mut() {
-                    return Self::Mock(&mut **mocked);
-                }
+            if MOCK.with(|x| x.borrow_mut().is_some()) {
+                return Self::Mock;
             }
             Self::Instance(pink_extension::ext().system_contract_id())
         }
@@ -76,7 +58,11 @@ mod _pink_system_impl {
                     forwarder.get_driver(name)
                 }
                 #[cfg(feature = "std")]
-                SystemRef::Mock(forwarder) => forwarder.get_driver(name),
+                SystemRef::Mock => MOCK.with(move |x| {
+                    let mut borrow = x.borrow_mut();
+                    let forwarder = &mut *borrow;
+                    forwarder.as_mut().unwrap().get_driver(name)
+                }),
             }
         }
         pub fn set_driver(&self, name: String, driver: AccountId) {
@@ -86,7 +72,11 @@ mod _pink_system_impl {
                     forwarder.set_driver(name, driver)
                 }
                 #[cfg(feature = "std")]
-                SystemRef::Mock(forwarder) => forwarder.set_driver(name, driver),
+                SystemRef::Mock => MOCK.with(move |x| {
+                    let mut borrow = x.borrow_mut();
+                    let forwarder = &mut *borrow;
+                    forwarder.as_mut().unwrap().set_driver(name, driver)
+                }),
             }
         }
         pub fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()> {
@@ -96,7 +86,14 @@ mod _pink_system_impl {
                     forwarder.deploy_sidevm_to(code_hash, contract_id)
                 }
                 #[cfg(feature = "std")]
-                SystemRef::Mock(forwarder) => forwarder.deploy_sidevm_to(code_hash, contract_id),
+                SystemRef::Mock => MOCK.with(move |x| {
+                    let mut borrow = x.borrow_mut();
+                    let forwarder = &mut *borrow;
+                    forwarder
+                        .as_mut()
+                        .unwrap()
+                        .deploy_sidevm_to(code_hash, contract_id)
+                }),
             }
         }
     }

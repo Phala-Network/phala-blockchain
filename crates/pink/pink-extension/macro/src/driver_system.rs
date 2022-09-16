@@ -79,10 +79,8 @@ fn patch_or_err(
         InterfaceType::System => quote! {
             pub fn instance() -> Self {
                 #[cfg(feature = "std")]
-                unsafe {
-                    if let Some(mocked) = MOCK.as_mut() {
-                        return Self::Mock(&mut **mocked);
-                    }
+                if MOCK.with(|x| { x.borrow_mut().is_some() }) {
+                    return Self::Mock;
                 }
                 Self::Instance(#crate_pink_extension::ext().system_contract_id())
             }
@@ -92,10 +90,8 @@ fn patch_or_err(
             quote! {
                 pub fn instance() -> Option<Self> {
                     #[cfg(feature = "std")]
-                    unsafe {
-                        if let Some(mocked) = MOCK.as_mut() {
-                            return Some(Self::Mock(&mut **mocked));
-                        }
+                    if MOCK.with(|x| { x.borrow_mut().is_some() }) {
+                        return Some(Self::Mock);
                     }
                     let system = #crate_pink_extension::system::SystemRef::instance();
                     Some(Self::Instance(system.get_driver(#driver_name.into())?))
@@ -119,25 +115,21 @@ fn patch_or_err(
             pub enum #impl_type {
                 Instance(AccountId),
                 #[cfg(feature = "std")]
-                Mock(
-                    &'static mut dyn #trait_ident<
-                        Env = PinkEnvironment,
-                        __ink_TraitInfo = TraitInfo,
-                        #(#associated_types_t = #associated_types_v,)*
-                    >,
-                ),
+                Mock,
             }
 
             #[cfg(feature = "std")]
-            static mut MOCK: Option<
-                Box<
-                    dyn #trait_ident<
-                        Env = PinkEnvironment,
-                        __ink_TraitInfo = TraitInfo,
-                        #(#associated_types_t = #associated_types_v,)*
-                    >,
-                >,
-            > = None;
+            thread_local! {
+                static MOCK: core::cell::RefCell<Option<
+                    Box<
+                        dyn #trait_ident<
+                            Env = PinkEnvironment,
+                            __ink_TraitInfo = TraitInfo,
+                            #(#associated_types_t = #associated_types_v,)*
+                        >,
+                    >>,
+                > = Default::default();
+            }
 
             impl #impl_type {
                 #[cfg(feature = "std")]
@@ -148,7 +140,9 @@ fn patch_or_err(
                         #(#associated_types_t = #associated_types_v,)*
                     > + 'static,
                 ) {
-                    unsafe { MOCK = Some(Box::new(contract)) }
+                    MOCK.with(|x| {
+                        *x.borrow_mut() = Some(Box::new(contract));
+                    });
                 }
 
                 #fn_instance
@@ -162,7 +156,13 @@ fn patch_or_err(
                                 forwarder.#method_forward_calls
                             }
                             #[cfg(feature = "std")]
-                            #impl_type::Mock(forwarder) => forwarder.#method_forward_calls,
+                            #impl_type::Mock => {
+                                MOCK.with(move |x| {
+                                    let mut borrow = x.borrow_mut();
+                                    let forwarder = &mut *borrow;
+                                    forwarder.as_mut().unwrap().#method_forward_calls
+                                })
+                            }
                         }
                     }
                 )*

@@ -42,7 +42,7 @@ pub trait System {
     /// Deploy a sidevm instance attached to a given contract.
     /// The caller must be an administrator.
     #[ink(message)]
-    fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()>;
+    fn deploy_sidevm_to(&self, contract_id: AccountId, code_hash: Hash) -> Result<()>;
 
     /// Stop a sidevm instance attached to a given contract.
     /// The caller must be an administrator.

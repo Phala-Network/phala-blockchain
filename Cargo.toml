@@ -28,6 +28,7 @@ exclude = [
 	"standalone/pruntime",
 	"standalone/prouter",
 	"crates/pink-libs/system",
+	"crates/pink-libs/sidevmop",
 ]
 
 members = [
