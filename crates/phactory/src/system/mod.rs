@@ -105,7 +105,7 @@ pub enum TransactionError {
     // for contract
     CodeNotFound,
     DuplicatedClusterDeploy,
-    FaileToUploadResourceToCluster,
+    FailedToUploadResourceToCluster,
     NoClusterOnGatekeeper,
 }
 
@@ -1568,16 +1568,17 @@ impl<Platform: pal::Platform> System<Platform> {
             let cluster = self
                 .contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
-            let actual_hash = cluster
+            let code_hash = cluster
                 .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
-                .or(Err(TransactionError::FaileToUploadResourceToCluster))?;
+                .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
+            let selector = vec![0x9b, 0xae, 0x9d, 0x5e]; // System::new
 
             let (pink, effects) = Pink::instantiate(
                 event.cluster,
                 &mut cluster.storage,
                 event.owner.clone(),
-                actual_hash,
-                vec![0x9b, 0xae, 0x9d, 0x5e], // System::new
+                code_hash,
+                selector,
                 vec![],
                 block.block_number,
                 block.now_ms,
