@@ -242,7 +242,7 @@ impl PinkExtBackend for CallInQuery {
         DefaultPinkExtension::new(self).getrandom(length)
     }
 
-    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
         Ok(false)
     }
 
@@ -357,7 +357,7 @@ impl PinkExtBackend for CallInCommand {
         Err("getrandom is not allowed in command".into())
     }
 
-    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
         Ok(true)
     }
 

@@ -206,7 +206,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(buf)
     }
 
-    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
         Ok(false)
     }
 
