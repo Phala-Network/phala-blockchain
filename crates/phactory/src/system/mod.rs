@@ -1239,6 +1239,11 @@ impl<Platform: pal::Platform> System<Platform> {
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
+                if cluster.system_contract().is_none() {
+                    return Err(anyhow::anyhow!(
+                        "The system contract of the cluster is missing, Cannot deploy contract"
+                    ));
+                }
                 // We generate a unique key for each contract instead of
                 // sharing the same cluster key to prevent replay attack
                 let contract_id = contract_info.contract_id(blake2_256);
@@ -1557,7 +1562,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 .pink_system_code()
                 .unwrap_or_else(|| pink::DEFAULT_SYSTEM_CODE.to_vec());
 
-            info!("Worker: creating cluster {}, owner={}", event.cluster, event.owner);
+            info!(
+                "Worker: creating cluster {}, owner={}",
+                event.cluster, event.owner
+            );
             // register cluster
             let cluster = self
                 .contract_clusters
