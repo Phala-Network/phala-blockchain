@@ -509,6 +509,18 @@ describe('A full stack', function () {
         let initSelector = hex('0xed4b9d1b'); // for default() function
         let clusterId;
 
+        it('can upload system code', async function () {
+            let system_code = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
+            await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(system_code)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                let code = await api.query.phalaFatContracts.pinkSystemCode();
+                return code == system_code;
+            }, 4 * 6000), 'upload system code failed');
+        });
+
         it('can create cluster', async function () {
             const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
             const runtime0 = await pruntime[0].getInfo();

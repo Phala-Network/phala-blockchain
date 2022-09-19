@@ -1554,11 +1554,14 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &event.cluster);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-            let system_code = block
-                .storage
-                .pink_system_code()
-                .unwrap_or_else(|| pink::DEFAULT_SYSTEM_CODE.to_vec());
-            info!("Worker: creating cluster {}, owner={}", event.cluster, event.owner);
+            let system_code = block.storage.pink_system_code().unwrap_or_else(|| {
+                info!("Using the default pink-system code");
+                pink::DEFAULT_SYSTEM_CODE.to_vec()
+            });
+            info!(
+                "Worker: creating cluster {}, owner={}, code length={}",
+                event.cluster, event.owner, system_code.len()
+            );
             // register cluster
             let cluster = self
                 .contract_clusters
