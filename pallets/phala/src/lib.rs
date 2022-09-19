@@ -25,12 +25,15 @@ pub mod registry;
 use compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
 
 use frame_support::traits::LockableCurrency;
+/// The unify config of pallets in compute
 pub trait PhalaConfig: frame_system::Config {
 	type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 }
+/// The unify type Blance of pallets in compute with template T.
 type BalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
+/// The unify type ImBlance of pallets in compute with template T.
 type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;

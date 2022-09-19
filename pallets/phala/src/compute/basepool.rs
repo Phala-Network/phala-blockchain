@@ -83,19 +83,23 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
+	/// Mapping from the next self-increased nftids to collections 
 	#[pallet::storage]
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
+
 	/// The number of total pools
 	#[pallet::storage]
 	#[pallet::getter(fn pool_count)]
 	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
+	/// Mapping from Pools(including stakepools and vaults) to pids
 	#[pallet::storage]
 	#[pallet::getter(fn pool_collection)]
 	pub type Pools<T: Config> =
 		StorageMap<_, Twox64Concat, u64, PoolProxy<T::AccountId, BalanceOf<T>>>;
 
+	/// Mqpping from the spinlock status to nft-attrs
 	#[pallet::storage]
 	pub(super) type NftLocks<T: Config> = StorageMap<_, Twox64Concat, (CollectionId, NftId), ()>;
 
@@ -106,7 +110,7 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - a new item is inserted to or an old item is being replaced by the new item in the
-		///   withdraw queue in [`StakePools`]
+		///   withdraw queue in [`Pools`]
 		WithdrawalQueued {
 			pid: u64,
 			user: T::AccountId,
@@ -118,9 +122,8 @@ pub mod pallet {
 		/// locked stake.
 		///
 		/// Affected states:
-		/// - the stake related fields in [`StakePools`]
-		/// - the user staking account at [`PoolStakers`]
-		/// - the locking ledger of the contributor at [`StakeLedger`]
+		/// - the stake related fields in [`Pools`]
+		/// - the user staking asset account
 		Withdrawal {
 			pid: u64,
 			user: T::AccountId,
@@ -144,44 +147,63 @@ pub mod pallet {
 		InvalidWithdrawalAmount,
 		/// RMRK errors
 		RmrkError,
-
+		/// The Specific pid does not match to any pools
 		PoolDoesNotExist,
-
+		/// Occurs when tring to get a stakepool from a PoolProxy contains a vault or vault from a stakepool instead.
 		PoolTypeNotMatch,
-
+		/// NftId does not match any nft
 		NoAvailableNftId,
-
+		/// Occurs when pool's shares is zero
 		InvalidSharePrice,
-
+		/// Try to get a NftGuard when the nft's spinlock is active
 		AttrLocked,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct BasePool<AccountId, Balance> {
+		/// Pool ID
 		pub pid: u64,
-
+		/// The owner of the pool
 		pub owner: AccountId,
-
+		/// Total shares
+		///
+		/// It tracks the total number of shared of all the contributors. Guaranteed to be
+		/// non-dust.
 		pub total_shares: Balance,
-
+		/// It tracks the current asset value owned by the pool
+		///
+		/// Including:
+		/// 1.Freestakes of the pool (both case)
+		/// 2.Stakes bounded to the miner (stakepool case)
+		/// 3.Shares' current values owned by pool_account_id (vault case)
+		/// 4.Shares' current values which is in withdraw_queue (both case)
 		pub total_value: Balance,
-
+		/// The queue of withdraw requests
 		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId>>,
-
+		/// The list of stakepools delegated by the vault
 		pub value_subscribers: VecDeque<u64>,
-
+		/// The collection_id of the pool
 		pub cid: CollectionId,
-
+		/// The account used when the pool is acting as a delegater role
+		///
+		/// Usage:
+		/// 1.Maintains freestakes of the pool with its asset account
+		/// 2.Contributes or withdraws from a stakepool (vault case)
 		pub pool_account_id: AccountId,
 	}
 
+	/// The lockguard of nft-attr
 	#[derive(Encode, Decode, TypeInfo, PartialEq, Eq, RuntimeDebug)]
 	pub struct NftGuard<T: Config> {
+		/// CollectionId of the nft
 		cid: CollectionId,
+		/// Nft's ID
 		nftid: NftId,
+		/// Nft-attr instance
 		pub attr: NftAttr<BalanceOf<T>>,
 	}
 
+	/// Unlock the nft spinlock when nftguard deconstructed
 	impl<T: Config> Drop for NftGuard<T> {
 		fn drop(&mut self) {
 			NftLocks::<T>::remove((self.cid, self.nftid));
@@ -189,6 +211,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> NftGuard<T> {
+		/// Only way to save nft's attributes from outside the pallet
 		pub fn save(self) -> DispatchResult
 		where
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
@@ -200,6 +223,7 @@ pub mod pallet {
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
 		}
+		/// Deconstruct nftguard actively, used on read-only case
 		pub fn unlock(self) {}
 	}
 
@@ -249,6 +273,8 @@ pub mod pallet {
 		//
 		// Additional rewards contribute to the face value of the pool shares. The value of each
 		// share effectively grows by (rewards / total_shares).
+		//
+		// Will do recurrence to adjust total_values of vault which contributed to the rewarded stakepool.
 		//
 		// Warning: `total_reward` mustn't be zero.
 		// TODO(mingxuan): must be checked carfully before final merge.
@@ -301,6 +327,7 @@ pub mod pallet {
 		}
 	}
 
+	/// Return the account_id that globally issue all nfts that contains pool-shares
 	pub fn pallet_id<T>() -> T
 	where
 		T: Encode + Decode,
@@ -317,6 +344,9 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + pawnshop::Config + vault::Config,
 	{
+		/// Returns a nft_guard object that can read or write nft-attr of a nft
+		///
+		/// Will Return error when another nft_guard object of the nft is alive
 		pub fn get_nft_attr_guard(
 			cid: CollectionId,
 			nftid: NftId,
@@ -334,6 +364,12 @@ pub mod pallet {
 			Ok(guard)
 		}
 
+		/// The core procedure that contributes some stake to a pool
+		///
+		/// Before mint a new nft to the delegater, the function will try to merge all nfts in the pool-collection into on unify nft
+		///
+		/// Requires:
+		/// 1. The pool exists
 		#[frame_support::transactional]
 		pub fn contribute(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
@@ -355,17 +391,12 @@ pub mod pallet {
 			Ok(shares)
 		}
 
-		/// Tries to withdraw a specific amount from a pool.
+		/// Split a new nft with required withdraw shares and push it to the end of the withdraw_queue
 		///
-		/// The withdraw request would be delayed if the free stake is not enough, otherwise
-		/// withdraw from the free stake immediately.
+		/// The nft contains withdraw shares is owned by the global pallet_account_id, and record the staker it should belongs to.
 		///
-		/// The updates are made in `pool_info` and `user_info`. It's up to the caller to persist
-		/// the data.
-		///
-		/// Requires:
-		/// 1. The user's pending slash is already settled.
-		/// 2. The pool must has shares and stake (or it can cause division by zero error)
+		/// If there already has a withdraw request queued by the staker, the formal withdraw request 
+		/// would be poped out and return shares inside to the staker
 		#[frame_support::transactional]
 		pub fn push_withdraw_in_queue(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
@@ -418,12 +449,17 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Return the new pid that will assigned to the creating pool
 		pub fn consume_new_pid() -> u64 {
 			let pid = PoolCount::<T>::get();
 			PoolCount::<T>::put(pid + 1);
 			pid
 		}
 
+		/// Check if there has expired withdraw request in the withdraw queue
+		///
+		/// Releasing stakes (stakes in miners that is cooling down (stakepool case), or shares in withdraw_queue (vault case))
+		/// should be caculated outside the function and put in
 		pub fn has_expired_withdrawal(
 			pool: &BasePool<T::AccountId, BalanceOf<T>>,
 			now: u64,
@@ -517,6 +553,7 @@ pub mod pallet {
 			Some((amount, removed_shares))
 		}
 
+		/// Mint a nft and wrap some shares within
 		#[frame_support::transactional]
 		pub fn mint_nft(
 			cid: CollectionId,
@@ -546,6 +583,7 @@ pub mod pallet {
 			Ok(nft_id)
 		}
 
+		/// Simpily burn the nft
 		#[frame_support::transactional]
 		pub fn burn_nft(owner: &T::AccountId, cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
@@ -570,6 +608,8 @@ pub mod pallet {
 			Self::mint_nft(cid, staker, total_shares)
 		}
 
+
+		/// Get nft attr, can only be called in the pallet
 		fn get_nft_attr(
 			cid: CollectionId,
 			nft_id: NftId,
@@ -585,6 +625,7 @@ pub mod pallet {
 			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
 		}
 
+		/// Get
 		pub fn get_next_nft_id(collection_id: CollectionId) -> Result<NftId, Error<T>> {
 			NextNftId::<T>::try_mutate(collection_id, |id| {
 				let current_id = *id;
