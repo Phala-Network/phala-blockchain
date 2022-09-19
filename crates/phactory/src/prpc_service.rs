@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::future::Future;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
@@ -1320,5 +1321,69 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> Result<(), prpc::server::Error> {
         self.lock_phactory().set_netconfig(request);
         Ok(())
+    }
+
+    async fn http_fetch(
+        &mut self,
+        request: pb::HttpRequest,
+    ) -> Result<pb::HttpResponse, prpc::server::Error> {
+        use reqwest::{
+            header::{HeaderMap, HeaderName, HeaderValue},
+            Method,
+        };
+        use reqwest_env_proxy::EnvProxyBuilder;
+
+        let url: reqwest::Url = request.url.parse().map_err(from_debug)?;
+
+        let client = reqwest::Client::builder()
+            .env_proxy(url.host_str().unwrap_or_default())
+            .build()
+            .map_err(from_debug)?;
+
+        let method: Method = FromStr::from_str(&request.method)
+            .or(Err("Invalid HTTP method"))
+            .map_err(from_display)?;
+        let mut headers = HeaderMap::new();
+        for header in &request.headers {
+            let name = HeaderName::from_str(&header.name)
+                .or(Err("Invalid HTTP header key"))
+                .map_err(from_display)?;
+            let value = HeaderValue::from_str(&header.value)
+                .or(Err("Invalid HTTP header value"))
+                .map_err(from_display)?;
+            headers.insert(name, value);
+        }
+
+        let response = client
+            .request(method, url)
+            .headers(headers)
+            .body(request.body)
+            .send()
+            .await
+            .map_err(from_debug)?;
+
+        let headers: Vec<_> = response
+            .headers()
+            .iter()
+            .map(|(name, value)| {
+                let name = name.to_string();
+                let value = value.to_str().unwrap_or_default().into();
+                pb::HttpHeader { name, value }
+            })
+            .collect();
+
+        let status_code = response.status().as_u16() as _;
+        let body = response
+            .bytes()
+            .await
+            .or(Err("Failed to copy response body"))
+            .map_err(from_display)?
+            .to_vec();
+
+        Ok(pb::HttpResponse {
+            status_code,
+            body,
+            headers,
+        })
     }
 }
