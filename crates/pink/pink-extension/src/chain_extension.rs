@@ -92,7 +92,7 @@ pub trait PinkExt {
 
     /// Check if it is running in a Command context.
     #[ink(extension = 12, handle_status = false, returns_result = false)]
-    fn is_running_in_command() -> bool;
+    fn is_in_transaction() -> bool;
 
     #[ink(extension = 13, handle_status = false, returns_result = false)]
     fn ecdsa_sign_prehashed(key: &[u8], message_hash: Hash) -> EcdsaSignature;

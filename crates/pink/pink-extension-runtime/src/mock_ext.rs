@@ -22,6 +22,8 @@ impl super::PinkRuntimeEnv for MockExtension {
 }
 
 impl ext::PinkExtBackend for MockExtension {
+    type Error = String;
+
     fn http_request(&self, request: ext::HttpRequest) -> Result<ext::HttpResponse, Self::Error> {
         super::DefaultPinkExtension::new(self).http_request(request)
     }
@@ -85,11 +87,9 @@ impl ext::PinkExtBackend for MockExtension {
         super::DefaultPinkExtension::new(self).getrandom(length)
     }
 
-    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
         Ok(IS_COMMAND_MODE.with(|mode| mode.get()))
     }
-
-    type Error = String;
 
     fn ecdsa_sign_prehashed(
         &self,
