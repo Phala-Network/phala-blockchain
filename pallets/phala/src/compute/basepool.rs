@@ -625,7 +625,7 @@ pub mod pallet {
 			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
 		}
 
-		/// Get
+		/// Get a new nftid in certain collectionid
 		pub fn get_next_nft_id(collection_id: CollectionId) -> Result<NftId, Error<T>> {
 			NextNftId::<T>::try_mutate(collection_id, |id| {
 				let current_id = *id;
@@ -634,6 +634,7 @@ pub mod pallet {
 			})
 		}
 
+		/// Set nft attr, can only be called in the pallet
 		#[frame_support::transactional]
 		fn set_nft_attr(
 			cid: CollectionId,
@@ -658,9 +659,6 @@ pub mod pallet {
 		///
 		/// The withdraw request would be delayed if the free stake is not enough, otherwise
 		/// withdraw from the free stake immediately.
-		///
-		/// The updates are made in `pool_info` and `user_info`. It's up to the caller to persist
-		/// the data.
 		///
 		/// Requires:
 		/// 1. The user's pending slash is already settled.
@@ -693,7 +691,7 @@ pub mod pallet {
 			true
 		}
 
-		///should be very carful to avoid the vault_info got mutable ref outside the function and saved after this function called
+		/// Remove withdrawing_shares from the nft
 		pub fn do_withdraw_shares(
 			withdrawing_shares: BalanceOf<T>,
 			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
@@ -775,6 +773,8 @@ pub mod pallet {
 			}
 		}
 	}
+
+	/// Create a pool_account_id bounded with the pool
 	pub fn create_staker_account<T>(pid: u64, owner: T) -> T
 	where
 		T: Encode + Decode,
