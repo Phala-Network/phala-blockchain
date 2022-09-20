@@ -510,14 +510,14 @@ describe('A full stack', function () {
         let clusterId;
 
         it('can upload system code', async function () {
-            let system_code = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
+            let systemCode = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
             await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(system_code)),
+                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
                 let code = await api.query.phalaFatContracts.pinkSystemCode();
-                return code[1] == system_code;
+                return code[1] == systemCode;
             }, 4 * 6000), 'upload system code failed');
         });
 
@@ -541,6 +541,13 @@ describe('A full stack', function () {
                 let info = await pruntime[0].getInfo();
                 return info.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
+
+            let contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            let { systemContract } = contractInfo.unwrap();
+            assert.isTrue(await checkUntil(async () => {
+                let clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
+                return (clusterContracts.length == 1 && clusterContracts[0].eq(systemContract));
+            }, 4 * 6000), 'system contract instantiation failed');
         });
 
         it('can generate cluster key', async function () {

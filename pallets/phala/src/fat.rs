@@ -82,12 +82,20 @@ pub mod pallet {
 	/// The pink-system contract code used to deploy new clusters
 	#[pallet::storage]
 	pub type PinkSystemCode<T> = StorageValue<_, (u16, Vec<u8>), ValueQuery>;
+	/// The blake2_256 hash of the pink-system contract code.
+	#[pallet::storage]
+	pub type PinkSystemCodeHash<T> = StorageValue<_, H256, OptionQuery>;
+
+	/// The next pink-system contract code to be applied from the next block
+	#[pallet::storage]
+	pub type NextPinkSystemCode<T> = StorageValue<_, Vec<u8>, OptionQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		ClusterCreated {
 			cluster: ContractClusterId,
+			system_contract: ContractId,
 		},
 		ClusterPubkeyAvailable {
 			cluster: ContractClusterId,
@@ -143,6 +151,7 @@ pub mod pallet {
 		InvalidSender,
 		WorkerNotFound,
 		PayloadTooLarge,
+		NoPinkSystemCode,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -185,12 +194,6 @@ pub mod pallet {
 				})
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
-			let cluster_info = ClusterInfo {
-				owner: owner.clone(),
-				permission,
-				workers: deploy_workers,
-			};
-
 			let cluster_id = ClusterCounter::<T>::mutate(|counter| {
 				let cluster_id = *counter;
 				*counter += 1;
@@ -198,8 +201,31 @@ pub mod pallet {
 			});
 			let cluster = ContractClusterId::from_low_u64_be(cluster_id);
 
+			let system_code_hash =
+				PinkSystemCodeHash::<T>::get().ok_or(Error::<T>::NoPinkSystemCode)?;
+			let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
+			let system_contract_info = ContractInfo {
+				deployer: owner.clone(),
+				code_index: CodeIndex::WasmCode(system_code_hash),
+				salt: Default::default(),
+				cluster_id: cluster,
+				instantiate_data: selector,
+			};
+
+			let system_contract = system_contract_info.contract_id(crate::hashing::blake2_256);
+
+			let cluster_info = ClusterInfo {
+				owner: owner.clone(),
+				permission,
+				workers: deploy_workers,
+				system_contract,
+			};
+
 			Clusters::<T>::insert(&cluster, &cluster_info);
-			Self::deposit_event(Event::ClusterCreated { cluster });
+			Self::deposit_event(Event::ClusterCreated {
+				cluster,
+				system_contract,
+			});
 			Self::push_message(ClusterEvent::DeployCluster {
 				owner,
 				cluster,
@@ -323,10 +349,7 @@ pub mod pallet {
 			code: BoundedVec<u8, T::InkCodeSizeLimit>,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			PinkSystemCode::<T>::mutate(|(ver, co)| {
-				*ver += 1;
-				*co = code.into();
-			});
+			NextPinkSystemCode::<T>::put(code);
 			Ok(())
 		}
 	}
@@ -437,6 +460,21 @@ pub mod pallet {
 				}
 			}
 			Ok(())
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
+			if let Some(next_code) = NextPinkSystemCode::<T>::take() {
+				let hash: H256 = crate::hashing::blake2_256(&next_code).into();
+				PinkSystemCodeHash::<T>::put(hash);
+				PinkSystemCode::<T>::mutate(|(ver, code)| {
+					*ver += 1;
+					*code = next_code;
+				});
+			}
+			Weight::zero()
 		}
 	}
 

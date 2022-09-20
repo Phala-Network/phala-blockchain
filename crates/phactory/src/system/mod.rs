@@ -107,6 +107,7 @@ pub enum TransactionError {
     DuplicatedClusterDeploy,
     FailedToUploadResourceToCluster,
     NoClusterOnGatekeeper,
+    NoPinkSystemCode,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -1557,12 +1558,9 @@ impl<Platform: pal::Platform> System<Platform> {
             let system_code = block
                 .storage
                 .pink_system_code()
-                .map(|(_ver, code)| code)
+                .map(|it| it.1)
                 .filter(|code| !code.is_empty())
-                .unwrap_or_else(|| {
-                    info!("Using the default pink-system code");
-                    pink::DEFAULT_SYSTEM_CODE.to_vec()
-                });
+                .ok_or(TransactionError::NoPinkSystemCode)?;
             info!(
                 "Worker: creating cluster {}, owner={}, code length={}",
                 event.cluster,

@@ -20,5 +20,3 @@ pub mod predefined_accounts {
         AccountId::new(ACCOUNT_PALLET)
     }
 }
-
-pub const DEFAULT_SYSTEM_CODE: &[u8] = include_bytes!("../bins/system.wasm");

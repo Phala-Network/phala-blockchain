@@ -177,6 +177,7 @@ pub struct ClusterInfo<AccountId> {
     pub owner: AccountId,
     pub permission: ClusterPermission<AccountId>,
     pub workers: Vec<WorkerPublicKey>,
+    pub system_contract: ContractId,
 }
 
 /// On-chain contract registration info
