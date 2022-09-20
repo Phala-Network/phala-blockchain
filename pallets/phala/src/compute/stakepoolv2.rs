@@ -186,13 +186,6 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 		},
 
-		VaultContribution {
-			pid: u64,
-			user: T::AccountId,
-			vault_pid: u64,
-			amount: BalanceOf<T>,
-			shares: BalanceOf<T>,
-		},
 		/// Some stake was withdrawn from a pool
 		///
 		/// The lock in [`Balances`](pallet_balances::pallet::Pallet) is updated to release the
@@ -209,13 +202,6 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 		},
 
-		VaultWithdrawal {
-			pid: u64,
-			user: T::AccountId,
-			vault_pid: u64,
-			amount: BalanceOf<T>,
-			shares: BalanceOf<T>,
-		},
 		/// Pending rewards were withdrawn by a user
 		///
 		/// The reward and slash accumulator is resolved, and the reward is sent to the user
@@ -237,16 +223,6 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 		},
 
-		OwnerSharesGained {
-			pid: u64,
-			shares: BalanceOf<T>,
-		},
-
-		OwnerSharesStartWithdraw {
-			pid: u64,
-			user: T::AccountId,
-			shares: BalanceOf<T>,
-		},
 		/// Similar to event `ewardsWithdrawn` but only affected states:
 		///  - the user staking account at [`PoolStakers`]
 		StakerRewardsWithdrawn {
@@ -416,9 +392,7 @@ pub mod pallet {
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
 		MissingCollectionId,
-
-		InvaildWithdrawSharesAmount,
-
+		/// Vault is forced locked for it has some expired withdrawal
 		VaultIsLocked,
 	}
 

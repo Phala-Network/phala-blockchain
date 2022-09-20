@@ -11,6 +11,7 @@ use crate::BalanceOf;
 use frame_support::pallet_prelude::*;
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
+	/// General attributes of a pool
 	pub basepool: basepool::BasePool<AccountId, Balance>,
 	/// The commission the pool owner takes
 	///
@@ -26,22 +27,31 @@ pub struct StakePool<AccountId, Balance> {
 	pub workers: VecDeque<WorkerPublicKey>,
 	/// The workers in cd in the pool
 	pub cd_workers: VecDeque<WorkerPublicKey>,
-
+	/// The account generated to store ppha locked in miners with its asset account and controlled by the pallet
 	pub lock_account: AccountId,
-
+	/// The account generated to maintain owner rewards with its asset account and controlled by the pallet
 	pub owner_reward_account: AccountId,
 }
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Vault<AccountId, Balance> {
+	/// General attributes of a pool
 	pub basepool: basepool::BasePool<AccountId, Balance>,
-
+	/// Record the share price when function: `maybe_gain_owner_shares` is called last time
 	pub last_share_price_checkpoint: Balance,
-
+	/// The commission the owner takes
+	///
+	/// The caculate formula of additional shares minted for pool owner is present below:
+	/// additional_shares = total_value / (current_price - commission * min(current_price - last_share_price_checkpoint, 0)) - total_shares
+	/// When pool's share price is lower than last_share_price_checkpoint, the pool is regarded as in deficit and won't gain any addtional owner shares
+	/// The commission is actually indicate the percent of profit that earned by the pool should be redistributed to the pool owner
 	pub commission: Option<Permill>,
-
+	/// Claimable owner reward shares
+	///
+	/// Whenver the pool profit and function: `maybe_gain_owner_shares` is settled successfully, the commission the pool taken goes to here. The owner
+	/// can claim their reward shares at any time.
 	pub owner_shares: Balance,
-
+	/// The upstream stake pools the vault delegated
 	pub invest_pools: VecDeque<u64>,
 }
 
@@ -56,6 +66,7 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 		self.cd_workers.retain(|w| w != worker);
 	}
 
+	/// Get the value of owner rewards
 	pub fn get_owner_stakes<T>(&self) -> Balance
 	where
 		T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
@@ -69,12 +80,16 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 	}
 }
 
+/// The enumerate proxy caontains all kinds of pools (stake pool and vault is included currently)
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum PoolProxy<AccountId, Balance> {
 	StakePool(StakePool<AccountId, Balance>),
 	Vault(Vault<AccountId, Balance>),
 }
 
+/// Gets a stakepool object by pid directly
+///
+/// Returns error when the mapping pool type of the pid mismatch a stake pool
 pub fn ensure_stake_pool<T: basepool::Config>(
 	pid: u64,
 ) -> Result<StakePool<T::AccountId, BalanceOf<T>>, basepool::Error<T>> {
@@ -86,6 +101,9 @@ pub fn ensure_stake_pool<T: basepool::Config>(
 	}
 }
 
+/// Gets a vault object by pid directly
+///
+/// Returns error when the mapping pool type of the pid mismatch a vault
 pub fn ensure_vault<T: basepool::Config>(
 	pid: u64,
 ) -> Result<Vault<T::AccountId, BalanceOf<T>>, basepool::Error<T>> {

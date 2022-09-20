@@ -83,7 +83,7 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Mapping from the next self-increased nft ids to collections 
+	/// Mapping from the next self-increased nft ids to collections
 	#[pallet::storage]
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
@@ -399,7 +399,7 @@ pub mod pallet {
 		///
 		/// The nft contains withdraw shares is owned by the global pallet_account_id, and record the staker it should belongs to.
 		///
-		/// If there already has a withdraw request queued by the staker, the formal withdraw request 
+		/// If there already has a withdraw request queued by the staker, the formal withdraw request
 		/// would be poped out and return shares inside to the staker
 		#[frame_support::transactional]
 		pub fn push_withdraw_in_queue(
@@ -611,7 +611,6 @@ pub mod pallet {
 			});
 			Self::mint_nft(cid, staker, total_shares)
 		}
-
 
 		/// Get nft attr, can only be called in the pallet
 		fn get_nft_attr(
