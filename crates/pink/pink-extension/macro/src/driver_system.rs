@@ -23,7 +23,7 @@ fn patch_or_err(
     config: TokenStream2,
     interface: InterfaceType,
 ) -> Result<TokenStream2> {
-    use heck::{ToSnakeCase, ToLowerCamelCase};
+    use heck::{ToLowerCamelCase, ToSnakeCase};
     let the_trait: syn::ItemTrait = syn::parse2(input)?;
     let trait_ident = &the_trait.ident;
     let trait_name = the_trait.ident.to_string();
@@ -120,14 +120,13 @@ fn patch_or_err(
 
             #[cfg(feature = "std")]
             thread_local! {
-                static MOCK: core::cell::RefCell<Option<
-                    Box<
+                static MOCK: core::cell::RefCell<Option<(AccountId, Box<
                         dyn #trait_ident<
                             Env = PinkEnvironment,
                             __ink_TraitInfo = TraitInfo,
                             #(#associated_types_t = #associated_types_v,)*
                         >,
-                    >>,
+                    >)>,
                 > = Default::default();
             }
 
@@ -141,7 +140,8 @@ fn patch_or_err(
                     > + 'static,
                 ) {
                     MOCK.with(|x| {
-                        *x.borrow_mut() = Some(Box::new(contract));
+                        let callee = #crate_ink_env::test::callee::<PinkEnvironment>();
+                        *x.borrow_mut() = Some((callee, Box::new(contract)));
                     });
                 }
 
@@ -151,16 +151,23 @@ fn patch_or_err(
             impl #impl_type {
                 #(pub #method_sigs {
                         match self {
-                            #impl_type::Instance(accoutid) => {
-                                let mut forwarder = Forwarder::from_account_id(*accoutid);
+                            #impl_type::Instance(address) => {
+                                let mut forwarder = Forwarder::from_account_id(*address);
                                 forwarder.#method_forward_calls
                             }
                             #[cfg(feature = "std")]
                             #impl_type::Mock => {
                                 MOCK.with(move |x| {
                                     let mut borrow = x.borrow_mut();
-                                    let forwarder = &mut *borrow;
-                                    forwarder.as_mut().unwrap().#method_forward_calls
+                                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                                    let prev_callee = #crate_ink_env::test::callee::<PinkEnvironment>();
+                                    let prev_caller = #crate_ink_env::caller::<PinkEnvironment>();
+                                    #crate_ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                                    #crate_ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                                    let ret = forwarder.#method_forward_calls;
+                                    #crate_ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                                    #crate_ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                                    ret
                                 })
                             }
                         }
