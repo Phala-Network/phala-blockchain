@@ -517,7 +517,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 let code = await api.query.phalaFatContracts.pinkSystemCode();
-                return code == system_code;
+                return code[1] == system_code;
             }, 4 * 6000), 'upload system code failed');
         });
 

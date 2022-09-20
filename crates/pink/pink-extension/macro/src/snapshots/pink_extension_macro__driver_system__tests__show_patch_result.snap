@@ -1,6 +1,6 @@
 ---
 source: crates/pink/pink-extension/macro/src/driver_system.rs
-assertion_line: 197
+assertion_line: 204
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
 #[ink::trait_definition(namespace = "pink_system")]
@@ -26,7 +26,7 @@ mod _pink_system_impl {
         Mock,
     }
     #[cfg(feature = "std")]
-    thread_local! { static MOCK : core :: cell :: RefCell < Option < Box < dyn System < Env = PinkEnvironment , __ink_TraitInfo = TraitInfo , getDriverOutput = Option < AccountId > , setDriverOutput = () , deploySidevmToOutput = Result < () > , > , >> , > = Default :: default () ; }
+    thread_local! { static MOCK : core :: cell :: RefCell < Option < (AccountId , Box < dyn System < Env = PinkEnvironment , __ink_TraitInfo = TraitInfo , getDriverOutput = Option < AccountId > , setDriverOutput = () , deploySidevmToOutput = Result < () > , > , >) > , > = Default :: default () ; }
     impl SystemRef {
         #[cfg(feature = "std")]
         pub fn mock_with(
@@ -39,7 +39,8 @@ mod _pink_system_impl {
                 > + 'static,
         ) {
             MOCK.with(|x| {
-                *x.borrow_mut() = Some(Box::new(contract));
+                let callee = ink_env::test::callee::<PinkEnvironment>();
+                *x.borrow_mut() = Some((callee, Box::new(contract)));
             });
         }
         pub fn instance() -> Self {
@@ -53,46 +54,64 @@ mod _pink_system_impl {
     impl SystemRef {
         pub fn get_driver(&self, name: String) -> Option<AccountId> {
             match self {
-                SystemRef::Instance(accoutid) => {
-                    let mut forwarder = Forwarder::from_account_id(*accoutid);
+                SystemRef::Instance(address) => {
+                    let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder.get_driver(name)
                 }
                 #[cfg(feature = "std")]
                 SystemRef::Mock => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
-                    let forwarder = &mut *borrow;
-                    forwarder.as_mut().unwrap().get_driver(name)
+                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink_env::caller::<PinkEnvironment>();
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let ret = forwarder.get_driver(name);
+                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ret
                 }),
             }
         }
         pub fn set_driver(&self, name: String, driver: AccountId) {
             match self {
-                SystemRef::Instance(accoutid) => {
-                    let mut forwarder = Forwarder::from_account_id(*accoutid);
+                SystemRef::Instance(address) => {
+                    let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder.set_driver(name, driver)
                 }
                 #[cfg(feature = "std")]
                 SystemRef::Mock => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
-                    let forwarder = &mut *borrow;
-                    forwarder.as_mut().unwrap().set_driver(name, driver)
+                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink_env::caller::<PinkEnvironment>();
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let ret = forwarder.set_driver(name, driver);
+                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ret
                 }),
             }
         }
         pub fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()> {
             match self {
-                SystemRef::Instance(accoutid) => {
-                    let mut forwarder = Forwarder::from_account_id(*accoutid);
+                SystemRef::Instance(address) => {
+                    let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder.deploy_sidevm_to(code_hash, contract_id)
                 }
                 #[cfg(feature = "std")]
                 SystemRef::Mock => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
-                    let forwarder = &mut *borrow;
-                    forwarder
-                        .as_mut()
-                        .unwrap()
-                        .deploy_sidevm_to(code_hash, contract_id)
+                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink_env::caller::<PinkEnvironment>();
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let ret = forwarder.deploy_sidevm_to(code_hash, contract_id);
+                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ret
                 }),
             }
         }
