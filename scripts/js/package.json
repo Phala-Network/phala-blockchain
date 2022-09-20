@@ -9,6 +9,7 @@
     "build:proto": "./build_proto.sh"
   },
   "dependencies": {
+    "@phala/sdk": "^0.3.1",
     "@phala/typedefs": "^0.2.31",
     "@polkadot/api": "^9.2.3",
     "@polkadot/typegen": "^9.2.3",
