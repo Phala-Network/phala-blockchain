@@ -127,10 +127,10 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A pool is created under an owner
+		/// A stake pool is created under an owner
 		///
 		/// Affected states:
-		/// - a new entry in [`StakePools`] with the pid
+		/// - a new entry in [`Pools`] with the pid
 		PoolCreated {
 			owner: T::AccountId,
 			pid: u64,
@@ -141,20 +141,16 @@ pub mod pallet {
 		/// `commission / 1_000_000u32`.
 		///
 		/// Affected states:
-		/// - the `payout_commission` field in [`StakePools`] is updated
+		/// - the `payout_commission` field in [`Pools`] is updated
 		PoolCommissionSet {
 			pid: u64,
 			commission: u32,
 		},
 
-		VaultCommissionSet {
-			pid: u64,
-			commission: u32,
-		},
 		/// The stake capacity of the pool is updated
 		///
 		/// Affected states:
-		/// - the `cap` field in [`StakePools`] is updated
+		/// - the `cap` field in [`Pools`] is updated
 		PoolCapacitySet {
 			pid: u64,
 			cap: BalanceOf<T>,
@@ -162,7 +158,7 @@ pub mod pallet {
 		/// A worker is added to the pool
 		///
 		/// Affected states:
-		/// - the `worker` is added to the vector `workers` in [`StakePools`]
+		/// - the `worker` is added to the vector `workers` in [`Pools`]
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
 		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
 		///   [`MinerBindings`](mining::pallet::MinerBindings))
@@ -174,9 +170,8 @@ pub mod pallet {
 		/// Someone contributed to a pool
 		///
 		/// Affected states:
-		/// - the stake related fields in [`StakePools`]
-		/// - the user staking account at [`PoolStakers`]
-		/// - the locking ledger of the contributor at [`StakeLedger`]
+		/// - the stake related fields in [`Pools`]
+		/// - the user asset account 
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
 		///   ([`Withdrawal`](#variant.Withdrawal) event)
 		Contribution {
@@ -188,44 +183,20 @@ pub mod pallet {
 
 		/// Some stake was withdrawn from a pool
 		///
-		/// The lock in [`Balances`](pallet_balances::pallet::Pallet) is updated to release the
-		/// locked stake.
-		///
 		/// Affected states:
-		/// - the stake related fields in [`StakePools`]
-		/// - the user staking account at [`PoolStakers`]
-		/// - the locking ledger of the contributor at [`StakeLedger`]
+		/// - the stake related fields in [`Pools`]
+		/// - the user asset account
 		Withdrawal {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 			shares: BalanceOf<T>,
 		},
-
-		/// Pending rewards were withdrawn by a user
-		///
-		/// The reward and slash accumulator is resolved, and the reward is sent to the user
-		/// account.
-		///
+		/// Owner rewards were withdrawn by pool owner
 		/// Affected states:
-		/// - the stake related fields in [`StakePools`]
-		/// - the user staking account at [`PoolStakers`]
-		RewardsWithdrawn {
-			pid: u64,
-			user: T::AccountId,
-			amount: BalanceOf<T>,
-		},
-		/// Similar to event `RewardsWithdrawn` but only affected states:
-		///  - the stake related fields in [`StakePools`]
+		/// - the stake related fields in [`Pools`]
+		/// - the owner asset account
 		OwnerRewardsWithdrawn {
-			pid: u64,
-			user: T::AccountId,
-			amount: BalanceOf<T>,
-		},
-
-		/// Similar to event `ewardsWithdrawn` but only affected states:
-		///  - the user staking account at [`PoolStakers`]
-		StakerRewardsWithdrawn {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
@@ -268,7 +239,7 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the worker item in [`WorkerAssignments`] is removed
-		/// - the worker is removed from the [`StakePools`] item
+		/// - the worker is removed from the [`Pools`] item
 		PoolWorkerRemoved {
 			pid: u64,
 			worker: WorkerPublicKey,
@@ -277,7 +248,7 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - a new item is inserted to or an old item is being replaced by the new item in the
-		///   withdraw queue in [`StakePools`]
+		///   withdraw queue in [`Pools`]
 		WithdrawalQueued {
 			pid: u64,
 			user: T::AccountId,
@@ -905,10 +876,7 @@ pub mod pallet {
 		///
 		/// Note: there are two scenarios people may meet
 		///
-		/// - if the pool has free stake and the amount of the free stake is greater than or equal
-		///     to the withdrawal amount (e.g. pool.free_stake >= amount), the withdrawal would
-		///     take effect immediately.
-		/// - else the withdrawal would be queued and delayed until there is enough free stake.
+		/// - The withdrawal would be queued and delayed until there is enough free stake.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn withdraw(

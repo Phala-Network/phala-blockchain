@@ -1,4 +1,3 @@
-//! Pool for collaboratively mining staking
 
 pub use self::pallet::*;
 
@@ -54,36 +53,57 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	#[pallet::storage]
-	pub type VaultAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
-
+	/// Mapping from the vault pid to its owner authority locking status
 	#[pallet::storage]
 	pub type VaultLocks<T: Config> = StorageMap<_, Twox64Concat, u64, ()>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// A vault is created under an owner
+		///
+		/// Affected states:
+		/// - a new entry in [`Pools`] with the pid
 		PoolCreated {
 			owner: T::AccountId,
 			pid: u64,
 		},
-
+		/// The commission of a vault is updated
+		///
+		/// The commission ratio is represented by an integer. The real value is
+		/// `commission / 1_000_000u32`.
+		///
+		/// Affected states:
+		/// - the `commission` field in [`Pools`] is updated
 		VaultCommissionSet {
 			pid: u64,
 			commission: u32,
 		},
-
+		/// Owner shares start to withdraw by pool owner
+		/// Affected states:
+		/// - the shares related fields in [`Pools`]
+		/// - the withdraw queue in [`Pools`]
+		/// - the nft related storages in rmrk and pallet unique
 		OwnerSharesStartWithdraw {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
 		},
-
+		/// Additional owner shares are mint into the pool
+		/// Affected states:
+		/// - the shares related fields in [`Pools`]
+		/// - last_share_price_checkpoint in [`Pools`]
 		OwnerSharesGained {
 			pid: u64,
 			shares: BalanceOf<T>,
 		},
-
+		/// Someone contributed to a vault
+		///
+		/// Affected states:
+		/// - the stake related fields in [`Pools`]
+		/// - the user asset account 
+		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
+		///   ([`Withdrawal`](#variant.Withdrawal) event)
 		Contribution {
 			pid: u64,
 			user: T::AccountId,
@@ -94,20 +114,21 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The caller is not the owner of the pool
 		UnauthorizedPoolOwner,
-
+		/// Trying to withdraw more than the available shares
 		InvaildWithdrawSharesAmount,
-
+		/// The vault have no owner shares to claim
 		NoRewardToClaim,
-
+		/// Asset account hasn't been created
 		AssetAccountNotExist,
-
+		/// The withdrawal amount is too small (considered as dust)
 		InvalidWithdrawalAmount,
-
+		/// Trying to contribute more than the available balance
 		InsufficientBalance,
-
+		/// The contributed stake is smaller than the minimum threshold
 		InsufficientContribution,
-
+		/// The vault's total stakes amount is zero
 		VaultPriceIsZero,
 	}
 
@@ -118,7 +139,7 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
-		/// Creates a new stake pool
+		/// Creates a new vault
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
@@ -160,13 +181,12 @@ pub mod pallet {
 					invest_pools: VecDeque::new(),
 				}),
 			);
-			VaultAccountAssignments::<T>::insert(account_id, pid);
 			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
 
 			Ok(())
 		}
 
-		/// Change the pool commission rate
+		/// Change the vault commission rate
 		///
 		/// Requires:
 		/// 1. The sender is the owner
@@ -196,6 +216,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Transfers some owner shares wrapped in a nft to the assigned account
+		///
+		/// Requires:
+		/// 1. The sender is the owner
 		#[pallet::weight(0)]
 		pub fn claim_owner_shares(
 			origin: OriginFor<T>,
@@ -205,7 +229,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;
 			let mut pool_info = ensure_vault::<T>(vault_pid)?;
-			// Add pool owner's reward if applicable
 			ensure!(
 				who == pool_info.basepool.owner,
 				Error::<T>::UnauthorizedPoolOwner
@@ -227,6 +250,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Tries to settle owner shares if the vault profits
+		///
+		/// Requires:
+		/// 1. The sender is the owner
 		#[pallet::weight(0)]
 		pub fn maybe_gain_owner_shares(origin: OriginFor<T>, vault_pid: u64) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -266,9 +293,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Let any user to launch a stakepool withdraw. Then check if the pool need to be forced shutdown.
+		/// Let any user to launch a vault withdraw. Then check if the vault need to be forced withdraw all its contributions.
 		///
-		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
+		/// If the shutdown condition is met, all shares owned by the vault will be forced withdraw.
 		/// Note: This function doesn't guarantee no-op when there's error.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
@@ -408,12 +435,7 @@ pub mod pallet {
 
 		/// Demands the return of some stake from a pool.
 		///
-		/// Note: there are two scenarios people may meet
-		///
-		/// - if the pool has free stake and the amount of the free stake is greater than or equal
-		///     to the withdrawal amount (e.g. pool.free_stake >= amount), the withdrawal would
-		///     take effect immediately.
-		/// - else the withdrawal would be queued and delayed until there is enough free stake.
+		/// - The withdrawal would be queued and delayed until there is enough free stake.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
