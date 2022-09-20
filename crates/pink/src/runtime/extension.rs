@@ -244,7 +244,7 @@ impl PinkExtBackend for CallInQuery {
         DefaultPinkExtension::new(self).getrandom(length)
     }
 
-    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
         Ok(false)
     }
 
@@ -296,6 +296,9 @@ impl PinkExtBackend for CallInCommand {
         key: Cow<[u8]>,
         message: Cow<[u8]>,
     ) -> Result<Vec<u8>, Self::Error> {
+        if matches!(sigtype, SigType::Sr25519) {
+            return Err("signing with sr25519 is not allowed in command".into());
+        }
         self.as_in_query.sign(sigtype, key, message)
     }
 
@@ -365,7 +368,7 @@ impl PinkExtBackend for CallInCommand {
         Err("getrandom is not allowed in command".into())
     }
 
-    fn is_running_in_command(&self) -> Result<bool, Self::Error> {
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
         Ok(true)
     }
 

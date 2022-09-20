@@ -4437,6 +4437,8 @@ dependencies = [
  "prpc",
  "rand 0.8.5",
  "regex",
+ "reqwest",
+ "reqwest-env-proxy",
  "ring 0.16.20",
  "scopeguard",
  "serde",

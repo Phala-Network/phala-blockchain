@@ -510,7 +510,7 @@ async fn batch_sync_block(
         // TODO: fix the potential overflow here
         let end_buffer = block_buf.len() as isize - 1;
         let end_set_id_change = match set_id_change_at {
-            Some(change_at) => (change_at as isize - first_block_number as isize),
+            Some(change_at) => change_at as isize - first_block_number as isize,
             None => block_buf.len() as isize,
         };
         let header_end = cmp::min(end_buffer, end_set_id_change);

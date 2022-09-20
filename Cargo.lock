@@ -5227,7 +5227,8 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "0.6.1+6.28.2"
-source = "git+https://github.com/jasl/rust-rocksdb?branch=v0.18#8ef7c0f6a612c4bb8c08c2f635e077ddffed332e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81bc587013734dadb7cf23468e531aa120788b87243648be42e2d3a072186291"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -5236,7 +5237,6 @@ dependencies = [
  "libc",
  "libz-sys",
  "tikv-jemalloc-sys",
- "zstd-sys",
 ]
 
 [[package]]
@@ -7385,6 +7385,8 @@ dependencies = [
  "prpc",
  "rand 0.8.5",
  "regex",
+ "reqwest",
+ "reqwest-env-proxy 0.1.0",
  "ring 0.16.20",
  "rmp-serde",
  "ron",
@@ -9199,7 +9201,8 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.18.0"
-source = "git+https://github.com/jasl/rust-rocksdb?branch=v0.18#8ef7c0f6a612c4bb8c08c2f635e077ddffed332e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "620f4129485ff1a7128d184bc687470c21c7951b64779ebc9cfdad3dcd920290"
 dependencies = [
  "libc",
  "librocksdb-sys",
