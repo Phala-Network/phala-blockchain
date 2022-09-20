@@ -48,19 +48,22 @@ pub mod pallet {
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		/// PPHA's asset id
 		#[pallet::constant]
 		type PPhaAssetId: Get<u32>;
-
+		/// Pha's global fund pool
 		#[pallet::constant]
 		type PawnShopAccountId: Get<Self::AccountId>;
-
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	}
 
+	/// User's asset status proxy
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct FinanceAccount<Balance> {
+		/// The pools and their pool collection id the user delegated
 		pub invest_pools: Vec<(u64, CollectionId)>,
+		/// The locked ppha amount used to vote
 		pub locked: Balance,
 	}
 
@@ -74,6 +77,7 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
+	/// Mapping from the vote ids and accounts to the amounts of ppha used to approve or oppose to the vote
 	#[pallet::storage]
 	pub type VoteAccountMap<T: Config> = StorageDoubleMap<
 		_,
@@ -84,10 +88,12 @@ pub mod pallet {
 		(BalanceOf<T>, BalanceOf<T>),
 	>;
 
+	/// Mapping from the accounts and vote ids to the amounts of ppha used to approve or oppose to the vote
 	#[pallet::storage]
 	pub type AccountVoteMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, T::AccountId, Blake2_128Concat, ReferendumIndex, ()>;
 
+	/// Mapping for users to their asset status proxys
 	#[pallet::storage]
 	#[pallet::getter(fn staker_account)]
 	pub type StakerAccounts<T: Config> =
@@ -111,16 +117,17 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// user's `FinanceAccount` does not exist in storage: `StakerAccounts`
 		StakerAccountNotFound,
-
+		/// Trying to redeem more than the available balance
 		RedeemAmountExceedsAvaliableStake,
-
+		/// Trying to vote more than the available balance
 		VoteAmountLargerThanTotalStakes,
-
+		/// The vote is not currently on going
 		ReferendumInvalid,
-
+		/// The vote is now on going and the ppha used in voting can not be unlocked
 		ReferendumOngoing,
-
+		/// The Iteration exceed the max limitaion
 		IterationsIsNotVaild,
 	}
 
@@ -133,6 +140,9 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
+		/// Pawns some pha and gain equal amount of ppha
+		///
+		/// The pawned pha is stored in `PawnShopAccountId`'s wallet and can not be taken away
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn pawn(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
@@ -154,6 +164,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Burns the amount of all free ppha and redeems equal amount of pha
+		///
+		/// The redeemed pha is transfered from `PawnShopAccountId` to the user's wallet
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn redeem_all(origin: OriginFor<T>) -> DispatchResult {
@@ -175,6 +188,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Redeems some pha by burning equal amount of ppha
+		///
+		/// The redeemed pha is transfered from `PawnShopAccountId` to the user's wallet
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn redeem(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
@@ -204,6 +220,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Uses some ppha to approve or oppose a vote
+		///
+		/// Can both approve and oppose a vote at the same time
+		/// The pphas used in vote will be locked until the vote is finished or canceled
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn vote(
@@ -230,6 +250,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Tries to unlock pphas used in vote after the vote finished or canceled
+		///
+		/// Must assign the max iterations to avoid computing complexity overwhelm
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn unlock(
@@ -267,10 +290,12 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
+		/// Gets ppha's asset id
 		pub fn get_asset_id() -> u32 {
 			T::PPhaAssetId::get()
 		}
 
+		/// Removes slash dust
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
@@ -289,16 +314,19 @@ pub mod pallet {
 			}
 		}
 
+		/// Mints some ppha
 		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
+		/// Burns some ppha
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
+		/// Push a pid into invest pools if it is not included yet
 		pub fn maybe_subscribe_to_pool(
 			who: &T::AccountId,
 			pid: u64,
@@ -314,6 +342,12 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Caculates the net ppha value of a user 
+		/// 
+		/// The net ppha value includes:
+		/// 1. Free stakes in user's asset account
+		/// 2. The current value of shares owned by the user
+		/// Note: shares in withdraw queues are not included
 		fn get_net_value(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
 			let mut total_active_stakes: BalanceOf<T> =
 				<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
@@ -343,6 +377,7 @@ pub mod pallet {
 			Ok(total_active_stakes)
 		}
 
+		/// Sums up all amounts of ppha approves or opposes to the vote
 		// TODO(mingxuan): Optimize to O(1) in the future.
 		pub fn accumulate_account_vote(vote_id: ReferendumIndex) -> AccountVote<BalanceOf<T>> {
 			let mut total_aye_amount: BalanceOf<T> = Zero::zero();
@@ -358,6 +393,7 @@ pub mod pallet {
 			}
 		}
 
+		/// Tries to update locked ppha amount of the user
 		fn update_user_locked(user: T::AccountId) -> DispatchResult {
 			let mut max_lock: BalanceOf<T> = Zero::zero();
 			AccountVoteMap::<T>::iter_prefix(user.clone()).for_each(|(vote_id, ())| {
@@ -373,6 +409,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Checks if the vote is ongoing
 		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
 			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id);
 			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
