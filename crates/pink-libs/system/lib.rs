@@ -42,7 +42,7 @@ mod system {
             }
         }
 
-        pub fn ensure_admin(&self) -> Result<AccountId> {
+        fn ensure_admin(&self) -> Result<AccountId> {
             let caller = self.env().caller();
             if self.administrators.contains(&caller) {
                 return Ok(caller);
