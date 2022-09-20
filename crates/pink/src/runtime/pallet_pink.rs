@@ -24,9 +24,6 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
 
-    #[pallet::storage]
-    pub(crate) type SystemContractId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
-
     /// The seed used to derive custom keys in `ink!` contract.
     ///
     /// All contracts in a cluster shares the same seed. When deriving a key from the seed, the

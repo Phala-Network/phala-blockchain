@@ -81,7 +81,7 @@ pub mod pallet {
 
 	/// The pink-system contract code used to deploy new clusters
 	#[pallet::storage]
-	pub type PinkSystemCode<T> = StorageValue<_, Vec<u8>, OptionQuery>;
+	pub type PinkSystemCode<T> = StorageValue<_, (u16, Vec<u8>), ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -323,7 +323,10 @@ pub mod pallet {
 			code: BoundedVec<u8, T::InkCodeSizeLimit>,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			PinkSystemCode::<T>::put(code);
+			PinkSystemCode::<T>::mutate(|(ver, co)| {
+				*ver += 1;
+				*co = code.into();
+			});
 			Ok(())
 		}
 	}

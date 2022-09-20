@@ -76,7 +76,7 @@ mod storage_ext {
         fn timestamp_now(&self) -> Option<chain::Moment> {
             self.get_decoded(storage_prefix("Timestamp", "Now"))
         }
-        fn pink_system_code(&self) -> Option<Vec<u8>> {
+        fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
             self.get_decoded(storage_prefix("PhalaFatContracts", "PinkSystemCode"))
         }
     }
