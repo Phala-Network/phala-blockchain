@@ -503,14 +503,14 @@ describe('A full stack', function () {
     });
 
     describe('Cluster & Contract', () => {
-        let contractFile = './res/check_system/target/ink/check_system.contract';
-        let contract = JSON.parse(fs.readFileSync(contractFile)).source;
-        let codeHash = hex(contract.hash);
-        let initSelector = hex('0xed4b9d1b'); // for default() function
+        const contractFile = './res/check_system/target/ink/check_system.contract';
+        const contract = JSON.parse(fs.readFileSync(contractFile)).source;
+        const codeHash = hex(contract.hash);
+        const initSelector = hex('0xed4b9d1b'); // for default() function
         let clusterId;
 
         it('can upload system code', async function () {
-            let systemCode = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
+            const systemCode = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
             await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
                 alice,
@@ -542,10 +542,10 @@ describe('A full stack', function () {
                 return info.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
-            let contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
-            let { systemContract } = contractInfo.unwrap();
+            const contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            const { systemContract } = contractInfo.unwrap();
             assert.isTrue(await checkUntil(async () => {
-                let clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
+                const clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
                 return (clusterContracts.length == 1 && clusterContracts[0].eq(systemContract));
             }, 4 * 6000), 'system contract instantiation failed');
         });
@@ -565,16 +565,15 @@ describe('A full stack', function () {
         });
 
         it('can upload code with access control', async function () {
-            let code = hex(contract.wasm);
-            let InkCode = 0;
+            const code = hex(contract.wasm);
             // For now, there is no way to check whether code is uploaded in script
             // since this requires monitering the async CodeUploaded event
             await assert.txAccepted(
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, InkCode, hex(code)),
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
                 alice,
             );
             await assert.txFailed(
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, InkCode, hex(code)),
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
                 bob,
             )
         });

@@ -433,6 +433,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
+			// TODO.kevin: use `let else` to early return once the next rustc released
 			if let Some(next_code) = NextPinkSystemCode::<T>::take() {
 				let hash: H256 = crate::hashing::blake2_256(&next_code).into();
 				PinkSystemCodeHash::<T>::put(hash);
