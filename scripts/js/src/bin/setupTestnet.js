@@ -2,10 +2,12 @@ const { program } = require('commander');
 const {ApiPromise, WsProvider, Keyring} = require('@polkadot/api');
 const Phala = require('@phala/sdk');
 
-const { TxQueue, checkUntil, hex } = require('../utils/tx');
+const { TxQueue, checkUntil } = require('../utils/tx');
+const { normalizeHex } = require('../utils/common')
 
 program
-    .option('--ws-endpoint <endpoint>', 'substrate ws rpc endpoint', 'ws://localhost:19944')
+    .description('Set up a bare testnet with a single worker to run Phat Contract. The worker will be the only Gatekeeper and the worker to run contracts.')
+    .option('--substrate <endpoint>', 'substrate ws rpc endpoint', 'ws://localhost:19944')
     .option('--root-key <key>', 'root key SURI', '//Alice')
     .option('--root-type <key-type>', 'root key type', 'sr25519')
     .option('--pruntime <pr-endpoint>', 'pruntime rpc endpoint', 'http://localhost:18000')
@@ -53,9 +55,12 @@ async function deployCluster(api, txqueue, pair, worker, defaultCluster = '0x000
     console.log('Cluster: creating');
     // crete contract cluster and wait for the setup
     const { events } = await txqueue.submit(
-        api.tx.phalaFatContracts.addCluster(
-            'Public', // can be {'OnlyOwner': accountId}
-            [worker]
+        api.tx.sudo.sudo(
+            api.tx.phalaFatContracts.addCluster(
+                pair.address,
+                'Public', // can be {'OnlyOwner': accountId}
+                [worker]
+            )
         ),
         pair
     );
@@ -71,25 +76,27 @@ async function deployCluster(api, txqueue, pair, worker, defaultCluster = '0x000
 }
 
 async function main() {
-    const { endpoint, key, keyType, pruntime: pruntimUrl } = program.opts();
+    const { substrate: subEndpoint, rootKey, rootType, pruntime: pruntimUrl } = program.opts();
     // Connect to the chain
-    const wsProvider = new WsProvider(endpoint);
+    const wsProvider = new WsProvider(subEndpoint);
     const api = await ApiPromise.create({provider: wsProvider});
     const txqueue = new TxQueue(api);
 
     // Prepare accounts
-    const keyring = new Keyring({type: keyType});
-    const alice = keyring.addFromUri(key);
+    const keyring = new Keyring({type: rootType});
+    const alice = keyring.addFromUri(rootKey);
 
     // Connect to pruntime
     const prpc = Phala.createPruntimeApi(pruntimUrl);
     const worker = await getWorkerPubkey(api);
-    const connectedWorker = hex((await prpc.getInfo({})).publicKey);
+    const connectedWorker = normalizeHex((await prpc.getInfo({})).publicKey);
     console.log('Worker:', worker);
     console.log('Connected worker:', connectedWorker);
 
-    // basic phala network setup
+    // Basic phala network setup
     await setupGatekeeper(api, txqueue, alice, worker);
     await deployCluster(api, txqueue, alice, worker);
+
+    // TODO: deploy sidevm driver and logger?
 }
 
