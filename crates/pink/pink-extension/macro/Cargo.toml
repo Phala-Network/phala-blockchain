@@ -1,6 +1,6 @@
 [package]
 name = "pink-extension-macro"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2018"
 description = "Macros for writing fat contract"
 license = "Apache-2.0"

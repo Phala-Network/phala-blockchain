@@ -4823,7 +4823,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -4838,7 +4838,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "heck 0.4.0",
  "ink_lang_ir",
