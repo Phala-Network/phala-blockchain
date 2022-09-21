@@ -11,6 +11,7 @@ bin/Rocket.toml: gramine-build/Rocket.toml
 bin/pruntime: target/release/pruntime
 	cp $? $@
 
+.PHONY: target/release/pruntime
 target/release/pruntime:
 	cargo build --release
 
