@@ -5,13 +5,12 @@ use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
+use phala_types::contract::ConvertTo;
 use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 use sp_runtime::{traits::ConstU32, BoundedVec};
-
-use super::contract_address_to_id;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -90,7 +89,7 @@ impl Pink {
     }
 
     pub fn id(&self) -> ContractId {
-        contract_address_to_id(&self.instance.address)
+        self.instance.address.convert_to()
     }
 
     pub fn address(&self) -> AccountId {

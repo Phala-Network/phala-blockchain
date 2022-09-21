@@ -41,7 +41,7 @@ use phala_types::{
             BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
             WorkerClusterReport,
         },
-        CodeIndex,
+        ConvertTo, CodeIndex,
     },
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
@@ -1708,8 +1708,7 @@ pub(crate) fn apply_pink_events(
     for (origin, event) in pink_events {
         macro_rules! get_contract {
             ($origin: expr) => {{
-                let id = contracts::contract_address_to_id(&origin);
-                match contracts.get_mut(&id) {
+                match contracts.get_mut(&$origin.convert_to()) {
                     Some(contract) => contract,
                     None => {
                         error!(

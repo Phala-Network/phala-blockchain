@@ -4416,7 +4416,6 @@ dependencies = [
  "hex-literal",
  "hex_fmt",
  "itertools",
- "lazy_static",
  "log",
  "maxminddb",
  "num-bigint 0.4.3",

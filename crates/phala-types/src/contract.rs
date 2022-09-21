@@ -262,3 +262,17 @@ pub fn command_topic(id: ContractId) -> Vec<u8> {
         .as_bytes()
         .to_vec()
 }
+
+pub trait ConvertTo<To> {
+    fn convert_to(&self) -> To;
+}
+
+impl<F, T> ConvertTo<T> for F
+where
+    F: AsRef<[u8; 32]>,
+    T: From<[u8; 32]>,
+{
+    fn convert_to(&self) -> T {
+        (*self.as_ref()).into()
+    }
+}
