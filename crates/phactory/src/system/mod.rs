@@ -1244,71 +1244,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     anyhow::bail!("The system contract is missing, Cannot deploy contract");
                 }
                 match contract_info.code_index {
-                    CodeIndex::NativeCode(code_id) => {
-                        use contracts::*;
-                        let deployer = phala_types::messaging::AccountId(
-                            contract_info.clone().deployer.into(),
-                        );
-                        // We generate a unique key for each contract instead of
-                        // sharing the same cluster key to prevent replay attack
-                        let contract_id = contract_info.contract_id(blake2_256);
-                        let contract_key = get_contract_key(cluster.key(), &contract_id);
-                        let contract_pubkey = contract_key.public();
-                        let ecdh_key = contract_key
-                            .derive_ecdh_key()
-                            .or(Err(anyhow::anyhow!("Invalid contract key")))?;
-
-                        macro_rules! match_and_install_contract {
-                            ($(($id: path => $contract: expr)),*) => {{
-                                match code_id {
-                                    $(
-                                        $id => {
-                                            let id = contract_info.contract_id(blake2_256);
-                                            install_contract(
-                                                &mut self.contracts,
-                                                id,
-                                                $contract,
-                                                contract_key.clone(),
-                                                ecdh_key,
-                                                block,
-                                                cluster_id,
-                                            )?;
-                                            id
-                                        }
-                                    )*
-                                    _ => {
-                                        anyhow::bail!(
-                                            "Invalid contract code id: {:?}",
-                                            code_id
-                                        );
-                                    }
-                                }
-                            }};
-                        }
-
-                        let contract_id = match_and_install_contract! {
-                            (BALANCES => balances::Balances::new()),
-                            (ASSETS => assets::Assets::new()),
-                            (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.to_raw_vec()))),
-                            // (GEOLOCATION => geolocation::Geolocation::new()),
-                            (GUESS_NUMBER => guess_number::GuessNumber::new())
-                            // (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
-                        };
-
-                        cluster.add_contract(contract_id);
-
-                        let message = ContractRegistryEvent::PubkeyAvailable {
-                            contract: contract_id,
-                            pubkey: contract_pubkey.clone(),
-                            deployer,
-                        };
-
-                        let sender = MessageOrigin::Cluster(cluster_id);
-                        let cluster_mq: SignedMessageChannel =
-                            block.send_mq.channel(sender, cluster.key().clone().into());
-                        cluster_mq.push_message(&message);
-                        info!("Native contract instantiated. cluster={cluster_id}, contract={contract_id}, pubkey={contract_pubkey}");
-                    }
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
 
@@ -1759,7 +1694,7 @@ fn apply_instantiating_events(
         let cluster_mq: SignedMessageChannel =
             block.send_mq.channel(sender, cluster.key().clone().into());
         cluster_mq.push_message(&message);
-        info!("pink instantiated: cluster={cluster_id} {:?}", message);
+        info!("Pink instantiated: cluster={cluster_id} {message:?}");
     }
 }
 
