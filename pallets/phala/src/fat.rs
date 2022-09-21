@@ -18,7 +18,7 @@ pub mod pallet {
 		contract::{
 			messaging::{
 				ClusterEvent, ClusterOperation, ContractOperation, ResourceType,
-				WorkerClusterReport, WorkerContractReport,
+				WorkerClusterReport,
 			},
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
@@ -41,6 +41,7 @@ pub mod pallet {
 		PubkeyAvailable {
 			contract: ContractId,
 			pubkey: ContractPublicKey,
+			deployer: ContractId,
 		},
 	}
 
@@ -383,12 +384,18 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { contract, pubkey } => {
+				ContractRegistryEvent::PubkeyAvailable { contract, pubkey, deployer } => {
 					registry::ContractKeys::<T>::insert(&contract, &pubkey);
 					Self::deposit_event(Event::ContractPubkeyAvailable {
 						contract,
 						cluster,
 						pubkey,
+					});
+					ClusterContracts::<T>::append(&cluster, &contract);
+					Self::deposit_event(Event::Instantiated {
+						contract,
+						cluster,
+						deployer,
 					});
 				}
 			}
@@ -417,46 +424,6 @@ pub mod pallet {
 						cluster: id,
 						worker: worker_pubkey,
 					});
-				}
-			}
-			Ok(())
-		}
-
-		pub fn on_worker_contract_message_received(
-			message: DecodedMessage<WorkerContractReport>,
-		) -> DispatchResult {
-			let _worker_pubkey = match &message.sender {
-				MessageOrigin::Worker(worker_pubkey) => worker_pubkey,
-				_ => return Err(Error::<T>::InvalidSender.into()),
-			};
-			match message.payload {
-				WorkerContractReport::ContractInstantiated {
-					id,
-					cluster_id,
-					deployer,
-					pubkey: _,
-				} => {
-					let contracts = ClusterContracts::<T>::get(&cluster_id);
-					if !contracts.contains(&id) {
-						ClusterContracts::<T>::append(&cluster_id, &id);
-					}
-					Self::deposit_event(Event::Instantiated {
-						contract: id,
-						cluster: cluster_id,
-						deployer,
-					});
-				}
-				WorkerContractReport::ContractInstantiationFailed {
-					id,
-					cluster_id,
-					deployer,
-				} => {
-					Self::deposit_event(Event::InstantiationFailed {
-						contract: id,
-						cluster: cluster_id,
-						deployer,
-					});
-					// TODO.shelven: some cleanup?
 				}
 			}
 			Ok(())

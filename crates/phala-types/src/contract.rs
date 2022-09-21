@@ -48,8 +48,8 @@ pub mod messaging {
 
     use super::{ContractClusterId, ContractInfo};
     use crate::messaging::EncryptedKey;
-    use crate::{ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey};
-    use phala_mq::{bind_topic, AccountId, ContractId};
+    use crate::{ClusterPublicKey, WorkerIdentity, WorkerPublicKey};
+    use phala_mq::{bind_topic, AccountId};
     use sp_core::crypto::AccountId32;
 
     type MqAccountId = AccountId;
@@ -95,22 +95,6 @@ pub mod messaging {
         },
         ClusterDeploymentFailed {
             id: ContractClusterId,
-        },
-    }
-
-    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerContractReport {
-        ContractInstantiated {
-            id: ContractId,
-            cluster_id: ContractClusterId,
-            deployer: AccountId,
-            pubkey: ContractPublicKey,
-        },
-        ContractInstantiationFailed {
-            id: ContractId,
-            cluster_id: ContractClusterId,
-            deployer: AccountId,
         },
     }
 
