@@ -126,11 +126,6 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			deployer: H256,
 		},
-		InstantiationFailed {
-			contract: ContractId,
-			cluster: ContractClusterId,
-			deployer: H256,
-		},
 		ClusterSetLogReceiver {
 			cluster: ContractClusterId,
 			log_handler: ContractId,

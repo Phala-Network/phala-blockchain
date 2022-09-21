@@ -25,7 +25,6 @@ hex_fmt = "0.3"
 anyhow = { version = "1.0", default-features = false }
 thiserror = { version = "1.0", default-features = false }
 itertools = { version = "0.10.1", default-features = false }
-lazy_static = { version = "1.4.0", default-features = false }
 
 phala-trie-storage = { path = "../phala-trie-storage", default-features = false }
 phala-mq = { path = "../phala-mq" }

@@ -180,7 +180,7 @@ impl Pink {
         &mut self,
         origin: MessageOrigin,
         cmd: Command,
-        context: &mut contracts::NativeContext,
+        context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
         match cmd {
             Command::InkMessage { nonce, message } => {
@@ -231,7 +231,7 @@ impl Pink {
 
     pub(crate) fn on_block_end(
         &mut self,
-        context: &mut contracts::NativeContext,
+        context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
         let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
             .expect("Pink cluster should always exists!");

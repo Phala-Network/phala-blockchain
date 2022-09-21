@@ -22,7 +22,6 @@ pub const BTC_PRICE_BOT: ContractId32 = 101;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum CodeIndex<CodeHash> {
-    NativeCode(ContractId32),
     WasmCode(CodeHash),
 }
 
@@ -34,7 +33,6 @@ pub enum InkCommand {
 impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
     pub fn code_hash(&self) -> Vec<u8> {
         match self {
-            CodeIndex::NativeCode(contract_id) => contract_id.to_be_bytes().to_vec(),
             CodeIndex::WasmCode(code_hash) => code_hash.as_ref().to_vec(),
         }
     }

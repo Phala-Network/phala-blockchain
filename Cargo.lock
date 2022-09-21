@@ -7364,7 +7364,6 @@ dependencies = [
  "hex_fmt",
  "insta",
  "itertools",
- "lazy_static",
  "log",
  "maxminddb",
  "num-bigint 0.4.3",
