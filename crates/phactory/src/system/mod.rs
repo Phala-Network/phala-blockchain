@@ -1531,6 +1531,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 pink.id(),
                 cluster.config.version
             );
+            const SUPPORTED_API_VERSION: u16 = 0;
+            if cluster.config.version.0 > SUPPORTED_API_VERSION {
+                panic!("The pink-system version is not supported, please upgrade the pRuntime");
+            }
             cluster.set_system_contract(pink.address());
             apply_pink_side_effects(
                 effects,
