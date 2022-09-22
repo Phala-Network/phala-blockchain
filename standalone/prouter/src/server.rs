@@ -13,7 +13,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::task;
 use tokio_stream::StreamExt;
 
-use phala_types::EndpointType;
+use phactory_api::endpoints::EndpointType;
 
 use binascii::b32decode;
 
@@ -141,21 +141,19 @@ async fn resolve_domain(
                     let decoded_pubkey = b32decode(&b32_pubkey.as_bytes(), &mut output_buffer)
                         .map_err(|e| anyhow!("Failed to decode the pubkey"))
                         .context("Decode phala domain")?;
-                    let mut endpoint_str = String::new();
-                    {
+                    let endpoint_str = {
                         let para_api = para_api.lock().unwrap();
-                        let endpoint = translator::block_get_endpoint_info_by_pubkey(
+                        translator::block_get_endpoint_info_by_pubkey(
                             para_api.as_ref().expect("guaranteed to be initialized"),
                             decoded_pubkey
                                 .try_into()
                                 .map_err(|e| anyhow!("Failed to convert pubkey to endpoint: {}", e))
                                 .expect("guaranteed to be a valid pubkey"),
-                            EndpointType::I2P,
+                            EndpointType::I2p,
                         )
                         .ok_or(anyhow!("Failed to fetch on-chain storage"))
-                        .context("Fetch on-chain storage")?;
-                        endpoint_str = String::from_utf8_lossy(&endpoint).into_owned();
-                    }
+                        .context("Fetch on-chain storage")?
+                    };
                     let endpoint_url = endpoint_str.split(":").collect::<Vec<&str>>()[0];
                     let endpoint_port = endpoint_str.split(":").collect::<Vec<&str>>()[1];
                     debug!("Resolved phala domain {}:{}", &endpoint_url, &endpoint_port);

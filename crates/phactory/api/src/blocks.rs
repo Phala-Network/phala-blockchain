@@ -112,7 +112,6 @@ pub struct DispatchBlockReq {
     pub blocks: Vec<BlockHeaderWithChanges>,
 }
 
-#[cfg(feature = "serde")]
 pub mod compat {
     use alloc::string::String;
     use alloc::vec::Vec;

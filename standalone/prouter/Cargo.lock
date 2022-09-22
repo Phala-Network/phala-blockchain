@@ -670,6 +670,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "0.99.17"
+source = "git+https://github.com/JelteF/derive_more#fe33b369a42fe08491cef2bc441552d3ed82578f"
+dependencies = [
+ "convert_case",
+ "proc-macro2 1.0.43",
+ "quote 1.0.21",
+ "rustc_version 0.4.0",
+ "syn 1.0.99",
+ "unicode-xid 0.2.3",
+]
+
+[[package]]
 name = "derive_wrapper"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3250,7 +3263,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64",
- "derive_more",
+ "derive_more 0.99.17 (git+https://github.com/JelteF/derive_more)",
  "frame-system",
  "log",
  "parity-scale-codec",
@@ -3296,7 +3309,7 @@ dependencies = [
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "environmental",
  "hex",
  "log",
@@ -3745,7 +3758,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "prost 0.11.0",
 ]
@@ -4213,7 +4226,7 @@ checksum = "c46be926081c9f4dd5dd9b6f1d3e3229f2360bc6502dd8836f84a93b7c75e99a"
 dependencies = [
  "bitvec",
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "scale-info-derive",
  "serde",

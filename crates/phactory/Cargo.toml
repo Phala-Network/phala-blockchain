@@ -46,7 +46,7 @@ scopeguard   = { version = "1.1", default-features = false }
 runtime = { path = "../../standalone/runtime", package = "phala-node-runtime", default-features = false, features = ["std"] }
 phala-pallets = { path = "../../pallets/phala", default-features = false }
 phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "sgx"] }
-phactory-api = { path = "./api", default-features = false, features = ["serde"] }
+phactory-api = { path = "./api", default-features = false }
 phactory-pal = { path = "./pal", default-features = false }
 
 # for light_validation

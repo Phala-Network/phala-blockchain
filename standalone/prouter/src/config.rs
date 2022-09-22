@@ -4,7 +4,7 @@ use crate::Args;
 use anyhow::Result;
 use std::path::PathBuf;
 
-use phala_types::EndpointType;
+use phactory_api::endpoints::EndpointType;
 
 use crate::utils::push_str;
 
@@ -151,7 +151,7 @@ pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {
         _ => Ini::new(),
     };
 
-    if matches!(args.endpoint_type, EndpointType::I2P) {
+    if matches!(args.endpoint_type, EndpointType::I2p) {
         // need to use i2p to proxy local API
         conf.with_section(Some("Phala Network"))
             .set("type", "http")
