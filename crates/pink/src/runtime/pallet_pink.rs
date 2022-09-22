@@ -52,14 +52,12 @@ pub mod pallet {
             salt: &[u8],
         ) -> T::AccountId {
             let cluster_id = <ClusterId<T>>::get();
-            let buf: Vec<_> = deploying_address
-                .as_ref()
-                .iter()
-                .chain(code_hash.as_ref())
-                .chain(&cluster_id)
-                .chain(salt)
-                .cloned()
-                .collect();
+            let buf = phala_types::contract::contract_id_preimage(
+                deploying_address.as_ref(),
+                code_hash.as_ref(),
+                &cluster_id,
+                salt,
+            );
             UncheckedFrom::unchecked_from(<T as frame_system::Config>::Hashing::hash(&buf))
         }
     }
