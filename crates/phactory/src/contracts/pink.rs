@@ -43,7 +43,7 @@ pub enum QueryError {
 
 #[derive(Encode, Decode, Clone)]
 pub struct Pink {
-    instance: pink::Contract,
+    pub(crate) instance: pink::Contract,
     cluster_id: ContractClusterId,
 }
 
@@ -366,6 +366,8 @@ pub mod cluster {
     #[derive(Serialize, Deserialize, Default)]
     pub struct ClusterConfig {
         pub log_handler: Option<ContractId>,
+        // Version used to control the contract API availability.
+        pub version: (u16, u16),
     }
 
     #[derive(Serialize, Deserialize)]

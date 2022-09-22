@@ -28,7 +28,7 @@ mod system {
     }
 
     impl System {
-        #[ink(constructor)]
+        #[ink(constructor, selector = 0xed4b9d1b)]
         pub fn default() -> Self {
             ink_lang::utils::initialize_contract(|me: &mut Self| me.owner = Self::env().caller())
         }
@@ -56,6 +56,11 @@ mod system {
     }
 
     impl pink::system::System for System {
+        #[ink(message)]
+        fn version(&self) -> (u16, u16) {
+            (0, 1)
+        }
+
         #[ink(message)]
         fn grant_admin(&mut self, contract_id: AccountId) -> Result<()> {
             self.ensure_owner()?;

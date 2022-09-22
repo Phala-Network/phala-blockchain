@@ -24,6 +24,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[pink::system]
 #[ink::trait_definition(namespace = "pink_system")]
 pub trait System {
+    /// The version of the system. Can be used to determine the api ability.
+    #[ink(message, selector = 0x87c98a8d)]
+    fn version(&self) -> (u16, u16);
     /// Grant an address the administrator role.
     /// The caller must be the owner of the cluster.
     #[ink(message)]
