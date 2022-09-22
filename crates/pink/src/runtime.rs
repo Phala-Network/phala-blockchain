@@ -102,7 +102,14 @@ parameter_types! {
     pub const TransactionByteFee: u64 = 0;
     pub const MaxStorageKeyLen: u32 = 128;
 
-    pub DefaultSchedule: Schedule<PinkRuntime> = Default::default();
+    pub DefaultSchedule: Schedule<PinkRuntime> = {
+        let mut schedule = Schedule::<PinkRuntime>::default();
+        const MB: u32 = 16;  // 64KiB * 16
+        // Each concurrent query would create a VM instance to serve it. We couldn't
+        // allocate too much here.
+        schedule.limits.memory_pages = 4 * MB;
+        schedule
+    };
 }
 
 impl Convert<Weight, Balance> for PinkRuntime {
