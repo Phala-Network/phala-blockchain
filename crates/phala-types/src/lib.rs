@@ -297,6 +297,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum PRuntimeManagementEvent {
         RetirePRuntime(Condition),
+        SetConsensusVersion(u32),
     }
 
     #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
