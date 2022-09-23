@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use phactory_api::{actions, prpc};
+use phala_rocket_middleware::ResponseSigner;
 
 use crate::runtime;
 
@@ -314,13 +315,6 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
     let mut server_acl = rocket::custom(figment)
-        .mount(
-            "/",
-            proxy_routes![
-                (get, "/get_info", get_info, actions::ACTION_GET_INFO),
-                (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
-            ],
-        )
         .mount("/", routes![getinfo]);
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
@@ -333,6 +327,9 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
             .attach(cors_options().to_cors().expect("To not fail"))
             .manage(cors_options().to_cors().expect("To not fail"));
     }
+
+    let signer = ResponseSigner::new(1024*1024*10, runtime::ecall_sign_http_response);
+    server_acl = server_acl.attach(signer);
 
     Some(server_acl)
 }

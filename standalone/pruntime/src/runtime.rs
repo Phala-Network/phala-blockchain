@@ -18,6 +18,10 @@ pub fn ecall_getinfo() -> String {
     APPLICATION.lock_phactory().getinfo()
 }
 
+pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {
+    APPLICATION.lock_phactory().sign_http_response(data)
+}
+
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     static INITIALIZED: AtomicU32 = AtomicU32::new(0);
     if INITIALIZED.fetch_add(1, Ordering::SeqCst) != 0 {
