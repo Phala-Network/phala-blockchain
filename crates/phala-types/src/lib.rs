@@ -294,15 +294,15 @@ pub mod messaging {
     }
 
     bind_topic!(PRuntimeManagementEvent, b"phala/pruntime/management");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
+    #[derive(Encode, Decode, Debug, TypeInfo, Clone, PartialEq, Eq)]
     pub enum PRuntimeManagementEvent {
-        RetirePRuntime(Condition),
+        RetirePRuntime(RetireCondition),
         SetConsensusVersion(u32),
     }
 
     #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-    #[derive(Encode, Decode, Debug, TypeInfo, Clone)]
-    pub enum Condition {
+    #[derive(Encode, Decode, Debug, TypeInfo, Clone, PartialEq, Eq)]
+    pub enum RetireCondition {
         /// pRuntimes of version less than given version will be retired.
         VersionLessThan(u32, u32, u32),
         /// pRuntimes of version equal to given version will be retired.

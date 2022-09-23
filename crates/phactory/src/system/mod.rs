@@ -44,7 +44,7 @@ use phala_types::{
         CodeIndex, ConvertTo,
     },
     messaging::{
-        AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
+        AeadIV, BatchRotateMasterKeyEvent, RetireCondition, DispatchMasterKeyEvent,
         DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
         RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
@@ -462,7 +462,7 @@ pub struct System<Platform> {
     // Cached for query
     pub(crate) block_number: BlockNumber,
     pub(crate) now_ms: u64,
-    retired_versions: Vec<Condition>,
+    retired_versions: Vec<RetireCondition>,
 
     // The version flag used to coordinate the pruntime's behavior.
     pub(crate) consensus_version: u32,
@@ -844,10 +844,10 @@ impl<Platform: pal::Platform> System<Platform> {
         let cur_ver = Platform::app_version();
         for condition in self.retired_versions.iter() {
             let should_retire = match *condition {
-                Condition::VersionLessThan(major, minor, patch) => {
+                RetireCondition::VersionLessThan(major, minor, patch) => {
                     (cur_ver.major, cur_ver.minor, cur_ver.patch) < (major, minor, patch)
                 }
-                Condition::VersionIs(major, minor, patch) => {
+                RetireCondition::VersionIs(major, minor, patch) => {
                     (cur_ver.major, cur_ver.minor, cur_ver.patch) == (major, minor, patch)
                 }
             };
