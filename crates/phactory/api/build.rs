@@ -33,6 +33,9 @@ fn main() {
         "MiningState",
         "NetworkConfig",
         "NetworkStatus",
+        "PhactoryInfo",
+        "MemoryUsage",
+        "GatekeeperStatus",
     ] {
         builder = builder.type_attribute(
             r#type,
