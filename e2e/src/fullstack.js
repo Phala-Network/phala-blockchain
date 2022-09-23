@@ -94,7 +94,7 @@ describe('A full stack', function () {
             // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getInfo();
-                return info.registered;
+                return info.system?.registered;
             }, 4 * 6000), 'not registered in time');
         });
 
@@ -139,7 +139,7 @@ describe('A full stack', function () {
             // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getInfo();
-                return info.registered;
+                return info.system?.registered;
             }, 4 * 6000), 'not registered in time');
 
             // Check if the on-chain role is Gatekeeper
@@ -182,7 +182,7 @@ describe('A full stack', function () {
             // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[1].getInfo();
-                return info.registered;
+                return info.system?.registered;
             }, 4 * 6000), 'not registered in time');
 
             // Check if the on-chain role is Gatekeeper
@@ -211,7 +211,7 @@ describe('A full stack', function () {
         it('becomes active', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[1].getInfo();
-                return info.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
+                return info.system?.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
             }, 1000))
 
             // Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
@@ -241,7 +241,7 @@ describe('A full stack', function () {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
-                return info.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.publicKey));
+                return info.system?.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.publicKey));
             }, 4 * 6000), 'not unregistered');
         });
 
@@ -264,7 +264,7 @@ describe('A full stack', function () {
             // the GK should resume without restart
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[1].getInfo();
-                return info.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
+                return info.system?.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
             }, 4 * 6000), 'gatekeeper role not changed')
         });
     });
@@ -292,7 +292,7 @@ describe('A full stack', function () {
             // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[3].getInfo();
-                return info.registered;
+                return info.system?.registered;
             }, 4 * 6000), 'not registered in time');
 
             // Check if the on-chain role is Gatekeeper
@@ -330,7 +330,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
-                return info.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.publicKey));
+                return info.system?.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.publicKey));
             }, 4 * 6000), 'not unregistered');
         });
 
@@ -369,7 +369,7 @@ describe('A full stack', function () {
         it('will kill unregistered gatekeeper', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[3].getInfo();
-                return info.gatekeeper.role == 0;
+                return info.system?.gatekeeper.role == 0;
             }, 4 * 6000), 'outdated gatekeeper not remove');
         });
 
@@ -395,7 +395,7 @@ describe('A full stack', function () {
             // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[3].getInfo();
-                return info.registered;
+                return info.system?.registered;
             }, 4 * 6000), 'not registered in time');
 
             // Check if the on-chain role is Gatekeeper
@@ -446,7 +446,7 @@ describe('A full stack', function () {
             // Finalization takes 2-3 blocks. So we wait for 3 blocks here.
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[2].getInfo();
-                return info.registered;
+                return info.system?.registered;
             }, 4 * 6000), 'not registered in time');
 
             // Check if the on-chain role is Gatekeeper
@@ -475,7 +475,7 @@ describe('A full stack', function () {
         it('becomes active', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[2].getInfo();
-                return info.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
+                return info.system?.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
             }, 1000))
 
             // Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq

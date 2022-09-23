@@ -63,10 +63,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
-        let system = self.system.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
-        let public_key = system.map(|state| hex::encode(state.identity_key.public()));
-        let ecdh_public_key = system.map(|state| hex::encode(&state.ecdh_key.public()));
         let dev_mode = self.dev_mode;
 
         let (state_root, pending_messages, counters) = match state.as_ref() {
@@ -79,39 +76,40 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => Default::default(),
         };
 
-        let registered;
-        let gatekeeper_status;
-        let number_of_clusters;
-        let number_of_contracts;
-
-        match system {
-            Some(system) => {
-                registered = system.is_registered();
-                gatekeeper_status = system.gatekeeper_status();
-                number_of_clusters = system.contract_clusters.len();
-                number_of_contracts = system.contracts.len();
-            }
-            None => {
-                registered = false;
-                gatekeeper_status = pb::GatekeeperStatus {
-                    role: pb::GatekeeperRole::None.into(),
-                    master_public_key: Default::default(),
-                };
-                number_of_clusters = 0;
-                number_of_contracts = 0;
-            }
-        }
-
+        let system_info = self.system.as_ref().map(|s| s.get_info());
         let score = benchmark::score();
         let m_usage = self.platform.memory_usage();
+
+        // Deprecated fields
+        let registered;
+        let public_key;
+        let ecdh_public_key;
+        let gatekeeper;
+        match &system_info {
+            None => {
+                registered = false;
+                public_key = None;
+                ecdh_public_key = None;
+                gatekeeper = Some(pb::GatekeeperStatus {
+                    role: pb::GatekeeperRole::None.into(),
+                    master_public_key: Default::default(),
+                });
+            }
+            Some(sys) => {
+                registered = sys.registered;
+                public_key = Some(sys.public_key.clone());
+                ecdh_public_key = Some(sys.ecdh_public_key.clone());
+                gatekeeper = sys.gatekeeper.clone();
+            }
+        };
 
         pb::PhactoryInfo {
             initialized,
             registered,
-            gatekeeper: Some(gatekeeper_status),
-            genesis_block_hash,
             public_key,
             ecdh_public_key,
+            gatekeeper,
+            genesis_block_hash,
             headernum: counters.next_header_number,
             para_headernum: counters.next_para_header_number,
             blocknum: counters.next_block_number,
@@ -128,12 +126,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
             }),
-            number_of_clusters: number_of_clusters as _,
-            number_of_contracts: number_of_contracts as _,
             network_status: Some(pb::NetworkStatus {
                 public_rpc_port: self.args.public_port.map(Into::into),
                 config: self.netconfig.clone(),
             }),
+            system: system_info,
         }
     }
 
