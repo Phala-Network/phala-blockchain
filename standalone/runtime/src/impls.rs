@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) 2019-2022 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,9 +17,13 @@
 
 //! Some configurable implementations as associated type for the substrate runtime.
 
-use crate::{Authorship, Balances, NegativeImbalance};
-use frame_support::traits::{
-	Currency, OnUnbalanced,
+use crate::{
+	Authorship, Balances, NegativeImbalance,
+};
+use frame_support::{
+	traits::{
+		Currency, OnUnbalanced,
+	},
 };
 
 pub struct Author;
@@ -80,13 +84,13 @@ mod multiplier_tests {
 		let previous_float = previous_float.max(min_multiplier().into_inner() as f64 / accuracy);
 
 		// maximum tx weight
-		let m = max_normal() as f64;
+		let m = max_normal().ref_time() as f64;
 		// block weight always truncated to max weight
-		let block_weight = (block_weight as f64).min(m);
+		let block_weight = (block_weight.ref_time() as f64).min(m);
 		let v: f64 = AdjustmentVariable::get().to_float();
 
 		// Ideal saturation in terms of weight
-		let ss = target() as f64;
+		let ss = target().ref_time() as f64;
 		// Current saturation in terms of weight
 		let s = block_weight;
 
@@ -114,12 +118,12 @@ mod multiplier_tests {
 	fn truth_value_update_poc_works() {
 		let fm = Multiplier::saturating_from_rational(1, 2);
 		let test_set = vec![
-			(0, fm.clone()),
-			(100, fm.clone()),
-			(1000, fm.clone()),
-			(target(), fm.clone()),
-			(max_normal() / 2, fm.clone()),
-			(max_normal(), fm.clone()),
+			(Weight::zero(), fm),
+			(Weight::from_ref_time(100), fm),
+			(Weight::from_ref_time(1000), fm),
+			(target(), fm),
+			(max_normal() / 2, fm),
+			(max_normal(), fm),
 		];
 		test_set.into_iter().for_each(|(w, fm)| {
 			run_with_system_weight(w, || {
@@ -146,7 +150,7 @@ mod multiplier_tests {
 	#[test]
 	fn multiplier_cannot_go_below_limit() {
 		// will not go any further below even if block is empty.
-		run_with_system_weight(0, || {
+		run_with_system_weight(Weight::zero(), || {
 			let next = runtime_multiplier_update(min_multiplier());
 			assert_eq!(next, min_multiplier());
 		})
@@ -164,7 +168,7 @@ mod multiplier_tests {
 		// 1 < 0.00001 * k * 0.1875
 		// 10^9 / 1875 < k
 		// k > 533_333 ~ 18,5 days.
-		run_with_system_weight(0, || {
+		run_with_system_weight(Weight::zero(), || {
 			// start from 1, the default.
 			let mut fm = Multiplier::one();
 			let mut iterations: u64 = 0;
@@ -200,7 +204,8 @@ mod multiplier_tests {
 		// `cargo test congested_chain_simulation -- --nocapture` to get some insight.
 
 		// almost full. The entire quota of normal transactions is taken.
-		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() - 100;
+		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() -
+			Weight::from_ref_time(100);
 
 		// Default substrate weight.
 		let tx_weight = frame_support::weights::constants::ExtrinsicBaseWeight::get();
@@ -324,40 +329,40 @@ mod multiplier_tests {
 
 	#[test]
 	fn weight_to_fee_should_not_overflow_on_large_weights() {
-		let kb = 1024 as Weight;
-		let mb = kb * kb;
+		let kb = Weight::from_ref_time(1024);
+		let mb = 1024u64 * kb;
 		let max_fm = Multiplier::saturating_from_integer(i128::MAX);
 
 		// check that for all values it can compute, correctly.
 		vec![
-			0,
-			1,
-			10,
-			1000,
+			Weight::zero(),
+			Weight::from_ref_time(1),
+			Weight::from_ref_time(10),
+			Weight::from_ref_time(1000),
 			kb,
-			10 * kb,
-			100 * kb,
+			10u64 * kb,
+			100u64 * kb,
 			mb,
-			10 * mb,
-			2147483647,
-			4294967295,
+			10u64 * mb,
+			Weight::from_ref_time(2147483647),
+			Weight::from_ref_time(4294967295),
 			BlockWeights::get().max_block / 2,
 			BlockWeights::get().max_block,
-			Weight::max_value() / 2,
-			Weight::max_value(),
+			Weight::MAX / 2,
+			Weight::MAX,
 		]
-			.into_iter()
-			.for_each(|i| {
-				run_with_system_weight(i, || {
-					let next = runtime_multiplier_update(Multiplier::one());
-					let truth = truth_value_update(i, Multiplier::one());
-					assert_eq_error_rate!(truth, next, Multiplier::from_inner(50_000_000));
-				});
+		.into_iter()
+		.for_each(|i| {
+			run_with_system_weight(i, || {
+				let next = runtime_multiplier_update(Multiplier::one());
+				let truth = truth_value_update(i, Multiplier::one());
+				assert_eq_error_rate!(truth, next, Multiplier::from_inner(50_000_000));
 			});
+		});
 
 		// Some values that are all above the target and will cause an increase.
 		let t = target();
-		vec![t + 100, t * 2, t * 4].into_iter().for_each(|i| {
+		vec![t + Weight::from_ref_time(100), t * 2, t * 4].into_iter().for_each(|i| {
 			run_with_system_weight(i, || {
 				let fm = runtime_multiplier_update(max_fm);
 				// won't grow. The convert saturates everything.

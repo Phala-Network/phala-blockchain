@@ -19,6 +19,7 @@
 use anyhow::Result;
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
 use sp_trie::{trie_types::TrieDB, MemoryDB, Trie};
+use sp_trie::trie_types::TrieDBBuilder;
 
 use super::Error;
 
@@ -49,22 +50,21 @@ where
         }
         let checker = StorageProofChecker { root, db };
         // Return error if trie would be invalid.
-        let _ = checker.trie()?;
+        let _ = checker.trie();
         Ok(checker)
     }
 
     /// Reads a value from the available subset of storage. If the value cannot be read due to an
     /// incomplete or otherwise invalid proof, this returns an error.
     pub fn read_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        self.trie()?
+        self.trie()
             .get(key)
             .map(|value| value.map(|value| value.to_vec()))
             .map_err(|_| anyhow::Error::msg(Error::StorageValueUnavailable))
     }
 
-    fn trie(&self) -> Result<TrieDB<H>> {
-        TrieDB::new(&self.db, &self.root)
-            .map_err(|_| anyhow::Error::msg(Error::StorageRootMismatch))
+    fn trie(&self) -> TrieDB<H> {
+        TrieDBBuilder::new(&self.db, &self.root).build()
     }
 }
 

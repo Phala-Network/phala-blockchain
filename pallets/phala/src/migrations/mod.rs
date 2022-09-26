@@ -1,13 +1,20 @@
-use crate::*;
+#[allow(unused_imports)]
 use frame_support::{
 	traits::{Get, StorageVersion},
 	weights::Weight,
 };
+#[allow(unused_imports)]
 use log;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
+use crate::utils::balance_convert;
 use crate::BalanceOf;
+use crate::mq;
+use crate::registry;
+use crate::fat;
+use crate::compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
+
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
@@ -39,6 +46,7 @@ type Versions = (
 	StorageVersion,
 );
 
+#[allow(dead_code)]
 fn get_versions<T: PhalaPallets>() -> Versions {
 	(
 		StorageVersion::get::<fat::Pallet<T>>(),
@@ -49,6 +57,7 @@ fn get_versions<T: PhalaPallets>() -> Versions {
 	)
 }
 
+#[allow(dead_code)]
 fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
 	(
 		StorageVersion::new(version),
@@ -59,7 +68,8 @@ fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
 	)
 }
 
-fn set_unified_versoin<T: PhalaPallets>(version: u16) {
+#[allow(dead_code)]
+fn set_unified_version<T: PhalaPallets>(version: u16) {
 	StorageVersion::new(version).put::<fat::Pallet<T>>();
 	StorageVersion::new(version).put::<mining::Pallet<T>>();
 	StorageVersion::new(version).put::<mq::Pallet<T>>();
@@ -88,12 +98,12 @@ pub mod v6 {
 		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		if get_versions::<T>() == unified_versions::<T>(5) {
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::zero();
 			log::info!("Ᵽ migrating phala-pallets to v6");
 			weight += stakepoolv2::Pallet::<T>::migration_remove_assignments();
 			log::info!("Ᵽ pallets migrated to v6");
 
-			set_unified_versoin::<T>(6);
+			set_unified_version::<T>(6);
 			weight += T::DbWeight::get().reads_writes(5, 5);
 			weight
 		} else {
