@@ -64,7 +64,7 @@ use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
-const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 0;
+const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 1;
 
 #[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
 #[error("TransactionError: {:?}", self)]
@@ -1606,6 +1606,7 @@ impl<Platform: pal::Platform> System<Platform> {
             public_key: hex::encode(self.identity_key.public()),
             ecdh_public_key: hex::encode(self.ecdh_key.public()),
             consensus_version: self.consensus_version,
+            max_supported_consensus_version: MAX_SUPPORTED_CONSENSUS_VERSION,
         }
     }
 }

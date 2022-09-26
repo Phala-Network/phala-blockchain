@@ -724,6 +724,9 @@ export namespace pruntime_rpc {
 
         /** SystemInfo consensusVersion */
         consensusVersion?: (number|null);
+
+        /** SystemInfo maxSupportedConsensusVersion */
+        maxSupportedConsensusVersion?: (number|null);
     }
 
     /** Represents a SystemInfo. */
@@ -755,6 +758,9 @@ export namespace pruntime_rpc {
 
         /** SystemInfo consensusVersion. */
         public consensusVersion: number;
+
+        /** SystemInfo maxSupportedConsensusVersion. */
+        public maxSupportedConsensusVersion: number;
 
         /**
          * Creates a new SystemInfo instance using the specified properties.

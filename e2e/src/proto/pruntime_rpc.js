@@ -1509,6 +1509,7 @@ $root.pruntime_rpc = (function() {
          * @property {number|Long|null} [numberOfClusters] SystemInfo numberOfClusters
          * @property {number|Long|null} [numberOfContracts] SystemInfo numberOfContracts
          * @property {number|null} [consensusVersion] SystemInfo consensusVersion
+         * @property {number|null} [maxSupportedConsensusVersion] SystemInfo maxSupportedConsensusVersion
          */
 
         /**
@@ -1583,6 +1584,14 @@ $root.pruntime_rpc = (function() {
         SystemInfo.prototype.consensusVersion = 0;
 
         /**
+         * SystemInfo maxSupportedConsensusVersion.
+         * @member {number} maxSupportedConsensusVersion
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.maxSupportedConsensusVersion = 0;
+
+        /**
          * Creates a new SystemInfo instance using the specified properties.
          * @function create
          * @memberof pruntime_rpc.SystemInfo
@@ -1620,6 +1629,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.numberOfContracts);
             if (message.consensusVersion != null && Object.hasOwnProperty.call(message, "consensusVersion"))
                 writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.consensusVersion);
+            if (message.maxSupportedConsensusVersion != null && Object.hasOwnProperty.call(message, "maxSupportedConsensusVersion"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.maxSupportedConsensusVersion);
             return writer;
         };
 
@@ -1674,6 +1685,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 7:
                     message.consensusVersion = reader.uint32();
+                    break;
+                case 8:
+                    message.maxSupportedConsensusVersion = reader.uint32();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1733,6 +1747,9 @@ $root.pruntime_rpc = (function() {
             if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
                 if (!$util.isInteger(message.consensusVersion))
                     return "consensusVersion: integer expected";
+            if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
+                if (!$util.isInteger(message.maxSupportedConsensusVersion))
+                    return "maxSupportedConsensusVersion: integer expected";
             return null;
         };
 
@@ -1779,6 +1796,8 @@ $root.pruntime_rpc = (function() {
                     message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
             if (object.consensusVersion != null)
                 message.consensusVersion = object.consensusVersion >>> 0;
+            if (object.maxSupportedConsensusVersion != null)
+                message.maxSupportedConsensusVersion = object.maxSupportedConsensusVersion >>> 0;
             return message;
         };
 
@@ -1811,6 +1830,7 @@ $root.pruntime_rpc = (function() {
                 } else
                     object.numberOfContracts = options.longs === String ? "0" : 0;
                 object.consensusVersion = 0;
+                object.maxSupportedConsensusVersion = 0;
             }
             if (message.registered != null && message.hasOwnProperty("registered"))
                 object.registered = message.registered;
@@ -1832,6 +1852,8 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
             if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
                 object.consensusVersion = message.consensusVersion;
+            if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
+                object.maxSupportedConsensusVersion = message.maxSupportedConsensusVersion;
             return object;
         };
 
