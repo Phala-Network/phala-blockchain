@@ -242,6 +242,10 @@ impl frame_system::Config for Runtime {
 	type MaxConsumers = ConstU32<16>;
 }
 
+impl phala_pallets::PhalaConfig for Runtime {
+	type Currency = Balances;
+}
+
 impl pallet_randomness_collective_flip::Config for Runtime {}
 
 impl pallet_utility::Config for Runtime {
@@ -1268,7 +1272,6 @@ parameter_types! {
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
-	type Currency = Balances;
 	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;
@@ -1283,7 +1286,6 @@ impl pallet_mining::Config for Runtime {
 	type Event = Event;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
-	type Currency = Balances;
 	type Randomness = RandomnessCollectiveFlip;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
@@ -1293,7 +1295,6 @@ impl pallet_mining::Config for Runtime {
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
-	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
@@ -1303,7 +1304,6 @@ impl pallet_stakepool::Config for Runtime {
 }
 impl pallet_vault::Config for Runtime {
 	type Event = Event;
-	type Currency = Balances;
 }
 parameter_types! {
 	pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
@@ -1373,7 +1373,6 @@ impl Get<AccountId32> for PawnShopGet {
 
 impl pallet_pawnshop::Config for Runtime {
 	type Event = Event;
-	type Currency = Balances;
 	type PPhaAssetId = PPhaAssetId;
 	type PawnShopAccountId = PawnShopGet;
 	type OnSlashed = Treasury;
@@ -1381,7 +1380,6 @@ impl pallet_pawnshop::Config for Runtime {
 
 impl pallet_basepool::Config for Runtime {
 	type Event = Event;
-	type Currency = Balances;
 }
 
 parameter_types! {
