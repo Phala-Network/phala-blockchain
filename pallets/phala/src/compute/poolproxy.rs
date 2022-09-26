@@ -11,7 +11,7 @@ use crate::BalanceOf;
 use frame_support::pallet_prelude::*;
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
-	/// General attributes of a pool
+	/// General fields of a pool
 	pub basepool: basepool::BasePool<AccountId, Balance>,
 	/// The commission the pool owner takes
 	///
@@ -27,31 +27,36 @@ pub struct StakePool<AccountId, Balance> {
 	pub workers: VecDeque<WorkerPublicKey>,
 	/// The workers in cd in the pool
 	pub cd_workers: VecDeque<WorkerPublicKey>,
-	/// The account generated to store ppha locked in miners with its asset account and controlled by the pallet
+	/// Generated account to store P-PHA locked in mining workers, controlled by the pallet
 	pub lock_account: AccountId,
-	/// The account generated to maintain owner rewards with its asset account and controlled by the pallet
+	/// Generated account to maintain owner rewards, controlled by the pallet
 	pub owner_reward_account: AccountId,
 }
 
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Vault<AccountId, Balance> {
-	/// General attributes of a pool
+	/// General fields of a pool
 	pub basepool: basepool::BasePool<AccountId, Balance>,
 	/// Record the share price when function: `maybe_gain_owner_shares` is called last time
 	pub last_share_price_checkpoint: Balance,
 	/// The commission the owner takes
 	///
-	/// The caculate formula of additional shares minted for pool owner is present below:
+	/// The calculated formula of the additional shares minted for pool owner is present below:
+	///
+	/// ```
 	/// additional_shares = total_value / (current_price - commission * min(current_price - last_share_price_checkpoint, 0)) - total_shares
-	/// When pool's share price is lower than last_share_price_checkpoint, the pool is regarded as in deficit and won't gain any addtional owner shares
-	/// The commission is actually indicate the percent of profit that earned by the pool should be redistributed to the pool owner
+	/// ```
+	///
+	/// When the pool's share price is lower than `last_share_price_checkpoint`, the pool made no profit  since the last checkpoint. So it won't gain any additional owner shares.
+	///
+	/// The `commission` indicates the percentage of the equivalent profits earned by the pool should be redistributed to the pool owner in the form of shares.
 	pub commission: Option<Permill>,
 	/// Claimable owner reward shares
 	///
 	/// Whenver the pool profit and function: `maybe_gain_owner_shares` is settled successfully, the commission the pool taken goes to here. The owner
 	/// can claim their reward shares at any time.
 	pub owner_shares: Balance,
-	/// The upstream stake pools the vault delegated
+	/// The upstream stake pools the vault has delegated to
 	pub invest_pools: VecDeque<u64>,
 }
 
@@ -87,7 +92,7 @@ pub enum PoolProxy<AccountId, Balance> {
 	Vault(Vault<AccountId, Balance>),
 }
 
-/// Gets a stakepool object by pid directly
+/// Returns a stakepool object by pid directly
 ///
 /// Returns error when the mapping pool type of the pid mismatch a stake pool
 pub fn ensure_stake_pool<T: basepool::Config>(
@@ -101,7 +106,7 @@ pub fn ensure_stake_pool<T: basepool::Config>(
 	}
 }
 
-/// Gets a vault object by pid directly
+/// Returns a vault object by pid directly
 ///
 /// Returns error when the mapping pool type of the pid mismatch a vault
 pub fn ensure_vault<T: basepool::Config>(

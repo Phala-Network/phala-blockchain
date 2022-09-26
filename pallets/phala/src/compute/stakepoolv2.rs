@@ -127,14 +127,12 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A stake pool is created under an owner
+		/// A stake pool is created by `owner`
 		///
 		/// Affected states:
 		/// - a new entry in [`Pools`] with the pid
-		PoolCreated {
-			owner: T::AccountId,
-			pid: u64,
-		},
+		PoolCreated { owner: T::AccountId, pid: u64 },
+
 		/// The commission of a pool is updated
 		///
 		/// The commission ratio is represented by an integer. The real value is
@@ -142,19 +140,14 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the `payout_commission` field in [`Pools`] is updated
-		PoolCommissionSet {
-			pid: u64,
-			commission: u32,
-		},
+		PoolCommissionSet { pid: u64, commission: u32 },
 
 		/// The stake capacity of the pool is updated
 		///
 		/// Affected states:
 		/// - the `cap` field in [`Pools`] is updated
-		PoolCapacitySet {
-			pid: u64,
-			cap: BalanceOf<T>,
-		},
+		PoolCapacitySet { pid: u64, cap: BalanceOf<T> },
+
 		/// A worker is added to the pool
 		///
 		/// Affected states:
@@ -167,11 +160,13 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			miner: T::AccountId,
 		},
+
 		/// Someone contributed to a pool
 		///
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
-		/// - the user asset account 
+		/// - the user P-PHA balance reduced
+		/// - the user recive ad share NFT once contribution succeeded
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
 		///   ([`Withdrawal`](#variant.Withdrawal) event)
 		Contribution {
@@ -192,6 +187,7 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			shares: BalanceOf<T>,
 		},
+
 		/// Owner rewards were withdrawn by pool owner
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
@@ -201,19 +197,19 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
+
 		/// The pool received a slash event from one of its workers (currently disabled)
 		///
 		/// The slash is accured to the pending slash accumulator.
-		PoolSlashed {
-			pid: u64,
-			amount: BalanceOf<T>,
-		},
+		PoolSlashed { pid: u64, amount: BalanceOf<T> },
+
 		/// Some slash is actually settled to a contributor (currently disabled)
 		SlashSettled {
 			pid: u64,
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
+
 		/// Some reward is dismissed because the worker is no longer bound to a pool
 		///
 		/// There's no affected state.
@@ -221,29 +217,24 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			amount: BalanceOf<T>,
 		},
+
 		/// Some reward is dismissed because the pool doesn't have any share
 		///
 		/// There's no affected state.
-		RewardDismissedNoShare {
-			pid: u64,
-			amount: BalanceOf<T>,
-		},
+		RewardDismissedNoShare { pid: u64, amount: BalanceOf<T> },
+
 		/// Some reward is dismissed because the amount is too tiny (dust)
 		///
 		/// There's no affected state.
-		RewardDismissedDust {
-			pid: u64,
-			amount: BalanceOf<T>,
-		},
+		RewardDismissedDust { pid: u64, amount: BalanceOf<T> },
+
 		/// A worker is removed from a pool.
 		///
 		/// Affected states:
 		/// - the worker item in [`WorkerAssignments`] is removed
 		/// - the worker is removed from the [`Pools`] item
-		PoolWorkerRemoved {
-			pid: u64,
-			worker: WorkerPublicKey,
-		},
+		PoolWorkerRemoved { pid: u64, worker: WorkerPublicKey },
+
 		/// A withdrawal request is inserted to a queue
 		///
 		/// Affected states:
@@ -254,37 +245,31 @@ pub mod pallet {
 			user: T::AccountId,
 			shares: BalanceOf<T>,
 		},
+
 		/// A pool contribution whitelist is added
 		/// - lazy operated when the first staker is added to the whitelist
-		PoolWhitelistCreated {
-			pid: u64,
-		},
+		PoolWhitelistCreated { pid: u64 },
+
 		/// The pool contribution whitelist is deleted
 		/// - lazy operated when the last staker is removed from the whitelist
-		PoolWhitelistDeleted {
-			pid: u64,
-		},
+		PoolWhitelistDeleted { pid: u64 },
+
 		/// A staker is added to the pool contribution whitelist
-		PoolWhitelistStakerAdded {
-			pid: u64,
-			staker: T::AccountId,
-		},
+		PoolWhitelistStakerAdded { pid: u64, staker: T::AccountId },
+
 		/// A staker is removed from the pool contribution whitelist
-		PoolWhitelistStakerRemoved {
-			pid: u64,
-			staker: T::AccountId,
-		},
+		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
+
 		/// A worker is reclaimed from the pool
-		WorkerReclaimed {
-			pid: u64,
-			worker: WorkerPublicKey,
-		},
+		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
+
 		/// The amount of reward that distributed to owner and stakers
 		RewardReceived {
 			pid: u64,
 			to_owner: BalanceOf<T>,
 			to_stakers: BalanceOf<T>,
 		},
+
 		/// The amount of stakes for a worker to start mine
 		MiningStarted {
 			pid: u64,

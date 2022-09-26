@@ -227,7 +227,7 @@ pub mod pallet {
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
 		}
-		/// Deconstruct nftguard proactively. Used in the read-only case.
+		/// Deconstructs the [`NftGuard`] proactively. Used in the read-only case.
 		pub fn unlock(self) {}
 	}
 
@@ -370,7 +370,7 @@ pub mod pallet {
 
 		/// Contributes some stake to the pool
 		///
-		/// efore minting a new nft to the delegator, the function will try to merge all nfts in the pool-collection into the unified nft
+		/// Before minting a new nft to the delegator, the function will try to merge all nfts in the pool-collection into the unified nft
 		///
 		/// Requires:
 		/// 1. The pool exists

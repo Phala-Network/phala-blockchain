@@ -48,7 +48,7 @@ pub mod pallet {
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		/// PPHA's asset id
+		/// P-PHA's asset id
 		#[pallet::constant]
 		type PPhaAssetId: Get<u32>;
 		/// Pha's global fund pool
@@ -342,8 +342,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Caculates the net ppha value of a user 
-		/// 
+		/// Caculates the net ppha value of a user
+		///
 		/// The net ppha value includes:
 		/// 1. Free stakes in user's asset account
 		/// 2. The current value of shares owned by the user

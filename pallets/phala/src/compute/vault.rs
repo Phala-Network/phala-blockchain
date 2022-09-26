@@ -1,4 +1,3 @@
-
 pub use self::pallet::*;
 
 #[frame_support::pallet]
@@ -60,14 +59,12 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A vault is created under an owner
+		/// A vault is created by `owner`
 		///
 		/// Affected states:
 		/// - a new entry in [`Pools`] with the pid
-		PoolCreated {
-			owner: T::AccountId,
-			pid: u64,
-		},
+		PoolCreated { owner: T::AccountId, pid: u64 },
+
 		/// The commission of a vault is updated
 		///
 		/// The commission ratio is represented by an integer. The real value is
@@ -75,33 +72,30 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the `commission` field in [`Pools`] is updated
-		VaultCommissionSet {
-			pid: u64,
-			commission: u32,
-		},
-		/// Owner shares start to withdraw by pool owner
+		VaultCommissionSet { pid: u64, commission: u32 },
+
+		/// Owner shares is claimed by pool owner
 		/// Affected states:
 		/// - the shares related fields in [`Pools`]
-		/// - the withdraw queue in [`Pools`]
 		/// - the nft related storages in rmrk and pallet unique
-		OwnerSharesStartWithdraw {
+		OwnerSharesClaimed {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
 		},
+
 		/// Additional owner shares are mint into the pool
 		/// Affected states:
 		/// - the shares related fields in [`Pools`]
 		/// - last_share_price_checkpoint in [`Pools`]
-		OwnerSharesGained {
-			pid: u64,
-			shares: BalanceOf<T>,
-		},
+		OwnerSharesGained { pid: u64, shares: BalanceOf<T> },
+
 		/// Someone contributed to a vault
 		///
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
-		/// - the user asset account 
+		/// - the user P-PHA balance reduced
+		/// - the user recive ad share NFT once contribution succeeded
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
 		///   ([`Withdrawal`](#variant.Withdrawal) event)
 		Contribution {
@@ -116,20 +110,18 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// The caller is not the owner of the pool
 		UnauthorizedPoolOwner,
-		/// Trying to withdraw more than the available shares
+		/// The withdrawal amount is too small or too large
 		InvaildWithdrawSharesAmount,
 		/// The vault have no owner shares to claim
 		NoRewardToClaim,
-		/// Asset account hasn't been created
+		/// The asset account hasn't been created. It indicates an internal error.
 		AssetAccountNotExist,
-		/// The withdrawal amount is too small (considered as dust)
-		InvalidWithdrawalAmount,
 		/// Trying to contribute more than the available balance
 		InsufficientBalance,
 		/// The contributed stake is smaller than the minimum threshold
 		InsufficientContribution,
-		/// The vault's total stakes amount is zero
-		VaultPriceIsZero,
+		/// The Vault was bankrupt; cannot interact with it unless all the shares are withdrawn.
+		VaultBankrupt,
 	}
 
 	#[pallet::call]
@@ -241,7 +233,7 @@ pub mod pallet {
 			let _nft_id = basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares)?;
 			pool_info.owner_shares -= shares;
 			basepool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
-			Self::deposit_event(Event::<T>::OwnerSharesStartWithdraw {
+			Self::deposit_event(Event::<T>::OwnerSharesClaimed {
 				pid: vault_pid,
 				user: who,
 				shares,
@@ -251,6 +243,8 @@ pub mod pallet {
 		}
 
 		/// Tries to settle owner shares if the vault profits
+		///
+		/// The mechanism of issuing shares to distribute owner reward is metioned in comments of struct `Vault` in poolproxy.rs
 		///
 		/// Requires:
 		/// 1. The sender is the owner
@@ -328,7 +322,7 @@ pub mod pallet {
 					let price = stake_pool
 						.basepool
 						.share_price()
-						.ok_or(Error::<T>::VaultPriceIsZero)?;
+						.ok_or(Error::<T>::VaultBankrupt)?;
 					releasing_stake += bmul(nft_guard.attr.shares, &price);
 				}
 			}
@@ -469,7 +463,7 @@ pub mod pallet {
 			};
 			ensure!(
 				basepool::is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
-				Error::<T>::InvalidWithdrawalAmount
+				Error::<T>::InvaildWithdrawSharesAmount
 			);
 			basepool::Pallet::<T>::try_withdraw(&mut pool_info.basepool, nft, who.clone(), shares)?;
 
