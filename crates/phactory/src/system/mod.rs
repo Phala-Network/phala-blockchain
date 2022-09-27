@@ -41,7 +41,7 @@ use phala_types::{
             BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
             WorkerClusterReport,
         },
-        ConvertTo, CodeIndex,
+        CodeIndex, ConvertTo,
     },
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
@@ -108,6 +108,7 @@ pub enum TransactionError {
     FailedToUploadResourceToCluster,
     NoClusterOnGatekeeper,
     NoPinkSystemCode,
+    BadPinkSystemVersion,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -1482,7 +1483,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 .filter(|code| !code.is_empty())
                 .ok_or(TransactionError::NoPinkSystemCode)?;
             info!(
-                "Worker: creating cluster {}, owner={}, code length={}",
+                "Worker: creating cluster {:?}, owner={:?}, code length={}",
                 event.cluster,
                 event.owner,
                 system_code.len()
@@ -1494,7 +1495,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let code_hash = cluster
                 .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
                 .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
-            info!("Worker: pink system code hash {}", code_hash);
+            info!("Worker: pink system code hash {:?}", code_hash);
             let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
 
             let (pink, effects) = Pink::instantiate(
@@ -1508,6 +1509,32 @@ impl<Platform: pal::Platform> System<Platform> {
                 block.now_ms,
                 None,
             )?;
+            // Record the version
+            let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
+            let (result, _) = pink.instance.bare_call(
+                &mut cluster.storage,
+                event.owner.clone(),
+                selector,
+                true,
+                block.block_number,
+                block.now_ms,
+                None,
+            );
+            let output = result
+                .result
+                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            cluster.config.version = Decode::decode(&mut &output.data[..])
+                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            info!(
+                "Cluster deployed, id={:?}, system={:?}, version={:?}",
+                event.cluster,
+                pink.id(),
+                cluster.config.version
+            );
+            const SUPPORTED_API_VERSION: u16 = 0;
+            if cluster.config.version.0 > SUPPORTED_API_VERSION {
+                panic!("The pink-system version is not supported, please upgrade the pRuntime");
+            }
             cluster.set_system_contract(pink.address());
             apply_pink_side_effects(
                 effects,
