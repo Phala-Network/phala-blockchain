@@ -15,6 +15,7 @@ use crate::registry;
 use crate::fat;
 use crate::compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
 
+
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
 	fat::Config
