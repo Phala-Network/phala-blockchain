@@ -62,7 +62,7 @@ pub mod pallet {
 		T::AccountId: IntoH256,
 	{
 		/// Syncs an unverified offchain message to the message queue
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn sync_offchain_message(
 			origin: OriginFor<T>,
 			signed_message: SignedMessage,
@@ -96,7 +96,7 @@ pub mod pallet {
 
 		// Messaging API for end user.
 		// TODO.kevin: confirm the weight
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn push_message(
 			origin: OriginFor<T>,
 			destination: Vec<u8>,
@@ -110,7 +110,7 @@ pub mod pallet {
 		}
 
 		// Force push a from-pallet message.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_push_pallet_message(
 			origin: OriginFor<T>,
 			destination: Vec<u8>,
@@ -127,7 +127,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Push a validated message to the queue
 		pub fn dispatch_message(message: Message) {
-			// Notify subcribers
+			// Notify subscribers
 			if let Err(_err) = T::QueueNotifyConfig::on_message_received(&message) {
 				// TODO: Consider to emit a message as warning. We can't stop dispatching message in any situation.
 			}
@@ -172,7 +172,8 @@ pub mod pallet {
 					Self::dispatch_message(message);
 				}
 			}
-			0
+
+			Weight::zero()
 		}
 	}
 
@@ -189,7 +190,7 @@ pub mod pallet {
 	}
 	impl QueueNotifyConfig for () {}
 
-	/// Needs an extrenal helper struct to extract MqCall from all callables
+	/// Needs an external helper struct to extract MqCall from all callables
 	pub trait CallMatcher<T: Config> {
 		fn match_call(call: &T::Call) -> Option<&Call<T>>
 		where

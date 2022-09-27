@@ -26,18 +26,6 @@ function run(afn) {
     return runner;
 }
 
-function rand() {
-    return (Math.random() * 65536) | 0;
-}
-
-function parseXUS(assets) {
-    const m = assets.match(/(\d+(\.\d*)?) XUS/);
-    if (!m) {
-        throw new Error(`Couldn't parse asset ${assets}`);
-    }
-    return (parseFloat(m[1]) * 1e6) | 0;
-}
-
 function usePruntimeApi() {
     const { pruntimeEndpoint } = program.opts();
     return createPRuntimeApi(pruntimeEndpoint);

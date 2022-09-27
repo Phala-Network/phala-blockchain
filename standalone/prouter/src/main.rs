@@ -8,7 +8,7 @@ mod utils;
 
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use log::{error, info, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -29,7 +29,7 @@ use phactory_api::prpc;
 use phactory_api::pruntime_client;
 use phaxt::rpc::ExtraRpcExt;
 
-use phala_types::EndpointType;
+use phactory_api::endpoints::EndpointType;
 
 pub type SharedParachainApi = Arc<Mutex<Option<ParachainApi>>>;
 
@@ -347,7 +347,7 @@ pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
     let mut local_proxy: String = Default::default();
     {
         let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
-        let endpoint: Vec<u8>;
+        let endpoint: String;
         let mut no_bind: bool = args.no_pnode;
 
         // connect to pruntime (need pruntime to be initialized first)
@@ -376,12 +376,12 @@ pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
         // 1. generate config files
         let abs_datadir_path = preprocess_path(&args.datadir)?;
         let tunconf_path = init_tunnels_conf(&abs_datadir_path, args)?;
-        let mut conf_path: String = Default::default();
+        let conf_path;
         (conf_path, local_proxy) = init_prouter_conf(&abs_datadir_path, tunconf_path, args)?;
         // 2. get endpoint
         let phala_i2p_key: Vec<u8>;
         match args.endpoint_type {
-            EndpointType::I2P => {
+            EndpointType::I2p => {
                 if args.no_pruntime {
                     // Random generate, it will not go on-chain
                     no_bind = true;
@@ -405,15 +405,10 @@ pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
                     "phala.key".to_string(),
                     phala_i2p_key,
                 )?;
-                endpoint = format!("{}:{}", i2p_endpoint, args.exposed_port).into_bytes();
+                endpoint = format!("{}:{}", i2p_endpoint, args.exposed_port);
             }
             EndpointType::Http => {
-                endpoint = args
-                    .endpoint
-                    .as_ref()
-                    .expect("Should never fail")
-                    .clone()
-                    .into_bytes();
+                endpoint = args.endpoint.clone().expect("--endpoint is required");
             }
         }
         // 3. initializing i2pd
@@ -424,9 +419,9 @@ pub async fn prouter_main(args: &Args) -> Result<(String, I2pd)> {
         i2pd.add_config("conf".parse()?, conf_path.clone());
         // 4. register endpoint to pRuntime
         if !no_bind {
-            info!("Binding Endpoint: {}", String::from_utf8_lossy(&endpoint));
+            info!("Binding Endpoint: {}", endpoint);
             let add_endpoint_request =
-                prpc::AddEndpointRequest::new(args.endpoint_type.clone(), endpoint.clone());
+                prpc::AddEndpointRequest::new(args.endpoint_type.clone(), endpoint);
             pr.as_ref()
                 .expect("guaranteed to be initialized")
                 .add_endpoint(add_endpoint_request)

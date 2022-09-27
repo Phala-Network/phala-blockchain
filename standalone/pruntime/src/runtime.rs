@@ -14,6 +14,10 @@ pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
     Ok(factory.handle_scale_api(action, input))
 }
 
+pub fn ecall_getinfo() -> String {
+    APPLICATION.lock_phactory().getinfo()
+}
+
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     static INITIALIZED: AtomicU32 = AtomicU32::new(0);
     if INITIALIZED.fetch_add(1, Ordering::SeqCst) != 0 {

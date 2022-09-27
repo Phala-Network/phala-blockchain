@@ -3,8 +3,7 @@ use log::{error, info};
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::mem;
-use std::os::raw::{c_char, c_uchar};
+use std::os::raw::c_char;
 use std::path::PathBuf;
 
 const BUFFER_SIZE: usize = 256;
@@ -12,7 +11,12 @@ const BUFFER_SIZE: usize = 256;
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+#[allow(unused)]
+mod bindings {
+    use super::*;
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
+use bindings::*;
 
 enum PRouterSigningKeyType {
     SigningKeyTypeDSASha1 = 0,
