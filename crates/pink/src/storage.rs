@@ -6,8 +6,8 @@ use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
-use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 use sp_state_machine::backend::AsTrieBackend;
+use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 mod backend;
 
@@ -19,7 +19,8 @@ pub fn new_in_memory_backend() -> InMemoryBackend {
     sp_state_machine::TrieBackendBuilder::new(
         db,
         sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>(),
-    ).build()
+    )
+    .build()
 }
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
@@ -143,9 +144,11 @@ where
         account: AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        Ok(self.execute_with(false, None, || {
-            crate::runtime::Pink::put_sidevm_code(account, code)
-        }).0)
+        Ok(self
+            .execute_with(false, None, || {
+                crate::runtime::Pink::put_sidevm_code(account, code)
+            })
+            .0)
     }
 
     pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
@@ -153,6 +156,17 @@ where
             crate::runtime::Pink::sidevm_codes(&hash).map(|v| v.code)
         })
         .0
+    }
+
+    pub fn set_system_contract(&mut self, address: AccountId) {
+        self.execute_with(false, None, move || {
+            crate::runtime::Pink::set_system_contract(address);
+        });
+    }
+
+    pub fn system_contract(&mut self) -> Option<AccountId> {
+        self.execute_with(true, None, move || crate::runtime::Pink::system_contract())
+            .0
     }
 }
 

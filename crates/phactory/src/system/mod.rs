@@ -8,6 +8,7 @@ use crate::{
     pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
+    StorageExt,
 };
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
@@ -38,9 +39,9 @@ use phala_types::{
         self,
         messaging::{
             BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
-            WorkerClusterReport, WorkerContractReport,
+            WorkerClusterReport,
         },
-        CodeIndex,
+        CodeIndex, ConvertTo,
     },
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
@@ -104,7 +105,10 @@ pub enum TransactionError {
     // for contract
     CodeNotFound,
     DuplicatedClusterDeploy,
+    FailedToUploadResourceToCluster,
     NoClusterOnGatekeeper,
+    NoPinkSystemCode,
+    BadPinkSystemVersion,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -1237,89 +1241,12 @@ impl<Platform: pal::Platform> System<Platform> {
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
-                // We generate a unique key for each contract instead of
-                // sharing the same cluster key to prevent replay attack
-                let contract_id = contract_info.contract_id(blake2_256);
-                let contract_key = get_contract_key(cluster.key(), &contract_id);
-                let contract_pubkey = contract_key.public();
-                let ecdh_key = contract_key
-                    .derive_ecdh_key()
-                    .or(Err(anyhow::anyhow!("Invalid contract key")))?;
-
-                let sender = MessageOrigin::Cluster(cluster_id);
-                let cluster_mq: SignedMessageChannel =
-                    block.send_mq.channel(sender, cluster.key().clone().into());
-
+                if cluster.system_contract().is_none() {
+                    anyhow::bail!("The system contract is missing, Cannot deploy contract");
+                }
                 match contract_info.code_index {
-                    CodeIndex::NativeCode(code_id) => {
-                        use contracts::*;
-                        let deployer = phala_types::messaging::AccountId(
-                            contract_info.clone().deployer.into(),
-                        );
-
-                        macro_rules! match_and_install_contract {
-                            ($(($id: path => $contract: expr)),*) => {{
-                                match code_id {
-                                    $(
-                                        $id => {
-                                            let id = contract_info.contract_id(blake2_256);
-                                            install_contract(
-                                                &mut self.contracts,
-                                                id,
-                                                $contract,
-                                                contract_key.clone(),
-                                                ecdh_key,
-                                                block,
-                                                cluster_id,
-                                            )?;
-                                            id
-                                        }
-                                    )*
-                                    _ => {
-                                        anyhow::bail!(
-                                            "Invalid contract code id: {:?}",
-                                            code_id
-                                        );
-                                    }
-                                }
-                            }};
-                        }
-
-                        let contract_id = match_and_install_contract! {
-                            (BALANCES => balances::Balances::new()),
-                            (ASSETS => assets::Assets::new()),
-                            (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.to_raw_vec()))),
-                            // (GEOLOCATION => geolocation::Geolocation::new()),
-                            (GUESS_NUMBER => guess_number::GuessNumber::new())
-                            // (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
-                        };
-
-                        let message = ContractRegistryEvent::PubkeyAvailable {
-                            contract: contract_id,
-                            pubkey: contract_pubkey.clone(),
-                        };
-                        cluster_mq.push_message(&message);
-
-                        cluster.add_contract(contract_id);
-
-                        let message = WorkerContractReport::ContractInstantiated {
-                            id: contract_id,
-                            cluster_id,
-                            deployer,
-                            pubkey: contract_pubkey,
-                        };
-                        info!("Native contract instantiate status: {:?}", message);
-                        self.egress.push_message(&message);
-                    }
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
-                        let contract_id = contract_info.contract_id(blake2_256);
-
-                        let message = ContractRegistryEvent::PubkeyAvailable {
-                            contract: contract_id,
-                            pubkey: contract_pubkey,
-                        };
-                        cluster_mq.push_message(&message);
 
                         let log_handler = self.get_system_message_handler(&cluster_id);
 
@@ -1520,7 +1447,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_cluster_key_distribution(
         &mut self,
-        _block: &mut BlockInfo,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
         event: BatchDispatchClusterKeyEvent<chain::BlockNumber>,
     ) -> anyhow::Result<()> {
@@ -1549,9 +1476,77 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &event.cluster);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
+            let system_code = block
+                .storage
+                .pink_system_code()
+                .map(|it| it.1)
+                .filter(|code| !code.is_empty())
+                .ok_or(TransactionError::NoPinkSystemCode)?;
+            info!(
+                "Worker: creating cluster {:?}, owner={:?}, code length={}",
+                event.cluster,
+                event.owner,
+                system_code.len()
+            );
             // register cluster
-            self.contract_clusters
+            let cluster = self
+                .contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+            let code_hash = cluster
+                .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
+                .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
+            info!("Worker: pink system code hash {:?}", code_hash);
+            let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
+
+            let (pink, effects) = Pink::instantiate(
+                event.cluster,
+                &mut cluster.storage,
+                event.owner.clone(),
+                code_hash,
+                selector,
+                vec![],
+                block.block_number,
+                block.now_ms,
+                None,
+            )?;
+            // Record the version
+            let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
+            let (result, _) = pink.instance.bare_call(
+                &mut cluster.storage,
+                event.owner.clone(),
+                selector,
+                true,
+                block.block_number,
+                block.now_ms,
+                None,
+            );
+            let output = result
+                .result
+                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            cluster.config.version = Decode::decode(&mut &output.data[..])
+                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            info!(
+                "Cluster deployed, id={:?}, system={:?}, version={:?}",
+                event.cluster,
+                pink.id(),
+                cluster.config.version
+            );
+            const SUPPORTED_API_VERSION: u16 = 0;
+            if cluster.config.version.0 > SUPPORTED_API_VERSION {
+                panic!("The pink-system version is not supported, please upgrade the pRuntime");
+            }
+            cluster.set_system_contract(pink.address());
+            apply_pink_side_effects(
+                effects,
+                event.cluster,
+                &mut self.contracts,
+                cluster,
+                block,
+                &self.egress,
+                &self.sidevm_spawner,
+                None,
+            );
+
             let message = WorkerClusterReport::ClusterDeployed {
                 id: event.cluster,
                 pubkey: cluster_key.public(),
@@ -1698,7 +1693,7 @@ fn apply_instantiating_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     block: &mut BlockInfo,
-    egress: &SignedMessageChannel,
+    _egress: &SignedMessageChannel,
 ) {
     for (deployer, address) in instantiated_events {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1728,15 +1723,16 @@ fn apply_instantiating_events(
 
         cluster.add_contract(id);
 
-        let message = WorkerContractReport::ContractInstantiated {
-            id,
-            cluster_id,
+        let message = ContractRegistryEvent::PubkeyAvailable {
+            contract: contract_id,
+            pubkey: contract_key.public(),
             deployer: phala_types::messaging::AccountId(deployer.into()),
-            pubkey: EcdhPublicKey(ecdh_key.public()),
         };
-
-        info!("pink instantiate status: {:?}", message);
-        egress.push_message(&message);
+        let sender = MessageOrigin::Cluster(cluster_id);
+        let cluster_mq: SignedMessageChannel =
+            block.send_mq.channel(sender, cluster.key().clone().into());
+        cluster_mq.push_message(&message);
+        info!("Pink instantiated: cluster={cluster_id} {message:?}");
     }
 }
 
@@ -1747,23 +1743,28 @@ pub(crate) fn apply_pink_events(
     cluster: &mut Cluster,
     spawner: &Spawner,
 ) {
-    for (address, event) in pink_events {
-        let id = contracts::contract_address_to_id(&address);
-        let contract = match contracts.get_mut(&id) {
-            Some(contract) => contract,
-            None => {
-                panic!(
-                    "BUG: Unknown contract sending pink event, address={:?}, cluster_id={:?}",
-                    address, cluster_id
-                );
-            }
-        };
-        let vmid = sidevm::ShortId(address.as_ref());
+    for (origin, event) in pink_events {
+        macro_rules! get_contract {
+            ($origin: expr) => {{
+                match contracts.get_mut(&$origin.convert_to()) {
+                    Some(contract) => contract,
+                    None => {
+                        error!(
+                            "Unknown contract sending pink event, address={:?}, cluster_id={:?}",
+                            $origin, cluster_id
+                        );
+                        continue;
+                    }
+                }
+            }};
+        }
         match event {
             PinkEvent::Message(message) => {
+                let contract = get_contract!(&origin);
                 contract.push_message(message.payload, message.topic);
             }
             PinkEvent::OspMessage(message) => {
+                let contract = get_contract!(&origin);
                 contract.push_osp_message(
                     message.message.payload,
                     message.message.topic,
@@ -1771,12 +1772,19 @@ pub(crate) fn apply_pink_events(
                 );
             }
             PinkEvent::OnBlockEndSelector(selector) => {
+                let contract = get_contract!(&origin);
                 contract.set_on_block_end_selector(selector);
             }
-            PinkEvent::StartSidevm {
+            PinkEvent::DeploySidevmTo {
+                contract: target_contract,
                 code_hash,
-                auto_restart,
             } => {
+                let vmid = sidevm::ShortId(target_contract.as_ref());
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!(target: "sidevm", "[{vmid}] Start sidevm failed from {}: permission denied", origin);
+                    continue;
+                }
+                let target_contract = get_contract!(&target_contract);
                 let code_hash = code_hash.into();
                 let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
                     Some(code) => code,
@@ -1785,11 +1793,13 @@ pub(crate) fn apply_pink_events(
                         continue;
                     }
                 };
-                if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
+                if let Err(err) = target_contract.start_sidevm(&spawner, wasm_code, true) {
                     error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
+                let vmid = sidevm::ShortId(origin.as_ref());
+                let contract = get_contract!(&origin);
                 if let Err(err) =
                     contract.push_message_to_sidevm(SidevmCommand::PushMessage(payload))
                 {
@@ -1797,9 +1807,24 @@ pub(crate) fn apply_pink_events(
                 }
             }
             PinkEvent::CacheOp(op) => {
-                pink::local_cache::local_cache_op(&address, op);
+                pink::local_cache::local_cache_op(&origin, op);
             }
             PinkEvent::StopSidevm => {
+                let vmid = sidevm::ShortId(origin.as_ref());
+                let contract = get_contract!(&origin);
+                if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
+                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
+                }
+            }
+            PinkEvent::ForceStopSidevm {
+                contract: target_contract,
+            } => {
+                let vmid = sidevm::ShortId(target_contract.as_ref());
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!(target: "sidevm", "[{vmid}] Stop sidevm failed from ({}): permission denied", origin);
+                    continue;
+                }
+                let contract = get_contract!(&origin);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                     error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }

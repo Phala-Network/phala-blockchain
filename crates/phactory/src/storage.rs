@@ -1,6 +1,6 @@
 use crate::light_validation::{storage_proof::StorageProof, LightValidation};
-use std::string::ToString;
 use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
+use std::string::ToString;
 
 pub use storage_ext::{Storage, StorageExt};
 
@@ -75,6 +75,9 @@ mod storage_ext {
         }
         fn timestamp_now(&self) -> Option<chain::Moment> {
             self.get_decoded(storage_prefix("Timestamp", "Now"))
+        }
+        fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
+            self.get_decoded(storage_prefix("PhalaFatContracts", "PinkSystemCode"))
         }
     }
 

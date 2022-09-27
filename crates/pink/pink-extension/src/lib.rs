@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
+use ink_env::{emit_event, topics::state::HasRemainingTopics, AccountId, Environment, Topics};
 
 use ink_lang::EnvAccess;
 use scale::{Decode, Encode};
@@ -13,6 +13,7 @@ pub use pink_extension_macro::contract;
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
 pub mod logger;
+pub mod system;
 pub mod predefined_accounts {
     use ink_env;
 
@@ -54,12 +55,12 @@ pub enum PinkEvent {
     OspMessage(OspMessage),
     /// Contract has an on_block_end ink message and will emit this event on instantiation.
     OnBlockEndSelector(u32),
-    /// Start the side VM.
-    StartSidevm {
+    /// Deploy a sidevm instance to given contract instance
+    DeploySidevmTo {
+        /// The target contract address
+        contract: AccountId,
         /// The hash of the sidevm code.
         code_hash: Hash,
-        /// Restart the instance when it has crashed
-        auto_restart: bool,
     },
     /// Push a message to the associated sidevm instance.
     SidevmMessage(Vec<u8>),
@@ -67,17 +68,25 @@ pub enum PinkEvent {
     CacheOp(CacheOp),
     /// Stop the side VM instance if it is running.
     StopSidevm,
+    /// Force stop the side VM instance if it is running.
+    ForceStopSidevm {
+        /// The target contract address
+        contract: AccountId,
+    },
 }
 
 impl PinkEvent {
     pub fn allowed_in_query(&self) -> bool {
-        matches!(
-            self,
-            PinkEvent::StartSidevm { .. }
-                | PinkEvent::SidevmMessage(_)
-                | PinkEvent::CacheOp(_)
-                | PinkEvent::StopSidevm
-        )
+        match self {
+            PinkEvent::Message(_) => false,
+            PinkEvent::OspMessage(_) => false,
+            PinkEvent::OnBlockEndSelector(_) => false,
+            PinkEvent::DeploySidevmTo { .. } => true,
+            PinkEvent::SidevmMessage(_) => true,
+            PinkEvent::CacheOp(_) => true,
+            PinkEvent::StopSidevm => true,
+            PinkEvent::ForceStopSidevm { .. } => true,
+        }
     }
 }
 
@@ -139,12 +148,26 @@ pub fn set_on_block_end_selector(selector: u32) {
     emit_event::<PinkEnvironment, _>(PinkEvent::OnBlockEndSelector(selector))
 }
 
-/// Start a side VM instance
-pub fn start_sidevm(code_hash: Hash, auto_restart: bool) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm {
+/// Start a SideVM instance
+pub fn start_sidevm(code_hash: Hash) -> Result<(), system::Error> {
+    let driver =
+        crate::system::SidevmOperationRef::instance().ok_or(system::Error::DriverNotFound)?;
+    driver.deploy(code_hash)
+}
+
+/// Deploy a SideVM instance to a given contract.
+/// The caller must be the system contract.
+pub fn deploy_sidevm_to(contract: AccountId, code_hash: Hash) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::DeploySidevmTo {
+        contract,
         code_hash,
-        auto_restart,
-    })
+    });
+}
+
+/// Stop a SideVM instance running at given contract address.
+/// The caller must be the system contract.
+pub fn stop_sidevm_at(contract: AccountId) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::ForceStopSidevm { contract });
 }
 
 /// Force stop the side VM instance if it is running

@@ -473,7 +473,7 @@ where
     ) -> Result<(), TransactionError> {
         info!("Incoming cluster event: {:?}", event);
         match event {
-            ClusterEvent::DeployCluster { cluster, workers } => {
+            ClusterEvent::DeployCluster { owner, cluster, workers } => {
                 if !origin.is_pallet() {
                     error!("Attempt to deploy cluster from bad origin");
                     return Err(TransactionError::BadOrigin);
@@ -508,6 +508,7 @@ where
                         secret_keys,
                         cluster,
                         0,
+                        owner,
                     ),
                 );
                 Ok(())

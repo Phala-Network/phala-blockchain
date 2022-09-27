@@ -230,7 +230,6 @@ const types = {
     "CodeHash": "H256",
     "CodeIndex": {
         "_enum": {
-            "NativeCode": "ContractId32",
             "WasmCode": "CodeHash"
         }
     },

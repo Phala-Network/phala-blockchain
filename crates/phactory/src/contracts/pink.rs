@@ -5,13 +5,12 @@ use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
+use phala_types::contract::ConvertTo;
 use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 use sp_runtime::{traits::ConstU32, BoundedVec};
-
-use super::contract_address_to_id;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -44,7 +43,7 @@ pub enum QueryError {
 
 #[derive(Encode, Decode, Clone)]
 pub struct Pink {
-    instance: pink::Contract,
+    pub(crate) instance: pink::Contract,
     cluster_id: ContractClusterId,
 }
 
@@ -90,7 +89,11 @@ impl Pink {
     }
 
     pub fn id(&self) -> ContractId {
-        contract_address_to_id(&self.instance.address)
+        self.instance.address.convert_to()
+    }
+
+    pub fn address(&self) -> AccountId {
+        self.instance.address.clone()
     }
 
     pub fn set_on_block_end_selector(&mut self, selector: u32) {
@@ -176,7 +179,7 @@ impl Pink {
         &mut self,
         origin: MessageOrigin,
         cmd: Command,
-        context: &mut contracts::NativeContext,
+        context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
         match cmd {
             Command::InkMessage { nonce, message } => {
@@ -227,7 +230,7 @@ impl Pink {
 
     pub(crate) fn on_block_end(
         &mut self,
-        context: &mut contracts::NativeContext,
+        context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
         let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
             .expect("Pink cluster should always exists!");
@@ -278,7 +281,7 @@ pub mod cluster {
     use runtime::BlockNumber;
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
-    use sp_runtime::DispatchError;
+    use sp_runtime::{AccountId32, DispatchError};
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Default, Serialize, Deserialize)]
@@ -363,6 +366,8 @@ pub mod cluster {
     #[derive(Serialize, Deserialize, Default)]
     pub struct ClusterConfig {
         pub log_handler: Option<ContractId>,
+        // Version used to control the contract API availability.
+        pub version: (u16, u16),
     }
 
     #[derive(Serialize, Deserialize)]
@@ -382,6 +387,14 @@ pub mod cluster {
 
         pub fn key(&self) -> &sr25519::Pair {
             &self.key
+        }
+
+        pub fn system_contract(&mut self) -> Option<AccountId32> {
+            self.storage.system_contract()
+        }
+
+        pub fn set_system_contract(&mut self, contract: AccountId32) {
+            self.storage.set_system_contract(contract);
         }
 
         pub fn set_id(&mut self, id: &ContractClusterId) {

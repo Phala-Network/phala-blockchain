@@ -6,8 +6,6 @@
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 

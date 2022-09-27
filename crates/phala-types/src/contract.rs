@@ -22,7 +22,6 @@ pub const BTC_PRICE_BOT: ContractId32 = 101;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum CodeIndex<CodeHash> {
-    NativeCode(ContractId32),
     WasmCode(CodeHash),
 }
 
@@ -34,22 +33,22 @@ pub enum InkCommand {
 impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
     pub fn code_hash(&self) -> Vec<u8> {
         match self {
-            CodeIndex::NativeCode(contract_id) => contract_id.to_be_bytes().to_vec(),
             CodeIndex::WasmCode(code_hash) => code_hash.as_ref().to_vec(),
         }
     }
 }
 
 pub mod messaging {
-    use alloc::{vec::Vec, collections::BTreeMap};
+    use alloc::{collections::BTreeMap, vec::Vec};
     use codec::{Decode, Encode};
     use core::fmt::Debug;
     use scale_info::TypeInfo;
 
     use super::{ContractClusterId, ContractInfo};
-    use phala_mq::{bind_topic, ContractId, AccountId};
-    use crate::{WorkerIdentity, ClusterPublicKey, ContractPublicKey, WorkerPublicKey};
     use crate::messaging::EncryptedKey;
+    use crate::{ClusterPublicKey, WorkerIdentity, WorkerPublicKey};
+    use phala_mq::{bind_topic, AccountId};
+    use sp_core::crypto::AccountId32;
 
     type MqAccountId = AccountId;
 
@@ -58,6 +57,7 @@ pub mod messaging {
     pub enum ClusterEvent {
         // TODO.shelven: enable add and remove workers
         DeployCluster {
+            owner: AccountId32,
             cluster: ContractClusterId,
             workers: Vec<WorkerIdentity>,
         },
@@ -96,27 +96,13 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerContractReport {
-        ContractInstantiated {
-            id: ContractId,
-            cluster_id: ContractClusterId,
-            deployer: AccountId,
-            pubkey: ContractPublicKey,
-        },
-        ContractInstantiationFailed {
-            id: ContractId,
-            cluster_id: ContractClusterId,
-            deployer: AccountId,
-        },
-    }
-
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
     pub struct BatchDispatchClusterKeyEvent<BlockNumber> {
         pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
         pub cluster: ContractClusterId,
         pub expiration: BlockNumber,
+        /// The owner of the cluster
+        pub owner: AccountId32,
     }
 
     bind_topic!(ClusterOperation<AccountId, BlockNumber>, b"phala/cluster/key");
@@ -150,16 +136,16 @@ pub mod messaging {
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             expiration: BlockNumber,
+            owner: AccountId32,
         ) -> Self {
             ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
                 expiration,
+                owner,
             })
         }
     }
-
-
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
@@ -173,6 +159,7 @@ pub struct ClusterInfo<AccountId> {
     pub owner: AccountId,
     pub permission: ClusterPermission<AccountId>,
     pub workers: Vec<WorkerPublicKey>,
+    pub system_contract: ContractId,
 }
 
 /// On-chain contract registration info
@@ -274,4 +261,18 @@ pub fn command_topic(id: ContractId) -> Vec<u8> {
     format!("phala/contract/{}/command", hex::encode(&id))
         .as_bytes()
         .to_vec()
+}
+
+pub trait ConvertTo<To> {
+    fn convert_to(&self) -> To;
+}
+
+impl<F, T> ConvertTo<T> for F
+where
+    F: AsRef<[u8; 32]>,
+    T: From<[u8; 32]>,
+{
+    fn convert_to(&self) -> T {
+        (*self.as_ref()).into()
+    }
 }

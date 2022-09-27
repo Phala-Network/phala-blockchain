@@ -4,11 +4,8 @@ use sidevm::service::Spawner;
 use std::collections::BTreeMap;
 
 use crate::{
-    contracts::{
-        assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
-        geolocation::Geolocation, guess_number::GuessNumber, pink::Pink, FatContract,
-        NativeContext, NativeContract as _, TransactionError, TransactionResult,
-    },
+    contracts::{pink::Pink, FatContract, TransactionContext},
+    system::{TransactionError, TransactionResult},
     types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use parity_scale_codec::{Decode, Encode};
@@ -19,10 +16,9 @@ use super::QueryContext;
 type ContractMap = BTreeMap<ContractId, FatContract>;
 
 macro_rules! define_any_native_contract {
-    (pub enum $name:ident { Pink(Pink), $($contract:ident ($contract_type: tt),)* }) => {
+    (pub enum $name:ident { $($contract:ident ($contract_type: tt),)* }) => {
         #[derive(Encode, Decode)]
         pub enum $name {
-            Pink(Pink),
             $($contract($contract_type),)*
         }
 
@@ -31,13 +27,9 @@ macro_rules! define_any_native_contract {
                 &mut self,
                 origin: MessageOrigin,
                 cmd: Vec<u8>,
-                context: &mut NativeContext,
+                context: &mut TransactionContext,
             ) -> TransactionResult {
                 match self {
-                    Self::Pink(me) => {
-                        let cmd = Decode::decode(&mut &cmd[..]).or(Err(TransactionError::BadInput))?;
-                        me.handle_command(origin, cmd, context)
-                    }
                     $(Self::$contract(me) => {
                         let cmd = Decode::decode(&mut &cmd[..]).or(Err(TransactionError::BadInput))?;
                         me.handle_command(origin, cmd, context)
@@ -45,11 +37,8 @@ macro_rules! define_any_native_contract {
                 }
             }
 
-            pub(crate) fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
+            pub(crate) fn on_block_end(&mut self, context: &mut TransactionContext) -> TransactionResult {
                 match self {
-                    Self::Pink(me) => {
-                        me.on_block_end(context)
-                    }
                     $(Self::$contract(me) => {
                         me.on_block_end(context)
                     })*
@@ -58,9 +47,6 @@ macro_rules! define_any_native_contract {
 
             pub(crate) fn snapshot(&self) -> Self {
                 match self {
-                    Self::Pink(me) => {
-                        Self::Pink(me.snapshot())
-                    }
                     $($name::$contract(me) => {
                         Self::$contract(me.snapshot())
                     })*
@@ -74,24 +60,15 @@ macro_rules! define_any_native_contract {
                 context: &mut QueryContext,
             ) -> Result<(OpaqueReply, ExecSideEffects), OpaqueError> {
                 match self {
-                    Self::Pink(me) => {
+                    $($name::$contract(me) => {
                         let mut effects = ExecSideEffects::default();
                         let response = me.handle_query(origin, deopaque_query(&req)?, context, &mut effects).await;
                         Ok((response.encode(), effects))
-                    }
-                    $($name::$contract(me) => {
-                        let response = me.handle_query(origin, deopaque_query(&req)?, context).await;
-                        Ok((response.encode(), Default::default()))
                     })*
                 }
             }
         }
 
-        impl From<Pink> for $name {
-            fn from(c: Pink) -> Self {
-                $name::Pink(c)
-            }
-        }
         $(
             impl From<$contract_type> for $name {
                 fn from(c: $contract_type) -> Self {
@@ -105,12 +82,6 @@ macro_rules! define_any_native_contract {
 define_any_native_contract!(
     pub enum AnyContract {
         Pink(Pink),
-        Balances(Balances),
-        Assets(Assets),
-        BtcLottery(BtcLottery),
-        Geolocation(Geolocation),
-        GuessNumber(GuessNumber),
-        BtcPriceBot(BtcPriceBot),
     }
 );
 

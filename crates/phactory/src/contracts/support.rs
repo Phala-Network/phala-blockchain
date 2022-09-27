@@ -1,20 +1,25 @@
+use anyhow::{anyhow, bail, Result};
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
+use parity_scale_codec::Decode;
 use phala_crypto::ecdh::EcdhPublicKey;
+use phala_mq::{traits::MessageChannel, SignedMessageChannel};
 use phala_scheduler::RequestScheduler;
-use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
-use serde::{Deserialize, Serialize};
 use sidevm::{
     service::{CommandSender, ExitReason},
     OcallAborted, VmId,
 };
 
 use super::pink::cluster::ClusterKeeper;
-use super::*;
-use crate::secret_channel::SecretReceiver;
-use crate::types::BlockInfo;
-use anyhow::{anyhow, bail};
+use crate::{
+    secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
+    system::{TransactionError, TransactionResult},
+    types::BlockInfo,
+    ContractId,
+};
+
 use phala_serde_more as more;
 
 pub struct ExecuteEnv<'a, 'b> {
@@ -23,7 +28,7 @@ pub struct ExecuteEnv<'a, 'b> {
     pub log_handler: Option<CommandSender>,
 }
 
-pub struct NativeContext<'a, 'b> {
+pub struct TransactionContext<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
     pub mq: &'a SignedMessageChannel,
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
@@ -39,41 +44,6 @@ pub struct QueryContext {
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
     pub query_scheduler: RequestScheduler<ContractId>,
-}
-
-impl NativeContext<'_, '_> {
-    pub fn mq(&self) -> &SignedMessageChannel {
-        self.mq
-    }
-}
-
-#[async_trait::async_trait]
-pub trait NativeContract {
-    type Cmd: Decode + Debug;
-    type QReq: Decode + Debug;
-    type QResp: Encode + Debug;
-
-    fn handle_command(
-        &mut self,
-        _origin: MessageOrigin,
-        _cmd: Self::Cmd,
-        _context: &mut NativeContext,
-    ) -> TransactionResult {
-        Ok(Default::default())
-    }
-    async fn handle_query(
-        &self,
-        origin: Option<&chain::AccountId>,
-        req: Self::QReq,
-        context: &mut QueryContext,
-    ) -> Self::QResp;
-    fn on_block_end(&mut self, _context: &mut NativeContext) -> TransactionResult {
-        Ok(Default::default())
-    }
-
-    fn snapshot(&self) -> Self
-    where
-        Self: Sized;
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -193,7 +163,7 @@ impl FatContract {
         env: &mut ExecuteEnv,
     ) -> Option<TransactionResult> {
         let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
-        let mut context = NativeContext {
+        let mut context = TransactionContext {
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
@@ -217,7 +187,7 @@ impl FatContract {
 
     pub(crate) fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
         let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
-        let mut context = NativeContext {
+        let mut context = TransactionContext {
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
@@ -229,11 +199,8 @@ impl FatContract {
     }
 
     pub(crate) fn set_on_block_end_selector(&mut self, selector: u32) {
-        if let AnyContract::Pink(pink) = &mut self.contract {
-            pink.set_on_block_end_selector(selector)
-        } else {
-            log::error!("Can not set block_end_selector for native contract");
-        }
+        let AnyContract::Pink(pink) = &mut self.contract;
+        pink.set_on_block_end_selector(selector)
     }
 
     pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
