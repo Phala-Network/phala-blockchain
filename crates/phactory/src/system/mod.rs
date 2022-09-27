@@ -823,9 +823,10 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
+        info!("PRuntime management event received: {:?}", event);
         match event {
             PRuntimeManagementEvent::RetirePRuntime(condition) => {
-                self.retired_versions.push(condition.clone());
+                self.retired_versions.push(condition);
                 self.check_retirement();
             }
             PRuntimeManagementEvent::SetConsensusVersion(version) => {

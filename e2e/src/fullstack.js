@@ -792,7 +792,7 @@ describe("PRuntime management", function () {
 
         await checkRetireCondition('equal: currentVersion', {
             equal: currentVersion,
-            causeExit: false
+            causeExit: true
         });
     });
 
@@ -849,7 +849,7 @@ describe("PRuntime management", function () {
         if (lessThan)
             condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionLessThan': versionFromNumber(lessThan) })
         if (equal)
-            condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(lessThan) })
+            condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(equal) })
 
         await assert.txAccepted(
             api.tx.sudo.sudo(
