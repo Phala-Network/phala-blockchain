@@ -18,7 +18,7 @@ use sp_runtime::{
 };
 
 pub use extension::{get_side_effects, ExecSideEffects};
-pub use pink_extension::{Message, OspMessage, PinkEvent};
+pub use pink_extension::{Message, OspMessage, PinkEvent, PinkHookPoint};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;

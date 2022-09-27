@@ -57,7 +57,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
-use pink::runtime::PinkEvent;
+use pink::runtime::{PinkEvent, PinkHookPoint};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -1789,9 +1789,24 @@ pub(crate) fn apply_pink_events(
                     message.remote_pubkey.as_ref(),
                 );
             }
-            PinkEvent::OnBlockEndSelector(selector) => {
-                let contract = get_contract!(&origin);
-                contract.set_on_block_end_selector(selector);
+            PinkEvent::SetHook {
+                hook,
+                contract: target_contract,
+                selector,
+            } => {
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!(
+                        "Failed to set hook for {:?}, requested by {:?}: permission denied",
+                        target_contract, origin
+                    );
+                    continue;
+                }
+                let contract = get_contract!(&target_contract);
+                match hook {
+                    PinkHookPoint::OnBlockEnd => {
+                        contract.set_on_block_end_selector(selector);
+                    }
+                }
             }
             PinkEvent::DeploySidevmTo {
                 contract: target_contract,

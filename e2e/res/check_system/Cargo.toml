@@ -14,7 +14,7 @@ ink_lang = { version = "3.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { version = "0.1", default-features = false, path = "../../crates/pink/pink-extension" }
+pink-extension = { version = "0.1", default-features = false, path = "../../../crates/pink/pink-extension" }
 
 [lib]
 name = "check_system"

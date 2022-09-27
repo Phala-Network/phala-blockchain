@@ -5,6 +5,8 @@ const portfinder = require('portfinder');
 const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
+const { ContractPromise } = require('@polkadot/api-contract');
+const Phala = require('@phala/sdk');
 
 const { types, typeAlias } = require('./utils/typeoverride');
 // TODO: fixit
@@ -503,14 +505,32 @@ describe('A full stack', function () {
     });
 
     describe('Cluster & Contract', () => {
-        const contractFile = './res/check_system/target/ink/check_system.contract';
-        const contract = JSON.parse(fs.readFileSync(contractFile)).source;
+        const systemMetadata = JSON.parse(fs.readFileSync('./res/pink_system.contract'));
+        const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
+        const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function
+
+        let certAlice;
+        let ContractSystemChecker;
+        let ContractSystem;
+
         let clusterId;
 
+        before(async () => {
+            certAlice = await Phala.signCertificate({ api, pair: alice });
+        });
+
+        after(async() => {
+            for (const contract of [ContractSystem, ContractSystemChecker]) {
+                if (contract) {
+                    await contract.api.disconnect();
+                }
+            }
+        });
+
         it('can upload system code', async function () {
-            const systemCode = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
+            const systemCode = systemMetadata.source.wasm;
             await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
                 alice,
@@ -548,6 +568,7 @@ describe('A full stack', function () {
                 const clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
                 return (clusterContracts.length == 1 && clusterContracts[0].eq(systemContract));
             }, 4 * 6000), 'system contract instantiation failed');
+            ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
         });
 
         it('can generate cluster key', async function () {
@@ -608,6 +629,34 @@ describe('A full stack', function () {
                 // A system contract and the user deployed one.
                 return clusterContracts.length == 2;
             }, 4 * 6000), 'instantiation failed');
+
+            ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
+        });
+
+        it('can not set hook without admin permission', async function () {
+            await assert.txAccepted(
+                ContractSystemChecker.tx.setHook({}),
+                alice,
+            );
+            assert.isFalse(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                return output.valueOf();
+            }, 6000), 'Set hook should not success without granting admin first');
+        });
+
+        it('can set hook with admin permission', async function () {
+            await assert.txAccepted(
+                ContractSystem.tx['system::grantAdmin']({}, ContractSystemChecker.address),
+                alice,
+            );
+            await assert.txAccepted(
+                ContractSystemChecker.tx.setHook({}),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                return output.valueOf();
+            }, 6000), 'Set hook should success after granted admin');
         });
 
         it('cannot dup-instantiate', async function () {
@@ -1116,7 +1165,8 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types, typeAlias
+            types: { ...types, ...Phala.types },
+            typeAlias
         });
         this.workers.forEach(w => {
             w.api = new PRuntimeApi(`http://localhost:${w.port}`);
@@ -1211,4 +1261,13 @@ function hex(b) {
     } else {
         return b;
     }
+}
+
+async function createContractApi(api, pruntimeURL, contractId, metadata) {
+    const newApi = await api.clone().isReady;
+    return new ContractPromise(
+        await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId }),
+        metadata,
+        contractId,
+    );
 }

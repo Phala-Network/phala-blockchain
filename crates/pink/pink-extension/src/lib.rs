@@ -19,9 +19,14 @@ pub mod predefined_accounts {
 
     // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
     pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+    pub const ACCOUNT_RUNTIME: [u8; 32] = [0; 32];
 
     pub fn is_pallet(account_id: &ink_env::AccountId) -> bool {
         account_id.as_ref() as &[u8] == &ACCOUNT_PALLET
+    }
+
+    pub fn is_runtime(account_id: &ink_env::AccountId) -> bool {
+        account_id.as_ref() as &[u8] == &ACCOUNT_RUNTIME
     }
 }
 
@@ -34,6 +39,7 @@ pub type EcdsaSignature = [u8; 65];
 
 /// A phala-mq message
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Message {
     pub payload: Vec<u8>,
     pub topic: Vec<u8>,
@@ -41,20 +47,35 @@ pub struct Message {
 
 /// A phala-mq message with optional encryption key
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct OspMessage {
     pub message: Message,
     pub remote_pubkey: Option<EcdhPublicKey>,
 }
 
+#[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum PinkHookPoint {
+    OnBlockEnd,
+}
+
 /// System Event used to communicate between the contract and the runtime.
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEvent {
     /// Contract pushed a raw message
     Message(Message),
     /// Contract pushed an osp message
     OspMessage(OspMessage),
-    /// Contract has an on_block_end ink message and will emit this event on instantiation.
-    OnBlockEndSelector(u32),
+    /// Set contract hook
+    SetHook {
+        /// The event to hook
+        hook: PinkHookPoint,
+        /// The target contract address
+        contract: AccountId,
+        /// The selector to invoke on hooked event fired.
+        selector: u32,
+    },
     /// Deploy a sidevm instance to given contract instance
     DeploySidevmTo {
         /// The target contract address
@@ -80,7 +101,7 @@ impl PinkEvent {
         match self {
             PinkEvent::Message(_) => false,
             PinkEvent::OspMessage(_) => false,
-            PinkEvent::OnBlockEndSelector(_) => false,
+            PinkEvent::SetHook { .. } => false,
             PinkEvent::DeploySidevmTo { .. } => true,
             PinkEvent::SidevmMessage(_) => true,
             PinkEvent::CacheOp(_) => true,
@@ -91,6 +112,7 @@ impl PinkEvent {
 }
 
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CacheOp {
     Set { key: Vec<u8>, value: Vec<u8> },
     SetExpiration { key: Vec<u8>, expiration: u64 },
@@ -119,7 +141,7 @@ impl Topics for PinkEvent {
 impl PinkEvent {
     pub fn event_topic() -> Hash {
         use std::convert::TryFrom;
-        let topics = topic::topics_for(Self::OnBlockEndSelector(0));
+        let topics = topic::topics_for(Self::StopSidevm);
         let topic: &[u8] = topics[0].as_ref();
         Hash::try_from(topic).expect("Should not failed")
     }
@@ -144,8 +166,12 @@ pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<
 
 /// Turn on on_block_end feature and set it's selector
 ///
-pub fn set_on_block_end_selector(selector: u32) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::OnBlockEndSelector(selector))
+pub fn set_hook(hook: PinkHookPoint, contract: AccountId, selector: u32) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
+        hook,
+        contract,
+        selector,
+    })
 }
 
 /// Start a SideVM instance

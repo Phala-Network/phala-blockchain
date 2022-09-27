@@ -51,6 +51,16 @@ pub trait System {
     /// The caller must be an administrator.
     #[ink(message)]
     fn stop_sidevm_at(&self, contract_id: AccountId) -> Result<()>;
+
+    /// Set block hook, such as OnBlockEnd, for given contract
+    /// The caller must be an administrator.
+    #[ink(message)]
+    fn set_hook(
+        &mut self,
+        hook: crate::PinkHookPoint,
+        contract_id: AccountId,
+        selector: u32,
+    ) -> Result<()>;
 }
 
 /// Driver to manage sidevm deployments.
