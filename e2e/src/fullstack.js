@@ -19,6 +19,7 @@ const pathRelayer = path.resolve('../target/release/pherry');
 
 const pRuntimeBin = "pruntime";
 const pathPRuntime = path.resolve(`../standalone/pruntime/bin/${pRuntimeBin}`);
+const tmpDir = new TempDir();
 
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
@@ -27,9 +28,8 @@ describe('A full stack', function () {
     this.timeout(60000);
 
     let cluster;
-    let api, keyring, alice, bob, root;
+    let api, keyring, alice, bob;
     let pruntime;
-    const tmpDir = new TempDir();
     const tmpPath = tmpDir.dir;
 
     before(async () => {
@@ -44,7 +44,7 @@ describe('A full stack', function () {
         // Create polkadot api and keyring
         await cryptoWaitReady();
         keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
-        root = alice = keyring.addFromUri('//Alice');
+        alice = keyring.addFromUri('//Alice');
         bob = keyring.addFromUri('//Bob');
     });
 
@@ -147,7 +147,7 @@ describe('A full stack', function () {
                 const info = await pruntime[0].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
         });
 
@@ -190,7 +190,7 @@ describe('A full stack', function () {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
         });
 
@@ -259,7 +259,7 @@ describe('A full stack', function () {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
             // the GK should resume without restart
             assert.isTrue(await checkUntil(async () => {
@@ -300,7 +300,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
 
             assert.isTrue(
@@ -330,7 +330,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
-                return info.system?.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.system.publicKey));
+                return info.system?.gatekeeper.role != 2 && !gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not unregistered');
         });
 
@@ -403,7 +403,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
 
             assert.isTrue(
@@ -454,7 +454,7 @@ describe('A full stack', function () {
                 const info = await pruntime[2].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
         });
 
@@ -539,7 +539,7 @@ describe('A full stack', function () {
 
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.numberOfClusters == 1;
+                return info.system.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
             const contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
@@ -625,7 +625,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.numberOfClusters == 0;
+                return info.system.numberOfClusters == 0;
             }, 4 * 6000), 'destroy cluster failed');
         });
     });
@@ -700,6 +700,188 @@ describe('A full stack', function () {
         it('settles after the cooling down period')
     })
 });
+
+describe("PRuntime management", function () {
+    this.timeout(120000);
+
+    let cluster;
+    let api, keyring, alice;
+    let worker;
+    let tmpPath;
+    let test_case = 0;
+    let info;
+    let currentVersion;
+    let newerVersion;
+    let olderVersion;
+
+    before(async () => {
+        // Create polkadot api and keyring
+        await cryptoWaitReady();
+        keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
+        root = alice = keyring.addFromUri('//Alice');
+        bob = keyring.addFromUri('//Bob');
+    });
+
+    beforeEach(async () => {
+        tmpPath = path.resolve(`${tmpDir.dir}/pruntime_life_case${test_case}`);
+        fs.mkdirSync(tmpPath);
+        // Check binary files
+        [pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
+        // Bring up a cluster
+        cluster = new Cluster(1, pathNode, pathRelayer, pathPRuntime, tmpPath);
+        await cluster.start();
+        // APIs
+        api = await cluster.api;
+        worker = cluster.workers[0];
+
+        assert.isFalse(cluster.processNode.stopped);
+        for (const w of cluster.workers) {
+            assert.isFalse(w.processRelayer.stopped);
+            assert.isFalse(w.processPRuntime.stopped);
+        }
+
+        let info;
+        assert.isTrue(await checkUntil(async () => {
+            info = await worker.api.getInfo();
+            return info.initialized;
+        }, 1000), 'not initialized in time');
+        assert.isTrue(await checkUntil(async () => {
+            const info = await worker.api.getInfo();
+            return info.blocknum > 0;
+        }, 7000), 'stuck at block 0');
+
+        info = await worker.api.getInfo();
+        currentVersion = versionToNumber(info.version);
+        newerVersion = currentVersion + 1;
+        olderVersion = currentVersion - 1;
+    });
+
+    afterEach(async () => {
+        test_case += 1;
+        if (api) await api.disconnect();
+        await cluster.kill();
+    });
+
+    it("can retirement pruntimes less than given version", async () => {
+        await checkRetireCondition('lessThan: olderVersion', {
+            lessThan: olderVersion,
+            causeExit: false
+        });
+
+        await checkRetireCondition('lessThan: currentVersion', {
+            lessThan: currentVersion,
+            causeExit: false
+        });
+
+        await checkRetireCondition('lessThan: newerVersion', {
+            lessThan: newerVersion,
+            causeExit: true
+        });
+    });
+
+    it("can retirement pruntimes matches given version", async () => {
+        await checkRetireCondition('equal: newerVersion', {
+            equal: newerVersion,
+            causeExit: false
+        });
+
+        await checkRetireCondition('equal: olderVersion', {
+            equal: olderVersion,
+            causeExit: false
+        });
+
+        await checkRetireCondition('equal: currentVersion', {
+            equal: currentVersion,
+            causeExit: true
+        });
+    });
+
+    it("can set consensus version", async () => {
+        const info = await worker.api.getInfo();
+        const { consensusVersion, maxSupportedConsensusVersion } = info.system;
+
+        assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+        await assert.txAccepted(
+            api.tx.sudo.sudo(
+                api.tx.phalaRegistry.setPruntimeConsensusVersion(
+                    maxSupportedConsensusVersion
+                )
+            ),
+            alice,
+        );
+        assert.isTrue(
+            await checkUntil(
+                async () => {
+                    const info = await worker.api.getInfo();
+                    const { consensusVersion } = info.system;
+                    return maxSupportedConsensusVersion == consensusVersion;
+                },
+                6000
+            ),
+            `Failed to set consensus version to ${maxSupportedConsensusVersion}`
+        );
+    });
+
+    it("can not set consensus version over max supported", async () => {
+        const { consensusVersion, maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
+        assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+        await assert.txAccepted(
+            api.tx.sudo.sudo(
+                api.tx.phalaRegistry.setPruntimeConsensusVersion(
+                    maxSupportedConsensusVersion + 1
+                )
+            ),
+            alice,
+        );
+        assert.isTrue(
+            await checkUntil(
+                async () => {
+                    return worker.processPRuntime.stopped;
+                },
+                6000
+            ),
+            'Failed to wait pruntime to exit'
+        );
+    });
+
+    async function checkRetireCondition(desc, { lessThan, equal, causeExit }) {
+        let condition;
+        if (lessThan)
+            condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionLessThan': versionFromNumber(lessThan) })
+        if (equal)
+            condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(equal) })
+
+        await assert.txAccepted(
+            api.tx.sudo.sudo(
+                api.tx.phalaRegistry.retirePruntime(
+                    condition
+                )
+            ),
+            alice,
+        );
+
+        assert.equal(
+            causeExit,
+            await checkUntil(
+                async () => {
+                    return worker.processPRuntime.stopped;
+                },
+                6000
+            ),
+            `Condition ${desc} failed`
+        );
+    }
+});
+
+
+function versionToNumber(version) {
+    segs = version.split('.').map(n => parseInt(n));
+    return (segs[0] << 16) + (segs[1] << 8) + segs[2]
+}
+
+function versionFromNumber(n) {
+    return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+}
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
@@ -802,9 +984,14 @@ class Cluster {
                 w.processPRuntime.kill('SIGKILL'),
                 w.processRelayer.kill()
             ]).flat(),
-            this.key_handover_cluster.relayer.processRelayer.kill(),
-            ...this.key_handover_cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
         ]);
+
+        if (this.key_handover_cluster.relayer.processRelayer != undefined) {
+            await Promise.all([
+                this.key_handover_cluster.relayer.processRelayer.kill(),
+                ...this.key_handover_cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
+            ]);
+        }
     }
 
     // Returns false if waiting is timeout; otherwise it restart the specified worker

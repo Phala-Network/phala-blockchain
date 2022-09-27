@@ -25,11 +25,12 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
-			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
+			GatekeeperLaunch, MessageOrigin, PRuntimeManagementEvent, SignedMessage, SystemEvent,
+			WorkerEvent,
 		},
-		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey,
-		WorkerRegistrationInfo, wrap_content_to_sign, SignedContentType,
+		wrap_content_to_sign, ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
+		SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity,
+		WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -180,6 +181,7 @@ pub mod pallet {
 			rotation_lock: Option<u64>,
 			gatekeeper_rotation_id: u64,
 		},
+		PRuntimeManagement(PRuntimeManagementEvent),
 	}
 
 	#[pallet::error]
@@ -495,7 +497,8 @@ pub mod pallet {
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
-			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyRotation);
+			let data_to_sign =
+				wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyRotation);
 
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
@@ -609,6 +612,37 @@ pub mod pallet {
 			allowlist.retain(|h| *h != genesis_block_hash);
 			RelaychainGenesisBlockHashAllowList::<T>::put(allowlist);
 
+			Ok(())
+		}
+
+		/// Retire running pruntimes with given condition.
+		///
+		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::weight(0)]
+		pub fn retire_pruntime(
+			origin: OriginFor<T>,
+			condition: messaging::RetireCondition,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			let event = PRuntimeManagementEvent::RetirePRuntime(condition);
+			Self::push_message(event.clone());
+			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			Ok(())
+		}
+
+		/// Set the consensus version used by pruntime. PRuntimes would switch some code path according
+		/// the current consensus version.
+		///
+		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::weight(0)]
+		pub fn set_pruntime_consensus_version(
+			origin: OriginFor<T>,
+			version: u32,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			let event = PRuntimeManagementEvent::SetConsensusVersion(version);
+			Self::push_message(event.clone());
+			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
 			Ok(())
 		}
 	}
