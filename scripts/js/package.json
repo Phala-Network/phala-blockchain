@@ -9,12 +9,13 @@
     "build:proto": "./build_proto.sh"
   },
   "dependencies": {
+    "@phala/sdk": "^0.3.2",
     "@phala/typedefs": "^0.2.31",
-    "@polkadot/api": "^9.2.3",
-    "@polkadot/typegen": "^9.2.3",
-    "@polkadot/types": "^9.2.3",
-    "@polkadot/util": "^10.1.6",
-    "@polkadot/util-crypto": "^10.1.6",
+    "@polkadot/api": "^9.4.1",
+    "@polkadot/typegen": "^9.4.1",
+    "@polkadot/types": "^9.4.1",
+    "@polkadot/util": "^10.1.8",
+    "@polkadot/util-crypto": "^10.1.8",
     "axios": "^0.27.2",
     "bn.js": "^5.2.1",
     "commander": "^9.4.0",
