@@ -4,7 +4,9 @@ use ink::ChainExtensionInstance;
 use ink_lang as ink;
 
 pub use http_request::{HttpRequest, HttpResponse};
-pub use signing::{PublicKeyForArgs, SigType, SignArgs, VerifyArgs};
+pub use signing::SigType;
+
+use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
 
 mod http_request;
 pub mod signing;
@@ -38,16 +40,16 @@ pub trait PinkExt {
     fn http_request(request: HttpRequest) -> HttpResponse;
 
     #[ink(extension = 2, handle_status = false, returns_result = false)]
-    fn sign(args: SignArgs) -> Vec<u8>;
+    fn sign(sigtype: SigType, key: &[u8], message: &[u8]) -> Vec<u8>;
 
     #[ink(extension = 3, handle_status = false, returns_result = false)]
-    fn verify(args: VerifyArgs) -> bool;
+    fn verify(sigtype: SigType, pubkey: &[u8], message: &[u8], signature: &[u8]) -> bool;
 
     #[ink(extension = 4, handle_status = false, returns_result = false)]
     fn derive_sr25519_key(salt: Cow<[u8]>) -> Vec<u8>;
 
     #[ink(extension = 5, handle_status = false, returns_result = false)]
-    fn get_public_key(args: PublicKeyForArgs) -> Vec<u8>;
+    fn get_public_key(sigtype: SigType, key: &[u8]) -> Vec<u8>;
 
     /// Set a value in the local cache.
     ///
@@ -90,7 +92,17 @@ pub trait PinkExt {
 
     /// Check if it is running in a Command context.
     #[ink(extension = 12, handle_status = false, returns_result = false)]
-    fn is_running_in_command() -> bool;
+    fn is_in_transaction() -> bool;
+
+    #[ink(extension = 13, handle_status = false, returns_result = false)]
+    fn ecdsa_sign_prehashed(key: &[u8], message_hash: Hash) -> EcdsaSignature;
+
+    #[ink(extension = 14, handle_status = false, returns_result = false)]
+    fn ecdsa_verify_prehashed(
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> bool;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

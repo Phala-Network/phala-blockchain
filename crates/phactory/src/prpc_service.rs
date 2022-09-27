@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::future::Future;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
@@ -14,17 +15,16 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use phactory_api::{blocks, crypto, prpc as pb};
+use phactory_api::{blocks, crypto, endpoints::EndpointType, prpc as pb};
 use phala_crypto::{
     key_share,
     sr25519::{Persistence, KDF},
 };
-use phala_types::worker_endpoint_v1::{EndpointInfo, WorkerEndpoint};
 use phala_types::{
-    contract, messaging::EncryptedKey, ChallengeHandlerInfo, EncryptedWorkerKey, EndpointType,
-    VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerPublicKey,
+    contract, messaging::EncryptedKey, wrap_content_to_sign, ChallengeHandlerInfo,
+    EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload,
+    WorkerPublicKey, WorkerRegistrationInfo,
 };
-use phala_types::{wrap_content_to_sign, SignedContentType};
 use tokio::sync::oneshot::{channel, Sender};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -684,106 +684,41 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     fn add_endpoint(
         &mut self,
         endpoint_type: EndpointType,
-        endpoint: Vec<u8>,
+        endpoint: String,
     ) -> RpcResult<pb::GetEndpointResponse> {
-        let endpoints = if self.endpoint_cache.is_some() {
-            // update the endpoints instead of inserting
-            let mut endpoint_cache = self
-                .endpoint_cache
-                .clone()
-                .expect("SignedEndpointCache should be initialized");
-
-            endpoint_cache.endpoints.insert(endpoint_type, endpoint);
-
-            endpoint_cache.endpoints
-        } else {
-            let mut endpoints = HashMap::new();
-            endpoints.insert(endpoint_type, endpoint);
-            endpoints
-        };
-
-        self.refresh_endpoint_signing_time(endpoints)
+        self.endpoints.insert(endpoint_type, endpoint);
+        self.sign_endpoints()
     }
 
-    fn refresh_endpoint_signing_time(
-        &mut self,
-        endpoints: HashMap<EndpointType, Vec<u8>>,
-    ) -> RpcResult<pb::GetEndpointResponse> {
+    fn sign_endpoints(&mut self) -> RpcResult<pb::GetEndpointResponse> {
         let system = self.system()?;
         let block_time: u64 = system.now_ms;
         let public_key = system.identity_key.public();
-        let mut endpoints_info = Vec::<EndpointInfo>::new();
-
-        for (endpoint_type, endpoint) in endpoints.iter() {
-            let endpoint_info = match endpoint_type {
-                EndpointType::I2P => EndpointInfo {
-                    endpoint: WorkerEndpoint::I2P(endpoint.clone()),
-                },
-                EndpointType::Http => EndpointInfo {
-                    endpoint: WorkerEndpoint::Http(endpoint.clone()),
-                },
-            };
-            endpoints_info.push(endpoint_info);
-        }
-
-        let versioned_endpoints = VersionedWorkerEndpoints::V1(endpoints_info);
+        let versioned_endpoints =
+            VersionedWorkerEndpoints::V1(self.endpoints.values().cloned().collect());
         let endpoint_payload = WorkerEndpointPayload {
             pubkey: public_key,
             versioned_endpoints,
             signing_time: block_time,
         };
-        let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), None);
-
-        self.endpoint_cache = Some(SignedEndpointCache {
-            endpoints,
-            endpoint_payload,
-            signature: None,
-        });
-
+        let signature = self.sign_endpoint_payload(&endpoint_payload)?;
+        let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), Some(signature));
+        self.signed_endpoints = Some(resp.clone());
         Ok(resp)
     }
 
     fn get_endpoint_info(&mut self) -> RpcResult<pb::GetEndpointResponse> {
-        if self.system.is_none() {
-            return Err(from_display("Runtime not initialized"));
-        }
-
-        if self.endpoint_cache.is_none() {
+        if self.endpoints.is_empty() {
             info!("Endpoint not found");
             return Ok(pb::GetEndpointResponse::new(None, None));
         }
-
-        let endpoint_cache = self
-            .endpoint_cache
-            .clone()
-            .expect("SignedEndpointInfo should be initialized");
-
-        let signature = if endpoint_cache.signature.is_none() {
-            let signature = self.sign_endpoint_payload(&endpoint_cache.endpoint_payload)?;
-            self.endpoint_cache = Some(SignedEndpointCache {
-                endpoints: endpoint_cache.endpoints.clone(),
-                endpoint_payload: endpoint_cache.endpoint_payload.clone(),
-                signature: Some(signature.clone()),
-            });
-
-            signature
-        } else {
-            endpoint_cache
-                .signature
-                .as_ref()
-                .expect("Signature should be existed")
-                .clone()
-        };
-
-        let resp = pb::GetEndpointResponse::new(
-            Some(endpoint_cache.endpoint_payload.clone()),
-            Some(signature),
-        );
-
-        Ok(resp)
+        match &self.signed_endpoints {
+            Some(response) => Ok(response.clone()),
+            None => self.sign_endpoints(),
+        }
     }
 
-    pub fn sign_endpoint_info(
+    fn sign_endpoint_info(
         &mut self,
         versioned_endpoints: VersionedWorkerEndpoints,
     ) -> RpcResult<pb::GetEndpointResponse> {
@@ -801,7 +736,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn sign_endpoint_payload(&mut self, payload: &WorkerEndpointPayload) -> RpcResult<Vec<u8>> {
+        const MAX_PAYLOAD_SIZE: usize = 2048;
         let data_to_sign = payload.encode();
+        if data_to_sign.len() > MAX_PAYLOAD_SIZE {
+            return Err(from_display("Endpoints too large"));
+        }
         let wrapped_data = wrap_content_to_sign(&data_to_sign, SignedContentType::EndpointInfo);
         let signature = self
             .system()?
@@ -1014,15 +953,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
 
     async fn refresh_endpoint_signing_time(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
-        let mut phactory = self.lock_phactory();
-        let endpoints = phactory
-            .endpoint_cache
-            .as_ref()
-            .ok_or(from_display("Endpoint cache not initialized"))?
-            .endpoints
-            .clone();
-
-        phactory.refresh_endpoint_signing_time(endpoints)
+        self.lock_phactory().sign_endpoints()
     }
 
     async fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
@@ -1320,5 +1251,69 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> Result<(), prpc::server::Error> {
         self.lock_phactory().set_netconfig(request);
         Ok(())
+    }
+
+    async fn http_fetch(
+        &mut self,
+        request: pb::HttpRequest,
+    ) -> Result<pb::HttpResponse, prpc::server::Error> {
+        use reqwest::{
+            header::{HeaderMap, HeaderName, HeaderValue},
+            Method,
+        };
+        use reqwest_env_proxy::EnvProxyBuilder;
+
+        let url: reqwest::Url = request.url.parse().map_err(from_debug)?;
+
+        let client = reqwest::Client::builder()
+            .env_proxy(url.host_str().unwrap_or_default())
+            .build()
+            .map_err(from_debug)?;
+
+        let method: Method = FromStr::from_str(&request.method)
+            .or(Err("Invalid HTTP method"))
+            .map_err(from_display)?;
+        let mut headers = HeaderMap::new();
+        for header in &request.headers {
+            let name = HeaderName::from_str(&header.name)
+                .or(Err("Invalid HTTP header key"))
+                .map_err(from_display)?;
+            let value = HeaderValue::from_str(&header.value)
+                .or(Err("Invalid HTTP header value"))
+                .map_err(from_display)?;
+            headers.insert(name, value);
+        }
+
+        let response = client
+            .request(method, url)
+            .headers(headers)
+            .body(request.body)
+            .send()
+            .await
+            .map_err(from_debug)?;
+
+        let headers: Vec<_> = response
+            .headers()
+            .iter()
+            .map(|(name, value)| {
+                let name = name.to_string();
+                let value = value.to_str().unwrap_or_default().into();
+                pb::HttpHeader { name, value }
+            })
+            .collect();
+
+        let status_code = response.status().as_u16() as _;
+        let body = response
+            .bytes()
+            .await
+            .or(Err("Failed to copy response body"))
+            .map_err(from_display)?
+            .to_vec();
+
+        Ok(pb::HttpResponse {
+            status_code,
+            body,
+            headers,
+        })
     }
 }

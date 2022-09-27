@@ -47,6 +47,19 @@ The **blockchain** is the central component of the system. It records commands (
   ./llvm.sh 10
   ```
 
+- Protobuf Compiler
+  - Ubuntu
+  ```bash
+  apt install -y protobuf-compiler
+  ```
+
+  - macOS
+  ```bash
+  brew install protobuf
+  ```
+
+  - See [here](https://grpc.io/docs/protoc-installation/) for more options
+
 </details>
 
 ### Build the blockchain and bridge

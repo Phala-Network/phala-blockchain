@@ -10,19 +10,19 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 [dependencies]
 parity-scale-codec = { version = "3.0", default-features = false }
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28", features = ["full_crypto"] }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", features = ["full_crypto"] }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", default-features = false }
 
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"], optional = true }
 hash-db = "0.15.2"
-trie-db = "0.23.1"
+trie-db = "0.24.0"
 im = { version = "15", features = ["serde"] }
 parity-util-mem = "0.11.0"
 
 [dev-dependencies]
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28", features = ["full_crypto"] }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29", features = ["full_crypto"] }
 hash256-std-hasher = { version = "0.15", default-features = false }
 hex = "0.4"
 serde_json = "1.0"

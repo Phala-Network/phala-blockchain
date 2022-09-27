@@ -4,42 +4,12 @@ use super::*;
 
 // For bin_api
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
+    pub fn getinfo(&self) -> String {
+        serde_json::to_string_pretty(&self.get_info()).unwrap_or_default()
+    }
+
     fn get_info_json(&self) -> Result<Value, Value> {
-        let info = self.get_info();
-        let machine_id = hex::encode(&self.machine_id);
-        let gatekeeper = info.gatekeeper.unwrap();
-        let meminfo = info.memory_usage.unwrap_or_default();
-        Ok(json!({
-            "initialized": info.initialized,
-            "registered": info.registered,
-            "gatekeeper": {
-                "role": gatekeeper.role,
-                "master_public_key": gatekeeper.master_public_key,
-            },
-            "genesis_block_hash": info.genesis_block_hash,
-            "public_key": info.public_key,
-            "ecdh_public_key": info.ecdh_public_key,
-            "headernum": info.headernum,
-            "para_headernum": info.para_headernum,
-            "blocknum": info.blocknum,
-            "state_root": info.state_root,
-            "dev_mode": info.dev_mode,
-            "pending_messages": info.pending_messages,
-            "score": info.score,
-            "machine_id": machine_id,
-            "version": info.version,
-            "git_revision": info.git_revision,
-            "running_side_tasks": info.running_side_tasks,
-            "memory_usage": {
-                "total_peak_used": meminfo.total_peak_used,
-                "rust_used": meminfo.rust_used,
-                "rust_peak_used": meminfo.rust_peak_used,
-            },
-            "number_of_clusters": info.number_of_clusters,
-            "number_of_contracts": info.number_of_contracts,
-            "waiting_for_paraheaders": info.waiting_for_paraheaders,
-            "network_status": info.network_status,
-        }))
+        Ok(json!(self.get_info()))
     }
 
     fn bin_sync_header(&mut self, input: blocks::SyncHeaderReq) -> Result<Value, Value> {

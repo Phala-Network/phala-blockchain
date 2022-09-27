@@ -15,8 +15,13 @@ use alloc::vec::Vec;
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
-use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, TrieMut};
+use sp_state_machine::{Backend, TrieBackend, TrieBackendBuilder};
+use sp_trie::{
+    TrieMut,
+    trie_types::{
+        TrieDBMutBuilderV0 as TrieDBMutBuilder,
+    },
+};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
 
@@ -40,7 +45,7 @@ where
     H::Out: Codec,
 {
     fn default() -> Self {
-        Self(TrieBackend::new(Default::default(), Default::default()))
+        Self(TrieBackendBuilder::new(Default::default(), Default::default()).build())
     }
 }
 
@@ -53,14 +58,14 @@ where
     let mut root = Default::default();
     let mut mdb = Default::default();
     {
-        let mut trie_db = TrieDBMut::new(&mut mdb, &mut root);
+        let mut trie_db = TrieDBMutBuilder::new(&mut mdb, &mut root).build();
         for (key, value) in pairs {
             if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
                 panic!("Insert item into trie DB should not fail");
             }
         }
     }
-    TrieBackend::new(mdb, root)
+    TrieBackendBuilder::new(mdb, root).build()
 }
 
 #[cfg(feature = "serde")]
@@ -88,7 +93,7 @@ where
     let (root, kvs): (H::Out, im::HashMap<_, (Vec<u8>, i32)>) =
         Deserialize::deserialize(deserializer)?;
     let mdb = MemoryDB::from_inner(kvs);
-    let backend = TrieBackend::new(mdb, root);
+    let backend = TrieBackendBuilder::new(mdb, root).build();
     Ok(backend)
 }
 
@@ -102,7 +107,7 @@ where
     let mdb = trie
         .backend_storage()
         .clone();
-    TrieBackend::new(mdb, *root)
+    TrieBackendBuilder::new(mdb, *root).build()
 }
 
 impl<H: Hasher> TrieStorage<H>
@@ -148,7 +153,10 @@ where
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
         let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate(transaction);
-        let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
+        let _ = core::mem::replace(
+            &mut self.0,
+            TrieBackendBuilder::new(storage, root).build()
+        );
     }
 
     pub fn purge(&mut self) {}

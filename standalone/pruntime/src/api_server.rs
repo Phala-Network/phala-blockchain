@@ -140,6 +140,11 @@ fn kick() {
     std::process::exit(0);
 }
 
+#[get("/info")]
+fn getinfo() -> String {
+    runtime::ecall_getinfo()
+}
+
 fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
     use PhactoryAPIMethod::*;
 
@@ -165,6 +170,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         HandoverReceive => 10.kibibytes(),
         SignEndpointInfo => 32.kibibytes(),
         ConfigNetwork => 10.kibibytes(),
+        HttpFetch => 100.mebibytes(),
     }
 }
 
@@ -265,7 +271,8 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
                     actions::BIN_ACTION_SYNC_COMBINED_HEADERS
                 ),
             ],
-        );
+        )
+        .mount("/", routes![getinfo]);
 
     if args.enable_kick_api {
         info!("ENABLE `kick` API");
@@ -306,13 +313,15 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(figment).mount(
-        "/",
-        proxy_routes![
-            (get, "/get_info", get_info, actions::ACTION_GET_INFO),
-            (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
-        ],
-    );
+    let mut server_acl = rocket::custom(figment)
+        .mount(
+            "/",
+            proxy_routes![
+                (get, "/get_info", get_info, actions::ACTION_GET_INFO),
+                (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
+            ],
+        )
+        .mount("/", routes![getinfo]);
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
 

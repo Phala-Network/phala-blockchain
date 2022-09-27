@@ -3824,4 +3824,24 @@ extern "C" {
     pub fn sgx_getkey(keyrequest: *mut sgx_key_request_t, key: *mut sgx_key_128bit_t) -> i64;
 }
 
+#[cfg(target_arch = "x86_64")]
 core::arch::global_asm!(include_str!("enclave_api.S"));
+
+#[cfg(not(target_arch = "x86_64"))]
+const _: () = {
+    #[no_mangle]
+    extern "C" fn sgx_getkey(
+        _keyrequest: *mut sgx_key_request_t,
+        _key: *mut sgx_key_128bit_t,
+    ) -> i64 {
+        -1
+    }
+    #[no_mangle]
+    extern "C" fn sgx_report(
+        _targetinfo: *const sgx_target_info_t,
+        _reportdata: *const sgx_report_data_t,
+        _report: *mut sgx_report_t,
+    ) -> ::std::os::raw::c_int {
+        -1
+    }
+};
