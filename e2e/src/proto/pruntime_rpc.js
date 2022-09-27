@@ -8550,7 +8550,7 @@ $root.pruntime_rpc = (function() {
          * @memberof pruntime_rpc
          * @interface IAddEndpointRequest
          * @property {Uint8Array|null} [encodedEndpointType] AddEndpointRequest encodedEndpointType
-         * @property {Uint8Array|null} [endpoint] AddEndpointRequest endpoint
+         * @property {string|null} [endpoint] AddEndpointRequest endpoint
          */
 
         /**
@@ -8578,11 +8578,11 @@ $root.pruntime_rpc = (function() {
 
         /**
          * AddEndpointRequest endpoint.
-         * @member {Uint8Array} endpoint
+         * @member {string} endpoint
          * @memberof pruntime_rpc.AddEndpointRequest
          * @instance
          */
-        AddEndpointRequest.prototype.endpoint = $util.newBuffer([]);
+        AddEndpointRequest.prototype.endpoint = "";
 
         /**
          * Creates a new AddEndpointRequest instance using the specified properties.
@@ -8611,7 +8611,7 @@ $root.pruntime_rpc = (function() {
             if (message.encodedEndpointType != null && Object.hasOwnProperty.call(message, "encodedEndpointType"))
                 writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedEndpointType);
             if (message.endpoint != null && Object.hasOwnProperty.call(message, "endpoint"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.endpoint);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.endpoint);
             return writer;
         };
 
@@ -8650,7 +8650,7 @@ $root.pruntime_rpc = (function() {
                     message.encodedEndpointType = reader.bytes();
                     break;
                 case 2:
-                    message.endpoint = reader.bytes();
+                    message.endpoint = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -8691,8 +8691,8 @@ $root.pruntime_rpc = (function() {
                 if (!(message.encodedEndpointType && typeof message.encodedEndpointType.length === "number" || $util.isString(message.encodedEndpointType)))
                     return "encodedEndpointType: buffer expected";
             if (message.endpoint != null && message.hasOwnProperty("endpoint"))
-                if (!(message.endpoint && typeof message.endpoint.length === "number" || $util.isString(message.endpoint)))
-                    return "endpoint: buffer expected";
+                if (!$util.isString(message.endpoint))
+                    return "endpoint: string expected";
             return null;
         };
 
@@ -8714,10 +8714,7 @@ $root.pruntime_rpc = (function() {
                 else if (object.encodedEndpointType.length)
                     message.encodedEndpointType = object.encodedEndpointType;
             if (object.endpoint != null)
-                if (typeof object.endpoint === "string")
-                    $util.base64.decode(object.endpoint, message.endpoint = $util.newBuffer($util.base64.length(object.endpoint)), 0);
-                else if (object.endpoint.length)
-                    message.endpoint = object.endpoint;
+                message.endpoint = String(object.endpoint);
             return message;
         };
 
@@ -8742,18 +8739,12 @@ $root.pruntime_rpc = (function() {
                     if (options.bytes !== Array)
                         object.encodedEndpointType = $util.newBuffer(object.encodedEndpointType);
                 }
-                if (options.bytes === String)
-                    object.endpoint = "";
-                else {
-                    object.endpoint = [];
-                    if (options.bytes !== Array)
-                        object.endpoint = $util.newBuffer(object.endpoint);
-                }
+                object.endpoint = "";
             }
             if (message.encodedEndpointType != null && message.hasOwnProperty("encodedEndpointType"))
                 object.encodedEndpointType = options.bytes === String ? $util.base64.encode(message.encodedEndpointType, 0, message.encodedEndpointType.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEndpointType) : message.encodedEndpointType;
             if (message.endpoint != null && message.hasOwnProperty("endpoint"))
-                object.endpoint = options.bytes === String ? $util.base64.encode(message.endpoint, 0, message.endpoint.length) : options.bytes === Array ? Array.prototype.slice.call(message.endpoint) : message.endpoint;
+                object.endpoint = message.endpoint;
             return object;
         };
 

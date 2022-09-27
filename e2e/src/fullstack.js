@@ -147,7 +147,7 @@ describe('A full stack', function () {
                 const info = await pruntime[0].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
         });
 
@@ -190,7 +190,7 @@ describe('A full stack', function () {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
         });
 
@@ -259,7 +259,7 @@ describe('A full stack', function () {
                 const info = await pruntime[1].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
             // the GK should resume without restart
             assert.isTrue(await checkUntil(async () => {
@@ -300,7 +300,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
 
             assert.isTrue(
@@ -330,7 +330,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after unregisteration: ${gatekeepers}`);
-                return info.system?.gatekeeper.role != 2 && !gatekeepers.includes(hex(info.system.publicKey));
+                return info.system?.gatekeeper.role != 2 && !gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not unregistered');
         });
 
@@ -403,7 +403,7 @@ describe('A full stack', function () {
                 const info = await pruntime[3].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
 
             assert.isTrue(
@@ -454,7 +454,7 @@ describe('A full stack', function () {
                 const info = await pruntime[2].getInfo();
                 const gatekeepers = await api.query.phalaRegistry.gatekeeper();
                 // console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-                return gatekeepers.includes(hex(info.system.publicKey));
+                return gatekeepers.toHuman().includes(hex(info.system.publicKey));
             }, 4 * 6000), 'not registered as gatekeeper');
         });
 
@@ -539,7 +539,7 @@ describe('A full stack', function () {
 
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.numberOfClusters == 1;
+                return info.system.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
             const contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
@@ -625,7 +625,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.numberOfClusters == 0;
+                return info.system.numberOfClusters == 0;
             }, 4 * 6000), 'destroy cluster failed');
         });
     });

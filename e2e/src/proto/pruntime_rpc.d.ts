@@ -3570,7 +3570,7 @@ export namespace pruntime_rpc {
         encodedEndpointType?: (Uint8Array|null);
 
         /** AddEndpointRequest endpoint */
-        endpoint?: (Uint8Array|null);
+        endpoint?: (string|null);
     }
 
     /** Represents an AddEndpointRequest. */
@@ -3586,7 +3586,7 @@ export namespace pruntime_rpc {
         public encodedEndpointType: Uint8Array;
 
         /** AddEndpointRequest endpoint. */
-        public endpoint: Uint8Array;
+        public endpoint: string;
 
         /**
          * Creates a new AddEndpointRequest instance using the specified properties.
