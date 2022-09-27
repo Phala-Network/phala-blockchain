@@ -822,7 +822,7 @@ describe("PRuntime management", function () {
         );
     });
 
-    it("can not set consensus version over max suppoted", async () => {
+    it("can not set consensus version over max supported", async () => {
         const { consensusVersion, maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
         assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
         await assert.txAccepted(
