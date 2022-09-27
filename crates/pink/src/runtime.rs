@@ -304,8 +304,7 @@ mod tests {
     pub mod exec {
         use sp_runtime::traits::BlakeTwo256;
         use sp_state_machine::{
-            backend::AsTrieBackend,
-            Ext, OverlayedChanges, StorageTransactionCache,
+            backend::AsTrieBackend, Ext, OverlayedChanges, StorageTransactionCache,
         };
 
         pub type InMemoryBackend = sp_state_machine::InMemoryBackend<BlakeTwo256>;

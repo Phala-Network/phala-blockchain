@@ -1,8 +1,8 @@
 use alloc::string::{String, ToString};
 use parity_scale_codec::{Decode, Encode};
+use serde::{Serialize, Deserialize};
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Encode, Decode, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
     /// The GK master key sealing path.
     pub sealing_path: String,

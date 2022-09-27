@@ -20,7 +20,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -34,12 +34,12 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
-use phactory_api::ecall_args::{git_revision, InitArgs};
-use phactory_api::prpc::InitRuntimeResponse;
-use phactory_api::storage_sync::{StorageSynchronizer, Synchronizer};
 use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
-    prpc::NetworkConfig,
+    ecall_args::{git_revision, InitArgs},
+    endpoints::EndpointType,
+    prpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    storage_sync::{StorageSynchronizer, Synchronizer},
 };
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
@@ -52,7 +52,6 @@ use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
-use phala_types::{EndpointType, WorkerEndpointPayload, WorkerRegistrationInfo};
 use std::time::Instant;
 use types::Error;
 
@@ -226,13 +225,6 @@ enum RuntimeDataSeal {
     V2(PersistentRuntimeDataV2),
 }
 
-#[derive(Clone)]
-struct SignedEndpointCache {
-    endpoints: HashMap<EndpointType, Vec<u8>>,
-    endpoint_payload: WorkerEndpointPayload,
-    signature: Option<Vec<u8>>,
-}
-
 #[derive(Serialize, Deserialize)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
@@ -244,8 +236,9 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
+    endpoints: BTreeMap<EndpointType, String>,
     #[serde(skip)]
-    endpoint_cache: Option<SignedEndpointCache>,
+    signed_endpoints: Option<GetEndpointResponse>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
@@ -287,7 +280,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
-            endpoint_cache: None,
+            endpoints: Default::default(),
+            signed_endpoints: None,
             side_task_man: Default::default(),
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),

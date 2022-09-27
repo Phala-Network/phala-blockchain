@@ -45,7 +45,7 @@ dependencies = [
  "brotli",
  "bytes 1.1.0",
  "bytestring",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "encoding_rs",
  "flate2",
  "futures-core",
@@ -160,7 +160,7 @@ dependencies = [
  "bytestring",
  "cfg-if",
  "cookie 0.16.0",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "encoding_rs",
  "futures-core",
  "futures-util",
@@ -2245,6 +2245,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "0.99.17"
+source = "git+https://github.com/JelteF/derive_more#fe33b369a42fe08491cef2bc441552d3ed82578f"
+dependencies = [
+ "convert_case",
+ "proc-macro2 1.0.40",
+ "quote 1.0.20",
+ "rustc_version 0.4.0",
+ "syn 1.0.98",
+ "unicode-xid 0.2.3",
+]
+
+[[package]]
 name = "derive_wrapper"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4108,7 +4121,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "075eab468da2937288ec484be920cb18614147003d7f1afbdfcfb190ed771c46"
 dependencies = [
  "blake2",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "rand 0.8.5",
  "secp256k1 0.24.0",
@@ -4125,7 +4138,7 @@ dependencies = [
  "arrayref",
  "blake2",
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "ink_allocator",
  "ink_engine",
  "ink_metadata",
@@ -4149,7 +4162,7 @@ version = "3.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62cf662fe6a130ea1ada3520142405e3ed521b79c35b7274cc95dd37bc833571"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "ink_env",
  "ink_lang_macro",
  "ink_prelude",
@@ -4165,7 +4178,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94dc22732ced2557f0411de5fa31d6fddc3878968041b699ae16ed1c390d2660"
 dependencies = [
  "blake2",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "either",
  "heck 0.4.0",
  "impl-serde",
@@ -4211,7 +4224,7 @@ version = "3.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d442f4f5dcbf120aa84cae9e399065ad99d143d5a920b06d3da286e91c03ec70"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "impl-serde",
  "ink_prelude",
  "ink_primitives",
@@ -4248,7 +4261,7 @@ checksum = "be827b98c102c413b2309075f0835a9bb8c6325fc6aa09e66963424db7a8bcb5"
 dependencies = [
  "array-init",
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "ink_env",
  "ink_metadata",
  "ink_prelude",
@@ -7350,7 +7363,7 @@ dependencies = [
  "bitflags",
  "chrono",
  "ciborium",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "finality-grandpa 0.15.0",
  "fixed",
  "fixed-macro",
@@ -7417,7 +7430,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.13.0",
- "derive_more",
+ "derive_more 0.99.17 (git+https://github.com/JelteF/derive_more)",
  "frame-system",
  "insta",
  "log",
@@ -7483,7 +7496,7 @@ dependencies = [
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "environmental",
  "hex",
  "log",
@@ -8496,7 +8509,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "prost 0.11.0",
 ]
@@ -10494,7 +10507,7 @@ checksum = "c46be926081c9f4dd5dd9b6f1d3e3229f2360bc6502dd8836f84a93b7c75e99a"
 dependencies = [
  "bitvec",
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "scale-info-derive",
  "serde",
@@ -10986,7 +10999,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 name = "sidevm"
 version = "0.1.10"
 dependencies = [
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
  "hyper",
  "lazy_static",
@@ -11004,7 +11017,7 @@ name = "sidevm-env"
 version = "0.1.7"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
  "log",
  "num_enum",
