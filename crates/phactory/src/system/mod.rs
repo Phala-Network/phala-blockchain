@@ -22,7 +22,7 @@ use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
 pub use master_key::RotatedMasterKey;
 use parity_scale_codec::{Decode, Encode};
-pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
+pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus, SystemInfo};
 use phala_crypto::{
     ecdh::EcdhKey,
     key_share,
@@ -1584,6 +1584,17 @@ impl<Platform: pal::Platform> System<Platform> {
         GatekeeperStatus {
             role: role.into(),
             master_public_key,
+        }
+    }
+
+    pub fn get_info(&self) -> SystemInfo {
+        SystemInfo {
+            registered: self.is_registered(),
+            gatekeeper: Some(self.gatekeeper_status()),
+            number_of_clusters: self.contract_clusters.len() as _,
+            number_of_contracts: self.contracts.len() as _,
+            public_key: hex::encode(self.identity_key.public()),
+            ecdh_public_key: hex::encode(self.ecdh_key.public()),
         }
     }
 }
