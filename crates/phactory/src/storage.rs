@@ -71,7 +71,15 @@ mod storage_ext {
             self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
         }
         fn mq_messages(&self) -> Result<Vec<Message>, Error> {
-            self.get_decoded_or_default(storage_prefix("PhalaMq", "OutboundMessages"))
+            for key in ["OutboundMessagesV2", "OutboundMessages"] {
+                let messages: Vec<Message> =
+                    self.get_decoded_or_default(storage_prefix("PhalaMq", key))?;
+                if !messages.is_empty() {
+                    info!("Got {} messages from {}", messages.len(), key);
+                    return Ok(messages);
+                }
+            }
+            Ok(vec![])
         }
         fn timestamp_now(&self) -> Option<chain::Moment> {
             self.get_decoded(storage_prefix("Timestamp", "Now"))
