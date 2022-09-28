@@ -105,11 +105,6 @@ impl ContractsKeeper {
         self.0.get(id)
     }
 
-    #[cfg(test)]
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut FatContract> {
-        self.0.values_mut()
-    }
-
     pub fn len(&self) -> usize {
         self.0.len()
     }
