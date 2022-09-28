@@ -44,10 +44,10 @@ use phala_types::{
         CodeIndex, ConvertTo,
     },
     messaging::{
-        AeadIV, BatchRotateMasterKeyEvent, RetireCondition, DispatchMasterKeyEvent,
-        DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
-        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
-        RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+        AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
+        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RetireCondition,
+        RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
@@ -1182,24 +1182,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     self.egress.push_message(&message);
                 }
             }
-            ClusterOperation::SetLogReceiver {
-                cluster: cluster_id,
-                log_handler,
-            } => {
-                if !origin.is_pallet() {
-                    error!("Invalid origin {:?} sent a {:?}", origin, event);
-                    anyhow::bail!("Invalid origin");
-                }
-                let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
-                if let Some(cluster) = cluster {
-                    info!(
-                        "Set log handler for cluster {}: {:?}",
-                        hex_fmt::HexFmt(cluster_id),
-                        log_handler
-                    );
-                    cluster.config.log_handler = Some(log_handler);
-                }
-            }
             ClusterOperation::DestroyCluster(cluster_id) => {
                 if !origin.is_pallet() {
                     error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -1861,6 +1843,14 @@ pub(crate) fn apply_pink_events(
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                     error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }
+            }
+            PinkEvent::SetLogHandler(handler) => {
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!("Set logger failed, bad origin: {:?}", origin);
+                    continue;
+                }
+                info!("Set logger for {:?} to {:?}", cluster_id, handler);
+                cluster.config.log_handler = Some(handler.convert_to());
             }
         }
     }

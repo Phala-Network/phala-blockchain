@@ -47,10 +47,8 @@ pub mod messaging {
     use super::{ContractClusterId, ContractInfo};
     use crate::messaging::EncryptedKey;
     use crate::{ClusterPublicKey, WorkerIdentity, WorkerPublicKey};
-    use phala_mq::{bind_topic, AccountId};
+    use phala_mq::bind_topic;
     use sp_core::crypto::AccountId32;
-
-    type MqAccountId = AccountId;
 
     bind_topic!(ClusterEvent, b"phala/cluster/event");
     #[derive(Encode, Decode, Debug)]
@@ -111,12 +109,6 @@ pub mod messaging {
         // TODO.shelven: a better way for real large batch key distribution
         /// MessageOrigin::Gatekeeper -> ALL
         DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
-        /// Set the contract to receive the ink logs inside given cluster.
-        SetLogReceiver {
-            cluster: ContractClusterId,
-            /// The id of the contract to receive the ink logs.
-            log_handler: MqAccountId,
-        },
         /// Force destroying a cluster.
         ///
         /// This leaves a door to clean up the beta clusters in fat v1.

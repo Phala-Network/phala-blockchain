@@ -126,10 +126,6 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			deployer: H256,
 		},
-		ClusterSetLogReceiver {
-			cluster: ContractClusterId,
-			log_handler: ContractId,
-		},
 		ClusterDestroyed {
 			cluster: ContractClusterId,
 		},
@@ -298,32 +294,6 @@ pub mod pallet {
 				deployer: contract_info.deployer,
 			});
 
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn cluster_set_log_handler(
-			origin: OriginFor<T>,
-			cluster: ContractClusterId,
-			log_handler: ContractId,
-		) -> DispatchResult {
-			let origin = ensure_signed(origin)?;
-			let cluster_info = Clusters::<T>::get(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
-			ensure!(
-				origin == cluster_info.owner,
-				Error::<T>::ClusterPermissionDenied
-			);
-
-			Self::push_message(
-				ClusterOperation::<T::AccountId, T::BlockNumber>::SetLogReceiver {
-					cluster,
-					log_handler,
-				},
-			);
-			Self::deposit_event(Event::ClusterSetLogReceiver {
-				cluster,
-				log_handler,
-			});
 			Ok(())
 		}
 

@@ -71,6 +71,12 @@ mod system {
         #[ink(message)]
         fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()> {
             self.ensure_owner_or_admin()?;
+            match name.as_str() {
+                "PinkLogger" => {
+                    pink::set_log_handler(contract_id);
+                }
+                _ => {}
+            }
             self.drivers.insert(name, &contract_id);
             Ok(())
         }

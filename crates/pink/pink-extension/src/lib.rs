@@ -94,6 +94,8 @@ pub enum PinkEvent {
         /// The target contract address
         contract: AccountId,
     },
+    /// Set the log handler contract for current cluster.
+    SetLogHandler(AccountId),
 }
 
 impl PinkEvent {
@@ -107,6 +109,7 @@ impl PinkEvent {
             PinkEvent::CacheOp(_) => true,
             PinkEvent::StopSidevm => true,
             PinkEvent::ForceStopSidevm { .. } => true,
+            PinkEvent::SetLogHandler(_) => false,
         }
     }
 }
@@ -207,6 +210,11 @@ pub fn force_stop_sidevm() {
 /// Push a message to the associated sidevm instance.
 pub fn push_sidevm_message(message: Vec<u8>) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SidevmMessage(message))
+}
+
+/// Set the log handler contract of current cluster
+pub fn set_log_handler(contract: AccountId) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandler(contract))
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.
