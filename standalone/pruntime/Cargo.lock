@@ -4850,7 +4850,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "heck 0.4.0",
  "ink_lang_ir",
@@ -4864,7 +4864,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "getrandom 0.2.7",
  "log",

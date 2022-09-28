@@ -1835,6 +1835,7 @@ checksum = "8bd0d559d5e679b1ab2f869b486a11182923863b1b3ee8b421763cdd707b783a"
 dependencies = [
  "jsonrpsee-client-transport",
  "jsonrpsee-core",
+ "jsonrpsee-types",
 ]
 
 [[package]]
@@ -3074,9 +3075,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.1.5"
+version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9182e4a71cae089267ab03e67c99368db7cd877baf50f931e5d6d4b71e195ac0"
+checksum = "366e44391a8af4cfd6002ef6ba072bae071a96aafca98d7d448a34c5dca38b6a"
 dependencies = [
  "arrayvec 0.7.2",
  "bitvec",
@@ -4207,22 +4208,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "scale-decode"
+name = "scale-bits"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c70dece385bc3e5918109830d9509806b5d4525fdf594e3463078c529122979e"
+checksum = "8dd7aca73785181cc41f0bbe017263e682b585ca660540ba569133901d013ecf"
 dependencies = [
- "bitvec",
  "parity-scale-codec",
+ "scale-info",
+ "serde",
+]
+
+[[package]]
+name = "scale-decode"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d823d4be477fc33321f93d08fb6c2698273d044f01362dc27573a750deb7c233"
+dependencies = [
+ "parity-scale-codec",
+ "scale-bits",
  "scale-info",
  "thiserror",
 ]
 
 [[package]]
 name = "scale-info"
-version = "2.1.2"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c46be926081c9f4dd5dd9b6f1d3e3229f2360bc6502dd8836f84a93b7c75e99a"
+checksum = "333af15b02563b8182cd863f925bd31ef8fa86a0e095d30c091956057d436153"
 dependencies = [
  "bitvec",
  "cfg-if",
@@ -4234,9 +4246,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-derive"
-version = "2.1.2"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50e334bb10a245e28e5fd755cabcafd96cfcd167c99ae63a46924ca8d8703a3c"
+checksum = "53f56acbd0743d29ffa08f911ab5397def774ad01bab3786804cf6ee057fb5e1"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.43",
@@ -4246,14 +4258,14 @@ dependencies = [
 
 [[package]]
 name = "scale-value"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eae8b296b3ebcb3425661e9b612ccc34cb1064483a61dc379c65e6b1463498f1"
+checksum = "16a5e7810815bd295da73e4216d1dfbced3c7c7c7054d70fa5f6e4c58123fff4"
 dependencies = [
- "bitvec",
  "either",
  "frame-metadata",
  "parity-scale-codec",
+ "scale-bits",
  "scale-decode",
  "scale-info",
  "serde",
@@ -5343,7 +5355,7 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "subxt"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "bitvec",
  "derivative",
@@ -5368,7 +5380,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-codegen"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "darling",
  "frame-metadata",
@@ -5384,7 +5396,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-macro"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "darling",
  "proc-macro-error",
@@ -5394,7 +5406,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-metadata"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
