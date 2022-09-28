@@ -28,7 +28,7 @@ mod check_system {
         #[ink(message)]
         pub fn set_hook(&self) {
             let mut system = pink::system::SystemRef::instance();
-            _ = system.set_hook(pink::PinkHookPoint::OnBlockEnd, self.env().account_id(), 0x01);
+            _ = system.set_hook(pink::HookPoint::OnBlockEnd, self.env().account_id(), 0x01);
         }
 
         #[ink(message, selector = 0x01)]

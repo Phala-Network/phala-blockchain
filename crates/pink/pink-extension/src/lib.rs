@@ -55,7 +55,7 @@ pub struct OspMessage {
 
 #[derive(Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum PinkHookPoint {
+pub enum HookPoint {
     OnBlockEnd,
 }
 
@@ -70,7 +70,7 @@ pub enum PinkEvent {
     /// Set contract hook
     SetHook {
         /// The event to hook
-        hook: PinkHookPoint,
+        hook: HookPoint,
         /// The target contract address
         contract: AccountId,
         /// The selector to invoke on hooked event fired.
@@ -166,7 +166,7 @@ pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<
 
 /// Turn on on_block_end feature and set it's selector
 ///
-pub fn set_hook(hook: PinkHookPoint, contract: AccountId, selector: u32) {
+pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
         hook,
         contract,

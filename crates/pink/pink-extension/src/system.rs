@@ -57,7 +57,7 @@ pub trait System {
     #[ink(message)]
     fn set_hook(
         &mut self,
-        hook: crate::PinkHookPoint,
+        hook: crate::HookPoint,
         contract_id: AccountId,
         selector: u32,
     ) -> Result<()>;

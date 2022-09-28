@@ -12,7 +12,7 @@ mod system {
     use alloc::string::String;
     use ink_storage::{traits::SpreadAllocate, Mapping};
     use pink::system::{Error, Result};
-    use pink::{PinkEnvironment, PinkHookPoint};
+    use pink::{PinkEnvironment, HookPoint};
 
     /// Pink's system contract.
     #[ink(storage)]
@@ -97,7 +97,7 @@ mod system {
         #[ink(message)]
         fn set_hook(
             &mut self,
-            hook: PinkHookPoint,
+            hook: HookPoint,
             contract: AccountId,
             selector: u32,
         ) -> Result<()> {

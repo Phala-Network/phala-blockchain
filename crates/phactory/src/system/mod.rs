@@ -57,7 +57,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
-use pink::runtime::{PinkEvent, PinkHookPoint};
+use pink::runtime::{PinkEvent, HookPoint};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -1803,7 +1803,7 @@ pub(crate) fn apply_pink_events(
                 }
                 let contract = get_contract!(&target_contract);
                 match hook {
-                    PinkHookPoint::OnBlockEnd => {
+                    HookPoint::OnBlockEnd => {
                         contract.set_on_block_end_selector(selector);
                     }
                 }
