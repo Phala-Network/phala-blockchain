@@ -393,6 +393,12 @@ pub mod pallet {
 			}
 			Ok(())
 		}
+
+		pub fn get_system_contract(contract: &ContractId) -> Option<ContractId> {
+			let contract_info = Contracts::<T>::get(&contract)?;
+			let cluster_info = Clusters::<T>::get(&contract_info.cluster_id)?;
+			Some(cluster_info.system_contract)
+		}
 	}
 
 	#[pallet::hooks]

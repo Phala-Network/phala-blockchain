@@ -17,6 +17,7 @@ pub mod migrations;
 pub mod utils;
 
 pub mod fat;
+pub mod fat_tokenomic;
 pub mod mining;
 pub mod mq;
 pub mod ott;
