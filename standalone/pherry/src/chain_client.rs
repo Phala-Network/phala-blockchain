@@ -11,7 +11,7 @@ use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
 use phaxt::{rpc::ExtraRpcExt as _, subxt, RpcClient};
 use serde_json::to_value;
-use subxt::rpc::{rpc_params, ClientT};
+use subxt::rpc::rpc_params;
 
 pub use sp_core::{twox_128, twox_64};
 
@@ -85,7 +85,6 @@ pub async fn mq_next_sequence(
     let sender_hex = hex::encode(sender_scl);
     let seq: u64 = api
         .rpc()
-        .client
         .request("pha_getMqNextSequence", rpc_params![to_value(sender_hex)?])
         .await?;
     Ok(seq)
