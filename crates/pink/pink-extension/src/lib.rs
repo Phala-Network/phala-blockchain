@@ -19,7 +19,7 @@ pub mod predefined_accounts {
 
     // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
     pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
-    pub const ACCOUNT_RUNTIME: [u8; 32] = [0; 32];
+    pub const ACCOUNT_RUNTIME: [u8; 32] = *b"sys::runtime\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
     pub fn is_pallet(account_id: &ink_env::AccountId) -> bool {
         account_id.as_ref() as &[u8] == &ACCOUNT_PALLET

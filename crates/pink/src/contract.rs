@@ -1,5 +1,6 @@
 use pallet_contracts_primitives::StorageDeposit;
 use phala_types::contract::contract_id_preimage;
+use pink_extension::predefined_accounts::ACCOUNT_RUNTIME;
 use scale::{Decode, Encode};
 use sp_core::hashing;
 use sp_runtime::DispatchError;
@@ -7,7 +8,9 @@ use sp_runtime::DispatchError;
 use crate::{
     runtime::{BoxedEventCallbacks, Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hash, QUERY_GAS_LIMIT, COMMAND_GAS_LIMIT, INSTANTIATE_GAS_LIMIT},
+    types::{
+        AccountId, BlockNumber, Hash, COMMAND_GAS_LIMIT, INSTANTIATE_GAS_LIMIT, QUERY_GAS_LIMIT,
+    },
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -71,7 +74,7 @@ impl Contract {
         now: u64,
         callbacks: Option<BoxedEventCallbacks>,
     ) -> Result<(Self, ExecSideEffects), ExecError> {
-        if origin == AccountId::new(Default::default()) {
+        if origin == AccountId::new(ACCOUNT_RUNTIME) {
             return Err(ExecError {
                 source: DispatchError::BadOrigin,
                 message: "Default account is not allowed to create contracts".to_string(),
@@ -165,7 +168,7 @@ impl Contract {
         now: u64,
         callbacks: Option<BoxedEventCallbacks>,
     ) -> (ContractExecResult, ExecSideEffects) {
-        if origin == AccountId::new(Default::default()) {
+        if origin == AccountId::new(ACCOUNT_RUNTIME) {
             return (
                 ContractExecResult {
                     gas_consumed: 0,
@@ -259,7 +262,7 @@ impl Contract {
 
             let (result, effects) = self.unchecked_bare_call(
                 storage,
-                AccountId::new(Default::default()),
+                AccountId::new(ACCOUNT_RUNTIME),
                 input_data,
                 false,
                 block_number,
