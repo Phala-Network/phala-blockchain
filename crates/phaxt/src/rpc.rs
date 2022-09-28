@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use phala_node_rpc_ext_types::GetStorageChangesResponse;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
     ext::sp_core::storage::{StorageData, StorageKey},
-    rpc::{rpc_params, RpcClientT, RpcClient},
+    rpc::{rpc_params, RpcClient},
     Config, Error, OnlineClient,
 };
 
@@ -18,14 +16,14 @@ impl<C: Config> ExtraRpcExt for OnlineClient<C> {
     type Config = C;
     fn extra_rpc(&self) -> ExtraRpcClient<Self::Config> {
         ExtraRpcClient {
-            client: &self.rpc().client,
+            client: &self.rpc(),
             _config: Default::default(),
         }
     }
 }
 
 pub struct ExtraRpcClient<'a, Config> {
-    client: &'a Arc<RpcClient>,
+    client: &'a RpcClient,
     _config: std::marker::PhantomData<Config>,
 }
 

@@ -82,9 +82,9 @@ pub async fn maybe_sync_mq_egress(
                             }
                             Ok(Err(err)) => {
                                 error!("Error submitting message {}: {:?}", msg_info, err);
-                                use phaxt::subxt::{rpc::RpcError, Error as SubxtError};
+                                use phaxt::subxt::{error::RpcError, Error as SubxtError};
                                 let report = match err {
-                                    SubxtError::Rpc(RpcError::Custom(err)) => {
+                                    SubxtError::Rpc(RpcError(err)) => {
                                         if err.contains("bad signature") {
                                             Error::BadSignature
                                         } else {
