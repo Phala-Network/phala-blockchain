@@ -7965,7 +7965,7 @@ dependencies = [
  "phala-trie-storage",
  "phala-types",
  "pink-extension 0.1.19",
- "pink-extension-runtime 0.1.4",
+ "pink-extension-runtime 0.1.5",
  "reqwest",
  "reqwest-env-proxy 0.1.0",
  "scale-info",
@@ -7997,7 +7997,7 @@ dependencies = [
  "ink_storage",
  "log",
  "parity-scale-codec",
- "pink-extension-macro 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pink-extension-macro 0.1.5",
  "scale-info",
 ]
 
@@ -8013,24 +8013,8 @@ dependencies = [
  "insta",
  "log",
  "parity-scale-codec",
- "pink-extension-macro 0.1.5",
+ "pink-extension-macro 0.1.6",
  "scale-info",
-]
-
-[[package]]
-name = "pink-extension-macro"
-version = "0.1.5"
-dependencies = [
- "heck 0.4.0",
- "ink_lang_ir",
- "ink_lang_macro",
- "insta",
- "proc-macro-crate",
- "proc-macro2 1.0.40",
- "quote 1.0.20",
- "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "syn 1.0.98",
- "unzip3",
 ]
 
 [[package]]
@@ -8044,6 +8028,22 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.40",
  "quote 1.0.20",
+ "syn 1.0.98",
+ "unzip3",
+]
+
+[[package]]
+name = "pink-extension-macro"
+version = "0.1.6"
+dependencies = [
+ "heck 0.4.0",
+ "ink_lang_ir",
+ "ink_lang_macro",
+ "insta",
+ "proc-macro-crate",
+ "proc-macro2 1.0.40",
+ "quote 1.0.20",
+ "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.98",
  "unzip3",
 ]
@@ -8066,7 +8066,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-runtime"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "getrandom 0.2.7",
  "log",
@@ -13356,7 +13356,7 @@ dependencies = [
  "ink_storage",
  "parity-scale-codec",
  "pink-extension 0.1.19",
- "pink-extension-runtime 0.1.4",
+ "pink-extension-runtime 0.1.5",
  "scale-info",
 ]
 
