@@ -641,7 +641,7 @@ describe('A full stack', function () {
             assert.isFalse(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
                 return output.valueOf();
-            }, 6000), 'Set hook should not success without granting admin first');
+            }, 6000*2), 'Set hook should not success without granting admin first');
         });
 
         it('can set hook with admin permission', async function () {
@@ -656,7 +656,7 @@ describe('A full stack', function () {
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
                 return output.valueOf();
-            }, 6000), 'Set hook should success after granted admin');
+            }, 6000*2), 'Set hook should success after granted admin');
         });
 
         it('cannot dup-instantiate', async function () {
