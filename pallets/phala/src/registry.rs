@@ -498,7 +498,7 @@ pub mod pallet {
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
 			let data_to_sign =
-				wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyRotation);
+				wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
 
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
