@@ -1,6 +1,0 @@
----
-source: crates/phactory/src/system/mod.rs
-expression: contracts.len()
-
----
-1

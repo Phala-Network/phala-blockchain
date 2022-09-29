@@ -5,6 +5,8 @@ const portfinder = require('portfinder');
 const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
+const { ContractPromise } = require('@polkadot/api-contract');
+const Phala = require('@phala/sdk');
 
 const { types, typeAlias } = require('./utils/typeoverride');
 // TODO: fixit
@@ -19,17 +21,17 @@ const pathRelayer = path.resolve('../target/release/pherry');
 
 const pRuntimeBin = "pruntime";
 const pathPRuntime = path.resolve(`../standalone/pruntime/bin/${pRuntimeBin}`);
-const tmpDir = new TempDir();
 
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
 describe('A full stack', function () {
-    this.timeout(60000);
+    this.timeout(160000);
 
     let cluster;
     let api, keyring, alice, bob;
     let pruntime;
+    const tmpDir = new TempDir();
     const tmpPath = tmpDir.dir;
 
     before(async () => {
@@ -503,14 +505,32 @@ describe('A full stack', function () {
     });
 
     describe('Cluster & Contract', () => {
-        const contractFile = './res/check_system/target/ink/check_system.contract';
-        const contract = JSON.parse(fs.readFileSync(contractFile)).source;
+        const systemMetadata = JSON.parse(fs.readFileSync('./res/pink_system.contract'));
+        const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
+        const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function
+
+        let certAlice;
+        let ContractSystemChecker;
+        let ContractSystem;
+
         let clusterId;
 
+        before(async () => {
+            certAlice = await Phala.signCertificate({ api, pair: alice });
+        });
+
+        after(async () => {
+            for (const contract of [ContractSystem, ContractSystemChecker]) {
+                if (contract) {
+                    await contract.api.disconnect();
+                }
+            }
+        });
+
         it('can upload system code', async function () {
-            const systemCode = hex(fs.readFileSync('./res/pink_system.wasm', 'hex'));
+            const systemCode = systemMetadata.source.wasm;
             await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
                 alice,
@@ -548,6 +568,7 @@ describe('A full stack', function () {
                 const clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
                 return (clusterContracts.length == 1 && clusterContracts[0].eq(systemContract));
             }, 4 * 6000), 'system contract instantiation failed');
+            ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
         });
 
         it('can generate cluster key', async function () {
@@ -608,6 +629,34 @@ describe('A full stack', function () {
                 // A system contract and the user deployed one.
                 return clusterContracts.length == 2;
             }, 4 * 6000), 'instantiation failed');
+
+            ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
+        });
+
+        it('can not set hook without admin permission', async function () {
+            await assert.txAccepted(
+                ContractSystemChecker.tx.setHook({}),
+                alice,
+            );
+            assert.isFalse(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                return output.valueOf();
+            }, 6000*2), 'Set hook should not success without granting admin first');
+        });
+
+        it('can set hook with admin permission', async function () {
+            await assert.txAccepted(
+                ContractSystem.tx['system::grantAdmin']({}, ContractSystemChecker.address),
+                alice,
+            );
+            await assert.txAccepted(
+                ContractSystemChecker.tx.setHook({}),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                return output.valueOf();
+            }, 6000*2), 'Set hook should success after granted admin');
         });
 
         it('cannot dup-instantiate', async function () {
@@ -699,179 +748,182 @@ describe('A full stack', function () {
         it('can stop mining')
         it('settles after the cooling down period')
     })
+
+    testPruntimeManagement(tmpPath);
 });
 
-describe("PRuntime management", function () {
-    this.timeout(120000);
+function testPruntimeManagement(workDir) {
+    describe("PRuntime management", function () {
+        this.timeout(120000);
 
-    let cluster;
-    let api, keyring, alice;
-    let worker;
-    let tmpPath;
-    let test_case = 0;
-    let info;
-    let currentVersion;
-    let newerVersion;
-    let olderVersion;
+        let cluster;
+        let api, keyring, alice;
+        let worker;
+        let tmpPath;
+        let test_case = 0;
+        let currentVersion;
+        let newerVersion;
+        let olderVersion;
 
-    before(async () => {
-        // Create polkadot api and keyring
-        await cryptoWaitReady();
-        keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
-        root = alice = keyring.addFromUri('//Alice');
-        bob = keyring.addFromUri('//Bob');
-    });
+        before(async () => {
+            // Create polkadot api and keyring
+            await cryptoWaitReady();
+            keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
+            root = alice = keyring.addFromUri('//Alice');
+            bob = keyring.addFromUri('//Bob');
+        });
 
-    beforeEach(async () => {
-        tmpPath = path.resolve(`${tmpDir.dir}/pruntime_life_case${test_case}`);
-        fs.mkdirSync(tmpPath);
-        // Check binary files
-        [pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
-        // Bring up a cluster
-        cluster = new Cluster(1, pathNode, pathRelayer, pathPRuntime, tmpPath);
-        await cluster.start();
-        // APIs
-        api = await cluster.api;
-        worker = cluster.workers[0];
+        beforeEach(async () => {
+            tmpPath = path.resolve(`${workDir}/pruntime_life_case${test_case}`);
+            fs.mkdirSync(tmpPath);
+            // Check binary files
+            [pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
+            // Bring up a cluster
+            cluster = new Cluster(1, pathNode, pathRelayer, pathPRuntime, tmpPath);
+            await cluster.start();
+            // APIs
+            api = await cluster.api;
+            worker = cluster.workers[0];
 
-        assert.isFalse(cluster.processNode.stopped);
-        for (const w of cluster.workers) {
-            assert.isFalse(w.processRelayer.stopped);
-            assert.isFalse(w.processPRuntime.stopped);
-        }
+            assert.isFalse(cluster.processNode.stopped);
+            for (const w of cluster.workers) {
+                assert.isFalse(w.processRelayer.stopped);
+                assert.isFalse(w.processPRuntime.stopped);
+            }
 
-        let info;
-        assert.isTrue(await checkUntil(async () => {
+            let info;
+            assert.isTrue(await checkUntil(async () => {
+                info = await worker.api.getInfo();
+                return info.initialized;
+            }, 1000), 'not initialized in time');
+            assert.isTrue(await checkUntil(async () => {
+                const info = await worker.api.getInfo();
+                return info.blocknum > 0;
+            }, 7000), 'stuck at block 0');
+
             info = await worker.api.getInfo();
-            return info.initialized;
-        }, 1000), 'not initialized in time');
-        assert.isTrue(await checkUntil(async () => {
+            currentVersion = versionToNumber(info.version);
+            newerVersion = currentVersion + 1;
+            olderVersion = currentVersion - 1;
+        });
+
+        afterEach(async () => {
+            test_case += 1;
+            if (api) await api.disconnect();
+            await cluster.kill();
+        });
+
+        it("can retirement pruntimes less than given version", async () => {
+            await checkRetireCondition('lessThan: olderVersion', {
+                lessThan: olderVersion,
+                causeExit: false
+            });
+
+            await checkRetireCondition('lessThan: currentVersion', {
+                lessThan: currentVersion,
+                causeExit: false
+            });
+
+            await checkRetireCondition('lessThan: newerVersion', {
+                lessThan: newerVersion,
+                causeExit: true
+            });
+        });
+
+        it("can retirement pruntimes matches given version", async () => {
+            await checkRetireCondition('equal: newerVersion', {
+                equal: newerVersion,
+                causeExit: false
+            });
+
+            await checkRetireCondition('equal: olderVersion', {
+                equal: olderVersion,
+                causeExit: false
+            });
+
+            await checkRetireCondition('equal: currentVersion', {
+                equal: currentVersion,
+                causeExit: true
+            });
+        });
+
+        it("can set consensus version", async () => {
             const info = await worker.api.getInfo();
-            return info.blocknum > 0;
-        }, 7000), 'stuck at block 0');
+            const { consensusVersion, maxSupportedConsensusVersion } = info.system;
 
-        info = await worker.api.getInfo();
-        currentVersion = versionToNumber(info.version);
-        newerVersion = currentVersion + 1;
-        olderVersion = currentVersion - 1;
-    });
-
-    afterEach(async () => {
-        test_case += 1;
-        if (api) await api.disconnect();
-        await cluster.kill();
-    });
-
-    it("can retirement pruntimes less than given version", async () => {
-        await checkRetireCondition('lessThan: olderVersion', {
-            lessThan: olderVersion,
-            causeExit: false
+            assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.setPruntimeConsensusVersion(
+                        maxSupportedConsensusVersion
+                    )
+                ),
+                alice,
+            );
+            assert.isTrue(
+                await checkUntil(
+                    async () => {
+                        const info = await worker.api.getInfo();
+                        const { consensusVersion } = info.system;
+                        return maxSupportedConsensusVersion == consensusVersion;
+                    },
+                    6000
+                ),
+                `Failed to set consensus version to ${maxSupportedConsensusVersion}`
+            );
         });
 
-        await checkRetireCondition('lessThan: currentVersion', {
-            lessThan: currentVersion,
-            causeExit: false
+        it("can not set consensus version over max supported", async () => {
+            const { consensusVersion, maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
+            assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.setPruntimeConsensusVersion(
+                        maxSupportedConsensusVersion + 1
+                    )
+                ),
+                alice,
+            );
+            assert.isTrue(
+                await checkUntil(
+                    async () => {
+                        return worker.processPRuntime.stopped;
+                    },
+                    6000
+                ),
+                'Failed to wait pruntime to exit'
+            );
         });
 
-        await checkRetireCondition('lessThan: newerVersion', {
-            lessThan: newerVersion,
-            causeExit: true
-        });
+        async function checkRetireCondition(desc, { lessThan, equal, causeExit }) {
+            let condition;
+            if (lessThan)
+                condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionLessThan': versionFromNumber(lessThan) })
+            if (equal)
+                condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(equal) })
+
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.retirePruntime(
+                        condition
+                    )
+                ),
+                alice,
+            );
+
+            assert.equal(
+                causeExit,
+                await checkUntil(
+                    async () => {
+                        return worker.processPRuntime.stopped;
+                    },
+                    6000
+                ),
+                `Condition ${desc} failed`
+            );
+        }
     });
-
-    it("can retirement pruntimes matches given version", async () => {
-        await checkRetireCondition('equal: newerVersion', {
-            equal: newerVersion,
-            causeExit: false
-        });
-
-        await checkRetireCondition('equal: olderVersion', {
-            equal: olderVersion,
-            causeExit: false
-        });
-
-        await checkRetireCondition('equal: currentVersion', {
-            equal: currentVersion,
-            causeExit: true
-        });
-    });
-
-    it("can set consensus version", async () => {
-        const info = await worker.api.getInfo();
-        const { consensusVersion, maxSupportedConsensusVersion } = info.system;
-
-        assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
-        await assert.txAccepted(
-            api.tx.sudo.sudo(
-                api.tx.phalaRegistry.setPruntimeConsensusVersion(
-                    maxSupportedConsensusVersion
-                )
-            ),
-            alice,
-        );
-        assert.isTrue(
-            await checkUntil(
-                async () => {
-                    const info = await worker.api.getInfo();
-                    const { consensusVersion } = info.system;
-                    return maxSupportedConsensusVersion == consensusVersion;
-                },
-                6000
-            ),
-            `Failed to set consensus version to ${maxSupportedConsensusVersion}`
-        );
-    });
-
-    it("can not set consensus version over max supported", async () => {
-        const { consensusVersion, maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
-        assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
-        await assert.txAccepted(
-            api.tx.sudo.sudo(
-                api.tx.phalaRegistry.setPruntimeConsensusVersion(
-                    maxSupportedConsensusVersion + 1
-                )
-            ),
-            alice,
-        );
-        assert.isTrue(
-            await checkUntil(
-                async () => {
-                    return worker.processPRuntime.stopped;
-                },
-                6000
-            ),
-            'Failed to wait pruntime to exit'
-        );
-    });
-
-    async function checkRetireCondition(desc, { lessThan, equal, causeExit }) {
-        let condition;
-        if (lessThan)
-            condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionLessThan': versionFromNumber(lessThan) })
-        if (equal)
-            condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(equal) })
-
-        await assert.txAccepted(
-            api.tx.sudo.sudo(
-                api.tx.phalaRegistry.retirePruntime(
-                    condition
-                )
-            ),
-            alice,
-        );
-
-        assert.equal(
-            causeExit,
-            await checkUntil(
-                async () => {
-                    return worker.processPRuntime.stopped;
-                },
-                6000
-            ),
-            `Condition ${desc} failed`
-        );
-    }
-});
+}
 
 
 function versionToNumber(version) {
@@ -1116,7 +1168,8 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types, typeAlias
+            types: { ...types, ...Phala.types },
+            typeAlias
         });
         this.workers.forEach(w => {
             w.api = new PRuntimeApi(`http://localhost:${w.port}`);
@@ -1211,4 +1264,13 @@ function hex(b) {
     } else {
         return b;
     }
+}
+
+async function createContractApi(api, pruntimeURL, contractId, metadata) {
+    const newApi = await api.clone().isReady;
+    return new ContractPromise(
+        await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId }),
+        metadata,
+        contractId,
+    );
 }

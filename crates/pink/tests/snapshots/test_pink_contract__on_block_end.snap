@@ -1,10 +1,10 @@
 ---
 source: crates/pink/tests/test_pink_contract.rs
+assertion_line: 228
 expression: contract
-
 ---
 Contract {
-    address: b81c488581e2d18bdb886027d0b848b76f2376723c9b2fadf5ccc5b23a2ea038 (5GE751Bk...),
+    address: 2affb93501ca8833b6dd866cbe03fe08da1a71dbccf82db453457901173485b8 (5D35qL1j...),
     hooks: HookSelectors {
         on_block_end: None,
     },

@@ -12,7 +12,7 @@ mod system {
     use alloc::string::String;
     use ink_storage::{traits::SpreadAllocate, Mapping};
     use pink::system::{Error, Result};
-    use pink::PinkEnvironment;
+    use pink::{PinkEnvironment, HookPoint};
 
     /// Pink's system contract.
     #[ink(storage)]
@@ -91,6 +91,18 @@ mod system {
         fn stop_sidevm_at(&self, contract_id: AccountId) -> Result<()> {
             self.ensure_admin()?;
             pink::stop_sidevm_at(contract_id);
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn set_hook(
+            &mut self,
+            hook: HookPoint,
+            contract: AccountId,
+            selector: u32,
+        ) -> Result<()> {
+            self.ensure_admin()?;
+            pink::set_hook(hook, contract, selector);
             Ok(())
         }
     }

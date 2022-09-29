@@ -57,7 +57,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
-use pink::runtime::PinkEvent;
+use pink::runtime::{PinkEvent, HookPoint};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -1789,9 +1789,24 @@ pub(crate) fn apply_pink_events(
                     message.remote_pubkey.as_ref(),
                 );
             }
-            PinkEvent::OnBlockEndSelector(selector) => {
-                let contract = get_contract!(&origin);
-                contract.set_on_block_end_selector(selector);
+            PinkEvent::SetHook {
+                hook,
+                contract: target_contract,
+                selector,
+            } => {
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!(
+                        "Failed to set hook for {:?}, requested by {:?}: permission denied",
+                        target_contract, origin
+                    );
+                    continue;
+                }
+                let contract = get_contract!(&target_contract);
+                match hook {
+                    HookPoint::OnBlockEnd => {
+                        contract.set_on_block_end_selector(selector);
+                    }
+                }
             }
             PinkEvent::DeploySidevmTo {
                 contract: target_contract,
@@ -1951,81 +1966,5 @@ pub mod chain_state {
         let key =
             storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
         chain_storage.get_decoded(&key)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sp_runtime::AccountId32;
-
-    const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-
-    #[test]
-    fn test_on_block_end() {
-        let cluster_key = sp_core::Pair::from_seed(&Default::default());
-        let mut contracts = ContractsKeeper::default();
-        let mut keeper = ClusterKeeper::default();
-        let wasm_bin = pink::load_test_wasm("hooks_test");
-        let cluster_id = phala_mq::ContractClusterId(Default::default());
-        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
-        let code_hash = cluster
-            .upload_resource(ALICE.clone(), ResourceType::InkCode, wasm_bin)
-            .unwrap();
-        let effects = keeper
-            .instantiate_contract(
-                cluster_id,
-                ALICE,
-                code_hash,
-                vec![0xed, 0x4b, 0x9d, 0x1b],
-                Default::default(),
-                1,
-                1,
-                None,
-            )
-            .unwrap();
-        insta::assert_debug_snapshot!(effects);
-
-        let cluster = keeper.get_cluster_mut(&cluster_id).unwrap();
-        let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
-        let signer = sr25519::Pair::from_seed(&Default::default());
-        let egress = builder
-            .send_mq
-            .channel(MessageOrigin::Gatekeeper, signer.into());
-        let mut block_info = builder.build();
-        let spawner = create_sidevm_service(4);
-
-        apply_pink_side_effects(
-            effects,
-            cluster_id,
-            &mut contracts,
-            cluster,
-            &mut block_info,
-            &egress,
-            &spawner,
-            None,
-        );
-
-        insta::assert_display_snapshot!(contracts.len());
-
-        let mut env = ExecuteEnv {
-            block: &mut block_info,
-            contract_clusters: &mut keeper,
-            log_handler: None,
-        };
-
-        for contract in contracts.values_mut() {
-            let effects = contract.on_block_end(&mut env).unwrap();
-            insta::assert_debug_snapshot!(effects);
-        }
-
-        let messages: Vec<_> = builder
-            .send_mq
-            .all_messages()
-            .into_iter()
-            .map(|msg| (msg.sequence, msg.message))
-            .collect();
-        // WorkerContractReport::ContractInstantiated
-        insta::assert_debug_snapshot!(messages);
     }
 }

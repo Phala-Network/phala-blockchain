@@ -4,6 +4,7 @@ const {pruntime_rpc} = require('../proto/pruntime_rpc');
 // TODO: make it a library (copied from scripts/js/console.js)
 class PRuntimeApi {
     constructor(endpoint) {
+        this.uri = endpoint;
         this.api = axios.create({
             baseURL: endpoint,
             headers: {
