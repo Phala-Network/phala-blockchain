@@ -113,7 +113,7 @@ impl Pink {
             Query::InkMessage(input_data) => {
                 let _guard = context
                     .query_scheduler
-                    .acquire(self.id(), 1)
+                    .acquire(self.id(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
 

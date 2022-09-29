@@ -11,8 +11,8 @@ mod system {
     use super::pink;
     use alloc::string::String;
     use ink_storage::{traits::SpreadAllocate, Mapping};
-    use pink::system::{Error, Result};
-    use pink::{PinkEnvironment, HookPoint};
+    use pink::system::{ContractDeposit, ContractDepositRef, Error, Result};
+    use pink::{HookPoint, PinkEnvironment};
 
     /// Pink's system contract.
     #[ink(storage)]
@@ -52,6 +52,15 @@ mod system {
 
         fn ensure_owner_or_admin(&self) -> Result<AccountId> {
             self.ensure_owner().or_else(|_| self.ensure_admin())
+        }
+
+        fn ensure_pallet(&self) -> Result<AccountId> {
+            let caller = self.env().caller();
+            if pink::predefined_accounts::is_pallet(&caller) {
+                Ok(caller)
+            } else {
+                Err(Error::BadOrigin)
+            }
         }
     }
 
@@ -101,15 +110,28 @@ mod system {
         }
 
         #[ink(message)]
-        fn set_hook(
-            &mut self,
-            hook: HookPoint,
-            contract: AccountId,
-            selector: u32,
-        ) -> Result<()> {
+        fn set_hook(&mut self, hook: HookPoint, contract: AccountId, selector: u32) -> Result<()> {
             self.ensure_admin()?;
             pink::set_hook(hook, contract, selector);
             Ok(())
+        }
+
+        #[ink(message)]
+        fn set_contract_weight(&self, contract_id: AccountId, weight: u32) -> Result<()> {
+            self.ensure_admin()?;
+            pink::set_contract_weight(contract_id, weight);
+            Ok(())
+        }
+    }
+
+    impl ContractDeposit for System {
+        #[ink(message)]
+        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
+            self.ensure_pallet()?;
+            match ContractDepositRef::instance() {
+                Some(mut driver) => driver.change_deposit(contract_id, deposit),
+                None => Ok(()),
+            }
         }
     }
 

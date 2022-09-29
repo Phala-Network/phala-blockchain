@@ -150,7 +150,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
         });
 
         let start_tag = self.virtual_time.max(flow.previous_finish_tag);
-        let cost = flow.average_cost / weight as VirtualTime;
+        let cost = flow.average_cost / weight.max(1) as VirtualTime;
         let cost = cost.max(1);
         let finish_tag = start_tag + cost;
         flow.previous_finish_tag = finish_tag;

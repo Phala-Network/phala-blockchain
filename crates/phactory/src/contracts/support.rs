@@ -8,7 +8,7 @@ use phala_mq::{traits::MessageChannel, SignedMessageChannel};
 use phala_scheduler::RequestScheduler;
 use runtime::BlockNumber;
 use sidevm::{
-    service::{CommandSender, ExitReason},
+    service::{Command as SidevmCommand, CommandSender, ExitReason},
     OcallAborted, VmId,
 };
 
@@ -44,6 +44,7 @@ pub struct QueryContext {
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
     pub query_scheduler: RequestScheduler<ContractId>,
+    pub weight: u32,
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -118,6 +119,7 @@ pub struct FatContract {
     cluster_id: phala_mq::ContractClusterId,
     contract_id: phala_mq::ContractId,
     sidevm_info: Option<SidevmInfo>,
+    weight: u32,
 }
 
 impl FatContract {
@@ -137,6 +139,7 @@ impl FatContract {
             cluster_id,
             contract_id,
             sidevm_info: None,
+            weight: 0,
         }
     }
 
@@ -230,7 +233,7 @@ impl FatContract {
                 bail!("Sidevm can only be started once");
             }
         }
-        let handle = do_start_sidevm(spawner, &code, self.contract_id.0)?;
+        let handle = do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?;
         self.sidevm_info = Some(SidevmInfo {
             code,
             handle,
@@ -261,7 +264,7 @@ impl FatContract {
                 if !need_restart {
                     return Ok(());
                 }
-                do_start_sidevm(spawner, &sidevm_info.code, self.contract_id.0)?
+                do_start_sidevm(spawner, &sidevm_info.code, self.contract_id.0, self.weight)?
             } else {
                 return Ok(());
             };
@@ -271,7 +274,7 @@ impl FatContract {
         Ok(())
     }
 
-    pub(crate) fn push_message_to_sidevm(&self, message: sidevm::service::Command) -> Result<()> {
+    pub(crate) fn push_message_to_sidevm(&self, message: SidevmCommand) -> Result<()> {
         let handle = self
             .sidevm_info
             .as_ref()
@@ -319,7 +322,7 @@ impl FatContract {
                 SidevmHandle::Terminated(_) => {}
                 SidevmHandle::Running(tx) => {
                     spawner.spawn(async move {
-                        if let Err(err) = tx.send(sidevm::service::Command::Stop).await {
+                        if let Err(err) = tx.send(SidevmCommand::Stop).await {
                             error!("Failed to send stop command to sidevm: {}", err);
                         }
                     });
@@ -327,12 +330,26 @@ impl FatContract {
             }
         }
     }
+
+    pub fn set_weight(&mut self, weight: u32) {
+        self.weight = weight;
+        info!("Updated weight for contarct {:?} to {}", self.id(), weight);
+        if let Some(SidevmHandle::Running(tx)) = self.sidevm_handle() {
+            if let Err(_) = tx.try_send(SidevmCommand::UpdateWeight(weight)) {
+                error!("Failed to update weight for sidevm, maybe it has crashed");
+            }
+        }
+    }
+    pub fn weight(&self) -> u32 {
+        self.weight
+    }
 }
 
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
     id: VmId,
+    weight: u32,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
     let max_memory_pages: u32 = 1024; // 64MB
     let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
@@ -342,7 +359,7 @@ fn do_start_sidevm(
         id,
         gas_per_breath,
         local_cache_ops(),
-        1, // TODO: set actual weight
+        weight,
     )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();

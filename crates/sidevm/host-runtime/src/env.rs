@@ -22,8 +22,8 @@ use env::{
     tls::{TlsClientConfig, TlsServerConfig},
     IntPtr, IntRet, OcallError, OcallFuncs, Result, RetEncode,
 };
-use sidevm_env as env;
 use scale::Encode;
+use sidevm_env as env;
 use thread_local::ThreadLocal;
 use wasmer_middlewares::metering;
 
@@ -266,7 +266,10 @@ impl Env {
     }
 
     pub fn set_weight(&self, weight: u32) {
-        self.inner.lock().unwrap().state.weight = weight;
+        let mut inner = self.inner.lock().unwrap();
+        inner.state.weight = weight;
+        let vm_id = ShortId(&inner.state.id);
+        log::debug!(target: "sidevm", "[{}] Updated weight to {}", vm_id, weight);
     }
 
     pub fn set_instance(&self, instance: Instance) {
@@ -532,7 +535,6 @@ impl env::OcallFuncs for State {
             (self.gas_to_breath() * 100 / self.gas_per_breath) as u8
         })
     }
-
 }
 
 impl State {

@@ -205,7 +205,7 @@ impl<TaskId: TaskIdType> Drop for RunningGuard<TaskId> {
                 .actual_cost
                 .unwrap_or_else(|| self.start_time.elapsed().as_nanos() as VirtualTime);
             let vruntime = actual_cost / self.weight.max(1) as VirtualTime;
-            inner.lock().unwrap().park(&self.task_id, vruntime);
+            inner.lock().unwrap().park(&self.task_id, vruntime.max(1));
         }
     }
 }
