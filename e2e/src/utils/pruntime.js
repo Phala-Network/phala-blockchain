@@ -24,7 +24,8 @@ class PRuntimeApi {
     }
 
     async getContractInfo(contractId) {
-        return await this.rpc.getContractInfo({ contractId });
+        const { contracts } = await this.rpc.getContractInfo({ contractId });
+        return contracts[0];
     }
 }
 

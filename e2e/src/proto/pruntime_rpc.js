@@ -776,6 +776,39 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getContractInfo}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetContractInfoCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetContractInfoResponse} [response] GetContractInfoResponse
+         */
+
+        /**
+         * Calls GetContractInfo.
+         * @function getContractInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IGetContractInfoRequest} request GetContractInfoRequest message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetContractInfoCallback} callback Node-style callback called with the error, if any, and GetContractInfoResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getContractInfo = function getContractInfo(request, callback) {
+            return this.rpcCall(getContractInfo, $root.pruntime_rpc.GetContractInfoRequest, $root.pruntime_rpc.GetContractInfoResponse, request, callback);
+        }, "name", { value: "GetContractInfo" });
+
+        /**
+         * Calls GetContractInfo.
+         * @function getContractInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IGetContractInfoRequest} request GetContractInfoRequest message or plain object
+         * @returns {Promise<pruntime_rpc.GetContractInfoResponse>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -11435,6 +11468,848 @@ $root.pruntime_rpc = (function() {
         };
 
         return HttpResponse;
+    })();
+
+    pruntime_rpc.GetContractInfoRequest = (function() {
+
+        /**
+         * Properties of a GetContractInfoRequest.
+         * @memberof pruntime_rpc
+         * @interface IGetContractInfoRequest
+         * @property {string|null} [contractId] GetContractInfoRequest contractId
+         */
+
+        /**
+         * Constructs a new GetContractInfoRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetContractInfoRequest.
+         * @implements IGetContractInfoRequest
+         * @constructor
+         * @param {pruntime_rpc.IGetContractInfoRequest=} [properties] Properties to set
+         */
+        function GetContractInfoRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetContractInfoRequest contractId.
+         * @member {string} contractId
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @instance
+         */
+        GetContractInfoRequest.prototype.contractId = "";
+
+        /**
+         * Creates a new GetContractInfoRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest instance
+         */
+        GetContractInfoRequest.create = function create(properties) {
+            return new GetContractInfoRequest(properties);
+        };
+
+        /**
+         * Encodes the specified GetContractInfoRequest message. Does not implicitly {@link pruntime_rpc.GetContractInfoRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoRequest} message GetContractInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.contractId != null && Object.hasOwnProperty.call(message, "contractId"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.contractId);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetContractInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetContractInfoRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoRequest} message GetContractInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetContractInfoRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.contractId = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetContractInfoRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetContractInfoRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetContractInfoRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.contractId != null && message.hasOwnProperty("contractId"))
+                if (!$util.isString(message.contractId))
+                    return "contractId: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a GetContractInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest
+         */
+        GetContractInfoRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetContractInfoRequest)
+                return object;
+            var message = new $root.pruntime_rpc.GetContractInfoRequest();
+            if (object.contractId != null)
+                message.contractId = String(object.contractId);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetContractInfoRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.GetContractInfoRequest} message GetContractInfoRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetContractInfoRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.contractId = "";
+            if (message.contractId != null && message.hasOwnProperty("contractId"))
+                object.contractId = message.contractId;
+            return object;
+        };
+
+        /**
+         * Converts this GetContractInfoRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetContractInfoRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetContractInfoRequest;
+    })();
+
+    pruntime_rpc.GetContractInfoResponse = (function() {
+
+        /**
+         * Properties of a GetContractInfoResponse.
+         * @memberof pruntime_rpc
+         * @interface IGetContractInfoResponse
+         * @property {Array.<pruntime_rpc.IContractInfo>|null} [contracts] GetContractInfoResponse contracts
+         */
+
+        /**
+         * Constructs a new GetContractInfoResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetContractInfoResponse.
+         * @implements IGetContractInfoResponse
+         * @constructor
+         * @param {pruntime_rpc.IGetContractInfoResponse=} [properties] Properties to set
+         */
+        function GetContractInfoResponse(properties) {
+            this.contracts = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetContractInfoResponse contracts.
+         * @member {Array.<pruntime_rpc.IContractInfo>} contracts
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @instance
+         */
+        GetContractInfoResponse.prototype.contracts = $util.emptyArray;
+
+        /**
+         * Creates a new GetContractInfoResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse instance
+         */
+        GetContractInfoResponse.create = function create(properties) {
+            return new GetContractInfoResponse(properties);
+        };
+
+        /**
+         * Encodes the specified GetContractInfoResponse message. Does not implicitly {@link pruntime_rpc.GetContractInfoResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoResponse} message GetContractInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.contracts != null && message.contracts.length)
+                for (var i = 0; i < message.contracts.length; ++i)
+                    $root.pruntime_rpc.ContractInfo.encode(message.contracts[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetContractInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetContractInfoResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoResponse} message GetContractInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetContractInfoResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    if (!(message.contracts && message.contracts.length))
+                        message.contracts = [];
+                    message.contracts.push($root.pruntime_rpc.ContractInfo.decode(reader, reader.uint32()));
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetContractInfoResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetContractInfoResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetContractInfoResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.contracts != null && message.hasOwnProperty("contracts")) {
+                if (!Array.isArray(message.contracts))
+                    return "contracts: array expected";
+                for (var i = 0; i < message.contracts.length; ++i) {
+                    var error = $root.pruntime_rpc.ContractInfo.verify(message.contracts[i]);
+                    if (error)
+                        return "contracts." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetContractInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse
+         */
+        GetContractInfoResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetContractInfoResponse)
+                return object;
+            var message = new $root.pruntime_rpc.GetContractInfoResponse();
+            if (object.contracts) {
+                if (!Array.isArray(object.contracts))
+                    throw TypeError(".pruntime_rpc.GetContractInfoResponse.contracts: array expected");
+                message.contracts = [];
+                for (var i = 0; i < object.contracts.length; ++i) {
+                    if (typeof object.contracts[i] !== "object")
+                        throw TypeError(".pruntime_rpc.GetContractInfoResponse.contracts: object expected");
+                    message.contracts[i] = $root.pruntime_rpc.ContractInfo.fromObject(object.contracts[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetContractInfoResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.GetContractInfoResponse} message GetContractInfoResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetContractInfoResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.contracts = [];
+            if (message.contracts && message.contracts.length) {
+                object.contracts = [];
+                for (var j = 0; j < message.contracts.length; ++j)
+                    object.contracts[j] = $root.pruntime_rpc.ContractInfo.toObject(message.contracts[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetContractInfoResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetContractInfoResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetContractInfoResponse;
+    })();
+
+    pruntime_rpc.ContractInfo = (function() {
+
+        /**
+         * Properties of a ContractInfo.
+         * @memberof pruntime_rpc
+         * @interface IContractInfo
+         * @property {string|null} [id] ContractInfo id
+         * @property {number|null} [weight] ContractInfo weight
+         * @property {pruntime_rpc.ISidevmInfo|null} [sidevmInfo] ContractInfo sidevmInfo
+         */
+
+        /**
+         * Constructs a new ContractInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ContractInfo.
+         * @implements IContractInfo
+         * @constructor
+         * @param {pruntime_rpc.IContractInfo=} [properties] Properties to set
+         */
+        function ContractInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ContractInfo id.
+         * @member {string} id
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.id = "";
+
+        /**
+         * ContractInfo weight.
+         * @member {number} weight
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.weight = 0;
+
+        /**
+         * ContractInfo sidevmInfo.
+         * @member {pruntime_rpc.ISidevmInfo|null|undefined} sidevmInfo
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.sidevmInfo = null;
+
+        /**
+         * Creates a new ContractInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.IContractInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo instance
+         */
+        ContractInfo.create = function create(properties) {
+            return new ContractInfo(properties);
+        };
+
+        /**
+         * Encodes the specified ContractInfo message. Does not implicitly {@link pruntime_rpc.ContractInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.IContractInfo} message ContractInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.weight != null && Object.hasOwnProperty.call(message, "weight"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.weight);
+            if (message.sidevmInfo != null && Object.hasOwnProperty.call(message, "sidevmInfo"))
+                $root.pruntime_rpc.SidevmInfo.encode(message.sidevmInfo, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ContractInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ContractInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.IContractInfo} message ContractInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ContractInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.id = reader.string();
+                    break;
+                case 2:
+                    message.weight = reader.uint32();
+                    break;
+                case 3:
+                    message.sidevmInfo = $root.pruntime_rpc.SidevmInfo.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ContractInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ContractInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ContractInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.weight != null && message.hasOwnProperty("weight"))
+                if (!$util.isInteger(message.weight))
+                    return "weight: integer expected";
+            if (message.sidevmInfo != null && message.hasOwnProperty("sidevmInfo")) {
+                var error = $root.pruntime_rpc.SidevmInfo.verify(message.sidevmInfo);
+                if (error)
+                    return "sidevmInfo." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a ContractInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo
+         */
+        ContractInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ContractInfo)
+                return object;
+            var message = new $root.pruntime_rpc.ContractInfo();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.weight != null)
+                message.weight = object.weight >>> 0;
+            if (object.sidevmInfo != null) {
+                if (typeof object.sidevmInfo !== "object")
+                    throw TypeError(".pruntime_rpc.ContractInfo.sidevmInfo: object expected");
+                message.sidevmInfo = $root.pruntime_rpc.SidevmInfo.fromObject(object.sidevmInfo);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ContractInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.ContractInfo} message ContractInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ContractInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.weight = 0;
+                object.sidevmInfo = null;
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.weight != null && message.hasOwnProperty("weight"))
+                object.weight = message.weight;
+            if (message.sidevmInfo != null && message.hasOwnProperty("sidevmInfo"))
+                object.sidevmInfo = $root.pruntime_rpc.SidevmInfo.toObject(message.sidevmInfo, options);
+            return object;
+        };
+
+        /**
+         * Converts this ContractInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ContractInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ContractInfo;
+    })();
+
+    pruntime_rpc.SidevmInfo = (function() {
+
+        /**
+         * Properties of a SidevmInfo.
+         * @memberof pruntime_rpc
+         * @interface ISidevmInfo
+         * @property {string|null} [state] SidevmInfo state
+         * @property {string|null} [stopReason] SidevmInfo stopReason
+         */
+
+        /**
+         * Constructs a new SidevmInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SidevmInfo.
+         * @implements ISidevmInfo
+         * @constructor
+         * @param {pruntime_rpc.ISidevmInfo=} [properties] Properties to set
+         */
+        function SidevmInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SidevmInfo state.
+         * @member {string} state
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         */
+        SidevmInfo.prototype.state = "";
+
+        /**
+         * SidevmInfo stopReason.
+         * @member {string} stopReason
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         */
+        SidevmInfo.prototype.stopReason = "";
+
+        /**
+         * Creates a new SidevmInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.ISidevmInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo instance
+         */
+        SidevmInfo.create = function create(properties) {
+            return new SidevmInfo(properties);
+        };
+
+        /**
+         * Encodes the specified SidevmInfo message. Does not implicitly {@link pruntime_rpc.SidevmInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.ISidevmInfo} message SidevmInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.state != null && Object.hasOwnProperty.call(message, "state"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.state);
+            if (message.stopReason != null && Object.hasOwnProperty.call(message, "stopReason"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.stopReason);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SidevmInfo message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.ISidevmInfo} message SidevmInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SidevmInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.state = reader.string();
+                    break;
+                case 4:
+                    message.stopReason = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SidevmInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SidevmInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SidevmInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.state != null && message.hasOwnProperty("state"))
+                if (!$util.isString(message.state))
+                    return "state: string expected";
+            if (message.stopReason != null && message.hasOwnProperty("stopReason"))
+                if (!$util.isString(message.stopReason))
+                    return "stopReason: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SidevmInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo
+         */
+        SidevmInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SidevmInfo)
+                return object;
+            var message = new $root.pruntime_rpc.SidevmInfo();
+            if (object.state != null)
+                message.state = String(object.state);
+            if (object.stopReason != null)
+                message.stopReason = String(object.stopReason);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SidevmInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.SidevmInfo} message SidevmInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SidevmInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.state = "";
+                object.stopReason = "";
+            }
+            if (message.state != null && message.hasOwnProperty("state"))
+                object.state = message.state;
+            if (message.stopReason != null && message.hasOwnProperty("stopReason"))
+                object.stopReason = message.stopReason;
+            return object;
+        };
+
+        /**
+         * Converts this SidevmInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SidevmInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return SidevmInfo;
     })();
 
     return pruntime_rpc;

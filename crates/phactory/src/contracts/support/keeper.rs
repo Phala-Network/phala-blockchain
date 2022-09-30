@@ -120,4 +120,8 @@ impl ContractsKeeper {
     pub fn remove(&mut self, id: &ContractId) -> Option<FatContract> {
         self.0.remove(id)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item=(&ContractId, &FatContract)> {
+        self.0.iter()
+    }
 }

@@ -37,6 +37,8 @@ fn main() {
         "MemoryUsage",
         "GatekeeperStatus",
         "SystemInfo",
+        "ContractInfo",
+        "SidevmInfo",
     ] {
         builder = builder.type_attribute(
             r#type,

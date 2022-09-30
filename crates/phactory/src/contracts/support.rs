@@ -19,6 +19,7 @@ use crate::{
     types::BlockInfo,
     ContractId,
 };
+use phactory_api::prpc as pb;
 
 use phala_serde_more as more;
 
@@ -342,6 +343,26 @@ impl FatContract {
     }
     pub fn weight(&self) -> u32 {
         self.weight
+    }
+
+    pub fn info(&self) -> pb::ContractInfo {
+        pb::ContractInfo {
+            id: format!("0x{}", hex_fmt::HexFmt(&self.contract_id)),
+            weight: self.weight,
+            sidevm: self.sidevm_info.as_ref().map(|info| {
+                let handle = info.handle.lock().unwrap().clone();
+                match handle {
+                    SidevmHandle::Running(_) => pb::SidevmInfo {
+                        state: "running".into(),
+                        stop_reason: Default::default(),
+                    },
+                    SidevmHandle::Terminated(reason) => pb::SidevmInfo {
+                        state: "stopped".into(),
+                        stop_reason: format!("{}", reason),
+                    },
+                }
+            }),
+        }
     }
 }
 

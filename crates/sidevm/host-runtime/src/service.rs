@@ -21,7 +21,7 @@ pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, derive_more::Display)]
 pub enum ExitReason {
     /// The program returned from `fn main`.
     Exited(i32),

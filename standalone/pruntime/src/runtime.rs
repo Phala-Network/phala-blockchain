@@ -3,7 +3,7 @@ use crate::pal_gramine::GraminePlatform;
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
 use log::info;
-use phactory::{benchmark, RpcService, Phactory};
+use phactory::{benchmark, Phactory, RpcService};
 
 lazy_static::lazy_static! {
     static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
@@ -15,7 +15,22 @@ pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn ecall_getinfo() -> String {
-    APPLICATION.lock_phactory().getinfo()
+    let info = APPLICATION.lock_phactory().get_info();
+    serde_json::to_string_pretty(&info).unwrap_or_default()
+}
+
+pub fn ecall_get_contract_info(id: &str) -> String {
+    let result = APPLICATION.lock_phactory().get_contract_info(id);
+    match result {
+        Ok(info) => serde_json::to_string_pretty(&info.contracts).unwrap_or_default(),
+        Err(err) => {
+            let error = format!("{:?}", err);
+            serde_json::to_string_pretty(&serde_json::json!({
+                "error": error
+            }))
+        }
+        .unwrap_or_default(),
+    }
 }
 
 pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {

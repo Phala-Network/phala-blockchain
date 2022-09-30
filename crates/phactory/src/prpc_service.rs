@@ -757,6 +757,36 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .encode();
         Ok(signature)
     }
+
+    pub fn get_contract_info(
+        &mut self,
+        contract_id: &str,
+    ) -> RpcResult<pb::GetContractInfoResponse> {
+        let which = if contract_id.is_empty() {
+            None
+        } else {
+            let raw: [u8; 32] = try_decode_hex(&contract_id)
+                .or(Err(from_display("Invalid contract id")))?
+                .try_into()
+                .or(Err(from_display("Invalid contract id")))?;
+            Some(raw.into())
+        };
+        let contracts = match (&self.system, which) {
+            (None, _) => vec![],
+            (Some(system), None) => system
+                .contracts
+                .iter()
+                .map(|(_, contract)| contract.info())
+                .collect(),
+            (Some(system), Some(contract)) => system
+                .contracts
+                .get(&contract)
+                .iter()
+                .map(|contract| contract.info())
+                .collect(),
+        };
+        Ok(pb::GetContractInfoResponse { contracts })
+    }
 }
 
 #[derive(Clone)]
@@ -1323,4 +1353,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             headers,
         })
     }
+
+    async fn get_contract_info(
+        &mut self,
+        request: pb::GetContractInfoRequest,
+    ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
+        self.lock_phactory().get_contract_info(&request.contract_id)
+    }
+}
+
+fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
 }

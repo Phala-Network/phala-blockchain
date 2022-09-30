@@ -4,10 +4,6 @@ use super::*;
 
 // For bin_api
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
-    pub fn getinfo(&self) -> String {
-        serde_json::to_string_pretty(&self.get_info()).unwrap_or_default()
-    }
-
     pub fn sign_http_response(&self, body: &[u8]) -> Option<String> {
         self.system.as_ref().map(|state| {
             let bytes = wrap_content_to_sign(body, SignedContentType::RpcResponse);
