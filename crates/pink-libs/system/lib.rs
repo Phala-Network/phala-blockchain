@@ -128,7 +128,8 @@ mod system {
         #[ink(message)]
         fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
             self.ensure_pallet()?;
-            match ContractDepositRef::instance() {
+            let flags = ink_env::CallFlags::default().set_allow_reentry(true);
+            match ContractDepositRef::instance_with_call_flags(flags) {
                 Some(mut driver) => driver.change_deposit(contract_id, deposit),
                 None => Ok(()),
             }
