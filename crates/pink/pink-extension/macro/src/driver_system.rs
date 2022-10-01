@@ -33,7 +33,7 @@ fn patch_or_err(
     );
     let impl_type = Ident::new(&format!("{trait_name}Ref"), Span::call_site());
 
-    let crate_pink_extension = crate::find_crate_name("pink-extension")?;
+    let crate_pink = crate::find_crate_name("pink-extension")?;
     let crate_ink_lang = crate::find_crate_name("ink_lang")?;
     let crate_ink_env = crate::find_crate_name("ink_env")?;
 
@@ -41,6 +41,7 @@ fn patch_or_err(
     let mut associated_types_v = vec![];
     let mut method_sigs = vec![];
     let mut method_forward_calls = vec![];
+    let mut call_fns = vec![];
 
     for item in the_trait.items.iter() {
         if let syn::TraitItem::Method(method) = item {
@@ -73,28 +74,57 @@ fn patch_or_err(
                     #method_ident(#(#args),*)
                 }
             });
+            call_fns.push({
+                match method.sig.inputs.first() {
+                    Some(FnArg::Receiver(receiver)) => {
+                        if receiver.mutability.is_some() {
+                            Ident::new("call_mut", Span::call_site())
+                        } else {
+                            Ident::new("call", Span::call_site())
+                        }
+                    }
+                    _ => {
+                        return Err(syn::Error::new(
+                            method.sig.ident.span(),
+                            "First arg must be self",
+                        ))
+                    }
+                }
+            });
         }
     }
     let fn_instance = match interface {
         InterfaceType::System => quote! {
             pub fn instance() -> Self {
+                Self::instance_with_call_flags(CallFlags::default())
+            }
+            pub fn instance_with_call_flags(call_flags: CallFlags) -> Self {
                 #[cfg(feature = "std")]
                 if MOCK.with(|x| { x.borrow_mut().is_some() }) {
                     return Self::Mock;
                 }
-                Self::Instance(#crate_pink_extension::ext().system_contract_id())
+                Self::Instance {
+                    address: #crate_pink::ext().system_contract_id(),
+                    call_flags,
+                }
             }
         },
         InterfaceType::Driver => {
             let driver_name = proc_macro2::Literal::string(&trait_name);
             quote! {
                 pub fn instance() -> Option<Self> {
+                    Self::instance_with_call_flags(CallFlags::default())
+                }
+                pub fn instance_with_call_flags(flags: CallFlags) -> Option<Self> {
                     #[cfg(feature = "std")]
                     if MOCK.with(|x| { x.borrow_mut().is_some() }) {
                         return Some(Self::Mock);
                     }
-                    let system = #crate_pink_extension::system::SystemRef::instance();
-                    Some(Self::Instance(system.get_driver(#driver_name.into())?))
+                    let system = #crate_pink::system::SystemRef::instance_with_call_flags(flags.clone());
+                    Some(Self::Instance {
+                        address: system.get_driver(#driver_name.into())?,
+                        call_flags: flags,
+                    })
                 }
             }
         }
@@ -106,14 +136,18 @@ fn patch_or_err(
         pub use #trait_impl_mod::#impl_type;
         mod #trait_impl_mod {
             use super::*;
-            use #crate_pink_extension::PinkEnvironment;
+            use #crate_pink::PinkEnvironment;
             use #crate_ink_lang::{codegen::TraitCallForwarder, reflect::TraitDefinitionRegistry};
             use #crate_ink_env::call::FromAccountId;
+            use #crate_ink_env::CallFlags;
 
             type TraitInfo = <TraitDefinitionRegistry<PinkEnvironment> as #trait_ident>::__ink_TraitInfo;
             type Forwarder = <TraitInfo as TraitCallForwarder>::Forwarder;
             pub enum #impl_type {
-                Instance(AccountId),
+                Instance {
+                    address: AccountId,
+                    call_flags: CallFlags,
+                },
                 #[cfg(feature = "std")]
                 Mock,
             }
@@ -145,15 +179,27 @@ fn patch_or_err(
                     });
                 }
 
+                pub fn set_call_flags(&mut self, flags: CallFlags) {
+                    if let Self::Instance { call_flags, .. } = self {
+                        *call_flags = flags;
+                    }
+                }
+
                 #fn_instance
             }
 
             impl #impl_type {
                 #(pub #method_sigs {
                         match self {
-                            #impl_type::Instance(address) => {
+                            #impl_type::Instance { address, call_flags } => {
+                                use #crate_ink_lang::codegen::TraitCallBuilder;
                                 let mut forwarder = Forwarder::from_account_id(*address);
-                                forwarder.#method_forward_calls
+                                forwarder
+                                    .#call_fns()
+                                    .#method_forward_calls
+                                    .call_flags(call_flags.clone())
+                                    .fire()
+                                    .expect("Failed to forword call")
                             }
                             #[cfg(feature = "std")]
                             #impl_type::Mock => {
