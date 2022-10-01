@@ -641,7 +641,7 @@ describe('A full stack', function () {
             assert.isFalse(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
                 return output.valueOf();
-            }, 6000*2), 'Set hook should not success without granting admin first');
+            }, 6000 * 2), 'Set hook should not success without granting admin first');
         });
 
         it('can set hook with admin permission', async function () {
@@ -656,7 +656,24 @@ describe('A full stack', function () {
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
                 return output.valueOf();
-            }, 6000*2), 'Set hook should success after granted admin');
+            }, 2 * 6000), 'Set hook should success after granted admin');
+        });
+
+        it('tokenomic driver works', async function () {
+            await assert.txAccepted(
+                ContractSystem.tx['system::setDriver']({}, "ContractDeposit", ContractSystemChecker.address),
+                alice,
+            );
+            const CENTS = 10_000_000_000;
+            const weight = 10;
+            await assert.txAccepted(
+                api.tx.phalaFatTokenomic.adjustStake(ContractSystemChecker.address, weight * CENTS),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
+                return info?.weight == weight;
+            }, 4 * 6000), 'Failed to apply deposit to contract weight');
         });
 
         it('cannot dup-instantiate', async function () {

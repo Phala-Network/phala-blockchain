@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 use ink_lang as ink;
 
-pub use ink_env::AccountId;
 pub use http_request::{HttpRequest, HttpResponse};
+pub use ink_env::AccountId;
 pub use signing::SigType;
 
 use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
