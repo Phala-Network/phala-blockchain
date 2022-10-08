@@ -24,9 +24,7 @@ fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E
         Ok(inner) => serde_json::to_string_pretty(&inner).unwrap_or_default(),
         Err(err) => {
             let error = format!("{:?}", err);
-            serde_json::to_string_pretty(&serde_json::json!({
-                "error": error
-            }))
+            serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
         }
         .unwrap_or_default(),
     }
@@ -34,12 +32,12 @@ fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E
 
 pub fn ecall_get_contract_info(id: &str) -> String {
     let result = APPLICATION.lock_phactory().get_contract_info(id);
-    serialize_result(result.map(|it|it.contracts))
+    serialize_result(result.map(|it| it.contracts))
 }
 
 pub fn ecall_get_cluster_info() -> String {
     let result = APPLICATION.lock_phactory().get_cluster_info();
-    serialize_result(result.map(|it|it.clusters))
+    serialize_result(result.map(|it| it.clusters))
 }
 
 pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {

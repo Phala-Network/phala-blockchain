@@ -222,7 +222,12 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
 #[post("/<method>", data = "<data>")]
 async fn prpc_proxy_acl(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
-    let permitted_method = ["PhactoryAPI.ContractQuery", "PhactoryAPI.GetInfo", "PhactoryAPI.GetContractInfo"];
+    let permitted_method = [
+        "PhactoryAPI.ContractQuery",
+        "PhactoryAPI.GetInfo",
+        "PhactoryAPI.GetContractInfo",
+        "PhactoryAPI.GetClusterInfo",
+    ];
     if !permitted_method.contains(&&method[..]) {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);
@@ -326,8 +331,8 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(figment)
-        .mount("/", routes![getinfo, get_contract_info, get_cluster_info]);
+    let mut server_acl =
+        rocket::custom(figment).mount("/", routes![getinfo, get_contract_info, get_cluster_info]);
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
 
