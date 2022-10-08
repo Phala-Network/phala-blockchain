@@ -168,6 +168,14 @@ where
         self.execute_with(true, None, move || crate::runtime::Pink::system_contract())
             .0
     }
+
+    pub fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.backend.storage(key).ok().flatten()
+    }
+
+    pub fn root(&self) -> Hash {
+        *self.backend.as_trie_backend().root()
+    }
 }
 
 impl Serialize for Storage<InMemoryBackend> {

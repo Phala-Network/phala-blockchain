@@ -1705,10 +1705,12 @@ fn apply_instantiating_events(
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
         let id = pink.id();
+        let code_hash = pink.instance.code_hash(&cluster.storage);
         let result = install_contract(
             contracts,
             id,
             pink,
+            code_hash,
             contract_key.clone(),
             ecdh_key.clone(),
             block,
@@ -1888,6 +1890,7 @@ pub fn install_contract(
     contracts: &mut ContractsKeeper,
     contract_id: phala_mq::ContractId,
     contract: impl Into<AnyContract>,
+    code_hash: Option<crate::H256>,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
     block: &mut BlockInfo,
@@ -1912,6 +1915,7 @@ pub fn install_contract(
         ecdh_key.clone(),
         cluster_id,
         contract_id,
+        code_hash,
     );
     contracts.insert(wrapped);
     Ok(())

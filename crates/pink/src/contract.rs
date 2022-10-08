@@ -279,6 +279,33 @@ impl Contract {
     pub fn set_on_block_end_selector(&mut self, selector: u32) {
         self.hooks.on_block_end = Some(selector)
     }
+
+    pub fn code_hash(&self, storage: &Storage) -> Option<Hash> {
+        #[derive(Encode, Decode)]
+        struct ContractInfo {
+            trie_id: Vec<u8>,
+            code_hash: Hash,
+        }
+        // The pallet-contracts doesn't export an API the get the code hash. So we dig it out from the storage.
+        let key = storage_map_prefix_twox_64_concat(b"Contracts", b"ContractInfoOf", &self.address);
+        let value = storage.get(&key)?;
+        let info = ContractInfo::decode(&mut &value[..]).ok()?;
+        Some(info.code_hash)
+    }
+}
+
+/// Calculates the Substrate storage key prefix for a StorageMap
+pub fn storage_map_prefix_twox_64_concat(
+    module: &[u8],
+    storage_item: &[u8],
+    key: &impl Encode,
+) -> Vec<u8> {
+    let mut bytes = sp_core::twox_128(module).to_vec();
+    bytes.extend(&sp_core::twox_128(storage_item)[..]);
+    let encoded = key.encode();
+    bytes.extend(&sp_core::twox_64(&encoded));
+    bytes.extend(&encoded);
+    bytes
 }
 
 pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], ExecError> {

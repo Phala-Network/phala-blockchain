@@ -17,7 +17,7 @@ use crate::{
     secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
     system::{TransactionError, TransactionResult},
     types::BlockInfo,
-    ContractId,
+    ContractId, H256,
 };
 use phactory_api::prpc as pb;
 
@@ -105,6 +105,8 @@ impl<'de> Deserialize<'de> for SidevmHandle {
 #[derive(Serialize, Deserialize)]
 struct SidevmInfo {
     code: Vec<u8>,
+    code_hash: H256,
+    start_time: String,
     auto_restart: bool,
     handle: Arc<Mutex<SidevmHandle>>,
 }
@@ -121,6 +123,7 @@ pub struct FatContract {
     contract_id: phala_mq::ContractId,
     sidevm_info: Option<SidevmInfo>,
     weight: u32,
+    code_hash: Option<H256>,
 }
 
 impl FatContract {
@@ -131,6 +134,7 @@ impl FatContract {
         ecdh_key: KeyPair,
         cluster_id: phala_mq::ContractClusterId,
         contract_id: phala_mq::ContractId,
+        code_hash: Option<H256>,
     ) -> Self {
         FatContract {
             contract: contract.into(),
@@ -141,6 +145,7 @@ impl FatContract {
             contract_id,
             sidevm_info: None,
             weight: 0,
+            code_hash,
         }
     }
 
@@ -235,8 +240,13 @@ impl FatContract {
             }
         }
         let handle = do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?;
+
+        let code_hash = sp_core::blake2_256(&code).into();
+        let start_time = chrono::Utc::now().to_rfc3339();
         self.sidevm_info = Some(SidevmInfo {
             code,
+            code_hash,
+            start_time,
             handle,
             auto_restart,
         });
@@ -265,6 +275,7 @@ impl FatContract {
                 if !need_restart {
                     return Ok(());
                 }
+                sidevm_info.start_time = chrono::Utc::now().to_rfc3339();
                 do_start_sidevm(spawner, &sidevm_info.code, self.contract_id.0, self.weight)?
             } else {
                 return Ok(());
@@ -347,17 +358,24 @@ impl FatContract {
 
     pub fn info(&self) -> pb::ContractInfo {
         pb::ContractInfo {
-            id: format!("0x{}", hex_fmt::HexFmt(&self.contract_id)),
+            id: hex(&self.contract_id),
             weight: self.weight,
+            code_hash: self.code_hash.as_ref().map(hex).unwrap_or_default(),
             sidevm: self.sidevm_info.as_ref().map(|info| {
                 let handle = info.handle.lock().unwrap().clone();
+                let start_time = info.start_time.clone();
+                let code_hash = hex(&info.code_hash);
                 match handle {
                     SidevmHandle::Running(_) => pb::SidevmInfo {
                         state: "running".into(),
-                        stop_reason: Default::default(),
+                        code_hash,
+                        start_time,
+                        ..Default::default()
                     },
                     SidevmHandle::Terminated(reason) => pb::SidevmInfo {
                         state: "stopped".into(),
+                        code_hash,
+                        start_time,
                         stop_reason: format!("{}", reason),
                     },
                 }
@@ -426,6 +444,10 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
         }
     }
     &CacheOps
+}
+
+fn hex(data: impl AsRef<[u8]>) -> String {
+    format!("0x{}", hex_fmt::HexFmt(data))
 }
 
 pub use keeper::*;
