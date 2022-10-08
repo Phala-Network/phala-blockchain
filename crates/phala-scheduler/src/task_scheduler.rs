@@ -201,9 +201,11 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
 impl<TaskId: TaskIdType> Drop for RunningGuard<TaskId> {
     fn drop(&mut self) {
         if let Some(inner) = self.queue.upgrade() {
-            let actual_cost = self
-                .actual_cost
-                .unwrap_or_else(|| self.start_time.elapsed().as_nanos() as VirtualTime);
+            let actual_cost = self.actual_cost.unwrap_or_else(|| {
+                let cost = self.start_time.elapsed().as_nanos() as VirtualTime;
+                // Scale it in order to avoid underflow while dividing the cost by the weight.
+                cost << 32
+            });
             let vruntime = actual_cost / self.weight.max(1) as VirtualTime;
             inner.lock().unwrap().park(&self.task_id, vruntime.max(1));
         }

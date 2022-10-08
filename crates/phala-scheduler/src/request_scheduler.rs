@@ -96,9 +96,11 @@ pub struct ServingGuard<FlowId: FlowIdType> {
 
 impl<FlowId: FlowIdType> Drop for ServingGuard<FlowId> {
     fn drop(&mut self) {
-        let actual_cost = self
-            .actual_cost
-            .unwrap_or_else(|| self.start_time.elapsed().as_micros() as VirtualTime);
+        let actual_cost = self.actual_cost.unwrap_or_else(|| {
+            let cost = self.start_time.elapsed().as_nanos() as VirtualTime;
+            // Scale it in order to avoid underflow while dividing the cost by the weight.
+            cost << 32
+        });
         self.queue
             .inner
             .lock()
