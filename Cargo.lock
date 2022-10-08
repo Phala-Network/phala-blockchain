@@ -7771,6 +7771,7 @@ dependencies = [
  "frame-system",
  "hex",
  "hex-literal",
+ "insta",
  "log",
  "pallet-balances",
  "pallet-randomness-collective-flip",

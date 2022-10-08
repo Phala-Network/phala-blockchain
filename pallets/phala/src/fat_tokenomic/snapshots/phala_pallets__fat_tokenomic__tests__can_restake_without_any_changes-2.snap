@@ -1,0 +1,13 @@
+---
+source: pallets/phala/src/fat_tokenomic/tests.rs
+assertion_line: 99
+expression: events
+---
+[
+    Event::FatTokenomic(
+        Event::ContractDepositChanged {
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            deposit: 1000000000000,
+        },
+    ),
+]

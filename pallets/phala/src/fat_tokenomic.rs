@@ -8,15 +8,17 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement::*, PalletInfo, StorageVersion},
+		traits::{Currency, ExistenceRequirement::*, StorageVersion},
+		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::messaging::ContractId;
-	use sp_core::crypto::{AccountId32, UncheckedFrom};
-	use sp_runtime::traits::Zero;
+	use sp_runtime::traits::{AccountIdConversion, Zero};
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	const PALLET_ID: PalletId = PalletId(*b"phat/tok");
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -57,7 +59,6 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		ContractNotFound,
 		InvalidAmountOfStake,
 	}
 
@@ -66,7 +67,6 @@ pub mod pallet {
 	where
 		T: crate::mq::Config,
 		T: crate::fat::Config,
-		T: frame_system::Config<AccountId = AccountId32>,
 	{
 		#[pallet::weight(0)]
 		pub fn adjust_stake(
@@ -82,9 +82,6 @@ pub mod pallet {
 
 			let mut total = ContractTotalStakes::<T>::get(&contract);
 			let orig = ContractUserStakes::<T>::get((&contract, &user));
-			if amount == orig {
-				return Ok(());
-			}
 			if amount > orig {
 				let delta = amount - orig;
 				total += delta;
@@ -114,10 +111,8 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		fn pallet_id() -> AccountId32 {
-			let pallet_id: u64 = T::PalletInfo::index::<Self>()
-				.expect("Pallet index of fat_tokenomic not found") as _;
-			AccountId32::unchecked_from(sp_core::H256::from_low_u64_be(pallet_id))
+		fn pallet_id() -> T::AccountId {
+			PALLET_ID.into_account_truncating()
 		}
 	}
 
@@ -125,3 +120,6 @@ pub mod pallet {
 		type Config = T;
 	}
 }
+
+#[cfg(test)]
+mod tests;
