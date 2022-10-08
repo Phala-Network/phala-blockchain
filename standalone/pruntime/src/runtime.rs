@@ -30,8 +30,13 @@ fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E
     }
 }
 
-pub fn ecall_get_contract_info(id: &str) -> String {
-    let result = APPLICATION.lock_phactory().get_contract_info(id);
+pub fn ecall_get_contract_info(ids: &str) -> String {
+    let ids = if ids.is_empty() {
+        vec![]
+    } else {
+        ids.split(",").map(|it| it.to_owned()).collect()
+    };
+    let result = APPLICATION.lock_phactory().get_contract_info(&ids);
     serialize_result(result.map(|it| it.contracts))
 }
 

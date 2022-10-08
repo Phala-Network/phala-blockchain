@@ -761,30 +761,35 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub fn get_contract_info(
         &mut self,
-        contract_id: &str,
+        contract_ids: &[String],
     ) -> RpcResult<pb::GetContractInfoResponse> {
-        let which = if contract_id.is_empty() {
-            None
-        } else {
-            let raw: [u8; 32] = try_decode_hex(&contract_id)
-                .or(Err(from_display("Invalid contract id")))?
-                .try_into()
-                .or(Err(from_display("Invalid contract id")))?;
-            Some(raw.into())
+        // TODO: use `let else`
+        let system = match &self.system {
+            None => return Ok(Default::default()),
+            Some(system) => system,
         };
-        let contracts = match (&self.system, which) {
-            (None, _) => vec![],
-            (Some(system), None) => system
+        let contracts = if contract_ids.is_empty() {
+            system
                 .contracts
                 .iter()
                 .map(|(_, contract)| contract.info())
-                .collect(),
-            (Some(system), Some(contract)) => system
-                .contracts
-                .get(&contract)
-                .iter()
-                .map(|contract| contract.info())
-                .collect(),
+                .collect()
+        } else {
+            let mut contracts = vec![];
+            for id in contract_ids.iter() {
+                let raw: [u8; 32] = try_decode_hex(&id)
+                    .or(Err(from_display("Invalid contract id")))?
+                    .try_into()
+                    .or(Err(from_display("Invalid contract id")))?;
+                let contract = system.contracts.get(&raw.into());
+                // TODO: use `let else`.
+                let contract = match contract {
+                    None => continue,
+                    Some(contract) => contract,
+                };
+                contracts.push(contract.info());
+            }
+            contracts
         };
         Ok(pb::GetContractInfoResponse { contracts })
     }
@@ -1383,7 +1388,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::GetContractInfoRequest,
     ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
-        self.lock_phactory().get_contract_info(&request.contract_id)
+        self.lock_phactory().get_contract_info(&request.contract_ids)
     }
 
     async fn get_cluster_info(
