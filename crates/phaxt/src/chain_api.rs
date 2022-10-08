@@ -37,7 +37,8 @@ impl ChainApi {
             .fetch(&addr, hash)
             .await
             .context("Failed to fetch validation data")?
-            .ok_or(anyhow!("ValidationData not found"))?;
+            .ok_or(anyhow!("ValidationData not found"))?
+            .to_value()?;
         let number = validation_data
             .at("relay_parent_number")
             .ok_or(anyhow!("No relay_parent_number"))?
@@ -54,7 +55,7 @@ impl ChainApi {
             .await
             .context("Failed to get current set_id")?
             .ok_or(anyhow!("No set id"))?;
-        Ok(set_id.as_u128().ok_or(anyhow!("Invalid set id"))? as _)
+        Ok(set_id.to_value()?.as_u128().ok_or(anyhow!("Invalid set id"))? as _)
     }
 
     pub async fn get_paraid(&self, hash: Option<Hash>) -> Result<u32> {
@@ -64,7 +65,8 @@ impl ChainApi {
             .fetch(&address, hash)
             .await
             .context("Failed to get current set_id")?
-            .ok_or(anyhow!("No paraid found"))?;
+            .ok_or(anyhow!("No paraid found"))?
+            .to_value()?;
         let id = id
             .at(0)
             .ok_or(anyhow!("Invalid paraid"))?

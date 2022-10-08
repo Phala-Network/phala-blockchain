@@ -60,7 +60,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The currency in which fees are paid and contract balances are held.
 		type Currency: Currency<Self::AccountId>;
@@ -81,7 +81,7 @@ pub mod pallet {
 		type VerifyRelaychainGenesisBlockHash: Get<bool>;
 
 		/// Origin used to govern the pallet
-		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
+		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -930,7 +930,7 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1,
-			setup_relaychain_genesis_allowlist, worker_pubkey, Origin, Test,
+			setup_relaychain_genesis_allowlist, worker_pubkey, RuntimeOrigin as Origin, Test,
 		};
 		// Pallets
 		use crate::mock::PhalaRegistry;

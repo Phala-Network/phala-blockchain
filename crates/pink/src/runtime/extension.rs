@@ -44,7 +44,7 @@ impl ExecSideEffects {
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
-    let event = super::Event::Contracts(pallet_contracts::Event::ContractEmitted {
+    let event = super::RuntimeEvent::Contracts(pallet_contracts::Event::ContractEmitted {
         contract,
         data: event.encode(),
     });
@@ -54,7 +54,7 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
 pub fn get_side_effects() -> ExecSideEffects {
     let mut result = ExecSideEffects::default();
     for event in super::System::events() {
-        if let super::Event::Contracts(ink_event) = event.event {
+        if let super::RuntimeEvent::Contracts(ink_event) = event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
                 ContractEvent::Instantiated {

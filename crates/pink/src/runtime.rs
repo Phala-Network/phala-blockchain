@@ -51,16 +51,16 @@ impl frame_system::Config for PinkRuntime {
     type BlockWeights = RuntimeBlockWeights;
     type BlockLength = ();
     type DbWeight = ();
-    type Origin = Origin;
+    type RuntimeOrigin = RuntimeOrigin;
     type Index = Index;
     type BlockNumber = BlockNumber;
     type Hash = Hash;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Hashing = Hashing;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header<Self::BlockNumber, Self::Hashing>;
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -98,7 +98,6 @@ parameter_types! {
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
-    pub const RelaxedMaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const TransactionByteFee: u64 = 0;
     pub const MaxStorageKeyLen: u32 = 128;
 
@@ -122,8 +121,8 @@ impl Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
     type Currency = mock_types::NoCurrency;
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type CallFilter = frame_support::traits::Everything;
     type CallStack = [Frame<Self>; 31];
     type WeightPrice = Self;
@@ -137,7 +136,6 @@ impl Config for PinkRuntime {
     type AddressGenerator = Pink;
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
-    type RelaxedMaxCodeLen = RelaxedMaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
 }
 
@@ -196,7 +194,7 @@ mod tests {
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
-        runtime::{Contracts, Origin, PinkRuntime},
+        runtime::{Contracts, RuntimeOrigin as Origin, PinkRuntime},
         types::{ENOUGH, QUERY_GAS_LIMIT},
     };
     pub use frame_support::weights::Weight;

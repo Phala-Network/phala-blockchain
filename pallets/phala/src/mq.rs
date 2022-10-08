@@ -192,7 +192,7 @@ pub mod pallet {
 
 	/// Needs an external helper struct to extract MqCall from all callables
 	pub trait CallMatcher<T: Config> {
-		fn match_call(call: &T::Call) -> Option<&Call<T>>
+		fn match_call(call: &T::RuntimeCall) -> Option<&Call<T>>
 		where
 			<T as frame_system::Config>::AccountId: IntoH256;
 	}

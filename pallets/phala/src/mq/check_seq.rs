@@ -1,7 +1,7 @@
 use super::{Call, CallMatcher, Config, IntoH256, OffchainIngress};
 
 use codec::{Decode, Encode};
-use frame_support::weights::DispatchInfo;
+use frame_support::dispatch::DispatchInfo;
 use phala_types::messaging::MessageOrigin;
 use scale_info::TypeInfo;
 use sp_runtime::traits::{DispatchInfoOf, Dispatchable, SignedExtension};
@@ -53,13 +53,13 @@ impl<T: Config> sp_std::fmt::Debug for CheckMqSequence<T> {
 
 impl<T: Config> SignedExtension for CheckMqSequence<T>
 where
-	T::Call: Dispatchable<Info = DispatchInfo>,
+	T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
 	T: Send + Sync,
 	T::AccountId: IntoH256,
 {
 	const IDENTIFIER: &'static str = "CheckMqSequence";
 	type AccountId = T::AccountId;
-	type Call = T::Call;
+	type Call = T::RuntimeCall;
 	type AdditionalSigned = ();
 	type Pre = ();
 
@@ -131,8 +131,8 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, worker_pubkey, Call as TestCall, Test};
-	use frame_support::{assert_noop, assert_ok, weights::DispatchInfo};
+	use crate::mock::{new_test_ext, worker_pubkey, RuntimeCall as TestCall, Test};
+	use frame_support::{assert_noop, assert_ok, dispatch::DispatchInfo};
 	use phala_types::messaging::{Message, MessageOrigin, SignedMessage, Topic};
 
 	#[test]
