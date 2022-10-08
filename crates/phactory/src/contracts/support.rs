@@ -14,6 +14,7 @@ use sidevm::{
 
 use super::pink::cluster::ClusterKeeper;
 use crate::{
+    hex,
     secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
     system::{TransactionError, TransactionResult},
     types::BlockInfo,
@@ -444,10 +445,6 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
         }
     }
     &CacheOps
-}
-
-fn hex(data: impl AsRef<[u8]>) -> String {
-    format!("0x{}", hex_fmt::HexFmt(data))
 }
 
 pub use keeper::*;

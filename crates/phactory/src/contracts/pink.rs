@@ -361,6 +361,10 @@ pub mod cluster {
         pub fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster> {
             self.clusters.remove(cluster_id)
         }
+
+        pub fn iter(&self) -> impl Iterator<Item = (&ContractClusterId, &Cluster)> {
+            self.clusters.iter()
+        }
     }
 
     #[derive(Serialize, Deserialize, Default)]

@@ -662,3 +662,7 @@ fn error_msg(msg: &str) -> Value {
 fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
     sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
 }
+
+fn hex(data: impl AsRef<[u8]>) -> String {
+    format!("0x{}", hex_fmt::HexFmt(data))
+}
