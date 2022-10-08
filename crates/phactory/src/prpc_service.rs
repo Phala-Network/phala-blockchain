@@ -348,7 +348,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
         let main_bridge = light_client
-            .initialize_bridge(genesis.block_header, genesis.authority_set, genesis.proof)
+            .initialize_bridge(genesis.block_header.clone(), genesis.authority_set, genesis.proof)
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
@@ -377,6 +377,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             "Genesis state loaded: {:?}",
             runtime_state.chain_storage.root()
         );
+
+        if *runtime_state.chain_storage.root() != genesis.block_header.state_root {
+            warn!("Genesis chain storage state root: {:?}, Genesis block header state root: {:?}", 
+                runtime_state.chain_storage.root(), 
+                genesis.block_header.state_root
+            );
+            return Err(from_display(
+                "state root hash not equal",
+            ));
+        }
 
         let system = system::System::new(
             self.platform.clone(),
