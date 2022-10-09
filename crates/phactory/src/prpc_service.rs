@@ -379,12 +379,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         );
 
         if *runtime_state.chain_storage.root() != genesis.block_header.state_root {
-            warn!("Genesis chain storage state root: {:?}, Genesis block header state root: {:?}", 
+            error!("Genesis state root mismatch, required in header: {:?}, actual: {:?}", 
+                genesis.block_header.state_root,
                 runtime_state.chain_storage.root(), 
-                genesis.block_header.state_root
             );
             return Err(from_display(
-                "state root hash not equal",
+                "state root mismatch",
             ));
         }
 
