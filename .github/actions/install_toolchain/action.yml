@@ -3,6 +3,6 @@ description: "Install toolchains"
 runs:
   using: "composite"
   steps:
-    - run: sudo apt-get install build-essential cmake pkg-config libssl-dev git build-essential llvm clang libclang-dev
+    - run: sudo apt-get install build-essential cmake pkg-config libssl-dev git llvm clang libclang-dev protobuf-compiler
       shell: bash
 

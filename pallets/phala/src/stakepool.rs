@@ -73,7 +73,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + registry::Config + mining::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 
 		#[pallet::constant]
@@ -95,10 +95,10 @@ pub mod pallet {
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
 		/// The origin that can turn on or off mining
-		type MiningSwitchOrigin: EnsureOrigin<Self::Origin>;
+		type MiningSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// The origin that can trigger backfill tasks.
-		type BackfillOrigin: EnsureOrigin<Self::Origin>;
+		type BackfillOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -1942,7 +1942,7 @@ pub mod pallet {
 		use crate::mock::{
 			ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1,
 			setup_workers, setup_workers_linked_operators, take_events, teleport_to_block,
-			worker_pubkey, Balance, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
+			worker_pubkey, Balance, BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{

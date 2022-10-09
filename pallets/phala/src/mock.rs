@@ -61,8 +61,8 @@ impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -70,7 +70,7 @@ impl system::Config for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
@@ -87,7 +87,7 @@ impl system::Config for Test {
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -113,16 +113,16 @@ impl mq::Config for Test {
 
 pub struct MqCallMatcher;
 impl mq::CallMatcher<Test> for MqCallMatcher {
-	fn match_call(call: &Call) -> Option<&mq::Call<Test>> {
+	fn match_call(call: &RuntimeCall) -> Option<&mq::Call<Test>> {
 		match call {
-			Call::PhalaMq(mq_call) => Some(mq_call),
+			RuntimeCall::PhalaMq(mq_call) => Some(mq_call),
 			_ => None,
 		}
 	}
 }
 
 impl registry::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
@@ -132,7 +132,7 @@ impl registry::Config for Test {
 }
 
 impl mining::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
 	type Currency = Balances;
@@ -145,7 +145,7 @@ impl mining::Config for Test {
 }
 
 impl stakepool::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
@@ -157,7 +157,7 @@ impl stakepool::Config for Test {
 }
 
 impl ott::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
 
@@ -217,7 +217,7 @@ pub fn set_block_1() {
 	System::set_block_number(1);
 }
 
-pub fn take_events() -> Vec<Event> {
+pub fn take_events() -> Vec<RuntimeEvent> {
 	let evt = System::events()
 		.into_iter()
 		.map(|evt| evt.event)
@@ -253,7 +253,7 @@ pub fn setup_relaychain_genesis_allowlist() {
 	use frame_support::assert_ok;
 	let sample: H256 = H256::repeat_byte(1);
 	assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(
-		Origin::root(),
+		RuntimeOrigin::root(),
 		sample
 	));
 }
@@ -264,7 +264,7 @@ pub fn setup_workers(n: u8) {
 	for i in 1..=n {
 		let worker = worker_pubkey(i);
 		assert_ok!(PhalaRegistry::force_register_worker(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			worker.clone(),
 			ecdh_pubkey(1),
 			Some(1)
@@ -280,7 +280,7 @@ pub fn setup_workers_linked_operators(n: u8) {
 	for i in 1..=n {
 		let worker = worker_pubkey(i);
 		assert_ok!(PhalaRegistry::force_register_worker(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			worker.clone(),
 			ecdh_pubkey(1),
 			Some(i as _)

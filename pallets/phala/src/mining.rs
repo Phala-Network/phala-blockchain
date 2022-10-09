@@ -191,7 +191,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + mq::Config + registry::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type ExpectedBlockTimeSec: Get<u32>;
 		type MinInitP: Get<u32>;
 
@@ -204,7 +204,7 @@ pub mod pallet {
 		// Let the StakePool to take over the slash events.
 
 		/// The origin to update tokenomic.
-		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
+		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -1240,7 +1240,8 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
-			worker_pubkey, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
+			worker_pubkey,
+			BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{PhalaMining, PhalaRegistry, System};
