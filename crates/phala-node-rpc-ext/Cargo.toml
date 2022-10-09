@@ -12,7 +12,7 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 serde = { version = "1.0.102", features = ["derive"] }
 thiserror = "1.0"
 jsonrpsee = { version = "0.15.1", features = ["server"] }
-impl-serde = "0.3"
+impl-serde = "0.3.2"
 log = { version = "0.4.14", default-features = false }
 hex = { version = "0.4.3", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.1" }
