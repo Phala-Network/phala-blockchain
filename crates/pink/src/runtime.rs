@@ -1,15 +1,12 @@
 mod extension;
 mod mock_types;
 mod pallet_pink;
+mod weights;
 
 use std::time::{Duration, Instant};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::{
-    parameter_types,
-    traits::ConstU128,
-    weights::{constants::WEIGHT_PER_SECOND, Weight},
-};
+use frame_support::{parameter_types, traits::ConstU128, weights::Weight};
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{
     generic::Header,
@@ -18,7 +15,7 @@ use sp_runtime::{
 };
 
 pub use extension::{get_side_effects, ExecSideEffects};
-pub use pink_extension::{Message, OspMessage, PinkEvent, HookPoint};
+pub use pink_extension::{HookPoint, Message, OspMessage, PinkEvent};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
@@ -36,6 +33,8 @@ frame_support::construct_runtime! {
         Pink: pallet_pink::{Pallet, Storage},
     }
 }
+
+const WEIGHT_PER_SECOND: Weight = Weight::from_ref_time(1_000_000_000_000);
 
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
@@ -126,7 +125,7 @@ impl Config for PinkRuntime {
     type CallFilter = frame_support::traits::Everything;
     type CallStack = [Frame<Self>; 31];
     type WeightPrice = Self;
-    type WeightInfo = ();
+    type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
@@ -137,6 +136,20 @@ impl Config for PinkRuntime {
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
+}
+
+#[test]
+fn detect_parameter_changes() {
+    use sp_core::Get;
+    insta::assert_debug_snapshot!((
+        <PinkRuntime as frame_system::Config>::BlockWeights::get(),
+        <PinkRuntime as Config>::Schedule::get(),
+        <PinkRuntime as Config>::ContractAccessWeight::get(),
+        <PinkRuntime as Config>::DeletionQueueDepth::get(),
+        <PinkRuntime as Config>::DeletionWeightLimit::get(),
+        <PinkRuntime as Config>::MaxCodeLen::get(),
+        <PinkRuntime as Config>::MaxStorageKeyLen::get(),
+    ));
 }
 
 #[derive(Clone, Copy)]
@@ -194,7 +207,7 @@ mod tests {
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
-        runtime::{Contracts, RuntimeOrigin as Origin, PinkRuntime},
+        runtime::{Contracts, PinkRuntime, RuntimeOrigin as Origin},
         types::{ENOUGH, QUERY_GAS_LIMIT},
     };
     pub use frame_support::weights::Weight;
