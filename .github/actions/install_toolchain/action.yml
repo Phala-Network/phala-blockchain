@@ -9,5 +9,5 @@ runs:
       shell: bash
     - run: chmod +x ./sgx_linux_sdk.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_sdk.bin
       shell: bash
-    - run: sudo pip install rust_demangler meson ninja
+    - run: sudo pip install rust_demangler meson==0.62 ninja
       shell: bash
