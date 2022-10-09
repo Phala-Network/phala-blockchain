@@ -33,7 +33,7 @@ wasmi-validation = { version = "0.5.0", default-features = false }
 paste = "1.0"
 wat = "1.0"
 call-trace = "*"
-impl-serde = "0.4.0"
+impl-serde = "0.3.2"
 hex = "0.4.3"
 serde = { version = "1.0.101", features = ["derive"] }
 serde_json = "1.0.67"
