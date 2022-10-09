@@ -160,7 +160,7 @@ impl<A> ArgEncode<A> for &[u8] {
     }
 }
 
-impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
+impl<'a, 'b, A> ArgDecode<'a, A> for &'b [u8] {
     type Encoded = (IntPtr, IntPtr);
 
     fn decode_arg(
@@ -171,7 +171,9 @@ impl<'a, A> ArgDecode<'a, A> for &'a [u8] {
         Self: Sized,
     {
         let ((len, ptr), stack) = stack.pop();
-        Ok((vm.slice_from_vm(ptr, len)?, stack))
+        let bytes = vm.slice_from_vm(ptr, len)?;
+        let bytes = unsafe { core::mem::transmute(bytes) };
+        Ok((bytes, stack))
     }
 }
 
@@ -184,7 +186,7 @@ impl<A> ArgEncode<A> for &str {
     }
 }
 
-impl<'a, A> ArgDecode<'a, A> for &'a str {
+impl<'a, 'b, A> ArgDecode<'a, A> for &'b str {
     type Encoded = (IntPtr, IntPtr);
 
     fn decode_arg(
@@ -212,7 +214,7 @@ impl<A> ArgEncode<A> for &mut [u8] {
     }
 }
 
-impl<'a, A> ArgDecode<'a, A> for &'a mut [u8] {
+impl<'a, 'b, A> ArgDecode<'a, A> for &'b mut [u8] {
     type Encoded = (IntPtr, IntPtr);
 
     fn decode_arg(
@@ -223,7 +225,9 @@ impl<'a, A> ArgDecode<'a, A> for &'a mut [u8] {
         Self: Sized,
     {
         let ((len, ptr), stack) = stack.pop();
-        Ok((vm.slice_from_vm_mut(ptr, len)?, stack))
+        let bytes = vm.slice_from_vm_mut(ptr, len)?;
+        let bytes = unsafe { core::mem::transmute(bytes) };
+        Ok((bytes, stack))
     }
 }
 

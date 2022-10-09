@@ -4,6 +4,8 @@ use std::{
     collections::VecDeque,
     fmt,
     future::Future,
+    mem::transmute,
+    ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
     time::Duration,
@@ -15,15 +17,18 @@ use tokio::{
     sync::mpsc::{error::SendError, Sender},
     sync::oneshot::Sender as OneshotSender,
 };
-use wasmer::{imports, Function, ImportObject, Instance, Memory, Store, WasmerEnv};
+use wasmer::{
+    imports, AsStoreMut, Function, FunctionEnv, FunctionEnvMut, Imports, Instance, Memory,
+    MemoryView, Store, StoreMut,
+};
 
 use env::{
     messages::{AccountId, QueryRequest, SystemMessage},
     tls::{TlsClientConfig, TlsServerConfig},
-    IntPtr, IntRet, OcallError, OcallFuncs, Result, RetEncode,
+    IntPtr, IntRet, OcallError, Result, RetEncode,
 };
-use sidevm_env as env;
 use scale::Encode;
+use sidevm_env as env;
 use thread_local::ThreadLocal;
 use wasmer_middlewares::metering;
 
@@ -35,6 +40,34 @@ use crate::{
 };
 
 mod wasi_env;
+
+pub struct FnEnvMut<'a, T> {
+    store: StoreMut<'a>,
+    inner: T,
+}
+
+impl<'a, T> Deref for FnEnvMut<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'a, T> DerefMut for FnEnvMut<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl<'a, T> FnEnvMut<'a, T> {
+    pub fn new(store: &'a mut impl AsStoreMut, value: T) -> Self {
+        Self {
+            store: store.as_store_mut(),
+            inner: value,
+        }
+    }
+}
 
 pub struct ShortId<'a>(pub &'a [u8]);
 
@@ -50,29 +83,23 @@ fn _sizeof_i32_must_eq_to_intptr() {
     let _ = core::mem::transmute::<i32, IntPtr>;
 }
 
-pub fn create_env(id: VmId, store: &Store, cache_ops: DynCacheOps) -> (Env, ImportObject) {
-    let env = Env::new(id, cache_ops);
+pub fn create_env(id: VmId, store: &mut Store, cache_ops: DynCacheOps) -> (Env, Imports) {
+    let raw_env = Env::new(id, cache_ops);
+    let env = FunctionEnv::new(store, raw_env.clone());
     let wasi_imports = wasi_env::wasi_imports(store, &env);
     (
-        env.clone(),
+        raw_env,
         imports! {
             "env" => {
-                "sidevm_ocall" => Function::new_native_with_env(
+                "sidevm_ocall" => Function::new_typed_with_env(
                     store,
-                    env.clone(),
+                    &env,
                     sidevm_ocall,
                 ),
-                "sidevm_ocall_fast_return" => Function::new_native_with_env(
+                "sidevm_ocall_fast_return" => Function::new_typed_with_env(
                     store,
-                    env.clone(),
+                    &env,
                     sidevm_ocall_fast_return,
-                ),
-            },
-            "sidevm" => {
-                "gas" => Function::new_native_with_env(
-                    store,
-                    env,
-                    gas,
                 ),
             },
             "wasi_snapshot_preview1" => wasi_imports,
@@ -125,7 +152,10 @@ pub trait CacheOps {
 
 pub type DynCacheOps = &'static (dyn CacheOps + Send + Sync);
 
-struct State {
+struct VmMemory(Option<Memory>);
+
+pub(crate) struct EnvInner {
+    memory: VmMemory,
     id: VmId,
     gas_per_breath: u64,
     resources: ResourceKeeper,
@@ -141,20 +171,13 @@ struct State {
     instance: Option<Instance>,
 }
 
-struct VmMemory(Option<Memory>);
-
-pub(crate) struct EnvInner {
-    memory: VmMemory,
-    state: State,
-}
-
 impl VmMemory {
     pub(crate) fn unwrap_ref(&self) -> &Memory {
         self.0.as_ref().expect("memory is not initialized")
     }
 }
 
-#[derive(WasmerEnv, Clone)]
+#[derive(Clone)]
 pub struct Env {
     pub(crate) inner: Arc<Mutex<EnvInner>>,
 }
@@ -164,21 +187,19 @@ impl Env {
         Self {
             inner: Arc::new(Mutex::new(EnvInner {
                 memory: VmMemory(None),
-                state: State {
-                    id,
-                    gas_per_breath: 0,
-                    resources: Default::default(),
-                    temp_return_value: Default::default(),
-                    ocall_trace_enabled: false,
-                    message_tx: None,
-                    sys_message_tx: None,
-                    query_tx: None,
-                    awake_tasks: Arc::new(TaskSet::with_task0()),
-                    current_task: 0,
-                    cache_ops,
-                    weight: 1,
-                    instance: None,
-                },
+                id,
+                gas_per_breath: 0,
+                resources: Default::default(),
+                temp_return_value: Default::default(),
+                ocall_trace_enabled: false,
+                message_tx: None,
+                sys_message_tx: None,
+                query_tx: None,
+                awake_tasks: Arc::new(TaskSet::with_task0()),
+                current_task: 0,
+                cache_ops,
+                weight: 1,
+                instance: None,
             })),
         }
     }
@@ -197,7 +218,7 @@ impl Env {
         &self,
         message: Vec<u8>,
     ) -> Option<impl Future<Output = Result<(), SendError<Vec<u8>>>>> {
-        let tx = self.inner.lock().unwrap().state.message_tx.clone()?;
+        let tx = self.inner.lock().unwrap().message_tx.clone()?;
         Some(async move { tx.send(message).await })
     }
 
@@ -206,7 +227,7 @@ impl Env {
         &self,
         message: SystemMessage,
     ) -> Option<impl Future<Output = Result<(), SendError<Vec<u8>>>>> {
-        let tx = self.inner.lock().unwrap().state.sys_message_tx.clone()?;
+        let tx = self.inner.lock().unwrap().sys_message_tx.clone()?;
         Some(async move { tx.send(message.encode()).await })
     }
 
@@ -218,9 +239,8 @@ impl Env {
         reply_tx: OneshotSender<Vec<u8>>,
     ) -> Option<impl Future<Output = anyhow::Result<()>>> {
         let mut env_guard = self.inner.lock().unwrap();
-        let tx = env_guard.state.query_tx.clone()?;
+        let tx = env_guard.query_tx.clone()?;
         let reply_tx = env_guard
-            .state
             .resources
             .push(Resource::OneshotTx(Some(reply_tx)));
         let inner = self.inner.clone();
@@ -236,7 +256,7 @@ impl Env {
                 // FIXME: The channel doesn't guarantee the rx side would receive the message even
                 // if the send returns an Ok. So the reply_tx could still leak in that case.
                 let mut env_guard = inner.lock().unwrap();
-                let _ = env_guard.state.close(reply_tx);
+                let _ = env_guard.close(reply_tx);
             }
             let _ = result?;
             Ok(())
@@ -244,41 +264,40 @@ impl Env {
     }
 
     pub fn set_gas_per_breath(&self, gas: u64) {
-        self.inner.lock().unwrap().state.gas_per_breath = gas;
+        self.inner.lock().unwrap().gas_per_breath = gas;
     }
 
-    pub fn reset_gas_to_breath(&self) {
+    pub fn reset_gas_to_breath(&self, store: &mut impl AsStoreMut) {
         let guard = self.inner.lock().unwrap();
         let instance = guard
-            .state
             .instance
             .as_ref()
             .expect("BUG: missing instance in env");
-        metering::set_remaining_points(&instance, guard.state.gas_per_breath);
+        metering::set_remaining_points(store, &instance, guard.gas_per_breath);
     }
 
     pub fn has_more_ready(&self) -> bool {
-        !self.inner.lock().unwrap().state.awake_tasks.is_empty()
+        !self.inner.lock().unwrap().awake_tasks.is_empty()
     }
 
     pub fn weight(&self) -> u32 {
-        self.inner.lock().unwrap().state.weight
+        self.inner.lock().unwrap().weight
     }
 
     pub fn set_weight(&self, weight: u32) {
-        self.inner.lock().unwrap().state.weight = weight;
+        self.inner.lock().unwrap().weight = weight;
     }
 
     pub fn set_instance(&self, instance: Instance) {
-        self.inner.lock().unwrap().state.instance = Some(instance);
+        self.inner.lock().unwrap().instance = Some(instance);
     }
 
-    pub fn is_stifled(&self) -> bool {
-        self.inner.lock().unwrap().state.is_stifled()
+    pub fn is_stifled(&self, store: &mut impl AsStoreMut) -> bool {
+        self.inner.lock().unwrap().is_stifled(store)
     }
 }
 
-fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usize)> {
+fn check_addr(memory: &MemoryView, offset: usize, len: usize) -> Result<(usize, usize)> {
     let end = offset.checked_add(len).ok_or(OcallError::InvalidAddress)?;
     if end > memory.size().bytes().0 {
         return Err(OcallError::InvalidAddress);
@@ -286,7 +305,7 @@ fn check_addr(memory: &Memory, offset: usize, len: usize) -> Result<(usize, usiz
     Ok((offset, end))
 }
 
-impl env::OcallEnv for State {
+impl<'a, 'b> env::OcallEnv for FnEnvMut<'a, &'b mut EnvInner> {
     fn put_return(&mut self, rv: Vec<u8>) -> usize {
         let len = rv.len();
         self.temp_return_value.get_or_default().set(Some(rv));
@@ -298,39 +317,47 @@ impl env::OcallEnv for State {
     }
 }
 
-impl env::VmMemory for VmMemory {
+impl<'a, 'b> env::VmMemory for FnEnvMut<'a, &'b mut EnvInner> {
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
         if data.len() > u32::MAX as usize {
             return Err(OcallError::NoMemory);
         }
-        let memory = self.0.as_ref().ok_or(OcallError::NoMemory)?;
-        let (offset, end) = check_addr(memory, ptr as _, data.len())?;
-        let mem = unsafe { &mut memory.data_unchecked_mut()[offset..end] };
-        mem.clone_from_slice(data);
+        let memory = self.memory.0.as_ref().ok_or(OcallError::NoMemory)?;
+        memory
+            .view(&self.store)
+            .write(ptr as _, data)
+            .or(Err(OcallError::InvalidAddress))?;
         Ok(())
     }
 
     fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
-        let memory = self.0.as_ref().ok_or(OcallError::NoMemory)?;
-        let (offset, end) = check_addr(memory, ptr as _, len as _)?;
-        let slice = unsafe { &memory.data_unchecked()[offset..end] };
+        let memory = self
+            .memory
+            .0
+            .as_ref()
+            .ok_or(OcallError::NoMemory)?
+            .view(&self.store);
+        let (offset, end) = check_addr(&memory, ptr as _, len as _)?;
+        let slice = unsafe { transmute(&memory.data_unchecked()[offset..end]) };
         Ok(slice)
     }
 
     fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
-        let memory = self.0.as_ref().ok_or(OcallError::NoMemory)?;
-        let (offset, end) = check_addr(memory, ptr as _, len as _)?;
-        let slice = unsafe { &mut memory.data_unchecked_mut()[offset..end] };
+        let memory = self
+            .memory
+            .0
+            .as_ref()
+            .ok_or(OcallError::NoMemory)?
+            .view(&self.store);
+        let (offset, end) = check_addr(&memory, ptr as _, len as _)?;
+        let slice = unsafe { transmute(&mut memory.data_unchecked_mut()[offset..end]) };
         Ok(slice)
     }
 }
 
-impl env::OcallFuncs for State {
+impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
     fn close(&mut self, resource_id: i32) -> Result<()> {
-        match self.resources.take(resource_id) {
-            None => Err(OcallError::NotFound),
-            Some(_res) => Ok(()),
-        }
+        self.inner.close(resource_id)
     }
 
     fn poll(&mut self, waker_id: i32, resource_id: i32) -> Result<Vec<u8>> {
@@ -487,7 +514,8 @@ impl env::OcallFuncs for State {
         use rand::RngCore;
         const RANDOM_BYTE_WEIGHT: usize = 1_000_000;
 
-        self.pay((RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
+        self.inner
+            .pay(&mut self.store, (RANDOM_BYTE_WEIGHT * buf.len()) as _)?;
         rand::thread_rng().fill_bytes(buf);
         Ok(())
     }
@@ -525,44 +553,57 @@ impl env::OcallFuncs for State {
     }
 
     fn gas_remaining(&mut self) -> Result<u8> {
-        self.pay(1_000_000)?;
+        self.inner.pay(&mut self.store, 1_000_000)?;
         Ok(if self.gas_per_breath == 0 {
             100
         } else {
-            (self.gas_to_breath() * 100 / self.gas_per_breath) as u8
+            (self.inner.gas_to_breath(&mut self.store) * 100 / self.gas_per_breath) as u8
         })
     }
-
 }
 
-impl State {
-    fn is_stifled(&mut self) -> bool {
+impl EnvInner {
+    pub(crate) fn make_mut<'a, 'b>(
+        &'a mut self,
+        store: &'b mut impl AsStoreMut,
+    ) -> FnEnvMut<'b, &'a mut Self> {
+        FnEnvMut::new(store, self)
+    }
+
+    pub(crate) fn close(&mut self, resource_id: i32) -> Result<()> {
+        match self.resources.take(resource_id) {
+            None => Err(OcallError::NotFound),
+            Some(_res) => Ok(()),
+        }
+    }
+
+    fn is_stifled(&mut self, store: &mut impl AsStoreMut) -> bool {
         let instance = self.instance.as_ref().expect("BUG: instance is not set");
-        match metering::get_remaining_points(&instance) {
+        match metering::get_remaining_points(store, &instance) {
             metering::MeteringPoints::Remaining(_) => false,
             metering::MeteringPoints::Exhausted => true,
         }
     }
 
-    fn gas_to_breath(&self) -> u64 {
+    fn gas_to_breath(&self, store: &mut impl AsStoreMut) -> u64 {
         let instance = self.instance.as_ref().expect("BUG: instance is not set");
-        match metering::get_remaining_points(&instance) {
+        match metering::get_remaining_points(store, &instance) {
             metering::MeteringPoints::Remaining(v) => v,
             metering::MeteringPoints::Exhausted => 0,
         }
     }
 
-    fn set_gas_to_breath(&self, gas: u64) {
+    fn set_gas_to_breath(&self, store: &mut impl AsStoreMut, gas: u64) {
         let instance = self.instance.as_ref().expect("BUG: instance is not set");
-        metering::set_remaining_points(&instance, gas);
+        metering::set_remaining_points(store, &instance, gas);
     }
 
-    fn pay(&mut self, cost: u64) -> Result<(), OcallAborted> {
-        let gas = self.gas_to_breath();
+    fn pay(&mut self, store: &mut impl AsStoreMut, cost: u64) -> Result<(), OcallAborted> {
+        let gas = self.gas_to_breath(store);
         if cost > gas {
             return Err(OcallAborted::Stifled);
         }
-        self.set_gas_to_breath(gas - cost);
+        self.set_gas_to_breath(store, gas - cost);
         Ok(())
     }
 }
@@ -592,7 +633,7 @@ async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpSt
 }
 
 fn sidevm_ocall_fast_return(
-    env: &Env,
+    mut func_env: FunctionEnvMut<Env>,
     task_id: i32,
     func_id: i32,
     p0: IntPtr,
@@ -600,16 +641,20 @@ fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> Result<IntRet, OcallAborted> {
-    let mut env = env.inner.lock().unwrap();
-    let env = &mut *env;
+    let inner = func_env.data().inner.clone();
+    let mut guard = inner.lock().unwrap();
+    let env = &mut *guard;
 
-    env.state.current_task = task_id;
-    let result = set_task_env(env.state.awake_tasks.clone(), task_id, || {
-        env::dispatch_call_fast_return(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
+    env.current_task = task_id;
+    let result = set_task_env(env.awake_tasks.clone(), task_id, || {
+        let mut state = env.make_mut(&mut func_env);
+        env::dispatch_call_fast_return(&mut state, func_id, p0, p1, p2, p3)
     });
-    if env.state.ocall_trace_enabled {
+
+    let env = &mut *guard;
+    if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = ShortId(&env.state.id);
+        let vm_id = ShortId(&env.id);
         log::trace!(
             target: "sidevm",
             "[{vm_id}][tid={task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
@@ -620,7 +665,7 @@ fn sidevm_ocall_fast_return(
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
 fn sidevm_ocall(
-    env: &Env,
+    mut func_env: FunctionEnvMut<Env>,
     task_id: i32,
     func_id: i32,
     p0: IntPtr,
@@ -628,16 +673,19 @@ fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> Result<IntRet, OcallAborted> {
-    let mut env = env.inner.lock().unwrap();
-    let env = &mut *env;
+    let inner = func_env.data().inner.clone();
+    let mut guard = inner.lock().unwrap();
+    let env = &mut *guard;
 
-    env.state.current_task = task_id;
-    let result = set_task_env(env.state.awake_tasks.clone(), task_id, || {
-        env::dispatch_call(&mut env.state, &env.memory, func_id, p0, p1, p2, p3)
+    env.current_task = task_id;
+    let result = set_task_env(env.awake_tasks.clone(), task_id, || {
+        let mut state = env.make_mut(&mut func_env);
+        env::dispatch_call(&mut state, func_id, p0, p1, p2, p3)
     });
-    if env.state.ocall_trace_enabled {
+    let env = &mut *guard;
+    if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = ShortId(&env.state.id);
+        let vm_id = ShortId(&env.id);
         log::trace!(
             target: "sidevm",
             "[{vm_id}][tid={task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
@@ -679,8 +727,3 @@ impl fmt::Display for OcallAborted {
 }
 
 impl std::error::Error for OcallAborted {}
-
-fn gas(env: &Env, cost: u32) -> Result<(), OcallAborted> {
-    let mut env = env.inner.lock().unwrap();
-    env.state.pay(cost as _)
-}

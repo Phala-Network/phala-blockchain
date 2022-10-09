@@ -97,7 +97,7 @@ extern "C" fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call(&mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
+    let result = dispatch_call(&mut TestHost, func_id, p0, p1, p2, p3);
     println!("sidevm_ocall {} result={:?}", func_id, result);
     result.encode_ret()
 }
@@ -111,7 +111,7 @@ extern "C" fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call_fast_return(&mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
+    let result = dispatch_call_fast_return(&mut TestHost, func_id, p0, p1, p2, p3);
     println!("sidevm_ocall_fast_return {} result={:?}", func_id, result);
     result.encode_ret()
 }

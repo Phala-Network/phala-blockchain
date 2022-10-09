@@ -165,13 +165,13 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
         let parse_inputs: TokenStream = if !method.encode_input {
             parse_quote! {
                 let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
-                #(let (#args_reversed, stack) = stack.pop_arg(vm)?;)*
+                #(let (#args_reversed, stack) = stack.pop_arg(env)?;)*
                 let _: StackedArgs<()> = stack;
             }
         } else {
             parse_quote! {
                 let (#(#args),*) = {
-                    let mut buf = vm.slice_from_vm(p0, p1)?;
+                    let mut buf = env.slice_from_vm(p0, p1)?;
                     Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
                 };
             }
@@ -205,15 +205,14 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             if buffer.len() != len {
                 return Err(OcallError::InvalidParameter);
             }
-            vm.copy_to_vm(&buffer, p0)?;
+            env.copy_to_vm(&buffer, p0)?;
             Ok(len as i32)
         }
     };
 
     Ok(parse_quote! {
-        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv, Vm: VmMemory>(
+        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv + VmMemory>(
             env: &mut Env,
-            vm: &Vm,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
@@ -227,9 +226,8 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
             }
         }
 
-        pub fn dispatch_call<Env: #trait_name + OcallEnv, Vm: VmMemory>(
+        pub fn dispatch_call<Env: #trait_name + OcallEnv + VmMemory>(
             env: &mut Env,
-            vm: &Vm,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
