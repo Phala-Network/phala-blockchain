@@ -1322,7 +1322,7 @@ impl pallet_fat::Config for Runtime {
 }
 
 impl pallet_fat_tokenomic::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
 
