@@ -28,6 +28,10 @@ class PRuntimeApi {
         const { contracts } = await this.rpc.getContractInfo({ contractIds });
         return contracts[0];
     }
+
+    async uploadSidevmCode(contract, code) {
+        return await this.rpc.uploadSidevmCode({ contract, code });
+    }
 }
 
 // function rand() {

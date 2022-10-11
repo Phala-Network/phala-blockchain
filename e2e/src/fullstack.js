@@ -507,6 +507,7 @@ describe('A full stack', function () {
     describe('Cluster & Contract', () => {
         const systemMetadata = JSON.parse(fs.readFileSync('./res/pink_system.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
+        const sidevmCode = fs.readFileSync('./res/check_system/sideprog.wasm');
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function
@@ -674,6 +675,21 @@ describe('A full stack', function () {
                 const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
                 return info?.weight == weight;
             }, 4 * 6000), 'Failed to apply deposit to contract weight');
+        });
+
+        it('can start sidevm without code uploaded', async function () {
+            const { output } = await ContractSystemChecker.query.startSidevm(certAlice, {});
+            assert.isTrue(output.valueOf());
+            assert.isTrue(await checkUntil(async () => {
+                const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
+                return info?.sidevm?.state == 'stopped';
+            }, 1000), "The sidevm instance wasn't created");
+        });
+
+        it('can upload sidevm code via pRPC', async function () {
+            await pruntime[0].uploadSidevmCode(ContractSystemChecker.address, sidevmCode);
+            const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
+            assert.equal(info?.sidevm?.state, 'running');
         });
 
         it('cannot dup-instantiate', async function () {

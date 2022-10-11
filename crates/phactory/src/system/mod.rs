@@ -1636,7 +1636,6 @@ impl<P: pal::Platform> System<P> {
             .contracts
             .get_mut(&contract_id)
             .ok_or_else(|| anyhow!("Contract not found"))?;
-
         contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true)
     }
 }
