@@ -112,6 +112,11 @@ struct SidevmInfo {
     handle: Arc<Mutex<SidevmHandle>>,
 }
 
+pub(crate) enum SidevmCode {
+    Hash(H256),
+    Code(Vec<u8>),
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct FatContract {
     #[serde(with = "more::scale_bytes")]
@@ -232,24 +237,50 @@ impl FatContract {
     pub(crate) fn start_sidevm(
         &mut self,
         spawner: &sidevm::service::Spawner,
-        code: Vec<u8>,
-        auto_restart: bool,
+        code: SidevmCode,
+        check_hash: bool,
     ) -> Result<()> {
         if let Some(info) = &self.sidevm_info {
             if let SidevmHandle::Running(_) = &*info.handle.lock().unwrap() {
                 bail!("Sidevm can only be started once");
             }
         }
-        let handle = do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?;
 
-        let code_hash = sp_core::blake2_256(&code).into();
+        let (code, code_hash) = match code {
+            SidevmCode::Hash(hash) => (vec![], hash),
+            SidevmCode::Code(code) => {
+                let actual_hash = sp_core::blake2_256(&code).into();
+                if check_hash {
+                    let expected_hash = self
+                        .sidevm_info
+                        .as_ref()
+                        .ok_or(anyhow!("No sidevm info"))?
+                        .code_hash;
+                    if actual_hash != expected_hash {
+                        bail!(
+                            "Code hash mismatch, expected: {expected_hash:?}, actual: {actual_hash:?}"
+                        );
+                    }
+                }
+                (code, actual_hash)
+            }
+        };
+
+        let handle = if code.is_empty() {
+            Arc::new(Mutex::new(SidevmHandle::Terminated(
+                ExitReason::WaitingForCode,
+            )))
+        } else {
+            do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?
+        };
+
         let start_time = chrono::Utc::now().to_rfc3339();
         self.sidevm_info = Some(SidevmInfo {
             code,
             code_hash,
             start_time,
             handle,
-            auto_restart,
+            auto_restart: true,
         });
         Ok(())
     }
@@ -272,6 +303,7 @@ impl FatContract {
                     ExitReason::OcallAborted(OcallAborted::GasExhausted) => false,
                     ExitReason::OcallAborted(OcallAborted::Stifled) => true,
                     ExitReason::Restore => true,
+                    ExitReason::WaitingForCode => false,
                 };
                 if !need_restart {
                     return Ok(());

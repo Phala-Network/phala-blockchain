@@ -817,6 +817,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .collect();
         Ok(pb::GetClusterInfoResponse { clusters })
     }
+
+    pub fn upload_sidevm_code(&mut self, contract_id: ContractId, code: Vec<u8>) -> RpcResult<()> {
+        self.system()?
+            .upload_sidevm_code(contract_id, code)
+            .map_err(from_display)
+    }
 }
 
 #[derive(Clone)]
@@ -1388,7 +1394,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::GetContractInfoRequest,
     ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
-        self.lock_phactory().get_contract_info(&request.contract_ids)
+        self.lock_phactory()
+            .get_contract_info(&request.contract_ids)
     }
 
     async fn get_cluster_info(
@@ -1396,6 +1403,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         _request: (),
     ) -> Result<pb::GetClusterInfoResponse, prpc::server::Error> {
         self.lock_phactory().get_cluster_info()
+    }
+
+    async fn upload_sidevm_code(
+        &mut self,
+        request: pb::SidevmCode,
+    ) -> Result<(), prpc::server::Error> {
+        let contract_id: [u8; 32] = request
+            .contract
+            .try_into()
+            .or(Err(from_display("Invalid contract id")))?;
+        self.lock_phactory()
+            .upload_sidevm_code(contract_id.into(), request.code)
     }
 }
 
