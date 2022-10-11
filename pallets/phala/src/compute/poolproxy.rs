@@ -43,7 +43,7 @@ pub struct Vault<AccountId, Balance> {
 	///
 	/// The calculated formula of the additional shares minted for pool owner is present below:
 	///
-	/// ```
+	/// ```ignore
 	/// additional_shares = total_value / (current_price - commission * min(current_price - last_share_price_checkpoint, 0)) - total_shares
 	/// ```
 	///

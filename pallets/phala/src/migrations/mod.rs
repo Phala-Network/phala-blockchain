@@ -8,13 +8,12 @@ use log;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
-use crate::utils::balance_convert;
-use crate::BalanceOf;
+use crate::compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
+use crate::fat;
 use crate::mq;
 use crate::registry;
-use crate::fat;
-use crate::compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
-
+use crate::utils::balance_convert;
+use crate::BalanceOf;
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:

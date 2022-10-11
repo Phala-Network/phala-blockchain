@@ -189,6 +189,7 @@ pub mod pallet {
 		},
 
 		/// Owner rewards were withdrawn by pool owner
+		///
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
 		/// - the owner asset account
@@ -247,10 +248,12 @@ pub mod pallet {
 		},
 
 		/// A pool contribution whitelist is added
+		///
 		/// - lazy operated when the first staker is added to the whitelist
 		PoolWhitelistCreated { pid: u64 },
 
 		/// The pool contribution whitelist is deleted
+		///
 		/// - lazy operated when the last staker is removed from the whitelist
 		PoolWhitelistDeleted { pid: u64 },
 
@@ -515,16 +518,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// /// Destroys a stake pool
-		// ///
-		// /// Requires:
-		// /// 1. The sender is the owner
-		// /// 2. All the miners are stopped
-		// #[pallet::weight(0)]
-		// pub fn destroy(origin: OriginFor<T>, id: u64) -> DispatchResult {
-		// 	panic!("unimplemented")
-		// }
-
 		/// Sets the hard cap of the pool
 		///
 		/// Note: a smaller cap than current total_value if not allowed.
@@ -553,7 +546,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Change the pool commission rate
+		/// Changes the pool commission rate
 		///
 		/// Requires:
 		/// 1. The sender is the owner
@@ -583,7 +576,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Add a staker accountid to contribution whitelist.
+		/// Adds a staker accountid to contribution whitelist.
 		///
 		/// Calling this method will forbide stakers contribute who isn't in the whitelist.
 		/// The caller must be the owner of the pool.
@@ -622,7 +615,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Add a description to the pool
+		/// Adds a description to the pool
 		///
 		/// The caller must be the owner of the pool.
 		#[pallet::weight(0)]
@@ -642,7 +635,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Remove a staker accountid to contribution whitelist.
+		/// Removes a staker accountid to contribution whitelist.
 		///
 		/// The caller must be the owner of the pool.
 		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
@@ -861,7 +854,9 @@ pub mod pallet {
 		///
 		/// Note: there are two scenarios people may meet
 		///
-		/// - The withdrawal would be queued and delayed until there is enough free stake.
+		/// Once a withdraw request is proceeded successfully, The withdrawal would be queued and waiting to be dealed.
+		/// Afer the withdrawal is queued, The withdraw queue will be automaticly consumed util there are not enough free stakes to fullfill withdrawals.
+		/// Everytime the free stakes in the pools increases (except for rewards distributing), the withdraw queue will be consumed as it describes above.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn withdraw(
@@ -975,7 +970,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Restart the miner with a higher stake
+		/// Restarts the miner with a higher stake
 		#[pallet::weight(195_000_000)]
 		#[frame_support::transactional]
 		pub fn restart_mining(

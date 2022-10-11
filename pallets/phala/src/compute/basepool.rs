@@ -395,7 +395,7 @@ pub mod pallet {
 			Ok(shares)
 		}
 
-		/// Split a new nft with required withdraw shares and push it to the end of the withdraw_queue
+		/// Splits a new nft with required withdraw shares and push it to the end of the withdraw_queue
 		///
 		/// The nft contains withdraw shares is owned by the global pallet_account_id, and record the staker it should belongs to.
 		///
@@ -453,14 +453,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Return the new pid that will assigned to the creating pool
+		/// Returns the new pid that will assigned to the creating pool
 		pub fn consume_new_pid() -> u64 {
 			let pid = PoolCount::<T>::get();
 			PoolCount::<T>::put(pid + 1);
 			pid
 		}
 
-		/// Check if there has expired withdraw request in the withdraw queue
+		/// Checks if there has expired withdraw request in the withdraw queue
 		///
 		/// Releasing stakes (stakes in miners that is cooling down (stakepool case), or shares in withdraw_queue (vault case))
 		/// should be caculated outside the function and put in
@@ -493,7 +493,7 @@ pub mod pallet {
 			false
 		}
 
-		/// Mint a new nft in the Pool's collection and store some shares in it
+		/// Mints a new nft in the Pool's collection and store some shares in it
 		pub fn add_stake_to_new_nft(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			account_id: T::AccountId,
@@ -518,7 +518,7 @@ pub mod pallet {
 			shares
 		}
 
-		/// Remove some stakes from nft when withdraw or process_withdraw_queue called.
+		/// Removes some stakes from nft when withdraw or process_withdraw_queue called.
 		pub fn remove_stake_from_nft(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			shares: BalanceOf<T>,
@@ -557,7 +557,7 @@ pub mod pallet {
 			Some((amount, removed_shares))
 		}
 
-		/// Mint a nft and wrap some shares within
+		/// Mints a nft and wrap some shares within
 		#[frame_support::transactional]
 		pub fn mint_nft(
 			cid: CollectionId,
@@ -595,7 +595,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Merge multiple nfts belong to one user in the pool.
+		/// Merges multiple nfts belong to one user in the pool.
 		pub fn merge_or_init_nft_for_staker(
 			cid: CollectionId,
 			staker: T::AccountId,
@@ -612,7 +612,7 @@ pub mod pallet {
 			Self::mint_nft(cid, staker, total_shares)
 		}
 
-		/// Get nft attr, can only be called in the pallet
+		/// Gets nft attr, can only be called in the pallet
 		fn get_nft_attr(
 			cid: CollectionId,
 			nft_id: NftId,
@@ -628,7 +628,7 @@ pub mod pallet {
 			Ok(Decode::decode(&mut raw_value.as_slice()).expect("Decode should never fail; qed."))
 		}
 
-		/// Get a new nftid in certain collectionid
+		/// Gets a new nftid in certain collectionid
 		pub fn get_next_nft_id(collection_id: CollectionId) -> Result<NftId, Error<T>> {
 			NextNftId::<T>::try_mutate(collection_id, |id| {
 				let current_id = *id;
@@ -637,7 +637,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Set nft attr, can only be called in the pallet
+		/// Sets nft attr, can only be called in the pallet
 		#[frame_support::transactional]
 		fn set_nft_attr(
 			cid: CollectionId,
@@ -694,7 +694,7 @@ pub mod pallet {
 			true
 		}
 
-		/// Remove withdrawing_shares from the nft
+		/// Removes withdrawing_shares from the nft
 		pub fn do_withdraw_shares(
 			withdrawing_shares: BalanceOf<T>,
 			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
@@ -777,7 +777,7 @@ pub mod pallet {
 		}
 	}
 
-	/// Create a pool_account_id bounded with the pool
+	/// Creates a pool_account_id bounded with the pool
 	pub fn create_staker_account<T>(pid: u64, owner: T) -> T
 	where
 		T: Encode + Decode,

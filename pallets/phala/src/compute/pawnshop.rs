@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Inspect, Mutate},
+			tokens::fungibles::{Create, Inspect, Mutate},
 			tokens::nonfungibles::InspectEnumerable,
 			Currency,
 			ExistenceRequirement::{AllowDeath, KeepAlive},
@@ -63,7 +63,7 @@ pub mod pallet {
 	pub struct FinanceAccount<Balance> {
 		/// The pools and their pool collection id the user delegated
 		pub invest_pools: Vec<(u64, CollectionId)>,
-		/// The locked ppha amount used to vote
+		/// The locked P-PHA amount used to vote
 		pub locked: Balance,
 	}
 
@@ -77,7 +77,7 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Mapping from the vote ids and accounts to the amounts of ppha used to approve or oppose to the vote
+	/// Mapping from the vote ids and accounts to the amounts of P-PHA used to approve or oppose to the vote
 	#[pallet::storage]
 	pub type VoteAccountMap<T: Config> = StorageDoubleMap<
 		_,
@@ -88,7 +88,7 @@ pub mod pallet {
 		(BalanceOf<T>, BalanceOf<T>),
 	>;
 
-	/// Mapping from the accounts and vote ids to the amounts of ppha used to approve or oppose to the vote
+	/// Mapping from the accounts and vote ids to the amounts of P-PHA used to approve or oppose to the vote
 	#[pallet::storage]
 	pub type AccountVoteMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, T::AccountId, Blake2_128Concat, ReferendumIndex, ()>;
@@ -125,7 +125,7 @@ pub mod pallet {
 		VoteAmountLargerThanTotalStakes,
 		/// The vote is not currently on going
 		ReferendumInvalid,
-		/// The vote is now on going and the ppha used in voting can not be unlocked
+		/// The vote is now on going and the P-PHA used in voting can not be unlocked
 		ReferendumOngoing,
 		/// The Iteration exceed the max limitaion
 		IterationsIsNotVaild,
@@ -140,7 +140,7 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		/// Pawns some pha and gain equal amount of ppha
+		/// Pawns some pha and gain equal amount of P-PHA
 		///
 		/// The pawned pha is stored in `PawnShopAccountId`'s wallet and can not be taken away
 		#[pallet::weight(0)]
@@ -164,7 +164,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Burns the amount of all free ppha and redeems equal amount of pha
+		/// Burns the amount of all free P-PHA and redeems equal amount of pha
 		///
 		/// The redeemed pha is transfered from `PawnShopAccountId` to the user's wallet
 		#[pallet::weight(0)]
@@ -188,7 +188,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Redeems some pha by burning equal amount of ppha
+		/// Redeems some pha by burning equal amount of P-PHA
 		///
 		/// The redeemed pha is transfered from `PawnShopAccountId` to the user's wallet
 		#[pallet::weight(0)]
@@ -220,10 +220,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Uses some ppha to approve or oppose a vote
+		/// Uses some P-PHA to approve or oppose a vote
 		///
 		/// Can both approve and oppose a vote at the same time
-		/// The pphas used in vote will be locked until the vote is finished or canceled
+		/// The P-PHA used in vote will be locked until the vote is finished or canceled
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn vote(
@@ -250,7 +250,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Tries to unlock pphas used in vote after the vote finished or canceled
+		/// Tries to unlock P-PHAs used in vote after the vote finished or canceled
 		///
 		/// Must assign the max iterations to avoid computing complexity overwhelm
 		#[pallet::weight(0)]
@@ -290,7 +290,7 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
-		/// Gets ppha's asset id
+		/// Gets P-PHA's asset id
 		pub fn get_asset_id() -> u32 {
 			T::PPhaAssetId::get()
 		}
@@ -314,13 +314,13 @@ pub mod pallet {
 			}
 		}
 
-		/// Mints some ppha
+		/// Mints some P-PHA
 		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
-		/// Burns some ppha
+		/// Burns some P-PHA
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), target, amount)?;
 			Ok(())
@@ -342,9 +342,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Caculates the net ppha value of a user
+		/// Caculates the net P-PHA value of a user
 		///
-		/// The net ppha value includes:
+		/// The net P-PHA value includes:
 		/// 1. Free stakes in user's asset account
 		/// 2. The current value of shares owned by the user
 		/// Note: shares in withdraw queues are not included
@@ -377,7 +377,7 @@ pub mod pallet {
 			Ok(total_active_stakes)
 		}
 
-		/// Sums up all amounts of ppha approves or opposes to the vote
+		/// Sums up all amounts of P-PHA approves or opposes to the vote
 		// TODO(mingxuan): Optimize to O(1) in the future.
 		pub fn accumulate_account_vote(vote_id: ReferendumIndex) -> AccountVote<BalanceOf<T>> {
 			let mut total_aye_amount: BalanceOf<T> = Zero::zero();
@@ -393,7 +393,7 @@ pub mod pallet {
 			}
 		}
 
-		/// Tries to update locked ppha amount of the user
+		/// Tries to update locked P-PHA amount of the user
 		fn update_user_locked(user: T::AccountId) -> DispatchResult {
 			let mut max_lock: BalanceOf<T> = Zero::zero();
 			AccountVoteMap::<T>::iter_prefix(user.clone()).for_each(|(vote_id, ())| {

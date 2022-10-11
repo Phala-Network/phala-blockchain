@@ -85,6 +85,7 @@ pub mod pallet {
 		},
 
 		/// Additional owner shares are mint into the pool
+		///
 		/// Affected states:
 		/// - the shares related fields in [`Pools`]
 		/// - last_share_price_checkpoint in [`Pools`]
@@ -178,7 +179,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Change the vault commission rate
+		/// Changes the vault commission rate
 		///
 		/// Requires:
 		/// 1. The sender is the owner
@@ -429,7 +430,9 @@ pub mod pallet {
 
 		/// Demands the return of some stake from a pool.
 		///
-		/// - The withdrawal would be queued and delayed until there is enough free stake.
+		/// Once a withdraw request is proceeded successfully, The withdrawal would be queued and waiting to be dealed.
+		/// Afer the withdrawal is queued, The withdraw queue will be automaticly consumed util there are not enough free stakes to fullfill withdrawals.
+		/// Everytime the free stakes in the pools increases, the withdraw queue will be consumed as it describes above.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
