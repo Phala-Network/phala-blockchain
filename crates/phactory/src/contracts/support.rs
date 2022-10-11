@@ -238,19 +238,24 @@ impl FatContract {
         &mut self,
         spawner: &sidevm::service::Spawner,
         code: SidevmCode,
-        check_hash: bool,
+        ensure_waiting_code: bool,
     ) -> Result<()> {
-        if let Some(info) = &self.sidevm_info {
-            if let SidevmHandle::Running(_) = &*info.handle.lock().unwrap() {
-                bail!("Sidevm can only be started once");
-            }
+        let handle = self.sidevm_handle();
+        if let Some(SidevmHandle::Running(_)) = &handle {
+            bail!("Sidevm can only be started once");
         }
 
         let (code, code_hash) = match code {
             SidevmCode::Hash(hash) => (vec![], hash),
             SidevmCode::Code(code) => {
                 let actual_hash = sp_core::blake2_256(&code).into();
-                if check_hash {
+                if ensure_waiting_code {
+                    if !matches!(
+                        &handle,
+                        Some(SidevmHandle::Terminated(ExitReason::WaitingForCode))
+                    ) {
+                        bail!("The sidevm isn't waiting for code");
+                    }
                     let expected_hash = self
                         .sidevm_info
                         .as_ref()
