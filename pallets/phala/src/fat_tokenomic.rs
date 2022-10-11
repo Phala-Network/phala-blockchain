@@ -31,15 +31,21 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
-	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// (contract, user) -> stake
+	/// Stake of user to contract
 	#[pallet::storage]
-	pub type ContractUserStakes<T: Config> =
-		StorageMap<_, Twox64Concat, (ContractId, T::AccountId), BalanceOf<T>, ValueQuery>;
+	pub type ContractUserStakes<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		T::AccountId,
+		Twox64Concat,
+		ContractId,
+		BalanceOf<T>,
+		ValueQuery,
+	>;
 
-	/// contract -> stake
+	/// Map of contracts to their total stakes received
 	#[pallet::storage]
 	pub type ContractTotalStakes<T: Config> =
 		StorageMap<_, Twox64Concat, ContractId, BalanceOf<T>, ValueQuery>;
@@ -54,6 +60,11 @@ pub mod pallet {
 		ContractDepositChanged {
 			contract: ContractId,
 			deposit: BalanceOf<T>,
+		},
+		UserStakeChanged {
+			account: T::AccountId,
+			contract: ContractId,
+			stake: BalanceOf<T>,
 		},
 	}
 
@@ -81,7 +92,7 @@ pub mod pallet {
 			);
 
 			let mut total = ContractTotalStakes::<T>::get(&contract);
-			let orig = ContractUserStakes::<T>::get((&contract, &user));
+			let orig = ContractUserStakes::<T>::get(&user, &contract);
 			if amount > orig {
 				let delta = amount - orig;
 				total += delta;
@@ -91,12 +102,18 @@ pub mod pallet {
 				total -= delta;
 				<T as Config>::Currency::transfer(&Self::pallet_id(), &user, delta, AllowDeath)?;
 			}
-			ContractUserStakes::<T>::insert((&contract, &user), amount);
+			ContractUserStakes::<T>::insert(&user, &contract, amount);
 			ContractTotalStakes::<T>::insert(contract, total);
 
 			Self::deposit_event(Event::ContractDepositChanged {
 				contract,
 				deposit: total,
+			});
+
+			Self::deposit_event(Event::UserStakeChanged {
+				account: user,
+				contract,
+				stake: amount,
 			});
 
 			if let Some(the_system_contract) =

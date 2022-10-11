@@ -1768,7 +1768,7 @@ pub(crate) fn apply_pink_events(
             () => {
                 if Some(&origin) != cluster.system_contract().as_ref() {
                     error!(
-                        "Unpermited operation from {:?}, operation={:?}",
+                        "Unpermitted operation from {:?}, operation={:?}",
                         &origin, &event_name
                     );
                     continue;

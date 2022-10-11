@@ -182,7 +182,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         SignEndpointInfo => 32.kibibytes(),
         ConfigNetwork => 10.kibibytes(),
         HttpFetch => 100.mebibytes(),
-        GetContractInfo => 1.kibibytes(),
+        GetContractInfo => 100.kibibytes(),
         GetClusterInfo => 1.kibibytes(),
     }
 }
