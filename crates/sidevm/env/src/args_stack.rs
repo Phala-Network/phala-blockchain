@@ -33,6 +33,11 @@ impl<A, B> StackedArgs<(A, B)> {
         let (a, args) = self.args;
         (a, StackedArgs { args })
     }
+
+    fn split(self) -> (StackedArgs<A>, StackedArgs<B>) {
+        let (a, b) = self.args;
+        (StackedArgs { args: a }, StackedArgs { args: b })
+    }
 }
 
 impl<B> StackedArgs<B> {
@@ -122,18 +127,18 @@ pub(crate) trait I32Convertible {
         Self: Sized;
 }
 
-pub(crate) trait ArgEncode<A> {
+pub(crate) trait ArgEncode {
     type Encoded;
 
-    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)>;
+    fn encode_arg<A>(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)>;
 }
 
-pub(crate) trait ArgDecode<'a, A> {
+pub(crate) trait ArgDecode<'a> {
     type Encoded;
-    fn decode_arg(
-        stack: StackedArgs<(Self::Encoded, A)>,
+    fn decode_arg<R>(
+        stack: StackedArgs<(Self::Encoded, R)>,
         vm: &'a impl VmMemory,
-    ) -> Result<(Self, StackedArgs<A>)>
+    ) -> Result<(Self, StackedArgs<R>)>
     where
         Self: Sized;
 }
@@ -150,20 +155,20 @@ pub(crate) trait RetDecode {
         Self: Sized;
 }
 
-impl<A> ArgEncode<A> for &[u8] {
+impl ArgEncode for &[u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
+    fn encode_arg<A>(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let ptr = self.as_ptr() as IntPtr;
         let len = self.len() as IntPtr;
         stack.push((len, ptr))
     }
 }
 
-impl<'a, 'b, A> ArgDecode<'a, A> for &'b [u8] {
+impl<'a, 'b> ArgDecode<'a> for &'b [u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn decode_arg(
+    fn decode_arg<A>(
         stack: StackedArgs<(Self::Encoded, A)>,
         vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<A>)>
@@ -177,19 +182,19 @@ impl<'a, 'b, A> ArgDecode<'a, A> for &'b [u8] {
     }
 }
 
-impl<A> ArgEncode<A> for &str {
+impl ArgEncode for &str {
     type Encoded = (IntPtr, IntPtr);
 
-    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
+    fn encode_arg<A>(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let bytes = self.as_bytes();
         bytes.encode_arg(stack)
     }
 }
 
-impl<'a, 'b, A> ArgDecode<'a, A> for &'b str {
+impl<'a, 'b> ArgDecode<'a> for &'b str {
     type Encoded = (IntPtr, IntPtr);
 
-    fn decode_arg(
+    fn decode_arg<A>(
         stack: StackedArgs<(Self::Encoded, A)>,
         vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<A>)>
@@ -204,20 +209,20 @@ impl<'a, 'b, A> ArgDecode<'a, A> for &'b str {
     }
 }
 
-impl<A> ArgEncode<A> for &mut [u8] {
+impl ArgEncode for &mut [u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn encode_arg(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
+    fn encode_arg<A>(self, stack: StackedArgs<A>) -> StackedArgs<(Self::Encoded, A)> {
         let ptr = self.as_mut_ptr() as IntPtr;
         let len = self.len() as IntPtr;
         stack.push((len, ptr))
     }
 }
 
-impl<'a, 'b, A> ArgDecode<'a, A> for &'b mut [u8] {
+impl<'a, 'b> ArgDecode<'a> for &'b mut [u8] {
     type Encoded = (IntPtr, IntPtr);
 
-    fn decode_arg(
+    fn decode_arg<A>(
         stack: StackedArgs<(Self::Encoded, A)>,
         vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<A>)>
@@ -232,13 +237,13 @@ impl<'a, 'b, A> ArgDecode<'a, A> for &'b mut [u8] {
 }
 
 impl<B> StackedArgs<B> {
-    pub(crate) fn push_arg<Arg: ArgEncode<B>>(self, v: Arg) -> StackedArgs<(Arg::Encoded, B)> {
+    pub(crate) fn push_arg<Arg: ArgEncode>(self, v: Arg) -> StackedArgs<(Arg::Encoded, B)> {
         v.encode_arg(self)
     }
 }
 
 impl<A, B> StackedArgs<(A, B)> {
-    pub(crate) fn pop_arg<'a, Arg: ArgDecode<'a, B, Encoded = A>>(
+    pub(crate) fn pop_arg<'a, Arg: ArgDecode<'a, Encoded = A>>(
         self,
         vm: &'a impl VmMemory,
     ) -> Result<(Arg, StackedArgs<B>)> {
@@ -301,20 +306,20 @@ impl_codec!(u32);
 
 macro_rules! impl_codec64 {
     ($typ: ty) => {
-        impl<R> ArgEncode<R> for $typ {
+        impl ArgEncode for $typ {
             type Encoded = (IntPtr, IntPtr);
 
-            fn encode_arg(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
+            fn encode_arg<R>(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
                 let low = (self & 0xffffffff) as IntPtr;
                 let high = ((self >> 32) & 0xffffffff) as IntPtr;
                 stack.push((low, high))
             }
         }
 
-        impl<'a, R> ArgDecode<'a, R> for $typ {
+        impl<'a> ArgDecode<'a> for $typ {
             type Encoded = (IntPtr, IntPtr);
 
-            fn decode_arg(
+            fn decode_arg<R>(
                 stack: StackedArgs<(Self::Encoded, R)>,
                 _vm: &'a impl VmMemory,
             ) -> Result<(Self, StackedArgs<R>)>
@@ -333,18 +338,18 @@ macro_rules! impl_codec64 {
 impl_codec64!(i64);
 impl_codec64!(u64);
 
-impl<R, I: I32Convertible> ArgEncode<R> for I {
+impl<I: I32Convertible> ArgEncode for I {
     type Encoded = IntPtr;
 
-    fn encode_arg(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
+    fn encode_arg<R>(self, stack: StackedArgs<R>) -> StackedArgs<(Self::Encoded, R)> {
         stack.push(self.to_i32() as _)
     }
 }
 
-impl<'a, R, I: I32Convertible> ArgDecode<'a, R> for I {
+impl<'a, I: I32Convertible> ArgDecode<'a> for I {
     type Encoded = IntPtr;
 
-    fn decode_arg(
+    fn decode_arg<R>(
         stack: StackedArgs<(Self::Encoded, R)>,
         _vm: &'a impl VmMemory,
     ) -> Result<(Self, StackedArgs<R>)>
