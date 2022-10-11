@@ -145,7 +145,7 @@ impl Pink {
                     .as_ref()
                     .ok_or(QueryError::SidevmNotFound)?;
                 let cmd_sender = match handle {
-                    contracts::SidevmHandle::Terminated(_) => {
+                    contracts::SidevmHandle::Stopped(_) => {
                         return Err(QueryError::SidevmNotFound)
                     }
                     contracts::SidevmHandle::Running(sender) => sender,

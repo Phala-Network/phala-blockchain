@@ -78,7 +78,7 @@ impl Decode for RawData {
 #[derive(Clone)]
 pub enum SidevmHandle {
     Running(CommandSender),
-    Terminated(ExitReason),
+    Stopped(ExitReason),
 }
 
 impl Serialize for SidevmHandle {
@@ -88,7 +88,7 @@ impl Serialize for SidevmHandle {
     {
         match self {
             SidevmHandle::Running(_) => ExitReason::Restore.serialize(serializer),
-            SidevmHandle::Terminated(r) => r.serialize(serializer),
+            SidevmHandle::Stopped(r) => r.serialize(serializer),
         }
     }
 }
@@ -99,7 +99,7 @@ impl<'de> Deserialize<'de> for SidevmHandle {
         D: serde::Deserializer<'de>,
     {
         let reason = ExitReason::deserialize(deserializer)?;
-        Ok(SidevmHandle::Terminated(reason))
+        Ok(SidevmHandle::Stopped(reason))
     }
 }
 
@@ -252,7 +252,7 @@ impl FatContract {
                 if ensure_waiting_code {
                     if !matches!(
                         &handle,
-                        Some(SidevmHandle::Terminated(ExitReason::WaitingForCode))
+                        Some(SidevmHandle::Stopped(ExitReason::WaitingForCode))
                     ) {
                         bail!("The sidevm isn't waiting for code");
                     }
@@ -272,7 +272,7 @@ impl FatContract {
         };
 
         let handle = if code.is_empty() {
-            Arc::new(Mutex::new(SidevmHandle::Terminated(
+            Arc::new(Mutex::new(SidevmHandle::Stopped(
                 ExitReason::WaitingForCode,
             )))
         } else {
@@ -296,7 +296,7 @@ impl FatContract {
     ) -> Result<()> {
         if let Some(sidevm_info) = &mut self.sidevm_info {
             let guard = sidevm_info.handle.lock().unwrap();
-            let handle = if let SidevmHandle::Terminated(reason) = &*guard {
+            let handle = if let SidevmHandle::Stopped(reason) = &*guard {
                 let need_restart = match reason {
                     ExitReason::Exited(_) => false,
                     ExitReason::Stopped => false,
@@ -335,7 +335,7 @@ impl FatContract {
         let vmid = sidevm::ShortId(&self.contract_id.0);
 
         let tx = match &*handle.lock().unwrap() {
-            SidevmHandle::Terminated(_) => {
+            SidevmHandle::Stopped(_) => {
                 error!(target: "sidevm", "[{vmid}] PM to sidevm failed, instance terminated");
                 return Err(anyhow!(
                     "Push message to sidevm failed, instance terminated"
@@ -361,7 +361,7 @@ impl FatContract {
     pub(crate) fn get_system_message_handler(&self) -> Option<CommandSender> {
         let guard = self.sidevm_info.as_ref()?.handle.lock().unwrap();
         match &*guard {
-            SidevmHandle::Terminated(_) => None,
+            SidevmHandle::Stopped(_) => None,
             SidevmHandle::Running(tx) => Some(tx.clone()),
         }
     }
@@ -369,7 +369,7 @@ impl FatContract {
     pub(crate) fn destroy(self, spawner: &sidevm::service::Spawner) {
         if let Some(sidevm_info) = &self.sidevm_info {
             match sidevm_info.handle.lock().unwrap().clone() {
-                SidevmHandle::Terminated(_) => {}
+                SidevmHandle::Stopped(_) => {}
                 SidevmHandle::Running(tx) => {
                     spawner.spawn(async move {
                         if let Err(err) = tx.send(SidevmCommand::Stop).await {
@@ -410,7 +410,7 @@ impl FatContract {
                         start_time,
                         ..Default::default()
                     },
-                    SidevmHandle::Terminated(reason) => pb::SidevmInfo {
+                    SidevmHandle::Stopped(reason) => pb::SidevmInfo {
                         state: "stopped".into(),
                         code_hash,
                         start_time,
@@ -447,7 +447,7 @@ fn do_start_sidevm(
         let vmid = sidevm::ShortId(&id);
         let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
         error!(target: "sidevm", "[{vmid}] Sidevm process terminated with reason: {:?}", reason);
-        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated(reason);
+        *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
     });
     Ok(handle)
 }
