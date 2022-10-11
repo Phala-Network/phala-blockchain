@@ -169,9 +169,11 @@ pub mod pallet {
 		},
 		WorkerAdded {
 			pubkey: WorkerPublicKey,
+			confidence_level: u8,
 		},
 		WorkerUpdated {
 			pubkey: WorkerPublicKey,
+			confidence_level: u8,
 		},
 		MasterKeyRotated {
 			rotation_id: u64,
@@ -180,6 +182,10 @@ pub mod pallet {
 		MasterKeyRotationFailed {
 			rotation_lock: Option<u64>,
 			gatekeeper_rotation_id: u64,
+		},
+		InitialScoreSet {
+			pubkey: WorkerPublicKey,
+			init_score: u32,
 		},
 		PRuntimeManagement(PRuntimeManagementEvent),
 	}
@@ -272,7 +278,10 @@ pub mod pallet {
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
-			Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
+			Self::deposit_event(Event::<T>::WorkerAdded { 
+				pubkey,
+				confidence_level: worker_info.confidence_level,
+			});
 
 			Ok(())
 		}
@@ -451,7 +460,10 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerUpdated { pubkey });
+						Self::deposit_event(Event::<T>::WorkerUpdated { 
+							pubkey,
+							confidence_level: fields.confidence_level, 
+						});
 					}
 					None => {
 						// Case 2 - New worker register
@@ -471,7 +483,10 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerAdded { pubkey });
+						Self::deposit_event(Event::<T>::WorkerAdded { 
+							pubkey,
+							confidence_level: fields.confidence_level,  
+						});
 					}
 				}
 			});
@@ -722,6 +737,10 @@ pub mod pallet {
 						*worker_pubkey,
 						WorkerEvent::BenchScore(score),
 					));
+					Self::deposit_event(Event::<T>::InitialScoreSet{
+						pubkey: *worker_pubkey,
+						init_score: score,
+					});
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();
