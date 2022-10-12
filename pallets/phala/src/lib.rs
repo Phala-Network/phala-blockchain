@@ -29,11 +29,11 @@ use frame_support::traits::LockableCurrency;
 pub trait PhalaConfig: frame_system::Config {
 	type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 }
-/// The unified type Balance of pallets in compute with template T.
+/// The unified type Balance of pallets from the runtime T.
 type BalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
-/// The unified type ImBalance of pallets in compute with template T.
+/// The unified type ImBalance of pallets from the runtime T.
 type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
