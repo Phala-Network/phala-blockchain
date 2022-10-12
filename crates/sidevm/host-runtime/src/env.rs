@@ -4,7 +4,6 @@ use std::{
     collections::VecDeque,
     fmt,
     future::Future,
-    mem::transmute,
     ops::{Deref, DerefMut},
     sync::{Arc, Mutex},
     task::Poll::{Pending, Ready},
@@ -18,8 +17,8 @@ use tokio::{
     sync::oneshot::Sender as OneshotSender,
 };
 use wasmer::{
-    imports, AsStoreMut, Function, FunctionEnv, FunctionEnvMut, Imports, Instance, Memory,
-    MemoryView, Store, StoreMut,
+    self, imports, AsStoreMut, Function, FunctionEnv, FunctionEnvMut, Imports, Instance, Memory,
+    Store, StoreMut,
 };
 
 use env::{
@@ -177,6 +176,49 @@ impl VmMemory {
     }
 }
 
+struct MemoryView<'a>(wasmer::MemoryView<'a>);
+
+impl<'a> Deref for MemoryView<'a> {
+    type Target = wasmer::MemoryView<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> MemoryView<'a> {
+    fn check_addr(&self, offset: usize, len: usize) -> Result<(usize, usize)> {
+        let end = offset.checked_add(len).ok_or(OcallError::InvalidAddress)?;
+        if end > self.size().bytes().0 {
+            return Err(OcallError::InvalidAddress);
+        }
+        Ok((offset, end))
+    }
+}
+
+impl<'a> env::VmMemory for MemoryView<'a> {
+    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
+        if data.len() > u32::MAX as usize {
+            return Err(OcallError::NoMemory);
+        }
+        self.write(ptr as _, data)
+            .or(Err(OcallError::InvalidAddress))?;
+        Ok(())
+    }
+
+    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
+        let (offset, end) = self.check_addr(ptr as _, len as _)?;
+        let slice = unsafe { &self.data_unchecked()[offset..end] };
+        Ok(slice)
+    }
+
+    fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
+        let (offset, end) = self.check_addr(ptr as _, len as _)?;
+        let slice = unsafe { &mut self.data_unchecked_mut()[offset..end] };
+        Ok(slice)
+    }
+}
+
 #[derive(Clone)]
 pub struct Env {
     pub(crate) inner: Arc<Mutex<EnvInner>>,
@@ -297,14 +339,6 @@ impl Env {
     }
 }
 
-fn check_addr(memory: &MemoryView, offset: usize, len: usize) -> Result<(usize, usize)> {
-    let end = offset.checked_add(len).ok_or(OcallError::InvalidAddress)?;
-    if end > memory.size().bytes().0 {
-        return Err(OcallError::InvalidAddress);
-    }
-    Ok((offset, end))
-}
-
 impl<'a, 'b> env::OcallEnv for FnEnvMut<'a, &'b mut EnvInner> {
     fn put_return(&mut self, rv: Vec<u8>) -> usize {
         let len = rv.len();
@@ -314,44 +348,6 @@ impl<'a, 'b> env::OcallEnv for FnEnvMut<'a, &'b mut EnvInner> {
 
     fn take_return(&mut self) -> Option<Vec<u8>> {
         self.temp_return_value.get_or_default().take()
-    }
-}
-
-impl<'a, 'b> env::VmMemory for FnEnvMut<'a, &'b mut EnvInner> {
-    fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
-        if data.len() > u32::MAX as usize {
-            return Err(OcallError::NoMemory);
-        }
-        let memory = self.memory.0.as_ref().ok_or(OcallError::NoMemory)?;
-        memory
-            .view(&self.store)
-            .write(ptr as _, data)
-            .or(Err(OcallError::InvalidAddress))?;
-        Ok(())
-    }
-
-    fn slice_from_vm(&self, ptr: IntPtr, len: IntPtr) -> Result<&[u8]> {
-        let memory = self
-            .memory
-            .0
-            .as_ref()
-            .ok_or(OcallError::NoMemory)?
-            .view(&self.store);
-        let (offset, end) = check_addr(&memory, ptr as _, len as _)?;
-        let slice = unsafe { transmute(&memory.data_unchecked()[offset..end]) };
-        Ok(slice)
-    }
-
-    fn slice_from_vm_mut(&self, ptr: IntPtr, len: IntPtr) -> Result<&mut [u8]> {
-        let memory = self
-            .memory
-            .0
-            .as_ref()
-            .ok_or(OcallError::NoMemory)?
-            .view(&self.store);
-        let (offset, end) = check_addr(&memory, ptr as _, len as _)?;
-        let slice = unsafe { transmute(&mut memory.data_unchecked_mut()[offset..end]) };
-        Ok(slice)
     }
 }
 
@@ -647,8 +643,10 @@ fn sidevm_ocall_fast_return(
 
     env.current_task = task_id;
     let result = set_task_env(env.awake_tasks.clone(), task_id, || {
+        let memory = env.memory.unwrap_ref().clone();
+        let vm = MemoryView(memory.view(&func_env));
         let mut state = env.make_mut(&mut func_env);
-        env::dispatch_call_fast_return(&mut state, func_id, p0, p1, p2, p3)
+        env::dispatch_call_fast_return(&mut state, &vm, func_id, p0, p1, p2, p3)
     });
 
     let env = &mut *guard;
@@ -679,8 +677,10 @@ fn sidevm_ocall(
 
     env.current_task = task_id;
     let result = set_task_env(env.awake_tasks.clone(), task_id, || {
+        let memory = env.memory.unwrap_ref().clone();
+        let vm = MemoryView(memory.view(&func_env));
         let mut state = env.make_mut(&mut func_env);
-        env::dispatch_call(&mut state, func_id, p0, p1, p2, p3)
+        env::dispatch_call(&mut state, &vm, func_id, p0, p1, p2, p3)
     });
     let env = &mut *guard;
     if env.ocall_trace_enabled {
