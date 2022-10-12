@@ -629,7 +629,7 @@ async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpSt
 }
 
 fn sidevm_ocall_fast_return(
-    mut func_env: FunctionEnvMut<Env>,
+    func_env: FunctionEnvMut<Env>,
     task_id: i32,
     func_id: i32,
     p0: IntPtr,
@@ -637,31 +637,23 @@ fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> Result<IntRet, OcallAborted> {
-    let inner = func_env.data().inner.clone();
-    let mut guard = inner.lock().unwrap();
-    let env = &mut *guard;
-
-    env.current_task = task_id;
-    let result = set_task_env(env.awake_tasks.clone(), task_id, || {
-        let memory = env.memory.unwrap_ref().clone();
-        let vm = MemoryView(memory.view(&func_env));
-        let mut state = env.make_mut(&mut func_env);
-        env::dispatch_call_fast_return(&mut state, &vm, func_id, p0, p1, p2, p3)
-    });
-
-    if env.ocall_trace_enabled {
-        let func_name = env::ocall_id2name(func_id);
-        let vm_id = ShortId(&env.id);
-        log::trace!(
-            target: "sidevm",
-            "[{vm_id}][tid={task_id:<3}](F) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
-        );
-    }
-    convert(result)
+    do_ocall(func_env, task_id, func_id, p0, p1, p2, p3, true)
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
 fn sidevm_ocall(
+    func_env: FunctionEnvMut<Env>,
+    task_id: i32,
+    func_id: i32,
+    p0: IntPtr,
+    p1: IntPtr,
+    p2: IntPtr,
+    p3: IntPtr,
+) -> Result<IntRet, OcallAborted> {
+    do_ocall(func_env, task_id, func_id, p0, p1, p2, p3, false)
+}
+
+fn do_ocall(
     mut func_env: FunctionEnvMut<Env>,
     task_id: i32,
     func_id: i32,
@@ -669,6 +661,7 @@ fn sidevm_ocall(
     p1: IntPtr,
     p2: IntPtr,
     p3: IntPtr,
+    fast_return: bool,
 ) -> Result<IntRet, OcallAborted> {
     let inner = func_env.data().inner.clone();
     let mut guard = inner.lock().unwrap();
@@ -679,7 +672,7 @@ fn sidevm_ocall(
         let memory = env.memory.unwrap_ref().clone();
         let vm = MemoryView(memory.view(&func_env));
         let mut state = env.make_mut(&mut func_env);
-        env::dispatch_call(&mut state, &vm, func_id, p0, p1, p2, p3)
+        env::dispatch_ocall(fast_return, &mut state, &vm, func_id, p0, p1, p2, p3)
     });
 
     if env.ocall_trace_enabled {
@@ -687,7 +680,7 @@ fn sidevm_ocall(
         let vm_id = ShortId(&env.id);
         log::trace!(
             target: "sidevm",
-            "[{vm_id}][tid={task_id:<3}](S) {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
+            "[{vm_id}][tid={task_id:<3}] {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
         );
     }
     convert(result)

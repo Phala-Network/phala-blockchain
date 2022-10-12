@@ -212,35 +212,28 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
     };
 
     Ok(parse_quote! {
-        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv, Vm: VmMemory>(
+        pub fn dispatch_ocall<Env: #trait_name + OcallEnv, Vm: VmMemory>(
+            fast_return: bool,
             env: &mut Env,
             vm: &Vm,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
             p2: IntPtr,
-            p3: IntPtr
+            p3: IntPtr,
         ) -> Result<i32> {
-            match id {
-                0 => #call_get_return,
-                #(#fast_calls)*
-                _ => Err(OcallError::UnknownCallNumber),
+            if fast_return {
+                match id {
+                    0 => #call_get_return,
+                    #(#fast_calls)*
+                    _ => Err(OcallError::UnknownCallNumber),
+                }
+            } else {
+                Ok(match id {
+                    #(#slow_calls)*
+                    _ => return Err(OcallError::UnknownCallNumber),
+                })
             }
-        }
-
-        pub fn dispatch_call<Env: #trait_name + OcallEnv, Vm: VmMemory>(
-            env: &mut Env,
-            vm: &Vm,
-            id: i32,
-            p0: IntPtr,
-            p1: IntPtr,
-            p2: IntPtr,
-            p3: IntPtr
-        ) -> Result<i32> {
-            Ok(match id {
-                #(#slow_calls)*
-                _ => return Err(OcallError::UnknownCallNumber),
-            })
         }
     })
 }
