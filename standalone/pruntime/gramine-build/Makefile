@@ -122,6 +122,9 @@ ifeq ($(SGX),1)
 endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
+token-dist: token dist
+	cp ${BIN_NAME}.token ${PREFIX}/
+
 .PHONY: run
 run: all token
 	make dirs
