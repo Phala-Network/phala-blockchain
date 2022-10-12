@@ -649,7 +649,6 @@ fn sidevm_ocall_fast_return(
         env::dispatch_call_fast_return(&mut state, &vm, func_id, p0, p1, p2, p3)
     });
 
-    let env = &mut *guard;
     if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
         let vm_id = ShortId(&env.id);
@@ -682,7 +681,7 @@ fn sidevm_ocall(
         let mut state = env.make_mut(&mut func_env);
         env::dispatch_call(&mut state, &vm, func_id, p0, p1, p2, p3)
     });
-    let env = &mut *guard;
+
     if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
         let vm_id = ShortId(&env.id);
