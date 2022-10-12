@@ -677,7 +677,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'Failed to apply deposit to contract weight');
         });
 
-        it('can start sidevm without code uploaded', async function () {
+        it('can set the sidevm as pending state without code uploaded', async function () {
             const { output } = await ContractSystemChecker.query.startSidevm(certAlice, {});
             assert.isTrue(output.valueOf());
             assert.isTrue(await checkUntil(async () => {
