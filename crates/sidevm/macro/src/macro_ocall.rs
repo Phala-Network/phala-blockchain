@@ -133,6 +133,7 @@ fn patch_or_err(input: TokenStream) -> Result<TokenStream> {
         .collect();
     let ocall_methods = ocall_methods?;
     check_redundant_ocall_id(&ocall_methods)?;
+    check_args_multi_ref(&ocall_methods)?;
 
     let trait_item = patch_ocall_trait(trait_item);
 
@@ -211,35 +212,28 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
     };
 
     Ok(parse_quote! {
-        pub fn dispatch_call_fast_return<Env: #trait_name + OcallEnv, Vm: VmMemory>(
+        pub fn dispatch_ocall<Env: #trait_name + OcallEnv, Vm: VmMemory>(
+            fast_return: bool,
             env: &mut Env,
             vm: &Vm,
             id: i32,
             p0: IntPtr,
             p1: IntPtr,
             p2: IntPtr,
-            p3: IntPtr
+            p3: IntPtr,
         ) -> Result<i32> {
-            match id {
-                0 => #call_get_return,
-                #(#fast_calls)*
-                _ => Err(OcallError::UnknownCallNumber),
+            if fast_return {
+                match id {
+                    0 => #call_get_return,
+                    #(#fast_calls)*
+                    _ => Err(OcallError::UnknownCallNumber),
+                }
+            } else {
+                Ok(match id {
+                    #(#slow_calls)*
+                    _ => return Err(OcallError::UnknownCallNumber),
+                })
             }
-        }
-
-        pub fn dispatch_call<Env: #trait_name + OcallEnv, Vm: VmMemory>(
-            env: &mut Env,
-            vm: &Vm,
-            id: i32,
-            p0: IntPtr,
-            p1: IntPtr,
-            p2: IntPtr,
-            p3: IntPtr
-        ) -> Result<i32> {
-            Ok(match id {
-                #(#slow_calls)*
-                _ => return Err(OcallError::UnknownCallNumber),
-            })
         }
     })
 }
@@ -395,6 +389,31 @@ fn check_redundant_ocall_id(methods: &[OcallMethod]) -> Result<()> {
             ));
         }
         ids.push(method.id);
+    }
+    Ok(())
+}
+
+fn check_args_multi_ref(methods: &[OcallMethod]) -> Result<()> {
+    for method in methods {
+        let mut n_ref = 0;
+        let mut has_mut_ref = false;
+        for arg in method.method.sig.inputs.iter() {
+            // TODO: use `let else`
+            if let syn::FnArg::Typed(arg) = arg {
+                if let syn::Type::Reference(ty) = &*arg.ty {
+                    n_ref += 1;
+                    if ty.mutability.is_some() {
+                        has_mut_ref = true;
+                    }
+                }
+            }
+        }
+        if has_mut_ref && n_ref > 1 {
+            return Err(syn::Error::new_spanned(
+                &method.method.sig,
+                format!("Only one &mut ref argument is allowed"),
+            ));
+        }
     }
     Ok(())
 }

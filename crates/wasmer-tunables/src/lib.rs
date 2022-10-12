@@ -1,7 +1,5 @@
 use std::ptr::NonNull;
-use std::sync::Arc;
 
-use loupe::MemoryUsage;
 use wasmer::{
     vm::{self, MemoryError, MemoryStyle, TableStyle, VMMemoryDefinition, VMTableDefinition},
     MemoryType, Pages, TableType, Tunables,
@@ -11,7 +9,6 @@ use wasmer::{
 ///
 /// After adjusting the memory limits, it delegates all other logic
 /// to the base tunables.
-#[derive(MemoryUsage)]
 pub struct LimitingTunables<T: Tunables> {
     /// The maximum a linear memory is allowed to be (in Wasm pages, 64 KiB each).
     /// Since Wasmer ensures there is only none or one memory, this is practically
@@ -84,7 +81,7 @@ impl<T: Tunables> Tunables for LimitingTunables<T> {
         &self,
         ty: &MemoryType,
         style: &MemoryStyle,
-    ) -> Result<Arc<dyn vm::Memory>, MemoryError> {
+    ) -> Result<vm::VMMemory, MemoryError> {
         let adjusted = self.adjust_memory(ty);
         self.validate_memory(&adjusted)?;
         self.base.create_host_memory(&adjusted, style)
@@ -98,7 +95,7 @@ impl<T: Tunables> Tunables for LimitingTunables<T> {
         ty: &MemoryType,
         style: &MemoryStyle,
         vm_definition_location: NonNull<VMMemoryDefinition>,
-    ) -> Result<Arc<dyn vm::Memory>, MemoryError> {
+    ) -> Result<vm::VMMemory, MemoryError> {
         let adjusted = self.adjust_memory(ty);
         self.validate_memory(&adjusted)?;
         self.base
@@ -112,7 +109,7 @@ impl<T: Tunables> Tunables for LimitingTunables<T> {
         &self,
         ty: &TableType,
         style: &TableStyle,
-    ) -> Result<Arc<dyn vm::Table>, String> {
+    ) -> Result<vm::VMTable, String> {
         self.base.create_host_table(ty, style)
     }
 
@@ -124,7 +121,7 @@ impl<T: Tunables> Tunables for LimitingTunables<T> {
         ty: &TableType,
         style: &TableStyle,
         vm_definition_location: NonNull<VMTableDefinition>,
-    ) -> Result<Arc<dyn vm::Table>, String> {
+    ) -> Result<vm::VMTable, String> {
         self.base.create_vm_table(ty, style, vm_definition_location)
     }
 }
