@@ -34,3 +34,4 @@ once_cell = "1"
 tokio-proxy = { git  = "https://github.com/Phala-Network/tokio-proxy" }
 page_size = "0.4.2"
 phala-scheduler = { path = "../../phala-scheduler" }
+derive_more = "0.99.17"

@@ -1,0 +1,20 @@
+---
+source: pallets/phala/src/fat_tokenomic/tests.rs
+assertion_line: 98
+expression: events
+---
+[
+    RuntimeEvent::FatTokenomic(
+        Event::ContractDepositChanged {
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            deposit: 1000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::UserStakeChanged {
+            account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            stake: 1000000000000,
+        },
+    ),
+]

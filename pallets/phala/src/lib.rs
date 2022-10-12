@@ -17,6 +17,7 @@ pub mod migrations;
 pub mod utils;
 
 pub mod fat;
+pub mod fat_tokenomic;
 pub mod mining;
 pub mod mq;
 pub mod ott;
@@ -26,6 +27,7 @@ pub mod stakepool;
 
 // Alias
 pub use fat as pallet_fat;
+pub use fat_tokenomic as pallet_fat_tokenomic;
 pub use mining as pallet_mining;
 pub use mq as pallet_mq;
 pub use ott as pallet_ott;

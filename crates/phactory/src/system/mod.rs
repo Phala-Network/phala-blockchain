@@ -57,7 +57,7 @@ use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, 
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
 
-use pink::runtime::{PinkEvent, HookPoint};
+use pink::runtime::{HookPoint, PinkEvent};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
@@ -637,6 +637,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .storage
             .snapshot();
         let sidevm_handle = contract.sidevm_handle();
+        let weight = contract.weight();
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
@@ -645,6 +646,7 @@ impl<Platform: pal::Platform> System<Platform> {
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
             query_scheduler,
+            weight,
         };
         let origin = origin.cloned();
         Ok(async move {
@@ -1703,10 +1705,12 @@ fn apply_instantiating_events(
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
         let id = pink.id();
+        let code_hash = pink.instance.code_hash(&cluster.storage);
         let result = install_contract(
             contracts,
             id,
             pink,
+            code_hash,
             contract_key.clone(),
             ecdh_key.clone(),
             block,
@@ -1758,6 +1762,19 @@ pub(crate) fn apply_pink_events(
                 }
             }};
         }
+
+        let event_name = event.name();
+        macro_rules! ensure_system {
+            () => {
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!(
+                        "Unpermitted operation from {:?}, operation={:?}",
+                        &origin, &event_name
+                    );
+                    continue;
+                }
+            };
+        }
         match event {
             PinkEvent::Message(message) => {
                 let contract = get_contract!(&origin);
@@ -1776,13 +1793,7 @@ pub(crate) fn apply_pink_events(
                 contract: target_contract,
                 selector,
             } => {
-                if Some(&origin) != cluster.system_contract().as_ref() {
-                    error!(
-                        "Failed to set hook for {:?}, requested by {:?}: permission denied",
-                        target_contract, origin
-                    );
-                    continue;
-                }
+                ensure_system!();
                 let contract = get_contract!(&target_contract);
                 match hook {
                     HookPoint::OnBlockEnd => {
@@ -1794,11 +1805,8 @@ pub(crate) fn apply_pink_events(
                 contract: target_contract,
                 code_hash,
             } => {
+                ensure_system!();
                 let vmid = sidevm::ShortId(target_contract.as_ref());
-                if Some(&origin) != cluster.system_contract().as_ref() {
-                    error!(target: "sidevm", "[{vmid}] Start sidevm failed from {}: permission denied", origin);
-                    continue;
-                }
                 let target_contract = get_contract!(&target_contract);
                 let code_hash = code_hash.into();
                 let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
@@ -1834,23 +1842,22 @@ pub(crate) fn apply_pink_events(
             PinkEvent::ForceStopSidevm {
                 contract: target_contract,
             } => {
+                ensure_system!();
                 let vmid = sidevm::ShortId(target_contract.as_ref());
-                if Some(&origin) != cluster.system_contract().as_ref() {
-                    error!(target: "sidevm", "[{vmid}] Stop sidevm failed from ({}): permission denied", origin);
-                    continue;
-                }
                 let contract = get_contract!(&origin);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                     error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::SetLogHandler(handler) => {
-                if Some(&origin) != cluster.system_contract().as_ref() {
-                    error!("Set logger failed, bad origin: {:?}", origin);
-                    continue;
-                }
+                ensure_system!();
                 info!("Set logger for {:?} to {:?}", cluster_id, handler);
                 cluster.config.log_handler = Some(handler.convert_to());
+            }
+            PinkEvent::SetContractWeight { contract, weight } => {
+                ensure_system!();
+                let contract = get_contract!(&contract);
+                contract.set_weight(weight);
             }
         }
     }
@@ -1883,6 +1890,7 @@ pub fn install_contract(
     contracts: &mut ContractsKeeper,
     contract_id: phala_mq::ContractId,
     contract: impl Into<AnyContract>,
+    code_hash: Option<crate::H256>,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
     block: &mut BlockInfo,
@@ -1907,6 +1915,7 @@ pub fn install_contract(
         ecdh_key.clone(),
         cluster_id,
         contract_id,
+        code_hash,
     );
     contracts.insert(wrapped);
     Ok(())

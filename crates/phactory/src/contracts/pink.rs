@@ -113,7 +113,7 @@ impl Pink {
             Query::InkMessage(input_data) => {
                 let _guard = context
                     .query_scheduler
-                    .acquire(self.id(), 1)
+                    .acquire(self.id(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
 
@@ -360,6 +360,10 @@ pub mod cluster {
 
         pub fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster> {
             self.clusters.remove(cluster_id)
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = (&ContractClusterId, &Cluster)> {
+            self.clusters.iter()
         }
     }
 

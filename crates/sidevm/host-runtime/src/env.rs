@@ -327,7 +327,10 @@ impl Env {
     }
 
     pub fn set_weight(&self, weight: u32) {
-        self.inner.lock().unwrap().weight = weight;
+        let mut inner = self.inner.lock().unwrap();
+        inner.weight = weight;
+        let vm_id = ShortId(&inner.id);
+        log::debug!(target: "sidevm", "[{}] Updated weight to {}", vm_id, weight);
     }
 
     pub fn set_instance(&self, instance: Instance) {

@@ -1,3 +1,5 @@
+SGX_MODE ?= SW
+
 .PHONY: all clean
 ifeq ($(SGX_MODE),SW)
 all: bin/Rocket.toml bin/app

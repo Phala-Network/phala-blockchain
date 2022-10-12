@@ -4,8 +4,8 @@ use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, trace, warn};
 use phala_scheduler::TaskScheduler;
-use sidevm_env::messages::AccountId;
 use serde::{Deserialize, Serialize};
+use sidevm_env::messages::AccountId;
 use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
@@ -21,7 +21,7 @@ pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, derive_more::Display)]
 pub enum ExitReason {
     /// The program returned from `fn main`.
     Exited(i32),
@@ -52,6 +52,8 @@ pub enum Command {
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     },
+    // Update the task scheduling weight
+    UpdateWeight(u32),
 }
 
 pub struct ServiceRun {
@@ -171,6 +173,9 @@ impl Spawner {
                             }
                             Some(Command::PushQuery{ origin, payload, reply_tx }) => {
                                 spawn_push_msg!(env.push_query(origin, payload, reply_tx), debug, "query");
+                            }
+                            Some(Command::UpdateWeight(weight)) => {
+                                env.set_weight(weight);
                             }
                         }
                     }

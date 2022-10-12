@@ -146,6 +146,16 @@ fn getinfo() -> String {
     runtime::ecall_getinfo()
 }
 
+#[get("/contract_info?<id>")]
+fn get_contract_info(id: Option<String>) -> String {
+    runtime::ecall_get_contract_info(&id.unwrap_or_default())
+}
+
+#[get("/cluster_info")]
+fn get_cluster_info() -> String {
+    runtime::ecall_get_cluster_info()
+}
+
 fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
     use PhactoryAPIMethod::*;
 
@@ -172,6 +182,8 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         SignEndpointInfo => 32.kibibytes(),
         ConfigNetwork => 10.kibibytes(),
         HttpFetch => 100.mebibytes(),
+        GetContractInfo => 100.kibibytes(),
+        GetClusterInfo => 1.kibibytes(),
     }
 }
 
@@ -210,7 +222,12 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
 #[post("/<method>", data = "<data>")]
 async fn prpc_proxy_acl(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
-    let permitted_method = ["PhactoryAPI.ContractQuery", "PhactoryAPI.GetInfo"];
+    let permitted_method = [
+        "PhactoryAPI.ContractQuery",
+        "PhactoryAPI.GetInfo",
+        "PhactoryAPI.GetContractInfo",
+        "PhactoryAPI.GetClusterInfo",
+    ];
     if !permitted_method.contains(&&method[..]) {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);
@@ -273,7 +290,7 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
                 ),
             ],
         )
-        .mount("/", routes![getinfo]);
+        .mount("/", routes![getinfo, get_contract_info, get_cluster_info]);
 
     if args.enable_kick_api {
         info!("ENABLE `kick` API");
@@ -314,8 +331,8 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(figment)
-        .mount("/", routes![getinfo]);
+    let mut server_acl =
+        rocket::custom(figment).mount("/", routes![getinfo, get_contract_info, get_cluster_info]);
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
 
@@ -328,7 +345,7 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
             .manage(cors_options().to_cors().expect("To not fail"));
     }
 
-    let signer = ResponseSigner::new(1024*1024*10, runtime::ecall_sign_http_response);
+    let signer = ResponseSigner::new(1024 * 1024 * 10, runtime::ecall_sign_http_response);
     server_acl = server_acl.attach(signer);
 
     Some(server_acl)

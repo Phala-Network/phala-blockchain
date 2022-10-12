@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
+use crate::hex;
 use crate::system::{chain_state, System};
 
 use super::*;
@@ -757,6 +758,65 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .encode();
         Ok(signature)
     }
+
+    pub fn get_contract_info(
+        &mut self,
+        contract_ids: &[String],
+    ) -> RpcResult<pb::GetContractInfoResponse> {
+        // TODO: use `let else`
+        let system = match &self.system {
+            None => return Ok(Default::default()),
+            Some(system) => system,
+        };
+        let contracts = if contract_ids.is_empty() {
+            system
+                .contracts
+                .iter()
+                .map(|(_, contract)| contract.info())
+                .collect()
+        } else {
+            let mut contracts = vec![];
+            for id in contract_ids.iter() {
+                let raw: [u8; 32] = try_decode_hex(&id)
+                    .or(Err(from_display("Invalid contract id")))?
+                    .try_into()
+                    .or(Err(from_display("Invalid contract id")))?;
+                let contract = system.contracts.get(&raw.into());
+                // TODO: use `let else`.
+                let contract = match contract {
+                    None => continue,
+                    Some(contract) => contract,
+                };
+                contracts.push(contract.info());
+            }
+            contracts
+        };
+        Ok(pb::GetContractInfoResponse { contracts })
+    }
+
+    pub fn get_cluster_info(&self) -> RpcResult<pb::GetClusterInfoResponse> {
+        // TODO: use `let else`.
+        let system = match &self.system {
+            None => return Ok(Default::default()),
+            Some(system) => system,
+        };
+        let clusters = system
+            .contract_clusters
+            .iter()
+            .map(|(id, cluster)| {
+                let contracts = cluster.iter_contracts().map(hex).collect();
+                let ver = cluster.config.version;
+                let version = format!("{}.{}", ver.0, ver.1);
+                pb::ClusterInfo {
+                    id: hex(id),
+                    state_root: hex(cluster.storage.root()),
+                    contracts,
+                    version,
+                }
+            })
+            .collect();
+        Ok(pb::GetClusterInfoResponse { clusters })
+    }
 }
 
 #[derive(Clone)]
@@ -1323,4 +1383,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             headers,
         })
     }
+
+    async fn get_contract_info(
+        &mut self,
+        request: pb::GetContractInfoRequest,
+    ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
+        self.lock_phactory().get_contract_info(&request.contract_ids)
+    }
+
+    async fn get_cluster_info(
+        &mut self,
+        _request: (),
+    ) -> Result<pb::GetClusterInfoResponse, prpc::server::Error> {
+        self.lock_phactory().get_cluster_info()
+    }
+}
+
+fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
 }

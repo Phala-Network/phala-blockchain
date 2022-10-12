@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use ink_env::{emit_event, topics::state::HasRemainingTopics, AccountId, Environment, Topics};
+use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
 use ink_lang::EnvAccess;
 use scale::{Decode, Encode};
@@ -15,13 +15,13 @@ pub use chain_extension::pink_extension_instance as ext;
 pub mod logger;
 pub mod system;
 pub mod predefined_accounts {
-    use ink_env;
+    use super::AccountId;
 
     // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
     pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
     pub const ACCOUNT_RUNTIME: [u8; 32] = *b"sys::runtime\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
-    pub fn is_pallet(account_id: &ink_env::AccountId) -> bool {
+    pub fn is_pallet(account_id: &AccountId) -> bool {
         account_id.as_ref() as &[u8] == &ACCOUNT_PALLET
     }
 
@@ -36,6 +36,9 @@ pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
 pub type EcdsaPublicKey = [u8; 33];
 pub type EcdsaSignature = [u8; 65];
+pub type AccountId = <PinkEnvironment as Environment>::AccountId;
+pub type Balance = <PinkEnvironment as Environment>::Balance;
+pub type BlockNumber = <PinkEnvironment as Environment>::BlockNumber;
 
 /// A phala-mq message
 #[derive(Encode, Decode, Debug)]
@@ -96,6 +99,8 @@ pub enum PinkEvent {
     },
     /// Set the log handler contract for current cluster.
     SetLogHandler(AccountId),
+    /// Set the weight of contract used to schedule queries and sidevm vruntime
+    SetContractWeight { contract: AccountId, weight: u32 },
 }
 
 impl PinkEvent {
@@ -110,6 +115,22 @@ impl PinkEvent {
             PinkEvent::StopSidevm => true,
             PinkEvent::ForceStopSidevm { .. } => true,
             PinkEvent::SetLogHandler(_) => false,
+            PinkEvent::SetContractWeight { .. } => false,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            PinkEvent::Message(_) => "Message",
+            PinkEvent::OspMessage(_) => "OspMessage",
+            PinkEvent::SetHook { .. } => "SetHook",
+            PinkEvent::DeploySidevmTo { .. } => "DeploySidevmTo",
+            PinkEvent::SidevmMessage(_) => "SidevmMessage",
+            PinkEvent::CacheOp(_) => "CacheOp",
+            PinkEvent::StopSidevm => "StopSidevm",
+            PinkEvent::ForceStopSidevm { .. } => "ForceStopSidevm",
+            PinkEvent::SetLogHandler(_) => "SetLogHandler",
+            PinkEvent::SetContractWeight { .. } => "SetContractWeight",
         }
     }
 }
@@ -215,6 +236,11 @@ pub fn push_sidevm_message(message: Vec<u8>) {
 /// Set the log handler contract of current cluster
 pub fn set_log_handler(contract: AccountId) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandler(contract))
+}
+
+/// Set the weight of contract used to schedule queries and sidevm vruntime
+pub fn set_contract_weight(contract: AccountId, weight: u32) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetContractWeight { contract, weight });
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.

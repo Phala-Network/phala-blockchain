@@ -1,0 +1,139 @@
+---
+source: pallets/phala/src/fat_tokenomic/tests.rs
+assertion_line: 64
+expression: events
+---
+[
+    RuntimeEvent::System(
+        Event::NewAccount {
+            account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Endowed {
+            account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            free_balance: 100000000000000,
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::BalanceSet {
+            who: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            free: 100000000000000,
+            reserved: 0,
+        },
+    ),
+    RuntimeEvent::System(
+        Event::NewAccount {
+            account: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Endowed {
+            account: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+            free_balance: 100000000000000,
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::BalanceSet {
+            who: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+            free: 100000000000000,
+            reserved: 0,
+        },
+    ),
+    RuntimeEvent::System(
+        Event::NewAccount {
+            account: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Endowed {
+            account: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+            free_balance: 1000000000000,
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Transfer {
+            from: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            to: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+            amount: 1000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::ContractDepositChanged {
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            deposit: 1000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::UserStakeChanged {
+            account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            stake: 1000000000000,
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Transfer {
+            from: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+            to: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+            amount: 2000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::ContractDepositChanged {
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            deposit: 3000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::UserStakeChanged {
+            account: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            stake: 2000000000000,
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Transfer {
+            from: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+            to: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+            amount: 2000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::ContractDepositChanged {
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            deposit: 1000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::UserStakeChanged {
+            account: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            stake: 0,
+        },
+    ),
+    RuntimeEvent::System(
+        Event::KilledAccount {
+            account: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+        },
+    ),
+    RuntimeEvent::Balances(
+        Event::Transfer {
+            from: 6d6f646c706861742f746f6b0000000000000000000000000000000000000000 (5EYCAe5i...),
+            to: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            amount: 1000000000000,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::ContractDepositChanged {
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            deposit: 0,
+        },
+    ),
+    RuntimeEvent::FatTokenomic(
+        Event::UserStakeChanged {
+            account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
+            stake: 0,
+        },
+    ),
+]

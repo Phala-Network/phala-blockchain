@@ -6101,6 +6101,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dashmap",
+ "derive_more 0.99.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
  "hex_fmt",
  "libc",
