@@ -79,6 +79,18 @@ pub mod pallet {
 		T: crate::mq::Config,
 		T: crate::fat::Config,
 	{
+		/// Adjust stake to given contract.
+		///
+		/// Fat contracts accept depoits from accounts. The deposit info would be sent the cluster's
+		/// system contract. Then the system contract would invoke the driver contract (if installed)
+		/// to process the deposit info. A public good cluster usually would set the contracts' scheduling
+		/// weights according to the total depoit on contracts. More weights means it would get more
+		/// compute resource to run the contract. The weights are applied on contract query and Sidevm
+		/// CPU round scheduling.
+		///
+		/// If users stake on a contract doesn't deployed yet. The deposit would send to the cluster
+		/// even if the contract is deployed later. User can re-stake with or without changing the amount
+		/// to sync the depoit the the cluster after the contract is actually deployed.
 		#[pallet::weight(0)]
 		pub fn adjust_stake(
 			origin: OriginFor<T>,
