@@ -438,6 +438,7 @@ pub fn extend_types(
         r#"
     use ::prpc::codec::scale::{Encode, Decode, Error as ScaleDecodeError};
     use ::alloc::vec::Vec;
+    use ::alloc::string::String;
     "#,
     );
     if !mod_prefix.is_empty() {
