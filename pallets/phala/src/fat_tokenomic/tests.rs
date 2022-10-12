@@ -1,6 +1,6 @@
 use super::*;
 use frame_support::{assert_err, assert_ok};
-use mock::{Origin, Test, DOLLARS};
+use mock::{RuntimeOrigin as Origin, Test, DOLLARS};
 
 use sp_core::crypto::AccountId32;
 use sp_core::H256;
@@ -22,7 +22,7 @@ fn stake_of_contract() -> u128 {
 }
 
 fn stake_of_user(user: &AccountId32) -> u128 {
-	ContractUserStakes::<Test>::get((&CONTRACT, user))
+	ContractUserStakes::<Test>::get(user, &CONTRACT)
 }
 
 fn balance_of_user(user: &AccountId32) -> u128 {

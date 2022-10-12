@@ -47,8 +47,8 @@ impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
 	type Hash = H256;
@@ -56,7 +56,7 @@ impl system::Config for Test {
 	type AccountId = sp_core::crypto::AccountId32;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
@@ -73,7 +73,7 @@ impl system::Config for Test {
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -98,16 +98,16 @@ impl mq::Config for Test {
 
 pub struct MqCallMatcher;
 impl mq::CallMatcher<Test> for MqCallMatcher {
-	fn match_call(call: &Call) -> Option<&mq::Call<Test>> {
+	fn match_call(call: &RuntimeCall) -> Option<&mq::Call<Test>> {
 		match call {
-			Call::PhalaMq(mq_call) => Some(mq_call),
+			RuntimeCall::PhalaMq(mq_call) => Some(mq_call),
 			_ => None,
 		}
 	}
 }
 
 impl registry::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
@@ -117,13 +117,13 @@ impl registry::Config for Test {
 }
 
 impl fat::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
 	type SidevmCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
 }
 
 impl fat_tokenomic::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
 
@@ -163,7 +163,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	sp_io::TestExternalities::new(t)
 }
 
-pub fn take_events() -> Vec<Event> {
+pub fn take_events() -> Vec<RuntimeEvent> {
 	let evt = System::events()
 		.into_iter()
 		.map(|evt| evt.event)
