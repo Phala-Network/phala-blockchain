@@ -379,14 +379,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             runtime_state.chain_storage.root()
         );
 
-        if *runtime_state.chain_storage.root() != genesis.block_header.state_root {
-            error!("Genesis state root mismatch, required in header: {:?}, actual: {:?}", 
+        // In parachain mode the state root is stored in parachain header which isn't passed in here.
+        // The storage root would be checked at the time each block being synced in(where the storage
+        // being patched) and pRuntime doesn't read any data from the chain storage until the first
+        // block being synced in. So it's OK to skip the check here.
+        if !is_parachain && *runtime_state.chain_storage.root() != genesis.block_header.state_root {
+            error!(
+                "Genesis state root mismatch, required in header: {:?}, actual: {:?}",
                 genesis.block_header.state_root,
-                runtime_state.chain_storage.root(), 
+                runtime_state.chain_storage.root(),
             );
-            return Err(from_display(
-                "state root mismatch",
-            ));
+            return Err(from_display("state root mismatch"));
         }
 
         let system = system::System::new(
