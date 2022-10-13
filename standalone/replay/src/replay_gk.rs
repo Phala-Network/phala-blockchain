@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Error;
 use anyhow::Result;
-use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
+use phactory::{gk, BlockInfo, StorageExt};
 use phactory_api::blocks::BlockHeaderWithChanges;
 use phala_mq::Path as MqPath;
 use phala_mq::{MessageDispatcher, Sr25519Signer};
@@ -107,7 +107,6 @@ impl ReplayFactory {
             storage: &self.storage,
             recv_mq: &mut self.recv_mq,
             send_mq: &mut Default::default(),
-            side_task_man: &mut SideTaskManager::default(),
         };
 
         block.recv_mq.reset_local_index();

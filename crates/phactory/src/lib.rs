@@ -56,7 +56,6 @@ use types::Error;
 pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::RpcService;
-pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
@@ -70,7 +69,6 @@ mod light_validation;
 mod prpc_service;
 mod rpc_types;
 mod secret_channel;
-mod side_task;
 mod storage;
 mod system;
 mod types;
@@ -233,7 +231,6 @@ pub struct Phactory<Platform> {
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    side_task_man: SideTaskManager,
     endpoints: BTreeMap<EndpointType, String>,
     #[serde(skip)]
     signed_endpoints: Option<GetEndpointResponse>,
@@ -280,7 +277,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             system: None,
             endpoints: Default::default(),
             signed_endpoints: None,
-            side_task_man: Default::default(),
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
