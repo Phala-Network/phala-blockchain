@@ -1,4 +1,4 @@
-.PHONY: all node pruntime e2e
+.PHONY: all node pruntime e2e test
 
 all: node pruntime e2e
 
@@ -9,4 +9,6 @@ pruntime:
 e2e:
 	make -C e2e/res
 	cd e2e && yarn build:proto
+test:
+	cargo test --workspace --exclude node-executor --exclude phala-node
 

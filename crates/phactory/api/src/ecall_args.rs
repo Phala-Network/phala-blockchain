@@ -19,9 +19,6 @@ pub struct InitArgs {
     /// The git commit hash which this binary was built from.
     pub git_revision: String,
 
-    /// Geoip database path
-    pub geoip_city_db: String,
-
     /// Enable checkpoint
     pub enable_checkpoint: bool,
 

@@ -1251,15 +1251,9 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
         } else {
             fs.mkdirSync(sealDir, { recursive: true });
             const filesMustCopy = ['Rocket.toml', pRuntimeBin];
-            const filesShouldCopy = ['GeoLite2-City.mmdb']
             filesMustCopy.forEach(f =>
                 fs.copyFileSync(`${pRuntimeDir}/${f}`, `${workDir}/${f}`)
             );
-            filesShouldCopy.forEach(f => {
-                if (fs.existsSync(`${pRuntimeDir}/${f}`)) {
-                    fs.copyFileSync(`${pRuntimeDir}/${f}`, `${workDir}/${f}`)
-                }
-            });
         }
     }
     const args = [

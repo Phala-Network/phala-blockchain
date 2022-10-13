@@ -394,8 +394,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.dev_mode,
             self.args.sealing_path.clone(),
             self.args.storage_path.clone(),
-            false,
-            self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
             rt_data.trusted_sk,
