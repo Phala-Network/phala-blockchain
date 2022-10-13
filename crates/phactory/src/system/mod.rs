@@ -4,7 +4,7 @@ mod side_tasks;
 
 use crate::{
     benchmark,
-    contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv},
+    contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv, SidevmCode},
     pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
@@ -1626,6 +1626,18 @@ impl<P: pal::Platform> System<P> {
             &self.sidevm_spawner,
         );
     }
+
+    pub(crate) fn upload_sidevm_code(
+        &mut self,
+        contract_id: ContractId,
+        code: Vec<u8>,
+    ) -> Result<()> {
+        let contract = self
+            .contracts
+            .get_mut(&contract_id)
+            .ok_or_else(|| anyhow!("Contract not found"))?;
+        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true)
+    }
 }
 
 pub fn handle_contract_command_result(
@@ -1809,14 +1821,11 @@ pub(crate) fn apply_pink_events(
                 let vmid = sidevm::ShortId(target_contract.as_ref());
                 let target_contract = get_contract!(&target_contract);
                 let code_hash = code_hash.into();
-                let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
-                    Some(code) => code,
-                    None => {
-                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: code not found, code_hash={code_hash:?}");
-                        continue;
-                    }
+                let code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
+                    Some(code) => SidevmCode::Code(code),
+                    None => SidevmCode::Hash(code_hash),
                 };
-                if let Err(err) = target_contract.start_sidevm(&spawner, wasm_code, true) {
+                if let Err(err) = target_contract.start_sidevm(&spawner, code, false) {
                     error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                 }
             }

@@ -37,6 +37,8 @@ pub enum ExitReason {
     OcallAborted(OcallAborted),
     /// When a previous running instance restored from a checkpoint.
     Restore,
+    /// The sidevm was deployed without code, so it it waiting to a custom code uploading.
+    WaitingForCode,
 }
 
 pub enum Command {

@@ -78,7 +78,7 @@ impl Decode for RawData {
 #[derive(Clone)]
 pub enum SidevmHandle {
     Running(CommandSender),
-    Terminated(ExitReason),
+    Stopped(ExitReason),
 }
 
 impl Serialize for SidevmHandle {
@@ -88,7 +88,7 @@ impl Serialize for SidevmHandle {
     {
         match self {
             SidevmHandle::Running(_) => ExitReason::Restore.serialize(serializer),
-            SidevmHandle::Terminated(r) => r.serialize(serializer),
+            SidevmHandle::Stopped(r) => r.serialize(serializer),
         }
     }
 }
@@ -99,7 +99,7 @@ impl<'de> Deserialize<'de> for SidevmHandle {
         D: serde::Deserializer<'de>,
     {
         let reason = ExitReason::deserialize(deserializer)?;
-        Ok(SidevmHandle::Terminated(reason))
+        Ok(SidevmHandle::Stopped(reason))
     }
 }
 
@@ -110,6 +110,11 @@ struct SidevmInfo {
     start_time: String,
     auto_restart: bool,
     handle: Arc<Mutex<SidevmHandle>>,
+}
+
+pub(crate) enum SidevmCode {
+    Hash(H256),
+    Code(Vec<u8>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -232,24 +237,55 @@ impl FatContract {
     pub(crate) fn start_sidevm(
         &mut self,
         spawner: &sidevm::service::Spawner,
-        code: Vec<u8>,
-        auto_restart: bool,
+        code: SidevmCode,
+        ensure_waiting_code: bool,
     ) -> Result<()> {
-        if let Some(info) = &self.sidevm_info {
-            if let SidevmHandle::Running(_) = &*info.handle.lock().unwrap() {
-                bail!("Sidevm can only be started once");
-            }
+        let handle = self.sidevm_handle();
+        if let Some(SidevmHandle::Running(_)) = &handle {
+            bail!("Sidevm can only be started once");
         }
-        let handle = do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?;
 
-        let code_hash = sp_core::blake2_256(&code).into();
+        let (code, code_hash) = match code {
+            SidevmCode::Hash(hash) => (vec![], hash),
+            SidevmCode::Code(code) => {
+                let actual_hash = sp_core::blake2_256(&code).into();
+                if ensure_waiting_code {
+                    if !matches!(
+                        &handle,
+                        Some(SidevmHandle::Stopped(ExitReason::WaitingForCode))
+                    ) {
+                        bail!("The sidevm isn't waiting for code");
+                    }
+                    let expected_hash = self
+                        .sidevm_info
+                        .as_ref()
+                        .ok_or(anyhow!("No sidevm info"))?
+                        .code_hash;
+                    if actual_hash != expected_hash {
+                        bail!(
+                            "Code hash mismatch, expected: {expected_hash:?}, actual: {actual_hash:?}"
+                        );
+                    }
+                }
+                (code, actual_hash)
+            }
+        };
+
+        let handle = if code.is_empty() {
+            Arc::new(Mutex::new(SidevmHandle::Stopped(
+                ExitReason::WaitingForCode,
+            )))
+        } else {
+            do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?
+        };
+
         let start_time = chrono::Utc::now().to_rfc3339();
         self.sidevm_info = Some(SidevmInfo {
             code,
             code_hash,
             start_time,
             handle,
-            auto_restart,
+            auto_restart: true,
         });
         Ok(())
     }
@@ -260,7 +296,7 @@ impl FatContract {
     ) -> Result<()> {
         if let Some(sidevm_info) = &mut self.sidevm_info {
             let guard = sidevm_info.handle.lock().unwrap();
-            let handle = if let SidevmHandle::Terminated(reason) = &*guard {
+            let handle = if let SidevmHandle::Stopped(reason) = &*guard {
                 let need_restart = match reason {
                     ExitReason::Exited(_) => false,
                     ExitReason::Stopped => false,
@@ -272,6 +308,7 @@ impl FatContract {
                     ExitReason::OcallAborted(OcallAborted::GasExhausted) => false,
                     ExitReason::OcallAborted(OcallAborted::Stifled) => true,
                     ExitReason::Restore => true,
+                    ExitReason::WaitingForCode => false,
                 };
                 if !need_restart {
                     return Ok(());
@@ -298,7 +335,7 @@ impl FatContract {
         let vmid = sidevm::ShortId(&self.contract_id.0);
 
         let tx = match &*handle.lock().unwrap() {
-            SidevmHandle::Terminated(_) => {
+            SidevmHandle::Stopped(_) => {
                 error!(target: "sidevm", "[{vmid}] PM to sidevm failed, instance terminated");
                 return Err(anyhow!(
                     "Push message to sidevm failed, instance terminated"
@@ -324,7 +361,7 @@ impl FatContract {
     pub(crate) fn get_system_message_handler(&self) -> Option<CommandSender> {
         let guard = self.sidevm_info.as_ref()?.handle.lock().unwrap();
         match &*guard {
-            SidevmHandle::Terminated(_) => None,
+            SidevmHandle::Stopped(_) => None,
             SidevmHandle::Running(tx) => Some(tx.clone()),
         }
     }
@@ -332,7 +369,7 @@ impl FatContract {
     pub(crate) fn destroy(self, spawner: &sidevm::service::Spawner) {
         if let Some(sidevm_info) = &self.sidevm_info {
             match sidevm_info.handle.lock().unwrap().clone() {
-                SidevmHandle::Terminated(_) => {}
+                SidevmHandle::Stopped(_) => {}
                 SidevmHandle::Running(tx) => {
                     spawner.spawn(async move {
                         if let Err(err) = tx.send(SidevmCommand::Stop).await {
@@ -373,7 +410,7 @@ impl FatContract {
                         start_time,
                         ..Default::default()
                     },
-                    SidevmHandle::Terminated(reason) => pb::SidevmInfo {
+                    SidevmHandle::Stopped(reason) => pb::SidevmInfo {
                         state: "stopped".into(),
                         code_hash,
                         start_time,
@@ -410,7 +447,7 @@ fn do_start_sidevm(
         let vmid = sidevm::ShortId(&id);
         let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
         error!(target: "sidevm", "[{vmid}] Sidevm process terminated with reason: {:?}", reason);
-        *cloned_handle.lock().unwrap() = SidevmHandle::Terminated(reason);
+        *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
     });
     Ok(handle)
 }

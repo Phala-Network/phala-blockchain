@@ -184,6 +184,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         HttpFetch => 100.mebibytes(),
         GetContractInfo => 100.kibibytes(),
         GetClusterInfo => 1.kibibytes(),
+        UploadSidevmCode => 32.mebibytes(),
     }
 }
 
@@ -227,6 +228,7 @@ async fn prpc_proxy_acl(method: String, data: Data<'_>, limits: &Limits) -> Cust
         "PhactoryAPI.GetInfo",
         "PhactoryAPI.GetContractInfo",
         "PhactoryAPI.GetClusterInfo",
+        "PhactoryAPI.UploadSidevmCode",
     ];
     if !permitted_method.contains(&&method[..]) {
         error!("prpc_acl: access denied");

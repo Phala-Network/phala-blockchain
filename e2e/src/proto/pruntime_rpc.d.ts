@@ -357,6 +357,20 @@ export namespace pruntime_rpc {
          * @returns Promise
          */
         public getClusterInfo(request: google.protobuf.IEmpty): Promise<pruntime_rpc.GetClusterInfoResponse>;
+
+        /**
+         * Calls UploadSidevmCode.
+         * @param request SidevmCode message or plain object
+         * @param callback Node-style callback called with the error, if any, and Empty
+         */
+        public uploadSidevmCode(request: pruntime_rpc.ISidevmCode, callback: pruntime_rpc.PhactoryAPI.UploadSidevmCodeCallback): void;
+
+        /**
+         * Calls UploadSidevmCode.
+         * @param request SidevmCode message or plain object
+         * @returns Promise
+         */
+        public uploadSidevmCode(request: pruntime_rpc.ISidevmCode): Promise<google.protobuf.Empty>;
     }
 
     namespace PhactoryAPI {
@@ -528,6 +542,13 @@ export namespace pruntime_rpc {
          * @param [response] GetClusterInfoResponse
          */
         type GetClusterInfoCallback = (error: (Error|null), response?: pruntime_rpc.GetClusterInfoResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#uploadSidevmCode}.
+         * @param error Error, if any
+         * @param [response] Empty
+         */
+        type UploadSidevmCodeCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -5364,6 +5385,102 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this ClusterInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a SidevmCode. */
+    interface ISidevmCode {
+
+        /** SidevmCode contract */
+        contract?: (Uint8Array|null);
+
+        /** SidevmCode code */
+        code?: (Uint8Array|null);
+    }
+
+    /** Represents a SidevmCode. */
+    class SidevmCode implements ISidevmCode {
+
+        /**
+         * Constructs a new SidevmCode.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ISidevmCode);
+
+        /** SidevmCode contract. */
+        public contract: Uint8Array;
+
+        /** SidevmCode code. */
+        public code: Uint8Array;
+
+        /**
+         * Creates a new SidevmCode instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SidevmCode instance
+         */
+        public static create(properties?: pruntime_rpc.ISidevmCode): pruntime_rpc.SidevmCode;
+
+        /**
+         * Encodes the specified SidevmCode message. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @param message SidevmCode message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ISidevmCode, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SidevmCode message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @param message SidevmCode message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ISidevmCode, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.SidevmCode;
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.SidevmCode;
+
+        /**
+         * Verifies a SidevmCode message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SidevmCode message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SidevmCode
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.SidevmCode;
+
+        /**
+         * Creates a plain object from a SidevmCode message. Also converts values to other types if specified.
+         * @param message SidevmCode
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.SidevmCode, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SidevmCode to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };

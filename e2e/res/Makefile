@@ -13,5 +13,5 @@ $(SYSTEM_CONTRACT_BIN):
 	cd "${SYSTEM_CONTRACT_DIR}" && cargo contract build --release
 
 ${CHECK_SYSTEM_BIN}:
-	cd check_system && cargo contract build --release
+	make -C check_system
 

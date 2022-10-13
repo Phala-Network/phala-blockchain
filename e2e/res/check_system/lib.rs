@@ -41,6 +41,16 @@ mod check_system {
             }
             self.on_block_end_called = true
         }
+
+        #[ink(message)]
+        pub fn start_sidevm(&self) -> bool {
+            let hash = *include_bytes!("./sideprog.wasm.hash");
+            let system = pink::system::SystemRef::instance();
+            system
+                .deploy_sidevm_to(self.env().account_id(), hash)
+                .expect("Failed to deploy sidevm");
+            true
+        }
     }
 
     impl ContractDeposit for CheckSystem {

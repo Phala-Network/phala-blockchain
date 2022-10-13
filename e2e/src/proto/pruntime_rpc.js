@@ -842,6 +842,39 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#uploadSidevmCode}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef UploadSidevmCodeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls UploadSidevmCode.
+         * @function uploadSidevmCode
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISidevmCode} request SidevmCode message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.UploadSidevmCodeCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.uploadSidevmCode = function uploadSidevmCode(request, callback) {
+            return this.rpcCall(uploadSidevmCode, $root.pruntime_rpc.SidevmCode, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "UploadSidevmCode" });
+
+        /**
+         * Calls UploadSidevmCode.
+         * @function uploadSidevmCode
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISidevmCode} request SidevmCode message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -12904,6 +12937,234 @@ $root.pruntime_rpc = (function() {
         };
 
         return ClusterInfo;
+    })();
+
+    pruntime_rpc.SidevmCode = (function() {
+
+        /**
+         * Properties of a SidevmCode.
+         * @memberof pruntime_rpc
+         * @interface ISidevmCode
+         * @property {Uint8Array|null} [contract] SidevmCode contract
+         * @property {Uint8Array|null} [code] SidevmCode code
+         */
+
+        /**
+         * Constructs a new SidevmCode.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SidevmCode.
+         * @implements ISidevmCode
+         * @constructor
+         * @param {pruntime_rpc.ISidevmCode=} [properties] Properties to set
+         */
+        function SidevmCode(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SidevmCode contract.
+         * @member {Uint8Array} contract
+         * @memberof pruntime_rpc.SidevmCode
+         * @instance
+         */
+        SidevmCode.prototype.contract = $util.newBuffer([]);
+
+        /**
+         * SidevmCode code.
+         * @member {Uint8Array} code
+         * @memberof pruntime_rpc.SidevmCode
+         * @instance
+         */
+        SidevmCode.prototype.code = $util.newBuffer([]);
+
+        /**
+         * Creates a new SidevmCode instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.ISidevmCode=} [properties] Properties to set
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode instance
+         */
+        SidevmCode.create = function create(properties) {
+            return new SidevmCode(properties);
+        };
+
+        /**
+         * Encodes the specified SidevmCode message. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.ISidevmCode} message SidevmCode message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmCode.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.contract != null && Object.hasOwnProperty.call(message, "contract"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.contract);
+            if (message.code != null && Object.hasOwnProperty.call(message, "code"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.code);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SidevmCode message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.ISidevmCode} message SidevmCode message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmCode.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmCode.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmCode();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.contract = reader.bytes();
+                    break;
+                case 2:
+                    message.code = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmCode.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SidevmCode message.
+         * @function verify
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SidevmCode.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.contract != null && message.hasOwnProperty("contract"))
+                if (!(message.contract && typeof message.contract.length === "number" || $util.isString(message.contract)))
+                    return "contract: buffer expected";
+            if (message.code != null && message.hasOwnProperty("code"))
+                if (!(message.code && typeof message.code.length === "number" || $util.isString(message.code)))
+                    return "code: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a SidevmCode message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode
+         */
+        SidevmCode.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SidevmCode)
+                return object;
+            var message = new $root.pruntime_rpc.SidevmCode();
+            if (object.contract != null)
+                if (typeof object.contract === "string")
+                    $util.base64.decode(object.contract, message.contract = $util.newBuffer($util.base64.length(object.contract)), 0);
+                else if (object.contract.length)
+                    message.contract = object.contract;
+            if (object.code != null)
+                if (typeof object.code === "string")
+                    $util.base64.decode(object.code, message.code = $util.newBuffer($util.base64.length(object.code)), 0);
+                else if (object.code.length)
+                    message.code = object.code;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SidevmCode message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.SidevmCode} message SidevmCode
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SidevmCode.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.contract = "";
+                else {
+                    object.contract = [];
+                    if (options.bytes !== Array)
+                        object.contract = $util.newBuffer(object.contract);
+                }
+                if (options.bytes === String)
+                    object.code = "";
+                else {
+                    object.code = [];
+                    if (options.bytes !== Array)
+                        object.code = $util.newBuffer(object.code);
+                }
+            }
+            if (message.contract != null && message.hasOwnProperty("contract"))
+                object.contract = options.bytes === String ? $util.base64.encode(message.contract, 0, message.contract.length) : options.bytes === Array ? Array.prototype.slice.call(message.contract) : message.contract;
+            if (message.code != null && message.hasOwnProperty("code"))
+                object.code = options.bytes === String ? $util.base64.encode(message.code, 0, message.code.length) : options.bytes === Array ? Array.prototype.slice.call(message.code) : message.code;
+            return object;
+        };
+
+        /**
+         * Converts this SidevmCode to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SidevmCode
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SidevmCode.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return SidevmCode;
     })();
 
     return pruntime_rpc;
