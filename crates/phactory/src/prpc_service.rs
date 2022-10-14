@@ -121,7 +121,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             score,
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
-            running_side_tasks: self.side_task_man.tasks_count() as _,
             memory_usage: Some(pb::MemoryUsage {
                 rust_used: m_usage.rust_used as _,
                 rust_peak_used: m_usage.rust_peak_used as _,
@@ -241,7 +240,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             info!("State synced");
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
-            self.poll_side_tasks(block.block_header.number)?;
             if block
                 .block_header
                 .number
@@ -397,8 +395,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.dev_mode,
             self.args.sealing_path.clone(),
             self.args.storage_path.clone(),
-            false,
-            self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
             rt_data.trusted_sk,
@@ -619,7 +615,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             storage: &state.chain_storage,
             send_mq: &state.send_mq,
             recv_mq: &mut state.recv_mq,
-            side_task_man: &mut self.side_task_man,
         };
 
         system.will_process_block(&mut block);
@@ -675,20 +670,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         );
         benchmark::set_flag(Flags::SYNCING, syncing);
 
-        Ok(())
-    }
-
-    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
-        let state = self
-            .runtime_state
-            .as_ref()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let context = side_task::PollContext {
-            block_number,
-            send_mq: &state.send_mq,
-            storage: &state.chain_storage,
-        };
-        self.side_task_man.poll(&context);
         Ok(())
     }
 

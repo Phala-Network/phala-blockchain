@@ -37,10 +37,6 @@ enum Cli {
         #[clap(short)]
         hex_data: String,
     },
-    DecodeBridgeLotteryMessage {
-        #[clap(short)]
-        hex_data: String,
-    },
     DecodeMqPayload {
         destination: String,
         hex_data: String,
@@ -143,21 +139,6 @@ async fn main() {
         Cli::DecodeSignedMessage { hex_data } => {
             use phala_types::messaging::SignedMessage;
             decode_hex_print::<SignedMessage>(&hex_data);
-        }
-        Cli::DecodeBridgeLotteryMessage { hex_data } => {
-            use phala_types::messaging::Lottery;
-            let lottery = decode_hex_print::<Lottery>(&hex_data);
-
-            match lottery {
-                Lottery::BtcAddresses { address_set } => {
-                    let addrs: Vec<_> = address_set
-                        .iter()
-                        .map(|raw_addr| std::str::from_utf8(&raw_addr).unwrap())
-                        .collect();
-                    println!("Lottery::BtcAddresses {:?}", addrs);
-                }
-                _ => {}
-            }
         }
         Cli::DecodeMqPayload {
             destination,

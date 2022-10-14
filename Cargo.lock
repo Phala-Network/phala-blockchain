@@ -5544,16 +5544,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "maxminddb"
-version = "0.17.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d13fa57adcc4f3aca91e511b3cdaa58ed8cbcbf97f20e342a11218c76e127f51"
-dependencies = [
- "log",
- "serde",
-]
-
-[[package]]
 name = "md-5"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7425,7 +7415,6 @@ dependencies = [
  "insta",
  "itertools",
  "log",
- "maxminddb",
  "num-bigint 0.4.3",
  "num-traits",
  "parity-scale-codec",

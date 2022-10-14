@@ -18,8 +18,6 @@ pub struct BlockInfo<'a> {
     /// The message queue
     pub send_mq: &'a phala_mq::MessageSendQueue,
     pub recv_mq: &'a mut phala_mq::MessageDispatcher,
-    /// The side-task manager.
-    pub side_task_man: &'a mut crate::side_task::SideTaskManager,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]

@@ -88,6 +88,3 @@ coverage/
 scripts/js/node_modules
 scripts/js/.env
 yarn-error.log
-
-# Geolite Database
-**/GeoLite2-City.mmdb
