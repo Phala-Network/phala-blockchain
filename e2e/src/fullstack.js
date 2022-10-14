@@ -20,7 +20,10 @@ const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
 
 const pRuntimeBin = "pruntime";
-const pathPRuntime = path.resolve(`../standalone/pruntime/bin/${pRuntimeBin}`);
+const pRuntimeDir = path.resolve(`../standalone/pruntime/bin`);
+const pathPRuntime = path.resolve(`${pRuntimeDir}/${pRuntimeBin}`);
+const inSgx = process.env.E2E_IN_SGX == '1';
+const sgxLoader = "gramine-sgx";
 
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
@@ -1149,8 +1152,8 @@ class Cluster {
 
         await Promise.all([
             ...cluster.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
-            waitRelayerOutput(cluster.relayer.processRelayer)
         ]);
+        await waitRelayerOutput(cluster.relayer.processRelayer);
 
         cluster.workers.forEach(w => {
             w.api = new PRuntimeApi(`http://localhost:${w.port}`);
@@ -1241,25 +1244,35 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
-        fs.mkdirSync(workDir);
-        fs.mkdirSync(sealDir);
-        const filesMustCopy = ['Rocket.toml', pRuntimeBin];
-        const filesShouldCopy = ['GeoLite2-City.mmdb']
-        filesMustCopy.forEach(f =>
-            fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
-        );
-        filesShouldCopy.forEach(f => {
-            if (fs.existsSync(`${path.dirname(pathPRuntime)}/${f}`)) {
-                fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
-            }
-        });
+        if (inSgx) {
+            fs.cpSync(pRuntimeDir, workDir, { recursive: true })
+            fs.mkdirSync(path.resolve(`${sealDir}/protected_files/`), { recursive: true });
+            fs.mkdirSync(path.resolve(`${sealDir}/storage_files/`), { recursive: true });
+        } else {
+            fs.mkdirSync(sealDir, { recursive: true });
+            const filesMustCopy = ['Rocket.toml', pRuntimeBin];
+            const filesShouldCopy = ['GeoLite2-City.mmdb']
+            filesMustCopy.forEach(f =>
+                fs.copyFileSync(`${pRuntimeDir}/${f}`, `${workDir}/${f}`)
+            );
+            filesShouldCopy.forEach(f => {
+                if (fs.existsSync(`${pRuntimeDir}/${f}`)) {
+                    fs.copyFileSync(`${pRuntimeDir}/${f}`, `${workDir}/${f}`)
+                }
+            });
+        }
     }
     const args = [
         '--cores=0',  // Disable benchmark
         '--port', teePort.toString()
     ];
+    let bin = pRuntimeBin;
+    if (inSgx) {
+        bin = sgxLoader;
+        args.splice(0, 0, pRuntimeBin);
+    }
     return new Process([
-        `${workDir}/${pRuntimeBin}`, args, {
+        `${workDir}/${bin}`, args, {
             cwd: workDir,
             env: {
                 ...process.env,
