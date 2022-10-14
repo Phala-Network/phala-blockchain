@@ -6,8 +6,6 @@
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
@@ -20,7 +18,8 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
 
@@ -33,10 +32,13 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
-use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
-use phactory_api::ecall_args::{git_revision, InitArgs};
-use phactory_api::prpc::InitRuntimeResponse;
-use phactory_api::storage_sync::{StorageSynchronizer, Synchronizer};
+use phactory_api::{
+    blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
+    ecall_args::{git_revision, InitArgs},
+    endpoints::EndpointType,
+    prpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    storage_sync::{StorageSynchronizer, Synchronizer},
+};
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
@@ -44,20 +46,20 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
+use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
-use phala_types::WorkerRegistrationInfo;
 use std::time::Instant;
 use types::Error;
 
+pub use chain::BlockNumber;
 pub use contracts::pink;
-pub use prpc_service::dispatch_prpc_request;
+pub use prpc_service::RpcService;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
-pub use chain::BlockNumber;
 
 pub mod benchmark;
 
@@ -191,7 +193,15 @@ struct PersistentRuntimeData {
     dev_mode: bool,
 }
 
-impl PersistentRuntimeData {
+#[derive(Encode, Decode, Clone, Debug)]
+struct PersistentRuntimeDataV2 {
+    genesis_block_hash: H256,
+    sk: Sr25519SecretKey,
+    trusted_sk: bool,
+    dev_mode: bool,
+}
+
+impl PersistentRuntimeDataV2 {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
         let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
@@ -209,6 +219,7 @@ impl PersistentRuntimeData {
 #[derive(Encode, Decode, Clone, Debug)]
 enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
+    V2(PersistentRuntimeDataV2),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -222,9 +233,16 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
+    endpoints: BTreeMap<EndpointType, String>,
+    #[serde(skip)]
+    signed_endpoints: Option<GetEndpointResponse>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
+
+    // tmp key for WorkerKey handover encryption
+    #[serde(skip)]
+    pub(crate) handover_ecdh_key: Option<EcdhKey>,
 
     #[serde(skip)]
     #[serde(default = "Instant::now")]
@@ -232,6 +250,19 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default)]
     last_storage_purge_at: chain::BlockNumber,
+    #[serde(skip)]
+    #[serde(default = "default_query_scheduler")]
+    query_scheduler: RequestScheduler<ContractId>,
+
+    #[serde(default)]
+    netconfig: Option<NetworkConfig>,
+}
+
+fn default_query_scheduler() -> RequestScheduler<ContractId> {
+    const FAIR_QUEUE_BACKLOG: usize = 32;
+    const FAIR_QUEUE_THREADS: u32 = 8;
+
+    RequestScheduler::new(FAIR_QUEUE_BACKLOG, FAIR_QUEUE_THREADS)
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -246,9 +277,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
+            endpoints: Default::default(),
+            signed_endpoints: None,
             side_task_man: Default::default(),
+            handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
+            query_scheduler: default_query_scheduler(),
+            netconfig: Default::default(),
         }
     }
 
@@ -272,6 +308,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.args = args;
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
+            system.storage_path = self.args.storage_path.clone();
             system.geoip_city_db = self.args.geoip_city_db.clone();
         }
     }
@@ -280,16 +317,16 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         &self,
         genesis_block_hash: H256,
         predefined_identity_key: Option<sr25519::Pair>,
-    ) -> Result<PersistentRuntimeData> {
+    ) -> Result<PersistentRuntimeDataV2> {
         let data = if let Some(identity_sk) = predefined_identity_key {
-            self.save_runtime_data(genesis_block_hash, identity_sk, true)?
+            self.save_runtime_data(genesis_block_hash, identity_sk, false, true)?
         } else {
             match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
-                    self.save_runtime_data(genesis_block_hash, identity_sk, false)?
+                    self.save_runtime_data(genesis_block_hash, identity_sk, true, false)?
                 }
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
@@ -311,18 +348,20 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         &self,
         genesis_block_hash: H256,
         sr25519_sk: sr25519::Pair,
+        trusted_sk: bool,
         dev_mode: bool,
-    ) -> Result<PersistentRuntimeData> {
+    ) -> Result<PersistentRuntimeDataV2> {
         // Put in PresistentRuntimeData
         let sk = sr25519_sk.dump_secret_key();
 
-        let data = PersistentRuntimeData {
+        let data = PersistentRuntimeDataV2 {
             genesis_block_hash,
             sk,
+            trusted_sk,
             dev_mode,
         };
         {
-            let data = RuntimeDataSeal::V1(data.clone());
+            let data = RuntimeDataSeal::V2(data.clone());
             let encoded_vec = data.encode();
             info!("Length of encoded slice: {}", encoded_vec.len());
             let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
@@ -330,7 +369,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 .seal_data(filepath, &encoded_vec)
                 .map_err(Into::into)
                 .context("Failed to seal runtime data")?;
-            info!("Persistent Runtime Data saved");
+            info!("Persistent Runtime Data V2 saved");
         }
         Ok(data)
     }
@@ -338,7 +377,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn load_runtime_data(
         platform: &Platform,
         sealing_path: &str,
-    ) -> Result<PersistentRuntimeData, Error> {
+    ) -> Result<PersistentRuntimeDataV2, Error> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
@@ -346,14 +385,45 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
-            RuntimeDataSeal::V1(data) => Ok(data),
+            RuntimeDataSeal::V1(data) => {
+                Ok(PersistentRuntimeDataV2 {
+                    genesis_block_hash: data.genesis_block_hash,
+                    sk: data.sk,
+                    // key injection is impossible for legacy persistent data
+                    trusted_sk: true,
+                    dev_mode: data.dev_mode,
+                })
+            }
+            RuntimeDataSeal::V2(data) => Ok(data),
         }
+    }
+
+    pub fn set_netconfig(&mut self, config: NetworkConfig) {
+        self.netconfig = Some(config);
+        self.reconfigure_network();
+    }
+
+    fn reconfigure_network(&self) {
+        let config = match &self.netconfig {
+            None => return,
+            Some(config) => config,
+        };
+        fn reconfig_one(name: &str, value: &str) {
+            if value.is_empty() {
+                std::env::remove_var(name);
+            } else {
+                std::env::set_var(name, value);
+            }
+        }
+        reconfig_one("all_proxy", &config.all_proxy);
+        reconfig_one("i2p_proxy", &config.i2p_proxy);
     }
 }
 
 impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
+        self.reconfigure_network();
         if let Some(system) = &mut self.system {
             system.on_restored()?;
         }
@@ -363,29 +433,21 @@ impl<P: pal::Platform> Phactory<P> {
 
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     pub fn take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
-        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
-            key.dump_secret_key().to_vec()
-        } else {
-            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
-        };
-
+        let key = self
+            .system
+            .as_ref()
+            .context("Take checkpoint failed, runtime is not ready")?
+            .identity_key
+            .dump_secret_key();
         info!("Taking checkpoint...");
-        let checkpoint_file = checkpoint_filename_for(current_block, &self.args.sealing_path);
-        {
-            // Do serialization
-            let file = self
-                .platform
-                .create_protected_file(&checkpoint_file, &key)
-                .map_err(|err| anyhow!("{:?}", err))
-                .context("Failed to create protected file")?;
-
-            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))
-                .context("Failed to write checkpoint")?;
-        }
+        let checkpoint_file = checkpoint_filename_for(current_block, &self.args.storage_path);
+        let file = File::create(&checkpoint_file).context("Failed to create checkpoint file")?;
+        self.take_checkpoint_to_writer(&key, file)
+            .context("Take checkpoint to writer failed")?;
         info!("Checkpoint saved to {}", checkpoint_file);
         self.last_checkpoint = Instant::now();
         remove_outdated_checkpoints(
-            &self.args.sealing_path,
+            &self.args.storage_path,
             self.args.max_checkpoint_files,
             current_block,
         )?;
@@ -394,13 +456,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub fn take_checkpoint_to_writer<W: std::io::Write>(
         &mut self,
+        key: &[u8],
         writer: W,
     ) -> anyhow::Result<()> {
-        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
-            key.dump_secret_key().to_vec()
-        } else {
-            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
-        };
         let key128 = derive_key_for_checkpoint(&key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
@@ -415,22 +473,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
+        storage_path: &str,
         remove_corrupted_checkpoint: bool,
+        n_workers: usize,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
             other => other.context("Failed to load persistent data")?,
         };
         let files =
-            glob_checkpoint_files_sorted(sealing_path).context("Glob checkpoint files failed")?;
+            glob_checkpoint_files_sorted(storage_path).context("Glob checkpoint files failed")?;
         if files.is_empty() {
             return Ok(None);
         }
         let (_block, ckpt_filename) = &files[0];
 
-        let file = match platform.open_protected_file(&ckpt_filename, &runtime_data.sk) {
-            Ok(Some(file)) => file,
-            Ok(None) => {
+        let file = match File::open(&ckpt_filename) {
+            Ok(file) => file,
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => {
                 // This should never happen unless it was removed just after the glob.
                 anyhow::bail!("Checkpoint file {:?} is not found", ckpt_filename);
             }
@@ -452,8 +512,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        let loader: PhactoryLoader<_> = match serde_cbor::de::from_reader(file) {
-            Ok(loader) => loader,
+        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers) {
+            Ok(state) => {
+                info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
+                Ok(Some(state))
+            }
             Err(_err /*Don't leak it into the log*/) => {
                 error!("Failed to load checkpoint file {:?}", ckpt_filename);
                 if remove_corrupted_checkpoint {
@@ -463,19 +526,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 }
                 anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
             }
-        };
-        info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
-        return Ok(Some(loader.0));
+        }
     }
 
     pub fn restore_from_checkpoint_reader<R: std::io::Read>(
-        platform: &Platform,
-        sealing_path: &str,
+        key: &[u8],
         reader: R,
+        n_workers: usize,
     ) -> anyhow::Result<Self> {
-        let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
-        let key128 = derive_key_for_checkpoint(&runtime_data.sk);
+        let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
+        system::sidevm_config(n_workers);
         let loader: PhactoryLoader<_> =
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
         Ok(loader.0)
@@ -553,7 +614,9 @@ impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Pl
     }
 }
 struct PhactoryLoader<Platform>(Phactory<Platform>);
-impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de> for PhactoryLoader<Platform> {
+impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'de>
+    for PhactoryLoader<Platform>
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let mut factory = Phactory::load_state(deserializer)?;
         factory
@@ -578,7 +641,6 @@ fn generate_random_iv() -> aead::IV {
     nonce_vec
 }
 
-#[allow(dead_code)]
 fn generate_random_info() -> [u8; 32] {
     let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();
@@ -598,4 +660,8 @@ fn error_msg(msg: &str) -> Value {
 
 fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
     sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
+}
+
+fn hex(data: impl AsRef<[u8]>) -> String {
+    format!("0x{}", hex_fmt::HexFmt(data))
 }

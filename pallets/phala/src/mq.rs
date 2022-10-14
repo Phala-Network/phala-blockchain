@@ -12,6 +12,8 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 
+	use phala_types::contract::{command_topic, InkCommand};
+	use phala_types::messaging::ContractId;
 	use phala_types::messaging::{
 		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage,
 	};
@@ -60,7 +62,7 @@ pub mod pallet {
 		T::AccountId: IntoH256,
 	{
 		/// Syncs an unverified offchain message to the message queue
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn sync_offchain_message(
 			origin: OriginFor<T>,
 			signed_message: SignedMessage,
@@ -94,7 +96,7 @@ pub mod pallet {
 
 		// Messaging API for end user.
 		// TODO.kevin: confirm the weight
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn push_message(
 			origin: OriginFor<T>,
 			destination: Vec<u8>,
@@ -108,7 +110,7 @@ pub mod pallet {
 		}
 
 		// Force push a from-pallet message.
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_push_pallet_message(
 			origin: OriginFor<T>,
 			destination: Vec<u8>,
@@ -125,7 +127,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Push a validated message to the queue
 		pub fn dispatch_message(message: Message) {
-			// Notify subcribers
+			// Notify subscribers
 			if let Err(_err) = T::QueueNotifyConfig::on_message_received(&message) {
 				// TODO: Consider to emit a message as warning. We can't stop dispatching message in any situation.
 			}
@@ -170,7 +172,8 @@ pub mod pallet {
 					Self::dispatch_message(message);
 				}
 			}
-			0
+
+			Weight::zero()
 		}
 	}
 
@@ -187,9 +190,9 @@ pub mod pallet {
 	}
 	impl QueueNotifyConfig for () {}
 
-	/// Needs an extrenal helper struct to extract MqCall from all callables
+	/// Needs an external helper struct to extract MqCall from all callables
 	pub trait CallMatcher<T: Config> {
-		fn match_call(call: &T::Call) -> Option<&Call<T>>
+		fn match_call(call: &T::RuntimeCall) -> Option<&Call<T>>
 		where
 			<T as frame_system::Config>::AccountId: IntoH256;
 	}
@@ -238,10 +241,39 @@ pub mod pallet {
 		}
 
 		fn push_command<Cmd: ContractCommand + Encode>(command: Cmd) {
-			use phala_types::contract::command_topic;
 			let topic = command_topic(Cmd::contract_id());
 			let message = CommandPayload::Plain(command);
 			Self::push_message_to(topic, message);
+		}
+
+		/// Push an ink message to a contract running in pRuntime.
+		///
+		/// The message is scale encoded selector + args
+		///
+		/// # Example
+		///
+		/// Given the following contract method signature:
+		/// ```ignore
+		/// #[ink(message)]
+		/// fn foo(a: u32, b: u32);
+		/// ```
+		///
+		/// Suppose it's selector is `0xdeadbeaf`. Then we can invoke this method by:
+		///
+		/// ```ignore
+		/// let a = 1_u32;
+		/// let b = 2_u32;
+		/// let selector: [u8; 4] = hex_literal::hex!("deadbeaf");
+		/// let payload = (selector, a, b).encode();
+		/// Self::push_ink_message(account_id, payload);
+		/// ```
+		fn push_ink_message(contract_id: ContractId, message: Vec<u8>) {
+			let topic = command_topic(contract_id);
+			let command = CommandPayload::Plain(InkCommand::InkMessage {
+				nonce: Default::default(),
+				message,
+			});
+			Self::push_message_to(topic, command);
 		}
 
 		/// Enqueues a message to push in the beginning of the next block

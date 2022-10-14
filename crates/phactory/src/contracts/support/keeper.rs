@@ -1,13 +1,11 @@
+use pink::runtime::ExecSideEffects;
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 use std::collections::BTreeMap;
 
 use crate::{
-    contracts::{
-        assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
-        geolocation::Geolocation, guess_number::GuessNumber, pink::Pink, FatContract,
-        NativeContext, NativeContract as _, TransactionError, TransactionResult,
-    },
+    contracts::{pink::Pink, FatContract, TransactionContext},
+    system::{TransactionError, TransactionResult},
     types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use parity_scale_codec::{Decode, Encode};
@@ -29,7 +27,7 @@ macro_rules! define_any_native_contract {
                 &mut self,
                 origin: MessageOrigin,
                 cmd: Vec<u8>,
-                context: &mut NativeContext,
+                context: &mut TransactionContext,
             ) -> TransactionResult {
                 match self {
                     $(Self::$contract(me) => {
@@ -39,7 +37,7 @@ macro_rules! define_any_native_contract {
                 }
             }
 
-            pub(crate) fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
+            pub(crate) fn on_block_end(&mut self, context: &mut TransactionContext) -> TransactionResult {
                 match self {
                     $(Self::$contract(me) => {
                         me.on_block_end(context)
@@ -55,16 +53,17 @@ macro_rules! define_any_native_contract {
                 }
             }
 
-            pub(crate) fn handle_query(
+            pub(crate) async fn handle_query(
                 &self,
                 origin: Option<&runtime::AccountId>,
                 req: OpaqueQuery,
                 context: &mut QueryContext,
-            ) -> Result<OpaqueReply, OpaqueError> {
+            ) -> Result<(OpaqueReply, ExecSideEffects), OpaqueError> {
                 match self {
                     $($name::$contract(me) => {
-                        let response = me.handle_query(origin, deopaque_query(req)?, context);
-                        Ok(response.encode())
+                        let mut effects = ExecSideEffects::default();
+                        let response = me.handle_query(origin, deopaque_query(&req)?, context, &mut effects).await;
+                        Ok((response.encode(), effects))
                     })*
                 }
             }
@@ -83,12 +82,6 @@ macro_rules! define_any_native_contract {
 define_any_native_contract!(
     pub enum AnyContract {
         Pink(Pink),
-        Balances(Balances),
-        Assets(Assets),
-        BtcLottery(BtcLottery),
-        Geolocation(Geolocation),
-        GuessNumber(GuessNumber),
-        BtcPriceBot(BtcPriceBot),
     }
 );
 
@@ -112,11 +105,6 @@ impl ContractsKeeper {
         self.0.get(id)
     }
 
-    #[cfg(test)]
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut FatContract> {
-        self.0.values_mut()
-    }
-
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -127,5 +115,13 @@ impl ContractsKeeper {
                 error!("Failed to restart sidevm instance: {:?}", err);
             }
         }
+    }
+
+    pub fn remove(&mut self, id: &ContractId) -> Option<FatContract> {
+        self.0.remove(id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item=(&ContractId, &FatContract)> {
+        self.0.iter()
     }
 }

@@ -46,7 +46,7 @@ pub mod pallet {
 	pub enum MinerState {
 		Ready,
 		MiningIdle,
-		MiningActive,
+		_Unused,
 		MiningUnresponsive,
 		MiningCoolingDown,
 	}
@@ -67,7 +67,7 @@ pub mod pallet {
 			// we still have to make sure the slashed V is periodically updated on the blockchain.
 			matches!(
 				self,
-				MinerState::MiningIdle | MinerState::MiningActive | MinerState::MiningUnresponsive
+				MinerState::MiningIdle | MinerState::MiningUnresponsive
 			)
 		}
 		fn is_mining(&self) -> bool {
@@ -191,7 +191,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + mq::Config + registry::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type ExpectedBlockTimeSec: Get<u32>;
 		type MinInitP: Get<u32>;
 
@@ -204,7 +204,7 @@ pub mod pallet {
 		// Let the StakePool to take over the slash events.
 
 		/// The origin to update tokenomic.
-		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
+		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -288,7 +288,11 @@ pub mod pallet {
 		/// - [`NextSessionId`] for the miner is incremented
 		/// - [`Stakes`] for the miner is updated
 		/// - [`OnlineMiners`] is incremented
-		MinerStarted { miner: T::AccountId },
+		MinerStarted { 
+			miner: T::AccountId,
+			init_v: u128,
+			init_p: u32,
+		},
 		/// Miner stops mining.
 		///
 		/// Affected states:
@@ -363,6 +367,11 @@ pub mod pallet {
 			v: u128,
 			payout: u128,
 		},
+		/// Benchmark Updated
+		BenchmarkUpdated {
+			miner: T::AccountId,
+			p_instant: u32,
+		}
 	}
 
 	#[pallet::error]
@@ -564,6 +573,11 @@ pub mod pallet {
 						iterations,
 						challenge_time,
 						..
+					} |
+					MiningReportEvent::HeartbeatV2 {
+						iterations,
+						challenge_time,
+						..
 					} => {
 						// Handle with great care!
 						//
@@ -586,6 +600,10 @@ pub mod pallet {
 							.benchmark
 							.update(now, iterations, challenge_time_sec)
 							.expect("Benchmark report must be valid; qed.");
+						Self::deposit_event(Event::<T>::BenchmarkUpdated { 
+							miner: miner.clone(),
+							p_instant: miner_info.benchmark.p_instant,
+						});
 						Miners::<T>::insert(&miner, miner_info);
 					}
 				};
@@ -612,6 +630,7 @@ pub mod pallet {
 							Some(miner) => miner,
 							None => continue, // Skip non-existing miners
 						};
+						// The MiningActive is removed, is this logic need to be changed?
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -633,6 +652,7 @@ pub mod pallet {
 							Some(miner) => miner,
 							None => continue, // Skip non-existing miners
 						};
+						// The MiningActive is removed, is this logic need to be changed?
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -886,14 +906,18 @@ pub mod pallet {
 					init_p: p,
 				},
 			));
-			Self::deposit_event(Event::<T>::MinerStarted { miner });
+			Self::deposit_event(Event::<T>::MinerStarted { 
+				miner,
+				init_v: ve.to_bits(),
+				init_p: p,
+			 });
 			Ok(())
 		}
 
 		/// Stops mining, entering cool down state
 		///
 		/// Requires:
-		/// 1. The miner is in Idle, MiningActive, or MiningUnresponsive state
+		/// 1. The miner is in MiningIdle, or MiningUnresponsive state
 		pub fn stop_mining(miner: T::AccountId) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)?;
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
@@ -1118,6 +1142,7 @@ pub mod pallet {
 
 		use phala_types::messaging::TokenomicParameters as TokenomicParams;
 
+		#[allow(dead_code)]
 		pub fn initialize<T: Config>() -> Weight {
 			log::info!("phala_pallet::mining: initialize()");
 			let block_sec = 12;
@@ -1160,6 +1185,7 @@ pub mod pallet {
 			T::DbWeight::get().writes(2)
 		}
 
+		#[allow(dead_code)]
 		pub(crate) fn signal_phala_launch<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
@@ -1167,13 +1193,7 @@ pub mod pallet {
 			T::DbWeight::get().writes(1)
 		}
 
-		pub(crate) fn trigger_unresp_fix<T: Config>() -> Weight {
-			use crate::mq::pallet::MessageOriginInfo;
-			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::UnrespFix);
-			T::DbWeight::get().writes(1)
-		}
-
+		#[allow(dead_code)]
 		pub(crate) fn enable_phala_tokenomic<T: Config>() -> Weight
 		where
 			super::BalanceOf<T>: crate::balance_convert::FixedPointConvert,
@@ -1220,7 +1240,8 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
-			worker_pubkey, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
+			worker_pubkey,
+			BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{PhalaMining, PhalaRegistry, System};

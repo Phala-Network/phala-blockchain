@@ -13,8 +13,8 @@ use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phactory_api::blocks::BlockHeaderWithChanges;
-use phala_mq::MessageDispatcher;
 use phala_mq::Path as MqPath;
+use phala_mq::{MessageDispatcher, Sr25519Signer};
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
@@ -31,7 +31,7 @@ struct EventRecord {
     pubkey: WorkerPublicKey,
     block_number: BlockNumber,
     time_ms: u64,
-    event: gk::FinanceEvent,
+    event: gk::EconomicEvent,
     v: gk::FixedPoint,
     p: gk::FixedPoint,
 }
@@ -96,12 +96,6 @@ impl ReplayFactory {
             .mq_messages()
             .map_err(|_| "Can not get mq messages from storage")?;
 
-        self.recv_mq.reset_local_index();
-
-        for message in messages {
-            self.recv_mq.dispatch(message);
-        }
-
         let now_ms = self
             .storage
             .timestamp_now()
@@ -116,26 +110,30 @@ impl ReplayFactory {
             side_task_man: &mut SideTaskManager::default(),
         };
 
+        block.recv_mq.reset_local_index();
+
         let next_seq = &mut self.next_event_seq;
-
         let mut records = vec![];
+        let mut event_handler = |event: gk::EconomicEvent, state: &gk::WorkerInfo| {
+            let record = EventRecord {
+                sequence: *next_seq as _,
+                pubkey: state.pubkey().clone(),
+                block_number,
+                time_ms: now_ms,
+                event,
+                v: state.tokenomic_info().v,
+                p: state.tokenomic_info().p_instant,
+            };
+            records.push(record);
+            *next_seq += 1;
+        };
 
-        self.gk.process_messages_with_event_listener(
-            &mut block,
-            &mut |event: gk::FinanceEvent, state: &gk::WorkerInfo| {
-                let record = EventRecord {
-                    sequence: *next_seq as _,
-                    pubkey: state.pubkey().clone(),
-                    block_number,
-                    time_ms: now_ms,
-                    event,
-                    v: state.tokenomic_info().v,
-                    p: state.tokenomic_info().p_instant,
-                };
-                records.push(record);
-                *next_seq += 1;
-            },
-        );
+        self.gk.will_process_block(&block);
+        for message in messages {
+            block.recv_mq.dispatch(message);
+            self.gk.process_messages(&mut block, &mut event_handler);
+        }
+        self.gk.did_process_block(&block, &mut event_handler);
 
         if let Some(tx) = event_tx.as_ref() {
             for record in records {
@@ -185,6 +183,7 @@ impl ReplayFactory {
 struct ReplayMsgChannel;
 
 impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
+    type Signer = Sr25519Signer;
     fn push_data(&self, _data: Vec<u8>, _to: impl Into<MqPath>) {}
 }
 
@@ -192,10 +191,9 @@ pub async fn fetch_genesis_storage(
     api: &ParachainApi,
     pos: BlockNumber,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
-    let pos = subxt::BlockNumber::from(NumberOrHex::Number(pos.into()));
-    let hash = api.client.rpc().block_hash(Some(pos)).await?;
+    let pos = subxt::rpc::BlockNumber::from(NumberOrHex::Number(pos.into()));
+    let hash = api.rpc().block_hash(Some(pos)).await?;
     let response = api
-        .client
         .extra_rpc()
         .storage_pairs(StorageKey(vec![]), hash)
         .await?;
@@ -204,8 +202,8 @@ pub async fn fetch_genesis_storage(
 }
 
 async fn finalized_number(api: &ParachainApi) -> Result<BlockNumber> {
-    let hash = api.client.rpc().finalized_head().await?;
-    let header = api.client.rpc().header(Some(hash)).await?;
+    let hash = api.rpc().finalized_head().await?;
+    let header = api.rpc().header(Some(hash)).await?;
     Ok(header.ok_or(anyhow::anyhow!("Header not found"))?.number)
 }
 
@@ -216,7 +214,7 @@ async fn wait_for_block(
 ) -> Result<()> {
     loop {
         let finalized = finalized_number(api).await.unwrap_or(0);
-        let state = api.client.extra_rpc().system_sync_state().await?;
+        let state = api.extra_rpc().system_sync_state().await?;
         if block <= state.current_block as BlockNumber && block <= finalized.max(assume_finalized) {
             return Ok(());
         }
@@ -285,12 +283,10 @@ pub async fn replay(args: Args) -> Result<()> {
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::fetch_storage_changes(&api.client, None, block_number, block_number).await
-            {
+            match pherry::fetch_storage_changes(&api, None, block_number, block_number).await {
                 Ok(mut blocks) => {
                     let mut block = blocks.pop().expect("Expected one block");
-                    let (header, _hash) =
-                        pherry::get_header_at(&api.client, Some(block_number)).await?;
+                    let (header, _hash) = pherry::get_header_at(&api, Some(block_number)).await?;
                     block.block_header = header;
                     log::info!("Replaying block {}", block_number);
                     let mut factory = factory.lock().await;

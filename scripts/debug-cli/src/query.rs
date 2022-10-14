@@ -25,8 +25,9 @@ pub async fn query<Request: Encode, Response: Decode>(
 
     let info = pr.get_info(()).await?;
     let remote_pubkey = info
-        .ecdh_public_key
-        .ok_or(anyhow!("Worker not initialized"))?;
+        .system
+        .ok_or(anyhow!("Worker not initialized"))?
+        .ecdh_public_key;
     let remote_pubkey = super::try_decode_hex(&remote_pubkey)?;
     let remote_pubkey = EcdhPublicKey::try_from(&remote_pubkey[..])?;
 

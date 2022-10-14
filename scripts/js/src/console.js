@@ -5,16 +5,16 @@ const { program } = require('commander');
 const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady, blake2AsHex } = require('@polkadot/util-crypto');
-const { numberToHex, hexToU8a, u8aConcat, u8aToHex } = require('@polkadot/util');
+const { hexToU8a, u8aConcat, u8aToHex } = require('@polkadot/util');
 
 const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
-const { poolSubAccount } = require('./utils/palletUtils');
+const { poolSubAccount, createMotion } = require('./utils/palletUtils');
 const { decorateStakePool } = require('./utils/displayUtils');
 const { createPRuntimeApi } = require('./utils/pruntime');
+const { resolveDefaultEndpoint } = require('./utils/builtinEndpoints');
 const BN = require('bn.js');
-const { dir } = require('console');
 
 function run(afn) {
     function runner(...args) {
@@ -26,18 +26,6 @@ function run(afn) {
     return runner;
 }
 
-function rand() {
-    return (Math.random() * 65536) | 0;
-}
-
-function parseXUS(assets) {
-    const m = assets.match(/(\d+(\.\d*)?) XUS/);
-    if (!m) {
-        throw new Error(`Couldn't parse asset ${assets}`);
-    }
-    return (parseFloat(m[1]) * 1e6) | 0;
-}
-
 function usePruntimeApi() {
     const { pruntimeEndpoint } = program.opts();
     return createPRuntimeApi(pruntimeEndpoint);
@@ -45,7 +33,8 @@ function usePruntimeApi() {
 
 async function useApi() {
     let { substrateWsEndpoint, substrateNoRetry, at } = program.opts();
-    const wsProvider = new WsProvider(substrateWsEndpoint);
+    const endpoint = resolveDefaultEndpoint(substrateWsEndpoint);
+    const wsProvider = new WsProvider(endpoint);
     const api = await ApiPromise.create({
         provider: wsProvider,
         throwOnConnect: !substrateNoRetry,
@@ -118,6 +107,7 @@ function printObject(obj, depth=3, getter=true) {
 
 async function estimateFeeOn(endpoint, callHex) {
     // Create another API because we are not querying Phala
+    endpoint = resolveDefaultEndpoint(endpoint);
     const wsProvider = new WsProvider(endpoint);
     const api = await ApiPromise.create({
         provider: wsProvider,
@@ -136,7 +126,7 @@ async function estimateFeeOn(endpoint, callHex) {
 
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
-    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint. Supported builtin endpoints: phala, khala.', process.env.ENDPOINT || 'ws://localhost:9944')
     .option('--substrate-no-retry', false)
     .option('--at <hash>', 'access the state at a certain block', null)
     .option('--key-type <type>', 'key type', 'sr25519')
@@ -334,9 +324,31 @@ chain
     .action(run(async (thresholdStr, callHex) => {
         const api = await useApi();
         const threshold = parseInt(thresholdStr);
-        const lengthBound = ((callHex.length / 2) | 0) + 10;
-        const bareCall = api.createType('Call', callHex);
-        const call = api.tx.council.propose(threshold, bareCall, lengthBound);
+        const call = createMotion(api, threshold, callHex);
+        console.log(call.toHex());
+    }))
+
+chain
+    .command('external')
+    .description('generate a call to propose a majority external proposal')
+    .argument('<call>', 'the raw call in hex')
+    .action(run(async (callHex) => {
+        const api = await useApi();
+        // Examine
+        console.log('Building majority external proposal for:');
+        console.dir(api.createType('Call', callHex).toHuman(), {depth: 10})
+        // Calculate the threshold
+        const members = await api.query.council.members();
+        const totalMembers = members.length;
+        const threshold = Math.ceil(totalMembers * 0.75);
+        // Build motion
+        const hash = blake2AsHex(callHex);
+        const external = api.tx.democracy.externalProposeMajority(hash).method.toHex();
+        const motionCall = createMotion(api, threshold, external);
+        const call = api.tx.utility.batchAll([
+            api.tx.democracy.notePreimage(callHex),
+            motionCall,
+        ]);
         console.log(call.toHex());
     }))
 
@@ -407,7 +419,7 @@ xcmp
     .option('--transact-weight <weight>', 'set RequireWeightAtMost in transact', '2000000000')
     .option(
         '--estimate-on-relay <ws-url>',
-        'specify the relay chain ws endpoint to enable transact call weight estimation'
+        'specify the relay chain ws endpoint to enable transact call weight estimation. supported builtin endpoints: polkadot, kusama.'
     )
     .argument('<data>', 'the raw transac data in hex')
     .action(run(async (data, opt) => {

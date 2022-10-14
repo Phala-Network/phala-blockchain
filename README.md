@@ -47,6 +47,19 @@ The **blockchain** is the central component of the system. It records commands (
   ./llvm.sh 10
   ```
 
+- Protobuf Compiler
+  - Ubuntu
+  ```bash
+  apt install -y protobuf-compiler
+  ```
+
+  - macOS
+  ```bash
+  brew install protobuf
+  ```
+
+  - See [here](https://grpc.io/docs/protoc-installation/) for more options
+
 </details>
 
 ### Build the blockchain and bridge
@@ -94,8 +107,7 @@ the _current_ rustc.
     export IAS_SPID=your_spid
     export IAS_API_KEY=your_api_key_in_hex
     cd standalone/pruntime/gramine-build
-    make
-    gramine-sgx pruntime
+    make run
     ```
 
 4. Run pherry (node and pRuntime required):

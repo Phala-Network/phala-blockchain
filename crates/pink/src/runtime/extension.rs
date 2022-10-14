@@ -1,25 +1,21 @@
-use std::borrow::Cow;
-use std::str::FromStr;
 use std::time::Duration;
+use std::{borrow::Cow, convert::TryFrom};
 
 use frame_support::log::error;
 use pallet_contracts::chain_extension::{
-    ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
+    ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal, SysConfig,
+    UncheckedFrom,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
-use pink_extension::CacheOp;
 use pink_extension::{
     chain_extension::{
-        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
-        StorageQuotaExceeded, VerifyArgs,
+        self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    dispatch_ext_call, PinkEvent,
+    dispatch_ext_call, CacheOp, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use reqwest::Method;
-use reqwest_proxy::EnvProxyBuilder;
+use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
-use sp_core::{ByteArray, Pair};
+use sp_core::H256;
 use sp_runtime::DispatchError;
 
 use crate::{
@@ -32,12 +28,23 @@ use crate::local_cache::GLOBAL_CACHE;
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
     pub pink_events: Vec<(AccountId, PinkEvent)>,
+    pub ink_events: Vec<(AccountId, Vec<H256>, Vec<u8>)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
+}
+
+impl ExecSideEffects {
+    pub fn into_query_only_effects(mut self) -> Self {
+        self.pink_events
+            .retain(|(_, event)| event.allowed_in_query());
+        self.ink_events.clear();
+        self.instantiated.clear();
+        self
+    }
 }
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
-    let event = super::Event::Contracts(pallet_contracts::Event::ContractEmitted {
+    let event = super::RuntimeEvent::Contracts(pallet_contracts::Event::ContractEmitted {
         contract,
         data: event.encode(),
     });
@@ -47,7 +54,7 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
 pub fn get_side_effects() -> ExecSideEffects {
     let mut result = ExecSideEffects::default();
     for event in super::System::events() {
-        if let super::Event::Contracts(ink_event) = event.event {
+        if let super::RuntimeEvent::Contracts(ink_event) = event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
                 ContractEvent::Instantiated {
@@ -58,10 +65,9 @@ pub fn get_side_effects() -> ExecSideEffects {
                     contract: address,
                     data,
                 } => {
-                    if event.topics.len() != 1 {
-                        continue;
-                    }
-                    if event.topics[0].0 == pink_extension::PinkEvent::event_topic() {
+                    if event.topics.len() == 1
+                        && event.topics[0].0 == pink_extension::PinkEvent::event_topic()
+                    {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
                                 result.pink_events.push((address, event));
@@ -70,6 +76,8 @@ pub fn get_side_effects() -> ExecSideEffects {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
+                    } else {
+                        result.ink_events.push((address, event.topics, data));
                     }
                 }
                 _ => (),
@@ -80,15 +88,23 @@ pub fn get_side_effects() -> ExecSideEffects {
 }
 
 /// Contract extension for `pink contracts`
+#[derive(Default)]
 pub struct PinkExtension;
 
 impl ChainExtension<super::PinkRuntime> for PinkExtension {
-    fn call<E: Ext>(func_id: u32, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+    fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> ExtResult<RetVal>
     where
         <E::T as SysConfig>::AccountId:
             UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
     {
         let mut env = env.buf_in_buf_out();
+        if env.ext_id() != 0 {
+            error!(target: "pink", "Unknown extension id: {:}", env.ext_id());
+            return Err(DispatchError::Other(
+                "PinkExtension::call: unknown extension id",
+            ));
+        }
+
         let address = env
             .ext()
             .address()
@@ -102,14 +118,14 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             let call = CallInCommand {
                 as_in_query: call_in_query,
             };
-            dispatch_ext_call!(func_id, call, env)
+            dispatch_ext_call!(env.func_id(), call, env)
         } else {
-            dispatch_ext_call!(func_id, call_in_query, env)
+            dispatch_ext_call!(env.func_id(), call_in_query, env)
         };
         let output = match result {
             Some(output) => output,
             None => {
-                error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
+                error!(target: "pink", "Called an unregistered `func_id`: {:}", env.func_id());
                 return Err(DispatchError::Other(
                     "PinkExtension::call: unknown function",
                 ));
@@ -121,105 +137,51 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             )))?;
         Ok(RetVal::Converging(0))
     }
+
+    fn enabled() -> bool {
+        true
+    }
 }
 
 struct CallInQuery {
     address: AccountId,
 }
 
+impl PinkRuntimeEnv for CallInQuery {
+    type AccountId = AccountId;
+
+    fn address(&self) -> &Self::AccountId {
+        &self.address
+    }
+
+    fn call_elapsed(&self) -> Option<Duration> {
+        get_call_elapsed()
+    }
+}
+
 impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        // Hardcoded limitations for now
-        const MAX_QUERY_TIME: u64 = 10; // seconds
-        const MAX_BODY_SIZE: usize = 1024 * 256; // 256KB
-
-        let elapsed = get_call_elapsed().ok_or(DispatchError::Other("Invalid exec env"))?;
-        let timeout = Duration::from_secs(MAX_QUERY_TIME) - elapsed;
-
-        let url: reqwest::Url = request
-            .url
-            .parse()
-            .or(Err(DispatchError::Other("Invalid url")))?;
-
-        let client = reqwest::blocking::Client::builder()
-            .timeout(timeout)
-            .env_proxy(url.host_str().unwrap_or_default())
-            .build()
-            .or(Err(DispatchError::Other("Failed to create client")))?;
-
-        let method: Method = FromStr::from_str(request.method.as_str())
-            .or(Err(DispatchError::Other("Invalid HTTP method")))?;
-        let mut headers = HeaderMap::new();
-        for (key, value) in &request.headers {
-            let key = HeaderName::from_str(key.as_str())
-                .or(Err(DispatchError::Other("Invalid HTTP header key")))?;
-            let value = HeaderValue::from_str(value)
-                .or(Err(DispatchError::Other("Invalid HTTP header value")))?;
-            headers.insert(key, value);
-        }
-
-        let mut response = client
-            .request(method, url)
-            .headers(headers)
-            .send()
-            .or(Err(DispatchError::Other("Failed to send request")))?;
-
-        let headers: Vec<_> = response
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
-            .collect();
-
-        let mut body = Vec::new();
-        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
-
-        response
-            .copy_to(&mut writer)
-            .or(Err(DispatchError::Other("Failed to copy response body")))?;
-
-        let response = HttpResponse {
-            status_code: response.status().as_u16(),
-            reason_phrase: response
-                .status()
-                .canonical_reason()
-                .unwrap_or_default()
-                .into(),
-            body,
-            headers,
-        };
-        Ok(response)
+        DefaultPinkExtension::new(self).http_request(request)
     }
 
-    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
-        macro_rules! sign_with {
-            ($sigtype:ident) => {{
-                let pair = sp_core::$sigtype::Pair::from_seed_slice(&args.key)
-                    .or(Err(DispatchError::Other("Invalid key")))?;
-                let signature = pair.sign(&args.message);
-                let signature: &[u8] = signature.as_ref();
-                signature.to_vec()
-            }};
-        }
-
-        Ok(match args.sigtype {
-            SigType::Sr25519 => sign_with!(sr25519),
-            SigType::Ed25519 => sign_with!(ed25519),
-            SigType::Ecdsa => sign_with!(ecdsa),
-        })
+    fn sign(
+        &self,
+        sigtype: SigType,
+        key: Cow<[u8]>,
+        message: Cow<[u8]>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).sign(sigtype, key, message)
     }
 
-    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
-        macro_rules! verify_with {
-            ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
-            }};
-        }
-        Ok(match args.sigtype {
-            SigType::Sr25519 => verify_with!(sr25519),
-            SigType::Ed25519 => verify_with!(ed25519),
-            SigType::Ecdsa => verify_with!(ecdsa),
-        })
+    fn verify(
+        &self,
+        sigtype: SigType,
+        pubkey: Cow<[u8]>,
+        message: Cow<[u8]>,
+        signature: Cow<[u8]>,
+    ) -> Result<bool, Self::Error> {
+        DefaultPinkExtension::new(self).verify(sigtype, pubkey, message, signature)
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
@@ -235,21 +197,8 @@ impl PinkExtBackend for CallInQuery {
         Ok(priviate_key.to_vec())
     }
 
-    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
-        macro_rules! public_key_with {
-            ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::from_seed_slice(&args.key)
-                    .or(Err(DispatchError::Other("Invalid key")))?
-                    .public()
-                    .to_raw_vec()
-            }};
-        }
-        let pubkey = match args.sigtype {
-            SigType::Ed25519 => public_key_with!(ed25519),
-            SigType::Sr25519 => public_key_with!(sr25519),
-            SigType::Ecdsa => public_key_with!(ecdsa),
-        };
-        Ok(pubkey)
+    fn get_public_key(&self, sigtype: SigType, key: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).get_public_key(sigtype, key)
     }
 
     fn cache_set(
@@ -285,6 +234,45 @@ impl PinkExtBackend for CallInQuery {
         let value = GLOBAL_CACHE.write().unwrap().remove(contract, key.as_ref());
         Ok(value)
     }
+
+    fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
+        super::emit_log(&self.address, level, message.as_ref().into());
+        DefaultPinkExtension::new(self).log(level, message)
+    }
+
+    fn getrandom(&self, length: u8) -> Result<Vec<u8>, Self::Error> {
+        DefaultPinkExtension::new(self).getrandom(length)
+    }
+
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        DefaultPinkExtension::new(self).ecdsa_sign_prehashed(key, message_hash)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        DefaultPinkExtension::new(self).ecdsa_verify_prehashed(signature, message_hash, pubkey)
+    }
+
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        crate::runtime::Pink::system_contract()
+            .map(|address| {
+                ext::AccountId::try_from(address.as_ref())
+                    .expect("Convert from AccountId32 to ink_env::AccountId should always success")
+            })
+            .ok_or(DispatchError::Other("No system contract installed"))
+    }
 }
 
 struct CallInCommand {
@@ -302,21 +290,34 @@ impl PinkExtBackend for CallInCommand {
             "http_request can only be called in query mode",
         ));
     }
-
-    fn sign(&self, args: SignArgs) -> Result<Vec<u8>, Self::Error> {
-        self.as_in_query.sign(args)
+    fn sign(
+        &self,
+        sigtype: SigType,
+        key: Cow<[u8]>,
+        message: Cow<[u8]>,
+    ) -> Result<Vec<u8>, Self::Error> {
+        if matches!(sigtype, SigType::Sr25519) {
+            return Err("signing with sr25519 is not allowed in command".into());
+        }
+        self.as_in_query.sign(sigtype, key, message)
     }
 
-    fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
-        self.as_in_query.verify(args)
+    fn verify(
+        &self,
+        sigtype: SigType,
+        pubkey: Cow<[u8]>,
+        message: Cow<[u8]>,
+        signature: Cow<[u8]>,
+    ) -> Result<bool, Self::Error> {
+        self.as_in_query.verify(sigtype, pubkey, message, signature)
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
         self.as_in_query.derive_sr25519_key(salt)
     }
 
-    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
-        self.as_in_query.get_public_key(args)
+    fn get_public_key(&self, sigtype: SigType, key: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
+        self.as_in_query.get_public_key(sigtype, key)
     }
 
     fn cache_set(
@@ -358,38 +359,38 @@ impl PinkExtBackend for CallInCommand {
         );
         Ok(None)
     }
-}
 
-struct LimitedWriter<W> {
-    writer: W,
-    written: usize,
-    limit: usize,
-}
-
-impl<W> LimitedWriter<W> {
-    fn new(writer: W, limit: usize) -> Self {
-        Self {
-            writer,
-            written: 0,
-            limit,
-        }
-    }
-}
-
-impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if self.written + buf.len() > self.limit {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Buffer limit exceeded",
-            ));
-        }
-        let wlen = self.writer.write(buf)?;
-        self.written += wlen;
-        Ok(wlen)
+    fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
+        self.as_in_query.log(level, message)
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.writer.flush()
+    fn getrandom(&self, _length: u8) -> Result<Vec<u8>, Self::Error> {
+        Err("getrandom is not allowed in command".into())
+    }
+
+    fn is_in_transaction(&self) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+
+    fn ecdsa_sign_prehashed(
+        &self,
+        key: Cow<[u8]>,
+        message_hash: Hash,
+    ) -> Result<EcdsaSignature, Self::Error> {
+        self.as_in_query.ecdsa_sign_prehashed(key, message_hash)
+    }
+
+    fn ecdsa_verify_prehashed(
+        &self,
+        signature: EcdsaSignature,
+        message_hash: Hash,
+        pubkey: EcdsaPublicKey,
+    ) -> Result<bool, Self::Error> {
+        self.as_in_query
+            .ecdsa_verify_prehashed(signature, message_hash, pubkey)
+    }
+
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        self.as_in_query.system_contract_id()
     }
 }

@@ -13,14 +13,14 @@ jobs:
       run:
         working-directory: ./scripts/js
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v1 # https://github.com/actions/setup-node/issues/275
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          node-version: "14"
+          node-version: 16
       - run: yarn install
       - run: yarn build src/console.js
       - run: yarn build src/worker-snapshot/*.js
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: dist
           path: ./scripts/js/dist

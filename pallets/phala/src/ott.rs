@@ -24,7 +24,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type Currency: Currency<Self::AccountId>;
 	}
@@ -98,7 +98,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
 		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
+			let mut w = Weight::zero();
 			let old = Self::on_chain_storage_version();
 			w += T::DbWeight::get().reads(1);
 
@@ -106,6 +106,7 @@ pub mod pallet {
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
 			}
+
 			w
 		}
 	}
@@ -114,7 +115,8 @@ pub mod pallet {
 	mod test {
 		use super::*;
 		use crate::mock::{
-			new_test_ext, set_block_1, take_events, Event as TestEvent, Origin, Test, DOLLARS,
+			new_test_ext, set_block_1, take_events,
+			RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::PhalaOneshotTransfer;
@@ -166,7 +168,7 @@ pub mod pallet {
 		}
 
 		#[test]
-		fn insufficent_funds() {
+		fn insufficient_funds() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
 

@@ -2,24 +2,47 @@
 
 extern crate alloc;
 
-use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
+use ink_lang::EnvAccess;
 use scale::{Decode, Encode};
 
 pub use pink_extension_macro::contract;
 
 pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
+pub mod logger;
+pub mod system;
+pub mod predefined_accounts {
+    use super::AccountId;
+
+    // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
+    pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+    pub const ACCOUNT_RUNTIME: [u8; 32] = *b"sys::runtime\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+
+    pub fn is_pallet(account_id: &AccountId) -> bool {
+        account_id.as_ref() as &[u8] == &ACCOUNT_PALLET
+    }
+
+    pub fn is_runtime(account_id: &ink_env::AccountId) -> bool {
+        account_id.as_ref() as &[u8] == &ACCOUNT_RUNTIME
+    }
+}
 
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
+pub type EcdsaPublicKey = [u8; 33];
+pub type EcdsaSignature = [u8; 65];
+pub type AccountId = <PinkEnvironment as Environment>::AccountId;
+pub type Balance = <PinkEnvironment as Environment>::Balance;
+pub type BlockNumber = <PinkEnvironment as Environment>::BlockNumber;
 
 /// A phala-mq message
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Message {
     pub payload: Vec<u8>,
     pub topic: Vec<u8>,
@@ -27,36 +50,93 @@ pub struct Message {
 
 /// A phala-mq message with optional encryption key
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct OspMessage {
     pub message: Message,
     pub remote_pubkey: Option<EcdhPublicKey>,
 }
 
+#[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum HookPoint {
+    OnBlockEnd,
+}
+
 /// System Event used to communicate between the contract and the runtime.
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEvent {
     /// Contract pushed a raw message
     Message(Message),
     /// Contract pushed an osp message
     OspMessage(OspMessage),
-    /// Contract has an on_block_end ink message and will emit this event on instantiation.
-    OnBlockEndSelector(u32),
-    /// Start to transfer sidevm code
-    StartToTransferSidevmCode,
-    /// One chunk of sidevm code
-    SidevmCodeChunk(Cow<'static, [u8]>),
-    /// Start the side VM.
-    StartSidevm {
-        /// Restart the instance when it has crashed
-        auto_restart: bool,
+    /// Set contract hook
+    SetHook {
+        /// The event to hook
+        hook: HookPoint,
+        /// The target contract address
+        contract: AccountId,
+        /// The selector to invoke on hooked event fired.
+        selector: u32,
+    },
+    /// Deploy a sidevm instance to given contract instance
+    DeploySidevmTo {
+        /// The target contract address
+        contract: AccountId,
+        /// The hash of the sidevm code.
+        code_hash: Hash,
     },
     /// Push a message to the associated sidevm instance.
     SidevmMessage(Vec<u8>),
     /// CacheOperation
     CacheOp(CacheOp),
+    /// Stop the side VM instance if it is running.
+    StopSidevm,
+    /// Force stop the side VM instance if it is running.
+    ForceStopSidevm {
+        /// The target contract address
+        contract: AccountId,
+    },
+    /// Set the log handler contract for current cluster.
+    SetLogHandler(AccountId),
+    /// Set the weight of contract used to schedule queries and sidevm vruntime
+    SetContractWeight { contract: AccountId, weight: u32 },
+}
+
+impl PinkEvent {
+    pub fn allowed_in_query(&self) -> bool {
+        match self {
+            PinkEvent::Message(_) => false,
+            PinkEvent::OspMessage(_) => false,
+            PinkEvent::SetHook { .. } => false,
+            PinkEvent::DeploySidevmTo { .. } => true,
+            PinkEvent::SidevmMessage(_) => true,
+            PinkEvent::CacheOp(_) => true,
+            PinkEvent::StopSidevm => true,
+            PinkEvent::ForceStopSidevm { .. } => true,
+            PinkEvent::SetLogHandler(_) => false,
+            PinkEvent::SetContractWeight { .. } => false,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            PinkEvent::Message(_) => "Message",
+            PinkEvent::OspMessage(_) => "OspMessage",
+            PinkEvent::SetHook { .. } => "SetHook",
+            PinkEvent::DeploySidevmTo { .. } => "DeploySidevmTo",
+            PinkEvent::SidevmMessage(_) => "SidevmMessage",
+            PinkEvent::CacheOp(_) => "CacheOp",
+            PinkEvent::StopSidevm => "StopSidevm",
+            PinkEvent::ForceStopSidevm { .. } => "ForceStopSidevm",
+            PinkEvent::SetLogHandler(_) => "SetLogHandler",
+            PinkEvent::SetContractWeight { .. } => "SetContractWeight",
+        }
+    }
 }
 
 #[derive(Encode, Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CacheOp {
     Set { key: Vec<u8>, value: Vec<u8> },
     SetExpiration { key: Vec<u8>, expiration: u64 },
@@ -85,7 +165,7 @@ impl Topics for PinkEvent {
 impl PinkEvent {
     pub fn event_topic() -> Hash {
         use std::convert::TryFrom;
-        let topics = topic::topics_for(Self::OnBlockEndSelector(0));
+        let topics = topic::topics_for(Self::StopSidevm);
         let topic: &[u8] = topics[0].as_ref();
         Hash::try_from(topic).expect("Should not failed")
     }
@@ -110,23 +190,57 @@ pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<
 
 /// Turn on on_block_end feature and set it's selector
 ///
-pub fn set_on_block_end_selector(selector: u32) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::OnBlockEndSelector(selector))
+pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
+        hook,
+        contract,
+        selector,
+    })
 }
 
-/// Start a side VM instance
-pub fn start_sidevm(wasm_code: &'static [u8], auto_restart: bool) {
-    // `ink!` limit a single event size to 16KB. As a workaround, we chop the code in to 15KB chunks.
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartToTransferSidevmCode);
-    for chunk in wasm_code.chunks(1024 * 15) {
-        emit_event::<PinkEnvironment, _>(PinkEvent::SidevmCodeChunk(chunk.into()));
-    }
-    emit_event::<PinkEnvironment, _>(PinkEvent::StartSidevm { auto_restart })
+/// Start a SideVM instance
+pub fn start_sidevm(code_hash: Hash) -> Result<(), system::Error> {
+    let driver =
+        crate::system::SidevmOperationRef::instance().ok_or(system::Error::DriverNotFound)?;
+    driver.deploy(code_hash)
+}
+
+/// Deploy a SideVM instance to a given contract.
+/// The caller must be the system contract.
+pub fn deploy_sidevm_to(contract: AccountId, code_hash: Hash) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::DeploySidevmTo {
+        contract,
+        code_hash,
+    });
+}
+
+/// Stop a SideVM instance running at given contract address.
+/// The caller must be the system contract.
+pub fn stop_sidevm_at(contract: AccountId) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::ForceStopSidevm { contract });
+}
+
+/// Force stop the side VM instance if it is running
+///
+/// You should avoid to call this function. Instead, prefer let the side program exit gracefully
+/// by itself.
+pub fn force_stop_sidevm() {
+    emit_event::<PinkEnvironment, _>(PinkEvent::StopSidevm)
 }
 
 /// Push a message to the associated sidevm instance.
 pub fn push_sidevm_message(message: Vec<u8>) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SidevmMessage(message))
+}
+
+/// Set the log handler contract of current cluster
+pub fn set_log_handler(contract: AccountId) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetLogHandler(contract))
+}
+
+/// Set the weight of contract used to schedule queries and sidevm vruntime
+pub fn set_contract_weight(contract: AccountId, weight: u32) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SetContractWeight { contract, weight });
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.
@@ -144,6 +258,10 @@ impl Environment for PinkEnvironment {
     type Timestamp = <ink_env::DefaultEnvironment as Environment>::Timestamp;
 
     type ChainExtension = chain_extension::PinkExt;
+}
+
+pub fn env() -> EnvAccess<'static, PinkEnvironment> {
+    Default::default()
 }
 
 #[cfg(feature = "runtime_utils")]

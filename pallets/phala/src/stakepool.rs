@@ -53,7 +53,7 @@ pub mod pallet {
 
 	impl Get<u32> for DescMaxLen {
 		fn get() -> u32 {
-			400
+			4400
 		}
 	}
 	/// The functions to manage user's native currency lock in the Balances pallet
@@ -73,7 +73,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + registry::Config + mining::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 
 		#[pallet::constant]
@@ -95,10 +95,10 @@ pub mod pallet {
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
 		/// The origin that can turn on or off mining
-		type MiningSwitchOrigin: EnsureOrigin<Self::Origin>;
+		type MiningSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// The origin that can trigger backfill tasks.
-		type BackfillOrigin: EnsureOrigin<Self::Origin>;
+		type BackfillOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -208,7 +208,11 @@ pub mod pallet {
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
 		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
 		///   [`MinerBindings`](mining::pallet::MinerBindings))
-		PoolWorkerAdded { pid: u64, worker: WorkerPublicKey },
+		PoolWorkerAdded { 
+			pid: u64, 
+			worker: WorkerPublicKey,
+			miner: T::AccountId,
+		},
 		/// Someone contributed to a pool
 		///
 		/// Affected states:
@@ -335,6 +339,12 @@ pub mod pallet {
 			to_owner: BalanceOf<T>,
 			to_stakers: BalanceOf<T>,
 		},
+		/// The amount of stakes for a worker to start mine
+		MiningStarted {
+			pid: u64,
+			worker: WorkerPublicKey,
+			amount: BalanceOf<T>,
+		}
 	}
 
 	#[pallet::error]
@@ -505,7 +515,7 @@ pub mod pallet {
 			// the lifecycle of the preimage should be the same with the miner record,
 			// current implementation we don't delete miner records even its no longer in-use,
 			// so we won't delete preimages for now.
-			SubAccountPreimages::<T>::insert(miner, (pid, pubkey));
+			SubAccountPreimages::<T>::insert(miner.clone(), (pid, pubkey));
 
 			// update worker vector
 			workers.push(pubkey);
@@ -514,6 +524,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PoolWorkerAdded {
 				pid,
 				worker: pubkey,
+				miner,
 			});
 
 			Ok(())
@@ -1086,10 +1097,15 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
+			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake.clone())?;
 			pool_info.free_stake -= stake;
 			StakePools::<T>::insert(&pid, &pool_info);
-
+			Self::deposit_event(Event::<T>::MiningStarted {
+				pid,
+				worker: worker,
+				amount: stake,
+			});
+			
 			Ok(())
 		}
 		fn do_stop_mining(
@@ -1467,11 +1483,6 @@ pub mod pallet {
 				t.pop_front();
 			}
 			WithdrawalTimestamps::<T>::put(&t);
-		}
-
-		pub(crate) fn migration_remove_assignments() -> Weight {
-			let writes = SubAccountAssignments::<T>::drain().count();
-			T::DbWeight::get().writes(writes as _)
 		}
 	}
 
@@ -1931,7 +1942,7 @@ pub mod pallet {
 		use crate::mock::{
 			ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1,
 			setup_workers, setup_workers_linked_operators, take_events, teleport_to_block,
-			worker_pubkey, Balance, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
+			worker_pubkey, Balance, BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{
@@ -2602,7 +2613,6 @@ pub mod pallet {
 
 		#[test]
 		fn test_force_assign_reward() {
-			use crate::mining::pallet::OnReward;
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(1);
@@ -2628,7 +2638,7 @@ pub mod pallet {
 				assert_eq!(pool.reward_acc.get(), fp!(0));
 				assert_eq!(pool.owner_reward, fp!(0));
 				let input = vec![(0, 500 * DOLLARS)];
-				PhalaStakePool::force_assign_reward(Origin::root(), input);
+				PhalaStakePool::force_assign_reward(Origin::root(), input).expect("Shouldn't fail");
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				assert_eq!(pool.reward_acc.get(), fp!(0.5));
 				assert_eq!(pool.owner_reward, 250 * DOLLARS);
@@ -2757,14 +2767,14 @@ pub mod pallet {
 				));
 				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
 				assert_eq!(staker4.shares, 60 * DOLLARS);
-				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2);
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2).expect("Shouldn't fail");
 				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
 				assert_eq!(whitelist, [3]);
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS,),
 					Error::<Test>::NotInContributeWhitelist
 				);
-				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3);
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3).expect("Shouldn't fail");
 				assert!(PhalaStakePool::pool_whitelist(0).is_none());
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(3),

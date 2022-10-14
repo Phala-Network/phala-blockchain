@@ -1,0 +1,9 @@
+[package]
+name = "sfq-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = "0.5.0-rc.2"
+phala-scheduler = { path = "../../crates/phala-scheduler" }
+clap = { version = "3", features = ["derive"] }

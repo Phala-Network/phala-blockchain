@@ -22,14 +22,14 @@ overflow-checks = true
 resolver = "2"
 
 exclude = [
-	"substrate",
 	"subxt",
-	"webpki",
-	"ring",
-	"native-nostd-hasher",
+	"vendor/webpki",
+	"vendor/ring",
 	"standalone/pruntime",
-	"crates/pink/examples",
-	"crates/pink/sidevm/examples",
+	"standalone/prouter",
+	"crates/pink-libs/system",
+	"crates/pink-libs/sidevmop",
+	"e2e/res/check_system",
 ]
 
 members = [
@@ -40,6 +40,7 @@ members = [
 	"standalone/pherry",
 	"standalone/replay",
 	"standalone/headers-cache",
+	"standalone/sfq-test",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",
@@ -57,18 +58,29 @@ members = [
 	"crates/phala-rocket-middleware",
 	"crates/pink",
 	"crates/pink/pink-extension",
+	"crates/pink/pink-extension-runtime",
+	"crates/pink/unittests",
+	"crates/pink-libs/s3",
+	"crates/pink-libs/utils",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
-	"crates/pink/sidevm/host-runtime",
-	"crates/pink/sidevm/env",
-	"crates/pink/sidevm/macro",
-	"crates/pink/sidevm/logger",
-	"crates/pink/sidevm/sidevm",
+	"crates/sidevm/host-runtime",
+	"crates/sidevm/env",
+	"crates/sidevm/macro",
+	"crates/sidevm/logger",
+	"crates/sidevm/sidevm",
 	"crates/phala-serde-more",
 	"crates/rustfmt-snippet",
-	"crates/reqwest-proxy",
+	"crates/reqwest-env-proxy",
+	"crates/phala-scheduler",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
+
+[patch.crates-io]
+rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocket" }
+
+# For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }

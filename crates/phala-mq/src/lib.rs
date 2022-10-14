@@ -53,6 +53,7 @@ pub mod traits {
     /// A MessageChannel is used to push messages into the egress queue, then the messages
     /// are ready to be synchronized to the chain by pherry or prb.
     pub trait MessageChannel {
+        type Signer;
         /// Push given binary data as message payload into the egress queue.
         fn push_data(&self, data: alloc::vec::Vec<u8>, topic: impl Into<Path>);
         /// Same as push_data, except that it a SCALE encodable typed message which will be encoded into binary data.
@@ -64,6 +65,8 @@ pub mod traits {
             self.push_message_to(message, M::topic())
         }
         fn set_dummy(&self, _dummy: bool) {}
+        /// Set signer for the channel.
+        fn set_signer(&mut self, _signer: Self::Signer) {}
     }
 
     /// A MessagePrepareChannel is used prepare messages which later can be pushed into the message queue.

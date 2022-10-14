@@ -1,6 +1,6 @@
 use frame_support::assert_ok;
 use hex_literal::hex;
-use pink::{Contract, Storage};
+use pink::{runtime::HookPoint, Contract, Storage};
 use pink_extension::PinkEvent;
 use sp_runtime::AccountId32;
 
@@ -229,15 +229,25 @@ fn test_on_block_end() {
 
     insta::assert_debug_snapshot!(effects);
 
-    for (account, event) in effects.pink_events {
-        if let PinkEvent::OnBlockEndSelector(selector) = event {
-            if account == contract.address {
-                contract.set_on_block_end_selector(selector);
+    for (_account, event) in effects.pink_events {
+        if let PinkEvent::SetHook {
+            hook,
+            contract: target_contract,
+            selector,
+        } = event
+        {
+            use phala_types::contract::ConvertTo;
+            match hook {
+                HookPoint::OnBlockEnd => {
+                    if target_contract == contract.address.convert_to() {
+                        contract.set_on_block_end_selector(selector);
+                    }
+                }
             }
         }
     }
 
-    let effects = contract.on_block_end(&mut storage, 1, 1).unwrap();
+    let effects = contract.on_block_end(&mut storage, 1, 1, None).unwrap();
 
     insta::assert_debug_snapshot!(effects);
 }
@@ -275,6 +285,16 @@ fn test_signing() {
 }
 
 #[test]
+fn test_logging() {
+    env_logger::init();
+    test_with_wasm(
+        include_bytes!("./fixtures/logging.wasm"),
+        hex!("ed4b9d1b"),
+        hex!("928b2036"),
+    );
+}
+
+#[test]
 fn test_use_cache() {
     test_with_wasm(
         include_bytes!("./fixtures/use_cache/use_cache.wasm"),
@@ -282,14 +302,3 @@ fn test_use_cache() {
         hex!("928b2036"),
     );
 }
-
-
-#[test]
-fn test_start_sidevm() {
-    test_with_wasm(
-        include_bytes!("./fixtures/start_sidevm.wasm"),
-        hex!("ed4b9d1b"),
-        hex!("928b2036"),
-    );
-}
-

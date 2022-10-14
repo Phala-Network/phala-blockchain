@@ -6,7 +6,8 @@ use im::{hashmap::Entry, HashMap};
 use parity_util_mem::{malloc_size, MallocSizeOf, MallocSizeOfOps};
 use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData, mem};
 
-use sp_state_machine::{backend::Consolidate, DBValue, DefaultError, TrieBackendStorage};
+use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
+use trie_db::DBValue;
 
 pub trait MaybeDebug: std::fmt::Debug {}
 impl<T: std::fmt::Debug> MaybeDebug for T {}
@@ -184,6 +185,14 @@ where
         }
     }
 
+    /// Create a new `MemoryDB` from a given inner hash map.
+    pub fn from_inner(data: HashMap<KF::Key, (T, i32)>) -> Self {
+        MemoryDB {
+            data,
+            ..Default::default()
+        }
+    }
+
     /// Create a new instance of `Self`.
     pub fn new(data: &[u8]) -> Self {
         Self::from_null_node(data, data.into())
@@ -238,6 +247,9 @@ where
     /// Consolidate all the entries of `other` into `self`.
     pub fn consolidate(&mut self, mut other: Self) {
         for (key, (value, rc)) in other.drain() {
+            if rc == 0 {
+                continue;
+            }
             match self.data.entry(key) {
                 Entry::Occupied(mut entry) => {
                     if entry.get().1 < 0 {
@@ -247,6 +259,11 @@ where
                     }
 
                     entry.get_mut().1 += rc;
+
+                    if entry.get().1 == 0 {
+                        let (value, _) = entry.remove();
+                        self.malloc_tracker.on_remove(&value);
+                    }
                 }
                 Entry::Vacant(entry) => {
                     self.malloc_tracker.on_insert(&value);
@@ -333,6 +350,10 @@ where
             Entry::Occupied(mut entry) => {
                 let &mut (_, ref mut rc) = entry.get_mut();
                 *rc -= 1;
+                if *rc == 0 {
+                    let (value, _) = entry.remove();
+                    self.malloc_tracker.on_remove(&value);
+                }
             }
             Entry::Vacant(entry) => {
                 let value = T::default();
@@ -433,6 +454,10 @@ where
             Entry::Occupied(mut entry) => {
                 let &mut (_, ref mut rc) = entry.get_mut();
                 *rc -= 1;
+                if *rc == 0 {
+                    let (value, _) = entry.remove();
+                    self.malloc_tracker.on_remove(&value);
+                }
             }
             Entry::Vacant(entry) => {
                 let value = T::default();
@@ -676,17 +701,14 @@ mod tests {
 
         main.consolidate(other);
 
-        assert_eq!(
-            main.raw(&remove_key, EMPTY_PREFIX).unwrap(),
-            (&"doggo".as_bytes().to_vec(), 0)
-        );
+        assert_eq!(main.raw(&remove_key, EMPTY_PREFIX), None);
         assert_eq!(
             main.raw(&insert_key, EMPTY_PREFIX).unwrap(),
             (&"arf".as_bytes().to_vec(), 2)
         );
         assert_eq!(
             main.raw(&negative_remove_key, EMPTY_PREFIX).unwrap(),
-            (&"negative".as_bytes().to_vec(), -2),
+            (&"".as_bytes().to_vec(), -2),
         );
     }
 

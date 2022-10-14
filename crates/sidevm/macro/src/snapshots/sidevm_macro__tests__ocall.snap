@@ -1,0 +1,146 @@
+---
+source: crates/sidevm/macro/src/tests.rs
+assertion_line: 19
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+pub trait Ocall {
+    fn call_slow(&mut self, a: i32, b: i32) -> i32;
+    fn call_fi(&mut self, a: i32, b: i32) -> i32;
+    fn call_fo(&mut self, a: i32, b: i32) -> i32;
+    fn poll_fi_fo(&mut self, a: i32, b: i32) -> i32;
+}
+pub mod ocall_guest {
+    use super::*;
+    pub fn call_slow(a: i32, b: i32) -> i32 {
+        unsafe {
+            let inputs = (a, b);
+            let mut input_buf = Buffer::default();
+            Encode::encode_to(&inputs, &mut input_buf);
+            let len = input_buf.len() as IntPtr;
+            let ret = do_ocall(101, input_buf.as_ptr() as IntPtr, len, 0, 0);
+            let len = <Result<i32> as RetDecode>::decode_ret(ret)?;
+            if len < 0 {
+                panic!("ocall returned an error");
+            }
+            let mut buf = alloc_buffer(len as _);
+            let ret = do_ocall_fast_return(0, buf.as_mut_ptr() as IntPtr, len as IntPtr, 0, 0);
+            let ret = <Result<i32> as RetDecode>::decode_ret(ret)?;
+            if ret != len {
+                panic!("ocall get return length mismatch");
+            }
+            Ok(Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value"))
+        }
+    }
+    pub fn call_fi(a: i32, b: i32) -> i32 {
+        unsafe {
+            let stack = StackedArgs::empty();
+            let stack = stack.push_arg(a);
+            let stack = stack.push_arg(b);
+            let args = stack.dump();
+            let ret = do_ocall(103, args[0], args[1], args[2], args[3]);
+            let len = <Result<i32> as RetDecode>::decode_ret(ret)?;
+            if len < 0 {
+                panic!("ocall returned an error");
+            }
+            let mut buf = alloc_buffer(len as _);
+            let ret = do_ocall_fast_return(0, buf.as_mut_ptr() as IntPtr, len as IntPtr, 0, 0);
+            let ret = <Result<i32> as RetDecode>::decode_ret(ret)?;
+            if ret != len {
+                panic!("ocall get return length mismatch");
+            }
+            Ok(Decode::decode(&mut buf.as_ref()).expect("Failed to decode ocall return value"))
+        }
+    }
+    pub fn call_fo(a: i32, b: i32) -> i32 {
+        unsafe {
+            let inputs = (a, b);
+            let mut input_buf = Buffer::default();
+            Encode::encode_to(&inputs, &mut input_buf);
+            let len = input_buf.len() as IntPtr;
+            let ret = do_ocall_fast_return(104, input_buf.as_ptr() as IntPtr, len, 0, 0);
+            <Result<i32> as RetDecode>::decode_ret(ret).and_then(I32Convertible::from_i32)
+        }
+    }
+    pub fn poll_fi_fo(a: i32, b: i32) -> i32 {
+        unsafe {
+            let stack = StackedArgs::empty();
+            let stack = stack.push_arg(a);
+            let stack = stack.push_arg(b);
+            let args = stack.dump();
+            let ret = do_ocall_fast_return(102, args[0], args[1], args[2], args[3]);
+            <Result<i32> as RetDecode>::decode_ret(ret).and_then(I32Convertible::from_i32)
+        }
+    }
+}
+pub fn dispatch_ocall<Env: Ocall + OcallEnv, Vm: VmMemory>(
+    fast_return: bool,
+    env: &mut Env,
+    vm: &Vm,
+    id: i32,
+    p0: IntPtr,
+    p1: IntPtr,
+    p2: IntPtr,
+    p3: IntPtr,
+) -> Result<i32> {
+    if fast_return {
+        match id {
+            0 => {
+                let buffer = env.take_return().ok_or(OcallError::NotFound)?;
+                let len = p1 as usize;
+                if buffer.len() != len {
+                    return Err(OcallError::InvalidParameter);
+                }
+                vm.copy_to_vm(&buffer, p0)?;
+                Ok(len as i32)
+            }
+            104 => {
+                let (a, b) = {
+                    let mut buf = vm.slice_from_vm(p0, p1)?;
+                    Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
+                };
+                env.call_fo(a, b).map(|x| x.to_i32())
+            }
+            102 => {
+                let stack =
+                    StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
+                let (b, stack) = stack.pop_arg(vm)?;
+                let (a, stack) = stack.pop_arg(vm)?;
+                let _: StackedArgs<()> = stack;
+                env.poll_fi_fo(a, b).map(|x| x.to_i32())
+            }
+            _ => Err(OcallError::UnknownCallNumber),
+        }
+    } else {
+        Ok(match id {
+            101 => {
+                let (a, b) = {
+                    let mut buf = vm.slice_from_vm(p0, p1)?;
+                    Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
+                };
+                let ret = env.call_slow(a, b);
+                env.put_return(ret?.encode()) as _
+            }
+            103 => {
+                let stack =
+                    StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
+                let (b, stack) = stack.pop_arg(vm)?;
+                let (a, stack) = stack.pop_arg(vm)?;
+                let _: StackedArgs<()> = stack;
+                let ret = env.call_fi(a, b);
+                env.put_return(ret?.encode()) as _
+            }
+            _ => return Err(OcallError::UnknownCallNumber),
+        })
+    }
+}
+pub fn ocall_id2name(id: i32) -> &'static str {
+    match id {
+        0 => "get_return",
+        101i32 => "call_slow",
+        103i32 => "call_fi",
+        104i32 => "call_fo",
+        102i32 => "poll_fi_fo",
+        _ => "unknown",
+    }
+}
+

@@ -3,11 +3,8 @@ use std::alloc::System;
 use parity_scale_codec::Encode;
 use anyhow::anyhow;
 
-use phactory_pal::{
-    AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA,
-};
+use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
-use std::fs::File;
 use std::io::ErrorKind;
 use std::str::FromStr as _;
 
@@ -37,38 +34,6 @@ impl Sealing for GraminePlatform {
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
             other => other.map(Some),
         }
-    }
-}
-
-impl ProtectedFileSystem for GraminePlatform {
-    type IoError = std::io::Error;
-
-    type ReadFile = File;
-
-    type WriteFile = File;
-
-    fn open_protected_file(
-        &self,
-        path: impl AsRef<std::path::Path>,
-        _key: &[u8],
-    ) -> Result<Option<Self::ReadFile>, Self::IoError> {
-        let todo = "Kevin: Use the key to encrypt the file";
-        // We currently use the mrenclave protected fs to store the data, so no need to encrypt twice.
-        // Gramine has a plan to support set key for individual files. We can turn back to use the key
-        // once gramine finish the feature.
-
-        match std::fs::File::open(path) {
-            Err(err) if matches!(err.kind(), ErrorKind::NotFound) => Ok(None),
-            other => other.map(Some),
-        }
-    }
-
-    fn create_protected_file(
-        &self,
-        path: impl AsRef<std::path::Path>,
-        _key: &[u8],
-    ) -> Result<Self::WriteFile, Self::IoError> {
-        std::fs::File::create(path)
     }
 }
 
@@ -150,7 +115,7 @@ impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
         let stats = ALLOCATOR.stats();
         MemoryUsage {
-            total_peak_used: 0,
+            total_peak_used: vm_peak().unwrap_or_default(),
             rust_used: stats.current_used,
             rust_peak_used: stats.peak_used,
         }
@@ -166,4 +131,15 @@ impl AppInfo for GraminePlatform {
             patch: ver.patch,
         }
     }
+}
+
+fn vm_peak() -> Option<usize> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    for line in status.lines() {
+        if line.starts_with("VmPeak:") {
+            let peak = line.split_ascii_whitespace().nth(1)?;
+            return Some(peak.parse().ok()?);
+        }
+    }
+    None
 }

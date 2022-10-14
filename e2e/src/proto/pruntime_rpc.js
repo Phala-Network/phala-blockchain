@@ -381,6 +381,171 @@ $root.pruntime_rpc = (function() {
          */
 
         /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#addEndpoint}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef AddEndpointCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetEndpointResponse} [response] GetEndpointResponse
+         */
+
+        /**
+         * Calls AddEndpoint.
+         * @function addEndpoint
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IAddEndpointRequest} request AddEndpointRequest message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.AddEndpointCallback} callback Node-style callback called with the error, if any, and GetEndpointResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.addEndpoint = function addEndpoint(request, callback) {
+            return this.rpcCall(addEndpoint, $root.pruntime_rpc.AddEndpointRequest, $root.pruntime_rpc.GetEndpointResponse, request, callback);
+        }, "name", { value: "AddEndpoint" });
+
+        /**
+         * Calls AddEndpoint.
+         * @function addEndpoint
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IAddEndpointRequest} request AddEndpointRequest message or plain object
+         * @returns {Promise<pruntime_rpc.GetEndpointResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#refreshEndpointSigningTime}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef RefreshEndpointSigningTimeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetEndpointResponse} [response] GetEndpointResponse
+         */
+
+        /**
+         * Calls RefreshEndpointSigningTime.
+         * @function refreshEndpointSigningTime
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.RefreshEndpointSigningTimeCallback} callback Node-style callback called with the error, if any, and GetEndpointResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.refreshEndpointSigningTime = function refreshEndpointSigningTime(request, callback) {
+            return this.rpcCall(refreshEndpointSigningTime, $root.google.protobuf.Empty, $root.pruntime_rpc.GetEndpointResponse, request, callback);
+        }, "name", { value: "RefreshEndpointSigningTime" });
+
+        /**
+         * Calls RefreshEndpointSigningTime.
+         * @function refreshEndpointSigningTime
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.GetEndpointResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getEndpointInfo}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetEndpointInfoCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetEndpointResponse} [response] GetEndpointResponse
+         */
+
+        /**
+         * Calls GetEndpointInfo.
+         * @function getEndpointInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetEndpointInfoCallback} callback Node-style callback called with the error, if any, and GetEndpointResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getEndpointInfo = function getEndpointInfo(request, callback) {
+            return this.rpcCall(getEndpointInfo, $root.google.protobuf.Empty, $root.pruntime_rpc.GetEndpointResponse, request, callback);
+        }, "name", { value: "GetEndpointInfo" });
+
+        /**
+         * Calls GetEndpointInfo.
+         * @function getEndpointInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.GetEndpointResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#signEndpointInfo}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef SignEndpointInfoCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetEndpointResponse} [response] GetEndpointResponse
+         */
+
+        /**
+         * Calls SignEndpointInfo.
+         * @function signEndpointInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISignEndpointsRequest} request SignEndpointsRequest message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.SignEndpointInfoCallback} callback Node-style callback called with the error, if any, and GetEndpointResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.signEndpointInfo = function signEndpointInfo(request, callback) {
+            return this.rpcCall(signEndpointInfo, $root.pruntime_rpc.SignEndpointsRequest, $root.pruntime_rpc.GetEndpointResponse, request, callback);
+        }, "name", { value: "SignEndpointInfo" });
+
+        /**
+         * Calls SignEndpointInfo.
+         * @function signEndpointInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISignEndpointsRequest} request SignEndpointsRequest message or plain object
+         * @returns {Promise<pruntime_rpc.GetEndpointResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#derivePhalaI2pKey}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef DerivePhalaI2pKeyCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.DerivePhalaI2pKeyResponse} [response] DerivePhalaI2pKeyResponse
+         */
+
+        /**
+         * Calls DerivePhalaI2pKey.
+         * @function derivePhalaI2pKey
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.DerivePhalaI2pKeyCallback} callback Node-style callback called with the error, if any, and DerivePhalaI2pKeyResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.derivePhalaI2pKey = function derivePhalaI2pKey(request, callback) {
+            return this.rpcCall(derivePhalaI2pKey, $root.google.protobuf.Empty, $root.pruntime_rpc.DerivePhalaI2pKeyResponse, request, callback);
+        }, "name", { value: "DerivePhalaI2pKey" });
+
+        /**
+         * Calls DerivePhalaI2pKey.
+         * @function derivePhalaI2pKey
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.DerivePhalaI2pKeyResponse>} Promise
+         * @variation 2
+         */
+
+        /**
          * Callback as used by {@link pruntime_rpc.PhactoryAPI#echo}.
          * @memberof pruntime_rpc.PhactoryAPI
          * @typedef EchoCallback
@@ -413,6 +578,303 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#handoverCreateChallenge}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef HandoverCreateChallengeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.HandoverChallenge} [response] HandoverChallenge
+         */
+
+        /**
+         * Calls HandoverCreateChallenge.
+         * @function handoverCreateChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.HandoverCreateChallengeCallback} callback Node-style callback called with the error, if any, and HandoverChallenge
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.handoverCreateChallenge = function handoverCreateChallenge(request, callback) {
+            return this.rpcCall(handoverCreateChallenge, $root.google.protobuf.Empty, $root.pruntime_rpc.HandoverChallenge, request, callback);
+        }, "name", { value: "HandoverCreateChallenge" });
+
+        /**
+         * Calls HandoverCreateChallenge.
+         * @function handoverCreateChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.HandoverChallenge>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#handoverStart}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef HandoverStartCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.HandoverWorkerKey} [response] HandoverWorkerKey
+         */
+
+        /**
+         * Calls HandoverStart.
+         * @function handoverStart
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHandoverChallengeResponse} request HandoverChallengeResponse message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.HandoverStartCallback} callback Node-style callback called with the error, if any, and HandoverWorkerKey
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.handoverStart = function handoverStart(request, callback) {
+            return this.rpcCall(handoverStart, $root.pruntime_rpc.HandoverChallengeResponse, $root.pruntime_rpc.HandoverWorkerKey, request, callback);
+        }, "name", { value: "HandoverStart" });
+
+        /**
+         * Calls HandoverStart.
+         * @function handoverStart
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHandoverChallengeResponse} request HandoverChallengeResponse message or plain object
+         * @returns {Promise<pruntime_rpc.HandoverWorkerKey>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#handoverAcceptChallenge}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef HandoverAcceptChallengeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.HandoverChallengeResponse} [response] HandoverChallengeResponse
+         */
+
+        /**
+         * Calls HandoverAcceptChallenge.
+         * @function handoverAcceptChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHandoverChallenge} request HandoverChallenge message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.HandoverAcceptChallengeCallback} callback Node-style callback called with the error, if any, and HandoverChallengeResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.handoverAcceptChallenge = function handoverAcceptChallenge(request, callback) {
+            return this.rpcCall(handoverAcceptChallenge, $root.pruntime_rpc.HandoverChallenge, $root.pruntime_rpc.HandoverChallengeResponse, request, callback);
+        }, "name", { value: "HandoverAcceptChallenge" });
+
+        /**
+         * Calls HandoverAcceptChallenge.
+         * @function handoverAcceptChallenge
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHandoverChallenge} request HandoverChallenge message or plain object
+         * @returns {Promise<pruntime_rpc.HandoverChallengeResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#handoverReceive}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef HandoverReceiveCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls HandoverReceive.
+         * @function handoverReceive
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHandoverWorkerKey} request HandoverWorkerKey message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.HandoverReceiveCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.handoverReceive = function handoverReceive(request, callback) {
+            return this.rpcCall(handoverReceive, $root.pruntime_rpc.HandoverWorkerKey, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "HandoverReceive" });
+
+        /**
+         * Calls HandoverReceive.
+         * @function handoverReceive
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHandoverWorkerKey} request HandoverWorkerKey message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#configNetwork}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef ConfigNetworkCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls ConfigNetwork.
+         * @function configNetwork
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.INetworkConfig} request NetworkConfig message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.ConfigNetworkCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.configNetwork = function configNetwork(request, callback) {
+            return this.rpcCall(configNetwork, $root.pruntime_rpc.NetworkConfig, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "ConfigNetwork" });
+
+        /**
+         * Calls ConfigNetwork.
+         * @function configNetwork
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.INetworkConfig} request NetworkConfig message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#httpFetch}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef HttpFetchCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.HttpResponse} [response] HttpResponse
+         */
+
+        /**
+         * Calls HttpFetch.
+         * @function httpFetch
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHttpRequest} request HttpRequest message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.HttpFetchCallback} callback Node-style callback called with the error, if any, and HttpResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.httpFetch = function httpFetch(request, callback) {
+            return this.rpcCall(httpFetch, $root.pruntime_rpc.HttpRequest, $root.pruntime_rpc.HttpResponse, request, callback);
+        }, "name", { value: "HttpFetch" });
+
+        /**
+         * Calls HttpFetch.
+         * @function httpFetch
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IHttpRequest} request HttpRequest message or plain object
+         * @returns {Promise<pruntime_rpc.HttpResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getContractInfo}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetContractInfoCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetContractInfoResponse} [response] GetContractInfoResponse
+         */
+
+        /**
+         * Calls GetContractInfo.
+         * @function getContractInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IGetContractInfoRequest} request GetContractInfoRequest message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetContractInfoCallback} callback Node-style callback called with the error, if any, and GetContractInfoResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getContractInfo = function getContractInfo(request, callback) {
+            return this.rpcCall(getContractInfo, $root.pruntime_rpc.GetContractInfoRequest, $root.pruntime_rpc.GetContractInfoResponse, request, callback);
+        }, "name", { value: "GetContractInfo" });
+
+        /**
+         * Calls GetContractInfo.
+         * @function getContractInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IGetContractInfoRequest} request GetContractInfoRequest message or plain object
+         * @returns {Promise<pruntime_rpc.GetContractInfoResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getClusterInfo}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetClusterInfoCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.GetClusterInfoResponse} [response] GetClusterInfoResponse
+         */
+
+        /**
+         * Calls GetClusterInfo.
+         * @function getClusterInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetClusterInfoCallback} callback Node-style callback called with the error, if any, and GetClusterInfoResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getClusterInfo = function getClusterInfo(request, callback) {
+            return this.rpcCall(getClusterInfo, $root.google.protobuf.Empty, $root.pruntime_rpc.GetClusterInfoResponse, request, callback);
+        }, "name", { value: "GetClusterInfo" });
+
+        /**
+         * Calls GetClusterInfo.
+         * @function getClusterInfo
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.GetClusterInfoResponse>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#uploadSidevmCode}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef UploadSidevmCodeCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls UploadSidevmCode.
+         * @function uploadSidevmCode
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISidevmCode} request SidevmCode message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.UploadSidevmCodeCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.uploadSidevmCode = function uploadSidevmCode(request, callback) {
+            return this.rpcCall(uploadSidevmCode, $root.pruntime_rpc.SidevmCode, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "UploadSidevmCode" });
+
+        /**
+         * Calls UploadSidevmCode.
+         * @function uploadSidevmCode
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.ISidevmCode} request SidevmCode message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -439,9 +901,9 @@ $root.pruntime_rpc = (function() {
          * @property {string|null} [gitRevision] PhactoryInfo gitRevision
          * @property {number|Long|null} [runningSideTasks] PhactoryInfo runningSideTasks
          * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
-         * @property {number|Long|null} [numberOfClusters] PhactoryInfo numberOfClusters
-         * @property {number|Long|null} [numberOfContracts] PhactoryInfo numberOfContracts
          * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
+         * @property {pruntime_rpc.INetworkStatus|null} [networkStatus] PhactoryInfo networkStatus
+         * @property {pruntime_rpc.ISystemInfo|null} [system] PhactoryInfo system
          */
 
         /**
@@ -596,28 +1058,28 @@ $root.pruntime_rpc = (function() {
         PhactoryInfo.prototype.memoryUsage = null;
 
         /**
-         * PhactoryInfo numberOfClusters.
-         * @member {number|Long} numberOfClusters
-         * @memberof pruntime_rpc.PhactoryInfo
-         * @instance
-         */
-        PhactoryInfo.prototype.numberOfClusters = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
-
-        /**
-         * PhactoryInfo numberOfContracts.
-         * @member {number|Long} numberOfContracts
-         * @memberof pruntime_rpc.PhactoryInfo
-         * @instance
-         */
-        PhactoryInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
-
-        /**
          * PhactoryInfo waitingForParaheaders.
          * @member {boolean} waitingForParaheaders
          * @memberof pruntime_rpc.PhactoryInfo
          * @instance
          */
         PhactoryInfo.prototype.waitingForParaheaders = false;
+
+        /**
+         * PhactoryInfo networkStatus.
+         * @member {pruntime_rpc.INetworkStatus|null|undefined} networkStatus
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.networkStatus = null;
+
+        /**
+         * PhactoryInfo system.
+         * @member {pruntime_rpc.ISystemInfo|null|undefined} system
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.system = null;
 
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
@@ -713,12 +1175,12 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 17, wireType 0 =*/136).uint64(message.runningSideTasks);
             if (message.memoryUsage != null && Object.hasOwnProperty.call(message, "memoryUsage"))
                 $root.pruntime_rpc.MemoryUsage.encode(message.memoryUsage, writer.uint32(/* id 18, wireType 2 =*/146).fork()).ldelim();
-            if (message.numberOfClusters != null && Object.hasOwnProperty.call(message, "numberOfClusters"))
-                writer.uint32(/* id 19, wireType 0 =*/152).uint64(message.numberOfClusters);
-            if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
-                writer.uint32(/* id 20, wireType 0 =*/160).uint64(message.numberOfContracts);
             if (message.waitingForParaheaders != null && Object.hasOwnProperty.call(message, "waitingForParaheaders"))
                 writer.uint32(/* id 21, wireType 0 =*/168).bool(message.waitingForParaheaders);
+            if (message.networkStatus != null && Object.hasOwnProperty.call(message, "networkStatus"))
+                $root.pruntime_rpc.NetworkStatus.encode(message.networkStatus, writer.uint32(/* id 22, wireType 2 =*/178).fork()).ldelim();
+            if (message.system != null && Object.hasOwnProperty.call(message, "system"))
+                $root.pruntime_rpc.SystemInfo.encode(message.system, writer.uint32(/* id 23, wireType 2 =*/186).fork()).ldelim();
             return writer;
         };
 
@@ -804,14 +1266,14 @@ $root.pruntime_rpc = (function() {
                 case 18:
                     message.memoryUsage = $root.pruntime_rpc.MemoryUsage.decode(reader, reader.uint32());
                     break;
-                case 19:
-                    message.numberOfClusters = reader.uint64();
-                    break;
-                case 20:
-                    message.numberOfContracts = reader.uint64();
-                    break;
                 case 21:
                     message.waitingForParaheaders = reader.bool();
+                    break;
+                case 22:
+                    message.networkStatus = $root.pruntime_rpc.NetworkStatus.decode(reader, reader.uint32());
+                    break;
+                case 23:
+                    message.system = $root.pruntime_rpc.SystemInfo.decode(reader, reader.uint32());
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -910,15 +1372,19 @@ $root.pruntime_rpc = (function() {
                 if (error)
                     return "memoryUsage." + error;
             }
-            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
-                if (!$util.isInteger(message.numberOfClusters) && !(message.numberOfClusters && $util.isInteger(message.numberOfClusters.low) && $util.isInteger(message.numberOfClusters.high)))
-                    return "numberOfClusters: integer|Long expected";
-            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
-                if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
-                    return "numberOfContracts: integer|Long expected";
             if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
                 if (typeof message.waitingForParaheaders !== "boolean")
                     return "waitingForParaheaders: boolean expected";
+            if (message.networkStatus != null && message.hasOwnProperty("networkStatus")) {
+                var error = $root.pruntime_rpc.NetworkStatus.verify(message.networkStatus);
+                if (error)
+                    return "networkStatus." + error;
+            }
+            if (message.system != null && message.hasOwnProperty("system")) {
+                var error = $root.pruntime_rpc.SystemInfo.verify(message.system);
+                if (error)
+                    return "system." + error;
+            }
             return null;
         };
 
@@ -995,26 +1461,18 @@ $root.pruntime_rpc = (function() {
                     throw TypeError(".pruntime_rpc.PhactoryInfo.memoryUsage: object expected");
                 message.memoryUsage = $root.pruntime_rpc.MemoryUsage.fromObject(object.memoryUsage);
             }
-            if (object.numberOfClusters != null)
-                if ($util.Long)
-                    (message.numberOfClusters = $util.Long.fromValue(object.numberOfClusters)).unsigned = true;
-                else if (typeof object.numberOfClusters === "string")
-                    message.numberOfClusters = parseInt(object.numberOfClusters, 10);
-                else if (typeof object.numberOfClusters === "number")
-                    message.numberOfClusters = object.numberOfClusters;
-                else if (typeof object.numberOfClusters === "object")
-                    message.numberOfClusters = new $util.LongBits(object.numberOfClusters.low >>> 0, object.numberOfClusters.high >>> 0).toNumber(true);
-            if (object.numberOfContracts != null)
-                if ($util.Long)
-                    (message.numberOfContracts = $util.Long.fromValue(object.numberOfContracts)).unsigned = true;
-                else if (typeof object.numberOfContracts === "string")
-                    message.numberOfContracts = parseInt(object.numberOfContracts, 10);
-                else if (typeof object.numberOfContracts === "number")
-                    message.numberOfContracts = object.numberOfContracts;
-                else if (typeof object.numberOfContracts === "object")
-                    message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
             if (object.waitingForParaheaders != null)
                 message.waitingForParaheaders = Boolean(object.waitingForParaheaders);
+            if (object.networkStatus != null) {
+                if (typeof object.networkStatus !== "object")
+                    throw TypeError(".pruntime_rpc.PhactoryInfo.networkStatus: object expected");
+                message.networkStatus = $root.pruntime_rpc.NetworkStatus.fromObject(object.networkStatus);
+            }
+            if (object.system != null) {
+                if (typeof object.system !== "object")
+                    throw TypeError(".pruntime_rpc.PhactoryInfo.system: object expected");
+                message.system = $root.pruntime_rpc.SystemInfo.fromObject(object.system);
+            }
             return message;
         };
 
@@ -1058,17 +1516,9 @@ $root.pruntime_rpc = (function() {
                 } else
                     object.runningSideTasks = options.longs === String ? "0" : 0;
                 object.memoryUsage = null;
-                if ($util.Long) {
-                    var long = new $util.Long(0, 0, true);
-                    object.numberOfClusters = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-                } else
-                    object.numberOfClusters = options.longs === String ? "0" : 0;
-                if ($util.Long) {
-                    var long = new $util.Long(0, 0, true);
-                    object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-                } else
-                    object.numberOfContracts = options.longs === String ? "0" : 0;
                 object.waitingForParaheaders = false;
+                object.networkStatus = null;
+                object.system = null;
             }
             if (message.initialized != null && message.hasOwnProperty("initialized"))
                 object.initialized = message.initialized;
@@ -1122,18 +1572,12 @@ $root.pruntime_rpc = (function() {
                     object.runningSideTasks = options.longs === String ? $util.Long.prototype.toString.call(message.runningSideTasks) : options.longs === Number ? new $util.LongBits(message.runningSideTasks.low >>> 0, message.runningSideTasks.high >>> 0).toNumber(true) : message.runningSideTasks;
             if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage"))
                 object.memoryUsage = $root.pruntime_rpc.MemoryUsage.toObject(message.memoryUsage, options);
-            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
-                if (typeof message.numberOfClusters === "number")
-                    object.numberOfClusters = options.longs === String ? String(message.numberOfClusters) : message.numberOfClusters;
-                else
-                    object.numberOfClusters = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfClusters) : options.longs === Number ? new $util.LongBits(message.numberOfClusters.low >>> 0, message.numberOfClusters.high >>> 0).toNumber(true) : message.numberOfClusters;
-            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
-                if (typeof message.numberOfContracts === "number")
-                    object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
-                else
-                    object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
             if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
                 object.waitingForParaheaders = message.waitingForParaheaders;
+            if (message.networkStatus != null && message.hasOwnProperty("networkStatus"))
+                object.networkStatus = $root.pruntime_rpc.NetworkStatus.toObject(message.networkStatus, options);
+            if (message.system != null && message.hasOwnProperty("system"))
+                object.system = $root.pruntime_rpc.SystemInfo.toObject(message.system, options);
             return object;
         };
 
@@ -1149,6 +1593,381 @@ $root.pruntime_rpc = (function() {
         };
 
         return PhactoryInfo;
+    })();
+
+    pruntime_rpc.SystemInfo = (function() {
+
+        /**
+         * Properties of a SystemInfo.
+         * @memberof pruntime_rpc
+         * @interface ISystemInfo
+         * @property {boolean|null} [registered] SystemInfo registered
+         * @property {string|null} [publicKey] SystemInfo publicKey
+         * @property {string|null} [ecdhPublicKey] SystemInfo ecdhPublicKey
+         * @property {pruntime_rpc.IGatekeeperStatus|null} [gatekeeper] SystemInfo gatekeeper
+         * @property {number|Long|null} [numberOfClusters] SystemInfo numberOfClusters
+         * @property {number|Long|null} [numberOfContracts] SystemInfo numberOfContracts
+         * @property {number|null} [consensusVersion] SystemInfo consensusVersion
+         * @property {number|null} [maxSupportedConsensusVersion] SystemInfo maxSupportedConsensusVersion
+         */
+
+        /**
+         * Constructs a new SystemInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SystemInfo.
+         * @implements ISystemInfo
+         * @constructor
+         * @param {pruntime_rpc.ISystemInfo=} [properties] Properties to set
+         */
+        function SystemInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SystemInfo registered.
+         * @member {boolean} registered
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.registered = false;
+
+        /**
+         * SystemInfo publicKey.
+         * @member {string} publicKey
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.publicKey = "";
+
+        /**
+         * SystemInfo ecdhPublicKey.
+         * @member {string} ecdhPublicKey
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.ecdhPublicKey = "";
+
+        /**
+         * SystemInfo gatekeeper.
+         * @member {pruntime_rpc.IGatekeeperStatus|null|undefined} gatekeeper
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.gatekeeper = null;
+
+        /**
+         * SystemInfo numberOfClusters.
+         * @member {number|Long} numberOfClusters
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.numberOfClusters = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * SystemInfo numberOfContracts.
+         * @member {number|Long} numberOfContracts
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+
+        /**
+         * SystemInfo consensusVersion.
+         * @member {number} consensusVersion
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.consensusVersion = 0;
+
+        /**
+         * SystemInfo maxSupportedConsensusVersion.
+         * @member {number} maxSupportedConsensusVersion
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.maxSupportedConsensusVersion = 0;
+
+        /**
+         * Creates a new SystemInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {pruntime_rpc.ISystemInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.SystemInfo} SystemInfo instance
+         */
+        SystemInfo.create = function create(properties) {
+            return new SystemInfo(properties);
+        };
+
+        /**
+         * Encodes the specified SystemInfo message. Does not implicitly {@link pruntime_rpc.SystemInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {pruntime_rpc.ISystemInfo} message SystemInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.registered != null && Object.hasOwnProperty.call(message, "registered"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.registered);
+            if (message.publicKey != null && Object.hasOwnProperty.call(message, "publicKey"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.publicKey);
+            if (message.ecdhPublicKey != null && Object.hasOwnProperty.call(message, "ecdhPublicKey"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.ecdhPublicKey);
+            if (message.gatekeeper != null && Object.hasOwnProperty.call(message, "gatekeeper"))
+                $root.pruntime_rpc.GatekeeperStatus.encode(message.gatekeeper, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.numberOfClusters != null && Object.hasOwnProperty.call(message, "numberOfClusters"))
+                writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.numberOfClusters);
+            if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.numberOfContracts);
+            if (message.consensusVersion != null && Object.hasOwnProperty.call(message, "consensusVersion"))
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.consensusVersion);
+            if (message.maxSupportedConsensusVersion != null && Object.hasOwnProperty.call(message, "maxSupportedConsensusVersion"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.maxSupportedConsensusVersion);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SystemInfo message, length delimited. Does not implicitly {@link pruntime_rpc.SystemInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {pruntime_rpc.ISystemInfo} message SystemInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SystemInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SystemInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SystemInfo} SystemInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SystemInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.registered = reader.bool();
+                    break;
+                case 2:
+                    message.publicKey = reader.string();
+                    break;
+                case 3:
+                    message.ecdhPublicKey = reader.string();
+                    break;
+                case 4:
+                    message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.decode(reader, reader.uint32());
+                    break;
+                case 5:
+                    message.numberOfClusters = reader.uint64();
+                    break;
+                case 6:
+                    message.numberOfContracts = reader.uint64();
+                    break;
+                case 7:
+                    message.consensusVersion = reader.uint32();
+                    break;
+                case 8:
+                    message.maxSupportedConsensusVersion = reader.uint32();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SystemInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SystemInfo} SystemInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SystemInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SystemInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SystemInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.registered != null && message.hasOwnProperty("registered"))
+                if (typeof message.registered !== "boolean")
+                    return "registered: boolean expected";
+            if (message.publicKey != null && message.hasOwnProperty("publicKey"))
+                if (!$util.isString(message.publicKey))
+                    return "publicKey: string expected";
+            if (message.ecdhPublicKey != null && message.hasOwnProperty("ecdhPublicKey"))
+                if (!$util.isString(message.ecdhPublicKey))
+                    return "ecdhPublicKey: string expected";
+            if (message.gatekeeper != null && message.hasOwnProperty("gatekeeper")) {
+                var error = $root.pruntime_rpc.GatekeeperStatus.verify(message.gatekeeper);
+                if (error)
+                    return "gatekeeper." + error;
+            }
+            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
+                if (!$util.isInteger(message.numberOfClusters) && !(message.numberOfClusters && $util.isInteger(message.numberOfClusters.low) && $util.isInteger(message.numberOfClusters.high)))
+                    return "numberOfClusters: integer|Long expected";
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
+                    return "numberOfContracts: integer|Long expected";
+            if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
+                if (!$util.isInteger(message.consensusVersion))
+                    return "consensusVersion: integer expected";
+            if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
+                if (!$util.isInteger(message.maxSupportedConsensusVersion))
+                    return "maxSupportedConsensusVersion: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates a SystemInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SystemInfo} SystemInfo
+         */
+        SystemInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SystemInfo)
+                return object;
+            var message = new $root.pruntime_rpc.SystemInfo();
+            if (object.registered != null)
+                message.registered = Boolean(object.registered);
+            if (object.publicKey != null)
+                message.publicKey = String(object.publicKey);
+            if (object.ecdhPublicKey != null)
+                message.ecdhPublicKey = String(object.ecdhPublicKey);
+            if (object.gatekeeper != null) {
+                if (typeof object.gatekeeper !== "object")
+                    throw TypeError(".pruntime_rpc.SystemInfo.gatekeeper: object expected");
+                message.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.fromObject(object.gatekeeper);
+            }
+            if (object.numberOfClusters != null)
+                if ($util.Long)
+                    (message.numberOfClusters = $util.Long.fromValue(object.numberOfClusters)).unsigned = true;
+                else if (typeof object.numberOfClusters === "string")
+                    message.numberOfClusters = parseInt(object.numberOfClusters, 10);
+                else if (typeof object.numberOfClusters === "number")
+                    message.numberOfClusters = object.numberOfClusters;
+                else if (typeof object.numberOfClusters === "object")
+                    message.numberOfClusters = new $util.LongBits(object.numberOfClusters.low >>> 0, object.numberOfClusters.high >>> 0).toNumber(true);
+            if (object.numberOfContracts != null)
+                if ($util.Long)
+                    (message.numberOfContracts = $util.Long.fromValue(object.numberOfContracts)).unsigned = true;
+                else if (typeof object.numberOfContracts === "string")
+                    message.numberOfContracts = parseInt(object.numberOfContracts, 10);
+                else if (typeof object.numberOfContracts === "number")
+                    message.numberOfContracts = object.numberOfContracts;
+                else if (typeof object.numberOfContracts === "object")
+                    message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
+            if (object.consensusVersion != null)
+                message.consensusVersion = object.consensusVersion >>> 0;
+            if (object.maxSupportedConsensusVersion != null)
+                message.maxSupportedConsensusVersion = object.maxSupportedConsensusVersion >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SystemInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SystemInfo
+         * @static
+         * @param {pruntime_rpc.SystemInfo} message SystemInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SystemInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.registered = false;
+                object.publicKey = "";
+                object.ecdhPublicKey = "";
+                object.gatekeeper = null;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfClusters = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfClusters = options.longs === String ? "0" : 0;
+                if ($util.Long) {
+                    var long = new $util.Long(0, 0, true);
+                    object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
+                } else
+                    object.numberOfContracts = options.longs === String ? "0" : 0;
+                object.consensusVersion = 0;
+                object.maxSupportedConsensusVersion = 0;
+            }
+            if (message.registered != null && message.hasOwnProperty("registered"))
+                object.registered = message.registered;
+            if (message.publicKey != null && message.hasOwnProperty("publicKey"))
+                object.publicKey = message.publicKey;
+            if (message.ecdhPublicKey != null && message.hasOwnProperty("ecdhPublicKey"))
+                object.ecdhPublicKey = message.ecdhPublicKey;
+            if (message.gatekeeper != null && message.hasOwnProperty("gatekeeper"))
+                object.gatekeeper = $root.pruntime_rpc.GatekeeperStatus.toObject(message.gatekeeper, options);
+            if (message.numberOfClusters != null && message.hasOwnProperty("numberOfClusters"))
+                if (typeof message.numberOfClusters === "number")
+                    object.numberOfClusters = options.longs === String ? String(message.numberOfClusters) : message.numberOfClusters;
+                else
+                    object.numberOfClusters = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfClusters) : options.longs === Number ? new $util.LongBits(message.numberOfClusters.low >>> 0, message.numberOfClusters.high >>> 0).toNumber(true) : message.numberOfClusters;
+            if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
+                if (typeof message.numberOfContracts === "number")
+                    object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
+                else
+                    object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
+            if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
+                object.consensusVersion = message.consensusVersion;
+            if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
+                object.maxSupportedConsensusVersion = message.maxSupportedConsensusVersion;
+            return object;
+        };
+
+        /**
+         * Converts this SystemInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SystemInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return SystemInfo;
     })();
 
     /**
@@ -5906,6 +6725,278 @@ $root.pruntime_rpc = (function() {
         return GetWorkerStateRequest;
     })();
 
+    pruntime_rpc.WorkerStat = (function() {
+
+        /**
+         * Properties of a WorkerStat.
+         * @memberof pruntime_rpc
+         * @interface IWorkerStat
+         * @property {number|null} [lastHeartbeatForBlock] WorkerStat lastHeartbeatForBlock
+         * @property {number|null} [lastHeartbeatAtBlock] WorkerStat lastHeartbeatAtBlock
+         * @property {pruntime_rpc.ResponsiveEvent|null} [lastGkResponsiveEvent] WorkerStat lastGkResponsiveEvent
+         * @property {number|null} [lastGkResponsiveEventAtBlock] WorkerStat lastGkResponsiveEventAtBlock
+         */
+
+        /**
+         * Constructs a new WorkerStat.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a WorkerStat.
+         * @implements IWorkerStat
+         * @constructor
+         * @param {pruntime_rpc.IWorkerStat=} [properties] Properties to set
+         */
+        function WorkerStat(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * WorkerStat lastHeartbeatForBlock.
+         * @member {number} lastHeartbeatForBlock
+         * @memberof pruntime_rpc.WorkerStat
+         * @instance
+         */
+        WorkerStat.prototype.lastHeartbeatForBlock = 0;
+
+        /**
+         * WorkerStat lastHeartbeatAtBlock.
+         * @member {number} lastHeartbeatAtBlock
+         * @memberof pruntime_rpc.WorkerStat
+         * @instance
+         */
+        WorkerStat.prototype.lastHeartbeatAtBlock = 0;
+
+        /**
+         * WorkerStat lastGkResponsiveEvent.
+         * @member {pruntime_rpc.ResponsiveEvent} lastGkResponsiveEvent
+         * @memberof pruntime_rpc.WorkerStat
+         * @instance
+         */
+        WorkerStat.prototype.lastGkResponsiveEvent = 0;
+
+        /**
+         * WorkerStat lastGkResponsiveEventAtBlock.
+         * @member {number} lastGkResponsiveEventAtBlock
+         * @memberof pruntime_rpc.WorkerStat
+         * @instance
+         */
+        WorkerStat.prototype.lastGkResponsiveEventAtBlock = 0;
+
+        /**
+         * Creates a new WorkerStat instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {pruntime_rpc.IWorkerStat=} [properties] Properties to set
+         * @returns {pruntime_rpc.WorkerStat} WorkerStat instance
+         */
+        WorkerStat.create = function create(properties) {
+            return new WorkerStat(properties);
+        };
+
+        /**
+         * Encodes the specified WorkerStat message. Does not implicitly {@link pruntime_rpc.WorkerStat.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {pruntime_rpc.IWorkerStat} message WorkerStat message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WorkerStat.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.lastHeartbeatForBlock != null && Object.hasOwnProperty.call(message, "lastHeartbeatForBlock"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.lastHeartbeatForBlock);
+            if (message.lastHeartbeatAtBlock != null && Object.hasOwnProperty.call(message, "lastHeartbeatAtBlock"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.lastHeartbeatAtBlock);
+            if (message.lastGkResponsiveEvent != null && Object.hasOwnProperty.call(message, "lastGkResponsiveEvent"))
+                writer.uint32(/* id 3, wireType 0 =*/24).int32(message.lastGkResponsiveEvent);
+            if (message.lastGkResponsiveEventAtBlock != null && Object.hasOwnProperty.call(message, "lastGkResponsiveEventAtBlock"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.lastGkResponsiveEventAtBlock);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified WorkerStat message, length delimited. Does not implicitly {@link pruntime_rpc.WorkerStat.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {pruntime_rpc.IWorkerStat} message WorkerStat message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        WorkerStat.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a WorkerStat message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.WorkerStat} WorkerStat
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WorkerStat.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkerStat();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.lastHeartbeatForBlock = reader.uint32();
+                    break;
+                case 2:
+                    message.lastHeartbeatAtBlock = reader.uint32();
+                    break;
+                case 3:
+                    message.lastGkResponsiveEvent = reader.int32();
+                    break;
+                case 4:
+                    message.lastGkResponsiveEventAtBlock = reader.uint32();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a WorkerStat message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.WorkerStat} WorkerStat
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        WorkerStat.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a WorkerStat message.
+         * @function verify
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        WorkerStat.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.lastHeartbeatForBlock != null && message.hasOwnProperty("lastHeartbeatForBlock"))
+                if (!$util.isInteger(message.lastHeartbeatForBlock))
+                    return "lastHeartbeatForBlock: integer expected";
+            if (message.lastHeartbeatAtBlock != null && message.hasOwnProperty("lastHeartbeatAtBlock"))
+                if (!$util.isInteger(message.lastHeartbeatAtBlock))
+                    return "lastHeartbeatAtBlock: integer expected";
+            if (message.lastGkResponsiveEvent != null && message.hasOwnProperty("lastGkResponsiveEvent"))
+                switch (message.lastGkResponsiveEvent) {
+                default:
+                    return "lastGkResponsiveEvent: enum value expected";
+                case 0:
+                case 1:
+                case 2:
+                    break;
+                }
+            if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
+                if (!$util.isInteger(message.lastGkResponsiveEventAtBlock))
+                    return "lastGkResponsiveEventAtBlock: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates a WorkerStat message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.WorkerStat} WorkerStat
+         */
+        WorkerStat.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.WorkerStat)
+                return object;
+            var message = new $root.pruntime_rpc.WorkerStat();
+            if (object.lastHeartbeatForBlock != null)
+                message.lastHeartbeatForBlock = object.lastHeartbeatForBlock >>> 0;
+            if (object.lastHeartbeatAtBlock != null)
+                message.lastHeartbeatAtBlock = object.lastHeartbeatAtBlock >>> 0;
+            switch (object.lastGkResponsiveEvent) {
+            case "NoEvent":
+            case 0:
+                message.lastGkResponsiveEvent = 0;
+                break;
+            case "EnterUnresponsive":
+            case 1:
+                message.lastGkResponsiveEvent = 1;
+                break;
+            case "ExitUnresponsive":
+            case 2:
+                message.lastGkResponsiveEvent = 2;
+                break;
+            }
+            if (object.lastGkResponsiveEventAtBlock != null)
+                message.lastGkResponsiveEventAtBlock = object.lastGkResponsiveEventAtBlock >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a WorkerStat message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.WorkerStat
+         * @static
+         * @param {pruntime_rpc.WorkerStat} message WorkerStat
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        WorkerStat.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.lastHeartbeatForBlock = 0;
+                object.lastHeartbeatAtBlock = 0;
+                object.lastGkResponsiveEvent = options.enums === String ? "NoEvent" : 0;
+                object.lastGkResponsiveEventAtBlock = 0;
+            }
+            if (message.lastHeartbeatForBlock != null && message.hasOwnProperty("lastHeartbeatForBlock"))
+                object.lastHeartbeatForBlock = message.lastHeartbeatForBlock;
+            if (message.lastHeartbeatAtBlock != null && message.hasOwnProperty("lastHeartbeatAtBlock"))
+                object.lastHeartbeatAtBlock = message.lastHeartbeatAtBlock;
+            if (message.lastGkResponsiveEvent != null && message.hasOwnProperty("lastGkResponsiveEvent"))
+                object.lastGkResponsiveEvent = options.enums === String ? $root.pruntime_rpc.ResponsiveEvent[message.lastGkResponsiveEvent] : message.lastGkResponsiveEvent;
+            if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
+                object.lastGkResponsiveEventAtBlock = message.lastGkResponsiveEventAtBlock;
+            return object;
+        };
+
+        /**
+         * Converts this WorkerStat to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.WorkerStat
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        WorkerStat.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return WorkerStat;
+    })();
+
     pruntime_rpc.WorkerState = (function() {
 
         /**
@@ -5917,11 +7008,8 @@ $root.pruntime_rpc = (function() {
          * @property {pruntime_rpc.IBenchState|null} [benchState] WorkerState benchState
          * @property {pruntime_rpc.IMiningState|null} [miningState] WorkerState miningState
          * @property {Array.<number>|null} [waitingHeartbeats] WorkerState waitingHeartbeats
-         * @property {number|null} [lastHeartbeatForBlock] WorkerState lastHeartbeatForBlock
-         * @property {number|null} [lastHeartbeatAtBlock] WorkerState lastHeartbeatAtBlock
-         * @property {pruntime_rpc.ResponsiveEvent|null} [lastGkResponsiveEvent] WorkerState lastGkResponsiveEvent
-         * @property {number|null} [lastGkResponsiveEventAtBlock] WorkerState lastGkResponsiveEventAtBlock
          * @property {pruntime_rpc.ITokenomicInfo|null} [tokenomicInfo] WorkerState tokenomicInfo
+         * @property {pruntime_rpc.IWorkerStat|null} [stat] WorkerState stat
          */
 
         /**
@@ -5981,44 +7069,20 @@ $root.pruntime_rpc = (function() {
         WorkerState.prototype.waitingHeartbeats = $util.emptyArray;
 
         /**
-         * WorkerState lastHeartbeatForBlock.
-         * @member {number} lastHeartbeatForBlock
-         * @memberof pruntime_rpc.WorkerState
-         * @instance
-         */
-        WorkerState.prototype.lastHeartbeatForBlock = 0;
-
-        /**
-         * WorkerState lastHeartbeatAtBlock.
-         * @member {number} lastHeartbeatAtBlock
-         * @memberof pruntime_rpc.WorkerState
-         * @instance
-         */
-        WorkerState.prototype.lastHeartbeatAtBlock = 0;
-
-        /**
-         * WorkerState lastGkResponsiveEvent.
-         * @member {pruntime_rpc.ResponsiveEvent} lastGkResponsiveEvent
-         * @memberof pruntime_rpc.WorkerState
-         * @instance
-         */
-        WorkerState.prototype.lastGkResponsiveEvent = 0;
-
-        /**
-         * WorkerState lastGkResponsiveEventAtBlock.
-         * @member {number} lastGkResponsiveEventAtBlock
-         * @memberof pruntime_rpc.WorkerState
-         * @instance
-         */
-        WorkerState.prototype.lastGkResponsiveEventAtBlock = 0;
-
-        /**
          * WorkerState tokenomicInfo.
          * @member {pruntime_rpc.ITokenomicInfo|null|undefined} tokenomicInfo
          * @memberof pruntime_rpc.WorkerState
          * @instance
          */
         WorkerState.prototype.tokenomicInfo = null;
+
+        /**
+         * WorkerState stat.
+         * @member {pruntime_rpc.IWorkerStat|null|undefined} stat
+         * @memberof pruntime_rpc.WorkerState
+         * @instance
+         */
+        WorkerState.prototype.stat = null;
 
         /**
          * Creates a new WorkerState instance using the specified properties.
@@ -6058,16 +7122,10 @@ $root.pruntime_rpc = (function() {
                     writer.uint32(message.waitingHeartbeats[i]);
                 writer.ldelim();
             }
-            if (message.lastHeartbeatForBlock != null && Object.hasOwnProperty.call(message, "lastHeartbeatForBlock"))
-                writer.uint32(/* id 6, wireType 0 =*/48).uint32(message.lastHeartbeatForBlock);
-            if (message.lastHeartbeatAtBlock != null && Object.hasOwnProperty.call(message, "lastHeartbeatAtBlock"))
-                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.lastHeartbeatAtBlock);
-            if (message.lastGkResponsiveEvent != null && Object.hasOwnProperty.call(message, "lastGkResponsiveEvent"))
-                writer.uint32(/* id 8, wireType 0 =*/64).int32(message.lastGkResponsiveEvent);
-            if (message.lastGkResponsiveEventAtBlock != null && Object.hasOwnProperty.call(message, "lastGkResponsiveEventAtBlock"))
-                writer.uint32(/* id 9, wireType 0 =*/72).uint32(message.lastGkResponsiveEventAtBlock);
             if (message.tokenomicInfo != null && Object.hasOwnProperty.call(message, "tokenomicInfo"))
                 $root.pruntime_rpc.TokenomicInfo.encode(message.tokenomicInfo, writer.uint32(/* id 10, wireType 2 =*/82).fork()).ldelim();
+            if (message.stat != null && Object.hasOwnProperty.call(message, "stat"))
+                $root.pruntime_rpc.WorkerStat.encode(message.stat, writer.uint32(/* id 11, wireType 2 =*/90).fork()).ldelim();
             return writer;
         };
 
@@ -6124,20 +7182,11 @@ $root.pruntime_rpc = (function() {
                     } else
                         message.waitingHeartbeats.push(reader.uint32());
                     break;
-                case 6:
-                    message.lastHeartbeatForBlock = reader.uint32();
-                    break;
-                case 7:
-                    message.lastHeartbeatAtBlock = reader.uint32();
-                    break;
-                case 8:
-                    message.lastGkResponsiveEvent = reader.int32();
-                    break;
-                case 9:
-                    message.lastGkResponsiveEventAtBlock = reader.uint32();
-                    break;
                 case 10:
                     message.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.decode(reader, reader.uint32());
+                    break;
+                case 11:
+                    message.stat = $root.pruntime_rpc.WorkerStat.decode(reader, reader.uint32());
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -6197,28 +7246,15 @@ $root.pruntime_rpc = (function() {
                     if (!$util.isInteger(message.waitingHeartbeats[i]))
                         return "waitingHeartbeats: integer[] expected";
             }
-            if (message.lastHeartbeatForBlock != null && message.hasOwnProperty("lastHeartbeatForBlock"))
-                if (!$util.isInteger(message.lastHeartbeatForBlock))
-                    return "lastHeartbeatForBlock: integer expected";
-            if (message.lastHeartbeatAtBlock != null && message.hasOwnProperty("lastHeartbeatAtBlock"))
-                if (!$util.isInteger(message.lastHeartbeatAtBlock))
-                    return "lastHeartbeatAtBlock: integer expected";
-            if (message.lastGkResponsiveEvent != null && message.hasOwnProperty("lastGkResponsiveEvent"))
-                switch (message.lastGkResponsiveEvent) {
-                default:
-                    return "lastGkResponsiveEvent: enum value expected";
-                case 0:
-                case 1:
-                case 2:
-                    break;
-                }
-            if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
-                if (!$util.isInteger(message.lastGkResponsiveEventAtBlock))
-                    return "lastGkResponsiveEventAtBlock: integer expected";
             if (message.tokenomicInfo != null && message.hasOwnProperty("tokenomicInfo")) {
                 var error = $root.pruntime_rpc.TokenomicInfo.verify(message.tokenomicInfo);
                 if (error)
                     return "tokenomicInfo." + error;
+            }
+            if (message.stat != null && message.hasOwnProperty("stat")) {
+                var error = $root.pruntime_rpc.WorkerStat.verify(message.stat);
+                if (error)
+                    return "stat." + error;
             }
             return null;
         };
@@ -6256,30 +7292,15 @@ $root.pruntime_rpc = (function() {
                 for (var i = 0; i < object.waitingHeartbeats.length; ++i)
                     message.waitingHeartbeats[i] = object.waitingHeartbeats[i] >>> 0;
             }
-            if (object.lastHeartbeatForBlock != null)
-                message.lastHeartbeatForBlock = object.lastHeartbeatForBlock >>> 0;
-            if (object.lastHeartbeatAtBlock != null)
-                message.lastHeartbeatAtBlock = object.lastHeartbeatAtBlock >>> 0;
-            switch (object.lastGkResponsiveEvent) {
-            case "NoEvent":
-            case 0:
-                message.lastGkResponsiveEvent = 0;
-                break;
-            case "EnterUnresponsive":
-            case 1:
-                message.lastGkResponsiveEvent = 1;
-                break;
-            case "ExitUnresponsive":
-            case 2:
-                message.lastGkResponsiveEvent = 2;
-                break;
-            }
-            if (object.lastGkResponsiveEventAtBlock != null)
-                message.lastGkResponsiveEventAtBlock = object.lastGkResponsiveEventAtBlock >>> 0;
             if (object.tokenomicInfo != null) {
                 if (typeof object.tokenomicInfo !== "object")
                     throw TypeError(".pruntime_rpc.WorkerState.tokenomicInfo: object expected");
                 message.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.fromObject(object.tokenomicInfo);
+            }
+            if (object.stat != null) {
+                if (typeof object.stat !== "object")
+                    throw TypeError(".pruntime_rpc.WorkerState.stat: object expected");
+                message.stat = $root.pruntime_rpc.WorkerStat.fromObject(object.stat);
             }
             return message;
         };
@@ -6304,11 +7325,8 @@ $root.pruntime_rpc = (function() {
                 object.unresponsive = false;
                 object.benchState = null;
                 object.miningState = null;
-                object.lastHeartbeatForBlock = 0;
-                object.lastHeartbeatAtBlock = 0;
-                object.lastGkResponsiveEvent = options.enums === String ? "NoEvent" : 0;
-                object.lastGkResponsiveEventAtBlock = 0;
                 object.tokenomicInfo = null;
+                object.stat = null;
             }
             if (message.registered != null && message.hasOwnProperty("registered"))
                 object.registered = message.registered;
@@ -6323,16 +7341,10 @@ $root.pruntime_rpc = (function() {
                 for (var j = 0; j < message.waitingHeartbeats.length; ++j)
                     object.waitingHeartbeats[j] = message.waitingHeartbeats[j];
             }
-            if (message.lastHeartbeatForBlock != null && message.hasOwnProperty("lastHeartbeatForBlock"))
-                object.lastHeartbeatForBlock = message.lastHeartbeatForBlock;
-            if (message.lastHeartbeatAtBlock != null && message.hasOwnProperty("lastHeartbeatAtBlock"))
-                object.lastHeartbeatAtBlock = message.lastHeartbeatAtBlock;
-            if (message.lastGkResponsiveEvent != null && message.hasOwnProperty("lastGkResponsiveEvent"))
-                object.lastGkResponsiveEvent = options.enums === String ? $root.pruntime_rpc.ResponsiveEvent[message.lastGkResponsiveEvent] : message.lastGkResponsiveEvent;
-            if (message.lastGkResponsiveEventAtBlock != null && message.hasOwnProperty("lastGkResponsiveEventAtBlock"))
-                object.lastGkResponsiveEventAtBlock = message.lastGkResponsiveEventAtBlock;
             if (message.tokenomicInfo != null && message.hasOwnProperty("tokenomicInfo"))
                 object.tokenomicInfo = $root.pruntime_rpc.TokenomicInfo.toObject(message.tokenomicInfo, options);
+            if (message.stat != null && message.hasOwnProperty("stat"))
+                object.stat = $root.pruntime_rpc.WorkerStat.toObject(message.stat, options);
             return object;
         };
 
@@ -6348,6 +7360,650 @@ $root.pruntime_rpc = (function() {
         };
 
         return WorkerState;
+    })();
+
+    pruntime_rpc.HandoverChallenge = (function() {
+
+        /**
+         * Properties of a HandoverChallenge.
+         * @memberof pruntime_rpc
+         * @interface IHandoverChallenge
+         * @property {Uint8Array|null} [encodedChallenge] HandoverChallenge encodedChallenge
+         */
+
+        /**
+         * Constructs a new HandoverChallenge.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a HandoverChallenge.
+         * @implements IHandoverChallenge
+         * @constructor
+         * @param {pruntime_rpc.IHandoverChallenge=} [properties] Properties to set
+         */
+        function HandoverChallenge(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HandoverChallenge encodedChallenge.
+         * @member {Uint8Array} encodedChallenge
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @instance
+         */
+        HandoverChallenge.prototype.encodedChallenge = $util.newBuffer([]);
+
+        /**
+         * Creates a new HandoverChallenge instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {pruntime_rpc.IHandoverChallenge=} [properties] Properties to set
+         * @returns {pruntime_rpc.HandoverChallenge} HandoverChallenge instance
+         */
+        HandoverChallenge.create = function create(properties) {
+            return new HandoverChallenge(properties);
+        };
+
+        /**
+         * Encodes the specified HandoverChallenge message. Does not implicitly {@link pruntime_rpc.HandoverChallenge.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {pruntime_rpc.IHandoverChallenge} message HandoverChallenge message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HandoverChallenge.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedChallenge != null && Object.hasOwnProperty.call(message, "encodedChallenge"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedChallenge);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HandoverChallenge message, length delimited. Does not implicitly {@link pruntime_rpc.HandoverChallenge.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {pruntime_rpc.IHandoverChallenge} message HandoverChallenge message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HandoverChallenge.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HandoverChallenge message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.HandoverChallenge} HandoverChallenge
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HandoverChallenge.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverChallenge();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedChallenge = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HandoverChallenge message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.HandoverChallenge} HandoverChallenge
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HandoverChallenge.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HandoverChallenge message.
+         * @function verify
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HandoverChallenge.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
+                if (!(message.encodedChallenge && typeof message.encodedChallenge.length === "number" || $util.isString(message.encodedChallenge)))
+                    return "encodedChallenge: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a HandoverChallenge message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.HandoverChallenge} HandoverChallenge
+         */
+        HandoverChallenge.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.HandoverChallenge)
+                return object;
+            var message = new $root.pruntime_rpc.HandoverChallenge();
+            if (object.encodedChallenge != null)
+                if (typeof object.encodedChallenge === "string")
+                    $util.base64.decode(object.encodedChallenge, message.encodedChallenge = $util.newBuffer($util.base64.length(object.encodedChallenge)), 0);
+                else if (object.encodedChallenge.length)
+                    message.encodedChallenge = object.encodedChallenge;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HandoverChallenge message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @static
+         * @param {pruntime_rpc.HandoverChallenge} message HandoverChallenge
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HandoverChallenge.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.encodedChallenge = "";
+                else {
+                    object.encodedChallenge = [];
+                    if (options.bytes !== Array)
+                        object.encodedChallenge = $util.newBuffer(object.encodedChallenge);
+                }
+            if (message.encodedChallenge != null && message.hasOwnProperty("encodedChallenge"))
+                object.encodedChallenge = options.bytes === String ? $util.base64.encode(message.encodedChallenge, 0, message.encodedChallenge.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedChallenge) : message.encodedChallenge;
+            return object;
+        };
+
+        /**
+         * Converts this HandoverChallenge to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.HandoverChallenge
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HandoverChallenge.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return HandoverChallenge;
+    })();
+
+    pruntime_rpc.HandoverChallengeResponse = (function() {
+
+        /**
+         * Properties of a HandoverChallengeResponse.
+         * @memberof pruntime_rpc
+         * @interface IHandoverChallengeResponse
+         * @property {Uint8Array|null} [encodedChallengeHandler] HandoverChallengeResponse encodedChallengeHandler
+         * @property {pruntime_rpc.IAttestation|null} [attestation] HandoverChallengeResponse attestation
+         */
+
+        /**
+         * Constructs a new HandoverChallengeResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a HandoverChallengeResponse.
+         * @implements IHandoverChallengeResponse
+         * @constructor
+         * @param {pruntime_rpc.IHandoverChallengeResponse=} [properties] Properties to set
+         */
+        function HandoverChallengeResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HandoverChallengeResponse encodedChallengeHandler.
+         * @member {Uint8Array} encodedChallengeHandler
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @instance
+         */
+        HandoverChallengeResponse.prototype.encodedChallengeHandler = $util.newBuffer([]);
+
+        /**
+         * HandoverChallengeResponse attestation.
+         * @member {pruntime_rpc.IAttestation|null|undefined} attestation
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @instance
+         */
+        HandoverChallengeResponse.prototype.attestation = null;
+
+        /**
+         * Creates a new HandoverChallengeResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {pruntime_rpc.IHandoverChallengeResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.HandoverChallengeResponse} HandoverChallengeResponse instance
+         */
+        HandoverChallengeResponse.create = function create(properties) {
+            return new HandoverChallengeResponse(properties);
+        };
+
+        /**
+         * Encodes the specified HandoverChallengeResponse message. Does not implicitly {@link pruntime_rpc.HandoverChallengeResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {pruntime_rpc.IHandoverChallengeResponse} message HandoverChallengeResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HandoverChallengeResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedChallengeHandler != null && Object.hasOwnProperty.call(message, "encodedChallengeHandler"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedChallengeHandler);
+            if (message.attestation != null && Object.hasOwnProperty.call(message, "attestation"))
+                $root.pruntime_rpc.Attestation.encode(message.attestation, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HandoverChallengeResponse message, length delimited. Does not implicitly {@link pruntime_rpc.HandoverChallengeResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {pruntime_rpc.IHandoverChallengeResponse} message HandoverChallengeResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HandoverChallengeResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HandoverChallengeResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.HandoverChallengeResponse} HandoverChallengeResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HandoverChallengeResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverChallengeResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedChallengeHandler = reader.bytes();
+                    break;
+                case 2:
+                    message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HandoverChallengeResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.HandoverChallengeResponse} HandoverChallengeResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HandoverChallengeResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HandoverChallengeResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HandoverChallengeResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedChallengeHandler != null && message.hasOwnProperty("encodedChallengeHandler"))
+                if (!(message.encodedChallengeHandler && typeof message.encodedChallengeHandler.length === "number" || $util.isString(message.encodedChallengeHandler)))
+                    return "encodedChallengeHandler: buffer expected";
+            if (message.attestation != null && message.hasOwnProperty("attestation")) {
+                var error = $root.pruntime_rpc.Attestation.verify(message.attestation);
+                if (error)
+                    return "attestation." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a HandoverChallengeResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.HandoverChallengeResponse} HandoverChallengeResponse
+         */
+        HandoverChallengeResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.HandoverChallengeResponse)
+                return object;
+            var message = new $root.pruntime_rpc.HandoverChallengeResponse();
+            if (object.encodedChallengeHandler != null)
+                if (typeof object.encodedChallengeHandler === "string")
+                    $util.base64.decode(object.encodedChallengeHandler, message.encodedChallengeHandler = $util.newBuffer($util.base64.length(object.encodedChallengeHandler)), 0);
+                else if (object.encodedChallengeHandler.length)
+                    message.encodedChallengeHandler = object.encodedChallengeHandler;
+            if (object.attestation != null) {
+                if (typeof object.attestation !== "object")
+                    throw TypeError(".pruntime_rpc.HandoverChallengeResponse.attestation: object expected");
+                message.attestation = $root.pruntime_rpc.Attestation.fromObject(object.attestation);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HandoverChallengeResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @static
+         * @param {pruntime_rpc.HandoverChallengeResponse} message HandoverChallengeResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HandoverChallengeResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.encodedChallengeHandler = "";
+                else {
+                    object.encodedChallengeHandler = [];
+                    if (options.bytes !== Array)
+                        object.encodedChallengeHandler = $util.newBuffer(object.encodedChallengeHandler);
+                }
+                object.attestation = null;
+            }
+            if (message.encodedChallengeHandler != null && message.hasOwnProperty("encodedChallengeHandler"))
+                object.encodedChallengeHandler = options.bytes === String ? $util.base64.encode(message.encodedChallengeHandler, 0, message.encodedChallengeHandler.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedChallengeHandler) : message.encodedChallengeHandler;
+            if (message.attestation != null && message.hasOwnProperty("attestation"))
+                object.attestation = $root.pruntime_rpc.Attestation.toObject(message.attestation, options);
+            return object;
+        };
+
+        /**
+         * Converts this HandoverChallengeResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.HandoverChallengeResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HandoverChallengeResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return HandoverChallengeResponse;
+    })();
+
+    pruntime_rpc.HandoverWorkerKey = (function() {
+
+        /**
+         * Properties of a HandoverWorkerKey.
+         * @memberof pruntime_rpc
+         * @interface IHandoverWorkerKey
+         * @property {Uint8Array|null} [encodedWorkerKey] HandoverWorkerKey encodedWorkerKey
+         * @property {pruntime_rpc.IAttestation|null} [attestation] HandoverWorkerKey attestation
+         */
+
+        /**
+         * Constructs a new HandoverWorkerKey.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a HandoverWorkerKey.
+         * @implements IHandoverWorkerKey
+         * @constructor
+         * @param {pruntime_rpc.IHandoverWorkerKey=} [properties] Properties to set
+         */
+        function HandoverWorkerKey(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HandoverWorkerKey encodedWorkerKey.
+         * @member {Uint8Array} encodedWorkerKey
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @instance
+         */
+        HandoverWorkerKey.prototype.encodedWorkerKey = $util.newBuffer([]);
+
+        /**
+         * HandoverWorkerKey attestation.
+         * @member {pruntime_rpc.IAttestation|null|undefined} attestation
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @instance
+         */
+        HandoverWorkerKey.prototype.attestation = null;
+
+        /**
+         * Creates a new HandoverWorkerKey instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {pruntime_rpc.IHandoverWorkerKey=} [properties] Properties to set
+         * @returns {pruntime_rpc.HandoverWorkerKey} HandoverWorkerKey instance
+         */
+        HandoverWorkerKey.create = function create(properties) {
+            return new HandoverWorkerKey(properties);
+        };
+
+        /**
+         * Encodes the specified HandoverWorkerKey message. Does not implicitly {@link pruntime_rpc.HandoverWorkerKey.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {pruntime_rpc.IHandoverWorkerKey} message HandoverWorkerKey message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HandoverWorkerKey.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedWorkerKey != null && Object.hasOwnProperty.call(message, "encodedWorkerKey"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedWorkerKey);
+            if (message.attestation != null && Object.hasOwnProperty.call(message, "attestation"))
+                $root.pruntime_rpc.Attestation.encode(message.attestation, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HandoverWorkerKey message, length delimited. Does not implicitly {@link pruntime_rpc.HandoverWorkerKey.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {pruntime_rpc.IHandoverWorkerKey} message HandoverWorkerKey message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HandoverWorkerKey.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HandoverWorkerKey message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.HandoverWorkerKey} HandoverWorkerKey
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HandoverWorkerKey.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HandoverWorkerKey();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedWorkerKey = reader.bytes();
+                    break;
+                case 2:
+                    message.attestation = $root.pruntime_rpc.Attestation.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HandoverWorkerKey message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.HandoverWorkerKey} HandoverWorkerKey
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HandoverWorkerKey.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HandoverWorkerKey message.
+         * @function verify
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HandoverWorkerKey.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedWorkerKey != null && message.hasOwnProperty("encodedWorkerKey"))
+                if (!(message.encodedWorkerKey && typeof message.encodedWorkerKey.length === "number" || $util.isString(message.encodedWorkerKey)))
+                    return "encodedWorkerKey: buffer expected";
+            if (message.attestation != null && message.hasOwnProperty("attestation")) {
+                var error = $root.pruntime_rpc.Attestation.verify(message.attestation);
+                if (error)
+                    return "attestation." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a HandoverWorkerKey message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.HandoverWorkerKey} HandoverWorkerKey
+         */
+        HandoverWorkerKey.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.HandoverWorkerKey)
+                return object;
+            var message = new $root.pruntime_rpc.HandoverWorkerKey();
+            if (object.encodedWorkerKey != null)
+                if (typeof object.encodedWorkerKey === "string")
+                    $util.base64.decode(object.encodedWorkerKey, message.encodedWorkerKey = $util.newBuffer($util.base64.length(object.encodedWorkerKey)), 0);
+                else if (object.encodedWorkerKey.length)
+                    message.encodedWorkerKey = object.encodedWorkerKey;
+            if (object.attestation != null) {
+                if (typeof object.attestation !== "object")
+                    throw TypeError(".pruntime_rpc.HandoverWorkerKey.attestation: object expected");
+                message.attestation = $root.pruntime_rpc.Attestation.fromObject(object.attestation);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HandoverWorkerKey message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @static
+         * @param {pruntime_rpc.HandoverWorkerKey} message HandoverWorkerKey
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HandoverWorkerKey.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.encodedWorkerKey = "";
+                else {
+                    object.encodedWorkerKey = [];
+                    if (options.bytes !== Array)
+                        object.encodedWorkerKey = $util.newBuffer(object.encodedWorkerKey);
+                }
+                object.attestation = null;
+            }
+            if (message.encodedWorkerKey != null && message.hasOwnProperty("encodedWorkerKey"))
+                object.encodedWorkerKey = options.bytes === String ? $util.base64.encode(message.encodedWorkerKey, 0, message.encodedWorkerKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedWorkerKey) : message.encodedWorkerKey;
+            if (message.attestation != null && message.hasOwnProperty("attestation"))
+                object.attestation = $root.pruntime_rpc.Attestation.toObject(message.attestation, options);
+            return object;
+        };
+
+        /**
+         * Converts this HandoverWorkerKey to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.HandoverWorkerKey
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HandoverWorkerKey.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return HandoverWorkerKey;
     })();
 
     pruntime_rpc.BenchState = (function() {
@@ -7054,6 +8710,1207 @@ $root.pruntime_rpc = (function() {
         return values;
     })();
 
+    pruntime_rpc.AddEndpointRequest = (function() {
+
+        /**
+         * Properties of an AddEndpointRequest.
+         * @memberof pruntime_rpc
+         * @interface IAddEndpointRequest
+         * @property {Uint8Array|null} [encodedEndpointType] AddEndpointRequest encodedEndpointType
+         * @property {string|null} [endpoint] AddEndpointRequest endpoint
+         */
+
+        /**
+         * Constructs a new AddEndpointRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents an AddEndpointRequest.
+         * @implements IAddEndpointRequest
+         * @constructor
+         * @param {pruntime_rpc.IAddEndpointRequest=} [properties] Properties to set
+         */
+        function AddEndpointRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * AddEndpointRequest encodedEndpointType.
+         * @member {Uint8Array} encodedEndpointType
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @instance
+         */
+        AddEndpointRequest.prototype.encodedEndpointType = $util.newBuffer([]);
+
+        /**
+         * AddEndpointRequest endpoint.
+         * @member {string} endpoint
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @instance
+         */
+        AddEndpointRequest.prototype.endpoint = "";
+
+        /**
+         * Creates a new AddEndpointRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {pruntime_rpc.IAddEndpointRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.AddEndpointRequest} AddEndpointRequest instance
+         */
+        AddEndpointRequest.create = function create(properties) {
+            return new AddEndpointRequest(properties);
+        };
+
+        /**
+         * Encodes the specified AddEndpointRequest message. Does not implicitly {@link pruntime_rpc.AddEndpointRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {pruntime_rpc.IAddEndpointRequest} message AddEndpointRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AddEndpointRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedEndpointType != null && Object.hasOwnProperty.call(message, "encodedEndpointType"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedEndpointType);
+            if (message.endpoint != null && Object.hasOwnProperty.call(message, "endpoint"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.endpoint);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified AddEndpointRequest message, length delimited. Does not implicitly {@link pruntime_rpc.AddEndpointRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {pruntime_rpc.IAddEndpointRequest} message AddEndpointRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        AddEndpointRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes an AddEndpointRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.AddEndpointRequest} AddEndpointRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AddEndpointRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.AddEndpointRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedEndpointType = reader.bytes();
+                    break;
+                case 2:
+                    message.endpoint = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes an AddEndpointRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.AddEndpointRequest} AddEndpointRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        AddEndpointRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies an AddEndpointRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        AddEndpointRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedEndpointType != null && message.hasOwnProperty("encodedEndpointType"))
+                if (!(message.encodedEndpointType && typeof message.encodedEndpointType.length === "number" || $util.isString(message.encodedEndpointType)))
+                    return "encodedEndpointType: buffer expected";
+            if (message.endpoint != null && message.hasOwnProperty("endpoint"))
+                if (!$util.isString(message.endpoint))
+                    return "endpoint: string expected";
+            return null;
+        };
+
+        /**
+         * Creates an AddEndpointRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.AddEndpointRequest} AddEndpointRequest
+         */
+        AddEndpointRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.AddEndpointRequest)
+                return object;
+            var message = new $root.pruntime_rpc.AddEndpointRequest();
+            if (object.encodedEndpointType != null)
+                if (typeof object.encodedEndpointType === "string")
+                    $util.base64.decode(object.encodedEndpointType, message.encodedEndpointType = $util.newBuffer($util.base64.length(object.encodedEndpointType)), 0);
+                else if (object.encodedEndpointType.length)
+                    message.encodedEndpointType = object.encodedEndpointType;
+            if (object.endpoint != null)
+                message.endpoint = String(object.endpoint);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from an AddEndpointRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @static
+         * @param {pruntime_rpc.AddEndpointRequest} message AddEndpointRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        AddEndpointRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.encodedEndpointType = "";
+                else {
+                    object.encodedEndpointType = [];
+                    if (options.bytes !== Array)
+                        object.encodedEndpointType = $util.newBuffer(object.encodedEndpointType);
+                }
+                object.endpoint = "";
+            }
+            if (message.encodedEndpointType != null && message.hasOwnProperty("encodedEndpointType"))
+                object.encodedEndpointType = options.bytes === String ? $util.base64.encode(message.encodedEndpointType, 0, message.encodedEndpointType.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEndpointType) : message.encodedEndpointType;
+            if (message.endpoint != null && message.hasOwnProperty("endpoint"))
+                object.endpoint = message.endpoint;
+            return object;
+        };
+
+        /**
+         * Converts this AddEndpointRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.AddEndpointRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        AddEndpointRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return AddEndpointRequest;
+    })();
+
+    pruntime_rpc.GetEndpointResponse = (function() {
+
+        /**
+         * Properties of a GetEndpointResponse.
+         * @memberof pruntime_rpc
+         * @interface IGetEndpointResponse
+         * @property {Uint8Array|null} [encodedEndpointPayload] GetEndpointResponse encodedEndpointPayload
+         * @property {Uint8Array|null} [signature] GetEndpointResponse signature
+         */
+
+        /**
+         * Constructs a new GetEndpointResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetEndpointResponse.
+         * @implements IGetEndpointResponse
+         * @constructor
+         * @param {pruntime_rpc.IGetEndpointResponse=} [properties] Properties to set
+         */
+        function GetEndpointResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetEndpointResponse encodedEndpointPayload.
+         * @member {Uint8Array|null|undefined} encodedEndpointPayload
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @instance
+         */
+        GetEndpointResponse.prototype.encodedEndpointPayload = null;
+
+        /**
+         * GetEndpointResponse signature.
+         * @member {Uint8Array|null|undefined} signature
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @instance
+         */
+        GetEndpointResponse.prototype.signature = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        /**
+         * GetEndpointResponse _encodedEndpointPayload.
+         * @member {"encodedEndpointPayload"|undefined} _encodedEndpointPayload
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @instance
+         */
+        Object.defineProperty(GetEndpointResponse.prototype, "_encodedEndpointPayload", {
+            get: $util.oneOfGetter($oneOfFields = ["encodedEndpointPayload"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * GetEndpointResponse _signature.
+         * @member {"signature"|undefined} _signature
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @instance
+         */
+        Object.defineProperty(GetEndpointResponse.prototype, "_signature", {
+            get: $util.oneOfGetter($oneOfFields = ["signature"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * Creates a new GetEndpointResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {pruntime_rpc.IGetEndpointResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetEndpointResponse} GetEndpointResponse instance
+         */
+        GetEndpointResponse.create = function create(properties) {
+            return new GetEndpointResponse(properties);
+        };
+
+        /**
+         * Encodes the specified GetEndpointResponse message. Does not implicitly {@link pruntime_rpc.GetEndpointResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {pruntime_rpc.IGetEndpointResponse} message GetEndpointResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetEndpointResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedEndpointPayload != null && Object.hasOwnProperty.call(message, "encodedEndpointPayload"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedEndpointPayload);
+            if (message.signature != null && Object.hasOwnProperty.call(message, "signature"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.signature);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetEndpointResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetEndpointResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {pruntime_rpc.IGetEndpointResponse} message GetEndpointResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetEndpointResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetEndpointResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetEndpointResponse} GetEndpointResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetEndpointResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetEndpointResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedEndpointPayload = reader.bytes();
+                    break;
+                case 2:
+                    message.signature = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetEndpointResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetEndpointResponse} GetEndpointResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetEndpointResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetEndpointResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetEndpointResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            var properties = {};
+            if (message.encodedEndpointPayload != null && message.hasOwnProperty("encodedEndpointPayload")) {
+                properties._encodedEndpointPayload = 1;
+                if (!(message.encodedEndpointPayload && typeof message.encodedEndpointPayload.length === "number" || $util.isString(message.encodedEndpointPayload)))
+                    return "encodedEndpointPayload: buffer expected";
+            }
+            if (message.signature != null && message.hasOwnProperty("signature")) {
+                properties._signature = 1;
+                if (!(message.signature && typeof message.signature.length === "number" || $util.isString(message.signature)))
+                    return "signature: buffer expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetEndpointResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetEndpointResponse} GetEndpointResponse
+         */
+        GetEndpointResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetEndpointResponse)
+                return object;
+            var message = new $root.pruntime_rpc.GetEndpointResponse();
+            if (object.encodedEndpointPayload != null)
+                if (typeof object.encodedEndpointPayload === "string")
+                    $util.base64.decode(object.encodedEndpointPayload, message.encodedEndpointPayload = $util.newBuffer($util.base64.length(object.encodedEndpointPayload)), 0);
+                else if (object.encodedEndpointPayload.length)
+                    message.encodedEndpointPayload = object.encodedEndpointPayload;
+            if (object.signature != null)
+                if (typeof object.signature === "string")
+                    $util.base64.decode(object.signature, message.signature = $util.newBuffer($util.base64.length(object.signature)), 0);
+                else if (object.signature.length)
+                    message.signature = object.signature;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetEndpointResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @static
+         * @param {pruntime_rpc.GetEndpointResponse} message GetEndpointResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetEndpointResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (message.encodedEndpointPayload != null && message.hasOwnProperty("encodedEndpointPayload")) {
+                object.encodedEndpointPayload = options.bytes === String ? $util.base64.encode(message.encodedEndpointPayload, 0, message.encodedEndpointPayload.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEndpointPayload) : message.encodedEndpointPayload;
+                if (options.oneofs)
+                    object._encodedEndpointPayload = "encodedEndpointPayload";
+            }
+            if (message.signature != null && message.hasOwnProperty("signature")) {
+                object.signature = options.bytes === String ? $util.base64.encode(message.signature, 0, message.signature.length) : options.bytes === Array ? Array.prototype.slice.call(message.signature) : message.signature;
+                if (options.oneofs)
+                    object._signature = "signature";
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetEndpointResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetEndpointResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetEndpointResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetEndpointResponse;
+    })();
+
+    pruntime_rpc.SignEndpointsRequest = (function() {
+
+        /**
+         * Properties of a SignEndpointsRequest.
+         * @memberof pruntime_rpc
+         * @interface ISignEndpointsRequest
+         * @property {Uint8Array|null} [encodedEndpoints] SignEndpointsRequest encodedEndpoints
+         */
+
+        /**
+         * Constructs a new SignEndpointsRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SignEndpointsRequest.
+         * @implements ISignEndpointsRequest
+         * @constructor
+         * @param {pruntime_rpc.ISignEndpointsRequest=} [properties] Properties to set
+         */
+        function SignEndpointsRequest(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SignEndpointsRequest encodedEndpoints.
+         * @member {Uint8Array} encodedEndpoints
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @instance
+         */
+        SignEndpointsRequest.prototype.encodedEndpoints = $util.newBuffer([]);
+
+        /**
+         * Creates a new SignEndpointsRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {pruntime_rpc.ISignEndpointsRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.SignEndpointsRequest} SignEndpointsRequest instance
+         */
+        SignEndpointsRequest.create = function create(properties) {
+            return new SignEndpointsRequest(properties);
+        };
+
+        /**
+         * Encodes the specified SignEndpointsRequest message. Does not implicitly {@link pruntime_rpc.SignEndpointsRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {pruntime_rpc.ISignEndpointsRequest} message SignEndpointsRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SignEndpointsRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.encodedEndpoints != null && Object.hasOwnProperty.call(message, "encodedEndpoints"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.encodedEndpoints);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SignEndpointsRequest message, length delimited. Does not implicitly {@link pruntime_rpc.SignEndpointsRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {pruntime_rpc.ISignEndpointsRequest} message SignEndpointsRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SignEndpointsRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SignEndpointsRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SignEndpointsRequest} SignEndpointsRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SignEndpointsRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SignEndpointsRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.encodedEndpoints = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SignEndpointsRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SignEndpointsRequest} SignEndpointsRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SignEndpointsRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SignEndpointsRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SignEndpointsRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.encodedEndpoints != null && message.hasOwnProperty("encodedEndpoints"))
+                if (!(message.encodedEndpoints && typeof message.encodedEndpoints.length === "number" || $util.isString(message.encodedEndpoints)))
+                    return "encodedEndpoints: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a SignEndpointsRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SignEndpointsRequest} SignEndpointsRequest
+         */
+        SignEndpointsRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SignEndpointsRequest)
+                return object;
+            var message = new $root.pruntime_rpc.SignEndpointsRequest();
+            if (object.encodedEndpoints != null)
+                if (typeof object.encodedEndpoints === "string")
+                    $util.base64.decode(object.encodedEndpoints, message.encodedEndpoints = $util.newBuffer($util.base64.length(object.encodedEndpoints)), 0);
+                else if (object.encodedEndpoints.length)
+                    message.encodedEndpoints = object.encodedEndpoints;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SignEndpointsRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @static
+         * @param {pruntime_rpc.SignEndpointsRequest} message SignEndpointsRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SignEndpointsRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.encodedEndpoints = "";
+                else {
+                    object.encodedEndpoints = [];
+                    if (options.bytes !== Array)
+                        object.encodedEndpoints = $util.newBuffer(object.encodedEndpoints);
+                }
+            if (message.encodedEndpoints != null && message.hasOwnProperty("encodedEndpoints"))
+                object.encodedEndpoints = options.bytes === String ? $util.base64.encode(message.encodedEndpoints, 0, message.encodedEndpoints.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedEndpoints) : message.encodedEndpoints;
+            return object;
+        };
+
+        /**
+         * Converts this SignEndpointsRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SignEndpointsRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SignEndpointsRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return SignEndpointsRequest;
+    })();
+
+    pruntime_rpc.DerivePhalaI2pKeyResponse = (function() {
+
+        /**
+         * Properties of a DerivePhalaI2pKeyResponse.
+         * @memberof pruntime_rpc
+         * @interface IDerivePhalaI2pKeyResponse
+         * @property {Uint8Array|null} [phalaI2pKey] DerivePhalaI2pKeyResponse phalaI2pKey
+         */
+
+        /**
+         * Constructs a new DerivePhalaI2pKeyResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a DerivePhalaI2pKeyResponse.
+         * @implements IDerivePhalaI2pKeyResponse
+         * @constructor
+         * @param {pruntime_rpc.IDerivePhalaI2pKeyResponse=} [properties] Properties to set
+         */
+        function DerivePhalaI2pKeyResponse(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * DerivePhalaI2pKeyResponse phalaI2pKey.
+         * @member {Uint8Array} phalaI2pKey
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @instance
+         */
+        DerivePhalaI2pKeyResponse.prototype.phalaI2pKey = $util.newBuffer([]);
+
+        /**
+         * Creates a new DerivePhalaI2pKeyResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {pruntime_rpc.IDerivePhalaI2pKeyResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.DerivePhalaI2pKeyResponse} DerivePhalaI2pKeyResponse instance
+         */
+        DerivePhalaI2pKeyResponse.create = function create(properties) {
+            return new DerivePhalaI2pKeyResponse(properties);
+        };
+
+        /**
+         * Encodes the specified DerivePhalaI2pKeyResponse message. Does not implicitly {@link pruntime_rpc.DerivePhalaI2pKeyResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {pruntime_rpc.IDerivePhalaI2pKeyResponse} message DerivePhalaI2pKeyResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DerivePhalaI2pKeyResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.phalaI2pKey != null && Object.hasOwnProperty.call(message, "phalaI2pKey"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.phalaI2pKey);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified DerivePhalaI2pKeyResponse message, length delimited. Does not implicitly {@link pruntime_rpc.DerivePhalaI2pKeyResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {pruntime_rpc.IDerivePhalaI2pKeyResponse} message DerivePhalaI2pKeyResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        DerivePhalaI2pKeyResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a DerivePhalaI2pKeyResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.DerivePhalaI2pKeyResponse} DerivePhalaI2pKeyResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DerivePhalaI2pKeyResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.DerivePhalaI2pKeyResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.phalaI2pKey = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a DerivePhalaI2pKeyResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.DerivePhalaI2pKeyResponse} DerivePhalaI2pKeyResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        DerivePhalaI2pKeyResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a DerivePhalaI2pKeyResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        DerivePhalaI2pKeyResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.phalaI2pKey != null && message.hasOwnProperty("phalaI2pKey"))
+                if (!(message.phalaI2pKey && typeof message.phalaI2pKey.length === "number" || $util.isString(message.phalaI2pKey)))
+                    return "phalaI2pKey: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a DerivePhalaI2pKeyResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.DerivePhalaI2pKeyResponse} DerivePhalaI2pKeyResponse
+         */
+        DerivePhalaI2pKeyResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.DerivePhalaI2pKeyResponse)
+                return object;
+            var message = new $root.pruntime_rpc.DerivePhalaI2pKeyResponse();
+            if (object.phalaI2pKey != null)
+                if (typeof object.phalaI2pKey === "string")
+                    $util.base64.decode(object.phalaI2pKey, message.phalaI2pKey = $util.newBuffer($util.base64.length(object.phalaI2pKey)), 0);
+                else if (object.phalaI2pKey.length)
+                    message.phalaI2pKey = object.phalaI2pKey;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a DerivePhalaI2pKeyResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @static
+         * @param {pruntime_rpc.DerivePhalaI2pKeyResponse} message DerivePhalaI2pKeyResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        DerivePhalaI2pKeyResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                if (options.bytes === String)
+                    object.phalaI2pKey = "";
+                else {
+                    object.phalaI2pKey = [];
+                    if (options.bytes !== Array)
+                        object.phalaI2pKey = $util.newBuffer(object.phalaI2pKey);
+                }
+            if (message.phalaI2pKey != null && message.hasOwnProperty("phalaI2pKey"))
+                object.phalaI2pKey = options.bytes === String ? $util.base64.encode(message.phalaI2pKey, 0, message.phalaI2pKey.length) : options.bytes === Array ? Array.prototype.slice.call(message.phalaI2pKey) : message.phalaI2pKey;
+            return object;
+        };
+
+        /**
+         * Converts this DerivePhalaI2pKeyResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.DerivePhalaI2pKeyResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        DerivePhalaI2pKeyResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return DerivePhalaI2pKeyResponse;
+    })();
+
+    pruntime_rpc.TokenomicStat = (function() {
+
+        /**
+         * Properties of a TokenomicStat.
+         * @memberof pruntime_rpc
+         * @interface ITokenomicStat
+         * @property {string|null} [lastPayout] TokenomicStat lastPayout
+         * @property {number|null} [lastPayoutAtBlock] TokenomicStat lastPayoutAtBlock
+         * @property {string|null} [totalPayout] TokenomicStat totalPayout
+         * @property {number|null} [totalPayoutCount] TokenomicStat totalPayoutCount
+         * @property {string|null} [lastSlash] TokenomicStat lastSlash
+         * @property {number|null} [lastSlashAtBlock] TokenomicStat lastSlashAtBlock
+         * @property {string|null} [totalSlash] TokenomicStat totalSlash
+         * @property {number|null} [totalSlashCount] TokenomicStat totalSlashCount
+         */
+
+        /**
+         * Constructs a new TokenomicStat.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a TokenomicStat.
+         * @implements ITokenomicStat
+         * @constructor
+         * @param {pruntime_rpc.ITokenomicStat=} [properties] Properties to set
+         */
+        function TokenomicStat(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * TokenomicStat lastPayout.
+         * @member {string} lastPayout
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.lastPayout = "";
+
+        /**
+         * TokenomicStat lastPayoutAtBlock.
+         * @member {number} lastPayoutAtBlock
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.lastPayoutAtBlock = 0;
+
+        /**
+         * TokenomicStat totalPayout.
+         * @member {string} totalPayout
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.totalPayout = "";
+
+        /**
+         * TokenomicStat totalPayoutCount.
+         * @member {number} totalPayoutCount
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.totalPayoutCount = 0;
+
+        /**
+         * TokenomicStat lastSlash.
+         * @member {string} lastSlash
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.lastSlash = "";
+
+        /**
+         * TokenomicStat lastSlashAtBlock.
+         * @member {number} lastSlashAtBlock
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.lastSlashAtBlock = 0;
+
+        /**
+         * TokenomicStat totalSlash.
+         * @member {string} totalSlash
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.totalSlash = "";
+
+        /**
+         * TokenomicStat totalSlashCount.
+         * @member {number} totalSlashCount
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         */
+        TokenomicStat.prototype.totalSlashCount = 0;
+
+        /**
+         * Creates a new TokenomicStat instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {pruntime_rpc.ITokenomicStat=} [properties] Properties to set
+         * @returns {pruntime_rpc.TokenomicStat} TokenomicStat instance
+         */
+        TokenomicStat.create = function create(properties) {
+            return new TokenomicStat(properties);
+        };
+
+        /**
+         * Encodes the specified TokenomicStat message. Does not implicitly {@link pruntime_rpc.TokenomicStat.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {pruntime_rpc.ITokenomicStat} message TokenomicStat message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        TokenomicStat.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.lastPayout != null && Object.hasOwnProperty.call(message, "lastPayout"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.lastPayout);
+            if (message.lastPayoutAtBlock != null && Object.hasOwnProperty.call(message, "lastPayoutAtBlock"))
+                writer.uint32(/* id 2, wireType 0 =*/16).uint32(message.lastPayoutAtBlock);
+            if (message.totalPayout != null && Object.hasOwnProperty.call(message, "totalPayout"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.totalPayout);
+            if (message.totalPayoutCount != null && Object.hasOwnProperty.call(message, "totalPayoutCount"))
+                writer.uint32(/* id 4, wireType 0 =*/32).uint32(message.totalPayoutCount);
+            if (message.lastSlash != null && Object.hasOwnProperty.call(message, "lastSlash"))
+                writer.uint32(/* id 5, wireType 2 =*/42).string(message.lastSlash);
+            if (message.lastSlashAtBlock != null && Object.hasOwnProperty.call(message, "lastSlashAtBlock"))
+                writer.uint32(/* id 6, wireType 0 =*/48).uint32(message.lastSlashAtBlock);
+            if (message.totalSlash != null && Object.hasOwnProperty.call(message, "totalSlash"))
+                writer.uint32(/* id 7, wireType 2 =*/58).string(message.totalSlash);
+            if (message.totalSlashCount != null && Object.hasOwnProperty.call(message, "totalSlashCount"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.totalSlashCount);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified TokenomicStat message, length delimited. Does not implicitly {@link pruntime_rpc.TokenomicStat.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {pruntime_rpc.ITokenomicStat} message TokenomicStat message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        TokenomicStat.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a TokenomicStat message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.TokenomicStat} TokenomicStat
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        TokenomicStat.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.TokenomicStat();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.lastPayout = reader.string();
+                    break;
+                case 2:
+                    message.lastPayoutAtBlock = reader.uint32();
+                    break;
+                case 3:
+                    message.totalPayout = reader.string();
+                    break;
+                case 4:
+                    message.totalPayoutCount = reader.uint32();
+                    break;
+                case 5:
+                    message.lastSlash = reader.string();
+                    break;
+                case 6:
+                    message.lastSlashAtBlock = reader.uint32();
+                    break;
+                case 7:
+                    message.totalSlash = reader.string();
+                    break;
+                case 8:
+                    message.totalSlashCount = reader.uint32();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a TokenomicStat message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.TokenomicStat} TokenomicStat
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        TokenomicStat.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a TokenomicStat message.
+         * @function verify
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        TokenomicStat.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.lastPayout != null && message.hasOwnProperty("lastPayout"))
+                if (!$util.isString(message.lastPayout))
+                    return "lastPayout: string expected";
+            if (message.lastPayoutAtBlock != null && message.hasOwnProperty("lastPayoutAtBlock"))
+                if (!$util.isInteger(message.lastPayoutAtBlock))
+                    return "lastPayoutAtBlock: integer expected";
+            if (message.totalPayout != null && message.hasOwnProperty("totalPayout"))
+                if (!$util.isString(message.totalPayout))
+                    return "totalPayout: string expected";
+            if (message.totalPayoutCount != null && message.hasOwnProperty("totalPayoutCount"))
+                if (!$util.isInteger(message.totalPayoutCount))
+                    return "totalPayoutCount: integer expected";
+            if (message.lastSlash != null && message.hasOwnProperty("lastSlash"))
+                if (!$util.isString(message.lastSlash))
+                    return "lastSlash: string expected";
+            if (message.lastSlashAtBlock != null && message.hasOwnProperty("lastSlashAtBlock"))
+                if (!$util.isInteger(message.lastSlashAtBlock))
+                    return "lastSlashAtBlock: integer expected";
+            if (message.totalSlash != null && message.hasOwnProperty("totalSlash"))
+                if (!$util.isString(message.totalSlash))
+                    return "totalSlash: string expected";
+            if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
+                if (!$util.isInteger(message.totalSlashCount))
+                    return "totalSlashCount: integer expected";
+            return null;
+        };
+
+        /**
+         * Creates a TokenomicStat message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.TokenomicStat} TokenomicStat
+         */
+        TokenomicStat.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.TokenomicStat)
+                return object;
+            var message = new $root.pruntime_rpc.TokenomicStat();
+            if (object.lastPayout != null)
+                message.lastPayout = String(object.lastPayout);
+            if (object.lastPayoutAtBlock != null)
+                message.lastPayoutAtBlock = object.lastPayoutAtBlock >>> 0;
+            if (object.totalPayout != null)
+                message.totalPayout = String(object.totalPayout);
+            if (object.totalPayoutCount != null)
+                message.totalPayoutCount = object.totalPayoutCount >>> 0;
+            if (object.lastSlash != null)
+                message.lastSlash = String(object.lastSlash);
+            if (object.lastSlashAtBlock != null)
+                message.lastSlashAtBlock = object.lastSlashAtBlock >>> 0;
+            if (object.totalSlash != null)
+                message.totalSlash = String(object.totalSlash);
+            if (object.totalSlashCount != null)
+                message.totalSlashCount = object.totalSlashCount >>> 0;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a TokenomicStat message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.TokenomicStat
+         * @static
+         * @param {pruntime_rpc.TokenomicStat} message TokenomicStat
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        TokenomicStat.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.lastPayout = "";
+                object.lastPayoutAtBlock = 0;
+                object.totalPayout = "";
+                object.totalPayoutCount = 0;
+                object.lastSlash = "";
+                object.lastSlashAtBlock = 0;
+                object.totalSlash = "";
+                object.totalSlashCount = 0;
+            }
+            if (message.lastPayout != null && message.hasOwnProperty("lastPayout"))
+                object.lastPayout = message.lastPayout;
+            if (message.lastPayoutAtBlock != null && message.hasOwnProperty("lastPayoutAtBlock"))
+                object.lastPayoutAtBlock = message.lastPayoutAtBlock;
+            if (message.totalPayout != null && message.hasOwnProperty("totalPayout"))
+                object.totalPayout = message.totalPayout;
+            if (message.totalPayoutCount != null && message.hasOwnProperty("totalPayoutCount"))
+                object.totalPayoutCount = message.totalPayoutCount;
+            if (message.lastSlash != null && message.hasOwnProperty("lastSlash"))
+                object.lastSlash = message.lastSlash;
+            if (message.lastSlashAtBlock != null && message.hasOwnProperty("lastSlashAtBlock"))
+                object.lastSlashAtBlock = message.lastSlashAtBlock;
+            if (message.totalSlash != null && message.hasOwnProperty("totalSlash"))
+                object.totalSlash = message.totalSlash;
+            if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
+                object.totalSlashCount = message.totalSlashCount;
+            return object;
+        };
+
+        /**
+         * Converts this TokenomicStat to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.TokenomicStat
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        TokenomicStat.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return TokenomicStat;
+    })();
+
     pruntime_rpc.TokenomicInfo = (function() {
 
         /**
@@ -7071,14 +9928,7 @@ $root.pruntime_rpc = (function() {
          * @property {string|null} [pBench] TokenomicInfo pBench
          * @property {string|null} [pInstant] TokenomicInfo pInstant
          * @property {number|null} [confidenceLevel] TokenomicInfo confidenceLevel
-         * @property {string|null} [lastPayout] TokenomicInfo lastPayout
-         * @property {number|null} [lastPayoutAtBlock] TokenomicInfo lastPayoutAtBlock
-         * @property {string|null} [totalPayout] TokenomicInfo totalPayout
-         * @property {number|null} [totalPayoutCount] TokenomicInfo totalPayoutCount
-         * @property {string|null} [lastSlash] TokenomicInfo lastSlash
-         * @property {number|null} [lastSlashAtBlock] TokenomicInfo lastSlashAtBlock
-         * @property {string|null} [totalSlash] TokenomicInfo totalSlash
-         * @property {number|null} [totalSlashCount] TokenomicInfo totalSlashCount
+         * @property {pruntime_rpc.ITokenomicStat|null} [stat] TokenomicInfo stat
          */
 
         /**
@@ -7185,68 +10035,12 @@ $root.pruntime_rpc = (function() {
         TokenomicInfo.prototype.confidenceLevel = 0;
 
         /**
-         * TokenomicInfo lastPayout.
-         * @member {string} lastPayout
+         * TokenomicInfo stat.
+         * @member {pruntime_rpc.ITokenomicStat|null|undefined} stat
          * @memberof pruntime_rpc.TokenomicInfo
          * @instance
          */
-        TokenomicInfo.prototype.lastPayout = "";
-
-        /**
-         * TokenomicInfo lastPayoutAtBlock.
-         * @member {number} lastPayoutAtBlock
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.lastPayoutAtBlock = 0;
-
-        /**
-         * TokenomicInfo totalPayout.
-         * @member {string} totalPayout
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.totalPayout = "";
-
-        /**
-         * TokenomicInfo totalPayoutCount.
-         * @member {number} totalPayoutCount
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.totalPayoutCount = 0;
-
-        /**
-         * TokenomicInfo lastSlash.
-         * @member {string} lastSlash
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.lastSlash = "";
-
-        /**
-         * TokenomicInfo lastSlashAtBlock.
-         * @member {number} lastSlashAtBlock
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.lastSlashAtBlock = 0;
-
-        /**
-         * TokenomicInfo totalSlash.
-         * @member {string} totalSlash
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.totalSlash = "";
-
-        /**
-         * TokenomicInfo totalSlashCount.
-         * @member {number} totalSlashCount
-         * @memberof pruntime_rpc.TokenomicInfo
-         * @instance
-         */
-        TokenomicInfo.prototype.totalSlashCount = 0;
+        TokenomicInfo.prototype.stat = null;
 
         /**
          * Creates a new TokenomicInfo instance using the specified properties.
@@ -7290,26 +10084,12 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 9, wireType 2 =*/74).string(message.pInstant);
             if (message.confidenceLevel != null && Object.hasOwnProperty.call(message, "confidenceLevel"))
                 writer.uint32(/* id 10, wireType 0 =*/80).uint32(message.confidenceLevel);
-            if (message.lastPayout != null && Object.hasOwnProperty.call(message, "lastPayout"))
-                writer.uint32(/* id 11, wireType 2 =*/90).string(message.lastPayout);
-            if (message.lastPayoutAtBlock != null && Object.hasOwnProperty.call(message, "lastPayoutAtBlock"))
-                writer.uint32(/* id 12, wireType 0 =*/96).uint32(message.lastPayoutAtBlock);
-            if (message.totalPayout != null && Object.hasOwnProperty.call(message, "totalPayout"))
-                writer.uint32(/* id 13, wireType 2 =*/106).string(message.totalPayout);
-            if (message.totalPayoutCount != null && Object.hasOwnProperty.call(message, "totalPayoutCount"))
-                writer.uint32(/* id 14, wireType 0 =*/112).uint32(message.totalPayoutCount);
-            if (message.lastSlash != null && Object.hasOwnProperty.call(message, "lastSlash"))
-                writer.uint32(/* id 15, wireType 2 =*/122).string(message.lastSlash);
-            if (message.lastSlashAtBlock != null && Object.hasOwnProperty.call(message, "lastSlashAtBlock"))
-                writer.uint32(/* id 16, wireType 0 =*/128).uint32(message.lastSlashAtBlock);
-            if (message.totalSlash != null && Object.hasOwnProperty.call(message, "totalSlash"))
-                writer.uint32(/* id 17, wireType 2 =*/138).string(message.totalSlash);
-            if (message.totalSlashCount != null && Object.hasOwnProperty.call(message, "totalSlashCount"))
-                writer.uint32(/* id 18, wireType 0 =*/144).uint32(message.totalSlashCount);
             if (message.vDeductible != null && Object.hasOwnProperty.call(message, "vDeductible"))
                 writer.uint32(/* id 19, wireType 2 =*/154).string(message.vDeductible);
             if (message.share != null && Object.hasOwnProperty.call(message, "share"))
                 writer.uint32(/* id 20, wireType 2 =*/162).string(message.share);
+            if (message.stat != null && Object.hasOwnProperty.call(message, "stat"))
+                $root.pruntime_rpc.TokenomicStat.encode(message.stat, writer.uint32(/* id 21, wireType 2 =*/170).fork()).ldelim();
             return writer;
         };
 
@@ -7377,29 +10157,8 @@ $root.pruntime_rpc = (function() {
                 case 10:
                     message.confidenceLevel = reader.uint32();
                     break;
-                case 11:
-                    message.lastPayout = reader.string();
-                    break;
-                case 12:
-                    message.lastPayoutAtBlock = reader.uint32();
-                    break;
-                case 13:
-                    message.totalPayout = reader.string();
-                    break;
-                case 14:
-                    message.totalPayoutCount = reader.uint32();
-                    break;
-                case 15:
-                    message.lastSlash = reader.string();
-                    break;
-                case 16:
-                    message.lastSlashAtBlock = reader.uint32();
-                    break;
-                case 17:
-                    message.totalSlash = reader.string();
-                    break;
-                case 18:
-                    message.totalSlashCount = reader.uint32();
+                case 21:
+                    message.stat = $root.pruntime_rpc.TokenomicStat.decode(reader, reader.uint32());
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -7469,30 +10228,11 @@ $root.pruntime_rpc = (function() {
             if (message.confidenceLevel != null && message.hasOwnProperty("confidenceLevel"))
                 if (!$util.isInteger(message.confidenceLevel))
                     return "confidenceLevel: integer expected";
-            if (message.lastPayout != null && message.hasOwnProperty("lastPayout"))
-                if (!$util.isString(message.lastPayout))
-                    return "lastPayout: string expected";
-            if (message.lastPayoutAtBlock != null && message.hasOwnProperty("lastPayoutAtBlock"))
-                if (!$util.isInteger(message.lastPayoutAtBlock))
-                    return "lastPayoutAtBlock: integer expected";
-            if (message.totalPayout != null && message.hasOwnProperty("totalPayout"))
-                if (!$util.isString(message.totalPayout))
-                    return "totalPayout: string expected";
-            if (message.totalPayoutCount != null && message.hasOwnProperty("totalPayoutCount"))
-                if (!$util.isInteger(message.totalPayoutCount))
-                    return "totalPayoutCount: integer expected";
-            if (message.lastSlash != null && message.hasOwnProperty("lastSlash"))
-                if (!$util.isString(message.lastSlash))
-                    return "lastSlash: string expected";
-            if (message.lastSlashAtBlock != null && message.hasOwnProperty("lastSlashAtBlock"))
-                if (!$util.isInteger(message.lastSlashAtBlock))
-                    return "lastSlashAtBlock: integer expected";
-            if (message.totalSlash != null && message.hasOwnProperty("totalSlash"))
-                if (!$util.isString(message.totalSlash))
-                    return "totalSlash: string expected";
-            if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
-                if (!$util.isInteger(message.totalSlashCount))
-                    return "totalSlashCount: integer expected";
+            if (message.stat != null && message.hasOwnProperty("stat")) {
+                var error = $root.pruntime_rpc.TokenomicStat.verify(message.stat);
+                if (error)
+                    return "stat." + error;
+            }
             return null;
         };
 
@@ -7551,22 +10291,11 @@ $root.pruntime_rpc = (function() {
                 message.pInstant = String(object.pInstant);
             if (object.confidenceLevel != null)
                 message.confidenceLevel = object.confidenceLevel >>> 0;
-            if (object.lastPayout != null)
-                message.lastPayout = String(object.lastPayout);
-            if (object.lastPayoutAtBlock != null)
-                message.lastPayoutAtBlock = object.lastPayoutAtBlock >>> 0;
-            if (object.totalPayout != null)
-                message.totalPayout = String(object.totalPayout);
-            if (object.totalPayoutCount != null)
-                message.totalPayoutCount = object.totalPayoutCount >>> 0;
-            if (object.lastSlash != null)
-                message.lastSlash = String(object.lastSlash);
-            if (object.lastSlashAtBlock != null)
-                message.lastSlashAtBlock = object.lastSlashAtBlock >>> 0;
-            if (object.totalSlash != null)
-                message.totalSlash = String(object.totalSlash);
-            if (object.totalSlashCount != null)
-                message.totalSlashCount = object.totalSlashCount >>> 0;
+            if (object.stat != null) {
+                if (typeof object.stat !== "object")
+                    throw TypeError(".pruntime_rpc.TokenomicInfo.stat: object expected");
+                message.stat = $root.pruntime_rpc.TokenomicStat.fromObject(object.stat);
+            }
             return message;
         };
 
@@ -7605,16 +10334,9 @@ $root.pruntime_rpc = (function() {
                 object.pBench = "";
                 object.pInstant = "";
                 object.confidenceLevel = 0;
-                object.lastPayout = "";
-                object.lastPayoutAtBlock = 0;
-                object.totalPayout = "";
-                object.totalPayoutCount = 0;
-                object.lastSlash = "";
-                object.lastSlashAtBlock = 0;
-                object.totalSlash = "";
-                object.totalSlashCount = 0;
                 object.vDeductible = "";
                 object.share = "";
+                object.stat = null;
             }
             if (message.v != null && message.hasOwnProperty("v"))
                 object.v = message.v;
@@ -7643,26 +10365,12 @@ $root.pruntime_rpc = (function() {
                 object.pInstant = message.pInstant;
             if (message.confidenceLevel != null && message.hasOwnProperty("confidenceLevel"))
                 object.confidenceLevel = message.confidenceLevel;
-            if (message.lastPayout != null && message.hasOwnProperty("lastPayout"))
-                object.lastPayout = message.lastPayout;
-            if (message.lastPayoutAtBlock != null && message.hasOwnProperty("lastPayoutAtBlock"))
-                object.lastPayoutAtBlock = message.lastPayoutAtBlock;
-            if (message.totalPayout != null && message.hasOwnProperty("totalPayout"))
-                object.totalPayout = message.totalPayout;
-            if (message.totalPayoutCount != null && message.hasOwnProperty("totalPayoutCount"))
-                object.totalPayoutCount = message.totalPayoutCount;
-            if (message.lastSlash != null && message.hasOwnProperty("lastSlash"))
-                object.lastSlash = message.lastSlash;
-            if (message.lastSlashAtBlock != null && message.hasOwnProperty("lastSlashAtBlock"))
-                object.lastSlashAtBlock = message.lastSlashAtBlock;
-            if (message.totalSlash != null && message.hasOwnProperty("totalSlash"))
-                object.totalSlash = message.totalSlash;
-            if (message.totalSlashCount != null && message.hasOwnProperty("totalSlashCount"))
-                object.totalSlashCount = message.totalSlashCount;
             if (message.vDeductible != null && message.hasOwnProperty("vDeductible"))
                 object.vDeductible = message.vDeductible;
             if (message.share != null && message.hasOwnProperty("share"))
                 object.share = message.share;
+            if (message.stat != null && message.hasOwnProperty("stat"))
+                object.stat = $root.pruntime_rpc.TokenomicStat.toObject(message.stat, options);
             return object;
         };
 
@@ -7678,6 +10386,2853 @@ $root.pruntime_rpc = (function() {
         };
 
         return TokenomicInfo;
+    })();
+
+    pruntime_rpc.NetworkStatus = (function() {
+
+        /**
+         * Properties of a NetworkStatus.
+         * @memberof pruntime_rpc
+         * @interface INetworkStatus
+         * @property {number|null} [publicRpcPort] NetworkStatus publicRpcPort
+         * @property {pruntime_rpc.INetworkConfig|null} [config] NetworkStatus config
+         */
+
+        /**
+         * Constructs a new NetworkStatus.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a NetworkStatus.
+         * @implements INetworkStatus
+         * @constructor
+         * @param {pruntime_rpc.INetworkStatus=} [properties] Properties to set
+         */
+        function NetworkStatus(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * NetworkStatus publicRpcPort.
+         * @member {number|null|undefined} publicRpcPort
+         * @memberof pruntime_rpc.NetworkStatus
+         * @instance
+         */
+        NetworkStatus.prototype.publicRpcPort = null;
+
+        /**
+         * NetworkStatus config.
+         * @member {pruntime_rpc.INetworkConfig|null|undefined} config
+         * @memberof pruntime_rpc.NetworkStatus
+         * @instance
+         */
+        NetworkStatus.prototype.config = null;
+
+        // OneOf field names bound to virtual getters and setters
+        var $oneOfFields;
+
+        /**
+         * NetworkStatus _publicRpcPort.
+         * @member {"publicRpcPort"|undefined} _publicRpcPort
+         * @memberof pruntime_rpc.NetworkStatus
+         * @instance
+         */
+        Object.defineProperty(NetworkStatus.prototype, "_publicRpcPort", {
+            get: $util.oneOfGetter($oneOfFields = ["publicRpcPort"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * NetworkStatus _config.
+         * @member {"config"|undefined} _config
+         * @memberof pruntime_rpc.NetworkStatus
+         * @instance
+         */
+        Object.defineProperty(NetworkStatus.prototype, "_config", {
+            get: $util.oneOfGetter($oneOfFields = ["config"]),
+            set: $util.oneOfSetter($oneOfFields)
+        });
+
+        /**
+         * Creates a new NetworkStatus instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {pruntime_rpc.INetworkStatus=} [properties] Properties to set
+         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus instance
+         */
+        NetworkStatus.create = function create(properties) {
+            return new NetworkStatus(properties);
+        };
+
+        /**
+         * Encodes the specified NetworkStatus message. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {pruntime_rpc.INetworkStatus} message NetworkStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkStatus.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.publicRpcPort != null && Object.hasOwnProperty.call(message, "publicRpcPort"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.publicRpcPort);
+            if (message.config != null && Object.hasOwnProperty.call(message, "config"))
+                $root.pruntime_rpc.NetworkConfig.encode(message.config, writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified NetworkStatus message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {pruntime_rpc.INetworkStatus} message NetworkStatus message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkStatus.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a NetworkStatus message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkStatus.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkStatus();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.publicRpcPort = reader.uint32();
+                    break;
+                case 2:
+                    message.config = $root.pruntime_rpc.NetworkConfig.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a NetworkStatus message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkStatus.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a NetworkStatus message.
+         * @function verify
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        NetworkStatus.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            var properties = {};
+            if (message.publicRpcPort != null && message.hasOwnProperty("publicRpcPort")) {
+                properties._publicRpcPort = 1;
+                if (!$util.isInteger(message.publicRpcPort))
+                    return "publicRpcPort: integer expected";
+            }
+            if (message.config != null && message.hasOwnProperty("config")) {
+                properties._config = 1;
+                {
+                    var error = $root.pruntime_rpc.NetworkConfig.verify(message.config);
+                    if (error)
+                        return "config." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a NetworkStatus message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus
+         */
+        NetworkStatus.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.NetworkStatus)
+                return object;
+            var message = new $root.pruntime_rpc.NetworkStatus();
+            if (object.publicRpcPort != null)
+                message.publicRpcPort = object.publicRpcPort >>> 0;
+            if (object.config != null) {
+                if (typeof object.config !== "object")
+                    throw TypeError(".pruntime_rpc.NetworkStatus.config: object expected");
+                message.config = $root.pruntime_rpc.NetworkConfig.fromObject(object.config);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a NetworkStatus message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.NetworkStatus
+         * @static
+         * @param {pruntime_rpc.NetworkStatus} message NetworkStatus
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        NetworkStatus.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (message.publicRpcPort != null && message.hasOwnProperty("publicRpcPort")) {
+                object.publicRpcPort = message.publicRpcPort;
+                if (options.oneofs)
+                    object._publicRpcPort = "publicRpcPort";
+            }
+            if (message.config != null && message.hasOwnProperty("config")) {
+                object.config = $root.pruntime_rpc.NetworkConfig.toObject(message.config, options);
+                if (options.oneofs)
+                    object._config = "config";
+            }
+            return object;
+        };
+
+        /**
+         * Converts this NetworkStatus to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.NetworkStatus
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        NetworkStatus.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return NetworkStatus;
+    })();
+
+    pruntime_rpc.NetworkConfig = (function() {
+
+        /**
+         * Properties of a NetworkConfig.
+         * @memberof pruntime_rpc
+         * @interface INetworkConfig
+         * @property {string|null} [allProxy] NetworkConfig allProxy
+         * @property {string|null} [i2pProxy] NetworkConfig i2pProxy
+         */
+
+        /**
+         * Constructs a new NetworkConfig.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a NetworkConfig.
+         * @implements INetworkConfig
+         * @constructor
+         * @param {pruntime_rpc.INetworkConfig=} [properties] Properties to set
+         */
+        function NetworkConfig(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * NetworkConfig allProxy.
+         * @member {string} allProxy
+         * @memberof pruntime_rpc.NetworkConfig
+         * @instance
+         */
+        NetworkConfig.prototype.allProxy = "";
+
+        /**
+         * NetworkConfig i2pProxy.
+         * @member {string} i2pProxy
+         * @memberof pruntime_rpc.NetworkConfig
+         * @instance
+         */
+        NetworkConfig.prototype.i2pProxy = "";
+
+        /**
+         * Creates a new NetworkConfig instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {pruntime_rpc.INetworkConfig=} [properties] Properties to set
+         * @returns {pruntime_rpc.NetworkConfig} NetworkConfig instance
+         */
+        NetworkConfig.create = function create(properties) {
+            return new NetworkConfig(properties);
+        };
+
+        /**
+         * Encodes the specified NetworkConfig message. Does not implicitly {@link pruntime_rpc.NetworkConfig.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {pruntime_rpc.INetworkConfig} message NetworkConfig message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkConfig.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.allProxy != null && Object.hasOwnProperty.call(message, "allProxy"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.allProxy);
+            if (message.i2pProxy != null && Object.hasOwnProperty.call(message, "i2pProxy"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.i2pProxy);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified NetworkConfig message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkConfig.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {pruntime_rpc.INetworkConfig} message NetworkConfig message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        NetworkConfig.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a NetworkConfig message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.NetworkConfig} NetworkConfig
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkConfig.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkConfig();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 2:
+                    message.allProxy = reader.string();
+                    break;
+                case 3:
+                    message.i2pProxy = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a NetworkConfig message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.NetworkConfig} NetworkConfig
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        NetworkConfig.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a NetworkConfig message.
+         * @function verify
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        NetworkConfig.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.allProxy != null && message.hasOwnProperty("allProxy"))
+                if (!$util.isString(message.allProxy))
+                    return "allProxy: string expected";
+            if (message.i2pProxy != null && message.hasOwnProperty("i2pProxy"))
+                if (!$util.isString(message.i2pProxy))
+                    return "i2pProxy: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a NetworkConfig message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.NetworkConfig} NetworkConfig
+         */
+        NetworkConfig.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.NetworkConfig)
+                return object;
+            var message = new $root.pruntime_rpc.NetworkConfig();
+            if (object.allProxy != null)
+                message.allProxy = String(object.allProxy);
+            if (object.i2pProxy != null)
+                message.i2pProxy = String(object.i2pProxy);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a NetworkConfig message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.NetworkConfig
+         * @static
+         * @param {pruntime_rpc.NetworkConfig} message NetworkConfig
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        NetworkConfig.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.allProxy = "";
+                object.i2pProxy = "";
+            }
+            if (message.allProxy != null && message.hasOwnProperty("allProxy"))
+                object.allProxy = message.allProxy;
+            if (message.i2pProxy != null && message.hasOwnProperty("i2pProxy"))
+                object.i2pProxy = message.i2pProxy;
+            return object;
+        };
+
+        /**
+         * Converts this NetworkConfig to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.NetworkConfig
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        NetworkConfig.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return NetworkConfig;
+    })();
+
+    pruntime_rpc.HttpHeader = (function() {
+
+        /**
+         * Properties of a HttpHeader.
+         * @memberof pruntime_rpc
+         * @interface IHttpHeader
+         * @property {string|null} [name] HttpHeader name
+         * @property {string|null} [value] HttpHeader value
+         */
+
+        /**
+         * Constructs a new HttpHeader.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a HttpHeader.
+         * @implements IHttpHeader
+         * @constructor
+         * @param {pruntime_rpc.IHttpHeader=} [properties] Properties to set
+         */
+        function HttpHeader(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HttpHeader name.
+         * @member {string} name
+         * @memberof pruntime_rpc.HttpHeader
+         * @instance
+         */
+        HttpHeader.prototype.name = "";
+
+        /**
+         * HttpHeader value.
+         * @member {string} value
+         * @memberof pruntime_rpc.HttpHeader
+         * @instance
+         */
+        HttpHeader.prototype.value = "";
+
+        /**
+         * Creates a new HttpHeader instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {pruntime_rpc.IHttpHeader=} [properties] Properties to set
+         * @returns {pruntime_rpc.HttpHeader} HttpHeader instance
+         */
+        HttpHeader.create = function create(properties) {
+            return new HttpHeader(properties);
+        };
+
+        /**
+         * Encodes the specified HttpHeader message. Does not implicitly {@link pruntime_rpc.HttpHeader.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {pruntime_rpc.IHttpHeader} message HttpHeader message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HttpHeader.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.name != null && Object.hasOwnProperty.call(message, "name"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
+            if (message.value != null && Object.hasOwnProperty.call(message, "value"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.value);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HttpHeader message, length delimited. Does not implicitly {@link pruntime_rpc.HttpHeader.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {pruntime_rpc.IHttpHeader} message HttpHeader message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HttpHeader.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HttpHeader message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.HttpHeader} HttpHeader
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HttpHeader.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpHeader();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.name = reader.string();
+                    break;
+                case 2:
+                    message.value = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HttpHeader message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.HttpHeader} HttpHeader
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HttpHeader.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HttpHeader message.
+         * @function verify
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HttpHeader.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.name != null && message.hasOwnProperty("name"))
+                if (!$util.isString(message.name))
+                    return "name: string expected";
+            if (message.value != null && message.hasOwnProperty("value"))
+                if (!$util.isString(message.value))
+                    return "value: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a HttpHeader message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.HttpHeader} HttpHeader
+         */
+        HttpHeader.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.HttpHeader)
+                return object;
+            var message = new $root.pruntime_rpc.HttpHeader();
+            if (object.name != null)
+                message.name = String(object.name);
+            if (object.value != null)
+                message.value = String(object.value);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HttpHeader message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.HttpHeader
+         * @static
+         * @param {pruntime_rpc.HttpHeader} message HttpHeader
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HttpHeader.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.name = "";
+                object.value = "";
+            }
+            if (message.name != null && message.hasOwnProperty("name"))
+                object.name = message.name;
+            if (message.value != null && message.hasOwnProperty("value"))
+                object.value = message.value;
+            return object;
+        };
+
+        /**
+         * Converts this HttpHeader to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.HttpHeader
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HttpHeader.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return HttpHeader;
+    })();
+
+    pruntime_rpc.HttpRequest = (function() {
+
+        /**
+         * Properties of a HttpRequest.
+         * @memberof pruntime_rpc
+         * @interface IHttpRequest
+         * @property {string|null} [url] HttpRequest url
+         * @property {string|null} [method] HttpRequest method
+         * @property {Array.<pruntime_rpc.IHttpHeader>|null} [headers] HttpRequest headers
+         * @property {Uint8Array|null} [body] HttpRequest body
+         */
+
+        /**
+         * Constructs a new HttpRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a HttpRequest.
+         * @implements IHttpRequest
+         * @constructor
+         * @param {pruntime_rpc.IHttpRequest=} [properties] Properties to set
+         */
+        function HttpRequest(properties) {
+            this.headers = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HttpRequest url.
+         * @member {string} url
+         * @memberof pruntime_rpc.HttpRequest
+         * @instance
+         */
+        HttpRequest.prototype.url = "";
+
+        /**
+         * HttpRequest method.
+         * @member {string} method
+         * @memberof pruntime_rpc.HttpRequest
+         * @instance
+         */
+        HttpRequest.prototype.method = "";
+
+        /**
+         * HttpRequest headers.
+         * @member {Array.<pruntime_rpc.IHttpHeader>} headers
+         * @memberof pruntime_rpc.HttpRequest
+         * @instance
+         */
+        HttpRequest.prototype.headers = $util.emptyArray;
+
+        /**
+         * HttpRequest body.
+         * @member {Uint8Array} body
+         * @memberof pruntime_rpc.HttpRequest
+         * @instance
+         */
+        HttpRequest.prototype.body = $util.newBuffer([]);
+
+        /**
+         * Creates a new HttpRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {pruntime_rpc.IHttpRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.HttpRequest} HttpRequest instance
+         */
+        HttpRequest.create = function create(properties) {
+            return new HttpRequest(properties);
+        };
+
+        /**
+         * Encodes the specified HttpRequest message. Does not implicitly {@link pruntime_rpc.HttpRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {pruntime_rpc.IHttpRequest} message HttpRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HttpRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.url != null && Object.hasOwnProperty.call(message, "url"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.url);
+            if (message.method != null && Object.hasOwnProperty.call(message, "method"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.method);
+            if (message.headers != null && message.headers.length)
+                for (var i = 0; i < message.headers.length; ++i)
+                    $root.pruntime_rpc.HttpHeader.encode(message.headers[i], writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
+            if (message.body != null && Object.hasOwnProperty.call(message, "body"))
+                writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.body);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HttpRequest message, length delimited. Does not implicitly {@link pruntime_rpc.HttpRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {pruntime_rpc.IHttpRequest} message HttpRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HttpRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HttpRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.HttpRequest} HttpRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HttpRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.url = reader.string();
+                    break;
+                case 2:
+                    message.method = reader.string();
+                    break;
+                case 3:
+                    if (!(message.headers && message.headers.length))
+                        message.headers = [];
+                    message.headers.push($root.pruntime_rpc.HttpHeader.decode(reader, reader.uint32()));
+                    break;
+                case 4:
+                    message.body = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HttpRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.HttpRequest} HttpRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HttpRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HttpRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HttpRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.url != null && message.hasOwnProperty("url"))
+                if (!$util.isString(message.url))
+                    return "url: string expected";
+            if (message.method != null && message.hasOwnProperty("method"))
+                if (!$util.isString(message.method))
+                    return "method: string expected";
+            if (message.headers != null && message.hasOwnProperty("headers")) {
+                if (!Array.isArray(message.headers))
+                    return "headers: array expected";
+                for (var i = 0; i < message.headers.length; ++i) {
+                    var error = $root.pruntime_rpc.HttpHeader.verify(message.headers[i]);
+                    if (error)
+                        return "headers." + error;
+                }
+            }
+            if (message.body != null && message.hasOwnProperty("body"))
+                if (!(message.body && typeof message.body.length === "number" || $util.isString(message.body)))
+                    return "body: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a HttpRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.HttpRequest} HttpRequest
+         */
+        HttpRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.HttpRequest)
+                return object;
+            var message = new $root.pruntime_rpc.HttpRequest();
+            if (object.url != null)
+                message.url = String(object.url);
+            if (object.method != null)
+                message.method = String(object.method);
+            if (object.headers) {
+                if (!Array.isArray(object.headers))
+                    throw TypeError(".pruntime_rpc.HttpRequest.headers: array expected");
+                message.headers = [];
+                for (var i = 0; i < object.headers.length; ++i) {
+                    if (typeof object.headers[i] !== "object")
+                        throw TypeError(".pruntime_rpc.HttpRequest.headers: object expected");
+                    message.headers[i] = $root.pruntime_rpc.HttpHeader.fromObject(object.headers[i]);
+                }
+            }
+            if (object.body != null)
+                if (typeof object.body === "string")
+                    $util.base64.decode(object.body, message.body = $util.newBuffer($util.base64.length(object.body)), 0);
+                else if (object.body.length)
+                    message.body = object.body;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HttpRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.HttpRequest
+         * @static
+         * @param {pruntime_rpc.HttpRequest} message HttpRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HttpRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.headers = [];
+            if (options.defaults) {
+                object.url = "";
+                object.method = "";
+                if (options.bytes === String)
+                    object.body = "";
+                else {
+                    object.body = [];
+                    if (options.bytes !== Array)
+                        object.body = $util.newBuffer(object.body);
+                }
+            }
+            if (message.url != null && message.hasOwnProperty("url"))
+                object.url = message.url;
+            if (message.method != null && message.hasOwnProperty("method"))
+                object.method = message.method;
+            if (message.headers && message.headers.length) {
+                object.headers = [];
+                for (var j = 0; j < message.headers.length; ++j)
+                    object.headers[j] = $root.pruntime_rpc.HttpHeader.toObject(message.headers[j], options);
+            }
+            if (message.body != null && message.hasOwnProperty("body"))
+                object.body = options.bytes === String ? $util.base64.encode(message.body, 0, message.body.length) : options.bytes === Array ? Array.prototype.slice.call(message.body) : message.body;
+            return object;
+        };
+
+        /**
+         * Converts this HttpRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.HttpRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HttpRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return HttpRequest;
+    })();
+
+    pruntime_rpc.HttpResponse = (function() {
+
+        /**
+         * Properties of a HttpResponse.
+         * @memberof pruntime_rpc
+         * @interface IHttpResponse
+         * @property {number|null} [statusCode] HttpResponse statusCode
+         * @property {Array.<pruntime_rpc.IHttpHeader>|null} [headers] HttpResponse headers
+         * @property {Uint8Array|null} [body] HttpResponse body
+         */
+
+        /**
+         * Constructs a new HttpResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a HttpResponse.
+         * @implements IHttpResponse
+         * @constructor
+         * @param {pruntime_rpc.IHttpResponse=} [properties] Properties to set
+         */
+        function HttpResponse(properties) {
+            this.headers = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * HttpResponse statusCode.
+         * @member {number} statusCode
+         * @memberof pruntime_rpc.HttpResponse
+         * @instance
+         */
+        HttpResponse.prototype.statusCode = 0;
+
+        /**
+         * HttpResponse headers.
+         * @member {Array.<pruntime_rpc.IHttpHeader>} headers
+         * @memberof pruntime_rpc.HttpResponse
+         * @instance
+         */
+        HttpResponse.prototype.headers = $util.emptyArray;
+
+        /**
+         * HttpResponse body.
+         * @member {Uint8Array} body
+         * @memberof pruntime_rpc.HttpResponse
+         * @instance
+         */
+        HttpResponse.prototype.body = $util.newBuffer([]);
+
+        /**
+         * Creates a new HttpResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {pruntime_rpc.IHttpResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.HttpResponse} HttpResponse instance
+         */
+        HttpResponse.create = function create(properties) {
+            return new HttpResponse(properties);
+        };
+
+        /**
+         * Encodes the specified HttpResponse message. Does not implicitly {@link pruntime_rpc.HttpResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {pruntime_rpc.IHttpResponse} message HttpResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HttpResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.statusCode != null && Object.hasOwnProperty.call(message, "statusCode"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.statusCode);
+            if (message.headers != null && message.headers.length)
+                for (var i = 0; i < message.headers.length; ++i)
+                    $root.pruntime_rpc.HttpHeader.encode(message.headers[i], writer.uint32(/* id 2, wireType 2 =*/18).fork()).ldelim();
+            if (message.body != null && Object.hasOwnProperty.call(message, "body"))
+                writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.body);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified HttpResponse message, length delimited. Does not implicitly {@link pruntime_rpc.HttpResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {pruntime_rpc.IHttpResponse} message HttpResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        HttpResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a HttpResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.HttpResponse} HttpResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HttpResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.HttpResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.statusCode = reader.uint32();
+                    break;
+                case 2:
+                    if (!(message.headers && message.headers.length))
+                        message.headers = [];
+                    message.headers.push($root.pruntime_rpc.HttpHeader.decode(reader, reader.uint32()));
+                    break;
+                case 3:
+                    message.body = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a HttpResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.HttpResponse} HttpResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        HttpResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a HttpResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        HttpResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.statusCode != null && message.hasOwnProperty("statusCode"))
+                if (!$util.isInteger(message.statusCode))
+                    return "statusCode: integer expected";
+            if (message.headers != null && message.hasOwnProperty("headers")) {
+                if (!Array.isArray(message.headers))
+                    return "headers: array expected";
+                for (var i = 0; i < message.headers.length; ++i) {
+                    var error = $root.pruntime_rpc.HttpHeader.verify(message.headers[i]);
+                    if (error)
+                        return "headers." + error;
+                }
+            }
+            if (message.body != null && message.hasOwnProperty("body"))
+                if (!(message.body && typeof message.body.length === "number" || $util.isString(message.body)))
+                    return "body: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a HttpResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.HttpResponse} HttpResponse
+         */
+        HttpResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.HttpResponse)
+                return object;
+            var message = new $root.pruntime_rpc.HttpResponse();
+            if (object.statusCode != null)
+                message.statusCode = object.statusCode >>> 0;
+            if (object.headers) {
+                if (!Array.isArray(object.headers))
+                    throw TypeError(".pruntime_rpc.HttpResponse.headers: array expected");
+                message.headers = [];
+                for (var i = 0; i < object.headers.length; ++i) {
+                    if (typeof object.headers[i] !== "object")
+                        throw TypeError(".pruntime_rpc.HttpResponse.headers: object expected");
+                    message.headers[i] = $root.pruntime_rpc.HttpHeader.fromObject(object.headers[i]);
+                }
+            }
+            if (object.body != null)
+                if (typeof object.body === "string")
+                    $util.base64.decode(object.body, message.body = $util.newBuffer($util.base64.length(object.body)), 0);
+                else if (object.body.length)
+                    message.body = object.body;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a HttpResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.HttpResponse
+         * @static
+         * @param {pruntime_rpc.HttpResponse} message HttpResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        HttpResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.headers = [];
+            if (options.defaults) {
+                object.statusCode = 0;
+                if (options.bytes === String)
+                    object.body = "";
+                else {
+                    object.body = [];
+                    if (options.bytes !== Array)
+                        object.body = $util.newBuffer(object.body);
+                }
+            }
+            if (message.statusCode != null && message.hasOwnProperty("statusCode"))
+                object.statusCode = message.statusCode;
+            if (message.headers && message.headers.length) {
+                object.headers = [];
+                for (var j = 0; j < message.headers.length; ++j)
+                    object.headers[j] = $root.pruntime_rpc.HttpHeader.toObject(message.headers[j], options);
+            }
+            if (message.body != null && message.hasOwnProperty("body"))
+                object.body = options.bytes === String ? $util.base64.encode(message.body, 0, message.body.length) : options.bytes === Array ? Array.prototype.slice.call(message.body) : message.body;
+            return object;
+        };
+
+        /**
+         * Converts this HttpResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.HttpResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        HttpResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return HttpResponse;
+    })();
+
+    pruntime_rpc.GetContractInfoRequest = (function() {
+
+        /**
+         * Properties of a GetContractInfoRequest.
+         * @memberof pruntime_rpc
+         * @interface IGetContractInfoRequest
+         * @property {Array.<string>|null} [contractIds] GetContractInfoRequest contractIds
+         */
+
+        /**
+         * Constructs a new GetContractInfoRequest.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetContractInfoRequest.
+         * @implements IGetContractInfoRequest
+         * @constructor
+         * @param {pruntime_rpc.IGetContractInfoRequest=} [properties] Properties to set
+         */
+        function GetContractInfoRequest(properties) {
+            this.contractIds = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetContractInfoRequest contractIds.
+         * @member {Array.<string>} contractIds
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @instance
+         */
+        GetContractInfoRequest.prototype.contractIds = $util.emptyArray;
+
+        /**
+         * Creates a new GetContractInfoRequest instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoRequest=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest instance
+         */
+        GetContractInfoRequest.create = function create(properties) {
+            return new GetContractInfoRequest(properties);
+        };
+
+        /**
+         * Encodes the specified GetContractInfoRequest message. Does not implicitly {@link pruntime_rpc.GetContractInfoRequest.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoRequest} message GetContractInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoRequest.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.contractIds != null && message.contractIds.length)
+                for (var i = 0; i < message.contractIds.length; ++i)
+                    writer.uint32(/* id 1, wireType 2 =*/10).string(message.contractIds[i]);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetContractInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetContractInfoRequest.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoRequest} message GetContractInfoRequest message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoRequest.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetContractInfoRequest message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoRequest.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoRequest();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    if (!(message.contractIds && message.contractIds.length))
+                        message.contractIds = [];
+                    message.contractIds.push(reader.string());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetContractInfoRequest message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoRequest.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetContractInfoRequest message.
+         * @function verify
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetContractInfoRequest.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.contractIds != null && message.hasOwnProperty("contractIds")) {
+                if (!Array.isArray(message.contractIds))
+                    return "contractIds: array expected";
+                for (var i = 0; i < message.contractIds.length; ++i)
+                    if (!$util.isString(message.contractIds[i]))
+                        return "contractIds: string[] expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetContractInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetContractInfoRequest} GetContractInfoRequest
+         */
+        GetContractInfoRequest.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetContractInfoRequest)
+                return object;
+            var message = new $root.pruntime_rpc.GetContractInfoRequest();
+            if (object.contractIds) {
+                if (!Array.isArray(object.contractIds))
+                    throw TypeError(".pruntime_rpc.GetContractInfoRequest.contractIds: array expected");
+                message.contractIds = [];
+                for (var i = 0; i < object.contractIds.length; ++i)
+                    message.contractIds[i] = String(object.contractIds[i]);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetContractInfoRequest message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @static
+         * @param {pruntime_rpc.GetContractInfoRequest} message GetContractInfoRequest
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetContractInfoRequest.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.contractIds = [];
+            if (message.contractIds && message.contractIds.length) {
+                object.contractIds = [];
+                for (var j = 0; j < message.contractIds.length; ++j)
+                    object.contractIds[j] = message.contractIds[j];
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetContractInfoRequest to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetContractInfoRequest
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetContractInfoRequest.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetContractInfoRequest;
+    })();
+
+    pruntime_rpc.GetContractInfoResponse = (function() {
+
+        /**
+         * Properties of a GetContractInfoResponse.
+         * @memberof pruntime_rpc
+         * @interface IGetContractInfoResponse
+         * @property {Array.<pruntime_rpc.IContractInfo>|null} [contracts] GetContractInfoResponse contracts
+         */
+
+        /**
+         * Constructs a new GetContractInfoResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetContractInfoResponse.
+         * @implements IGetContractInfoResponse
+         * @constructor
+         * @param {pruntime_rpc.IGetContractInfoResponse=} [properties] Properties to set
+         */
+        function GetContractInfoResponse(properties) {
+            this.contracts = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetContractInfoResponse contracts.
+         * @member {Array.<pruntime_rpc.IContractInfo>} contracts
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @instance
+         */
+        GetContractInfoResponse.prototype.contracts = $util.emptyArray;
+
+        /**
+         * Creates a new GetContractInfoResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse instance
+         */
+        GetContractInfoResponse.create = function create(properties) {
+            return new GetContractInfoResponse(properties);
+        };
+
+        /**
+         * Encodes the specified GetContractInfoResponse message. Does not implicitly {@link pruntime_rpc.GetContractInfoResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoResponse} message GetContractInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.contracts != null && message.contracts.length)
+                for (var i = 0; i < message.contracts.length; ++i)
+                    $root.pruntime_rpc.ContractInfo.encode(message.contracts[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetContractInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetContractInfoResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetContractInfoResponse} message GetContractInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetContractInfoResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetContractInfoResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetContractInfoResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    if (!(message.contracts && message.contracts.length))
+                        message.contracts = [];
+                    message.contracts.push($root.pruntime_rpc.ContractInfo.decode(reader, reader.uint32()));
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetContractInfoResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetContractInfoResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetContractInfoResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetContractInfoResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.contracts != null && message.hasOwnProperty("contracts")) {
+                if (!Array.isArray(message.contracts))
+                    return "contracts: array expected";
+                for (var i = 0; i < message.contracts.length; ++i) {
+                    var error = $root.pruntime_rpc.ContractInfo.verify(message.contracts[i]);
+                    if (error)
+                        return "contracts." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetContractInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetContractInfoResponse} GetContractInfoResponse
+         */
+        GetContractInfoResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetContractInfoResponse)
+                return object;
+            var message = new $root.pruntime_rpc.GetContractInfoResponse();
+            if (object.contracts) {
+                if (!Array.isArray(object.contracts))
+                    throw TypeError(".pruntime_rpc.GetContractInfoResponse.contracts: array expected");
+                message.contracts = [];
+                for (var i = 0; i < object.contracts.length; ++i) {
+                    if (typeof object.contracts[i] !== "object")
+                        throw TypeError(".pruntime_rpc.GetContractInfoResponse.contracts: object expected");
+                    message.contracts[i] = $root.pruntime_rpc.ContractInfo.fromObject(object.contracts[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetContractInfoResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @static
+         * @param {pruntime_rpc.GetContractInfoResponse} message GetContractInfoResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetContractInfoResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.contracts = [];
+            if (message.contracts && message.contracts.length) {
+                object.contracts = [];
+                for (var j = 0; j < message.contracts.length; ++j)
+                    object.contracts[j] = $root.pruntime_rpc.ContractInfo.toObject(message.contracts[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetContractInfoResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetContractInfoResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetContractInfoResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetContractInfoResponse;
+    })();
+
+    pruntime_rpc.ContractInfo = (function() {
+
+        /**
+         * Properties of a ContractInfo.
+         * @memberof pruntime_rpc
+         * @interface IContractInfo
+         * @property {string|null} [id] ContractInfo id
+         * @property {string|null} [codeHash] ContractInfo codeHash
+         * @property {number|null} [weight] ContractInfo weight
+         * @property {pruntime_rpc.ISidevmInfo|null} [sidevm] ContractInfo sidevm
+         */
+
+        /**
+         * Constructs a new ContractInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ContractInfo.
+         * @implements IContractInfo
+         * @constructor
+         * @param {pruntime_rpc.IContractInfo=} [properties] Properties to set
+         */
+        function ContractInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ContractInfo id.
+         * @member {string} id
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.id = "";
+
+        /**
+         * ContractInfo codeHash.
+         * @member {string} codeHash
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.codeHash = "";
+
+        /**
+         * ContractInfo weight.
+         * @member {number} weight
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.weight = 0;
+
+        /**
+         * ContractInfo sidevm.
+         * @member {pruntime_rpc.ISidevmInfo|null|undefined} sidevm
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         */
+        ContractInfo.prototype.sidevm = null;
+
+        /**
+         * Creates a new ContractInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.IContractInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo instance
+         */
+        ContractInfo.create = function create(properties) {
+            return new ContractInfo(properties);
+        };
+
+        /**
+         * Encodes the specified ContractInfo message. Does not implicitly {@link pruntime_rpc.ContractInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.IContractInfo} message ContractInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.codeHash != null && Object.hasOwnProperty.call(message, "codeHash"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.codeHash);
+            if (message.weight != null && Object.hasOwnProperty.call(message, "weight"))
+                writer.uint32(/* id 3, wireType 0 =*/24).uint32(message.weight);
+            if (message.sidevm != null && Object.hasOwnProperty.call(message, "sidevm"))
+                $root.pruntime_rpc.SidevmInfo.encode(message.sidevm, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ContractInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ContractInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.IContractInfo} message ContractInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ContractInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.id = reader.string();
+                    break;
+                case 2:
+                    message.codeHash = reader.string();
+                    break;
+                case 3:
+                    message.weight = reader.uint32();
+                    break;
+                case 4:
+                    message.sidevm = $root.pruntime_rpc.SidevmInfo.decode(reader, reader.uint32());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ContractInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ContractInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ContractInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.codeHash != null && message.hasOwnProperty("codeHash"))
+                if (!$util.isString(message.codeHash))
+                    return "codeHash: string expected";
+            if (message.weight != null && message.hasOwnProperty("weight"))
+                if (!$util.isInteger(message.weight))
+                    return "weight: integer expected";
+            if (message.sidevm != null && message.hasOwnProperty("sidevm")) {
+                var error = $root.pruntime_rpc.SidevmInfo.verify(message.sidevm);
+                if (error)
+                    return "sidevm." + error;
+            }
+            return null;
+        };
+
+        /**
+         * Creates a ContractInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ContractInfo} ContractInfo
+         */
+        ContractInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ContractInfo)
+                return object;
+            var message = new $root.pruntime_rpc.ContractInfo();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.codeHash != null)
+                message.codeHash = String(object.codeHash);
+            if (object.weight != null)
+                message.weight = object.weight >>> 0;
+            if (object.sidevm != null) {
+                if (typeof object.sidevm !== "object")
+                    throw TypeError(".pruntime_rpc.ContractInfo.sidevm: object expected");
+                message.sidevm = $root.pruntime_rpc.SidevmInfo.fromObject(object.sidevm);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ContractInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ContractInfo
+         * @static
+         * @param {pruntime_rpc.ContractInfo} message ContractInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ContractInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.id = "";
+                object.codeHash = "";
+                object.weight = 0;
+                object.sidevm = null;
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.codeHash != null && message.hasOwnProperty("codeHash"))
+                object.codeHash = message.codeHash;
+            if (message.weight != null && message.hasOwnProperty("weight"))
+                object.weight = message.weight;
+            if (message.sidevm != null && message.hasOwnProperty("sidevm"))
+                object.sidevm = $root.pruntime_rpc.SidevmInfo.toObject(message.sidevm, options);
+            return object;
+        };
+
+        /**
+         * Converts this ContractInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ContractInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ContractInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ContractInfo;
+    })();
+
+    pruntime_rpc.SidevmInfo = (function() {
+
+        /**
+         * Properties of a SidevmInfo.
+         * @memberof pruntime_rpc
+         * @interface ISidevmInfo
+         * @property {string|null} [state] SidevmInfo state
+         * @property {string|null} [codeHash] SidevmInfo codeHash
+         * @property {string|null} [startTime] SidevmInfo startTime
+         * @property {string|null} [stopReason] SidevmInfo stopReason
+         */
+
+        /**
+         * Constructs a new SidevmInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SidevmInfo.
+         * @implements ISidevmInfo
+         * @constructor
+         * @param {pruntime_rpc.ISidevmInfo=} [properties] Properties to set
+         */
+        function SidevmInfo(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SidevmInfo state.
+         * @member {string} state
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         */
+        SidevmInfo.prototype.state = "";
+
+        /**
+         * SidevmInfo codeHash.
+         * @member {string} codeHash
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         */
+        SidevmInfo.prototype.codeHash = "";
+
+        /**
+         * SidevmInfo startTime.
+         * @member {string} startTime
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         */
+        SidevmInfo.prototype.startTime = "";
+
+        /**
+         * SidevmInfo stopReason.
+         * @member {string} stopReason
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         */
+        SidevmInfo.prototype.stopReason = "";
+
+        /**
+         * Creates a new SidevmInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.ISidevmInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo instance
+         */
+        SidevmInfo.create = function create(properties) {
+            return new SidevmInfo(properties);
+        };
+
+        /**
+         * Encodes the specified SidevmInfo message. Does not implicitly {@link pruntime_rpc.SidevmInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.ISidevmInfo} message SidevmInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.state != null && Object.hasOwnProperty.call(message, "state"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.state);
+            if (message.codeHash != null && Object.hasOwnProperty.call(message, "codeHash"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.codeHash);
+            if (message.startTime != null && Object.hasOwnProperty.call(message, "startTime"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.startTime);
+            if (message.stopReason != null && Object.hasOwnProperty.call(message, "stopReason"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.stopReason);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SidevmInfo message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.ISidevmInfo} message SidevmInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SidevmInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.state = reader.string();
+                    break;
+                case 2:
+                    message.codeHash = reader.string();
+                    break;
+                case 3:
+                    message.startTime = reader.string();
+                    break;
+                case 4:
+                    message.stopReason = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SidevmInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SidevmInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SidevmInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.state != null && message.hasOwnProperty("state"))
+                if (!$util.isString(message.state))
+                    return "state: string expected";
+            if (message.codeHash != null && message.hasOwnProperty("codeHash"))
+                if (!$util.isString(message.codeHash))
+                    return "codeHash: string expected";
+            if (message.startTime != null && message.hasOwnProperty("startTime"))
+                if (!$util.isString(message.startTime))
+                    return "startTime: string expected";
+            if (message.stopReason != null && message.hasOwnProperty("stopReason"))
+                if (!$util.isString(message.stopReason))
+                    return "stopReason: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a SidevmInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SidevmInfo} SidevmInfo
+         */
+        SidevmInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SidevmInfo)
+                return object;
+            var message = new $root.pruntime_rpc.SidevmInfo();
+            if (object.state != null)
+                message.state = String(object.state);
+            if (object.codeHash != null)
+                message.codeHash = String(object.codeHash);
+            if (object.startTime != null)
+                message.startTime = String(object.startTime);
+            if (object.stopReason != null)
+                message.stopReason = String(object.stopReason);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SidevmInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SidevmInfo
+         * @static
+         * @param {pruntime_rpc.SidevmInfo} message SidevmInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SidevmInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.state = "";
+                object.codeHash = "";
+                object.startTime = "";
+                object.stopReason = "";
+            }
+            if (message.state != null && message.hasOwnProperty("state"))
+                object.state = message.state;
+            if (message.codeHash != null && message.hasOwnProperty("codeHash"))
+                object.codeHash = message.codeHash;
+            if (message.startTime != null && message.hasOwnProperty("startTime"))
+                object.startTime = message.startTime;
+            if (message.stopReason != null && message.hasOwnProperty("stopReason"))
+                object.stopReason = message.stopReason;
+            return object;
+        };
+
+        /**
+         * Converts this SidevmInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SidevmInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SidevmInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return SidevmInfo;
+    })();
+
+    pruntime_rpc.GetClusterInfoResponse = (function() {
+
+        /**
+         * Properties of a GetClusterInfoResponse.
+         * @memberof pruntime_rpc
+         * @interface IGetClusterInfoResponse
+         * @property {Array.<pruntime_rpc.IClusterInfo>|null} [clusters] GetClusterInfoResponse clusters
+         */
+
+        /**
+         * Constructs a new GetClusterInfoResponse.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a GetClusterInfoResponse.
+         * @implements IGetClusterInfoResponse
+         * @constructor
+         * @param {pruntime_rpc.IGetClusterInfoResponse=} [properties] Properties to set
+         */
+        function GetClusterInfoResponse(properties) {
+            this.clusters = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * GetClusterInfoResponse clusters.
+         * @member {Array.<pruntime_rpc.IClusterInfo>} clusters
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @instance
+         */
+        GetClusterInfoResponse.prototype.clusters = $util.emptyArray;
+
+        /**
+         * Creates a new GetClusterInfoResponse instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetClusterInfoResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse instance
+         */
+        GetClusterInfoResponse.create = function create(properties) {
+            return new GetClusterInfoResponse(properties);
+        };
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetClusterInfoResponse} message GetClusterInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetClusterInfoResponse.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.clusters != null && message.clusters.length)
+                for (var i = 0; i < message.clusters.length; ++i)
+                    $root.pruntime_rpc.ClusterInfo.encode(message.clusters[i], writer.uint32(/* id 1, wireType 2 =*/10).fork()).ldelim();
+            return writer;
+        };
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.IGetClusterInfoResponse} message GetClusterInfoResponse message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        GetClusterInfoResponse.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetClusterInfoResponse.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.GetClusterInfoResponse();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    if (!(message.clusters && message.clusters.length))
+                        message.clusters = [];
+                    message.clusters.push($root.pruntime_rpc.ClusterInfo.decode(reader, reader.uint32()));
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        GetClusterInfoResponse.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a GetClusterInfoResponse message.
+         * @function verify
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        GetClusterInfoResponse.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.clusters != null && message.hasOwnProperty("clusters")) {
+                if (!Array.isArray(message.clusters))
+                    return "clusters: array expected";
+                for (var i = 0; i < message.clusters.length; ++i) {
+                    var error = $root.pruntime_rpc.ClusterInfo.verify(message.clusters[i]);
+                    if (error)
+                        return "clusters." + error;
+                }
+            }
+            return null;
+        };
+
+        /**
+         * Creates a GetClusterInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.GetClusterInfoResponse} GetClusterInfoResponse
+         */
+        GetClusterInfoResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.GetClusterInfoResponse)
+                return object;
+            var message = new $root.pruntime_rpc.GetClusterInfoResponse();
+            if (object.clusters) {
+                if (!Array.isArray(object.clusters))
+                    throw TypeError(".pruntime_rpc.GetClusterInfoResponse.clusters: array expected");
+                message.clusters = [];
+                for (var i = 0; i < object.clusters.length; ++i) {
+                    if (typeof object.clusters[i] !== "object")
+                        throw TypeError(".pruntime_rpc.GetClusterInfoResponse.clusters: object expected");
+                    message.clusters[i] = $root.pruntime_rpc.ClusterInfo.fromObject(object.clusters[i]);
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a GetClusterInfoResponse message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @static
+         * @param {pruntime_rpc.GetClusterInfoResponse} message GetClusterInfoResponse
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        GetClusterInfoResponse.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.clusters = [];
+            if (message.clusters && message.clusters.length) {
+                object.clusters = [];
+                for (var j = 0; j < message.clusters.length; ++j)
+                    object.clusters[j] = $root.pruntime_rpc.ClusterInfo.toObject(message.clusters[j], options);
+            }
+            return object;
+        };
+
+        /**
+         * Converts this GetClusterInfoResponse to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.GetClusterInfoResponse
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        GetClusterInfoResponse.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return GetClusterInfoResponse;
+    })();
+
+    pruntime_rpc.ClusterInfo = (function() {
+
+        /**
+         * Properties of a ClusterInfo.
+         * @memberof pruntime_rpc
+         * @interface IClusterInfo
+         * @property {string|null} [id] ClusterInfo id
+         * @property {string|null} [version] ClusterInfo version
+         * @property {string|null} [stateRoot] ClusterInfo stateRoot
+         * @property {Array.<string>|null} [contracts] ClusterInfo contracts
+         */
+
+        /**
+         * Constructs a new ClusterInfo.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ClusterInfo.
+         * @implements IClusterInfo
+         * @constructor
+         * @param {pruntime_rpc.IClusterInfo=} [properties] Properties to set
+         */
+        function ClusterInfo(properties) {
+            this.contracts = [];
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ClusterInfo id.
+         * @member {string} id
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.id = "";
+
+        /**
+         * ClusterInfo version.
+         * @member {string} version
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.version = "";
+
+        /**
+         * ClusterInfo stateRoot.
+         * @member {string} stateRoot
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.stateRoot = "";
+
+        /**
+         * ClusterInfo contracts.
+         * @member {Array.<string>} contracts
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         */
+        ClusterInfo.prototype.contracts = $util.emptyArray;
+
+        /**
+         * Creates a new ClusterInfo instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.IClusterInfo=} [properties] Properties to set
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo instance
+         */
+        ClusterInfo.create = function create(properties) {
+            return new ClusterInfo(properties);
+        };
+
+        /**
+         * Encodes the specified ClusterInfo message. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.IClusterInfo} message ClusterInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ClusterInfo.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            if (message.version != null && Object.hasOwnProperty.call(message, "version"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.version);
+            if (message.stateRoot != null && Object.hasOwnProperty.call(message, "stateRoot"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.stateRoot);
+            if (message.contracts != null && message.contracts.length)
+                for (var i = 0; i < message.contracts.length; ++i)
+                    writer.uint32(/* id 4, wireType 2 =*/34).string(message.contracts[i]);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ClusterInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.IClusterInfo} message ClusterInfo message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ClusterInfo.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ClusterInfo.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ClusterInfo();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.id = reader.string();
+                    break;
+                case 2:
+                    message.version = reader.string();
+                    break;
+                case 3:
+                    message.stateRoot = reader.string();
+                    break;
+                case 4:
+                    if (!(message.contracts && message.contracts.length))
+                        message.contracts = [];
+                    message.contracts.push(reader.string());
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ClusterInfo.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ClusterInfo message.
+         * @function verify
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ClusterInfo.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            if (message.version != null && message.hasOwnProperty("version"))
+                if (!$util.isString(message.version))
+                    return "version: string expected";
+            if (message.stateRoot != null && message.hasOwnProperty("stateRoot"))
+                if (!$util.isString(message.stateRoot))
+                    return "stateRoot: string expected";
+            if (message.contracts != null && message.hasOwnProperty("contracts")) {
+                if (!Array.isArray(message.contracts))
+                    return "contracts: array expected";
+                for (var i = 0; i < message.contracts.length; ++i)
+                    if (!$util.isString(message.contracts[i]))
+                        return "contracts: string[] expected";
+            }
+            return null;
+        };
+
+        /**
+         * Creates a ClusterInfo message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ClusterInfo} ClusterInfo
+         */
+        ClusterInfo.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ClusterInfo)
+                return object;
+            var message = new $root.pruntime_rpc.ClusterInfo();
+            if (object.id != null)
+                message.id = String(object.id);
+            if (object.version != null)
+                message.version = String(object.version);
+            if (object.stateRoot != null)
+                message.stateRoot = String(object.stateRoot);
+            if (object.contracts) {
+                if (!Array.isArray(object.contracts))
+                    throw TypeError(".pruntime_rpc.ClusterInfo.contracts: array expected");
+                message.contracts = [];
+                for (var i = 0; i < object.contracts.length; ++i)
+                    message.contracts[i] = String(object.contracts[i]);
+            }
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ClusterInfo message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ClusterInfo
+         * @static
+         * @param {pruntime_rpc.ClusterInfo} message ClusterInfo
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ClusterInfo.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.arrays || options.defaults)
+                object.contracts = [];
+            if (options.defaults) {
+                object.id = "";
+                object.version = "";
+                object.stateRoot = "";
+            }
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            if (message.version != null && message.hasOwnProperty("version"))
+                object.version = message.version;
+            if (message.stateRoot != null && message.hasOwnProperty("stateRoot"))
+                object.stateRoot = message.stateRoot;
+            if (message.contracts && message.contracts.length) {
+                object.contracts = [];
+                for (var j = 0; j < message.contracts.length; ++j)
+                    object.contracts[j] = message.contracts[j];
+            }
+            return object;
+        };
+
+        /**
+         * Converts this ClusterInfo to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ClusterInfo
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ClusterInfo.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ClusterInfo;
+    })();
+
+    pruntime_rpc.SidevmCode = (function() {
+
+        /**
+         * Properties of a SidevmCode.
+         * @memberof pruntime_rpc
+         * @interface ISidevmCode
+         * @property {Uint8Array|null} [contract] SidevmCode contract
+         * @property {Uint8Array|null} [code] SidevmCode code
+         */
+
+        /**
+         * Constructs a new SidevmCode.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a SidevmCode.
+         * @implements ISidevmCode
+         * @constructor
+         * @param {pruntime_rpc.ISidevmCode=} [properties] Properties to set
+         */
+        function SidevmCode(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * SidevmCode contract.
+         * @member {Uint8Array} contract
+         * @memberof pruntime_rpc.SidevmCode
+         * @instance
+         */
+        SidevmCode.prototype.contract = $util.newBuffer([]);
+
+        /**
+         * SidevmCode code.
+         * @member {Uint8Array} code
+         * @memberof pruntime_rpc.SidevmCode
+         * @instance
+         */
+        SidevmCode.prototype.code = $util.newBuffer([]);
+
+        /**
+         * Creates a new SidevmCode instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.ISidevmCode=} [properties] Properties to set
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode instance
+         */
+        SidevmCode.create = function create(properties) {
+            return new SidevmCode(properties);
+        };
+
+        /**
+         * Encodes the specified SidevmCode message. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.ISidevmCode} message SidevmCode message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmCode.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.contract != null && Object.hasOwnProperty.call(message, "contract"))
+                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.contract);
+            if (message.code != null && Object.hasOwnProperty.call(message, "code"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.code);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified SidevmCode message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.ISidevmCode} message SidevmCode message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        SidevmCode.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmCode.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.SidevmCode();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.contract = reader.bytes();
+                    break;
+                case 2:
+                    message.code = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        SidevmCode.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a SidevmCode message.
+         * @function verify
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        SidevmCode.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.contract != null && message.hasOwnProperty("contract"))
+                if (!(message.contract && typeof message.contract.length === "number" || $util.isString(message.contract)))
+                    return "contract: buffer expected";
+            if (message.code != null && message.hasOwnProperty("code"))
+                if (!(message.code && typeof message.code.length === "number" || $util.isString(message.code)))
+                    return "code: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a SidevmCode message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.SidevmCode} SidevmCode
+         */
+        SidevmCode.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.SidevmCode)
+                return object;
+            var message = new $root.pruntime_rpc.SidevmCode();
+            if (object.contract != null)
+                if (typeof object.contract === "string")
+                    $util.base64.decode(object.contract, message.contract = $util.newBuffer($util.base64.length(object.contract)), 0);
+                else if (object.contract.length)
+                    message.contract = object.contract;
+            if (object.code != null)
+                if (typeof object.code === "string")
+                    $util.base64.decode(object.code, message.code = $util.newBuffer($util.base64.length(object.code)), 0);
+                else if (object.code.length)
+                    message.code = object.code;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a SidevmCode message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.SidevmCode
+         * @static
+         * @param {pruntime_rpc.SidevmCode} message SidevmCode
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        SidevmCode.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                if (options.bytes === String)
+                    object.contract = "";
+                else {
+                    object.contract = [];
+                    if (options.bytes !== Array)
+                        object.contract = $util.newBuffer(object.contract);
+                }
+                if (options.bytes === String)
+                    object.code = "";
+                else {
+                    object.code = [];
+                    if (options.bytes !== Array)
+                        object.code = $util.newBuffer(object.code);
+                }
+            }
+            if (message.contract != null && message.hasOwnProperty("contract"))
+                object.contract = options.bytes === String ? $util.base64.encode(message.contract, 0, message.contract.length) : options.bytes === Array ? Array.prototype.slice.call(message.contract) : message.contract;
+            if (message.code != null && message.hasOwnProperty("code"))
+                object.code = options.bytes === String ? $util.base64.encode(message.code, 0, message.code.length) : options.bytes === Array ? Array.prototype.slice.call(message.code) : message.code;
+            return object;
+        };
+
+        /**
+         * Converts this SidevmCode to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.SidevmCode
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        SidevmCode.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return SidevmCode;
     })();
 
     return pruntime_rpc;

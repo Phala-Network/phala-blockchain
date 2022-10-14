@@ -1,11 +1,12 @@
 use crate::{
-    runtime::ExecSideEffects,
+    runtime::{BoxedEventCallbacks, ExecSideEffects},
     types::{AccountId, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
+use sp_state_machine::backend::AsTrieBackend;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 mod backend;
@@ -15,10 +16,11 @@ pub type InMemoryBackend = phala_trie_storage::InMemoryBackend<Hashing>;
 pub fn new_in_memory_backend() -> InMemoryBackend {
     let db = MemoryDB::default();
     // V1 is same as V0 for an empty trie.
-    sp_state_machine::TrieBackend::new(
+    sp_state_machine::TrieBackendBuilder::new(
         db,
         sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>(),
     )
+    .build()
 }
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
@@ -29,7 +31,7 @@ impl CommitTransaction for InMemoryBackend {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction) {
         let mut storage = sp_std::mem::replace(self, new_in_memory_backend()).into_storage();
         storage.consolidate(transaction);
-        *self = sp_state_machine::TrieBackend::new(storage, root);
+        *self = sp_state_machine::TrieBackendBuilder::new(storage, root).build();
     }
 }
 
@@ -60,14 +62,15 @@ where
 
 impl<Backend> Storage<Backend>
 where
-    Backend: StorageBackend<Hashing> + CommitTransaction,
+    Backend: StorageBackend<Hashing> + CommitTransaction + AsTrieBackend<Hashing>,
 {
     pub fn execute_with<R>(
         &mut self,
         rollback: bool,
+        callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
-        let backend = self.backend.as_trie_backend().expect("No trie backend?");
+        let backend = self.backend.as_trie_backend();
 
         let mut overlay = OverlayedChanges::default();
         overlay.start_transaction();
@@ -80,7 +83,7 @@ where
             } else {
                 crate::runtime::CallMode::Command
             };
-            let r = crate::runtime::using_mode(mode, f);
+            let r = crate::runtime::using_mode(mode, callbacks, f);
             (r, crate::runtime::get_side_effects())
         });
         overlay
@@ -113,13 +116,13 @@ where
     }
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
-        self.execute_with(false, || {
+        self.execute_with(false, None, || {
             crate::runtime::Pink::set_cluster_id(cluster_id);
         });
     }
 
     pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
-        self.execute_with(false, || {
+        self.execute_with(false, None, || {
             crate::runtime::Pink::set_key_seed(seed);
         });
     }
@@ -129,11 +132,49 @@ where
         account: AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        self.execute_with(false, || {
+        self.execute_with(false, None, || {
             crate::runtime::Contracts::bare_upload_code(account, code, None)
         })
         .0
         .map(|v| v.code_hash)
+    }
+
+    pub fn upload_sidevm_code(
+        &mut self,
+        account: AccountId,
+        code: Vec<u8>,
+    ) -> Result<Hash, DispatchError> {
+        Ok(self
+            .execute_with(false, None, || {
+                crate::runtime::Pink::put_sidevm_code(account, code)
+            })
+            .0)
+    }
+
+    pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
+        self.execute_with(false, None, || {
+            crate::runtime::Pink::sidevm_codes(&hash).map(|v| v.code)
+        })
+        .0
+    }
+
+    pub fn set_system_contract(&mut self, address: AccountId) {
+        self.execute_with(false, None, move || {
+            crate::runtime::Pink::set_system_contract(address);
+        });
+    }
+
+    pub fn system_contract(&mut self) -> Option<AccountId> {
+        self.execute_with(true, None, move || crate::runtime::Pink::system_contract())
+            .0
+    }
+
+    pub fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.backend.storage(key).ok().flatten()
+    }
+
+    pub fn root(&self) -> Hash {
+        *self.backend.as_trie_backend().root()
     }
 }
 
@@ -142,7 +183,7 @@ impl Serialize for Storage<InMemoryBackend> {
     where
         S: serde::Serializer,
     {
-        let trie = self.backend.as_trie_backend().unwrap();
+        let trie = self.backend.as_trie_backend();
         serialize_trie_backend(trie, serializer)
     }
 }

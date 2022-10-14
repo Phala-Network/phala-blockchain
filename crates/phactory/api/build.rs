@@ -26,15 +26,30 @@ fn main() {
         "Attestation",
         "AttestationReport",
         "TokenomicInfo",
+        "TokenomicStat",
         "WorkerState",
+        "WorkerStat",
         "BenchState",
         "MiningState",
+        "NetworkConfig",
+        "NetworkStatus",
+        "PhactoryInfo",
+        "MemoryUsage",
+        "GatekeeperStatus",
+        "SystemInfo",
+        "ContractInfo",
+        "SidevmInfo",
+        "ClusterInfo",
     ] {
         builder = builder.type_attribute(
             r#type,
-            "#[cfg_attr(feature = \"serde\", derive(::serde::Serialize, ::serde::Deserialize))]",
+            "#[derive(::serde::Serialize, ::serde::Deserialize)]",
         )
     }
+    builder = builder.field_attribute(
+        "InitRuntimeResponse.attestation",
+        "#[serde(skip, default)]",
+    );
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();

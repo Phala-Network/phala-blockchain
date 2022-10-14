@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use super::*;
 use actix_web::{get, web, App, HttpResponse, HttpServer};
-use subxt::sp_runtime::AccountId32;
+use subxt::ext::sp_runtime::AccountId32;
 
 struct AppState {
     factory: Arc<Mutex<ReplayFactory>>,
@@ -24,10 +24,7 @@ async fn meminfo(data: web::Data<AppState>) -> HttpResponse {
 }
 
 #[get("/worker-state/{pubkey}")]
-async fn get_worker_state(
-    pubkey: web::Path<String>,
-    data: web::Data<AppState>,
-) -> HttpResponse {
+async fn get_worker_state(pubkey: web::Path<String>, data: web::Data<AppState>) -> HttpResponse {
     let factory = data.factory.lock().await;
     let pubkey = match AccountId32::from_str(pubkey.as_str()) {
         Ok(accid) => WorkerPublicKey(accid.into()),

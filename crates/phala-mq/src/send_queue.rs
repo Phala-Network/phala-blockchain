@@ -171,6 +171,8 @@ mod msg_channel {
     }
 
     impl<T: MessageSigner + Clone> crate::traits::MessageChannel for MessageChannel<T> {
+        type Signer = T;
+
         fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
             let signing = self.prepare_with_data(payload, to);
             self.queue
@@ -180,6 +182,10 @@ mod msg_channel {
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
         fn set_dummy(&self, dummy: bool) {
             self.queue.set_dummy_mode(self.sender.clone(), dummy);
+        }
+
+        fn set_signer(&mut self, signer: Self::Signer) {
+            self.signer = signer;
         }
     }
 

@@ -1,0 +1,162 @@
+---
+source: crates/pink/pink-extension/macro/src/driver_system.rs
+assertion_line: 250
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+#[ink::trait_definition(namespace = "pink_system")]
+pub trait System {
+    #[ink(message)]
+    fn get_driver(&self, name: String) -> Option<AccountId>;
+    #[ink(message)]
+    fn set_driver(&self, name: String, driver: AccountId);
+    #[ink(message)]
+    fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()>;
+}
+pub use _pink_system_impl::SystemRef;
+mod _pink_system_impl {
+    use super::*;
+    use ink_env::call::FromAccountId;
+    use ink_env::CallFlags;
+    use ink_lang::{codegen::TraitCallForwarder, reflect::TraitDefinitionRegistry};
+    use pink_extension::PinkEnvironment;
+    type TraitInfo = <TraitDefinitionRegistry<PinkEnvironment> as System>::__ink_TraitInfo;
+    type Forwarder = <TraitInfo as TraitCallForwarder>::Forwarder;
+    pub enum SystemRef {
+        Instance {
+            address: AccountId,
+            call_flags: CallFlags,
+        },
+        #[cfg(feature = "std")]
+        Mock,
+    }
+    #[cfg(feature = "std")]
+    thread_local! { static MOCK : core :: cell :: RefCell < Option < (AccountId , Box < dyn System < Env = PinkEnvironment , __ink_TraitInfo = TraitInfo , getDriverOutput = Option < AccountId > , setDriverOutput = () , deploySidevmToOutput = Result < () > , > , >) > , > = Default :: default () ; }
+    impl SystemRef {
+        #[cfg(feature = "std")]
+        pub fn mock_with(
+            contract: impl System<
+                    Env = PinkEnvironment,
+                    __ink_TraitInfo = TraitInfo,
+                    getDriverOutput = Option<AccountId>,
+                    setDriverOutput = (),
+                    deploySidevmToOutput = Result<()>,
+                > + 'static,
+        ) {
+            MOCK.with(|x| {
+                let callee = ink_env::test::callee::<PinkEnvironment>();
+                *x.borrow_mut() = Some((callee, Box::new(contract)));
+            });
+        }
+        pub fn set_call_flags(&mut self, flags: CallFlags) {
+            if let Self::Instance { call_flags, .. } = self {
+                *call_flags = flags;
+            }
+        }
+        pub fn instance() -> Self {
+            Self::instance_with_call_flags(CallFlags::default())
+        }
+        pub fn instance_with_call_flags(call_flags: CallFlags) -> Self {
+            #[cfg(feature = "std")]
+            if MOCK.with(|x| x.borrow_mut().is_some()) {
+                return Self::Mock;
+            }
+            Self::Instance {
+                address: pink_extension::ext().system_contract_id(),
+                call_flags,
+            }
+        }
+    }
+    impl SystemRef {
+        pub fn get_driver(&self, name: String) -> Option<AccountId> {
+            match self {
+                SystemRef::Instance {
+                    address,
+                    call_flags,
+                } => {
+                    use ink_lang::codegen::TraitCallBuilder;
+                    let mut forwarder = Forwarder::from_account_id(*address);
+                    forwarder
+                        .call()
+                        .get_driver(name)
+                        .call_flags(call_flags.clone())
+                        .fire()
+                        .expect("Failed to forword call")
+                }
+                #[cfg(feature = "std")]
+                SystemRef::Mock => MOCK.with(move |x| {
+                    let mut borrow = x.borrow_mut();
+                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink_env::caller::<PinkEnvironment>();
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let ret = forwarder.get_driver(name);
+                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ret
+                }),
+            }
+        }
+        pub fn set_driver(&self, name: String, driver: AccountId) {
+            match self {
+                SystemRef::Instance {
+                    address,
+                    call_flags,
+                } => {
+                    use ink_lang::codegen::TraitCallBuilder;
+                    let mut forwarder = Forwarder::from_account_id(*address);
+                    forwarder
+                        .call()
+                        .set_driver(name, driver)
+                        .call_flags(call_flags.clone())
+                        .fire()
+                        .expect("Failed to forword call")
+                }
+                #[cfg(feature = "std")]
+                SystemRef::Mock => MOCK.with(move |x| {
+                    let mut borrow = x.borrow_mut();
+                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink_env::caller::<PinkEnvironment>();
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let ret = forwarder.set_driver(name, driver);
+                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ret
+                }),
+            }
+        }
+        pub fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()> {
+            match self {
+                SystemRef::Instance {
+                    address,
+                    call_flags,
+                } => {
+                    use ink_lang::codegen::TraitCallBuilder;
+                    let mut forwarder = Forwarder::from_account_id(*address);
+                    forwarder
+                        .call()
+                        .deploy_sidevm_to(code_hash, contract_id)
+                        .call_flags(call_flags.clone())
+                        .fire()
+                        .expect("Failed to forword call")
+                }
+                #[cfg(feature = "std")]
+                SystemRef::Mock => MOCK.with(move |x| {
+                    let mut borrow = x.borrow_mut();
+                    let (callee, forwarder) = borrow.as_mut().unwrap();
+                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink_env::caller::<PinkEnvironment>();
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let ret = forwarder.deploy_sidevm_to(code_hash, contract_id);
+                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ret
+                }),
+            }
+        }
+    }
+}
+

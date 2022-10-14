@@ -17,8 +17,10 @@
     "build:proto": "scripts/build_proto.sh"
   },
   "dependencies": {
-    "@phala/typedefs": "^0.2.30",
-    "@polkadot/api": "^7.7.1",
+    "@phala/sdk": "^0.3.2",
+    "@polkadot/api": "^9.4.1",
+    "@polkadot/api-contract": "^9.4.1",
+    "@phala/typedefs": "^0.2.29",
     "axios": "^0.25.0",
     "chai": "^4.3.6",
     "dotenv": "^16.0.0",

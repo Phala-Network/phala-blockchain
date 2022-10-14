@@ -11,7 +11,7 @@ use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
 use phaxt::{rpc::ExtraRpcExt as _, subxt, RpcClient};
 use serde_json::to_value;
-use subxt::rpc::{rpc_params, ClientT};
+use subxt::rpc::rpc_params;
 
 pub use sp_core::{twox_128, twox_64};
 
@@ -21,10 +21,9 @@ use crate::types::SrSigner;
 pub async fn read_proof(
     api: &RelaychainApi,
     hash: Option<Hash>,
-    storage_key: StorageKey,
+    storage_key: &[u8],
 ) -> Result<StorageProof> {
-    api.client
-        .rpc()
+    api.rpc()
         .read_proof(vec![storage_key], hash)
         .await
         .map(raw_proof)
@@ -35,10 +34,9 @@ pub async fn read_proof(
 pub async fn read_proofs(
     api: &RelaychainApi,
     hash: Option<Hash>,
-    storage_keys: Vec<StorageKey>,
+    storage_keys: Vec<&[u8]>,
 ) -> Result<StorageProof> {
-    api.client
-        .rpc()
+    api.rpc()
         .read_proof(storage_keys, hash)
         .await
         .map(raw_proof)
@@ -69,9 +67,8 @@ pub async fn fetch_storage_changes(
 
 /// Fetch the genesis storage.
 pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
-    let hash = Some(*api.client.genesis());
+    let hash = Some(api.genesis_hash());
     let response = api
-        .client
         .extra_rpc()
         .storage_pairs(StorageKey(vec![]), hash)
         .await?;
@@ -83,22 +80,14 @@ pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, V
 pub async fn mq_next_sequence(
     api: &ParachainApi,
     sender: &MessageOrigin,
-) -> Result<u64, subxt::BasicError> {
+) -> Result<u64, subxt::Error> {
     let sender_scl = sender.encode();
     let sender_hex = hex::encode(sender_scl);
     let seq: u64 = api
-        .client
         .rpc()
-        .client
         .request("pha_getMqNextSequence", rpc_params![to_value(sender_hex)?])
         .await?;
     Ok(seq)
-}
-
-pub fn paras_heads_key(para_id: u32) -> StorageKey {
-    let id = phaxt::kusama::runtime_types::polkadot_parachain::primitives::Id(para_id);
-    let entry = phaxt::kusama::paras::storage::Heads(&id);
-    phaxt::storage_key(entry)
 }
 
 pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
@@ -108,7 +97,7 @@ pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
 /// Updates the nonce from the mempool
 pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> Result<()> {
     let account_id = signer.account_id().clone();
-    let nonce = api.client.extra_rpc().account_nonce(&account_id).await?;
+    let nonce = api.extra_rpc().account_nonce(&account_id).await?;
     signer.set_nonce(nonce);
     log::info!("Fetch account {} nonce={}", account_id, nonce);
     Ok(())

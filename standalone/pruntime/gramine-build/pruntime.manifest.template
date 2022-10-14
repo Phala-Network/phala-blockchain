@@ -2,8 +2,7 @@
 entrypoint = "pruntime"
 
 [loader]
-preload = "file:{{ gramine.libos }}" # for compatibility with v1.0
-entrypoint = "file:{{ gramine.libos }}"
+entrypoint = "file:{{ libos }}"
 log_level = "{{ log_level }}"
 argv0_override = "pruntime"
 insecure__use_cmdline_argv = true
@@ -13,25 +12,27 @@ insecure__allow_eventfd = true
 
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
-M_ARENA_MAX = "1"
+MALLOC_ARENA_MAX = "1"
 ROCKET_WORKERS = "8"
+RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
 i2p_proxy = { passthrough = true }
 
 [[fs.mounts]]
 type = "chroot"
 path = "/lib"
-uri = "file:{{ gramine.runtimedir() }}"
+uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
-type = "chroot"
-path = "/lib/x86_64-linux-gnu"
-uri = "file:/lib/x86_64-linux-gnu"
-
-[[fs.mounts]]
-type = "chroot"
-path = "/protected_files"
+path = "/data/protected_files"
 uri = "file:{{ seal_dir }}"
+type = "encrypted"
+key_name = "_sgx_mrenclave"
+
+[[fs.mounts]]
+type = "chroot"
+path = "/data/storage_files"
+uri = "file:{{ storage_dir }}"
 
 [[fs.mounts]]
 type = "chroot"
@@ -44,24 +45,22 @@ debug = false
 nonpie_binary = true
 enclave_size = "2G"
 thread_num = 32
-remote_attestation = true
+remote_attestation = "{{ ra_method }}"
+
+{% if ra_method == "epid" %}
 ra_client_linkable = true
 ra_client_spid = "{{ ra_client_spid }}"
+{% endif %}
 
 trusted_files = [
-  "file:{{ gramine.libos }}",
+  "file:{{ libos }}",
   "file:pruntime",
-  "file:{{ gramine.runtimedir() }}/",
-  "file:/lib/x86_64-linux-gnu/",
+  "file:{{ libdir }}",
 ]
 
 allowed_files = [
   "file:/etc/hosts",
   "file:/etc/resolv.conf",
   "file:Rocket.toml",
+  "file:{{ storage_dir }}/",
 ]
-
-protected_mrenclave_files = [
-    "file:{{ seal_dir }}"
-]
-

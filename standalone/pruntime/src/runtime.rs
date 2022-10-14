@@ -3,16 +3,50 @@ use crate::pal_gramine::GraminePlatform;
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
 use log::info;
-use phactory::{benchmark, Phactory};
-use std::sync::Mutex;
+use phactory::{benchmark, Phactory, RpcService};
 
 lazy_static::lazy_static! {
-    static ref APPLICATION: Mutex<Phactory<GraminePlatform>> = Mutex::new(Phactory::new(GraminePlatform));
+    static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
 }
 
 pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
-    let mut factory = APPLICATION.lock().unwrap();
+    let mut factory = APPLICATION.lock_phactory();
     Ok(factory.handle_scale_api(action, input))
+}
+
+pub fn ecall_getinfo() -> String {
+    let info = APPLICATION.lock_phactory().get_info();
+    serde_json::to_string_pretty(&info).unwrap_or_default()
+}
+
+fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E>) -> String {
+    match result {
+        Ok(inner) => serde_json::to_string_pretty(&inner).unwrap_or_default(),
+        Err(err) => {
+            let error = format!("{:?}", err);
+            serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
+        }
+        .unwrap_or_default(),
+    }
+}
+
+pub fn ecall_get_contract_info(ids: &str) -> String {
+    let ids = if ids.is_empty() {
+        vec![]
+    } else {
+        ids.split(",").map(|it| it.to_owned()).collect()
+    };
+    let result = APPLICATION.lock_phactory().get_contract_info(&ids);
+    serialize_result(result.map(|it| it.contracts))
+}
+
+pub fn ecall_get_cluster_info() -> String {
+    let result = APPLICATION.lock_phactory().get_cluster_info();
+    serialize_result(result.map(|it| it.clusters))
+}
+
+pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {
+    APPLICATION.lock_phactory().sign_http_response(data)
 }
 
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
@@ -25,12 +59,14 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         match Phactory::restore_from_checkpoint(
             &GraminePlatform,
             &args.sealing_path,
+            &args.storage_path,
             args.remove_corrupted_checkpoint,
+            args.cores as _,
         ) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");
                 factory.set_args(args.clone());
-                *APPLICATION.lock().unwrap() = factory;
+                *APPLICATION.lock_phactory() = factory;
                 return Ok(());
             }
             Err(err) => {
@@ -44,7 +80,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         info!("Checkpoint disabled.");
     }
 
-    APPLICATION.lock().unwrap().init(args);
+    APPLICATION.lock_phactory().init(args);
 
     info!("Enclave init OK");
     Ok(())
@@ -57,8 +93,8 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
-    let (code, data) = phactory::dispatch_prpc_request(path, data, usize::MAX, &APPLICATION);
+pub async fn ecall_prpc_request(path: String, data: &[u8]) -> (u16, Vec<u8>) {
+    let (code, data) = APPLICATION.dispatch_request(path, data).await;
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
 }

@@ -1,14 +1,14 @@
 use alloc::string::{String, ToString};
 use parity_scale_codec::{Decode, Encode};
+use serde::{Serialize, Deserialize};
 
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Encode, Decode, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
     /// The GK master key sealing path.
     pub sealing_path: String,
 
-    /// The log filter string to pass to env_logger.
-    pub log_filter: String,
+    /// The PRuntime persistent data storing path
+    pub storage_path: String,
 
     /// Whether start to benchmark at start.
     pub init_bench: bool,
@@ -37,6 +37,12 @@ pub struct InitArgs {
     /// Run the database garbage collection at given interval in blocks
     #[cfg_attr(feature = "serde", serde(default))]
     pub gc_interval: chain::BlockNumber,
+
+    /// Number of cores used to run fat contracts
+    pub cores: u32,
+
+    /// The public rpc port with acl enabled
+    pub public_port: Option<u16>,
 }
 
 pub fn git_revision() -> String {
