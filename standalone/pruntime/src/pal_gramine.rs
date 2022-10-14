@@ -84,7 +84,7 @@ impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
         let stats = ALLOCATOR.stats();
         MemoryUsage {
-            total_peak_used: vm_peak().unwrap_or_default(),
+            total_peak_used: vm_peak().unwrap_or_default() * 1024,
             rust_used: stats.current_used,
             rust_peak_used: stats.peak_used,
         }
