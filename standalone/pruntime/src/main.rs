@@ -23,9 +23,6 @@ struct Args {
     #[clap(long)]
     init_bench: bool,
 
-    #[clap(long, default_value = "./GeoLite2-City.mmdb")]
-    geoip_city_db: String,
-
     /// Allow CORS for HTTP
     #[clap(long)]
     allow_cors: bool,
@@ -129,7 +126,6 @@ async fn main() -> Result<(), rocket::Error> {
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
             git_revision: git_revision(),
-            geoip_city_db: args.geoip_city_db,
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,

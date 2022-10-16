@@ -599,9 +599,6 @@ export namespace pruntime_rpc {
         /** PhactoryInfo gitRevision */
         gitRevision?: (string|null);
 
-        /** PhactoryInfo runningSideTasks */
-        runningSideTasks?: (number|Long|null);
-
         /** PhactoryInfo memoryUsage */
         memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
 
@@ -668,9 +665,6 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo gitRevision. */
         public gitRevision: string;
-
-        /** PhactoryInfo runningSideTasks. */
-        public runningSideTasks: (number|Long);
 
         /** PhactoryInfo memoryUsage. */
         public memoryUsage?: (pruntime_rpc.IMemoryUsage|null);

@@ -1,6 +1,5 @@
 pub mod gk;
 mod master_key;
-mod side_tasks;
 
 use crate::{
     benchmark,
@@ -52,7 +51,6 @@ use phala_types::{
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use side_tasks::geo_probe;
 use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use sp_io;
@@ -430,8 +428,6 @@ pub struct System<Platform> {
     dev_mode: bool,
     pub(crate) sealing_path: String,
     pub(crate) storage_path: String,
-    enable_geoprobing: bool,
-    pub(crate) geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
@@ -498,8 +494,6 @@ impl<Platform: pal::Platform> System<Platform> {
         dev_mode: bool,
         sealing_path: String,
         storage_path: String,
-        enable_geoprobing: bool,
-        geoip_city_db: String,
         identity_key: sr25519::Pair,
         ecdh_key: EcdhKey,
         trusted_identity_key: bool,
@@ -520,8 +514,6 @@ impl<Platform: pal::Platform> System<Platform> {
             dev_mode,
             sealing_path,
             storage_path,
-            enable_geoprobing,
-            geoip_city_db,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
             pruntime_management_events: recv_mq.subscribe_bound(),
@@ -694,15 +686,6 @@ impl<Platform: pal::Platform> System<Platform> {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
-        if self.enable_geoprobing {
-            geo_probe::process_block(
-                block.block_number,
-                &self.egress,
-                block.side_task_man,
-                &self.identity_key,
-                self.geoip_city_db.clone(),
-            );
-        }
         if let Some(gatekeeper) = &mut self.gatekeeper {
             gatekeeper.will_process_block(block);
         }

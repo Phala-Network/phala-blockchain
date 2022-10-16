@@ -25,7 +25,7 @@ pub mod server {
         /// Some error occurred when handling the request
         AppError(String),
         /// Error for contract query
-        #[display(fmt = "ContractQueryError({})", .0)]
+        #[display(fmt = "ContractQueryError({})", _0)]
         ContractQueryError(String),
     }
 

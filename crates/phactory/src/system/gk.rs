@@ -1693,7 +1693,6 @@ pub mod tests {
             storage: &storage,
             recv_mq: &mut recv_mq,
             send_mq: &mut send_mq,
-            side_task_man: &mut Default::default(),
         };
         call(&block);
     }

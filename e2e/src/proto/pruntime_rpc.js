@@ -899,7 +899,6 @@ $root.pruntime_rpc = (function() {
          * @property {pruntime_rpc.IGatekeeperStatus|null} [gatekeeper] PhactoryInfo gatekeeper
          * @property {string|null} [version] PhactoryInfo version
          * @property {string|null} [gitRevision] PhactoryInfo gitRevision
-         * @property {number|Long|null} [runningSideTasks] PhactoryInfo runningSideTasks
          * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
          * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
          * @property {pruntime_rpc.INetworkStatus|null} [networkStatus] PhactoryInfo networkStatus
@@ -1042,14 +1041,6 @@ $root.pruntime_rpc = (function() {
         PhactoryInfo.prototype.gitRevision = "";
 
         /**
-         * PhactoryInfo runningSideTasks.
-         * @member {number|Long} runningSideTasks
-         * @memberof pruntime_rpc.PhactoryInfo
-         * @instance
-         */
-        PhactoryInfo.prototype.runningSideTasks = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
-
-        /**
          * PhactoryInfo memoryUsage.
          * @member {pruntime_rpc.IMemoryUsage|null|undefined} memoryUsage
          * @memberof pruntime_rpc.PhactoryInfo
@@ -1171,8 +1162,6 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 15, wireType 2 =*/122).string(message.version);
             if (message.gitRevision != null && Object.hasOwnProperty.call(message, "gitRevision"))
                 writer.uint32(/* id 16, wireType 2 =*/130).string(message.gitRevision);
-            if (message.runningSideTasks != null && Object.hasOwnProperty.call(message, "runningSideTasks"))
-                writer.uint32(/* id 17, wireType 0 =*/136).uint64(message.runningSideTasks);
             if (message.memoryUsage != null && Object.hasOwnProperty.call(message, "memoryUsage"))
                 $root.pruntime_rpc.MemoryUsage.encode(message.memoryUsage, writer.uint32(/* id 18, wireType 2 =*/146).fork()).ldelim();
             if (message.waitingForParaheaders != null && Object.hasOwnProperty.call(message, "waitingForParaheaders"))
@@ -1259,9 +1248,6 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 16:
                     message.gitRevision = reader.string();
-                    break;
-                case 17:
-                    message.runningSideTasks = reader.uint64();
                     break;
                 case 18:
                     message.memoryUsage = $root.pruntime_rpc.MemoryUsage.decode(reader, reader.uint32());
@@ -1364,9 +1350,6 @@ $root.pruntime_rpc = (function() {
             if (message.gitRevision != null && message.hasOwnProperty("gitRevision"))
                 if (!$util.isString(message.gitRevision))
                     return "gitRevision: string expected";
-            if (message.runningSideTasks != null && message.hasOwnProperty("runningSideTasks"))
-                if (!$util.isInteger(message.runningSideTasks) && !(message.runningSideTasks && $util.isInteger(message.runningSideTasks.low) && $util.isInteger(message.runningSideTasks.high)))
-                    return "runningSideTasks: integer|Long expected";
             if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage")) {
                 var error = $root.pruntime_rpc.MemoryUsage.verify(message.memoryUsage);
                 if (error)
@@ -1447,15 +1430,6 @@ $root.pruntime_rpc = (function() {
                 message.version = String(object.version);
             if (object.gitRevision != null)
                 message.gitRevision = String(object.gitRevision);
-            if (object.runningSideTasks != null)
-                if ($util.Long)
-                    (message.runningSideTasks = $util.Long.fromValue(object.runningSideTasks)).unsigned = true;
-                else if (typeof object.runningSideTasks === "string")
-                    message.runningSideTasks = parseInt(object.runningSideTasks, 10);
-                else if (typeof object.runningSideTasks === "number")
-                    message.runningSideTasks = object.runningSideTasks;
-                else if (typeof object.runningSideTasks === "object")
-                    message.runningSideTasks = new $util.LongBits(object.runningSideTasks.low >>> 0, object.runningSideTasks.high >>> 0).toNumber(true);
             if (object.memoryUsage != null) {
                 if (typeof object.memoryUsage !== "object")
                     throw TypeError(".pruntime_rpc.PhactoryInfo.memoryUsage: object expected");
@@ -1510,11 +1484,6 @@ $root.pruntime_rpc = (function() {
                 object.gatekeeper = null;
                 object.version = "";
                 object.gitRevision = "";
-                if ($util.Long) {
-                    var long = new $util.Long(0, 0, true);
-                    object.runningSideTasks = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
-                } else
-                    object.runningSideTasks = options.longs === String ? "0" : 0;
                 object.memoryUsage = null;
                 object.waitingForParaheaders = false;
                 object.networkStatus = null;
@@ -1565,11 +1534,6 @@ $root.pruntime_rpc = (function() {
                 object.version = message.version;
             if (message.gitRevision != null && message.hasOwnProperty("gitRevision"))
                 object.gitRevision = message.gitRevision;
-            if (message.runningSideTasks != null && message.hasOwnProperty("runningSideTasks"))
-                if (typeof message.runningSideTasks === "number")
-                    object.runningSideTasks = options.longs === String ? String(message.runningSideTasks) : message.runningSideTasks;
-                else
-                    object.runningSideTasks = options.longs === String ? $util.Long.prototype.toString.call(message.runningSideTasks) : options.longs === Number ? new $util.LongBits(message.runningSideTasks.low >>> 0, message.runningSideTasks.high >>> 0).toNumber(true) : message.runningSideTasks;
             if (message.memoryUsage != null && message.hasOwnProperty("memoryUsage"))
                 object.memoryUsage = $root.pruntime_rpc.MemoryUsage.toObject(message.memoryUsage, options);
             if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
