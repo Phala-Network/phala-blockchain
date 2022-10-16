@@ -1118,16 +1118,16 @@ class Cluster {
     }
 
     _createWorkerProcess(i) {
-        const AVAILBLE_ACCOUNTS = [
+        const AVAILABLE_ACCOUNTS = [
             '//Alice',
             '//Bob',
             '//Charlie',
             '//Dave',
             '//Eve',
-            '//Fredie',
+            '//Ferdie',
         ];
         const w = this.workers[i];
-        const gasAccountKey = AVAILBLE_ACCOUNTS[i];
+        const gasAccountKey = AVAILABLE_ACCOUNTS[i];
         const key = '0'.repeat(63) + (i + 1).toString();
         w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
         w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
@@ -1146,7 +1146,7 @@ class Cluster {
         server.processPRuntime = newPRuntime(server.port, this.tmpPath, `pruntime_key_server`);
         client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
 
-        const gasAccountKey = '//Fredie';
+        const gasAccountKey = '//Ferdie';
         const key = '0'.repeat(62) + '10';
         cluster.relayer.processRelayer = newRelayer(this.wsPort, server.port, this.tmpPath, gasAccountKey, key, `pruntime_key_relayer`, client.port);
 
@@ -1167,7 +1167,7 @@ class Cluster {
         }, 6000);
 
         const client = cluster.workers[1];
-        const gasAccountKey = '//Fredie';
+        const gasAccountKey = '//Ferdie';
         cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
 
         await waitRelayerOutput(cluster.relayer.processRelayer);
