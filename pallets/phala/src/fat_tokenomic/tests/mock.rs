@@ -9,7 +9,7 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use crate::mock::NoneAttestationEnabled;
+use crate::mock::{MockValidator, NoneAttestationEnabled};
 
 pub(crate) type Balance = u128;
 
@@ -109,6 +109,7 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 impl registry::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type LegacyAttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;

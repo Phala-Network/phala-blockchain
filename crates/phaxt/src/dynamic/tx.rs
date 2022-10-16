@@ -9,7 +9,7 @@ pub fn register_worker(
     let args = (Encoded(pruntime_info), Encoded(attestation)).encode();
     StaticTxPayload::new(
         "PhalaRegistry",
-        "register_worker",
+        "register_worker_v2",
         Encoded(args),
         Default::default(),
     )

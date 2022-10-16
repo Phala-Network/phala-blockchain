@@ -1,33 +1,32 @@
 use crate::constants::*;
+pub use crate::attestation::Error;
 
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{
 	borrow::ToOwned,
-	convert::TryFrom,
+	convert::{TryFrom, TryInto},
 	vec::Vec,
 };
 
-use phala_types::{AttestationProvider, AttestationReport};
-
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum Error {
-	PRuntimeRejected,
-	InvalidIASSigningCert,
-	InvalidReport,
-	InvalidQuoteStatus,
-	BadIASReport,
-	OutdatedIASReport,
-	UnknownQuoteBodyFormat,
-	InvalidUserDataHash,
-	NoneAttestationDisabled,
+pub enum Attestation {
+	SgxIas {
+		ra_report: Vec<u8>,
+		signature: Vec<u8>,
+		raw_signing_cert: Vec<u8>,
+	},
 }
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub struct ConfidentialReport {
-	pub confidence_level: u8,
-	pub provider: AttestationProvider,
-	pub runtime_hash: Vec<u8>,
+pub trait AttestationValidator {
+	/// Validates the attestation as well as the user data hash it commits to.
+	fn validate(
+		attestation: &Attestation,
+		user_data_hash: &[u8; 32],
+		now: u64,
+		verify_pruntime_hash: bool,
+		pruntime_allowlist: Vec<Vec<u8>>,
+	) -> Result<IasFields, Error>;
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -118,53 +117,47 @@ impl IasFields {
 	}
 }
 
-pub fn validate(
-	attestation: &AttestationReport,
-	user_data_hash: &[u8; 32],
-	now: u64,
-	verify_pruntime_hash: bool,
-	pruntime_allowlist: Vec<Vec<u8>>,
-	opt_out_enabled: bool
-) -> Result<ConfidentialReport, Error> {
-	match attestation {
-		AttestationReport::SgxIas {
-			ra_report,
-			signature,
-			raw_signing_cert,
-		} => {
-			validate_ias_report(
-				user_data_hash,
+/// Attestation validator implementation for IAS
+pub struct IasValidator;
+impl AttestationValidator for IasValidator {
+	fn validate(
+		attestation: &Attestation,
+		user_data_hash: &[u8; 32],
+		now: u64,
+		verify_pruntime: bool,
+		pruntime_allowlist: Vec<Vec<u8>>,
+	) -> Result<IasFields, Error> {
+		let fields = match attestation {
+			Attestation::SgxIas {
+				ra_report,
+				signature,
+				raw_signing_cert,
+			} => validate_ias_report(
 				ra_report,
 				signature,
 				raw_signing_cert,
 				now,
-				verify_pruntime_hash,
+				verify_pruntime,
 				pruntime_allowlist,
-			)
-		},
-		AttestationReport::None => {
-			if opt_out_enabled {
-				Ok(ConfidentialReport {
-					provider: AttestationProvider::None,
-					runtime_hash: Vec::new(),
-					confidence_level: 128u8
-				})
-			} else {
-				Err(Error::NoneAttestationDisabled)
-			}
+			),
+		}?;
+		let commit = &fields.report_data[..32];
+		if commit != user_data_hash {
+			Err(Error::InvalidUserDataHash)
+		} else {
+			Ok(fields)
 		}
 	}
 }
 
 pub fn validate_ias_report(
-	user_data_hash: &[u8],
 	report: &[u8],
 	signature: &[u8],
 	raw_signing_cert: &[u8],
 	now: u64,
-	verify_pruntime_hash: bool,
+	verify_pruntime: bool,
 	pruntime_allowlist: Vec<Vec<u8>>,
-) -> Result<ConfidentialReport, Error> {
+) -> Result<IasFields, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
 	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
@@ -185,9 +178,9 @@ pub fn validate_ias_report(
 	let (ias_fields, report_timestamp) = IasFields::from_ias_report(&report)?;
 
 	// Validate PRuntime
-	let pruntime_hash = ias_fields.extend_mrenclave();
-	if verify_pruntime_hash {
-		if !pruntime_allowlist.contains(&pruntime_hash) {
+	if verify_pruntime {
+		let t_mrenclave = ias_fields.extend_mrenclave();
+		if !pruntime_allowlist.contains(&t_mrenclave) {
 			return Err(Error::PRuntimeRejected);
 		}
 	}
@@ -197,17 +190,7 @@ pub fn validate_ias_report(
 		return Err(Error::OutdatedIASReport);
 	}
 
-	let commit = &ias_fields.report_data[..32];
-	if commit != user_data_hash {
-		return Err(Error::InvalidUserDataHash)
-	}
-
-	// Check the following fields
-	Ok(ConfidentialReport {
-		provider: AttestationProvider::Ias,
-		runtime_hash: pruntime_hash,
-		confidence_level: ias_fields.confidence_level,
-	})
+	Ok(ias_fields)
 }
 
 #[cfg(test)]
@@ -217,7 +200,7 @@ mod test {
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
-	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
+pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
 
 	#[test]
 	fn test_ias_validator() {
@@ -228,31 +211,8 @@ mod test {
 		let raw_signing_cert =
 			hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
 
-		let parsed_report: serde_json::Value =
-			serde_json::from_slice(report).unwrap();
-		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
-			.as_str()
-			.unwrap();
-		let quote_body = base64::decode(&raw_quote_body).unwrap();
-		let report_data = &quote_body[368..432];
-		let commit = &report_data[..32];
-
 		assert_eq!(
 			validate_ias_report(
-				&[0u8],
-				report,
-				&signature,
-				&raw_signing_cert,
-				ATTESTATION_TIMESTAMP,
-				false,
-				vec![]
-			),
-			Err(Error::InvalidUserDataHash)
-		);
-
-		assert_eq!(
-			validate_ias_report(
-				commit,
 				report,
 				&signature,
 				&raw_signing_cert,
@@ -265,7 +225,6 @@ mod test {
 
 		assert_eq!(
 			validate_ias_report(
-				commit,
 				report,
 				&signature,
 				&raw_signing_cert,
@@ -276,16 +235,13 @@ mod test {
 			Err(Error::PRuntimeRejected)
 		);
 
-		assert_ok!(
-			validate_ias_report(
-				commit,
-				report,
-				&signature,
-				&raw_signing_cert,
-				ATTESTATION_TIMESTAMP,
-				true,
-				vec![hex::decode(PRUNTIME_HASH).unwrap()]
-			)
-		);
+		assert_ok!(validate_ias_report(
+			report,
+			&signature,
+			&raw_signing_cert,
+			ATTESTATION_TIMESTAMP,
+			true,
+			vec![hex::decode(PRUNTIME_HASH).unwrap()]
+		));
 	}
 }
