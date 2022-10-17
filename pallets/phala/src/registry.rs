@@ -866,7 +866,7 @@ pub mod pallet {
 		/// requested to run a benchmark. The benchmark lasts [`BenchmarkDuration`] blocks, and
 		/// this field will be updated with the score once it finishes.
 		///
-		/// The `initial_score` is used as the baseline for mining performance test.
+		/// The `initial_score` is used as the baseline for computation performance test.
 		pub initial_score: Option<u32>,
 		/// Deprecated
 		pub features: Vec<u32>,

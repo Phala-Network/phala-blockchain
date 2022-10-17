@@ -41,4 +41,4 @@ We strive to resolve all problems as quickly as possible, and we would like to p
 
 - Core blockchain runtime & client
 - Websites: homepage, forum, Phala web apps, wiki, etc
-- Mining subsystem: pherry, runtime-bridge, helper scripts
+- Computing subsystem: pherry, runtime-bridge, helper scripts

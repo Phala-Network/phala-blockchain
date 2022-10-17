@@ -371,8 +371,8 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         //Web3AnalyticsCommand,
         // KittyEvent<AccountId, Hash>,
         SystemEvent,
-        MiningReportEvent,
-        MiningInfoUpdateEvent<u32>,
+        WorkingReportEvent,
+        WorkingInfoUpdateEvent<u32>,
         GatekeeperEvent,
         phala_pallets::registry::RegistryEvent,
     );

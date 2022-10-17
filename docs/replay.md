@@ -5,7 +5,7 @@
 `replay` is an utility program designed to reproduce the tokenomic computation outside a Gatekeeper. It comes with the following features:
 
 - Fetch chain blocks and Replay the tokenomic computuing just in-place without pRuntime needed.
-- Provide a HTTP api to query worker's instant mining state.
+- Provide a HTTP api to query worker's instant computing state.
 - Optionally write the workers ming finance events to a PostgreSQL or TimescaleDB database.
 
 ## Usage
@@ -73,7 +73,7 @@ select block,time,event,v,payout from worker_finance_events where pubkey = '\xa4
 
  block  |          time           |        event        |        v         |    payout
 --------+-------------------------+---------------------+------------------+---------------
- 421104 | 2021-09-18 19:01:18.568 | mining_start        | 22642.4444767019 |             0
+ 421104 | 2021-09-18 19:01:18.568 | working_started        | 22642.4444767019 |             0
  421159 | 2021-09-18 19:13:48.402 | heartbeat_challenge | 22643.2788294261 |             0
  421163 | 2021-09-18 19:14:54.803 | heartbeat           | 22642.4444767019 |  0.8950341155
  421187 | 2021-09-18 19:20:54.347 | heartbeat_challenge | 22642.7976991938 |             0
@@ -105,7 +105,7 @@ curl localhost:8080/worker-state/a436ab8f34f73f45b019248bb39b981cd118134afb897fa
     "last_gk_responsive_event_at_block": 752935,
     "last_heartbeat_at_block": 755816,
     "last_heartbeat_for_block": 755810,
-    "mining_state": null,
+    "working_state": null,
     "registered": true,
     "tokenomic_info": {
       "challenge_time_last": 1637270568284,

@@ -1,5 +1,5 @@
 pub mod basepool;
-pub mod mining;
+pub mod computation;
 pub mod pawnshop;
 pub mod poolproxy;
 pub mod stakepoolv2;

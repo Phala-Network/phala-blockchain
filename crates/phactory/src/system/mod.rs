@@ -45,7 +45,7 @@ use phala_types::{
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
         DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
-        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
+        KeyDistribution, WorkingReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
         RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
@@ -122,15 +122,15 @@ struct BenchState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum MiningState {
-    Mining,
+enum WorkingState {
+    Computing,
     Paused,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MiningInfo {
+struct WorkingInfo {
     session_id: u32,
-    state: MiningState,
+    state: WorkingState,
     start_time: u64,
     start_iter: u64,
 }
@@ -143,7 +143,7 @@ struct WorkerState {
     hashed_id: U256,
     registered: bool,
     bench_state: Option<BenchState>,
-    mining_state: Option<MiningInfo>,
+    working_state: Option<WorkingInfo>,
 }
 
 impl WorkerState {
@@ -156,7 +156,7 @@ impl WorkerState {
             hashed_id,
             registered: false,
             bench_state: None,
-            mining_state: None,
+            working_state: None,
         }
     }
 
@@ -173,7 +173,7 @@ impl WorkerState {
                     return;
                 }
 
-                use MiningState::*;
+                use WorkingState::*;
                 use WorkerEvent::*;
                 if log_on {
                     info!("System::handle_event: {:?}", evt.event);
@@ -196,24 +196,24 @@ impl WorkerState {
                             info!("My benchmark score is {}", score);
                         }
                     }
-                    MiningStart { session_id, .. } => {
-                        self.mining_state = Some(MiningInfo {
+                    WorkingStarted { session_id, .. } => {
+                        self.working_state = Some(WorkingInfo {
                             session_id,
-                            state: Mining,
+                            state: Computing,
                             start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
                         });
                         callback.bench_resume();
                     }
-                    MiningStop => {
-                        self.mining_state = None;
+                    WorkingStopped => {
+                        self.working_state = None;
                         if self.need_pause() {
                             callback.bench_pause();
                         }
                     }
-                    MiningEnterUnresponsive => {
-                        if let Some(info) = &mut self.mining_state {
-                            if let Mining = info.state {
+                    WorkerEnterUnresponsive => {
+                        if let Some(info) = &mut self.working_state {
+                            if let Computing = info.state {
                                 if log_on {
                                     info!("Enter paused");
                                 }
@@ -223,25 +223,25 @@ impl WorkerState {
                         }
                         if log_on {
                             error!(
-                                "Unexpected event received: {:?}, mining_state= {:?}",
-                                evt.event, self.mining_state
+                                "Unexpected event received: {:?}, working_state= {:?}",
+                                evt.event, self.working_state
                             );
                         }
                     }
-                    MiningExitUnresponsive => {
-                        if let Some(info) = &mut self.mining_state {
+                    WorkerExitUnresponsive => {
+                        if let Some(info) = &mut self.working_state {
                             if let Paused = info.state {
                                 if log_on {
                                     info!("Exit paused");
                                 }
-                                info.state = Mining;
+                                info.state = Computing;
                                 return;
                             }
                         }
                         if log_on {
                             error!(
-                                "Unexpected event received: {:?}, mining_state= {:?}",
-                                evt.event, self.mining_state
+                                "Unexpected event received: {:?}, working_state= {:?}",
+                                evt.event, self.working_state
                             );
                         }
                     }
@@ -262,8 +262,8 @@ impl WorkerState {
     ) {
         if log_on {
             debug!(
-                "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
-                block.block_number, seed_info, self.registered, self.mining_state
+                "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, working_state={:?}",
+                block.block_number, seed_info, self.registered, self.working_state
             );
         }
 
@@ -271,13 +271,13 @@ impl WorkerState {
             return;
         }
 
-        let mining_state = if let Some(state) = &mut self.mining_state {
+        let working_state = if let Some(state) = &mut self.working_state {
             state
         } else {
             return;
         };
 
-        if matches!(mining_state.state, MiningState::Paused) {
+        if matches!(working_state.state, WorkingState::Paused) {
             return;
         }
 
@@ -286,9 +286,9 @@ impl WorkerState {
 
         // Push queue when necessary
         if online_hit {
-            let iterations = callback.bench_iterations() - mining_state.start_iter;
+            let iterations = callback.bench_iterations() - working_state.start_iter;
             callback.heartbeat(
-                mining_state.session_id,
+                working_state.session_id,
                 block.block_number,
                 block.now_ms,
                 iterations,
@@ -297,7 +297,7 @@ impl WorkerState {
     }
 
     fn need_pause(&self) -> bool {
-        self.bench_state.is_none() && self.mining_state.is_none()
+        self.bench_state.is_none() && self.working_state.is_none()
     }
 
     fn on_block_processed(
@@ -373,7 +373,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
         challenge_time: u64,
         iterations: u64,
     ) {
-        let event = MiningReportEvent::HeartbeatV2 {
+        let event = WorkingReportEvent::HeartbeatV2 {
             session_id,
             challenge_block,
             challenge_time,

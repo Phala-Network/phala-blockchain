@@ -22,7 +22,7 @@ pub mod mq;
 pub mod puppets;
 pub mod registry;
 
-use compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
+use compute::{basepool, computation, pawnshop, poolproxy, stakepoolv2, vault};
 
 use frame_support::traits::LockableCurrency;
 /// The unified config of the compute pallets
@@ -40,7 +40,7 @@ type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::tr
 
 // Alias
 pub use compute::basepool as pallet_basepool;
-pub use compute::mining as pallet_mining;
+pub use compute::computation as pallet_computation;
 pub use compute::pawnshop as pallet_pawnshop;
 pub use compute::stakepoolv2 as pallet_stakepool;
 pub use compute::vault as pallet_vault;

@@ -8,7 +8,7 @@ use log;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
-use crate::compute::{basepool, mining, pawnshop, poolproxy, stakepoolv2, vault};
+use crate::compute::{basepool, computation, pawnshop, poolproxy, stakepoolv2, vault};
 use crate::fat;
 use crate::mq;
 use crate::registry;
@@ -18,7 +18,7 @@ use crate::BalanceOf;
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
 	fat::Config
-	+ mining::Config
+	+ computation::Config
 	+ mq::Config
 	+ registry::Config
 	+ stakepoolv2::Config
@@ -28,7 +28,7 @@ pub trait PhalaPallets:
 }
 impl<T> PhalaPallets for T where
 	T: fat::Config
-		+ mining::Config
+		+ computation::Config
 		+ mq::Config
 		+ registry::Config
 		+ stakepoolv2::Config
@@ -49,7 +49,7 @@ type Versions = (
 fn get_versions<T: PhalaPallets>() -> Versions {
 	(
 		StorageVersion::get::<fat::Pallet<T>>(),
-		StorageVersion::get::<mining::Pallet<T>>(),
+		StorageVersion::get::<computation::Pallet<T>>(),
 		StorageVersion::get::<mq::Pallet<T>>(),
 		StorageVersion::get::<registry::Pallet<T>>(),
 		StorageVersion::get::<stakepoolv2::Pallet<T>>(),
@@ -70,7 +70,7 @@ fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
 #[allow(dead_code)]
 fn set_unified_version<T: PhalaPallets>(version: u16) {
 	StorageVersion::new(version).put::<fat::Pallet<T>>();
-	StorageVersion::new(version).put::<mining::Pallet<T>>();
+	StorageVersion::new(version).put::<computation::Pallet<T>>();
 	StorageVersion::new(version).put::<mq::Pallet<T>>();
 	StorageVersion::new(version).put::<registry::Pallet<T>>();
 	StorageVersion::new(version).put::<stakepoolv2::Pallet<T>>();

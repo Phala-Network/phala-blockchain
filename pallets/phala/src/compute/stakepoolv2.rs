@@ -1,4 +1,4 @@
-//! Pool for collaboratively mining staking
+//! Pool for collaboratively computing staking
 
 pub use self::pallet::*;
 
@@ -11,7 +11,7 @@ pub mod pallet {
 
 	use crate::balance_convert::FixedPointConvert;
 	use crate::basepool;
-	use crate::mining;
+	use crate::computation;
 	use crate::pawnshop;
 	use crate::poolproxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool};
 	use crate::registry;
@@ -48,7 +48,7 @@ pub mod pallet {
 		frame_system::Config
 		+ crate::PhalaConfig
 		+ registry::Config
-		+ mining::Config
+		+ computation::Config
 		+ pallet_rmrk_core::Config
 		+ basepool::Config
 		+ pallet_assets::Config
@@ -64,16 +64,16 @@ pub mod pallet {
 		#[pallet::constant]
 		type GracePeriod: Get<u64>;
 
-		/// If mining is enabled by default.
+		/// If computing is enabled by default.
 		#[pallet::constant]
-		type MiningEnabledByDefault: Get<bool>;
+		type WorkingEnabledByDefault: Get<bool>;
 
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
 
-		/// The origin that can turn on or off mining
-		type MiningSwitchOrigin: EnsureOrigin<Self::Origin>;
+		/// The origin that can turn on or off computing
+		type WorkingSwitchOrigin: EnsureOrigin<Self::Origin>;
 
 		/// The origin that can trigger backfill tasks.
 		type BackfillOrigin: EnsureOrigin<Self::Origin>;
@@ -100,15 +100,15 @@ pub mod pallet {
 
 	/// Switch to enable the stake pool pallet (disabled by default)
 	#[pallet::storage]
-	#[pallet::getter(fn mining_enabled)]
-	pub type MiningEnabled<T> = StorageValue<_, bool, ValueQuery, MiningEnabledByDefault<T>>;
+	#[pallet::getter(fn working_enabled)]
+	pub type WorkingEnabled<T> = StorageValue<_, bool, ValueQuery, WorkingEnabledByDefault<T>>;
 
 	#[pallet::type_value]
-	pub fn MiningEnabledByDefault<T: Config>() -> bool {
-		T::MiningEnabledByDefault::get()
+	pub fn WorkingEnabledByDefault<T: Config>() -> bool {
+		T::WorkingEnabledByDefault::get()
 	}
 
-	/// Helper storage to track the preimage of the mining sub-accounts. Not used in consensus.
+	/// Helper storage to track the preimage of the computing sub-accounts. Not used in consensus.
 	#[pallet::storage]
 	pub type SubAccountPreimages<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
@@ -153,12 +153,12 @@ pub mod pallet {
 		/// Affected states:
 		/// - the `worker` is added to the vector `workers` in [`Pools`]
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
-		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
-		///   [`MinerBindings`](mining::pallet::MinerBindings))
+		/// - the worker-session binding is updated in `computation` pallet ([`WorkerBindings`](computation::pallet::WorkerBindings),
+		///   [`SessionBindings`](computation::pallet::SessionBindings))
 		PoolWorkerAdded {
 			pid: u64,
 			worker: WorkerPublicKey,
-			miner: T::AccountId,
+			session: T::AccountId,
 		},
 
 		/// Someone contributed to a pool
@@ -273,8 +273,8 @@ pub mod pallet {
 			to_stakers: BalanceOf<T>,
 		},
 
-		/// The amount of stakes for a worker to start mine
-		MiningStarted {
+		/// The amount of stakes for a worker to start computing
+		WorkingStarted {
 			pid: u64,
 			worker: WorkerPublicKey,
 			amount: BalanceOf<T>,
@@ -314,12 +314,12 @@ pub mod pallet {
 		InsufficientBalance,
 		/// The user doesn't have stake in a pool
 		PoolStakeNotFound,
-		/// Cannot start mining because there's no enough free stake
+		/// Cannot start computing because there's no enough free stake
 		InsufficientFreeStake,
 		/// The withdrawal amount is too small (considered as dust)
 		InvalidWithdrawalAmount,
-		/// Couldn't bind worker and the pool mining subaccount
-		FailedToBindMinerAndWorker,
+		/// Couldn't bind worker and the pool computing subaccount
+		FailedToBindSessionAndWorker,
 		/// Internal error: Cannot withdraw from the subsidy pool. This should never happen.
 		InternalSubsidyPoolCannotWithdraw,
 		/// The pool has already got all the stake completely slashed.
@@ -347,7 +347,7 @@ pub mod pallet {
 		NoWhitelistCreated,
 		/// Too long for pool description length
 		ExceedMaxDescriptionLen,
-		/// Withdraw queue is not empty so that we can't restart mining
+		/// Withdraw queue is not empty so that we can't restart computing
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
 		MissingCollectionId,
@@ -417,7 +417,7 @@ pub mod pallet {
 		///
 		/// This will bind a worker to the corresponding pool sub-account. The binding will not be
 		/// released until the worker is removed gracefully by `remove_worker()`, or a force unbind
-		/// by the worker operator via `Mining::unbind()`.
+		/// by the worker operator via `Computation::unbind()`.
 		///
 		/// Requires:
 		/// 1. The worker is registered and benchmarked
@@ -458,18 +458,18 @@ pub mod pallet {
 				Error::<T>::WorkersExceedLimit
 			);
 
-			// generate miner account
-			let miner: T::AccountId = pool_sub_account(pid, &pubkey);
+			// generate worker account
+			let session: T::AccountId = pool_sub_account(pid, &pubkey);
 
-			// bind worker with miner
-			mining::pallet::Pallet::<T>::bind(miner.clone(), pubkey)
-				.or(Err(Error::<T>::FailedToBindMinerAndWorker))?;
+			// bind worker with worker
+			computation::pallet::Pallet::<T>::bind(session.clone(), pubkey)
+				.or(Err(Error::<T>::FailedToBindSessionAndWorker))?;
 
 			// Save the preimage of the sub-account,
-			// the lifecycle of the preimage should be the same with the miner record,
-			// current implementation we don't delete miner records even its no longer in-use,
+			// the lifecycle of the preimage should be the same with the worker record,
+			// current implementation we don't delete worker records even its no longer in-use,
 			// so we won't delete preimages for now.
-			SubAccountPreimages::<T>::insert(miner.clone(), (pid, pubkey));
+			SubAccountPreimages::<T>::insert(session.clone(), (pid, pubkey));
 
 			// update worker vector
 			workers.push_back(pubkey);
@@ -478,7 +478,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PoolWorkerAdded {
 				pid,
 				worker: pubkey,
-				miner,
+				session,
 			});
 
 			Ok(())
@@ -489,7 +489,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The worker is registered
 		/// 2. The worker is associated with a pool
-		/// 3. The worker is removable (not in mining)
+		/// 3. The worker is removable (not in computing)
 		#[pallet::weight(0)]
 		pub fn remove_worker(
 			origin: OriginFor<T>,
@@ -510,7 +510,7 @@ pub mod pallet {
 			ensure!(pid == lookup_pid, Error::<T>::WorkerInAnotherPool);
 			// Remove the worker from the pool (notification suspended)
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::unbind_miner(&sub_account, false)?;
+			computation::pallet::Pallet::<T>::unbind_session(&sub_account, false)?;
 			// Manually clean up the worker, including the pool worker list, and the assignment
 			// indices. (Theoretically we can enable the unbinding notification, and follow the
 			// same path as a force unbinding, but it doesn't sounds graceful.)
@@ -563,7 +563,6 @@ pub mod pallet {
 				pool_info.basepool.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
-
 			pool_info.payout_commission = payout_commission;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 
@@ -729,8 +728,8 @@ pub mod pallet {
 			let grace_period = T::GracePeriod::get();
 			let mut releasing_stake = Zero::zero();
 			for worker in pool.cd_workers.iter() {
-				let miner: T::AccountId = pool_sub_account(pid, worker);
-				let stakes: BalanceOf<T> = mining::pallet::Stakes::<T>::get(&miner)
+				let worker: T::AccountId = pool_sub_account(pid, worker);
+				let stakes: BalanceOf<T> = computation::pallet::Stakes::<T>::get(&worker)
 					.expect("workers have no stakes recorded; qed.");
 				// TODO(mingxuan): handle slash
 				releasing_stake += stakes;
@@ -743,16 +742,16 @@ pub mod pallet {
 				releasing_stake,
 			) {
 				for worker in pool.workers.iter() {
-					let miner: T::AccountId = pool_sub_account(pid, worker);
-					let miner_info = match mining::pallet::Pallet::<T>::miners(&miner) {
-						Some(miner) => miner,
-						None => continue, // Skip non-existing miners
+					let session: T::AccountId = pool_sub_account(pid, worker);
+					let worker_info = match computation::pallet::Pallet::<T>::sessions(&session) {
+						Some(session) => session,
+						None => continue, // Skip non-existing workers
 					};
-					if !miner_info.state.is_mining() {
+					if !worker_info.state.is_computing() {
 						continue;
 					}
 					if !pool.cd_workers.contains(worker) {
-						Self::do_stop_mining(&pool.basepool.owner, pid, *worker)?;
+						Self::do_stop_computing(&pool.basepool.owner, pid, *worker)?;
 					}
 				}
 			}
@@ -918,38 +917,38 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Starts a miner on behalf of the stake pool
+		/// Starts a worker on behalf of the stake pool
 		///
 		/// Requires:
-		/// 1. The miner is bound to the pool and is in Ready state
+		/// 1. The worker is bound to the pool and is in Ready state
 		/// 2. The remaining stake in the pool can cover the minimal stake required
 		#[pallet::weight(0)]
-		pub fn start_mining(
+		pub fn start_computing(
 			origin: OriginFor<T>,
 			pid: u64,
 			worker: WorkerPublicKey,
 			stake: BalanceOf<T>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			Self::do_start_mining(&owner, pid, worker, stake)
+			Self::do_start_computing(&owner, pid, worker, stake)
 		}
 
-		/// Stops a miner on behalf of the stake pool
-		/// Note: this would let miner enter CoolingDown if everything is good
+		/// Stops a worker on behalf of the stake pool
+		/// Note: this would let worker enter CoolingDown if everything is good
 		///
 		/// Requires:
-		/// 1. There miner is bound to the pool and is in a stoppable state
+		/// 1. There worker is bound to the pool and is in a stoppable state
 		#[pallet::weight(0)]
-		pub fn stop_mining(
+		pub fn stop_computing(
 			origin: OriginFor<T>,
 			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			Self::do_stop_mining(&owner, pid, worker)
+			Self::do_stop_computing(&owner, pid, worker)
 		}
 
-		/// Reclaims the releasing stake of a miner in a pool.
+		/// Reclaims the releasing stake of a worker in a pool.
 		#[pallet::weight(0)]
 		pub fn reclaim_pool_worker(
 			origin: OriginFor<T>,
@@ -962,18 +961,18 @@ pub mod pallet {
 			Self::do_reclaim(pid, sub_account, worker, true).map(|_| ())
 		}
 
-		/// Enables or disables mining. Must be called with the council or root permission.
+		/// Enables or disables computing. Must be called with the council or root permission.
 		#[pallet::weight(0)]
-		pub fn set_mining_enable(origin: OriginFor<T>, enable: bool) -> DispatchResult {
-			T::MiningSwitchOrigin::ensure_origin(origin)?;
-			MiningEnabled::<T>::put(enable);
+		pub fn set_working_enabled(origin: OriginFor<T>, enable: bool) -> DispatchResult {
+			T::WorkingSwitchOrigin::ensure_origin(origin)?;
+			WorkingEnabled::<T>::put(enable);
 			Ok(())
 		}
 
-		/// Restarts the miner with a higher stake
+		/// Restarts the worker with a higher stake
 		#[pallet::weight(195_000_000)]
 		#[frame_support::transactional]
-		pub fn restart_mining(
+		pub fn restart_computing(
 			origin: OriginFor<T>,
 			pid: u64,
 			worker: WorkerPublicKey,
@@ -987,13 +986,13 @@ pub mod pallet {
 				Error::<T>::WithdrawQueueNotEmpty
 			);
 			// Stop and instantly reclaim the worker
-			Self::do_stop_mining(&owner, pid, worker)?;
-			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			let (orig_stake, slashed) = Self::do_reclaim(pid, miner, worker, false)?;
+			Self::do_stop_computing(&owner, pid, worker)?;
+			let session: T::AccountId = pool_sub_account(pid, &worker);
+			let (orig_stake, slashed) = Self::do_reclaim(pid, session, worker, false)?;
 			let released = orig_stake - slashed;
 			ensure!(stake > released, Error::<T>::CannotRestartWithLessStake);
-			// Simply start mining. Rollback if there's no enough stake,
-			Self::do_start_mining(&owner, pid, worker, stake)
+			// Simply start computing. Rollback if there's no enough stake,
+			Self::do_start_computing(&owner, pid, worker, stake)
 		}
 	}
 
@@ -1004,7 +1003,7 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
-		pub fn do_start_mining(
+		pub fn do_start_computing(
 			owner: &T::AccountId,
 			pid: u64,
 			worker: WorkerPublicKey,
@@ -1026,8 +1025,8 @@ pub mod pallet {
 				pool_info.workers.contains(&worker),
 				Error::<T>::WorkerDoesNotExist
 			);
-			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner, stake)?;
+			let session: T::AccountId = pool_sub_account(pid, &worker);
+			computation::pallet::Pallet::<T>::start_computing(session, stake)?;
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as pawnshop::Config>::PPhaAssetId::get(),
 				&pool_info.basepool.pool_account_id,
@@ -1036,7 +1035,7 @@ pub mod pallet {
 				false,
 			)?;
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
-			Self::deposit_event(Event::<T>::MiningStarted {
+			Self::deposit_event(Event::<T>::WorkingStarted {
 				pid,
 				worker,
 				amount: stake,
@@ -1044,12 +1043,12 @@ pub mod pallet {
 
 			Ok(())
 		}
-		fn do_stop_mining(
+		fn do_stop_computing(
 			owner: &T::AccountId,
 			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure!(Self::mining_enabled(), Error::<T>::FeatureNotEnabled);
+			ensure!(Self::working_enabled(), Error::<T>::FeatureNotEnabled);
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			// origin must be owner of pool
 			ensure!(
@@ -1065,9 +1064,9 @@ pub mod pallet {
 				!pool_info.cd_workers.contains(&worker),
 				Error::<T>::WorkerAlreadyStopped
 			);
-			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			// Mining::stop_mining will notify us how much it will release by `on_stopped`
-			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
+			let session: T::AccountId = pool_sub_account(pid, &worker);
+			// Computation::stop_computing will notify us how much it will release by `on_stopped`
+			<computation::pallet::Pallet<T>>::stop_computing(session)?;
 			pool_info.cd_workers.push_back(worker);
 			basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 			Ok(())
@@ -1078,7 +1077,8 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
-			let (orig_stake, slashed) = mining::Pallet::<T>::reclaim(sub_account, check_cooldown)?;
+			let (orig_stake, slashed) =
+				computation::Pallet::<T>::reclaim(sub_account, check_cooldown)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
 			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
@@ -1093,7 +1093,7 @@ pub mod pallet {
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() {
-				mining::Pallet::<T>::withdraw_subsidy_pool(
+				computation::Pallet::<T>::withdraw_subsidy_pool(
 					&<T as pawnshop::Config>::PawnShopAccountId::get(),
 					rewards,
 				)
@@ -1183,8 +1183,8 @@ pub mod pallet {
 						pid,
 						worker: *worker,
 					});
-					// To adjust the case that skip stakepool::stop_mining when call remove_worker
-					// (TODO(mingxuan): should let remove_worker in stakepool call mining directly instead of stakepool -> mining -> stakepool
+					// To adjust the case that skip stakepool::stop_computing when call remove_worker
+					// (TODO(mingxuan): should let remove_worker in stakepool call computing directly instead of stakepool -> computation -> stakepool
 					// and remove this cover code.)
 					if !pool.cd_workers.contains(worker) {
 						pool.cd_workers.push_back(*worker);
@@ -1199,7 +1199,7 @@ pub mod pallet {
 		}
 	}
 
-	impl<T: Config> mining::OnReward for Pallet<T>
+	impl<T: Config> computation::OnReward for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
@@ -1207,7 +1207,7 @@ pub mod pallet {
 		T: Config + vault::Config,
 	{
 		/// Called when gk send new payout information.
-		/// Append specific miner's reward balance of current round,
+		/// Append specific worker's reward balance of current round,
 		/// would be clear once pool was updated
 		fn on_reward(settle: &[SettleInfo]) {
 			for info in settle {
@@ -1232,7 +1232,7 @@ pub mod pallet {
 		}
 	}
 
-	impl<T: Config> mining::OnUnbound for Pallet<T>
+	impl<T: Config> computation::OnUnbound for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
@@ -1241,20 +1241,20 @@ pub mod pallet {
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Usually called on worker force unbinding (force == true), but it's also possible
-			// that the user unbind from the mining pallet directly.
+			// that the user unbind from the computing pallet directly.
 
-			// Warning: when using Mining & StakePool pallets together, here we assume all the
-			// miners are only registered by StakePool. So we don't bother to double check if the
+			// Warning: when using Computation & StakePool pallets together, here we assume all the
+			// workers are only registered by StakePool. So we don't bother to double check if the
 			// worker exists.
 
-			// In case of slash, `Mining::stop_mining()` will notify us a slash happened and we do
+			// In case of slash, `Computation::stop_computing()` will notify us a slash happened and we do
 			// bookkeeping stuff (i.e. updating releasing_stake), and eventually the slash will
 			// be enacted at `on_reclaim`.
 			Self::remove_worker_from_pool(worker);
 		}
 	}
 
-	impl<T: Config> mining::OnStopped<BalanceOf<T>> for Pallet<T>
+	impl<T: Config> computation::OnStopped<BalanceOf<T>> for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
@@ -1274,7 +1274,7 @@ pub mod pallet {
 		T: Encode + Decode,
 	{
 		let hash = crate::hashing::blake2_256(&(pid, pubkey).encode());
-		// stake pool miner
+		// stake pool worker
 		(b"spm/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed")

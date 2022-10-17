@@ -1,6 +1,6 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, mining, mq, pawnshop, registry, stakepoolv2, vault,
+	basepool, computation, mq, pawnshop, registry, stakepoolv2, vault,
 };
 
 use frame_support::{
@@ -45,7 +45,7 @@ frame_support::construct_runtime!(
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
-		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
+		PhalaComputation: computation::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepoolv2::{Pallet, Event<T>},
 		PhalaVault: vault::{Pallet, Event<T>},
 		PhalaPawnshop: pawnshop::{Pallet, Event<T>},
@@ -63,11 +63,11 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
 	pub const ExpectedBlockTimeSec: u32 = 12;
-	pub const MinMiningStaking: Balance = 1 * DOLLARS;
+	pub const MinWorkingStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
+	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
-	pub const MiningEnabledByDefault: bool = true;
+	pub const WorkingEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
@@ -219,7 +219,7 @@ impl pallet_rmrk_core::Config for Test {
 	type MaxResourcesOnMint = MaxResourcesOnMint;
 }
 
-impl mining::Config for Test {
+impl computation::Config for Test {
 	type Event = Event;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
@@ -334,10 +334,10 @@ impl pallet_assets::Config for Test {
 impl stakepoolv2::Config for Test {
 	type Event = Event;
 	type MinContribution = MinContribution;
-	type GracePeriod = MiningGracePeriod;
-	type MiningEnabledByDefault = MiningEnabledByDefault;
+	type GracePeriod = WorkingGracePeriod;
+	type WorkingEnabledByDefault = WorkingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type WorkingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
@@ -384,7 +384,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 			(2, 2000 * DOLLARS),
 			(3, 1000 * DOLLARS),
 			(99, 1_000_000 * DOLLARS),
-			(PhalaMining::account_id(), 690_000_000 * DOLLARS),
+			(PhalaComputation::account_id(), 690_000_000 * DOLLARS),
 		],
 	}
 	.assimilate_storage(&mut t)
@@ -396,7 +396,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
-	GenesisBuild::<Test>::assimilate_storage(&crate::mining::GenesisConfig::default(), &mut t)
+	GenesisBuild::<Test>::assimilate_storage(&crate::computation::GenesisConfig::default(), &mut t)
 		.unwrap();
 	sp_io::TestExternalities::new(t)
 }
@@ -484,5 +484,5 @@ pub fn elapse_seconds(sec: u64) {
 
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
-	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);
+	Timestamp::set_timestamp(now + PhalaComputation::cool_down_period() * 1000);
 }

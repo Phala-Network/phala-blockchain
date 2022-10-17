@@ -1,5 +1,5 @@
 use crate::basepool;
-use crate::mining;
+use crate::computation;
 use crate::pawnshop;
 use crate::poolproxy::*;
 use crate::stakepoolv2;
@@ -19,7 +19,8 @@ use crate::mock::{
 };
 // Pallets
 use crate::mock::{
-	Balances, PhalaBasePool, PhalaMining, PhalaPawnshop, PhalaRegistry, PhalaStakePool, PhalaVault,
+	Balances, PhalaBasePool, PhalaComputation, PhalaPawnshop, PhalaRegistry, PhalaStakePool,
+	PhalaVault,
 };
 use pallet_democracy::AccountVote;
 use phala_types::{messaging::SettleInfo, WorkerPublicKey};
@@ -724,7 +725,7 @@ fn test_pool_cap() {
 
 		// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
 		// can be maintained after the contribution
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -788,11 +789,11 @@ fn test_add_worker() {
 		// Check binding
 		let subaccount = stakepoolv2::pool_sub_account(0, &worker_pubkey(1));
 		assert_eq!(
-			PhalaMining::ensure_worker_bound(&worker_pubkey(1)).unwrap(),
+			PhalaComputation::ensure_worker_bound(&worker_pubkey(1)).unwrap(),
 			subaccount,
 		);
 		assert_eq!(
-			PhalaMining::ensure_miner_bound(&subaccount).unwrap(),
+			PhalaComputation::ensure_session_bound(&subaccount).unwrap(),
 			worker_pubkey(1),
 		);
 		// Check assignments
@@ -809,21 +810,21 @@ fn test_add_worker() {
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 		assert_noop!(
 			PhalaStakePool::add_worker(Origin::signed(1), 1, worker1.clone()),
-			stakepoolv2::Error::<Test>::FailedToBindMinerAndWorker
+			stakepoolv2::Error::<Test>::FailedToBindSessionAndWorker
 		);
 	});
 }
 #[test]
-fn test_start_mining() {
+fn test_start_computing() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(99), 50000 * DOLLARS));
-		// Cannot start mining without a bound worker
+		// Cannot start computing without a bound worker
 		assert_noop!(
-			PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+			PhalaStakePool::start_computing(Origin::signed(1), 0, worker_pubkey(1), 0),
 			stakepoolv2::Error::<Test>::WorkerDoesNotExist
 		);
 		// Basic setup
@@ -841,8 +842,8 @@ fn test_start_mining() {
 		));
 		// No enough stake
 		assert_noop!(
-			PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
-			mining::Error::<Test>::InsufficientStake
+			PhalaStakePool::start_computing(Origin::signed(1), 0, worker_pubkey(1), 0),
+			computation::Error::<Test>::InsufficientStake
 		);
 		// Too much stake
 		assert_ok!(PhalaStakePool::contribute(
@@ -852,17 +853,22 @@ fn test_start_mining() {
 			None
 		));
 		assert_noop!(
-			PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 30000 * DOLLARS),
-			mining::Error::<Test>::TooMuchStake
+			PhalaStakePool::start_computing(
+				Origin::signed(1),
+				0,
+				worker_pubkey(1),
+				30000 * DOLLARS
+			),
+			computation::Error::<Test>::TooMuchStake
 		);
-		// Can start mining normally
-		assert_ok!(PhalaStakePool::start_mining(
+		// Can start computing normally
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		assert_eq!(PhalaMining::online_miners(), 1);
+		assert_eq!(PhalaComputation::online_workers(), 1);
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
@@ -892,7 +898,7 @@ fn test_force_unbind() {
 			100 * DOLLARS,
 			None
 		));
-		// Pool0: Change the operator to account101 and force unbind (not mining)
+		// Pool0: Change the operator to account101 and force unbind (not computing)
 		assert_ok!(PhalaRegistry::force_register_worker(
 			Origin::root(),
 			worker_pubkey(1),
@@ -900,20 +906,20 @@ fn test_force_unbind() {
 			Some(101)
 		));
 		let sub_account = stakepoolv2::pool_sub_account(0, &worker_pubkey(1));
-		assert_ok!(PhalaMining::unbind(Origin::signed(101), sub_account));
+		assert_ok!(PhalaComputation::unbind(Origin::signed(101), sub_account));
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stakepoolv2::pallet::WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(1)), false);
-		// Check the mining is ready
-		let miner = PhalaMining::miners(&sub_account).unwrap();
-		assert_eq!(miner.state, mining::MinerState::Ready);
+		// Check the computing is ready
+		let worker = PhalaComputation::sessions(&sub_account).unwrap();
+		assert_eq!(worker.state, computation::WorkerState::Ready);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
-		// Pool1: Change the operator to account102 and force unbind (mining)
-		assert_ok!(PhalaStakePool::start_mining(
+		// Pool1: Change the operator to account102 and force unbind (computing)
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(2),
 			1,
 			worker_pubkey(2),
@@ -930,30 +936,30 @@ fn test_force_unbind() {
 			Some(102)
 		));
 		let sub_account = stakepoolv2::pool_sub_account(1, &worker_pubkey(2));
-		assert_ok!(PhalaMining::unbind(Origin::signed(102), sub_account));
+		assert_ok!(PhalaComputation::unbind(Origin::signed(102), sub_account));
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stakepoolv2::WorkerAssignments::<Test>::contains_key(
 			&worker_pubkey(2)
 		));
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(2)), false);
-		// Check the mining is stopped
-		let miner = PhalaMining::miners(&sub_account).unwrap();
-		assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
+		// Check the computing is stopped
+		let worker = PhalaComputation::sessions(&sub_account).unwrap();
+		assert_eq!(worker.state, computation::WorkerState::WorkerCoolingDown);
 	});
 }
 
 #[test]
-fn test_stop_mining() {
+fn test_stop_computing() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
-		// Cannot start mining without a bound worker
+		// Cannot start computing without a bound worker
 		assert_noop!(
-			PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+			PhalaStakePool::start_computing(Origin::signed(1), 0, worker_pubkey(1), 0),
 			stakepoolv2::Error::<Test>::WorkerDoesNotExist
 		);
 		// Basic setup
@@ -973,7 +979,7 @@ fn test_stop_mining() {
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -983,7 +989,7 @@ fn test_stop_mining() {
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
 		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
-		assert_ok!(PhalaStakePool::stop_mining(
+		assert_ok!(PhalaStakePool::stop_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -1017,13 +1023,13 @@ fn test_reclaim() {
 			100 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
 			100 * DOLLARS,
 		));
-		assert_ok!(PhalaStakePool::stop_mining(
+		assert_ok!(PhalaStakePool::stop_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -1042,7 +1048,7 @@ fn test_reclaim() {
 }
 
 #[test]
-fn restart_mining_should_work() {
+fn restart_computing_should_work() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
@@ -1055,7 +1061,7 @@ fn restart_mining_should_work() {
 			200 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -1063,17 +1069,22 @@ fn restart_mining_should_work() {
 		));
 		// Bad cases
 		assert_noop!(
-			PhalaStakePool::restart_mining(Origin::signed(1), 0, worker_pubkey(1), 50 * DOLLARS),
+			PhalaStakePool::restart_computing(Origin::signed(1), 0, worker_pubkey(1), 50 * DOLLARS),
 			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
 		);
 		assert_noop!(
-			PhalaStakePool::restart_mining(Origin::signed(1), 0, worker_pubkey(1), 150 * DOLLARS),
+			PhalaStakePool::restart_computing(
+				Origin::signed(1),
+				0,
+				worker_pubkey(1),
+				150 * DOLLARS
+			),
 			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
 		);
 		// Happy path
 		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool0.basepool.pool_account_id), 50 * DOLLARS);
-		assert_ok!(PhalaStakePool::restart_mining(
+		assert_ok!(PhalaStakePool::restart_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -1092,9 +1103,9 @@ fn test_for_cdworkers() {
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePool::create(Origin::signed(1)));
-		// Cannot start mining without a bound worker
+		// Cannot start computing without a bound worker
 		assert_noop!(
-			PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+			PhalaStakePool::start_computing(Origin::signed(1), 0, worker_pubkey(1), 0),
 			stakepoolv2::Error::<Test>::WorkerDoesNotExist
 		);
 		// Basic setup
@@ -1110,7 +1121,7 @@ fn test_for_cdworkers() {
 			100 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -1136,7 +1147,7 @@ fn test_for_cdworkers() {
 
 #[test]
 fn test_on_reward_for_vault() {
-	use crate::mining::pallet::OnReward;
+	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
@@ -1158,14 +1169,14 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS,
 			Some(0)
 		));
-		// Staker2 contribute 1000 PHA and start mining
+		// Staker2 contribute 1000 PHA and start computing
 		assert_ok!(PhalaStakePool::contribute(
 			Origin::signed(2),
 			1,
 			50 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			1,
 			worker_pubkey(1),
@@ -1196,7 +1207,7 @@ fn test_on_reward_for_vault() {
 
 #[test]
 fn test_claim_owner_rewards() {
-	use crate::mining::pallet::OnReward;
+	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
@@ -1238,7 +1249,7 @@ fn test_claim_owner_rewards() {
 
 #[test]
 fn test_vault_owner_shares() {
-	use crate::mining::pallet::OnReward;
+	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(Origin::signed(1), 500 * DOLLARS));
@@ -1271,7 +1282,7 @@ fn test_vault_owner_shares() {
 			50 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			1,
 			worker_pubkey(1),
@@ -1355,13 +1366,13 @@ fn test_withdraw() {
 			300 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
 			400 * DOLLARS
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(2),
@@ -1571,13 +1582,13 @@ fn test_check_and_maybe_force_withdraw() {
 			300 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(2),
@@ -1589,7 +1600,7 @@ fn test_check_and_maybe_force_withdraw() {
 			300 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePool::stop_mining(
+		assert_ok!(PhalaStakePool::stop_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
@@ -1656,13 +1667,13 @@ fn test_check_and_maybe_force_withdraw() {
 			300 * DOLLARS,
 			Some(pid)
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		assert_ok!(PhalaStakePool::start_mining(
+		assert_ok!(PhalaStakePool::start_computing(
 			Origin::signed(1),
 			0,
 			worker_pubkey(2),
