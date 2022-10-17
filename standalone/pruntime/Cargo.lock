@@ -1659,8 +1659,9 @@ dependencies = [
 
 [[package]]
 name = "fixed-macro"
-version = "1.1.1"
-source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0c48af8cb14e02868f449f8a2187bd78af7a08da201fdc78d518ecb1675bc"
 dependencies = [
  "fixed",
  "fixed-macro-impl",
@@ -1669,8 +1670,9 @@ dependencies = [
 
 [[package]]
 name = "fixed-macro-impl"
-version = "1.1.1"
-source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c93086f471c0a1b9c5e300ea92f5cd990ac6d3f8edf27616ef624b8fa6402d4b"
 dependencies = [
  "fixed",
  "paste",
@@ -1682,8 +1684,9 @@ dependencies = [
 
 [[package]]
 name = "fixed-macro-types"
-version = "1.1.1"
-source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "044a61b034a2264a7f65aa0c3cd112a01b4d4ee58baace51fead3f21b993c7e4"
 dependencies = [
  "fixed",
  "fixed-macro-impl",
