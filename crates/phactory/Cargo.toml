@@ -61,7 +61,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
-fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro" }
+fixed-macro = "1.2"
 
 # for network service
 surf = { version = "2.3.1", default-features = false, features = ["h1-client-rustls"] }
