@@ -208,8 +208,8 @@ pub mod pallet {
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
 		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
 		///   [`MinerBindings`](mining::pallet::MinerBindings))
-		PoolWorkerAdded { 
-			pid: u64, 
+		PoolWorkerAdded {
+			pid: u64,
 			worker: WorkerPublicKey,
 			miner: T::AccountId,
 		},
@@ -332,7 +332,7 @@ pub mod pallet {
 		/// A staker is removed from the pool contribution whitelist
 		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
 		/// A worker is reclaimed from the pool
-		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
+		WorkerReclaimed { pid: u64, worker: WorkerPublicKey, orig_stake: BalanceOf<T> },
 		/// The amount of reward that distributed to owner and stakers
 		RewardReceived {
 			pid: u64,
@@ -1105,7 +1105,7 @@ pub mod pallet {
 				worker: worker,
 				amount: stake,
 			});
-			
+
 			Ok(())
 		}
 		fn do_stop_mining(
@@ -1136,7 +1136,7 @@ pub mod pallet {
 			let (orig_stake, slashed) =
 				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
-			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
+			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker, orig_stake });
 			Ok((orig_stake, slashed))
 		}
 
