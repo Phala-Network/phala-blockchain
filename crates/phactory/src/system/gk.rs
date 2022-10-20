@@ -127,7 +127,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
-    pub(crate) working_economics: WorkingEconomics<MsgChan>,
+    pub(crate) computing_economics: ComputingEconomics<MsgChan>,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -157,7 +157,7 @@ where
             cluster_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
-            working_economics: WorkingEconomics::new(recv_mq, egress),
+            computing_economics: ComputingEconomics::new(recv_mq, egress),
         }
     }
 
@@ -378,7 +378,7 @@ where
                 "Gatekeeper: not handle the messages because Gatekeeper has not launched on chain"
             );
         }
-        self.working_economics.will_process_block(block);
+        self.computing_economics.will_process_block(block);
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -405,12 +405,12 @@ where
             }
         }
 
-        self.working_economics.process_messages(block, &mut ());
+        self.computing_economics.process_messages(block, &mut ());
     }
 
     pub fn did_process_block(&mut self, block: &BlockInfo<'_>) {
         if self.master_pubkey_on_chain {
-            self.working_economics.did_process_block(block, &mut ());
+            self.computing_economics.did_process_block(block, &mut ());
         }
         self.emit_random_number(block.block_number);
     }
@@ -422,16 +422,16 @@ where
                 self.process_random_number_event(origin, random_number_event)
             }
             GatekeeperEvent::TokenomicParametersChanged(_params) => {
-                // Handled by WorkingEconomics
+                // Handled by ComputingEconomics
             }
             GatekeeperEvent::RepairV => {
-                // Handled by WorkingEconomics
+                // Handled by ComputingEconomics
             }
             GatekeeperEvent::PhalaLaunched => {
-                // Handled by WorkingEconomics
+                // Handled by ComputingEconomics
             }
             GatekeeperEvent::UnrespFix => {
-                // Handled by WorkingEconomics
+                // Handled by ComputingEconomics
             }
         }
     }
@@ -619,7 +619,7 @@ impl<F: FnMut(EconomicEvent, &WorkerInfo)> EconomicEventListener for F {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct WorkingEconomics<MsgChan> {
+pub struct ComputingEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     computing_events: TypedReceiver<WorkingReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
@@ -648,23 +648,23 @@ struct EconomicCalcCache {
 #[test]
 fn test_restore_phala_launched() {
     #[derive(Serialize, Deserialize)]
-    struct WorkingEconomics0 {
+    struct ComputingEconomics0 {
         tokenomic_params: u32,
     }
 
     #[derive(Serialize, Deserialize)]
-    struct WorkingEconomics1 {
+    struct ComputingEconomics1 {
         tokenomic_params: u32,
         #[serde(default)]
         phala_launched: bool,
     }
 
-    let checkpoint = serde_cbor::to_vec(&WorkingEconomics0 {
+    let checkpoint = serde_cbor::to_vec(&ComputingEconomics0 {
         tokenomic_params: 1,
     })
     .unwrap();
 
-    let state: WorkingEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
+    let state: ComputingEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
     assert!(!state.phala_launched);
 }
 
@@ -709,9 +709,9 @@ impl From<&WorkerInfo> for pb::WorkerState {
     }
 }
 
-impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> WorkingEconomics<MsgChan> {
+impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan> {
     pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
-        WorkingEconomics {
+        ComputingEconomics {
             egress,
             computing_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -1061,7 +1061,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> WorkingEconomics<MsgChan> 
                         }
                         WorkerEvent::BenchStart { .. } => {}
                         WorkerEvent::BenchScore(_) => {}
-                        WorkerEvent::WorkingStarted {
+                        WorkerEvent::Started {
                             session_id: _, // Aready recorded by the state machine.
                             init_v,
                             init_p,
@@ -1089,7 +1089,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> WorkingEconomics<MsgChan> 
                             };
                             event_listener.emit_event(EconomicEvent::WorkingStarted, worker);
                         }
-                        WorkerEvent::WorkingStopped => {
+                        WorkerEvent::Stopped => {
                             // TODO.kevin: report the final V?
                             // We may need to report a Stop event in worker.
                             // Then GK report the final V to pallet, when observed the Stop event from worker.
@@ -1109,8 +1109,8 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> WorkingEconomics<MsgChan> 
                             });
                             event_listener.emit_event(EconomicEvent::WorkingStopped, worker);
                         }
-                        WorkerEvent::WorkerEnterUnresponsive => {}
-                        WorkerEvent::WorkerExitUnresponsive => {}
+                        WorkerEvent::EnterUnresponsive => {}
+                        WorkerEvent::ExitUnresponsive => {}
                     }
                 }
             }
@@ -1528,7 +1528,7 @@ mod serde_fp {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{BlockInfo, FixedPoint, MessageChannel, WorkingEconomics};
+    use super::{BlockInfo, FixedPoint, MessageChannel, ComputingEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path, Sr25519Signer};
@@ -1602,7 +1602,7 @@ pub mod tests {
 
     struct Roles {
         mq: MessageDispatcher,
-        gk: WorkingEconomics<CollectChannel>,
+        gk: ComputingEconomics<CollectChannel>,
         workers: [WorkerPublicKey; 2],
     }
 
@@ -1610,7 +1610,7 @@ pub mod tests {
         fn test_roles() -> Roles {
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let gk = WorkingEconomics::new(&mut mq, egress);
+            let gk = ComputingEconomics::new(&mut mq, egress);
             Roles {
                 mq,
                 gk,
@@ -1719,7 +1719,7 @@ pub mod tests {
 
         with_block(2, |block| {
             let mut worker1 = r.for_worker(1);
-            worker1.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker1.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: 1,
                 init_p: 100,
@@ -1752,7 +1752,7 @@ pub mod tests {
 
         with_block(2, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: 1,
                 init_p: 100,
@@ -1764,7 +1764,7 @@ pub mod tests {
         // Stop computing before the heartbeat response.
         with_block(3, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStopped);
+            worker0.pallet_say(msg::WorkerEvent::Stopped);
             r.gk.test_process_messages(block);
         });
 
@@ -1774,7 +1774,7 @@ pub mod tests {
 
         with_block(5, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 2,
                 init_v: 1,
                 init_p: 100,
@@ -1847,7 +1847,7 @@ pub mod tests {
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -1912,7 +1912,7 @@ pub mod tests {
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -1966,7 +1966,7 @@ pub mod tests {
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -2047,7 +2047,7 @@ pub mod tests {
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -2120,7 +2120,7 @@ pub mod tests {
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -2191,7 +2191,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(3000).to_bits(),
                 init_p: 100,
@@ -2278,7 +2278,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
-            worker0.pallet_say(msg::WorkerEvent::WorkingStarted {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(30000).to_bits(),
                 init_p: 3000,
@@ -2353,7 +2353,7 @@ pub mod tests {
             for i in 0..=1 {
                 let mut worker = r.for_worker(i);
                 worker.pallet_say(msg::WorkerEvent::BenchScore(3000));
-                worker.pallet_say(msg::WorkerEvent::WorkingStarted {
+                worker.pallet_say(msg::WorkerEvent::Started {
                     session_id: 1,
                     init_v: fp!(30000).to_bits(),
                     init_p: 3000,

@@ -634,7 +634,7 @@ pub mod pallet {
 						});
 						Self::push_message(SystemEvent::new_worker_event(
 							worker,
-							WorkerEvent::WorkerEnterUnresponsive,
+							WorkerEvent::EnterUnresponsive,
 						));
 					}
 				}
@@ -657,7 +657,7 @@ pub mod pallet {
 						});
 						Self::push_message(SystemEvent::new_worker_event(
 							worker,
-							WorkerEvent::WorkerExitUnresponsive,
+							WorkerEvent::ExitUnresponsive,
 						));
 					}
 				}
@@ -897,7 +897,7 @@ pub mod pallet {
 			NextSessionId::<T>::put(session_id + 1);
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
-				WorkerEvent::WorkingStarted {
+				WorkerEvent::Started {
 					session_id,
 					init_v: ve.to_bits(),
 					init_p: p,
@@ -940,7 +940,7 @@ pub mod pallet {
 
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
-				WorkerEvent::WorkingStopped,
+				WorkerEvent::Stopped,
 			));
 			Self::deposit_event(Event::<T>::WorkerStopped { session });
 			Ok(())

@@ -44,7 +44,7 @@ pub struct ReplayFactory {
     #[serde(skip)]
     #[serde(default)]
     recv_mq: MessageDispatcher,
-    gk: gk::WorkingEconomics<ReplayMsgChannel>,
+    gk: gk::ComputingEconomics<ReplayMsgChannel>,
 }
 
 impl ReplayFactory {
@@ -52,7 +52,7 @@ impl ReplayFactory {
         let mut recv_mq = MessageDispatcher::new();
         let mut storage = TrieStorage::default();
         storage.load(genesis_state.into_iter());
-        let gk = gk::WorkingEconomics::new(&mut recv_mq, ReplayMsgChannel);
+        let gk = gk::ComputingEconomics::new(&mut recv_mq, ReplayMsgChannel);
         Self {
             next_event_seq: 1,
             current_block: 0,

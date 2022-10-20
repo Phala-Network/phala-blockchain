@@ -93,7 +93,7 @@ pub mod pallet {
 	#[pallet::getter(fn pool_count)]
 	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
-	/// Mapping from Pools (including stake pools and vaults) to pids
+	/// Mapping from pids to pools (including stake pools and vaults)
 	#[pallet::storage]
 	#[pallet::getter(fn pool_collection)]
 	pub type Pools<T: Config> =
