@@ -1,6 +1,6 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, computation, mq, pawnshop, registry, stakepoolv2, vault,
+	basepool, computation, mq, pawnshop, registry, stakepoolv2, vault, stakepool,
 };
 
 use frame_support::{
@@ -46,10 +46,11 @@ frame_support::construct_runtime!(
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
 		PhalaComputation: computation::{Pallet, Event<T>, Storage, Config},
-		PhalaStakePool: stakepoolv2::{Pallet, Event<T>},
+		PhalaStakePoolv2: stakepoolv2::{Pallet, Event<T>},
 		PhalaVault: vault::{Pallet, Event<T>},
 		PhalaPawnshop: pawnshop::{Pallet, Event<T>},
 		PhalaBasePool: basepool::{Pallet, Event<T>},
+		PhalaStakePool: stakepool::{Event<T>},
 	}
 );
 
@@ -224,9 +225,9 @@ impl computation::Config for Test {
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
 	type Randomness = TestRandomness<Self>;
-	type OnReward = PhalaStakePool;
-	type OnUnbound = PhalaStakePool;
-	type OnStopped = PhalaStakePool;
+	type OnReward = PhalaStakePoolv2;
+	type OnUnbound = PhalaStakePoolv2;
+	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
@@ -347,6 +348,11 @@ impl vault::Config for Test {
 
 impl basepool::Config for Test {
 	type Event = Event;
+}
+
+impl stakepool::Config for Test {
+	type Event = Event;
+	type Currency = Balances;
 }
 
 pub struct MockValidator;

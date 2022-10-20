@@ -108,11 +108,12 @@ pub use phala_pallets::{
 	pallet_mq,
 	pallet_registry,
 	pallet_computation,
-	pallet_stakepool,
+	pallet_stakepoolv2,
 	pallet_vault,
 	pallet_basepool,
 	pallet_pawnshop,
 	pallet_fat,
+	pallet_stakepool,
 	puppets,
 };
 
@@ -331,13 +332,13 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::StakePoolManager => matches!(
 				c,
 				Call::Utility { .. }
-					| Call::PhalaStakePool(pallet_stakepool::Call::add_worker { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::remove_worker { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::start_computing { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::stop_computing { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::restart_computing { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::reclaim_pool_worker { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::create { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::add_worker { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::remove_worker { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::start_computing { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::stop_computing { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::restart_computing { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::reclaim_pool_worker { .. })
+					| Call::PhalaStakePoolv2(pallet_stakepoolv2::Call::create { .. })
 					| Call::PhalaRegistry(pallet_registry::Call::register_worker { .. })
 					| Call::PhalaMq(pallet_mq::Call::sync_offchain_message { .. })
 			),
@@ -1287,13 +1288,13 @@ impl pallet_computation::Config for Runtime {
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
 	type Randomness = RandomnessCollectiveFlip;
-	type OnReward = PhalaStakePool;
-	type OnUnbound = PhalaStakePool;
-	type OnStopped = PhalaStakePool;
+	type OnReward = PhalaStakePoolv2;
+	type OnUnbound = PhalaStakePoolv2;
+	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = Treasury;
 	type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
 }
-impl pallet_stakepool::Config for Runtime {
+impl pallet_stakepoolv2::Config for Runtime {
 	type Event = Event;
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
@@ -1301,6 +1302,10 @@ impl pallet_stakepool::Config for Runtime {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type WorkingSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
+}
+impl pallet_stakepool::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
 }
 impl pallet_vault::Config for Runtime {
 	type Event = Event;
@@ -1462,6 +1467,7 @@ construct_runtime!(
 		PhalaMq: pallet_mq,
 		PhalaRegistry: pallet_registry,
 		PhalaComputation: pallet_computation,
+		PhalaStakePoolv2: pallet_stakepoolv2,
 		PhalaStakePool: pallet_stakepool,
 		PhalaVault: pallet_vault,
 		PhalaPawnshop: pallet_pawnshop,

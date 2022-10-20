@@ -42,7 +42,7 @@ pub mod pallet {
 
 	use scale_info::TypeInfo;
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	const NFT_PROPERTY_KEY: &str = "stake-info";
 

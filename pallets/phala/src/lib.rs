@@ -21,6 +21,7 @@ pub mod fat;
 pub mod mq;
 pub mod puppets;
 pub mod registry;
+pub mod stakepool;
 
 use compute::{basepool, computation, pawnshop, poolproxy, stakepoolv2, vault};
 
@@ -42,11 +43,12 @@ type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::tr
 pub use compute::basepool as pallet_basepool;
 pub use compute::computation as pallet_computation;
 pub use compute::pawnshop as pallet_pawnshop;
-pub use compute::stakepoolv2 as pallet_stakepool;
+pub use compute::stakepoolv2 as pallet_stakepoolv2;
 pub use compute::vault as pallet_vault;
 pub use fat as pallet_fat;
 pub use mq as pallet_mq;
 pub use registry as pallet_registry;
+pub use stakepool as pallet_stakepool;
 
 #[cfg(feature = "native")]
 use sp_core::hashing;

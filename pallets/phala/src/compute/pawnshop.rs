@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Create, Inspect, Mutate},
+			tokens::fungibles::{Inspect, Mutate},
 			tokens::nonfungibles::InspectEnumerable,
 			Currency,
 			ExistenceRequirement::{AllowDeath, KeepAlive},
@@ -67,7 +67,7 @@ pub mod pallet {
 		pub locked: Balance,
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	const MAX_ITERARTIONS: u32 = 100;
 
