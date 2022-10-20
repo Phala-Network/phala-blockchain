@@ -1,4 +1,4 @@
-SYSTEM_CONTRACT_DIR=../../crates/pink-libs/system
+SYSTEM_CONTRACT_DIR=../../crates/pink-drivers/system
 SYSTEM_CONTRACT_BIN=${SYSTEM_CONTRACT_DIR}/target/ink/pink_system.contract
 CHECK_SYSTEM_BIN=check_system/target/ink/manifest.json
 

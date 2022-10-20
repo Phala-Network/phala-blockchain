@@ -27,8 +27,8 @@ exclude = [
 	"vendor/ring",
 	"standalone/pruntime",
 	"standalone/prouter",
-	"crates/pink-libs/system",
-	"crates/pink-libs/sidevmop",
+	"crates/pink-drivers/system",
+	"crates/pink-drivers/sidevmop",
 	"e2e/res/check_system",
 ]
 
