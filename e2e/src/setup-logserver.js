@@ -356,38 +356,38 @@ async function main() {
     const _ = {
         "next": 3, // Sequence number for next query. For pagination.
         "records": [
-          {
-            "blockNumber": 0,
-            "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
-            "inQuery": true,
-            "level": 0,
-            "message": "hello", // Log content
-            "sequence": 0,
-            "timestamp": 1,
-            "type": "Log" // Type of the records. could be one of ['Log', 'Event', 'MessageOutput']
-          },
-          {
-            "blockNumber": 1,
-            "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
-            "payload": "0x01020304",
-            "sequence": 1,
-            "topics": [
-              "0x0202020202020202020202020202020202020202020202020202020202020202",
-              "0x0303030303030303030303030303030303030303030303030303030303030303"
-            ],
-            "type": "Event"
-          },
-          {
-            "blockNumber": 2,
-            "contract": "0x0202020202020202020202020202020202020202020202020202020202020202",
-            "nonce": "0x0102030405",
-            "origin": "0x0101010101010101010101010101010101010101010101010101010101010101",
-            "output": "0x0504030201",
-            "sequence": 2,
-            "type": "MessageOutput"
-          }
+            {
+                "blockNumber": 0,
+                "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "inQuery": true,
+                "level": 0,
+                "message": "hello", // Log content
+                "sequence": 0,
+                "timestamp": 1,
+                "type": "Log" // Type of the records. could be one of ['Log', 'Event', 'MessageOutput']
+            },
+            {
+                "blockNumber": 1,
+                "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "payload": "0x01020304",
+                "sequence": 1,
+                "topics": [
+                    "0x0202020202020202020202020202020202020202020202020202020202020202",
+                    "0x0303030303030303030303030303030303030303030303030303030303030303"
+                ],
+                "type": "Event"
+            },
+            {
+                "blockNumber": 2,
+                "contract": "0x0202020202020202020202020202020202020202020202020202020202020202",
+                "nonce": "0x0102030405",
+                "origin": "0x0101010101010101010101010101010101010101010101010101010101010101",
+                "output": "0x0504030201",
+                "sequence": 2,
+                "type": "MessageOutput"
+            }
         ]
-      };
+    };
 }
 
 main().then(process.exit).catch(err => console.error('Crashed', err)).finally(() => process.exit(-1));
