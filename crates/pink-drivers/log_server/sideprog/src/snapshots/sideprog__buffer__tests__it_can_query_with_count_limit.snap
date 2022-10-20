@@ -1,0 +1,20 @@
+---
+source: src/buffer.rs
+assertion_line: 310
+expression: "pretty(&buffer.get_records(\"\".into(), 0, 1))"
+---
+{
+  "next": 1,
+  "records": [
+    {
+      "blockNumber": 0,
+      "contract": "0x0101010101010101010101010101010101010101010101010101010101010101",
+      "inQuery": true,
+      "level": 0,
+      "message": "hello",
+      "sequence": 0,
+      "timestamp": 1,
+      "type": "Log"
+    }
+  ]
+}
