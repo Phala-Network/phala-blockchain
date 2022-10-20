@@ -19,6 +19,8 @@ mod contract {
         }
 
         #[ink(message)]
-        pub fn echo(&self) {}
+        pub fn log_test(&self, msg: alloc::string::String) {
+            pink::info!("{}", msg);
+        }
     }
 }

@@ -1308,8 +1308,9 @@ function hex(b) {
 
 async function createContractApi(api, pruntimeURL, contractId, metadata) {
     const newApi = await api.clone().isReady;
+    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId });
     return new ContractPromise(
-        await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId }),
+        phala.api,
         metadata,
         contractId,
     );

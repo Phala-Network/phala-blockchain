@@ -876,31 +876,31 @@ $root.pruntime_rpc = (function() {
          */
 
         /**
-         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calulateContractId}.
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calculateContractId}.
          * @memberof pruntime_rpc.PhactoryAPI
-         * @typedef CalulateContractIdCallback
+         * @typedef CalculateContractIdCallback
          * @type {function}
          * @param {Error|null} error Error, if any
          * @param {pruntime_rpc.ContractId} [response] ContractId
          */
 
         /**
-         * Calls CalulateContractId.
-         * @function calulateContractId
+         * Calls CalculateContractId.
+         * @function calculateContractId
          * @memberof pruntime_rpc.PhactoryAPI
          * @instance
          * @param {pruntime_rpc.IContractParameters} request ContractParameters message or plain object
-         * @param {pruntime_rpc.PhactoryAPI.CalulateContractIdCallback} callback Node-style callback called with the error, if any, and ContractId
+         * @param {pruntime_rpc.PhactoryAPI.CalculateContractIdCallback} callback Node-style callback called with the error, if any, and ContractId
          * @returns {undefined}
          * @variation 1
          */
-        Object.defineProperty(PhactoryAPI.prototype.calulateContractId = function calulateContractId(request, callback) {
-            return this.rpcCall(calulateContractId, $root.pruntime_rpc.ContractParameters, $root.pruntime_rpc.ContractId, request, callback);
-        }, "name", { value: "CalulateContractId" });
+        Object.defineProperty(PhactoryAPI.prototype.calculateContractId = function calculateContractId(request, callback) {
+            return this.rpcCall(calculateContractId, $root.pruntime_rpc.ContractParameters, $root.pruntime_rpc.ContractId, request, callback);
+        }, "name", { value: "CalculateContractId" });
 
         /**
-         * Calls CalulateContractId.
-         * @function calulateContractId
+         * Calls CalculateContractId.
+         * @function calculateContractId
          * @memberof pruntime_rpc.PhactoryAPI
          * @instance
          * @param {pruntime_rpc.IContractParameters} request ContractParameters message or plain object
@@ -13170,10 +13170,10 @@ $root.pruntime_rpc = (function() {
          * Properties of a ContractParameters.
          * @memberof pruntime_rpc
          * @interface IContractParameters
-         * @property {Uint8Array|null} [deployer] ContractParameters deployer
-         * @property {Uint8Array|null} [clusterId] ContractParameters clusterId
-         * @property {Uint8Array|null} [codeHash] ContractParameters codeHash
-         * @property {Uint8Array|null} [salt] ContractParameters salt
+         * @property {string|null} [deployer] ContractParameters deployer
+         * @property {string|null} [clusterId] ContractParameters clusterId
+         * @property {string|null} [codeHash] ContractParameters codeHash
+         * @property {string|null} [salt] ContractParameters salt
          */
 
         /**
@@ -13193,35 +13193,35 @@ $root.pruntime_rpc = (function() {
 
         /**
          * ContractParameters deployer.
-         * @member {Uint8Array} deployer
+         * @member {string} deployer
          * @memberof pruntime_rpc.ContractParameters
          * @instance
          */
-        ContractParameters.prototype.deployer = $util.newBuffer([]);
+        ContractParameters.prototype.deployer = "";
 
         /**
          * ContractParameters clusterId.
-         * @member {Uint8Array} clusterId
+         * @member {string} clusterId
          * @memberof pruntime_rpc.ContractParameters
          * @instance
          */
-        ContractParameters.prototype.clusterId = $util.newBuffer([]);
+        ContractParameters.prototype.clusterId = "";
 
         /**
          * ContractParameters codeHash.
-         * @member {Uint8Array} codeHash
+         * @member {string} codeHash
          * @memberof pruntime_rpc.ContractParameters
          * @instance
          */
-        ContractParameters.prototype.codeHash = $util.newBuffer([]);
+        ContractParameters.prototype.codeHash = "";
 
         /**
          * ContractParameters salt.
-         * @member {Uint8Array} salt
+         * @member {string} salt
          * @memberof pruntime_rpc.ContractParameters
          * @instance
          */
-        ContractParameters.prototype.salt = $util.newBuffer([]);
+        ContractParameters.prototype.salt = "";
 
         /**
          * Creates a new ContractParameters instance using the specified properties.
@@ -13248,13 +13248,13 @@ $root.pruntime_rpc = (function() {
             if (!writer)
                 writer = $Writer.create();
             if (message.deployer != null && Object.hasOwnProperty.call(message, "deployer"))
-                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.deployer);
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.deployer);
             if (message.clusterId != null && Object.hasOwnProperty.call(message, "clusterId"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.clusterId);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.clusterId);
             if (message.codeHash != null && Object.hasOwnProperty.call(message, "codeHash"))
-                writer.uint32(/* id 3, wireType 2 =*/26).bytes(message.codeHash);
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.codeHash);
             if (message.salt != null && Object.hasOwnProperty.call(message, "salt"))
-                writer.uint32(/* id 4, wireType 2 =*/34).bytes(message.salt);
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.salt);
             return writer;
         };
 
@@ -13290,16 +13290,16 @@ $root.pruntime_rpc = (function() {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
                 case 1:
-                    message.deployer = reader.bytes();
+                    message.deployer = reader.string();
                     break;
                 case 2:
-                    message.clusterId = reader.bytes();
+                    message.clusterId = reader.string();
                     break;
                 case 3:
-                    message.codeHash = reader.bytes();
+                    message.codeHash = reader.string();
                     break;
                 case 4:
-                    message.salt = reader.bytes();
+                    message.salt = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -13337,17 +13337,17 @@ $root.pruntime_rpc = (function() {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.deployer != null && message.hasOwnProperty("deployer"))
-                if (!(message.deployer && typeof message.deployer.length === "number" || $util.isString(message.deployer)))
-                    return "deployer: buffer expected";
+                if (!$util.isString(message.deployer))
+                    return "deployer: string expected";
             if (message.clusterId != null && message.hasOwnProperty("clusterId"))
-                if (!(message.clusterId && typeof message.clusterId.length === "number" || $util.isString(message.clusterId)))
-                    return "clusterId: buffer expected";
+                if (!$util.isString(message.clusterId))
+                    return "clusterId: string expected";
             if (message.codeHash != null && message.hasOwnProperty("codeHash"))
-                if (!(message.codeHash && typeof message.codeHash.length === "number" || $util.isString(message.codeHash)))
-                    return "codeHash: buffer expected";
+                if (!$util.isString(message.codeHash))
+                    return "codeHash: string expected";
             if (message.salt != null && message.hasOwnProperty("salt"))
-                if (!(message.salt && typeof message.salt.length === "number" || $util.isString(message.salt)))
-                    return "salt: buffer expected";
+                if (!$util.isString(message.salt))
+                    return "salt: string expected";
             return null;
         };
 
@@ -13364,25 +13364,13 @@ $root.pruntime_rpc = (function() {
                 return object;
             var message = new $root.pruntime_rpc.ContractParameters();
             if (object.deployer != null)
-                if (typeof object.deployer === "string")
-                    $util.base64.decode(object.deployer, message.deployer = $util.newBuffer($util.base64.length(object.deployer)), 0);
-                else if (object.deployer.length)
-                    message.deployer = object.deployer;
+                message.deployer = String(object.deployer);
             if (object.clusterId != null)
-                if (typeof object.clusterId === "string")
-                    $util.base64.decode(object.clusterId, message.clusterId = $util.newBuffer($util.base64.length(object.clusterId)), 0);
-                else if (object.clusterId.length)
-                    message.clusterId = object.clusterId;
+                message.clusterId = String(object.clusterId);
             if (object.codeHash != null)
-                if (typeof object.codeHash === "string")
-                    $util.base64.decode(object.codeHash, message.codeHash = $util.newBuffer($util.base64.length(object.codeHash)), 0);
-                else if (object.codeHash.length)
-                    message.codeHash = object.codeHash;
+                message.codeHash = String(object.codeHash);
             if (object.salt != null)
-                if (typeof object.salt === "string")
-                    $util.base64.decode(object.salt, message.salt = $util.newBuffer($util.base64.length(object.salt)), 0);
-                else if (object.salt.length)
-                    message.salt = object.salt;
+                message.salt = String(object.salt);
             return message;
         };
 
@@ -13400,43 +13388,19 @@ $root.pruntime_rpc = (function() {
                 options = {};
             var object = {};
             if (options.defaults) {
-                if (options.bytes === String)
-                    object.deployer = "";
-                else {
-                    object.deployer = [];
-                    if (options.bytes !== Array)
-                        object.deployer = $util.newBuffer(object.deployer);
-                }
-                if (options.bytes === String)
-                    object.clusterId = "";
-                else {
-                    object.clusterId = [];
-                    if (options.bytes !== Array)
-                        object.clusterId = $util.newBuffer(object.clusterId);
-                }
-                if (options.bytes === String)
-                    object.codeHash = "";
-                else {
-                    object.codeHash = [];
-                    if (options.bytes !== Array)
-                        object.codeHash = $util.newBuffer(object.codeHash);
-                }
-                if (options.bytes === String)
-                    object.salt = "";
-                else {
-                    object.salt = [];
-                    if (options.bytes !== Array)
-                        object.salt = $util.newBuffer(object.salt);
-                }
+                object.deployer = "";
+                object.clusterId = "";
+                object.codeHash = "";
+                object.salt = "";
             }
             if (message.deployer != null && message.hasOwnProperty("deployer"))
-                object.deployer = options.bytes === String ? $util.base64.encode(message.deployer, 0, message.deployer.length) : options.bytes === Array ? Array.prototype.slice.call(message.deployer) : message.deployer;
+                object.deployer = message.deployer;
             if (message.clusterId != null && message.hasOwnProperty("clusterId"))
-                object.clusterId = options.bytes === String ? $util.base64.encode(message.clusterId, 0, message.clusterId.length) : options.bytes === Array ? Array.prototype.slice.call(message.clusterId) : message.clusterId;
+                object.clusterId = message.clusterId;
             if (message.codeHash != null && message.hasOwnProperty("codeHash"))
-                object.codeHash = options.bytes === String ? $util.base64.encode(message.codeHash, 0, message.codeHash.length) : options.bytes === Array ? Array.prototype.slice.call(message.codeHash) : message.codeHash;
+                object.codeHash = message.codeHash;
             if (message.salt != null && message.hasOwnProperty("salt"))
-                object.salt = options.bytes === String ? $util.base64.encode(message.salt, 0, message.salt.length) : options.bytes === Array ? Array.prototype.slice.call(message.salt) : message.salt;
+                object.salt = message.salt;
             return object;
         };
 
@@ -13460,7 +13424,7 @@ $root.pruntime_rpc = (function() {
          * Properties of a ContractId.
          * @memberof pruntime_rpc
          * @interface IContractId
-         * @property {Uint8Array|null} [id] ContractId id
+         * @property {string|null} [id] ContractId id
          */
 
         /**
@@ -13480,11 +13444,11 @@ $root.pruntime_rpc = (function() {
 
         /**
          * ContractId id.
-         * @member {Uint8Array} id
+         * @member {string} id
          * @memberof pruntime_rpc.ContractId
          * @instance
          */
-        ContractId.prototype.id = $util.newBuffer([]);
+        ContractId.prototype.id = "";
 
         /**
          * Creates a new ContractId instance using the specified properties.
@@ -13511,7 +13475,7 @@ $root.pruntime_rpc = (function() {
             if (!writer)
                 writer = $Writer.create();
             if (message.id != null && Object.hasOwnProperty.call(message, "id"))
-                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.id);
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
             return writer;
         };
 
@@ -13547,7 +13511,7 @@ $root.pruntime_rpc = (function() {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
                 case 1:
-                    message.id = reader.bytes();
+                    message.id = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -13585,8 +13549,8 @@ $root.pruntime_rpc = (function() {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.id != null && message.hasOwnProperty("id"))
-                if (!(message.id && typeof message.id.length === "number" || $util.isString(message.id)))
-                    return "id: buffer expected";
+                if (!$util.isString(message.id))
+                    return "id: string expected";
             return null;
         };
 
@@ -13603,10 +13567,7 @@ $root.pruntime_rpc = (function() {
                 return object;
             var message = new $root.pruntime_rpc.ContractId();
             if (object.id != null)
-                if (typeof object.id === "string")
-                    $util.base64.decode(object.id, message.id = $util.newBuffer($util.base64.length(object.id)), 0);
-                else if (object.id.length)
-                    message.id = object.id;
+                message.id = String(object.id);
             return message;
         };
 
@@ -13624,15 +13585,9 @@ $root.pruntime_rpc = (function() {
                 options = {};
             var object = {};
             if (options.defaults)
-                if (options.bytes === String)
-                    object.id = "";
-                else {
-                    object.id = [];
-                    if (options.bytes !== Array)
-                        object.id = $util.newBuffer(object.id);
-                }
+                object.id = "";
             if (message.id != null && message.hasOwnProperty("id"))
-                object.id = options.bytes === String ? $util.base64.encode(message.id, 0, message.id.length) : options.bytes === Array ? Array.prototype.slice.call(message.id) : message.id;
+                object.id = message.id;
             return object;
         };
 

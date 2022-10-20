@@ -50,17 +50,16 @@ async fn query_serve(app: AppState) {
                 count,
             } = match serde_json::from_slice(&query.payload) {
                 Err(_) => {
+                    info!("Invalid input");
                     _ = query.reply_tx.send(b"{\"error\": \"Invalid input\"}");
                     continue;
                 }
                 Ok(query) => query,
             };
-            let _ = query.reply_tx.send(
-                app.log_buffer
-                    .borrow_mut()
-                    .get_records(&contract, from, count)
-                    .as_bytes(),
-            );
+            let reply = app.log_buffer
+                .borrow_mut()
+                .get_records(&contract, from, count);
+            let _ = query.reply_tx.send(reply.as_bytes());
         } else {
             info!("Query channel closed");
             break;
@@ -71,6 +70,7 @@ async fn query_serve(app: AppState) {
 #[sidevm::main]
 async fn main() {
     sidevm::logger::Logger::with_max_level(log::LevelFilter::Info).init();
+    info!("Starting log server");
 
     let app = AppState::new(log_buffer_size() as _);
 

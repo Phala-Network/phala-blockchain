@@ -533,7 +533,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        info!("Verifying signature passed! origin={:?}", origin);
+        debug!(target: "query", "Verifying signature passed! origin={:?}", origin);
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
@@ -1406,13 +1406,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             .upload_sidevm_code(contract_id.into(), request.code)
     }
 
-    async fn calulate_contract_id(
+    async fn calculate_contract_id(
         &mut self,
         req: pb::ContractParameters,
     ) -> Result<pb::ContractId, prpc::server::Error> {
-        let buf = contract_id_preimage(&req.deployer, &req.code_hash, &req.cluster_id, &req.salt);
+        let deployer = try_decode_hex(&req.deployer).or(Err(from_display("Invalid deployer")))?;
+        let code_hash =
+            try_decode_hex(&req.code_hash).or(Err(from_display("Invalid code hash")))?;
+        let cluster_id =
+            try_decode_hex(&req.cluster_id).or(Err(from_display("Invalid cluster id")))?;
+        let salt = try_decode_hex(&req.salt).or(Err(from_display("Invalid code salt")))?;
+        let buf = contract_id_preimage(&deployer, &code_hash, &cluster_id, &salt);
         let hash = sp_core::blake2_256(&buf);
-        Ok(pb::ContractId { id: hash.to_vec() })
+        Ok(pb::ContractId { id: hex(&hash) })
     }
 }
 

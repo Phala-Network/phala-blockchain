@@ -32,6 +32,11 @@ class PRuntimeApi {
     async uploadSidevmCode(contract, code) {
         return await this.rpc.uploadSidevmCode({ contract, code });
     }
+
+    async calculateContractId(args) {
+        console.log(`calculateContractId(${JSON.stringify(args)})`);
+        return await this.rpc.calculateContractId(args);
+    }
 }
 
 // function rand() {

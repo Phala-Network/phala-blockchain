@@ -63,6 +63,9 @@ macro_rules! define_any_native_contract {
                     $($name::$contract(me) => {
                         let mut effects = ExecSideEffects::default();
                         let response = me.handle_query(origin, deopaque_query(&req)?, context, &mut effects).await;
+                        if let Err(err) = &response {
+                            warn!("Error handling query: {:?}", err);
+                        }
                         Ok((response.encode(), effects))
                     })*
                 }

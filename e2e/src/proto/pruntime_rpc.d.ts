@@ -373,18 +373,18 @@ export namespace pruntime_rpc {
         public uploadSidevmCode(request: pruntime_rpc.ISidevmCode): Promise<google.protobuf.Empty>;
 
         /**
-         * Calls CalulateContractId.
+         * Calls CalculateContractId.
          * @param request ContractParameters message or plain object
          * @param callback Node-style callback called with the error, if any, and ContractId
          */
-        public calulateContractId(request: pruntime_rpc.IContractParameters, callback: pruntime_rpc.PhactoryAPI.CalulateContractIdCallback): void;
+        public calculateContractId(request: pruntime_rpc.IContractParameters, callback: pruntime_rpc.PhactoryAPI.CalculateContractIdCallback): void;
 
         /**
-         * Calls CalulateContractId.
+         * Calls CalculateContractId.
          * @param request ContractParameters message or plain object
          * @returns Promise
          */
-        public calulateContractId(request: pruntime_rpc.IContractParameters): Promise<pruntime_rpc.ContractId>;
+        public calculateContractId(request: pruntime_rpc.IContractParameters): Promise<pruntime_rpc.ContractId>;
     }
 
     namespace PhactoryAPI {
@@ -565,11 +565,11 @@ export namespace pruntime_rpc {
         type UploadSidevmCodeCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
 
         /**
-         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calulateContractId}.
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calculateContractId}.
          * @param error Error, if any
          * @param [response] ContractId
          */
-        type CalulateContractIdCallback = (error: (Error|null), response?: pruntime_rpc.ContractId) => void;
+        type CalculateContractIdCallback = (error: (Error|null), response?: pruntime_rpc.ContractId) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -5505,16 +5505,16 @@ export namespace pruntime_rpc {
     interface IContractParameters {
 
         /** ContractParameters deployer */
-        deployer?: (Uint8Array|null);
+        deployer?: (string|null);
 
         /** ContractParameters clusterId */
-        clusterId?: (Uint8Array|null);
+        clusterId?: (string|null);
 
         /** ContractParameters codeHash */
-        codeHash?: (Uint8Array|null);
+        codeHash?: (string|null);
 
         /** ContractParameters salt */
-        salt?: (Uint8Array|null);
+        salt?: (string|null);
     }
 
     /** Represents a ContractParameters. */
@@ -5527,16 +5527,16 @@ export namespace pruntime_rpc {
         constructor(properties?: pruntime_rpc.IContractParameters);
 
         /** ContractParameters deployer. */
-        public deployer: Uint8Array;
+        public deployer: string;
 
         /** ContractParameters clusterId. */
-        public clusterId: Uint8Array;
+        public clusterId: string;
 
         /** ContractParameters codeHash. */
-        public codeHash: Uint8Array;
+        public codeHash: string;
 
         /** ContractParameters salt. */
-        public salt: Uint8Array;
+        public salt: string;
 
         /**
          * Creates a new ContractParameters instance using the specified properties.
@@ -5613,7 +5613,7 @@ export namespace pruntime_rpc {
     interface IContractId {
 
         /** ContractId id */
-        id?: (Uint8Array|null);
+        id?: (string|null);
     }
 
     /** Represents a ContractId. */
@@ -5626,7 +5626,7 @@ export namespace pruntime_rpc {
         constructor(properties?: pruntime_rpc.IContractId);
 
         /** ContractId id. */
-        public id: Uint8Array;
+        public id: string;
 
         /**
          * Creates a new ContractId instance using the specified properties.
