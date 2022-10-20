@@ -1,5 +1,5 @@
 [package]
-name = "sidevmop"
+name = "sidevm-deployer"
 version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
@@ -19,7 +19,7 @@ pink-extension = { version = "0.1", default-features = false, path = "../../pink
 pink-system = { version = "0.1", default-features = false, path = "../system", features = ["ink-as-dependency"] }
 
 [lib]
-name = "sidevmop"
+name = "sidevm_deployer"
 path = "lib.rs"
 crate-type = [
 	# Used for normal contract Wasm blobs.
