@@ -28,7 +28,7 @@ exclude = [
 	"standalone/pruntime",
 	"standalone/prouter",
 	"crates/pink-drivers/system",
-	"crates/pink-drivers/sidevm-deployer",
+	"crates/pink-drivers/sidevm_deployer",
 	"crates/pink-drivers/tokenomic",
 	"e2e/res/check_system",
 ]

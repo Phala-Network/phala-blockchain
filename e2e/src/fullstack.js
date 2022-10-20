@@ -508,7 +508,7 @@ describe('A full stack', function () {
     });
 
     describe('Cluster & Contract', () => {
-        const systemMetadata = JSON.parse(fs.readFileSync('./res/pink_system.contract'));
+        const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
         const sidevmCode = fs.readFileSync('./res/check_system/sideprog.wasm');
         const contract = checkerMetadata.source;
