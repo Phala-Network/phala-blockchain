@@ -196,7 +196,7 @@ impl WorkerState {
                             info!("My benchmark score is {}", score);
                         }
                     }
-                    WorkingStarted { session_id, .. } => {
+                    Started { session_id, .. } => {
                         self.working_state = Some(WorkingInfo {
                             session_id,
                             state: Computing,
@@ -205,13 +205,13 @@ impl WorkerState {
                         });
                         callback.bench_resume();
                     }
-                    WorkingStopped => {
+                    Stopped => {
                         self.working_state = None;
                         if self.need_pause() {
                             callback.bench_pause();
                         }
                     }
-                    WorkerEnterUnresponsive => {
+                    EnterUnresponsive => {
                         if let Some(info) = &mut self.working_state {
                             if let Computing = info.state {
                                 if log_on {
@@ -228,7 +228,7 @@ impl WorkerState {
                             );
                         }
                     }
-                    WorkerExitUnresponsive => {
+                    ExitUnresponsive => {
                         if let Some(info) = &mut self.working_state {
                             if let Paused = info.state {
                                 if log_on {
