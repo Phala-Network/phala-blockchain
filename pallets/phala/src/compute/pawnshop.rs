@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Create, Inspect, Mutate},
+			tokens::fungibles::{Inspect, Mutate},
 			tokens::nonfungibles::InspectEnumerable,
 			Currency,
 			ExistenceRequirement::{AllowDeath, KeepAlive},
