@@ -125,8 +125,8 @@ pub mod pallet {
 
 	/// The state of a worker
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct WorkerInfo {
-		/// The current state of the worker
+	pub struct SessionInfo {
+		/// The current state of the worker bounded with session
 		pub state: WorkerState,
 		/// The intiial V, in `U64F64` bits
 		pub ve: u128,
@@ -142,10 +142,10 @@ pub mod pallet {
 		/// [`WorkerCoolingDown`](WorkerState::WorkerCoolingDown) state.
 		cool_down_start: u64,
 		/// The statistics of the current computing session
-		stats: WorkerStats,
+		stats: SessionStats,
 	}
 
-	impl WorkerInfo {
+	impl SessionInfo {
 		/// Calculates the final final returned and slashed stake
 		fn calc_final_stake<Balance>(&self, orig_stake: Balance) -> (Balance, Balance)
 		where
@@ -162,14 +162,14 @@ pub mod pallet {
 	}
 
 	pub trait OnUnbound {
-		/// Called when a worker was unbound from a worker.
+		/// Called when a worker was unbound from a session.
 		///
-		/// `force` is set if the unbinding caused an unexpected worker shutdown.
+		/// `force` is set if the unbinding caused an unexpected session shutdown.
 		fn on_unbound(_worker: &WorkerPublicKey, _force: bool) {}
 	}
 
 	pub trait OnStopped<Balance> {
-		/// Called with a worker is stopped and can already calculate the final slash and stake.
+		/// Called with a session is stopped and can already calculate the final slash and stake.
 		///
 		/// It guarantees the number will be the same as the return value of `reclaim()`
 		fn on_stopped(_worker: &WorkerPublicKey, _orig_stake: Balance, _slashed: Balance) {}
@@ -177,12 +177,12 @@ pub mod pallet {
 
 	/// The stats of a computing session
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
-	pub struct WorkerStats {
+	pub struct SessionStats {
 		/// The total received reward in this computing session, in `U32F32` bits
 		total_reward: u128,
 	}
 
-	impl WorkerStats {
+	impl SessionStats {
 		fn on_reward(&mut self, payout_bits: u128) {
 			let payout: u128 = FixedPointConvert::from_bits(payout_bits);
 			self.total_reward += payout;
@@ -222,7 +222,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ScheduledTokenomicUpdate<T> = StorageValue<_, TokenomicParams>;
 
-	/// Total online worker including WorkerIdle and WorkerUnresponsive workers.
+	/// Total online workers including WorkerIdle and WorkerUnresponsive workers.
 	///
 	/// Increased when a worker is turned to WorkerIdle; decreased when turned to CoolingDown.
 	#[pallet::storage]
@@ -233,15 +233,15 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ExpectedHeartbeatCount<T> = StorageValue<_, u32>;
 
-	/// The worker state.
+	/// The session state.
 	///
-	/// The worker state is created when a worker is bounded with a worker, but it will be kept even
+	/// The session state is created when a worker is bounded with a session, but it will be kept even
 	/// if the worker is force unbound. A re-bind of a worker will reset the computing state.
 	#[pallet::storage]
 	#[pallet::getter(fn sessions)]
-	pub type Sessions<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, WorkerInfo>;
+	pub type Sessions<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, SessionInfo>;
 
-	/// The bound worker for a worker account
+	/// The bound worker for a session account
 	#[pallet::storage]
 	pub type SessionBindings<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, WorkerPublicKey>;
@@ -261,15 +261,15 @@ pub mod pallet {
 
 	/// The block number when the computing starts. Used to calculate halving.
 	#[pallet::storage]
-	pub type WorkingStartBlock<T: Config> = StorageValue<_, T::BlockNumber>;
+	pub type ComputingStartBlock<T: Config> = StorageValue<_, T::BlockNumber>;
 
 	/// The interval of halving (75% decay) in block number.
 	#[pallet::storage]
-	pub type WorkingHalvingInterval<T: Config> = StorageValue<_, T::BlockNumber>;
+	pub type ComputingHalvingInterval<T: Config> = StorageValue<_, T::BlockNumber>;
 
-	/// The stakes of worker accounts.
+	/// The stakes of session accounts.
 	///
-	/// Only presents for computing and cooling down workers.
+	/// Only presents for computing and cooling down sessions.
 	#[pallet::storage]
 	#[pallet::getter(fn stakes)]
 	pub type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
@@ -284,9 +284,9 @@ pub mod pallet {
 		/// A worker starts computing.
 		///
 		/// Affected states:
-		/// - the worker info at [`Workers`] is updated with `WorkerIdle` state
-		/// - [`NextSessionId`] for the worker is incremented
-		/// - [`Stakes`] for the worker is updated
+		/// - the worker info at [`Sessions`] is updated with `WorkerIdle` state
+		/// - [`NextSessionId`] for the session is incremented
+		/// - [`Stakes`] for the session is updated
 		/// - [`OnlineWorkers`] is incremented
 		WorkerStarted {
 			session: T::AccountId,
@@ -296,7 +296,7 @@ pub mod pallet {
 		/// Worker stops computing.
 		///
 		/// Affected states:
-		/// - the worker info at [`Workers`] is updated with `WorkerCoolingDown` state
+		/// - the worker info at [`Sessions`] is updated with `WorkerCoolingDown` state
 		/// - [`OnlineWorkers`] is decremented
 		WorkerStopped { session: T::AccountId },
 		/// Worker is reclaimed, with its slash settled.
@@ -305,12 +305,12 @@ pub mod pallet {
 			original_stake: BalanceOf<T>,
 			slashed: BalanceOf<T>,
 		},
-		/// Worker & worker are bound.
+		/// Worker & session are bounded.
 		///
 		/// Affected states:
-		/// - [`SessionBindings`] for the worker account is pointed to the worker
-		/// - [`WorkerBindings`] for the worker is pointed to the worker account
-		/// - the worker info at [`Workers`] is updated with `Ready` state
+		/// - [`SessionBindings`] for the session account is pointed to the worker
+		/// - [`WorkerBindings`] for the worker is pointed to the session account
+		/// - the worker info at [`Sessions`] is updated with `Ready` state
 		SessionBound {
 			session: T::AccountId,
 			worker: WorkerPublicKey,
@@ -318,7 +318,7 @@ pub mod pallet {
 		/// Worker & worker are unbound.
 		///
 		/// Affected states:
-		/// - [`SessionBindings`] for the worker account is removed
+		/// - [`SessionBindings`] for the session account is removed
 		/// - [`WorkerBindings`] for the worker is removed
 		SessionUnbound {
 			session: T::AccountId,
@@ -327,19 +327,19 @@ pub mod pallet {
 		/// Worker enters unresponsive state.
 		///
 		/// Affected states:
-		/// - the worker info at [`Workers`] is updated from `WorkerIdle` to `WorkerUnresponsive`
+		/// - the worker info at [`Sessions`] is updated from `WorkerIdle` to `WorkerUnresponsive`
 		WorkerEnterUnresponsive { session: T::AccountId },
 		/// Worker returns to responsive state.
 		///
 		/// Affected states:
-		/// - the worker info at [`Workers`] is updated from `WorkerUnresponsive` to `WorkerIdle`
+		/// - the worker info at [`Sessions`] is updated from `WorkerUnresponsive` to `WorkerIdle`
 		WorkerExitUnresponsive { session: T::AccountId },
 		/// Worker settled successfully.
 		///
-		/// It results in the v in [`Workers`] being updated. It also indicates the downstream
+		/// It results in the v in [`Sessions`] being updated. It also indicates the downstream
 		/// stake pool has received the computing reward (payout), and the treasury has received the
 		/// tax.
-		WorkerSettled {
+		SessionSettled {
 			session: T::AccountId,
 			v_bits: u128,
 			payout_bits: u128,
@@ -358,11 +358,11 @@ pub mod pallet {
 		/// Affected states:
 		/// - [`TokenomicParameters`] is updated.
 		TokenomicParametersChanged,
-		/// A worker settlement was dropped because the on-chain version is more up-to-date.
+		/// A session settlement was dropped because the on-chain version is more up-to-date.
 		///
 		/// This is a temporary walk-around of the computing staking design. Will be fixed by
 		/// StakePool v2.
-		WorkerSettlementDropped {
+		SessionSettlementDropped {
 			session: T::AccountId,
 			v: u128,
 			payout: u128,
@@ -384,13 +384,13 @@ pub mod pallet {
 		WorkerNotRegistered,
 		/// Deprecated
 		_GatekeeperNotRegistered,
-		/// Not permitted because the worker is already bound with another worker.
+		/// Not permitted because the session is already bound with another worker.
 		DuplicateBoundSession,
 		/// There's no benchmark result on the blockchain.
 		BenchmarkMissing,
-		/// Worker not found.
+		/// session not found.
 		SessionNotFound,
-		/// Not permitted because the worker is not bound with a worker.
+		/// Not permitted because the session is not bound with a worker.
 		SessionNotBound,
 		/// Worker is not in `Ready` state to proceed.
 		WorkerNotReady,
@@ -406,7 +406,7 @@ pub mod pallet {
 		TooMuchStake,
 		/// Internal error. The tokenomic parameter is not set.
 		InternalErrorBadTokenomicParameters,
-		/// Not permitted because the worker is already bound with another worker account.
+		/// Not permitted because the worker is already bound with another session account.
 		DuplicateBoundWorker,
 		/// Indicating the initial benchmark score is too low to start computing.
 		BenchmarkTooLow,
@@ -431,7 +431,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Unbinds a worker from the given worker (or pool sub-account).
+		/// Unbinds a worker from the given session (or pool sub-account).
 		///
 		/// It will trigger a force stop of computing if the worker is still in computing state. Anyone
 		/// can call it.
@@ -510,8 +510,8 @@ pub mod pallet {
 				Self::update_tokenomic_parameters(tokenomic);
 			}
 			// Apply subsidy
-			if let Some(interval) = WorkingHalvingInterval::<T>::get() {
-				let block_elapsed = n - WorkingStartBlock::<T>::get().unwrap_or_default();
+			if let Some(interval) = ComputingHalvingInterval::<T>::get() {
+				let block_elapsed = n - ComputingStartBlock::<T>::get().unwrap_or_default();
 				// Halve when it reaches the last block in an interval
 				if interval > Zero::zero() && block_elapsed % interval == interval - One::one() {
 					let r = Self::trigger_subsidy_halving();
@@ -582,22 +582,23 @@ pub mod pallet {
 						//
 						// So we call `ensure_worker_bound` here, and return an error if the worker
 						// is not bound. However if the worker is indeed bound, the rest of the
-						// code assumes the Workers, Workers, and worker score must exist.
+						// code assumes the Sessions, Workers, and worker score must exist.
 						let session = Self::ensure_worker_bound(&worker)?;
-						let mut worker_info = Self::sessions(&session).expect("Bound worker; qed.");
+						let mut session_info =
+							Self::sessions(&session).expect("Bound worker; qed.");
 						let _worker =
 							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
 						let now = Self::now_sec();
 						let challenge_time_sec = challenge_time / 1000;
-						worker_info
+						session_info
 							.benchmark
 							.update(now, iterations, challenge_time_sec)
 							.expect("Benchmark report must be valid; qed.");
 						Self::deposit_event(Event::<T>::BenchmarkUpdated {
 							session: session.clone(),
-							p_instant: worker_info.benchmark.p_instant,
+							p_instant: session_info.benchmark.p_instant,
 						});
-						Sessions::<T>::insert(&session, worker_info);
+						Sessions::<T>::insert(&session, session_info);
 					}
 				};
 			}
@@ -619,16 +620,16 @@ pub mod pallet {
 				// worker offline, update bound worker state to unresponsive
 				for worker in event.offline {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
-						let mut worker_info = match Self::sessions(&account) {
+						let mut session_info = match Self::sessions(&account) {
 							Some(session) => session,
 							None => continue, // Skip non-existing workers
 						};
 						// Skip non-computing workers
-						if !worker_info.state.is_computing() {
+						if !session_info.state.is_computing() {
 							continue;
 						}
-						worker_info.state = WorkerState::WorkerUnresponsive;
-						Sessions::<T>::insert(&account, &worker_info);
+						session_info.state = WorkerState::WorkerUnresponsive;
+						Sessions::<T>::insert(&account, &session_info);
 						Self::deposit_event(Event::<T>::WorkerEnterUnresponsive {
 							session: account,
 						});
@@ -642,16 +643,16 @@ pub mod pallet {
 				// worker recovered to online, update bound worker state to idle
 				for worker in event.recovered_to_online {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
-						let mut worker_info = match Self::sessions(&account) {
+						let mut session_info = match Self::sessions(&account) {
 							Some(worker) => worker,
 							None => continue, // Skip non-existing workers
 						};
 						// Skip non-computing workers
-						if !worker_info.state.is_computing() {
+						if !session_info.state.is_computing() {
 							continue;
 						}
-						worker_info.state = WorkerState::WorkerIdle;
-						Sessions::<T>::insert(&account, &worker_info);
+						session_info.state = WorkerState::WorkerIdle;
+						Sessions::<T>::insert(&account, &session_info);
 						Self::deposit_event(Event::<T>::WorkerExitUnresponsive {
 							session: account,
 						});
@@ -677,7 +678,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Tries to handle settlement of a worker.
+		/// Tries to handle settlement of a session.
 		///
 		/// We really don't want to crash the interrupt the message processing. So when there's an
 		/// error we return it, and let the caller to handle it gracefully.
@@ -685,12 +686,12 @@ pub mod pallet {
 		/// `now` and `emit_ts` are both in second.
 		fn try_handle_settle(info: &SettleInfo, now: u64, emit_ts: u64) -> DispatchResult {
 			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
-				let mut worker_info =
+				let mut session_info =
 					Self::sessions(&account).ok_or(Error::<T>::SessionNotFound)?;
-				debug_assert!(worker_info.state.can_settle(), "Worker cannot settle now");
-				if worker_info.v_updated_at >= emit_ts {
+				debug_assert!(session_info.state.can_settle(), "Worker cannot settle now");
+				if session_info.v_updated_at >= emit_ts {
 					// Received a late update of the settlement. For now we just drop it.
-					Self::deposit_event(Event::<T>::WorkerSettlementDropped {
+					Self::deposit_event(Event::<T>::SessionSettlementDropped {
 						session: account,
 						v: info.v,
 						payout: info.payout,
@@ -698,15 +699,15 @@ pub mod pallet {
 					return Ok(());
 				}
 				// Otherwise it's a normal update. Let's proceed.
-				worker_info.v = info.v; // in bits
-				worker_info.v_updated_at = now;
-				worker_info.stats.on_reward(info.payout);
-				Sessions::<T>::insert(&account, &worker_info);
+				session_info.v = info.v; // in bits
+				session_info.v_updated_at = now;
+				session_info.stats.on_reward(info.payout);
+				Sessions::<T>::insert(&account, &session_info);
 				// Handle treasury deposit
 				let treasury_deposit = FixedPointConvert::from_bits(info.treasury);
 				let imbalance = Self::withdraw_imbalance_from_subsidy_pool(treasury_deposit)?;
 				T::OnTreasurySettled::on_unbalanced(imbalance);
-				Self::deposit_event(Event::<T>::WorkerSettled {
+				Self::deposit_event(Event::<T>::SessionSettled {
 					session: account,
 					v_bits: info.v,
 					payout_bits: info.payout,
@@ -715,15 +716,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn can_reclaim(worker_info: &WorkerInfo, check_cooldown: bool) -> bool {
-			if worker_info.state != WorkerState::WorkerCoolingDown {
+		fn can_reclaim(session_info: &SessionInfo, check_cooldown: bool) -> bool {
+			if session_info.state != WorkerState::WorkerCoolingDown {
 				return false;
 			}
 			if !check_cooldown {
 				return true;
 			}
 			let now = Self::now_sec();
-			now - worker_info.cool_down_start >= Self::cool_down_period()
+			now - session_info.cool_down_start >= Self::cool_down_period()
 		}
 
 		/// Turns the worker back to Ready state after cooling down and trigger stake releasing.
@@ -734,18 +735,18 @@ pub mod pallet {
 			session: T::AccountId,
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
-			let mut worker_info =
+			let mut session_info =
 				Sessions::<T>::get(&session).ok_or(Error::<T>::SessionNotFound)?;
 			ensure!(
-				Self::can_reclaim(&worker_info, check_cooldown),
+				Self::can_reclaim(&session_info, check_cooldown),
 				Error::<T>::CoolDownNotReady
 			);
-			worker_info.state = WorkerState::Ready;
-			worker_info.cool_down_start = 0u64;
-			Sessions::<T>::insert(&session, &worker_info);
+			session_info.state = WorkerState::Ready;
+			session_info.cool_down_start = 0u64;
+			Sessions::<T>::insert(&session, &session_info);
 
 			let orig_stake = Stakes::<T>::take(&session).unwrap_or_default();
-			let (_returned, slashed) = worker_info.calc_final_stake(orig_stake);
+			let (_returned, slashed) = session_info.calc_final_stake(orig_stake);
 
 			Self::deposit_event(Event::<T>::WorkerReclaimed {
 				session,
@@ -755,7 +756,7 @@ pub mod pallet {
 			Ok((orig_stake, slashed))
 		}
 
-		/// Binds a worker to a worker
+		/// Binds a session to a worker
 		///
 		/// This will bind the worker account to the worker, and then create a `Workers` entry to
 		/// track the computing session in the future. The computing session will exist until the worker
@@ -792,7 +793,7 @@ pub mod pallet {
 			WorkerBindings::<T>::insert(&pubkey, &session);
 			Sessions::<T>::insert(
 				&session,
-				WorkerInfo {
+				SessionInfo {
 					state: WorkerState::Ready,
 					ve: 0,
 					v: 0,
@@ -816,18 +817,18 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Unbinds a worker from a worker
+		/// Unbinds a session from a worker
 		///
 		/// - `notify`: whether to notify the subscribe the unbinding event.
 		///
 		/// Requires:
-		/// 1. The worker is bounded with a worker
+		/// 1. The session is bounded with a worker
 		pub fn unbind_session(session: &T::AccountId, notify: bool) -> DispatchResult {
 			let worker = Self::ensure_session_bound(session)?;
-			let worker_info = Sessions::<T>::get(session)
-				.expect("A bounded worker must has the associated WorkerInfo; qed.");
+			let session_info = Sessions::<T>::get(session)
+				.expect("A bounded worker must has the associated SessionInfo; qed.");
 
-			let force = !worker_info.state.can_unbind();
+			let force = !session_info.state.can_unbind();
 			if force {
 				// Force unbinding. Stop the worker first.
 				// Note that `stop_computing` will notify the subscribers with the slashed value.
@@ -863,9 +864,9 @@ pub mod pallet {
 				Error::<T>::InternalErrorCannotStartWithExistingStake,
 			);
 
-			let worker_info =
+			let session_info =
 				registry::Workers::<T>::get(&worker).expect("Bounded worker must exist; qed.");
-			let p = worker_info
+			let p = session_info
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
 			// Disallow some weird benchmark score.
@@ -875,7 +876,7 @@ pub mod pallet {
 			let min_stake = tokenomic.minimal_stake(p);
 			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
 
-			let ve = tokenomic.ve(stake, p, worker_info.confidence_level);
+			let ve = tokenomic.ve(stake, p, session_info.confidence_level);
 			let v_max = tokenomic.v_max();
 			ensure!(ve <= v_max, Error::<T>::TooMuchStake);
 
@@ -917,31 +918,28 @@ pub mod pallet {
 		/// 1. The worker is in WorkerIdle, or WorkerUnresponsive state
 		pub fn stop_computing(session: T::AccountId) -> DispatchResult {
 			let worker = SessionBindings::<T>::get(&session).ok_or(Error::<T>::SessionNotBound)?;
-			let mut worker_info =
+			let mut session_info =
 				Sessions::<T>::get(&session).ok_or(Error::<T>::SessionNotFound)?;
 
 			ensure!(
-				worker_info.state != WorkerState::Ready
-					&& worker_info.state != WorkerState::WorkerCoolingDown,
+				session_info.state != WorkerState::Ready
+					&& session_info.state != WorkerState::WorkerCoolingDown,
 				Error::<T>::WorkerNotComputing
 			);
 
 			let now = Self::now_sec();
-			worker_info.state = WorkerState::WorkerCoolingDown;
-			worker_info.cool_down_start = now;
-			Sessions::<T>::insert(&session, &worker_info);
+			session_info.state = WorkerState::WorkerCoolingDown;
+			session_info.cool_down_start = now;
+			Sessions::<T>::insert(&session, &session_info);
 			OnlineWorkers::<T>::mutate(|v| *v -= 1); // v cannot be 0
 
 			// Calculate remaining stake (assume there's no more slash after calling `stop_computing`)
 			let orig_stake = Stakes::<T>::get(&session).unwrap_or_default();
-			let (_returned, slashed) = worker_info.calc_final_stake(orig_stake);
+			let (_returned, slashed) = session_info.calc_final_stake(orig_stake);
 			// Notify the subscriber with the slash prediction
 			T::OnStopped::on_stopped(&worker, orig_stake, slashed);
 
-			Self::push_message(SystemEvent::new_worker_event(
-				worker,
-				WorkerEvent::Stopped,
-			));
+			Self::push_message(SystemEvent::new_worker_event(worker, WorkerEvent::Stopped));
 			Self::deposit_event(Event::<T>::WorkerStopped { session });
 			Ok(())
 		}
@@ -1529,7 +1527,7 @@ pub mod pallet {
 				let ev = take_events();
 				assert_eq!(
 					ev[0],
-					TestEvent::PhalaComputation(Event::WorkerSettlementDropped {
+					TestEvent::PhalaComputation(Event::SessionSettlementDropped {
 						session: 1,
 						v: 1,
 						payout: 0,
