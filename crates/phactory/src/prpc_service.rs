@@ -21,6 +21,7 @@ use phala_crypto::{
     key_share,
     sr25519::{Persistence, KDF},
 };
+use phala_types::contract::contract_id_preimage;
 use phala_types::{
     contract, messaging::EncryptedKey, wrap_content_to_sign, ChallengeHandlerInfo,
     EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload,
@@ -347,7 +348,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
         let main_bridge = light_client
-            .initialize_bridge(genesis.block_header.clone(), genesis.authority_set, genesis.proof)
+            .initialize_bridge(
+                genesis.block_header.clone(),
+                genesis.authority_set,
+                genesis.proof,
+            )
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
@@ -528,7 +533,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        info!("Verifying signature passed! origin={:?}", origin);
+        debug!(target: "query", "Verifying signature passed! origin={:?}", origin);
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
@@ -1399,6 +1404,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             .or(Err(from_display("Invalid contract id")))?;
         self.lock_phactory()
             .upload_sidevm_code(contract_id.into(), request.code)
+    }
+
+    async fn calculate_contract_id(
+        &mut self,
+        req: pb::ContractParameters,
+    ) -> Result<pb::ContractId, prpc::server::Error> {
+        let deployer = try_decode_hex(&req.deployer).or(Err(from_display("Invalid deployer")))?;
+        let code_hash =
+            try_decode_hex(&req.code_hash).or(Err(from_display("Invalid code hash")))?;
+        let cluster_id =
+            try_decode_hex(&req.cluster_id).or(Err(from_display("Invalid cluster id")))?;
+        let salt = try_decode_hex(&req.salt).or(Err(from_display("Invalid code salt")))?;
+        let buf = contract_id_preimage(&deployer, &code_hash, &cluster_id, &salt);
+        let hash = sp_core::blake2_256(&buf);
+        Ok(pb::ContractId { id: hex(&hash) })
     }
 }
 

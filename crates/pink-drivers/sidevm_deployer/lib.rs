@@ -5,7 +5,7 @@ extern crate alloc;
 use pink_extension as pink;
 
 #[pink::contract(env = PinkEnvironment)]
-mod sidevmop {
+mod sidevm_deployer {
     use super::pink;
     use ink_storage::{traits::SpreadAllocate, Mapping};
     use pink::system::{Error, Result};
@@ -23,7 +23,7 @@ mod sidevmop {
 
     impl SidevmOp {
         #[ink(constructor)]
-        pub fn new() -> Self {
+        pub fn default() -> Self {
             ink_lang::utils::initialize_contract(|me: &mut Self| {
                 me.owner = Self::env().caller();
             })

@@ -371,6 +371,20 @@ export namespace pruntime_rpc {
          * @returns Promise
          */
         public uploadSidevmCode(request: pruntime_rpc.ISidevmCode): Promise<google.protobuf.Empty>;
+
+        /**
+         * Calls CalculateContractId.
+         * @param request ContractParameters message or plain object
+         * @param callback Node-style callback called with the error, if any, and ContractId
+         */
+        public calculateContractId(request: pruntime_rpc.IContractParameters, callback: pruntime_rpc.PhactoryAPI.CalculateContractIdCallback): void;
+
+        /**
+         * Calls CalculateContractId.
+         * @param request ContractParameters message or plain object
+         * @returns Promise
+         */
+        public calculateContractId(request: pruntime_rpc.IContractParameters): Promise<pruntime_rpc.ContractId>;
     }
 
     namespace PhactoryAPI {
@@ -549,6 +563,13 @@ export namespace pruntime_rpc {
          * @param [response] Empty
          */
         type UploadSidevmCodeCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calculateContractId}.
+         * @param error Error, if any
+         * @param [response] ContractId
+         */
+        type CalculateContractIdCallback = (error: (Error|null), response?: pruntime_rpc.ContractId) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -5475,6 +5496,204 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this SidevmCode to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ContractParameters. */
+    interface IContractParameters {
+
+        /** ContractParameters deployer */
+        deployer?: (string|null);
+
+        /** ContractParameters clusterId */
+        clusterId?: (string|null);
+
+        /** ContractParameters codeHash */
+        codeHash?: (string|null);
+
+        /** ContractParameters salt */
+        salt?: (string|null);
+    }
+
+    /** Represents a ContractParameters. */
+    class ContractParameters implements IContractParameters {
+
+        /**
+         * Constructs a new ContractParameters.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IContractParameters);
+
+        /** ContractParameters deployer. */
+        public deployer: string;
+
+        /** ContractParameters clusterId. */
+        public clusterId: string;
+
+        /** ContractParameters codeHash. */
+        public codeHash: string;
+
+        /** ContractParameters salt. */
+        public salt: string;
+
+        /**
+         * Creates a new ContractParameters instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ContractParameters instance
+         */
+        public static create(properties?: pruntime_rpc.IContractParameters): pruntime_rpc.ContractParameters;
+
+        /**
+         * Encodes the specified ContractParameters message. Does not implicitly {@link pruntime_rpc.ContractParameters.verify|verify} messages.
+         * @param message ContractParameters message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IContractParameters, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ContractParameters message, length delimited. Does not implicitly {@link pruntime_rpc.ContractParameters.verify|verify} messages.
+         * @param message ContractParameters message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IContractParameters, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ContractParameters message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ContractParameters
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ContractParameters;
+
+        /**
+         * Decodes a ContractParameters message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ContractParameters
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ContractParameters;
+
+        /**
+         * Verifies a ContractParameters message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ContractParameters message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ContractParameters
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ContractParameters;
+
+        /**
+         * Creates a plain object from a ContractParameters message. Also converts values to other types if specified.
+         * @param message ContractParameters
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ContractParameters, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ContractParameters to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ContractId. */
+    interface IContractId {
+
+        /** ContractId id */
+        id?: (string|null);
+    }
+
+    /** Represents a ContractId. */
+    class ContractId implements IContractId {
+
+        /**
+         * Constructs a new ContractId.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IContractId);
+
+        /** ContractId id. */
+        public id: string;
+
+        /**
+         * Creates a new ContractId instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ContractId instance
+         */
+        public static create(properties?: pruntime_rpc.IContractId): pruntime_rpc.ContractId;
+
+        /**
+         * Encodes the specified ContractId message. Does not implicitly {@link pruntime_rpc.ContractId.verify|verify} messages.
+         * @param message ContractId message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IContractId, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ContractId message, length delimited. Does not implicitly {@link pruntime_rpc.ContractId.verify|verify} messages.
+         * @param message ContractId message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IContractId, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ContractId message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ContractId
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ContractId;
+
+        /**
+         * Decodes a ContractId message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ContractId
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ContractId;
+
+        /**
+         * Verifies a ContractId message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ContractId message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ContractId
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ContractId;
+
+        /**
+         * Creates a plain object from a ContractId message. Also converts values to other types if specified.
+         * @param message ContractId
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ContractId, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ContractId to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };

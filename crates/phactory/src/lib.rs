@@ -508,6 +508,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
+        info!("Loading checkpoint from file {:?}", ckpt_filename);
         match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers) {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {:?}", ckpt_filename);

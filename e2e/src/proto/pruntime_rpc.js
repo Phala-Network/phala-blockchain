@@ -875,6 +875,39 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calculateContractId}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef CalculateContractIdCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.ContractId} [response] ContractId
+         */
+
+        /**
+         * Calls CalculateContractId.
+         * @function calculateContractId
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IContractParameters} request ContractParameters message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.CalculateContractIdCallback} callback Node-style callback called with the error, if any, and ContractId
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.calculateContractId = function calculateContractId(request, callback) {
+            return this.rpcCall(calculateContractId, $root.pruntime_rpc.ContractParameters, $root.pruntime_rpc.ContractId, request, callback);
+        }, "name", { value: "CalculateContractId" });
+
+        /**
+         * Calls CalculateContractId.
+         * @function calculateContractId
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IContractParameters} request ContractParameters message or plain object
+         * @returns {Promise<pruntime_rpc.ContractId>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -13129,6 +13162,447 @@ $root.pruntime_rpc = (function() {
         };
 
         return SidevmCode;
+    })();
+
+    pruntime_rpc.ContractParameters = (function() {
+
+        /**
+         * Properties of a ContractParameters.
+         * @memberof pruntime_rpc
+         * @interface IContractParameters
+         * @property {string|null} [deployer] ContractParameters deployer
+         * @property {string|null} [clusterId] ContractParameters clusterId
+         * @property {string|null} [codeHash] ContractParameters codeHash
+         * @property {string|null} [salt] ContractParameters salt
+         */
+
+        /**
+         * Constructs a new ContractParameters.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ContractParameters.
+         * @implements IContractParameters
+         * @constructor
+         * @param {pruntime_rpc.IContractParameters=} [properties] Properties to set
+         */
+        function ContractParameters(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ContractParameters deployer.
+         * @member {string} deployer
+         * @memberof pruntime_rpc.ContractParameters
+         * @instance
+         */
+        ContractParameters.prototype.deployer = "";
+
+        /**
+         * ContractParameters clusterId.
+         * @member {string} clusterId
+         * @memberof pruntime_rpc.ContractParameters
+         * @instance
+         */
+        ContractParameters.prototype.clusterId = "";
+
+        /**
+         * ContractParameters codeHash.
+         * @member {string} codeHash
+         * @memberof pruntime_rpc.ContractParameters
+         * @instance
+         */
+        ContractParameters.prototype.codeHash = "";
+
+        /**
+         * ContractParameters salt.
+         * @member {string} salt
+         * @memberof pruntime_rpc.ContractParameters
+         * @instance
+         */
+        ContractParameters.prototype.salt = "";
+
+        /**
+         * Creates a new ContractParameters instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {pruntime_rpc.IContractParameters=} [properties] Properties to set
+         * @returns {pruntime_rpc.ContractParameters} ContractParameters instance
+         */
+        ContractParameters.create = function create(properties) {
+            return new ContractParameters(properties);
+        };
+
+        /**
+         * Encodes the specified ContractParameters message. Does not implicitly {@link pruntime_rpc.ContractParameters.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {pruntime_rpc.IContractParameters} message ContractParameters message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractParameters.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.deployer != null && Object.hasOwnProperty.call(message, "deployer"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.deployer);
+            if (message.clusterId != null && Object.hasOwnProperty.call(message, "clusterId"))
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.clusterId);
+            if (message.codeHash != null && Object.hasOwnProperty.call(message, "codeHash"))
+                writer.uint32(/* id 3, wireType 2 =*/26).string(message.codeHash);
+            if (message.salt != null && Object.hasOwnProperty.call(message, "salt"))
+                writer.uint32(/* id 4, wireType 2 =*/34).string(message.salt);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ContractParameters message, length delimited. Does not implicitly {@link pruntime_rpc.ContractParameters.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {pruntime_rpc.IContractParameters} message ContractParameters message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractParameters.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ContractParameters message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ContractParameters} ContractParameters
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractParameters.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractParameters();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.deployer = reader.string();
+                    break;
+                case 2:
+                    message.clusterId = reader.string();
+                    break;
+                case 3:
+                    message.codeHash = reader.string();
+                    break;
+                case 4:
+                    message.salt = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ContractParameters message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ContractParameters} ContractParameters
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractParameters.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ContractParameters message.
+         * @function verify
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ContractParameters.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.deployer != null && message.hasOwnProperty("deployer"))
+                if (!$util.isString(message.deployer))
+                    return "deployer: string expected";
+            if (message.clusterId != null && message.hasOwnProperty("clusterId"))
+                if (!$util.isString(message.clusterId))
+                    return "clusterId: string expected";
+            if (message.codeHash != null && message.hasOwnProperty("codeHash"))
+                if (!$util.isString(message.codeHash))
+                    return "codeHash: string expected";
+            if (message.salt != null && message.hasOwnProperty("salt"))
+                if (!$util.isString(message.salt))
+                    return "salt: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a ContractParameters message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ContractParameters} ContractParameters
+         */
+        ContractParameters.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ContractParameters)
+                return object;
+            var message = new $root.pruntime_rpc.ContractParameters();
+            if (object.deployer != null)
+                message.deployer = String(object.deployer);
+            if (object.clusterId != null)
+                message.clusterId = String(object.clusterId);
+            if (object.codeHash != null)
+                message.codeHash = String(object.codeHash);
+            if (object.salt != null)
+                message.salt = String(object.salt);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ContractParameters message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ContractParameters
+         * @static
+         * @param {pruntime_rpc.ContractParameters} message ContractParameters
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ContractParameters.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.deployer = "";
+                object.clusterId = "";
+                object.codeHash = "";
+                object.salt = "";
+            }
+            if (message.deployer != null && message.hasOwnProperty("deployer"))
+                object.deployer = message.deployer;
+            if (message.clusterId != null && message.hasOwnProperty("clusterId"))
+                object.clusterId = message.clusterId;
+            if (message.codeHash != null && message.hasOwnProperty("codeHash"))
+                object.codeHash = message.codeHash;
+            if (message.salt != null && message.hasOwnProperty("salt"))
+                object.salt = message.salt;
+            return object;
+        };
+
+        /**
+         * Converts this ContractParameters to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ContractParameters
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ContractParameters.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ContractParameters;
+    })();
+
+    pruntime_rpc.ContractId = (function() {
+
+        /**
+         * Properties of a ContractId.
+         * @memberof pruntime_rpc
+         * @interface IContractId
+         * @property {string|null} [id] ContractId id
+         */
+
+        /**
+         * Constructs a new ContractId.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ContractId.
+         * @implements IContractId
+         * @constructor
+         * @param {pruntime_rpc.IContractId=} [properties] Properties to set
+         */
+        function ContractId(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ContractId id.
+         * @member {string} id
+         * @memberof pruntime_rpc.ContractId
+         * @instance
+         */
+        ContractId.prototype.id = "";
+
+        /**
+         * Creates a new ContractId instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {pruntime_rpc.IContractId=} [properties] Properties to set
+         * @returns {pruntime_rpc.ContractId} ContractId instance
+         */
+        ContractId.create = function create(properties) {
+            return new ContractId(properties);
+        };
+
+        /**
+         * Encodes the specified ContractId message. Does not implicitly {@link pruntime_rpc.ContractId.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {pruntime_rpc.IContractId} message ContractId message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractId.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.id != null && Object.hasOwnProperty.call(message, "id"))
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ContractId message, length delimited. Does not implicitly {@link pruntime_rpc.ContractId.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {pruntime_rpc.IContractId} message ContractId message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ContractId.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ContractId message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ContractId} ContractId
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractId.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ContractId();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.id = reader.string();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ContractId message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ContractId} ContractId
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ContractId.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ContractId message.
+         * @function verify
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ContractId.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.id != null && message.hasOwnProperty("id"))
+                if (!$util.isString(message.id))
+                    return "id: string expected";
+            return null;
+        };
+
+        /**
+         * Creates a ContractId message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ContractId} ContractId
+         */
+        ContractId.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ContractId)
+                return object;
+            var message = new $root.pruntime_rpc.ContractId();
+            if (object.id != null)
+                message.id = String(object.id);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ContractId message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ContractId
+         * @static
+         * @param {pruntime_rpc.ContractId} message ContractId
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ContractId.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.id = "";
+            if (message.id != null && message.hasOwnProperty("id"))
+                object.id = message.id;
+            return object;
+        };
+
+        /**
+         * Converts this ContractId to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ContractId
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ContractId.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ContractId;
     })();
 
     return pruntime_rpc;
