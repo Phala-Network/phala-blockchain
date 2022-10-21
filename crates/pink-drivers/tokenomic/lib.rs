@@ -9,9 +9,9 @@ mod tokenomic {
     use pink::PinkEnvironment;
 
     #[ink(storage)]
-    pub struct FatTokenomic {}
+    pub struct PhatTokenomic {}
 
-    impl FatTokenomic {
+    impl PhatTokenomic {
         #[ink(constructor)]
         pub fn default() -> Self {
             Self {}
@@ -26,7 +26,7 @@ mod tokenomic {
         }
     }
 
-    impl ContractDeposit for FatTokenomic {
+    impl ContractDeposit for PhatTokenomic {
         #[ink(message)]
         fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
             self.ensure_system()?;
