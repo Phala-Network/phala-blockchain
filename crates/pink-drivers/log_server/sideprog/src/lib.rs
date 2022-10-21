@@ -31,20 +31,23 @@ fn log_buffer_size() -> u32 {
 
 async fn query_serve(app: AppState) {
     #[derive(serde::Deserialize)]
-    struct Query {
-        #[serde(default)]
-        contract: String,
-        #[serde(default)]
-        from: u64,
-        #[serde(default)]
-        count: u64,
+    #[serde(tag="action")]
+    enum Query {
+        GetLog {
+            #[serde(default)]
+            contract: String,
+            #[serde(default)]
+            from: u64,
+            #[serde(default)]
+            count: u64,
+        }
     }
 
     loop {
         let query = sidevm::channel::incoming_queries().next().await;
         if let Some(query) = query {
             // todo: use `let else`
-            let Query {
+            let Query::GetLog {
                 contract,
                 from,
                 count,

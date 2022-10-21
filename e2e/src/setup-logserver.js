@@ -269,7 +269,7 @@ async function main() {
     const nodeURL = 'ws://localhost:19944';
     const pruntimeURL = 'http://localhost:8000';
 
-    // connect to the chain
+    // Connect to the chain
     const wsProvider = new WsProvider(nodeURL);
     const api = await ApiPromise.create({
         provider: wsProvider,
@@ -283,22 +283,22 @@ async function main() {
     });
     const txqueue = new TxQueue(api);
 
-    // prepare accounts
+    // Prepare accounts
     const keyring = new Keyring({ type: 'sr25519' })
     const alice = keyring.addFromUri('//Alice')
     const certAlice = await Phala.signCertificate({ api, pair: alice });
 
-    // connect to pruntime
+    // Connect to pruntime
     const prpc = new PRuntimeApi(pruntimeURL);
     const worker = await getWorkerPubkey(api);
     const connectedWorker = hex((await prpc.getInfo({})).publicKey);
     console.log('Worker:', worker);
     console.log('Connected worker:', connectedWorker);
 
-    // basic phala network setup
+    // Basic phala network setup
     await setupGatekeeper(api, txqueue, alice, worker);
 
-    // upload the pink-system wasm to the chain. It is required to create a cluster.
+    // Upload the pink-system wasm to the chain. It is required to create a cluster.
     await uploadSystemCode(api, txqueue, alice, contractSystem.wasm);
 
     const { clusterId, systemContract } = await deployCluster(api, txqueue, alice, alice.address, worker);
@@ -306,12 +306,12 @@ async function main() {
 
     const system = await contractApi(api, pruntimeURL, contractSystem);
 
-    // deploy driver: Sidevm deployer
+    // Deploy driver: Sidevm deployer
     await deployDriverContract(api, txqueue, system, alice, certAlice, contractSidevmop, clusterId, "SidevmOperation");
 
     const sidevmDeployer = await contractApi(api, pruntimeURL, contractSidevmop);
 
-    // allow the logger to deploy sidevm
+    // Allow the logger to deploy sidevm
     const salt = hex(crypto.randomBytes(4));
     const { id: loggerId } = await prpc.calculateContractId({
         deployer: hex(alice.publicKey),
@@ -326,35 +326,40 @@ async function main() {
         alice
     );
 
-    // upload the logger's sidevm wasm code
+    // Upload the logger's sidevm wasm code
     await txqueue.submit(
         api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'SidevmCode', hex(logServerSidevmWasm)),
         alice);
 
-    // deploy the logger contract
+    // Deploy the logger contract
     await deployDriverContract(api, txqueue, system, alice, certAlice, contractLogServer, clusterId, "PinkLogger", salt);
 
     await sleep(2000);
     const logger = await contractApi(api, pruntimeURL, contractLogServer);
-    // trigger some contract logs
+    // Trigger some contract logs
     for (var i = 0; i < 100; i++) {
         await logger.query.logTest(certAlice, {}, "hello " + i);
     }
-    // query input: a JSON doc with three optinal fields:
+    // Query input: a JSON doc with three optinal fields:
     const condition = {
+        // What to do. Only `GetLog` is supported currently
+        action: 'GetLog',
         // The target contract to query. Default to all contracts
         contract: contractLogServer.address,
         // The sequence number start from. Default to 0.
-        from: 0,
+        from: 20,
         // Max number of items should returned. Default to not limited.
         count: 2,
     };
-    let data = hex(toBytes(JSON.stringify(condition)));
-    const log = await logger.sidevmQuery(data, certAlice);
-    console.log('log', log);
+    const data = hex(toBytes(JSON.stringify(condition)));
+    const hexlog = await logger.sidevmQuery(data, certAlice);
+    const bytes = api.createType("Vec<u8>", hexlog);
+    const decoder = new TextDecoder();
+    const jsonText = decoder.decode(bytes);
+    console.log('log:', jsonText);
     // Sample query response:
     const _ = {
-        "next": 3, // Sequence number for next query. For pagination.
+        "next": 3, // Sequence number for the next query. For pagination.
         "records": [
             {
                 "blockNumber": 0,

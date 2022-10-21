@@ -124,7 +124,7 @@ impl ContractsKeeper {
         self.0.remove(id)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=(&ContractId, &FatContract)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&ContractId, &FatContract)> {
         self.0.iter()
     }
 }
