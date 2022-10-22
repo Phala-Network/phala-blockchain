@@ -22,11 +22,11 @@ pub mod predefined_accounts {
     pub const ACCOUNT_RUNTIME: [u8; 32] = *b"sys::runtime\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
     pub fn is_pallet(account_id: &AccountId) -> bool {
-        account_id.as_ref() as &[u8] == &ACCOUNT_PALLET
+        account_id.as_ref() as &[u8] == ACCOUNT_PALLET
     }
 
     pub fn is_runtime(account_id: &ink_env::AccountId) -> bool {
-        account_id.as_ref() as &[u8] == &ACCOUNT_RUNTIME
+        account_id.as_ref() as &[u8] == ACCOUNT_RUNTIME
     }
 }
 

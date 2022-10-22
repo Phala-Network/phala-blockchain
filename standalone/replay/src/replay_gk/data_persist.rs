@@ -91,7 +91,7 @@ async fn insert_records(pool: &sqlx::Pool<sqlx::Postgres>, records: &[EventRecor
     let mut ps = vec![];
     let mut payouts = vec![];
 
-    let last_seq = get_last_sequence(&pool).await?;
+    let last_seq = get_last_sequence(pool).await?;
 
     for rec in records {
         if rec.sequence <= last_seq {

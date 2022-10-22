@@ -40,7 +40,7 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
         let args: Punctuated<MetaNameValue, Token![,]> =
             attr.parse_args_with(Punctuated::parse_terminated)?;
         for arg in args.into_iter() {
-            if arg.name.to_string() == "inner" {
+            if arg.name == "inner" {
                 inner = Some(arg.value);
             }
         }

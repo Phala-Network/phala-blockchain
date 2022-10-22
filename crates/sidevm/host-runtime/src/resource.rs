@@ -25,7 +25,7 @@ pub enum Resource {
         tls_config: Option<Arc<ServerConfig>>,
     },
     TcpStream(TcpStream),
-    TlsStream(TlsStream),
+    TlsStream(Box<TlsStream>),
     TcpConnect(Pin<Box<dyn Future<Output = std::io::Result<TcpStream>> + Send>>),
     TlsConnect(Pin<Box<dyn Future<Output = std::io::Result<TlsStream>> + Send>>),
 }
@@ -68,7 +68,7 @@ impl Resource {
                 let rv = poll_in_task_cx(waker, fut.as_mut());
                 match rv {
                     Pending => Err(OcallError::Pending),
-                    Ready(Ok(stream)) => Ok(Resource::TlsStream(stream)),
+                    Ready(Ok(stream)) => Ok(Resource::TlsStream(Box::new(stream))),
                     Ready(Err(err)) => {
                         log::error!("Tls connect error: {}", err);
                         Err(OcallError::IoError)
@@ -106,7 +106,7 @@ impl Resource {
             TlsStream(stream) => {
                 pin_mut!(stream);
                 let mut buf = tokio::io::ReadBuf::new(buf);
-                match get_task_cx(waker.clone(), |cx| stream.poll_read(cx, &mut buf)) {
+                match get_task_cx(waker, |cx| stream.poll_read(cx, &mut buf)) {
                     Pending => Err(OcallError::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
                     Ready(Ok(())) => Ok(buf.filled().len() as _),
@@ -137,7 +137,7 @@ impl Resource {
             },
             TlsStream(stream) => {
                 pin_mut!(stream);
-                match get_task_cx(waker.clone(), |cx| stream.poll_write(cx, buf)) {
+                match get_task_cx(waker, |cx| stream.poll_write(cx, buf)) {
                     Pending => Err(OcallError::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
                     Ready(Ok(sz)) => Ok(sz as _),
@@ -160,7 +160,7 @@ impl Resource {
             }
             TlsStream(stream) => {
                 pin_mut!(stream);
-                match get_task_cx(waker.clone(), |cx| stream.poll_shutdown(cx)) {
+                match get_task_cx(waker, |cx| stream.poll_shutdown(cx)) {
                     Pending => Err(OcallError::Pending),
                     Ready(Err(_err)) => Err(OcallError::IoError),
                     Ready(Ok(())) => Ok(()),

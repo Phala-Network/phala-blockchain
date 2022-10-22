@@ -21,6 +21,6 @@ use derive_more::FromStr;
 )]
 #[cfg_attr(feature = "std", derive(FromStr))]
 pub enum EndpointType {
-    I2p = 0,
+    I2p = 0_isize,
     Http,
 }

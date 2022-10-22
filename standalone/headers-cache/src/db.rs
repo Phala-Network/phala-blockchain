@@ -67,11 +67,11 @@ impl CacheDB {
     }
 
     fn get(&self, prefix: u8, block: BlockNumber) -> Option<Vec<u8>> {
-        self.0.get(&mk_key(prefix, block)).ok().flatten()
+        self.0.get(mk_key(prefix, block)).ok().flatten()
     }
 
     fn put(&self, prefix: u8, block: BlockNumber, value: &[u8]) -> Result<()> {
-        self.0.put(&mk_key(prefix, block), value)?;
+        self.0.put(mk_key(prefix, block), value)?;
         Ok(())
     }
 

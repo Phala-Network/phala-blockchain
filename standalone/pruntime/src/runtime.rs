@@ -34,7 +34,7 @@ pub fn ecall_get_contract_info(ids: &str) -> String {
     let ids = if ids.is_empty() {
         vec![]
     } else {
-        ids.split(",").map(|it| it.to_owned()).collect()
+        ids.split(',').map(|it| it.to_owned()).collect()
     };
     let result = APPLICATION.lock_phactory().get_contract_info(&ids);
     serialize_result(result.map(|it| it.contracts))

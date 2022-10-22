@@ -321,10 +321,7 @@ where
     }
 
     fn contains(&self, key: &H::Out) -> bool {
-        match self.data.get(key.as_ref()) {
-            Some(&(_, x)) if x > 0 => true,
-            _ => false,
-        }
+        matches!(self.data.get(key.as_ref()), Some(&(_, x)) if x > 0)
     }
 
     fn emplace(&mut self, key: H::Out, value: T) {
@@ -405,10 +402,7 @@ where
         }
 
         let key = KF::key(key, prefix);
-        match self.data.get(&key) {
-            Some(&(_, x)) if x > 0 => true,
-            _ => false,
-        }
+        matches!(self.data.get(&key), Some(&(_, x)) if x > 0)
     }
 
     fn emplace(&mut self, key: H::Out, prefix: Prefix, value: T) {

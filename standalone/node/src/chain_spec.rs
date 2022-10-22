@@ -402,7 +402,7 @@ pub fn testnet_genesis(
 	let phala_registry = match dev {
 		true => PhalaRegistryConfig {
 			workers: vec![
-				(dev_sr25519_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
+				(dev_sr25519_pubkey, dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
 			],
 			gatekeepers: Vec::new(),
 			benchmark_duration: 1,
@@ -494,6 +494,7 @@ pub fn testnet_genesis(
 		transaction_payment: Default::default(),
 		nomination_pools: NominationPoolsConfig {
 			min_create_bond: 10 * DOLLARS,
+			#[allow(clippy::identity_op)]
 			min_join_bond: 1 * DOLLARS,
 			..Default::default()
 		},

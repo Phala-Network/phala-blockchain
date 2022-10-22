@@ -286,9 +286,9 @@ impl PinkExtBackend for CallInCommand {
     type Error = DispatchError;
 
     fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        return Err(DispatchError::Other(
+        Err(DispatchError::Other(
             "http_request can only be called in query mode",
-        ));
+        ))
     }
     fn sign(
         &self,

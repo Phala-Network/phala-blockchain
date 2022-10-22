@@ -39,7 +39,9 @@ pub async fn try_update_worker_endpoint(
         None => return Ok(false), // Early return if no endpoint payload is available
         Some(payload) => payload,
     };
-    let signature = info.signature.ok_or(anyhow!("No endpoint signature"))?;
+    let signature = info
+        .signature
+        .ok_or_else(|| anyhow!("No endpoint signature"))?;
     info!("Binding worker's endpoint...");
-    update_worker_endpoint(&para_api, encoded_endpoint_payload, signature, signer, args).await
+    update_worker_endpoint(para_api, encoded_endpoint_payload, signature, signer, args).await
 }

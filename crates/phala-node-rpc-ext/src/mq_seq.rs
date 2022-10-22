@@ -15,15 +15,11 @@ pub enum Error {
 
 impl From<Error> for JsonRpseeError {
     fn from(e: Error) -> Self {
-        JsonRpseeError::Call(
-            CallError::Custom(
-                ErrorObject::owned(
-                    CUSTOM_RPC_ERROR,
-                    e.to_string(),
-                    Option::<()>::None
-                )
-            )
-        )
+        JsonRpseeError::Call(CallError::Custom(ErrorObject::owned(
+            CUSTOM_RPC_ERROR,
+            e.to_string(),
+            Option::<()>::None,
+        )))
     }
 }
 
@@ -63,7 +59,7 @@ where
     // Since extrinsics are opaque to us, we look for them using
     // `provides` tag. And increment the sequence if we find a transaction
     // that matches the current one.
-    let mut current_seq = seq.clone();
+    let mut current_seq = seq;
     let mut current_tag = tag(&sender, seq);
     for tx in pool.ready() {
         log::debug!(
@@ -71,7 +67,7 @@ where
             "Current seq to {}, checking {} vs {:?}",
             current_seq,
             hex::encode(&current_tag),
-            tx.provides().iter().map(|x| format!("{}", hex::encode(x))).collect::<Vec<_>>(),
+            tx.provides().iter().map(hex::encode).collect::<Vec<_>>(),
         );
         // since transactions in `ready()` need to be ordered by sequence
         // it's fine to continue with current iterator.

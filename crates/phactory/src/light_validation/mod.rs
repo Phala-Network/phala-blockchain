@@ -46,9 +46,9 @@ use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
 use log::{error, info};
+use phala_serde_more as more;
 use serde::{Deserialize, Serialize};
 use storage_proof::{StorageProof, StorageProofChecker};
-use phala_serde_more as more;
 
 use finality_grandpa::voter_set::VoterSet;
 use num::AsPrimitive;
@@ -403,7 +403,7 @@ pub mod utils {
         let mut bytes = sp_core::twox_128(module).to_vec();
         bytes.extend(&sp_core::twox_128(storage_item)[..]);
         let encoded = key.encode();
-        bytes.extend(&sp_core::twox_64(&encoded));
+        bytes.extend(sp_core::twox_64(&encoded));
         bytes.extend(&encoded);
         bytes
     }

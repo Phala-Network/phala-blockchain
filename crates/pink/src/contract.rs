@@ -63,6 +63,7 @@ impl Contract {
     /// * `code_hash`: The hash of contract code which has been uploaded.
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         storage: &mut Storage,
         origin: AccountId,
@@ -158,6 +159,7 @@ impl Contract {
     /// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
     /// # Return
     /// Returns the SCALE encoded method return value.
+    #[allow(clippy::too_many_arguments)]
     pub fn bare_call(
         &self,
         storage: &mut Storage,
@@ -191,6 +193,7 @@ impl Contract {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn unchecked_bare_call(
         &self,
         storage: &mut Storage,
@@ -303,7 +306,7 @@ pub fn storage_map_prefix_twox_64_concat(
     let mut bytes = sp_core::twox_128(module).to_vec();
     bytes.extend(&sp_core::twox_128(storage_item)[..]);
     let encoded = key.encode();
-    bytes.extend(&sp_core::twox_64(&encoded));
+    bytes.extend(sp_core::twox_64(&encoded));
     bytes.extend(&encoded);
     bytes
 }

@@ -65,7 +65,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
-        let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
+        let genesis_block_hash = state.map(|state| hex::encode(state.genesis_block_hash));
         let dev_mode = self.dev_mode;
 
         let (state_root, pending_messages, counters) = match state.as_ref() {
@@ -318,7 +318,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let (identity_key, ecdh_key) = rt_data.decode_keys();
 
         let ecdsa_pk = identity_key.public();
-        let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
+        let ecdsa_hex_pk = hex::encode(ecdsa_pk);
         info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
         // derive ecdh key
@@ -338,7 +338,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             version: VERSION,
             machine_id: self.machine_id.clone(),
             pubkey: ecdsa_pk,
-            ecdh_pubkey: ecdh_pubkey.clone(),
+            ecdh_pubkey,
             genesis_block_hash,
             features: vec![cpu_core_num, cpu_feature_level],
             operator,
@@ -570,7 +570,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
             effects_queue
                 .send((cluster_id, effects))
-                .or(Err(from_display("Failed to apply side effects")))?;
+                .map_err(|_| from_display("Failed to apply side effects"))?;
 
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
@@ -766,10 +766,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         } else {
             let mut contracts = vec![];
             for id in contract_ids.iter() {
-                let raw: [u8; 32] = try_decode_hex(&id)
-                    .or(Err(from_display("Invalid contract id")))?
+                let raw: [u8; 32] = try_decode_hex(id)
+                    .map_err(|_| from_display("Invalid contract id"))?
                     .try_into()
-                    .or(Err(from_display("Invalid contract id")))?;
+                    .map_err(|_| from_display("Invalid contract id"))?;
                 let contract = system.contracts.get(&raw.into());
                 // TODO: use `let else`.
                 let contract = match contract {
@@ -874,7 +874,7 @@ fn create_attestation_report_on<Platform: pal::Platform>(
     platform: &Platform,
     data: &[u8],
 ) -> RpcResult<pb::Attestation> {
-    let (attn_report, sig, cert) = match platform.create_attestation_report(&data) {
+    let (attn_report, sig, cert) = match platform.create_attestation_report(data) {
         Ok(r) => r,
         Err(e) => {
             let message = format!("Failed to create attestation report: {:?}", e);
@@ -1130,9 +1130,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .payload
                 .as_ref()
                 .ok_or_else(|| from_display("My RA report not found"))?;
-            let (my_ias_fields, _) =
-                IasFields::from_ias_report(&my_attn_report.report.as_bytes().to_vec())
-                    .map_err(|_| from_display("Invalid RA report from client"))?;
+            let (my_ias_fields, _) = IasFields::from_ias_report(my_attn_report.report.as_bytes())
+                .map_err(|_| from_display("Invalid RA report from client"))?;
             let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp =
@@ -1227,7 +1226,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             let its_target_info =
                 unsafe { sgx_api_lite::decode(&challenge.sgx_target_info).unwrap() };
             // the report data does not matter since we only care about the origin
-            let report = sgx_api_lite::report(&its_target_info, &[0; 64]).unwrap();
+            let report = sgx_api_lite::report(its_target_info, &[0; 64]).unwrap();
             sgx_api_lite::encode(&report).to_vec()
         };
 
@@ -1401,7 +1400,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let contract_id: [u8; 32] = request
             .contract
             .try_into()
-            .or(Err(from_display("Invalid contract id")))?;
+            .map_err(|_| from_display("Invalid contract id"))?;
         self.lock_phactory()
             .upload_sidevm_code(contract_id.into(), request.code)
     }
@@ -1410,15 +1409,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         req: pb::ContractParameters,
     ) -> Result<pb::ContractId, prpc::server::Error> {
-        let deployer = try_decode_hex(&req.deployer).or(Err(from_display("Invalid deployer")))?;
+        let deployer =
+            try_decode_hex(&req.deployer).map_err(|_| from_display("Invalid deployer"))?;
         let code_hash =
-            try_decode_hex(&req.code_hash).or(Err(from_display("Invalid code hash")))?;
+            try_decode_hex(&req.code_hash).map_err(|_| from_display("Invalid code hash"))?;
         let cluster_id =
-            try_decode_hex(&req.cluster_id).or(Err(from_display("Invalid cluster id")))?;
-        let salt = try_decode_hex(&req.salt).or(Err(from_display("Invalid code salt")))?;
+            try_decode_hex(&req.cluster_id).map_err(|_| from_display("Invalid cluster id"))?;
+        let salt = try_decode_hex(&req.salt).map_err(|_| from_display("Invalid code salt"))?;
         let buf = contract_id_preimage(&deployer, &code_hash, &cluster_id, &salt);
         let hash = sp_core::blake2_256(&buf);
-        Ok(pb::ContractId { id: hex(&hash) })
+        Ok(pb::ContractId { id: hex(hash) })
     }
 }
 

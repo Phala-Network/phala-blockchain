@@ -22,7 +22,7 @@ impl Log for Logger {
                 Level::Debug => 4,
                 Level::Trace => 5,
             };
-            let _ = crate::ext().log(level, &message);
+            crate::ext().log(level, &message);
         }
     }
 

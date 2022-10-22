@@ -132,7 +132,7 @@ impl InstructionWeights {
 impl InstructionWeights {
     fn rules<'a>(&'a self, module: &Module) -> InstrumentRules<'a> {
         InstrumentRules {
-            weights: &self,
+            weights: self,
             params: module
                 .type_section()
                 .iter()
@@ -267,6 +267,6 @@ pub fn instrument(wasm: &[u8]) -> Result<Vec<u8>> {
     const WEIGHTS: InstructionWeights = InstructionWeights::default_weights();
     let module = Module::from_bytes(wasm)?;
     let rules = WEIGHTS.rules(&module);
-    let module = inject(module, &rules, "sidevm").or(Err(anyhow!("Invalid module")))?;
+    let module = inject(module, &rules, "sidevm").map_err(|_| anyhow!("Invalid module"))?;
     Ok(module.into_bytes()?)
 }

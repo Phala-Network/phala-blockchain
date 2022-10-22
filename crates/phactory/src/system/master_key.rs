@@ -18,7 +18,7 @@ struct PersistentMasterKey {
     signature: Signature,
 }
 
-#[derive(Debug, Encode, Decode, PartialEq, Clone)]
+#[derive(Debug, Encode, Decode, PartialEq, Eq, Clone)]
 pub struct RotatedMasterKey {
     pub rotation_id: u64,
     pub block_height: chain::BlockNumber,
@@ -50,12 +50,12 @@ fn master_key_file_path(sealing_path: String) -> PathBuf {
 /// Seal master key seeds with signature to ensure integrity
 pub fn seal(
     sealing_path: String,
-    master_key_history: &Vec<RotatedMasterKey>,
+    master_key_history: &[RotatedMasterKey],
     identity_key: &sr25519::Pair,
     sys: &impl Sealing,
 ) {
     let payload = MasterKeyHistory {
-        rotations: master_key_history.clone(),
+        rotations: master_key_history.to_owned(),
     };
     let encoded = payload.encode();
     let wrapped = wrap_content_to_sign(&encoded, SignedContentType::MasterKeyStore);

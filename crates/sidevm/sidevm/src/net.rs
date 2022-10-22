@@ -105,7 +105,7 @@ impl TcpStream {
         } else {
             ocall::tcp_connect(host, port)
         };
-        let res = res.map(|res_id| ResourceId(res_id));
+        let res = res.map(ResourceId);
         TcpConnector { res }
     }
 }

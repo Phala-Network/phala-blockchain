@@ -332,7 +332,11 @@ pub mod pallet {
 		/// A staker is removed from the pool contribution whitelist
 		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
 		/// A worker is reclaimed from the pool
-		WorkerReclaimed { pid: u64, worker: WorkerPublicKey, original_stake: BalanceOf<T> },
+		WorkerReclaimed {
+			pid: u64,
+			worker: WorkerPublicKey,
+			original_stake: BalanceOf<T>,
+		},
 		/// The amount of reward that distributed to owner and stakers
 		RewardReceived {
 			pid: u64,
@@ -344,7 +348,7 @@ pub mod pallet {
 			pid: u64,
 			worker: WorkerPublicKey,
 			amount: BalanceOf<T>,
-		}
+		},
 	}
 
 	#[pallet::error]
@@ -479,7 +483,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let worker_info =
-				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+				registry::Workers::<T>::get(pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
 
 			// check wheather the owner was bound as operator
 			ensure!(
@@ -488,7 +492,7 @@ pub mod pallet {
 			);
 			// check the worker has finished the benchmark
 			ensure!(
-				worker_info.initial_score != None,
+				worker_info.initial_score.is_some(),
 				Error::<T>::BenchmarkMissing
 			);
 
@@ -500,7 +504,7 @@ pub mod pallet {
 			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExists);
 			// too many workers may cause performance regression
 			ensure!(
-				workers.len() + 1 <= T::MaxPoolWorkers::get() as usize,
+				workers.len() < T::MaxPoolWorkers::get() as usize,
 				Error::<T>::WorkersExceedLimit
 			);
 
@@ -519,8 +523,8 @@ pub mod pallet {
 
 			// update worker vector
 			workers.push(pubkey);
-			StakePools::<T>::insert(&pid, &pool_info);
-			WorkerAssignments::<T>::insert(&pubkey, pid);
+			StakePools::<T>::insert(pid, &pool_info);
+			WorkerAssignments::<T>::insert(pubkey, pid);
 			Self::deposit_event(Event::<T>::PoolWorkerAdded {
 				pid,
 				worker: pubkey,
@@ -587,7 +591,7 @@ pub mod pallet {
 			ensure!(pool_info.total_stake <= cap, Error::<T>::InadequateCapacity);
 
 			pool_info.cap = Some(cap);
-			StakePools::<T>::insert(&pid, &pool_info);
+			StakePools::<T>::insert(pid, &pool_info);
 
 			Self::deposit_event(Event::<T>::PoolCapacitySet { pid, cap });
 			Ok(())
@@ -609,7 +613,7 @@ pub mod pallet {
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 
 			pool_info.payout_commission = Some(payout_commission);
-			StakePools::<T>::insert(&pid, &pool_info);
+			StakePools::<T>::insert(pid, &pool_info);
 
 			Self::deposit_event(Event::<T>::PoolCommissionSet {
 				pid,
@@ -634,7 +638,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
-			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(pid) {
 				ensure!(
 					!whitelist.contains(&staker),
 					Error::<T>::AlreadyInContributeWhitelist
@@ -644,10 +648,10 @@ pub mod pallet {
 					Error::<T>::ExceedWhitelistMaxLen
 				);
 				whitelist.push(staker.clone());
-				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				PoolContributionWhitelists::<T>::insert(pid, &whitelist);
 			} else {
 				let new_list = vec![staker.clone()];
-				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
+				PoolContributionWhitelists::<T>::insert(pid, &new_list);
 				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
 			}
 			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
@@ -667,7 +671,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
-			PoolDescriptions::<T>::insert(&pid, description);
+			PoolDescriptions::<T>::insert(pid, description);
 
 			Ok(())
 		}
@@ -686,21 +690,21 @@ pub mod pallet {
 			let pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			let mut whitelist =
-				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
+				PoolContributionWhitelists::<T>::get(pid).ok_or(Error::<T>::NoWhitelistCreated)?;
 			ensure!(
 				whitelist.contains(&staker),
 				Error::<T>::NotInContributeWhitelist
 			);
 			whitelist.retain(|accountid| accountid != &staker);
 			if whitelist.is_empty() {
-				PoolContributionWhitelists::<T>::remove(&pid);
+				PoolContributionWhitelists::<T>::remove(pid);
 				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
 					pid,
 					staker: staker.clone(),
 				});
 				Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
 			} else {
-				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				PoolContributionWhitelists::<T>::insert(pid, &whitelist);
 				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
 					pid,
 					staker: staker.clone(),
@@ -733,7 +737,7 @@ pub mod pallet {
 				}
 				// Assign reward
 				Self::handle_pool_new_reward(&mut pool_info, reward);
-				StakePools::<T>::insert(&pid, &pool_info);
+				StakePools::<T>::insert(pid, &pool_info);
 			}
 
 			Ok(())
@@ -860,8 +864,8 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
-			// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
-			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
+			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.owner == who,
 					Error::<T>::NotInContributeWhitelist
@@ -920,7 +924,7 @@ pub mod pallet {
 			}
 
 			// Persist
-			StakePools::<T>::insert(&pid, &pool_info);
+			StakePools::<T>::insert(pid, &pool_info);
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
 				user: who,
@@ -941,7 +945,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let info_key = (pid, who.clone());
+			let info_key = (pid, who);
 			let mut user_info =
 				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
 
@@ -956,7 +960,7 @@ pub mod pallet {
 			Self::try_withdraw(&mut pool_info, &mut user_info, shares);
 
 			PoolStakers::<T>::insert(&info_key, &user_info);
-			StakePools::<T>::insert(&pid, &pool_info);
+			StakePools::<T>::insert(pid, &pool_info);
 
 			Ok(())
 		}
@@ -1097,12 +1101,12 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake.clone())?;
+			mining::pallet::Pallet::<T>::start_mining(miner, stake)?;
 			pool_info.free_stake -= stake;
-			StakePools::<T>::insert(&pid, &pool_info);
+			StakePools::<T>::insert(pid, &pool_info);
 			Self::deposit_event(Event::<T>::MiningStarted {
 				pid,
-				worker: worker,
+				worker,
 				amount: stake,
 			});
 
@@ -1134,9 +1138,13 @@ pub mod pallet {
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let (original_stake, slashed) =
-				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
+				mining::Pallet::<T>::reclaim(sub_account, check_cooldown)?;
 			Self::handle_reclaim(pid, original_stake, slashed);
-			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker, original_stake });
+			Self::deposit_event(Event::<T>::WorkerReclaimed {
+				pid,
+				worker,
+				original_stake,
+			});
 			Ok((original_stake, slashed))
 		}
 
@@ -1206,7 +1214,7 @@ pub mod pallet {
 			pool_info.releasing_stake.saturating_reduce(returned);
 
 			Self::try_process_withdraw_queue(&mut pool_info);
-			StakePools::<T>::insert(&pid, &pool_info);
+			StakePools::<T>::insert(pid, &pool_info);
 		}
 
 		/// Tries to withdraw a specific amount from a pool.
@@ -1380,7 +1388,7 @@ pub mod pallet {
 
 		/// Gets the pool record by `pid`. Returns error if not exist
 		fn ensure_pool(pid: u64) -> Result<PoolInfo<T::AccountId, BalanceOf<T>>, Error<T>> {
-			Self::stake_pools(&pid).ok_or(Error::<T>::PoolDoesNotExist)
+			Self::stake_pools(pid).ok_or(Error::<T>::PoolDoesNotExist)
 		}
 
 		/// Adds the given pool (`pid`) to the withdraw queue if not present
@@ -1400,14 +1408,14 @@ pub mod pallet {
 
 			// push pool to the pool list, if the pool was added in this pool, means it has waiting withdraw request
 			// in current block(if they have the same timestamp, we think they are in the same block)
-			if let Some(mut pool_list) = WithdrawalQueuedPools::<T>::get(&start_time) {
+			if let Some(mut pool_list) = WithdrawalQueuedPools::<T>::get(start_time) {
 				// if pool has already been added, ignore it
 				if !pool_list.contains(&pid) {
 					pool_list.push(pid);
-					WithdrawalQueuedPools::<T>::insert(&start_time, &pool_list);
+					WithdrawalQueuedPools::<T>::insert(start_time, &pool_list);
 				}
 			} else {
-				WithdrawalQueuedPools::<T>::insert(&start_time, vec![pid]);
+				WithdrawalQueuedPools::<T>::insert(start_time, vec![pid]);
 			}
 		}
 
@@ -1421,7 +1429,7 @@ pub mod pallet {
 					pool.remove_worker(worker);
 					Self::deposit_event(Event::<T>::PoolWorkerRemoved {
 						pid,
-						worker: worker.clone(),
+						worker: *worker,
 					});
 				}
 			});
@@ -1499,7 +1507,7 @@ pub mod pallet {
 				let payout_fixed = FixedPoint::from_bits(info.payout);
 				let reward = BalanceOf::<T>::from_fixed(&payout_fixed);
 
-				let pid = match WorkerAssignments::<T>::get(&info.pubkey) {
+				let pid = match WorkerAssignments::<T>::get(info.pubkey) {
 					Some(pid) => pid,
 					None => {
 						Self::deposit_event(Event::<T>::RewardDismissedNotInPool {
@@ -1511,7 +1519,7 @@ pub mod pallet {
 				};
 				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 				Self::handle_pool_new_reward(&mut pool_info, reward);
-				StakePools::<T>::insert(&pid, &pool_info);
+				StakePools::<T>::insert(pid, &pool_info);
 			}
 		}
 	}
@@ -1542,7 +1550,11 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Called when a worker is stopped and there is releasing stake
-		fn on_stopped(worker: &WorkerPublicKey, original_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
+		fn on_stopped(
+			worker: &WorkerPublicKey,
+			original_stake: BalanceOf<T>,
+			slashed: BalanceOf<T>,
+		) {
 			let pid = WorkerAssignments::<T>::get(worker)
 				.expect("Stopping workers have assignment; qed.");
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
@@ -1942,7 +1954,8 @@ pub mod pallet {
 		use crate::mock::{
 			ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1,
 			setup_workers, setup_workers_linked_operators, take_events, teleport_to_block,
-			worker_pubkey, Balance, BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
+			worker_pubkey, Balance, BlockNumber, RuntimeEvent as TestEvent,
+			RuntimeOrigin as Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{
@@ -2767,14 +2780,16 @@ pub mod pallet {
 				));
 				let staker4 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
 				assert_eq!(staker4.shares, 60 * DOLLARS);
-				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2).expect("Shouldn't fail");
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 2)
+					.expect("Shouldn't fail");
 				let whitelist = PhalaStakePool::pool_whitelist(0).unwrap();
 				assert_eq!(whitelist, [3]);
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(2), 0, 20 * DOLLARS,),
 					Error::<Test>::NotInContributeWhitelist
 				);
-				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3).expect("Shouldn't fail");
+				PhalaStakePool::remove_staker_from_whitelist(Origin::signed(1), 0, 3)
+					.expect("Shouldn't fail");
 				assert!(PhalaStakePool::pool_whitelist(0).is_none());
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(3),
