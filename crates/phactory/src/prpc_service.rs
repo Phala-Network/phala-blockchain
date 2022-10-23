@@ -1057,8 +1057,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::HandoverChallengeResponse,
     ) -> RpcResult<pb::HandoverWorkerKey> {
         let mut phactory = self.lock_phactory();
-        let dev_mode = phactory.dev_mode;
         let attestation_provider = phactory.attestation_provider.clone();
+        let dev_mode = phactory.dev_mode;
+        let in_sgx = attestation_provider != "" && attestation_provider != "none";
         let system = phactory.system()?;
         let my_identity_key = system.identity_key.clone();
 
@@ -1067,7 +1068,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
         let block_sec = system.now_ms / 1000;
         let block_number = system.block_number;
-        let attestation = if dev_mode || attestation_provider == "" || attestation_provider == "none" {
+        let attestation = if dev_mode || !in_sgx {
             info!("Skip RA report check in dev mode");
             None
         } else {
@@ -1096,7 +1097,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             return Err(from_display("Invalid challenge"));
         }
         // 3. verify sgx local attestation report to ensure the handover pRuntimes are on the same machine
-        if !dev_mode && attestation_provider != "" && attestation_provider != "none" {
+        if !dev_mode && in_sgx {
             let recv_local_report =
                 unsafe { sgx_api_lite::decode(&challenge_handler.sgx_local_report).unwrap() };
             sgx_api_lite::verify(recv_local_report)
@@ -1111,7 +1112,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             return Err(from_display("Outdated challenge"));
         }
         // 5. verify pruntime launch date
-        if !dev_mode && attestation_provider != "" && attestation_provider != "none" {
+        if !dev_mode && in_sgx {
             let runtime_info = phactory
                 .runtime_info
                 .as_ref()
@@ -1184,7 +1185,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         };
 
         let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
-        let attestation = if dev_mode || attestation_provider == "" || attestation_provider == "none" {
+        let attestation = if dev_mode || !in_sgx {
             info!("Omit RA report in workerkey response in dev mode");
             None
         } else {
@@ -1208,7 +1209,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::HandoverChallenge,
     ) -> RpcResult<pb::HandoverChallengeResponse> {
         let mut phactory = self.lock_phactory();
-        let attestation_provider = phactory.attestation_provider.clone();
 
         // generate and save tmp key only for key handover encryption
         let handover_key = crate::new_sr25519_key();
@@ -1219,8 +1219,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
-        // generate local attesatation report to ensure the handover pRuntimes are on the same machine
-        let sgx_local_report = if challenge.dev_mode || attestation_provider == "" || attestation_provider == "none" {
+        let attestation_provider = phactory.attestation_provider.clone();
+
+        let dev_mode = challenge.dev_mode;
+        let in_sgx = attestation_provider != "" && attestation_provider != "none";
+
+        // generate local attestation report to ensure the handover pRuntimes are on the same machine
+        let sgx_local_report = if dev_mode || !in_sgx {
             vec![]
         } else {
             let its_target_info =
@@ -1236,7 +1241,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             ecdh_pubkey,
         };
         let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
-        let attestation = if challenge.dev_mode || attestation_provider == "" || attestation_provider == "none" {
+        let attestation = if dev_mode || !in_sgx {
             info!("Omit RA report in challenge response in dev mode");
             None
         } else {
@@ -1259,8 +1264,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
 
         let dev_mode = encrypted_worker_key.dev_mode;
+        let in_sgx = attestation_provider != "" && attestation_provider != "none";
         // verify RA report
-        if !dev_mode && attestation_provider != "" && attestation_provider != "none" {
+        if !dev_mode && in_sgx {
             let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
             let raw_attestation = request
                 .attestation
