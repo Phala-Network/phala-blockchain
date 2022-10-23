@@ -6,10 +6,13 @@ pub mod contract;
 use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
-use codec::{Decode, Encode};
 use core::fmt::Debug;
 use scale_info::TypeInfo;
 use sp_core::H256;
+use codec::{Decode, Encode};
+
+#[cfg(feature = "enable_serde")]
+use serde::{Deserialize, Serialize};
 
 // Messages: Phase Wallet
 
@@ -457,10 +460,14 @@ pub enum AttestationReport {
     None,
 }
 
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AttestationProvider {
+    #[cfg_attr(feature = "enable_serde", serde(rename = "none"))]
     None,
+    #[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
     Root,
+    #[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
     Ias,
 }
 

@@ -14,7 +14,7 @@ derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_mor
 prost = { version = "0.11.0", default-features = false }
 
 phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
-phala-types = { path = "../../../crates/phala-types", default-features = false }
+phala-types = { path = "../../../crates/phala-types", default-features = false, features = ["enable_serde", "sgx"] }
 prpc = { path = "../../../crates/prpc" }
 phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }

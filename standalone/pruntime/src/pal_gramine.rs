@@ -10,6 +10,8 @@ use std::str::FromStr as _;
 
 use crate::ias;
 
+use phala_types::AttestationProvider;
+
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct GraminePlatform;
 
@@ -42,11 +44,11 @@ impl RA for GraminePlatform {
 
     fn create_attestation_report(
         &self,
-        provider: String,
+        provider: AttestationProvider,
         data: &[u8],
     ) -> Result<Vec<u8>, Self::Error> {
-        match provider.as_str() {
-            "ias" => {
+        match provider {
+            AttestationProvider::Ias => {
                 // TODO.kevin: move the key out of the binary?
                 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
@@ -59,25 +61,25 @@ impl RA for GraminePlatform {
 
                 Ok(Encode::encode(&attestation_report))
             },
-            "none" => {
+            AttestationProvider::None => {
                 Ok(Encode::encode(&phala_types::AttestationReport::None))
             },
             _ => {
-                Err(anyhow!("Unknown attestation provider `{}`", provider))
+                Err(anyhow!("Unknown attestation provider `{:?}`", provider))
             }
         }
     }
 
-    fn quote_test(&self, provider: String) -> Result<(), Self::Error> {
-        match provider.as_str() {
-            "ias" => {
+    fn quote_test(&self, provider: AttestationProvider) -> Result<(), Self::Error> {
+        match provider {
+            AttestationProvider::Ias => {
                 ias::create_quote_vec(&[0u8; 64]).map(|_| ())
             },
-            "none" => {
+            AttestationProvider::None => {
                 Ok(())
             },
             _ => {
-                Err(anyhow!("Unknown attestation provider `{}`", provider))
+                Err(anyhow!("Unknown attestation provider `{:?}`", provider))
             }
         }
     }

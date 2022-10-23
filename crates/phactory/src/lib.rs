@@ -29,6 +29,7 @@ use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
+use phala_types::AttestationProvider;
 
 // use pink::InkModule;
 
@@ -226,7 +227,7 @@ pub struct Phactory<Platform> {
     platform: Platform,
     pub args: InitArgs,
     dev_mode: bool,
-    attestation_provider: String,
+    attestation_provider: AttestationProvider,
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
@@ -269,7 +270,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             platform,
             args: Default::default(),
             dev_mode: false,
-            attestation_provider: String::default(),
+            attestation_provider: AttestationProvider::None,
             machine_id,
             runtime_info: None,
             runtime_state: None,
