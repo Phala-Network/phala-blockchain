@@ -208,8 +208,8 @@ pub mod pallet {
 		/// - the worker in the [`WorkerAssignments`] is pointed to `pid`
 		/// - the worker-miner binding is updated in `mining` pallet ([`WorkerBindings`](mining::pallet::WorkerBindings),
 		///   [`MinerBindings`](mining::pallet::MinerBindings))
-		PoolWorkerAdded { 
-			pid: u64, 
+		PoolWorkerAdded {
+			pid: u64,
 			worker: WorkerPublicKey,
 			miner: T::AccountId,
 		},
@@ -332,7 +332,7 @@ pub mod pallet {
 		/// A staker is removed from the pool contribution whitelist
 		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
 		/// A worker is reclaimed from the pool
-		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
+		WorkerReclaimed { pid: u64, worker: WorkerPublicKey, original_stake: BalanceOf<T> },
 		/// The amount of reward that distributed to owner and stakers
 		RewardReceived {
 			pid: u64,
@@ -1064,8 +1064,8 @@ pub mod pallet {
 			// Stop and instantly reclaim the worker
 			Self::do_stop_mining(&owner, pid, worker)?;
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			let (orig_stake, slashed) = Self::do_reclaim(pid, miner, worker, false)?;
-			let released = orig_stake - slashed;
+			let (original_stake, slashed) = Self::do_reclaim(pid, miner, worker, false)?;
+			let released = original_stake - slashed;
 			ensure!(stake > released, Error::<T>::CannotRestartWithLessStake);
 			// Simply start mining. Rollback if there's no enough stake,
 			Self::do_start_mining(&owner, pid, worker, stake)
@@ -1105,7 +1105,7 @@ pub mod pallet {
 				worker: worker,
 				amount: stake,
 			});
-			
+
 			Ok(())
 		}
 		fn do_stop_mining(
@@ -1133,11 +1133,11 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			check_cooldown: bool,
 		) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
-			let (orig_stake, slashed) =
+			let (original_stake, slashed) =
 				mining::Pallet::<T>::reclaim(sub_account.clone(), check_cooldown)?;
-			Self::handle_reclaim(pid, orig_stake, slashed);
-			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker });
-			Ok((orig_stake, slashed))
+			Self::handle_reclaim(pid, original_stake, slashed);
+			Self::deposit_event(Event::<T>::WorkerReclaimed { pid, worker, original_stake });
+			Ok((original_stake, slashed))
 		}
 
 		/// Adds up the newly received reward to `reward_acc`
@@ -1182,10 +1182,10 @@ pub mod pallet {
 		///
 		/// After the cool down ends, worker was cleaned up, whose contributed balance would be
 		/// reset to zero.
-		fn handle_reclaim(pid: u64, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
+		fn handle_reclaim(pid: u64, original_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
-			let returned = orig_stake - slashed;
+			let returned = original_stake - slashed;
 			if slashed != Zero::zero() {
 				// Remove some slashed value from `total_stake`, causing the share price to reduce
 				// and creating a logical pending slash. The actual slash happens with the pending
@@ -1542,11 +1542,11 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Called when a worker is stopped and there is releasing stake
-		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
+		fn on_stopped(worker: &WorkerPublicKey, original_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
 			let pid = WorkerAssignments::<T>::get(worker)
 				.expect("Stopping workers have assignment; qed.");
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
-			let returned = orig_stake - slashed;
+			let returned = original_stake - slashed;
 			pool_info.releasing_stake.saturating_accrue(returned);
 			StakePools::<T>::insert(pid, pool_info);
 		}
@@ -3845,7 +3845,7 @@ pub mod pallet {
 					0,
 					500 * DOLLARS
 				));
-				let orig_pool = StakePools::<Test>::get(0);
+				let original_pool = StakePools::<Test>::get(0);
 				StakePools::<Test>::mutate(0, |pool_info| {
 					pool_info
 						.as_mut()
@@ -3890,7 +3890,7 @@ pub mod pallet {
 					0,
 					500 * DOLLARS
 				));
-				let orig_pool = StakePools::<Test>::get(0);
+				let original_pool = StakePools::<Test>::get(0);
 				StakePools::<Test>::mutate(0, |pool_info| {
 					pool_info
 						.as_mut()

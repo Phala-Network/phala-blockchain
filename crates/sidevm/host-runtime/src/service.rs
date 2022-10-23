@@ -73,6 +73,9 @@ pub fn service(worker_threads: usize) -> (ServiceRun, Spawner) {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(16)
+        // Reason for the additional 2 threads:
+        // One for the blocking reactor thread, another one for receiving channel messages
+        // from the pink system
         .worker_threads(worker_threads + 2)
         .enable_all()
         .build()

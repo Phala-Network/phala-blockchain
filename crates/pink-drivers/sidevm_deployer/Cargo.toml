@@ -1,8 +1,9 @@
 [package]
-name = "pink-system"
+name = "sidevm_deployer"
 version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
+description = "This is a demo describes how to write a pink driver contract"
 
 [dependencies]
 ink_primitives = { version = "3.0", default-features = false }
@@ -14,14 +15,15 @@ ink_lang = { version = "3.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { version = "0.1", default-features = false, path = "../../pink/pink-extension" }
+pink-extension = { version = "0.1", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
+pink-system = { version = "0.1", default-features = false, path = "../system", features = ["ink-as-dependency"] }
 
 [lib]
-name = "pink_system"
+name = "sidevm_deployer"
 path = "lib.rs"
 crate-type = [
+	# Used for normal contract Wasm blobs.
 	"cdylib",
-	"rlib",
 ]
 
 [features]
@@ -34,5 +36,6 @@ std = [
     "scale/std",
     "scale-info/std",
     "pink-extension/std",
+    "pink-system/std",
 ]
 ink-as-dependency = []

@@ -156,6 +156,58 @@ fn get_cluster_info() -> String {
     runtime::ecall_get_cluster_info()
 }
 
+enum RpcType {
+    Public,
+    Private,
+}
+
+impl RpcType {
+    fn is_public(&self) -> bool {
+        match self {
+            RpcType::Public => true,
+            RpcType::Private => false,
+        }
+    }
+}
+
+fn rpc_type(method: &str) -> RpcType {
+    use PhactoryAPIMethod::*;
+    use RpcType::*;
+    match PhactoryAPIMethod::from_str(method) {
+        None => Private,
+        Some(method) => match method {
+            // Private RPCs
+            SyncHeader => Private,
+            SyncParaHeader => Private,
+            SyncCombinedHeaders => Private,
+            DispatchBlocks => Private,
+            InitRuntime => Private,
+            GetRuntimeInfo => Private,
+            GetEgressMessages => Private,
+            GetWorkerState => Private,
+            AddEndpoint => Private,
+            RefreshEndpointSigningTime => Private,
+            GetEndpointInfo => Private,
+            SignEndpointInfo => Private,
+            DerivePhalaI2pKey => Private,
+            Echo => Private,
+            HandoverCreateChallenge => Private,
+            HandoverStart => Private,
+            HandoverAcceptChallenge => Private,
+            HandoverReceive => Private,
+            ConfigNetwork => Private,
+            HttpFetch => Private,
+            // Public RPCs
+            GetInfo => Public,
+            ContractQuery => Public,
+            GetContractInfo => Public,
+            GetClusterInfo => Public,
+            UploadSidevmCode => Public,
+            CalculateContractId => Public,
+        },
+    }
+}
+
 fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
     use PhactoryAPIMethod::*;
 
@@ -185,6 +237,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         GetContractInfo => 100.kibibytes(),
         GetClusterInfo => 1.kibibytes(),
         UploadSidevmCode => 32.mebibytes(),
+        CalculateContractId => 1.kibibytes(),
     }
 }
 
@@ -223,18 +276,10 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
 #[post("/<method>", data = "<data>")]
 async fn prpc_proxy_acl(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
-    let permitted_method = [
-        "PhactoryAPI.ContractQuery",
-        "PhactoryAPI.GetInfo",
-        "PhactoryAPI.GetContractInfo",
-        "PhactoryAPI.GetClusterInfo",
-        "PhactoryAPI.UploadSidevmCode",
-    ];
-    if !permitted_method.contains(&&method[..]) {
+    if !rpc_type(&method).is_public() {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);
     }
-
     prpc_proxy(method, data, limits).await
 }
 
