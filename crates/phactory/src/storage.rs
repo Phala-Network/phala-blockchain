@@ -11,14 +11,14 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         header: chain::Header,
         ancestry_proof: Vec<chain::Header>,
         grandpa_proof: Vec<u8>,
-        auhtority_set_change: Option<phactory_api::blocks::AuthoritySetChange>,
+        authority_set_change: Option<phactory_api::blocks::AuthoritySetChange>,
     ) -> Result<()> {
         self.submit_finalized_headers(
             bridge_id,
             header,
             ancestry_proof,
             grandpa_proof,
-            auhtority_set_change,
+            authority_set_change,
         )
         .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
     }
