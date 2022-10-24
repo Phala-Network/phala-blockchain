@@ -67,7 +67,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
-	pub const WorkingEnabledByDefault: bool = true;
+	pub const ComputingEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
@@ -335,7 +335,7 @@ impl stakepoolv2::Config for Test {
 	type Event = Event;
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
-	type WorkingEnabledByDefault = WorkingEnabledByDefault;
+	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type WorkingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;

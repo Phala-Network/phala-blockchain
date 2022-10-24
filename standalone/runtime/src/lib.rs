@@ -1264,7 +1264,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 50;
-	pub const WorkingEnabledByDefault: bool = false;
+	pub const ComputingEnabledByDefault: bool = false;
 	pub const MaxPoolWorkers: u32 = 200;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = false;
@@ -1297,9 +1297,9 @@ impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
-	type WorkingEnabledByDefault = WorkingEnabledByDefault;
+	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type WorkingSwitchOrigin = EnsureRootOrHalfCouncil;
+	type ComputingSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_vault::Config for Runtime {
