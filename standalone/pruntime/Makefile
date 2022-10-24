@@ -26,3 +26,7 @@ all:
 clean:
 	make clean -C gramine-build
 endif
+
+.PHONY: clippy
+clippy:
+	cargo clippy

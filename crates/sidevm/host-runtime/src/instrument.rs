@@ -255,7 +255,7 @@ impl Rules for InstrumentRules<'_> {
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
-        let todo = "Charge for memory usage";
+        // TODO.kevin: Charge for memory usage
         // We don't charge the memory by instrument.
         // We charge the memory fee by `total_memory_usage * memory_per_page_per_block * instance_runing_time`
         // in the sidevm runtime.
