@@ -557,7 +557,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn working_message_received(
+		pub fn on_working_message_received(
 			message: DecodedMessage<WorkingReportEvent>,
 		) -> DispatchResult {
 			if let MessageOrigin::Worker(worker) = message.sender {
@@ -1406,7 +1406,7 @@ pub mod pallet {
 
 				// 110% boost
 				elapse_seconds(100);
-				assert_ok!(PhalaComputation::working_message_received(
+				assert_ok!(PhalaComputation::on_working_message_received(
 					DecodedMessage::<WorkingReportEvent> {
 						sender: MessageOrigin::Worker(worker_pubkey(1)),
 						destination: Topic::new(*b"phala/mining/report"),
@@ -1432,7 +1432,7 @@ pub mod pallet {
 
 				// 150% boost (capped)
 				elapse_seconds(100);
-				assert_ok!(PhalaComputation::working_message_received(
+				assert_ok!(PhalaComputation::on_working_message_received(
 					DecodedMessage::<WorkingReportEvent> {
 						sender: MessageOrigin::Worker(worker_pubkey(1)),
 						destination: Topic::new(*b"phala/mining/report"),

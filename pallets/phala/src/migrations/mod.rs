@@ -18,7 +18,7 @@ use log;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
-use crate::compute::{basepool, computation, stakepoolv2, vault};
+use crate::compute::{pawnshop, poolproxy, basepool, computation, stakepoolv2, vault};
 use crate::fat;
 use crate::mq;
 use crate::registry;
