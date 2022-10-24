@@ -3,6 +3,7 @@ use crate::ecdh::{self, EcdhKey, EcdhPublicKey};
 use crate::sr25519::{Sr25519SecretKey, KDF};
 use crate::CryptoError;
 
+use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 use sp_core::sr25519;
