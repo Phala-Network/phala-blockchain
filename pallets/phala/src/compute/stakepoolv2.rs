@@ -66,14 +66,14 @@ pub mod pallet {
 
 		/// If computing is enabled by default.
 		#[pallet::constant]
-		type WorkingEnabledByDefault: Get<bool>;
+		type ComputingEnabledByDefault: Get<bool>;
 
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
 
 		/// The origin that can turn on or off computing
-		type WorkingSwitchOrigin: EnsureOrigin<Self::Origin>;
+		type ComputingSwitchOrigin: EnsureOrigin<Self::Origin>;
 
 		/// The origin that can trigger backfill tasks.
 		type BackfillOrigin: EnsureOrigin<Self::Origin>;
@@ -101,11 +101,11 @@ pub mod pallet {
 	/// Switch to enable the stake pool pallet (disabled by default)
 	#[pallet::storage]
 	#[pallet::getter(fn working_enabled)]
-	pub type WorkingEnabled<T> = StorageValue<_, bool, ValueQuery, WorkingEnabledByDefault<T>>;
+	pub type WorkingEnabled<T> = StorageValue<_, bool, ValueQuery, ComputingEnabledByDefault<T>>;
 
 	#[pallet::type_value]
-	pub fn WorkingEnabledByDefault<T: Config>() -> bool {
-		T::WorkingEnabledByDefault::get()
+	pub fn ComputingEnabledByDefault<T: Config>() -> bool {
+		T::ComputingEnabledByDefault::get()
 	}
 
 	/// Helper storage to track the preimage of the computing sub-accounts. Not used in consensus.
@@ -964,7 +964,7 @@ pub mod pallet {
 		/// Enables or disables computing. Must be called with the council or root permission.
 		#[pallet::weight(0)]
 		pub fn set_working_enabled(origin: OriginFor<T>, enable: bool) -> DispatchResult {
-			T::WorkingSwitchOrigin::ensure_origin(origin)?;
+			T::ComputingSwitchOrigin::ensure_origin(origin)?;
 			WorkingEnabled::<T>::put(enable);
 			Ok(())
 		}
