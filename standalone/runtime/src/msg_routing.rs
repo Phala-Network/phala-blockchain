@@ -33,7 +33,7 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
             PhalaRegistry::on_message_received,
             PhalaRegistry::on_gk_message_received,
             PhalaComputation::on_gk_message_received,
-            PhalaComputation::working_message_received,
+            PhalaComputation::on_working_message_received,
             PhalaFatContracts::on_worker_cluster_message_received,
             PhalaFatContracts::on_worker_contract_message_received,
             PhalaFatContracts::on_cluster_message_received,

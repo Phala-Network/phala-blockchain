@@ -612,12 +612,12 @@ parameter_types! {
 
 	// worker configs
 	pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
-	pub WorkerMaxWeight: Weight = RuntimeBlockWeights::get()
+	pub MinerMaxWeight: Weight = RuntimeBlockWeights::get()
 		.get(DispatchClass::Normal)
 		.max_extrinsic.expect("Normal extrinsics have a weight limit configured; qed")
 		.saturating_sub(BlockExecutionWeight::get());
 	// Solution can occupy 90% of normal block size
-	pub WorkerMaxLength: u32 = Perbill::from_rational(9u32, 10) *
+	pub MinerMaxLength: u32 = Perbill::from_rational(9u32, 10) *
 		*RuntimeBlockLength::get()
 		.max
 		.get(DispatchClass::Normal);
@@ -695,8 +695,8 @@ impl onchain::BoundedConfig for OnChainSeqPhragmen {
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 	type AccountId = AccountId;
-	type MaxLength = WorkerMaxLength;
-	type MaxWeight = WorkerMaxWeight;
+	type MaxLength = MinerMaxLength;
+	type MaxWeight = MinerMaxWeight;
 	type Solution = NposSolution16;
 	type MaxVotesPerVoter =
 	<<Self as pallet_election_provider_multi_phase::Config>::DataProvider as ElectionDataProvider>::MaxVotesPerVoter;
@@ -729,7 +729,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedDepositByte = SignedDepositByte;
 	type SignedMaxRefunds = ConstU32<3>;
 	type SignedDepositWeight = ();
-	type SignedMaxWeight = WorkerMaxWeight;
+	type SignedMaxWeight = MinerMaxWeight;
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
