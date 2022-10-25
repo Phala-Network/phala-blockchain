@@ -62,7 +62,7 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub struct WorkerInfo {
-        pub attestation_provider: AttestationProvider,
+        pub attestation_provider: Option<AttestationProvider>,
         pub confidence_level: u8,
     }
 
@@ -457,22 +457,15 @@ pub enum AttestationReport {
         signature: Vec<u8>,
         raw_signing_cert: Vec<u8>,
     },
-    None,
 }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AttestationProvider {
-    #[cfg_attr(feature = "enable_serde", serde(rename = "none"))]
-    None,
     #[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
     Root,
     #[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
     Ias,
-}
-
-impl Default for AttestationProvider {
-    fn default() -> Self { AttestationProvider::None }
 }
 
 #[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
@@ -501,7 +494,7 @@ pub struct WorkerInfo<BlockNumber> {
     pub state: WorkerStateEnum<BlockNumber>,
     // performance
     pub score: Option<Score>,
-    pub attestation_provider: AttestationProvider,
+    pub attestation_provider: Option<AttestationProvider>,
     pub confidence_level: u8,
     // version
     pub runtime_version: u32,

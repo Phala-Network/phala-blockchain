@@ -176,12 +176,12 @@ pub mod pallet {
 		},
 		WorkerAdded {
 			pubkey: WorkerPublicKey,
-			attestation_provider: AttestationProvider,
+			attestation_provider: Option<AttestationProvider>,
 			confidence_level: u8,
 		},
 		WorkerUpdated {
 			pubkey: WorkerPublicKey,
-			attestation_provider: AttestationProvider,
+			attestation_provider: Option<AttestationProvider>,
 			confidence_level: u8,
 		},
 		MasterKeyRotated {
@@ -277,7 +277,7 @@ pub mod pallet {
 				runtime_version: 0,
 				last_updated: 0,
 				operator,
-				attestation_provider: AttestationProvider::Root,
+				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
 				initial_score: None,
 				features: vec![1, 4],
@@ -286,13 +286,13 @@ pub mod pallet {
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
 				WorkerEvent::Registered(messaging::WorkerInfo {
-					attestation_provider: AttestationProvider::Root,
+					attestation_provider: Some(AttestationProvider::Root),
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
 			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
-				attestation_provider: AttestationProvider::Root,
+				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: worker_info.confidence_level,
 			});
 
@@ -471,13 +471,13 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								attestation_provider: AttestationProvider::Ias,
+								attestation_provider: Some(AttestationProvider::Ias),
 								confidence_level: fields.confidence_level,
 							}),
 						));
 						Self::deposit_event(Event::<T>::WorkerUpdated {
 							pubkey,
-							attestation_provider: AttestationProvider::Ias,
+							attestation_provider: Some(AttestationProvider::Ias),
 							confidence_level: fields.confidence_level,
 						});
 					}
@@ -489,7 +489,7 @@ pub mod pallet {
 							runtime_version: pruntime_info.version,
 							last_updated: now,
 							operator: pruntime_info.operator,
-							attestation_provider: AttestationProvider::Ias,
+							attestation_provider: Some(AttestationProvider::Ias),
 							confidence_level: fields.confidence_level,
 							initial_score: None,
 							features: pruntime_info.features,
@@ -497,13 +497,13 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								attestation_provider: AttestationProvider::Ias,
+								attestation_provider: Some(AttestationProvider::Ias),
 								confidence_level: fields.confidence_level,
 							}),
 						));
 						Self::deposit_event(Event::<T>::WorkerAdded {
 							pubkey,
-							attestation_provider: AttestationProvider::Ias,
+							attestation_provider: Some(AttestationProvider::Ias),
 							confidence_level: fields.confidence_level,
 						});
 					}
@@ -527,14 +527,14 @@ pub mod pallet {
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
 			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
-			attestation: AttestationReport,
+			attestation: Option<AttestationReport>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
 			let attestation_report = crate::attestation::validate(
-				&attestation,
+				attestation,
 				&runtime_info_hash,
 				now,
 				T::VerifyPRuntime::get(),
@@ -965,7 +965,7 @@ pub mod pallet {
 						runtime_version: 0,
 						last_updated: 0,
 						operator: operator.clone(),
-						attestation_provider: AttestationProvider::Root,
+						attestation_provider: Some(AttestationProvider::Root),
 						confidence_level: 128u8,
 						initial_score: None,
 						features: vec![1, 4],
@@ -974,7 +974,7 @@ pub mod pallet {
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					*pubkey,
 					WorkerEvent::Registered(messaging::WorkerInfo {
-						attestation_provider: AttestationProvider::Root,
+						attestation_provider: Some(AttestationProvider::Root),
 						confidence_level: 128u8,
 					}),
 				));
@@ -1031,7 +1031,7 @@ pub mod pallet {
 		/// operator. It ensures only the trusted person can control the worker.
 		pub operator: Option<AccountId>,
 		/// Who issues the attestation
-		pub attestation_provider: AttestationProvider,
+		pub attestation_provider: Option<AttestationProvider>,
 		/// The [confidence level](https://wiki.phala.network/en-us/mine/solo/1-2-confidential-level-evaluation/#confidence-level-of-a-miner)
 		/// of the worker
 		pub confidence_level: u8,
@@ -1169,7 +1169,7 @@ pub mod pallet {
 							features: vec![4, 1],
 							operator: Some(1),
 						},
-						AttestationReport::None
+						None
 					),
 					Error::<Test>::GenesisBlockHashRejected
 				);
@@ -1186,7 +1186,7 @@ pub mod pallet {
 						features: vec![4, 1],
 						operator: Some(1),
 					},
-					AttestationReport::None,
+					None,
 				));
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.operator, Some(1));
@@ -1203,7 +1203,7 @@ pub mod pallet {
 						features: vec![4, 1],
 						operator: Some(2),
 					},
-					AttestationReport::None,
+					None,
 				));
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.last_updated, 100);

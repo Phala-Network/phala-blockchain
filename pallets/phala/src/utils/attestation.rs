@@ -26,7 +26,7 @@ pub enum Error {
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub struct ConfidentialReport {
 	pub confidence_level: u8,
-	pub provider: AttestationProvider,
+	pub provider: Option<AttestationProvider>,
 	pub runtime_hash: Vec<u8>,
 }
 
@@ -119,7 +119,7 @@ impl IasFields {
 }
 
 pub fn validate(
-	attestation: &AttestationReport,
+	attestation: Option<AttestationReport>,
 	user_data_hash: &[u8; 32],
 	now: u64,
 	verify_pruntime_hash: bool,
@@ -127,25 +127,25 @@ pub fn validate(
 	opt_out_enabled: bool
 ) -> Result<ConfidentialReport, Error> {
 	match attestation {
-		AttestationReport::SgxIas {
+		Some(AttestationReport::SgxIas {
 			ra_report,
 			signature,
 			raw_signing_cert,
-		} => {
+		}) => {
 			validate_ias_report(
 				user_data_hash,
-				ra_report,
-				signature,
-				raw_signing_cert,
+				ra_report.as_slice(),
+				signature.as_slice(),
+				raw_signing_cert.as_slice(),
 				now,
 				verify_pruntime_hash,
 				pruntime_allowlist,
 			)
 		},
-		AttestationReport::None => {
+		None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport {
-					provider: AttestationProvider::None,
+					provider: None,
 					runtime_hash: Vec::new(),
 					confidence_level: 128u8
 				})
@@ -202,7 +202,7 @@ pub fn validate_ias_report(
 
 	// Check the following fields
 	Ok(ConfidentialReport {
-		provider: AttestationProvider::Ias,
+		provider: Some(AttestationProvider::Ias),
 		runtime_hash: pruntime_hash,
 		confidence_level: ias_fields.confidence_level,
 	})
