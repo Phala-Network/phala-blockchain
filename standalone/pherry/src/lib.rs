@@ -39,6 +39,7 @@ use clap::{AppSettings, Parser};
 use headers_cache::Client as CacheClient;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
+use phala_types::AttestationProvider;
 
 pub use phaxt::connect as subxt_connect;
 
@@ -856,6 +857,13 @@ async fn init_runtime(
         debug_set_key = Some(hex::decode(DEV_KEY).expect("Invalid dev key"));
     }
 
+    let attestation_provider =
+        match attestation_provider.as_str() {
+            "none" => None,
+            "ias" => Some(AttestationProvider::Ias),
+            _ => panic!("Invalid attestation-provider")
+        };
+
     let resp = pr
         .init_runtime(prpc::InitRuntimeRequest::new(
             false,
@@ -864,7 +872,7 @@ async fn init_runtime(
             genesis_state,
             operator,
             is_parachain,
-            Some(attestation_provider),
+            attestation_provider,
         ))
         .await?;
     Ok(resp)

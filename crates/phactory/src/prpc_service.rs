@@ -301,10 +301,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
         self.dev_mode = rt_data.dev_mode;
 
-        self.attestation_provider = attestation_provider.unwrap_or(AttestationProvider::None);
+        self.attestation_provider = attestation_provider;
         info!("attestation_provider: {:?}", self.attestation_provider);
 
-        if self.dev_mode && self.attestation_provider != AttestationProvider::None {
+        if self.dev_mode && self.attestation_provider != Some(AttestationProvider::Root) {
             return Err(from_display(
                 "RA is disallowed when debug_set_key is enabled",
             ));
@@ -865,7 +865,7 @@ impl<Platform: pal::Platform> RpcService<Platform> {
 
 fn create_attestation_report_on<Platform: pal::Platform>(
     platform: &Platform,
-    attestation_provider: AttestationProvider,
+    attestation_provider: Option<AttestationProvider>,
     data: &[u8],
 ) -> RpcResult<pb::Attestation> {
     let encoded_report =
@@ -939,8 +939,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             request.decode_genesis_info()?,
             request.decode_genesis_state()?,
             request.decode_operator()?,
-            request.debug_set_key,
-            serde_json::from_str(&request.attestation_provider.unwrap_or("none".to_string())).unwrap_or_default(),
+            request.debug_set_key.clone(),
+            request.decode_attestation_provider()?,
         )
     }
 
@@ -1058,7 +1058,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let mut phactory = self.lock_phactory();
         let attestation_provider = phactory.attestation_provider;
         let dev_mode = phactory.dev_mode;
-        let in_sgx = attestation_provider == AttestationProvider::Ias;
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
         let system = phactory.system()?;
         let my_identity_key = system.identity_key.clone();
 
@@ -1081,7 +1081,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             // By ensuring our system timestamp is within the valid period, we know that this pRuntime is not hold back by
             // malicious workers.
             validate_attestation_report(
-                &attn_to_validate,
+                Some(attn_to_validate.clone()),
                 &payload_hash,
                 block_sec,
                 false,
@@ -1142,10 +1142,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     let (ias_fields, _) = IasFields::from_ias_report(&ra_report)
                         .map_err(|_| from_display("Invalid received RA report"))?;
                     ias_fields.extend_mrenclave()
-                }
-                AttestationReport::None => {
-                    panic!("It can't be None attestation report");
-                }
+                },
             };
             let req_runtime_timestamp =
                 chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
@@ -1220,7 +1217,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let attestation_provider = phactory.attestation_provider;
 
         let dev_mode = challenge.dev_mode;
-        let in_sgx = attestation_provider == AttestationProvider::Ias;
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
 
         // generate local attestation report to ensure the handover pRuntimes are on the same machine
         let sgx_local_report = if dev_mode || !in_sgx {
@@ -1262,7 +1259,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
 
         let dev_mode = encrypted_worker_key.dev_mode;
-        let in_sgx = attestation_provider == AttestationProvider::Ias;
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
         // verify RA report
         if !dev_mode && in_sgx {
             let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
@@ -1272,7 +1269,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             let attn_to_validate =
                 AttestationReport::decode(&mut &raw_attestation.encoded_report[..]).map_err(|_| anyhow!("Decode attestation payload failed")).unwrap();
             validate_attestation_report(
-                &attn_to_validate,
+                Some(attn_to_validate),
                 &worker_key_hash,
                 now(),
                 false,

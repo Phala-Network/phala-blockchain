@@ -43,11 +43,11 @@ impl RA for GraminePlatform {
 
     fn create_attestation_report(
         &self,
-        provider: AttestationProvider,
+        provider: Option<AttestationProvider>,
         data: &[u8],
     ) -> Result<Vec<u8>, Self::Error> {
         match provider {
-            AttestationProvider::Ias => {
+            Some(AttestationProvider::Ias) => {
                 // TODO.kevin: move the key out of the binary?
                 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
@@ -60,7 +60,7 @@ impl RA for GraminePlatform {
 
                 Ok(Encode::encode(&attestation_report))
             },
-            AttestationProvider::None => {
+            None => {
                 Ok(Encode::encode(&phala_types::AttestationReport::None))
             },
             _ => {
@@ -69,12 +69,12 @@ impl RA for GraminePlatform {
         }
     }
 
-    fn quote_test(&self, provider: AttestationProvider) -> Result<(), Self::Error> {
+    fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
         match provider {
-            AttestationProvider::Ias => {
+            Some(AttestationProvider::Ias) => {
                 ias::create_quote_vec(&[0u8; 64]).map(|_| ())
             },
-            AttestationProvider::None => {
+            None => {
                 Ok(())
             },
             _ => {
