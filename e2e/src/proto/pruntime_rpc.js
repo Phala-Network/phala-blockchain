@@ -3882,7 +3882,7 @@ $root.pruntime_rpc = (function() {
          * @property {Uint8Array|null} [encodedGenesisState] InitRuntimeRequest encodedGenesisState
          * @property {Uint8Array|null} [encodedOperator] InitRuntimeRequest encodedOperator
          * @property {boolean|null} [isParachain] InitRuntimeRequest isParachain
-         * @property {string|null} [attestationProvider] InitRuntimeRequest attestationProvider
+         * @property {Uint8Array|null} [attestationProvider] InitRuntimeRequest attestationProvider
          */
 
         /**
@@ -3950,7 +3950,7 @@ $root.pruntime_rpc = (function() {
 
         /**
          * InitRuntimeRequest attestationProvider.
-         * @member {string|null|undefined} attestationProvider
+         * @member {Uint8Array|null|undefined} attestationProvider
          * @memberof pruntime_rpc.InitRuntimeRequest
          * @instance
          */
@@ -4029,7 +4029,7 @@ $root.pruntime_rpc = (function() {
             if (message.isParachain != null && Object.hasOwnProperty.call(message, "isParachain"))
                 writer.uint32(/* id 6, wireType 0 =*/48).bool(message.isParachain);
             if (message.attestationProvider != null && Object.hasOwnProperty.call(message, "attestationProvider"))
-                writer.uint32(/* id 7, wireType 2 =*/58).string(message.attestationProvider);
+                writer.uint32(/* id 7, wireType 2 =*/58).bytes(message.attestationProvider);
             return writer;
         };
 
@@ -4083,7 +4083,7 @@ $root.pruntime_rpc = (function() {
                     message.isParachain = reader.bool();
                     break;
                 case 7:
-                    message.attestationProvider = reader.string();
+                    message.attestationProvider = reader.bytes();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -4145,8 +4145,8 @@ $root.pruntime_rpc = (function() {
                     return "isParachain: boolean expected";
             if (message.attestationProvider != null && message.hasOwnProperty("attestationProvider")) {
                 properties._attestationProvider = 1;
-                if (!$util.isString(message.attestationProvider))
-                    return "attestationProvider: string expected";
+                if (!(message.attestationProvider && typeof message.attestationProvider.length === "number" || $util.isString(message.attestationProvider)))
+                    return "attestationProvider: buffer expected";
             }
             return null;
         };
@@ -4188,7 +4188,10 @@ $root.pruntime_rpc = (function() {
             if (object.isParachain != null)
                 message.isParachain = Boolean(object.isParachain);
             if (object.attestationProvider != null)
-                message.attestationProvider = String(object.attestationProvider);
+                if (typeof object.attestationProvider === "string")
+                    $util.base64.decode(object.attestationProvider, message.attestationProvider = $util.newBuffer($util.base64.length(object.attestationProvider)), 0);
+                else if (object.attestationProvider.length)
+                    message.attestationProvider = object.attestationProvider;
             return message;
         };
 
@@ -4242,7 +4245,7 @@ $root.pruntime_rpc = (function() {
             if (message.isParachain != null && message.hasOwnProperty("isParachain"))
                 object.isParachain = message.isParachain;
             if (message.attestationProvider != null && message.hasOwnProperty("attestationProvider")) {
-                object.attestationProvider = message.attestationProvider;
+                object.attestationProvider = options.bytes === String ? $util.base64.encode(message.attestationProvider, 0, message.attestationProvider.length) : options.bytes === Array ? Array.prototype.slice.call(message.attestationProvider) : message.attestationProvider;
                 if (options.oneofs)
                     object._attestationProvider = "attestationProvider";
             }

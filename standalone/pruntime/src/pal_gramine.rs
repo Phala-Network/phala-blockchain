@@ -1,6 +1,7 @@
 use std::alloc::System;
 use parity_scale_codec::Encode;
 use anyhow::anyhow;
+use log::info;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
@@ -61,7 +62,7 @@ impl RA for GraminePlatform {
                 Ok(Encode::encode(&attestation_report))
             },
             None => {
-                Ok(Encode::encode(&phala_types::AttestationReport::None))
+                Ok(Encode::encode(&None::<AttestationProvider>))
             },
             _ => {
                 Err(anyhow!("Unknown attestation provider `{:?}`", provider))

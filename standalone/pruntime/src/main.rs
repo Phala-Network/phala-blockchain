@@ -6,7 +6,7 @@ mod runtime;
 use std::{env, thread};
 
 use clap::{AppSettings, Parser};
-use log::info;
+use log::{error, info};
 
 use phactory::BlockNumber;
 use phactory_api::ecall_args::{git_revision, InitArgs};
