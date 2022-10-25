@@ -56,7 +56,7 @@ async fn dump_workers(data: web::Data<AppState>) -> HttpResponse {
     let workers = factory.gk.dump_workers_state();
     let workers: std::collections::BTreeMap<_, _> = workers
         .iter()
-        .map(|(k, v)| ("0x".to_string() + &hex::encode(&k), v))
+        .map(|(k, v)| ("0x".to_string() + &hex::encode(k), v))
         .collect();
     HttpResponse::Ok().json(serde_json::json!({
         "current_block": factory.current_block,

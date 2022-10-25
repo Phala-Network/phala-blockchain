@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value)]
+
 use ink_lang as ink;
 use pink_extension_macro as pink;
 

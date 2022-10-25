@@ -1,4 +1,4 @@
-.PHONY: all node pruntime e2e test
+.PHONY: all node pruntime e2e test clippy
 
 all: node pruntime e2e
 
@@ -12,3 +12,6 @@ e2e:
 test:
 	cargo test --workspace --exclude node-executor --exclude phala-node
 
+clippy:
+	cargo clippy
+	make clippy -C standalone/pruntime

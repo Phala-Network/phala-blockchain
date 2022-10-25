@@ -203,7 +203,7 @@ async fn grab_headers(
             justifications = block.justifications;
             hash = header_hash;
         } else {
-            let (hdr, hdr_hash) = match crate::get_header_at(&api, Some(block_number)).await {
+            let (hdr, hdr_hash) = match crate::get_header_at(api, Some(block_number)).await {
                 Ok(x) => x,
                 Err(e) => {
                     if e.to_string().contains("not found") {
@@ -228,19 +228,17 @@ async fn grab_headers(
                     api.rpc()
                         .block(Some(hash))
                         .await?
-                        .ok_or(anyhow!("Failed to fetch block"))?
+                        .ok_or_else(|| anyhow!("Failed to fetch block"))?
                         .justifications
-                        .ok_or(anyhow!("No justification for block changing set_id"))?,
+                        .ok_or_else(|| anyhow!("No justification for block changing set_id"))?,
                 );
             }
-            Some(crate::get_authority_with_proof_at(&api, hash).await?)
+            Some(crate::get_authority_with_proof_at(api, hash).await?)
         } else {
             None
         };
 
-        let justification = justifications
-            .map(|v| v.into_justification(GRANDPA_ENGINE_ID))
-            .flatten();
+        let justification = justifications.and_then(|v| v.into_justification(GRANDPA_ENGINE_ID));
 
         skip_justitication = skip_justitication.saturating_sub(1);
         last_set = set_id;
@@ -254,7 +252,7 @@ async fn grab_headers(
 
         let para_header = para_header.map(|(header, proof)| ParaHeader {
             fin_header_num: header.number,
-            proof: proof,
+            proof,
         });
 
         f(BlockInfo {
@@ -288,7 +286,7 @@ async fn grab_para_headers(
             Err(e) if e.to_string().contains("not found") => {
                 break;
             }
-            other @ _ => other?.0,
+            other => other?.0,
         };
         f(header)?;
         grabbed += 1;

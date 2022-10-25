@@ -48,6 +48,7 @@ pub struct Pink {
 }
 
 impl Pink {
+    #[allow(clippy::too_many_arguments)]
     pub fn instantiate(
         cluster_id: ContractClusterId,
         storage: &mut pink::Storage,
@@ -137,7 +138,7 @@ impl Pink {
                 } else {
                     *side_effects = effects.into_query_only_effects();
                 }
-                return Ok(Response::Payload(ink_result.encode()));
+                Ok(Response::Payload(ink_result.encode()))
             }
             Query::SidevmQuery(payload) => {
                 let handle = context
@@ -145,9 +146,7 @@ impl Pink {
                     .as_ref()
                     .ok_or(QueryError::SidevmNotFound)?;
                 let cmd_sender = match handle {
-                    contracts::SidevmHandle::Stopped(_) => {
-                        return Err(QueryError::SidevmNotFound)
-                    }
+                    contracts::SidevmHandle::Stopped(_) => return Err(QueryError::SidevmNotFound),
                     contracts::SidevmHandle::Running(sender) => sender,
                 };
                 let origin = origin.cloned().map(Into::into);
@@ -189,7 +188,7 @@ impl Pink {
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
-                let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
+                let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
                     .expect("Pink cluster should always exists!");
 
                 let (result, effects) = self.instance.bare_call(
@@ -206,15 +205,14 @@ impl Pink {
                 );
 
                 if let Some(log_handler) = &context.log_handler {
-                    if let Err(_) = log_handler.try_send(SidevmCommand::PushSystemMessage(
-                        SystemMessage::PinkMessageOutput {
-                            origin: origin.clone().into(),
-                            contract: self.instance.address.clone().into(),
-                            block_number: context.block.block_number,
-                            nonce: nonce.into_inner(),
-                            output: result.result.encode(),
-                        },
-                    )) {
+                    let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
+                        origin: origin.into(),
+                        contract: self.instance.address.clone().into(),
+                        block_number: context.block.block_number,
+                        nonce: nonce.into_inner(),
+                        output: result.result.encode(),
+                    });
+                    if log_handler.try_send(msg).is_err() {
                         error!("Pink emit message output to log handler failed");
                     }
                 }
@@ -232,7 +230,7 @@ impl Pink {
         &mut self,
         context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
-        let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
+        let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
             .expect("Pink cluster should always exists!");
         let effects = self
             .instance
@@ -263,7 +261,7 @@ fn cluster_storage<'a>(
 ) -> Result<&'a mut pink::Storage> {
     clusters
         .get_cluster_storage_mut(cluster_id)
-        .ok_or(anyhow!("Contract cluster {:?} not found! qed!", cluster_id))
+        .ok_or_else(|| anyhow!("Contract cluster {:?} not found! qed!", cluster_id))
 }
 
 pub mod cluster {
@@ -298,6 +296,7 @@ pub mod cluster {
             self.clusters.len()
         }
 
+        #[allow(clippy::too_many_arguments)]
         pub fn instantiate_contract(
             &mut self,
             cluster_id: ContractClusterId,
@@ -342,7 +341,7 @@ pub mod cluster {
             cluster_id: &ContractClusterId,
             cluster_key: &sr25519::Pair,
         ) -> &mut Cluster {
-            self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
+            self.clusters.entry(*cluster_id).or_insert_with(|| {
                 let mut cluster = Cluster {
                     storage: Default::default(),
                     contracts: Default::default(),
@@ -464,20 +463,18 @@ impl ContractEventCallback {
 
 impl pink::runtime::EventCallbacks for ContractEventCallback {
     fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String) {
-        if let Err(_) =
-            self.log_handler
-                .try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
-                    block_number: self.block_number,
-                    timestamp_ms: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as _,
-                    in_query,
-                    contract: contract.clone().into(),
-                    level,
-                    message,
-                }))
-        {
+        let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
+            block_number: self.block_number,
+            timestamp_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as _,
+            in_query,
+            contract: contract.clone().into(),
+            level,
+            message,
+        });
+        if self.log_handler.try_send(msg).is_err() {
             error!("Pink emit_log failed");
         }
     }

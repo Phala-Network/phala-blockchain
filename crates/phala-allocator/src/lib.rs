@@ -77,12 +77,17 @@ unsafe impl<T: GlobalAlloc> GlobalAlloc for StatSizeAllocator<T> {
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        if new_size > layout.size() {
-            let difference = new_size - layout.size();
-            self.add_alloced_size(difference);
-        } else if new_size < layout.size() {
-            let difference = layout.size() - new_size;
-            self.current_used.fetch_sub(difference, Ordering::SeqCst);
+        use core::cmp::Ordering::*;
+        match new_size.cmp(&layout.size()) {
+            Less => {
+                let difference = layout.size() - new_size;
+                self.current_used.fetch_sub(difference, Ordering::SeqCst);
+            }
+            Greater => {
+                let difference = new_size - layout.size();
+                self.add_alloced_size(difference);
+            }
+            Equal => (),
         }
         self.inner.realloc(ptr, layout, new_size)
     }

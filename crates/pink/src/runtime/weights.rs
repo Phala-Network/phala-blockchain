@@ -1,3 +1,4 @@
+#![allow(clippy::unnecessary_cast)]
 use core::marker::PhantomData;
 
 use frame_support::weights::Weight;

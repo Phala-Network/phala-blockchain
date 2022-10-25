@@ -85,14 +85,14 @@ impl Signature {
                 let key_chain = if let Some(cert_sig) = &cert.signature {
                     let mut key_chain =
                         cert_sig.verify(&body.encode(), current_block, max_depth - 1)?;
-                    key_chain.push(body.pubkey.clone());
+                    key_chain.push(body.pubkey);
                     key_chain
                 } else {
-                    vec![body.pubkey.clone()]
+                    vec![body.pubkey]
                 };
                 Ok(key_chain)
             }
-            None => return Err(SignatureVerifyError::CertificateMissing),
+            None => Err(SignatureVerifyError::CertificateMissing),
         }
     }
 }
@@ -130,23 +130,23 @@ impl CertificateBody {
     ) -> Result<(), SignatureVerifyError> {
         let valid = match sig_type {
             SignatureType::Ed25519 => {
-                verify::<sp_core::ed25519::Pair>(&self.pubkey, &signature, msg)
+                verify::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)
             }
             SignatureType::Sr25519 => {
-                verify::<sp_core::sr25519::Pair>(&self.pubkey, &signature, msg)
+                verify::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)
             }
-            SignatureType::Ecdsa => verify::<sp_core::ecdsa::Pair>(&self.pubkey, &signature, msg),
+            SignatureType::Ecdsa => verify::<sp_core::ecdsa::Pair>(&self.pubkey, signature, msg),
             SignatureType::Ed25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                verify::<sp_core::ed25519::Pair>(&self.pubkey, &signature, &wrapped)
+                verify::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)
             }
             SignatureType::Sr25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                verify::<sp_core::sr25519::Pair>(&self.pubkey, &signature, &wrapped)
+                verify::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)
             }
             SignatureType::EcdsaWrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                verify::<sp_core::ecdsa::Pair>(&self.pubkey, &signature, &wrapped)
+                verify::<sp_core::ecdsa::Pair>(&self.pubkey, signature, &wrapped)
             }
         };
         if valid {

@@ -212,6 +212,7 @@ fn gen_dispatcher(methods: &[OcallMethod], trait_name: &Ident) -> Result<TokenSt
     };
 
     Ok(parse_quote! {
+        #[allow(clippy::too_many_arguments)]
         pub fn dispatch_ocall<Env: #trait_name + OcallEnv, Vm: VmMemory>(
             fast_return: bool,
             env: &mut Env,
@@ -411,7 +412,7 @@ fn check_args_multi_ref(methods: &[OcallMethod]) -> Result<()> {
         if has_mut_ref && n_ref > 1 {
             return Err(syn::Error::new_spanned(
                 &method.method.sig,
-                format!("Only one &mut ref argument is allowed"),
+                "Only one &mut ref argument is allowed",
             ));
         }
     }

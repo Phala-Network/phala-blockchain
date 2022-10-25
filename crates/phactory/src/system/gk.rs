@@ -230,7 +230,7 @@ where
                 rotated_master_key.rotation_id == self.master_key_history.len() as u64,
                 "Gatekeeper Master key history corrupted"
             );
-            self.master_key_history.push(rotated_master_key.clone());
+            self.master_key_history.push(rotated_master_key);
             return true;
         }
         false
@@ -261,7 +261,7 @@ where
                 master_pubkey,
             });
 
-        self.master_key = new_master_key.clone();
+        self.master_key = new_master_key;
         self.egress.set_signer(self.master_key.clone().into());
         true
     }
@@ -329,7 +329,7 @@ where
             .collect();
         self.egress.push_message(&KeyDistribution::MasterKeyHistory(
             DispatchMasterKeyHistoryEvent {
-                dest: pubkey.clone(),
+                dest: *pubkey,
                 encrypted_master_key_history,
             },
         ));
@@ -473,7 +473,11 @@ where
     ) -> Result<(), TransactionError> {
         info!("Incoming cluster event: {:?}", event);
         match event {
-            ClusterEvent::DeployCluster { owner, cluster, workers } => {
+            ClusterEvent::DeployCluster {
+                owner,
+                cluster,
+                workers,
+            } => {
                 if !origin.is_pallet() {
                     error!("Attempt to deploy cluster from bad origin");
                     return Err(TransactionError::BadOrigin);
@@ -559,7 +563,7 @@ where
             next_random_number(&self.master_key, block_number, self.last_random_number);
         info!(
             "Gatekeeper: emit random number {} in block {}",
-            hex::encode(&random_number),
+            hex::encode(random_number),
             block_number
         );
         self.egress
@@ -705,7 +709,7 @@ impl From<&WorkerInfo> for pb::WorkerState {
             stat: Some((&info.stat).into()),
             #[cfg(not(feature = "gk-stat"))]
             stat: None,
-            tokenomic_info: Some(info.tokenomic.clone().into()),
+            tokenomic_info: Some(info.tokenomic.into()),
         }
     }
 }
@@ -753,7 +757,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
         for worker_info in self.workers.values_mut() {
             trace!(target: "mining",
                 "[{}] block_post_process",
-                hex::encode(&worker_info.state.pubkey)
+                hex::encode(worker_info.state.pubkey)
             );
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info.state.on_block_processed(block, &mut tracker);
@@ -762,7 +766,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 trace!(
                     target: "mining",
                     "[{}] Mining already stopped, do nothing.",
-                    hex::encode(&worker_info.state.pubkey)
+                    hex::encode(worker_info.state.pubkey)
                 );
                 continue;
             }
@@ -772,7 +776,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     trace!(
                         target: "mining",
                         "[{}] case5: Unresponsive, successful heartbeat.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     worker_info.unresponsive = false;
                     self.eco_cache
@@ -792,7 +796,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     trace!(
                         target: "mining",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
-                        hex::encode(&worker_info.state.pubkey),
+                        hex::encode(worker_info.state.pubkey),
                         block.block_number,
                         hb_sent_at
                     );
@@ -814,7 +818,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 trace!(
                     target: "mining",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
-                    hex::encode(&worker_info.state.pubkey)
+                    hex::encode(worker_info.state.pubkey)
                 );
                 worker_info
                     .tokenomic
@@ -823,7 +827,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 trace!(
                     target: "mining",
                     "[{}] case1: Idle, no event",
-                    hex::encode(&worker_info.state.pubkey)
+                    hex::encode(worker_info.state.pubkey)
                 );
                 worker_info.tokenomic.update_v_idle(params);
             }
@@ -955,7 +959,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     trace!(
                         target: "mining",
                         "[{}] Mining already stopped, ignore the heartbeat.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     return;
                 };
@@ -964,7 +968,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     trace!(
                         target: "mining",
                         "[{}] Heartbeat response to previous mining sessions, ignore it.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     return;
                 }
@@ -980,7 +984,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     trace!(
                         target: "mining",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     if self.unresp_fix {
                         worker_info
@@ -992,7 +996,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     trace!(
                         target: "mining",
                         "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.tokenomic_params,
@@ -1431,13 +1435,13 @@ mod tokenomic {
                 // (Current behavior)
                 actual_payout = to_payout; // w
                 actual_treasury = to_treasury;
-                let actual_v_deduct = self.v_deductible.max(fp!(0)).min(actual_payout);
+                let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
                 self.v -= actual_v_deduct;
             } else {
                 // Without `full_payout`, the miner gets paid up to the v increment to ensure v
                 // will not decrease over the time by payout.
                 // (Legacy behavior)
-                actual_payout = self.v_deductible.max(fp!(0)).min(to_payout); // w
+                actual_payout = self.v_deductible.clamp(fp!(0), to_payout); // w
                 actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
                 self.v -= actual_payout;
             }

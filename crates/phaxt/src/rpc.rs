@@ -16,7 +16,7 @@ impl<C: Config> ExtraRpcExt for OnlineClient<C> {
     type Config = C;
     fn extra_rpc(&self) -> ExtraRpcClient<Self::Config> {
         ExtraRpcClient {
-            client: &self.rpc(),
+            client: self.rpc(),
             _config: Default::default(),
         }
     }
@@ -54,10 +54,7 @@ impl<'a, T: Config> ExtraRpcClient<'a, T> {
 
     /// Fetch block syncing status
     pub async fn system_sync_state(&self) -> Result<SyncState, Error> {
-        Ok(self
-            .client
-            .request("system_syncState", rpc_params![])
-            .await?)
+        self.client.request("system_syncState", rpc_params![]).await
     }
 }
 
@@ -69,10 +66,7 @@ where
     /// Reads the next nonce of an account, considering the pending extrinsics in the txpool
     pub async fn account_nonce(&self, account: &T::AccountId) -> Result<T::Index, Error> {
         let params = rpc_params![to_json_value(account)?];
-        Ok(self
-            .client
-            .request("system_accountNextIndex", params)
-            .await?)
+        self.client.request("system_accountNextIndex", params).await
     }
 }
 

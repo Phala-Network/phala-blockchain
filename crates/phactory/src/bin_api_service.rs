@@ -8,7 +8,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.system.as_ref().map(|state| {
             let bytes = wrap_content_to_sign(body, SignedContentType::RpcResponse);
             let sig = state.identity_key.sign(&bytes).0;
-            hex::encode(&sig)
+            hex::encode(sig)
         })
     }
 

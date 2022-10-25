@@ -103,8 +103,8 @@ pub mod pallet {
 				Error::<T>::InvalidAmountOfStake
 			);
 
-			let mut total = ContractTotalStakes::<T>::get(&contract);
-			let orig = ContractUserStakes::<T>::get(&user, &contract);
+			let mut total = ContractTotalStakes::<T>::get(contract);
+			let orig = ContractUserStakes::<T>::get(&user, contract);
 			if amount > orig {
 				let delta = amount - orig;
 				total += delta;
@@ -114,7 +114,7 @@ pub mod pallet {
 				total -= delta;
 				<T as Config>::Currency::transfer(&Self::pallet_id(), &user, delta, AllowDeath)?;
 			}
-			ContractUserStakes::<T>::insert(&user, &contract, amount);
+			ContractUserStakes::<T>::insert(&user, contract, amount);
 			ContractTotalStakes::<T>::insert(contract, total);
 
 			Self::deposit_event(Event::ContractDepositChanged {

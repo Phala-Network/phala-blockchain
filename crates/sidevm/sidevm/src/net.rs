@@ -57,7 +57,7 @@ impl TcpListener {
     pub async fn bind(addr: &str) -> Result<Self> {
         // Side notes: could be used to probe enabled interfaces and occupied ports. We may
         // consider to introduce some manifest file to further limit the capability in the future
-        let todo = "prevent local interface probing and port occupation";
+        // TODO.kevin: prevent local interface probing and port occupation
         let res_id = ResourceId(ocall::tcp_listen(addr.into(), None)?);
         Ok(Self { res_id })
     }
@@ -105,7 +105,7 @@ impl TcpStream {
         } else {
             ocall::tcp_connect(host, port)
         };
-        let res = res.map(|res_id| ResourceId(res_id));
+        let res = res.map(ResourceId);
         TcpConnector { res }
     }
 }

@@ -72,9 +72,9 @@ async fn dump(state: &State<App>) -> String {
     result.push_str(&format!("Serving: {}\n", info.serving));
     result.push_str(&format!("Backlog: {}\n", info.backlog.len()));
     result.push_str("Flow stats:\n");
-    result.push_str(&format!(
+    result.push_str(
         "      flow, weight,        v clock,      time used,  avg cost,   backlog,  accepted,  rejected,     total\n"
-    ));
+    );
 
     let stats = state.stats.lock().unwrap();
 

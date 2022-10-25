@@ -217,7 +217,7 @@ impl<'a> CodeGenerator<'a> {
             buf.push_str(") -> Self {\n");
             buf.push_str("  Self{\n");
             self.path.push(2);
-            for (field, idx) in fields.clone() {
+            for (field, idx) in fields {
                 self.path.push(idx as i32);
                 if self.codec_decoration().is_some() {
                     if self.optional(&field) {

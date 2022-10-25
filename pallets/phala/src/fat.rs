@@ -171,7 +171,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
+			ensure!(!deploy_workers.is_empty(), Error::<T>::NoWorkerSpecified);
 			let workers = deploy_workers
 				.iter()
 				.map(|worker| {
@@ -211,7 +211,7 @@ pub mod pallet {
 				system_contract,
 			};
 
-			Clusters::<T>::insert(&cluster, &cluster_info);
+			Clusters::<T>::insert(cluster, &cluster_info);
 			Self::deposit_event(Event::ClusterCreated {
 				cluster,
 				system_contract,
@@ -283,7 +283,7 @@ pub mod pallet {
 				!Contracts::<T>::contains_key(contract_id),
 				Error::<T>::DuplicatedContract
 			);
-			Contracts::<T>::insert(&contract_id, &contract_info);
+			Contracts::<T>::insert(contract_id, &contract_info);
 
 			Self::push_message(ContractOperation::instantiate_code(contract_info.clone()));
 			Self::deposit_event(Event::Instantiating {
@@ -299,7 +299,7 @@ pub mod pallet {
 		pub fn cluster_destroy(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
 			ensure_root(origin)?;
 
-			Clusters::<T>::take(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
+			Clusters::<T>::take(cluster).ok_or(Error::<T>::ClusterNotFound)?;
 			Self::push_message(
 				ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster),
 			);
@@ -332,7 +332,7 @@ pub mod pallet {
 			match message.payload {
 				ClusterRegistryEvent::PubkeyAvailable { cluster, pubkey } => {
 					// The cluster key can be over-written with the latest value by Gatekeeper
-					registry::ClusterKeys::<T>::insert(&cluster, &pubkey);
+					registry::ClusterKeys::<T>::insert(cluster, pubkey);
 					Self::deposit_event(Event::ClusterPubkeyAvailable { cluster, pubkey });
 				}
 			}
@@ -348,13 +348,13 @@ pub mod pallet {
 			};
 			match message.payload {
 				ContractRegistryEvent::PubkeyAvailable { contract, pubkey, deployer } => {
-					registry::ContractKeys::<T>::insert(&contract, &pubkey);
+					registry::ContractKeys::<T>::insert(contract, pubkey);
 					Self::deposit_event(Event::ContractPubkeyAvailable {
 						contract,
 						cluster,
 						pubkey,
 					});
-					ClusterContracts::<T>::append(&cluster, &contract);
+					ClusterContracts::<T>::append(cluster, contract);
 					Self::deposit_event(Event::Instantiated {
 						contract,
 						cluster,
@@ -375,7 +375,7 @@ pub mod pallet {
 			match message.payload {
 				WorkerClusterReport::ClusterDeployed { id, pubkey } => {
 					// TODO.shelven: scalability concern for large number of workers
-					ClusterWorkers::<T>::append(&id, &worker_pubkey);
+					ClusterWorkers::<T>::append(id, worker_pubkey);
 					Self::deposit_event(Event::ClusterDeployed {
 						cluster: id,
 						pubkey,
@@ -393,8 +393,8 @@ pub mod pallet {
 		}
 
 		pub fn get_system_contract(contract: &ContractId) -> Option<ContractId> {
-			let contract_info = Contracts::<T>::get(&contract)?;
-			let cluster_info = Clusters::<T>::get(&contract_info.cluster_id)?;
+			let contract_info = Contracts::<T>::get(contract)?;
+			let cluster_info = Clusters::<T>::get(contract_info.cluster_id)?;
 			Some(cluster_info.system_contract)
 		}
 	}

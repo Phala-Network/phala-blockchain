@@ -132,7 +132,7 @@ impl InstructionWeights {
 impl InstructionWeights {
     fn rules<'a>(&'a self, module: &Module) -> InstrumentRules<'a> {
         InstrumentRules {
-            weights: &self,
+            weights: self,
             params: module
                 .type_section()
                 .iter()
@@ -255,7 +255,7 @@ impl Rules for InstrumentRules<'_> {
     }
 
     fn memory_grow_cost(&self) -> MemoryGrowCost {
-        let todo = "Charge for memory usage";
+        // TODO.kevin: Charge for memory usage
         // We don't charge the memory by instrument.
         // We charge the memory fee by `total_memory_usage * memory_per_page_per_block * instance_runing_time`
         // in the sidevm runtime.
@@ -267,6 +267,6 @@ pub fn instrument(wasm: &[u8]) -> Result<Vec<u8>> {
     const WEIGHTS: InstructionWeights = InstructionWeights::default_weights();
     let module = Module::from_bytes(wasm)?;
     let rules = WEIGHTS.rules(&module);
-    let module = inject(module, &rules, "sidevm").or(Err(anyhow!("Invalid module")))?;
+    let module = inject(module, &rules, "sidevm").map_err(|_| anyhow!("Invalid module"))?;
     Ok(module.into_bytes()?)
 }

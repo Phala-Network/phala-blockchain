@@ -13,12 +13,6 @@ jobs:
     name: Build core blockchain
     runs-on: ubuntu-20.04
     steps:
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -37,15 +31,10 @@ jobs:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+      - uses: ./.github/actions/install_toolchain
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Build pruntime
@@ -63,12 +52,6 @@ jobs:
     name: Build prouter
     runs-on: ubuntu-20.04
     steps:
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -88,15 +71,10 @@ jobs:
     name: Run E2E tests
     runs-on: ubuntu-20.04
     steps:
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
+      - uses: ./.github/actions/install_toolchain
       - name: Install gramine
         run: sudo bash dockerfile.d/01_apt_gramine.sh
       - name: Setup Node.js environment
@@ -134,16 +112,22 @@ jobs:
     name: Run cargo tests
     runs-on: ubuntu-20.04
     steps:
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
-          components: rustfmt
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Run cargo tests
         run: cargo test -vv --workspace --exclude node-executor --exclude phala-node
+
+  cargo-clippy:
+    name: Run cargo clippy
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - uses: ./.github/actions/install_toolchain
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: Run cargo clippy
+        run: cargo clippy -- -D warnings && cd standalone/pruntime && cargo clippy -- -D warnings

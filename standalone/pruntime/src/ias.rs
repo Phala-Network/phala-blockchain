@@ -29,7 +29,7 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
         .send()
         .context("Failed to send http request")?;
 
-    let status_code = u16::from(res.status().as_u16());
+    let status_code = res.status().as_u16();
     if status_code != 200 {
         let msg = match status_code {
             401 => "Unauthorized Failed to authenticate or authorize request.",

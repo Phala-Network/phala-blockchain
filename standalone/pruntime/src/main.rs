@@ -163,7 +163,6 @@ async fn main() -> Result<(), rocket::Error> {
                 .launch()
                 .await
                 .expect("Failed to launch API server");
-            ()
         });
         servers.push(server_acl);
     }
@@ -173,7 +172,6 @@ async fn main() -> Result<(), rocket::Error> {
             .launch()
             .await
             .expect("Failed to launch API server");
-        ()
     });
     servers.push(server_internal);
 

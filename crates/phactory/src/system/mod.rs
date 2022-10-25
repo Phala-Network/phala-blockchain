@@ -53,7 +53,6 @@ use phala_types::{
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
-use sp_io;
 
 use pink::runtime::{HookPoint, PinkEvent};
 use std::cell::Cell;
@@ -489,6 +488,7 @@ fn create_sidevm_service(worker_threads: usize) -> Spawner {
 }
 
 impl<Platform: pal::Platform> System<Platform> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         platform: Platform,
         dev_mode: bool,
@@ -728,7 +728,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 let cluster_id = contract.cluster_id();
                 let mut env = ExecuteEnv {
-                    block: block,
+                    block,
                     contract_clusters: &mut self.contract_clusters,
                     log_handler: log_handler.clone(),
                 };
@@ -771,7 +771,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 Some(v) => v,
             };
             let mut env = ExecuteEnv {
-                block: block,
+                block,
                 contract_clusters: &mut self.contract_clusters,
                 log_handler: log_handler.clone(),
             };
@@ -1179,7 +1179,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 info!("Destroying cluster {}", hex_fmt::HexFmt(&cluster_id));
                 for contract in cluster.iter_contracts() {
-                    if let Some(contract) = self.contracts.remove(&contract) {
+                    if let Some(contract) = self.contracts.remove(contract) {
                         contract.destroy(&self.sidevm_spawner);
                     }
                 }
@@ -1277,7 +1277,7 @@ impl<Platform: pal::Platform> System<Platform> {
     fn decrypt_key_from(
         &self,
         ecdh_pubkey: &EcdhPublicKey,
-        encrypted_key: &Vec<u8>,
+        encrypted_key: &[u8],
         iv: &AeadIV,
     ) -> sr25519::Pair {
         let my_ecdh_key = self
@@ -1285,7 +1285,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
         let secret =
-            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, &encrypted_key, &iv)
+            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
                 .expect("Failed to decrypt dispatched key");
         sr25519::Pair::restore_from_secret_key(&secret)
     }
@@ -1356,7 +1356,7 @@ impl<Platform: pal::Platform> System<Platform> {
         // is updated, which may cause problem in the future.
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin.into());
+            return Err(TransactionError::BadOrigin);
         }
 
         // check the event sender identity and signature to ensure it's not forged with a leaked master key and really from
@@ -1366,7 +1366,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .or(Err(TransactionError::BadSenderSignature))?;
         let data = wrap_content_to_sign(&data, SignedContentType::MasterKeyRotation);
         if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
-            return Err(TransactionError::BadSenderSignature.into());
+            return Err(TransactionError::BadSenderSignature);
         }
         // valid master key but from a non-gk
         if !chain_state::is_gatekeeper(&event.sender, block.storage) {
@@ -1403,7 +1403,7 @@ impl<Platform: pal::Platform> System<Platform> {
             }) {
                 master_key::seal(
                     self.sealing_path.clone(),
-                    &gatekeeper.master_key_history(),
+                    gatekeeper.master_key_history(),
                     &self.identity_key,
                     &self.platform,
                 );
@@ -1557,7 +1557,7 @@ impl<Platform: pal::Platform> System<Platform> {
         let master_public_key = self
             .gatekeeper
             .as_ref()
-            .map(|gk| hex::encode(&gk.master_pubkey()))
+            .map(|gk| hex::encode(gk.master_pubkey()))
             .unwrap_or_default();
         GatekeeperStatus {
             role: role.into(),
@@ -1623,6 +1623,7 @@ impl<P: pal::Platform> System<P> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle_contract_command_result(
     result: TransactionResult,
     cluster_id: phala_mq::ContractClusterId,
@@ -1662,6 +1663,7 @@ pub fn handle_contract_command_result(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn apply_pink_side_effects(
     effects: ExecSideEffects,
     cluster_id: phala_mq::ContractClusterId,
@@ -1808,7 +1810,7 @@ pub(crate) fn apply_pink_events(
                     Some(code) => SidevmCode::Code(code),
                     None => SidevmCode::Hash(code_hash),
                 };
-                if let Err(err) = target_contract.start_sidevm(&spawner, code, false) {
+                if let Err(err) = target_contract.start_sidevm(spawner, code, false) {
                     error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                 }
             }
@@ -1863,13 +1865,14 @@ fn apply_ink_side_effects(
 ) {
     if let Some(log_handler) = log_handler {
         for (contract, topics, payload) in ink_events {
-            if let Err(_) =
-                log_handler.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
+            if log_handler
+                .try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
                     contract: contract.into(),
                     block_number: block.block_number,
                     payload,
                     topics: topics.into_iter().map(Into::into).collect(),
                 }))
+                .is_err()
             {
                 warn!("Cluster [{cluster_id}] emit ink event to log handler failed");
             }
@@ -1877,7 +1880,7 @@ fn apply_ink_side_effects(
     }
 }
 
-#[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn install_contract(
     contracts: &mut ContractsKeeper,
     contract_id: phala_mq::ContractId,
@@ -1904,7 +1907,7 @@ pub fn install_contract(
         contract,
         mq,
         cmd_mq,
-        ecdh_key.clone(),
+        ecdh_key,
         cluster_id,
         contract_id,
         code_hash,

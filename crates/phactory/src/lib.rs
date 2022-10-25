@@ -138,11 +138,8 @@ fn glob_checkpoint_files_sorted(
     let mut files = Vec::new();
 
     for filename in glob_checkpoint_files(basedir)? {
-        match parse_block(&filename) {
-            Some(block_number) => {
-                files.push((block_number, filename));
-            }
-            _ => {}
+        if let Some(block_number) = parse_block(&filename) {
+            files.push((block_number, filename));
         }
     }
     files.sort_by_key(|(block_number, _)| std::cmp::Reverse(*block_number));
@@ -204,13 +201,13 @@ impl PersistentRuntimeDataV2 {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
         let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
-        info!("Identity pubkey: {:?}", hex::encode(&identity_sk.public()));
+        info!("Identity pubkey: {:?}", hex::encode(identity_sk.public()));
 
         // derive ecdh key
         let ecdh_key = identity_sk
             .derive_ecdh_key()
             .expect("Unable to derive ecdh key");
-        info!("ECDH pubkey: {:?}", hex::encode(&ecdh_key.public()));
+        info!("ECDH pubkey: {:?}", hex::encode(ecdh_key.public()));
         (identity_sk, ecdh_key)
     }
 }
@@ -455,7 +452,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         key: &[u8],
         writer: W,
     ) -> anyhow::Result<()> {
-        let key128 = derive_key_for_checkpoint(&key);
+        let key128 = derive_key_for_checkpoint(key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
         serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
@@ -484,7 +481,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         let (_block, ckpt_filename) = &files[0];
 
-        let file = match File::open(&ckpt_filename) {
+        let file = match File::open(ckpt_filename) {
             Ok(file) => file,
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => {
                 // This should never happen unless it was removed just after the glob.
@@ -497,7 +494,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 );
                 if remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
-                    std::fs::remove_file(&ckpt_filename)
+                    std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
                 anyhow::bail!(
@@ -518,7 +515,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 error!("Failed to load checkpoint file {:?}", ckpt_filename);
                 if remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
-                    std::fs::remove_file(&ckpt_filename)
+                    std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
                 anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
@@ -583,7 +580,7 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                     let runtime_state = factory
                         .runtime_state
                         .as_mut()
-                        .ok_or(de::Error::custom("Missing runtime_state"))?;
+                        .ok_or_else(|| de::Error::custom("Missing runtime_state"))?;
 
                     let recv_mq = &mut runtime_state.recv_mq;
                     let send_mq = &mut runtime_state.send_mq;

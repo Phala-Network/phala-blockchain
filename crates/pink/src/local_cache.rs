@@ -125,11 +125,12 @@ impl LocalCache {
         self.maybe_clear_expired();
         if expire == 0 {
             let _ = self.remove(id.as_ref(), key.as_ref());
-        } else {
-            self.storages
-                .get_mut(id.as_ref())
-                .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
-                .map(|v| v.expire_at = now().saturating_add(expire));
+        } else if let Some(v) = self
+            .storages
+            .get_mut(id.as_ref())
+            .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
+        {
+            v.expire_at = now().saturating_add(expire)
         }
     }
 

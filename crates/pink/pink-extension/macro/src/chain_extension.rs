@@ -41,11 +41,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         );
 
         item_trait.items.retain(|i| {
-            if let &syn::TraitItem::Type(_) = i {
-                false
-            } else {
-                true
-            }
+            !matches!(i, &syn::TraitItem::Type(_))
         });
 
         item_trait.items.push(syn::parse_quote! {
@@ -183,7 +179,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 .iter()
                 .map(|arg| match arg.clone() {
                     Type::Reference(tp) => {
-                        let inner = tp.elem.clone();
+                        let inner = &tp.elem;
                         syn::parse_quote! { Cow<#inner> }
                     }
                     tp => tp,

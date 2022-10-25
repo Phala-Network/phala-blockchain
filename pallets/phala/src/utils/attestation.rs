@@ -50,7 +50,7 @@ impl IasFields {
 		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
 			.as_str()
 			.ok_or(Error::UnknownQuoteBodyFormat)?;
-		let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
+		let quote_body = base64::decode(raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
 		let mr_enclave = &quote_body[112..144];
 		let mr_signer = &quote_body[176..208];
 		let isv_prod_id = &quote_body[304..306];
@@ -182,7 +182,7 @@ pub fn validate_ias_report(
 	);
 	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
 
-	let (ias_fields, report_timestamp) = IasFields::from_ias_report(&report)?;
+	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
 
 	// Validate PRuntime
 	let pruntime_hash = ias_fields.extend_mrenclave();

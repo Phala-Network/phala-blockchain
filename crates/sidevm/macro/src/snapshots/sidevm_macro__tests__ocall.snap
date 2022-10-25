@@ -72,6 +72,7 @@ pub mod ocall_guest {
         }
     }
 }
+#[allow(clippy::too_many_arguments)]
 pub fn dispatch_ocall<Env: Ocall + OcallEnv, Vm: VmMemory>(
     fast_return: bool,
     env: &mut Env,

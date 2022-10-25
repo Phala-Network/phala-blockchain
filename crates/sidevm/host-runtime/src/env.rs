@@ -300,7 +300,7 @@ impl Env {
                 let mut env_guard = inner.lock().unwrap();
                 let _ = env_guard.close(reply_tx);
             }
-            let _ = result?;
+            result?;
             Ok(())
         })
     }
@@ -315,7 +315,7 @@ impl Env {
             .instance
             .as_ref()
             .expect("BUG: missing instance in env");
-        metering::set_remaining_points(store, &instance, guard.gas_per_breath);
+        metering::set_remaining_points(store, instance, guard.gas_per_breath);
     }
 
     pub fn has_more_ready(&self) -> bool {
@@ -433,7 +433,7 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
             };
             let res = match tls_config {
                 Some(tls_config) => {
-                    Resource::TlsStream(TlsStream::accept(stream, tls_config.clone()))
+                    Resource::TlsStream(Box::new(TlsStream::accept(stream, tls_config.clone())))
                 }
                 None => Resource::TcpStream(stream),
             };
@@ -578,7 +578,7 @@ impl EnvInner {
 
     fn is_stifled(&mut self, store: &mut impl AsStoreMut) -> bool {
         let instance = self.instance.as_ref().expect("BUG: instance is not set");
-        match metering::get_remaining_points(store, &instance) {
+        match metering::get_remaining_points(store, instance) {
             metering::MeteringPoints::Remaining(_) => false,
             metering::MeteringPoints::Exhausted => true,
         }
@@ -586,7 +586,7 @@ impl EnvInner {
 
     fn gas_to_breath(&self, store: &mut impl AsStoreMut) -> u64 {
         let instance = self.instance.as_ref().expect("BUG: instance is not set");
-        match metering::get_remaining_points(store, &instance) {
+        match metering::get_remaining_points(store, instance) {
             metering::MeteringPoints::Remaining(v) => v,
             metering::MeteringPoints::Exhausted => 0,
         }
@@ -594,7 +594,7 @@ impl EnvInner {
 
     fn set_gas_to_breath(&self, store: &mut impl AsStoreMut, gas: u64) {
         let instance = self.instance.as_ref().expect("BUG: instance is not set");
-        metering::set_remaining_points(store, &instance, gas);
+        metering::set_remaining_points(store, instance, gas);
     }
 
     fn pay(&mut self, store: &mut impl AsStoreMut, cost: u64) -> Result<(), OcallAborted> {
@@ -624,7 +624,7 @@ async fn tcp_connect(host: &str, port: u16) -> std::io::Result<tokio::net::TcpSt
         None
     };
 
-    if let Some(proxy_url) = proxy_url.or(get_proxy("all_proxy")) {
+    if let Some(proxy_url) = proxy_url.or_else(|| get_proxy("all_proxy")) {
         tokio_proxy::connect((host, port), proxy_url).await
     } else {
         tokio::net::TcpStream::connect((host, port)).await
@@ -644,6 +644,7 @@ fn sidevm_ocall_fast_return(
 }
 
 // Support all ocalls. Put the result into a temporary vec and wait for next fetch_result ocall to fetch the result.
+#[allow(clippy::too_many_arguments)]
 fn sidevm_ocall(
     func_env: FunctionEnvMut<Env>,
     task_id: i32,
@@ -656,6 +657,7 @@ fn sidevm_ocall(
     do_ocall(func_env, task_id, func_id, p0, p1, p2, p3, false)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn do_ocall(
     mut func_env: FunctionEnvMut<Env>,
     task_id: i32,

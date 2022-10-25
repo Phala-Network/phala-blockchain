@@ -71,12 +71,12 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			// Check blacklist
 			ensure!(
-				BlacklistedAccounts::<T>::get(&who) == None,
+				BlacklistedAccounts::<T>::get(&who).is_none(),
 				Error::<T>::SenderAlreadyBlacklisted
 			);
 			for (dest, _) in &transfers {
 				ensure!(
-					BlacklistedAccounts::<T>::get(dest) == None,
+					BlacklistedAccounts::<T>::get(dest).is_none(),
 					Error::<T>::DestinationAlreadyBlacklisted
 				);
 			}
