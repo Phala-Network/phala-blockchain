@@ -125,16 +125,6 @@ describe('A full stack', function () {
         it('can be registered as first gatekeeper', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[0].getInfo();
-            // await assert.txAccepted(
-            //     api.tx.sudo.sudo(
-            //         api.tx.phalaRegistry.forceRegisterWorker(
-            //             hex(info.system.publicKey),
-            //             hex(info.system.ecdhPublicKey),
-            //             null,
-            //         )
-            //     ),
-            //     alice,
-            // );
 
             await assert.txAccepted(
                 api.tx.sudo.sudo(
@@ -169,16 +159,6 @@ describe('A full stack', function () {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
-            // await assert.txAccepted(
-            //     api.tx.sudo.sudo(
-            //         api.tx.phalaRegistry.forceRegisterWorker(
-            //             hex(info.system.publicKey),
-            //             hex(info.system.ecdhPublicKey),
-            //             null,
-            //         )
-            //     ),
-            //     alice,
-            // );
 
             await assert.txAccepted(
                 api.tx.sudo.sudo(
@@ -282,16 +262,6 @@ describe('A full stack', function () {
             const info = await pruntime[3].getInfo();
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.forceRegisterWorker(
-                        hex(info.system.publicKey),
-                        hex(info.system.ecdhPublicKey),
-                        null,
-                    )
-                ),
-                alice,
-            );
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
                     api.tx.phalaRegistry.registerGatekeeper(hex(info.system.publicKey))
                 ),
                 alice,
@@ -385,16 +355,6 @@ describe('A full stack', function () {
             const info = await pruntime[3].getInfo();
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.forceRegisterWorker(
-                        hex(info.system.publicKey),
-                        hex(info.system.ecdhPublicKey),
-                        null,
-                    )
-                ),
-                alice,
-            );
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
                     api.tx.phalaRegistry.registerGatekeeper(hex(info.system.publicKey))
                 ),
                 alice,
@@ -434,16 +394,6 @@ describe('A full stack', function () {
         it('can be registered after rotation', async function () {
             // Register worker3 as Gatekeeper
             const info = await pruntime[2].getInfo();
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.forceRegisterWorker(
-                        hex(info.system.publicKey),
-                        hex(info.system.ecdhPublicKey),
-                        null,
-                    )
-                ),
-                alice,
-            );
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.registerGatekeeper(hex(info.system.publicKey))
