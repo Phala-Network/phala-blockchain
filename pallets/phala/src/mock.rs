@@ -48,8 +48,8 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
 	pub const ExpectedBlockTimeSec: u32 = 12;
-	pub const MinMiningStaking: Balance = 1 * DOLLARS;
-	pub const MinContribution: Balance = 1 * CENTS;
+	pub const MinMiningStaking: Balance = DOLLARS;
+	pub const MinContribution: Balance = CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
 	pub const MiningEnabledByDefault: bool = true;
@@ -204,8 +204,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	.assimilate_storage(&mut t)
 	.unwrap();
 	crate::registry::GenesisConfig::<Test> {
-		workers: vec![(zero_pubkey.clone(), zero_ecdh_pubkey, None)],
-		gatekeepers: vec![(zero_pubkey.clone())],
+		workers: vec![(zero_pubkey, zero_ecdh_pubkey, None)],
+		gatekeepers: vec![zero_pubkey],
 		benchmark_duration: 0u32,
 	}
 	.assimilate_storage(&mut t)
@@ -267,7 +267,7 @@ pub fn setup_workers(n: u8) {
 		let worker = worker_pubkey(i);
 		assert_ok!(PhalaRegistry::force_register_worker(
 			RuntimeOrigin::root(),
-			worker.clone(),
+			worker,
 			ecdh_pubkey(1),
 			Some(1)
 		));
@@ -283,7 +283,7 @@ pub fn setup_workers_linked_operators(n: u8) {
 		let worker = worker_pubkey(i);
 		assert_ok!(PhalaRegistry::force_register_worker(
 			RuntimeOrigin::root(),
-			worker.clone(),
+			worker,
 			ecdh_pubkey(1),
 			Some(i as _)
 		));
