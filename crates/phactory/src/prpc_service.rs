@@ -869,7 +869,7 @@ fn create_attestation_report_on<Platform: pal::Platform>(
     data: &[u8],
 ) -> RpcResult<pb::Attestation> {
     let encoded_report =
-        match platform.create_attestation_report(attestation_provider, &data) {
+        match platform.create_attestation_report(attestation_provider, data) {
             Ok(r) => r,
             Err(e) => {
                 let message = format!("Failed to create attestation report: {:?}", e);
@@ -940,7 +940,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             request.decode_genesis_state()?,
             request.decode_operator()?,
             request.debug_set_key,
-            serde_json::from_str(&*request.attestation_provider.unwrap_or("none".to_string())).unwrap_or_default(),
+            serde_json::from_str(&request.attestation_provider.unwrap_or("none".to_string())).unwrap_or_default(),
         )
     }
 
@@ -1056,7 +1056,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::HandoverChallengeResponse,
     ) -> RpcResult<pb::HandoverWorkerKey> {
         let mut phactory = self.lock_phactory();
-        let attestation_provider = phactory.attestation_provider.clone();
+        let attestation_provider = phactory.attestation_provider;
         let dev_mode = phactory.dev_mode;
         let in_sgx = attestation_provider == AttestationProvider::Ias;
         let system = phactory.system()?;
@@ -1217,7 +1217,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
-        let attestation_provider = phactory.attestation_provider.clone();
+        let attestation_provider = phactory.attestation_provider;
 
         let dev_mode = challenge.dev_mode;
         let in_sgx = attestation_provider == AttestationProvider::Ias;
@@ -1234,7 +1234,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         };
 
         let challenge_handler = ChallengeHandlerInfo {
-            challenge: challenge.clone(),
+            challenge,
             sgx_local_report,
             ecdh_pubkey,
         };
@@ -1258,7 +1258,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
     async fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
         let mut phactory = self.lock_phactory();
-        let attestation_provider = phactory.attestation_provider.clone();
+        let attestation_provider = phactory.attestation_provider;
         let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
 
         let dev_mode = encrypted_worker_key.dev_mode;
