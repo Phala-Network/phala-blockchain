@@ -1,4 +1,3 @@
-use log::info;
 use std::alloc::System;
 use parity_scale_codec::Encode;
 use anyhow::anyhow;
@@ -95,6 +94,7 @@ impl Machine for GraminePlatform {
         num_cpus::get() as _
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn cpu_feature_level(&self) -> u32 {
         let mut cpu_feature_level: u32 = 1;
         if is_x86_feature_detected!("avx2") {
@@ -107,6 +107,11 @@ impl Machine for GraminePlatform {
             }
         }
         cpu_feature_level
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    fn cpu_feature_level(&self) -> u32 {
+        1
     }
 }
 
