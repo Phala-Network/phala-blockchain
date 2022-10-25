@@ -304,7 +304,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.attestation_provider = attestation_provider;
         info!("attestation_provider: {:?}", self.attestation_provider);
 
-        if self.dev_mode && self.attestation_provider != Some(AttestationProvider::Root) {
+        if self.dev_mode && self.attestation_provider.is_some() {
             return Err(from_display(
                 "RA is disallowed when debug_set_key is enabled",
             ));
