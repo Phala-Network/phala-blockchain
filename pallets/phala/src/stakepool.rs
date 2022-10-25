@@ -4002,16 +4002,16 @@ pub mod pallet {
 
 		fn simulate_v_update(worker: u8, v_bits: u128) {
 			use phala_types::messaging::{
-				DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
+				DecodedMessage, MessageOrigin, WorkingInfoUpdateEvent, SettleInfo, Topic,
 			};
 			let block = System::block_number();
 			let now = Timestamp::now();
 			assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
-				MiningInfoUpdateEvent<BlockNumber>,
+				WorkingInfoUpdateEvent<BlockNumber>,
 			> {
 				sender: MessageOrigin::Gatekeeper,
 				destination: Topic::new(*b"^phala/mining/update"),
-				payload: MiningInfoUpdateEvent::<BlockNumber> {
+				payload: WorkingInfoUpdateEvent::<BlockNumber> {
 					block_number: block,
 					timestamp_ms: now,
 					offline: vec![],
