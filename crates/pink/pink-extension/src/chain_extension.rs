@@ -68,7 +68,7 @@ pub trait PinkExt {
     /// - `key`: The key of the value to set the expiration time for.
     /// - `expire`: The expiration time from now in seconds.
     #[ink(extension = 7, handle_status = false, returns_result = false)]
-    fn cache_set_expire(key: &[u8], expire: u64) -> ();
+    fn cache_set_expire(key: &[u8], expire: u64);
 
     /// Get a value from the local cache.
     ///
@@ -92,6 +92,7 @@ pub trait PinkExt {
     fn getrandom(length: u8) -> Vec<u8>;
 
     /// Check if it is running in a Command context.
+    #[allow(clippy::wrong_self_convention)]
     #[ink(extension = 12, handle_status = false, returns_result = false)]
     fn is_in_transaction() -> bool;
 

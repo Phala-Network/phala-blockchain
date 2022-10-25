@@ -15,14 +15,14 @@ struct App {
 fn get_genesis(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     app.db
         .get_genesis(block_number)
-        .ok_or(NotFound(format!("genesis not found")))
+        .ok_or_else(|| NotFound("genesis not found".into()))
 }
 
 #[get("/header/<block_number>")]
 fn get_header(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     app.db
         .get_header(block_number)
-        .ok_or(NotFound(format!("header not found")))
+        .ok_or_else(|| NotFound("header not found".into()))
 }
 
 #[get("/headers/<start>")]
@@ -32,7 +32,7 @@ fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound
         match app.db.get_header(block) {
             Some(data) => {
                 let info = crate::cache::BlockInfo::decode(&mut &data[..])
-                    .or(Err(NotFound("Codec error".into())))?;
+                    .map_err(|_| NotFound("Codec error".into()))?;
                 let end = info.justification.is_some();
                 headers.push(info);
                 if end {
@@ -61,7 +61,7 @@ fn get_parachain_headers(
             Some(data) => {
                 use pherry::types::Header;
                 let header =
-                    Header::decode(&mut &data[..]).or(Err(NotFound("Codec error".into())))?;
+                    Header::decode(&mut &data[..]).map_err(|_| NotFound("Codec error".into()))?;
                 headers.push(header);
             }
             None => {
@@ -85,7 +85,7 @@ fn get_storage_changes(
         match app.db.get_storage_changes(block) {
             Some(data) => {
                 let header = crate::cache::BlockHeaderWithChanges::decode(&mut &data[..])
-                    .or(Err(NotFound("Codec error".into())))?;
+                    .map_err(|_| NotFound("Codec error".into()))?;
                 changes.push(header);
             }
             None => {

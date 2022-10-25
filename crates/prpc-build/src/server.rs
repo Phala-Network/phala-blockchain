@@ -62,6 +62,7 @@ pub fn generate<T: Service>(
                 }
 
                 pub async fn dispatch_request(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
+                    #![allow(clippy::let_unit_value)]
                     match path {
                         #methods
                         _ => Err(prpc::server::Error::NotFound),
@@ -181,6 +182,7 @@ fn generate_methods_enum<T: Service>(service: &T, emit_package: bool) -> TokenSt
         }
 
         impl #enum_name {
+            #[allow(clippy::should_implement_trait)]
             pub fn from_str(path: &str) -> Option<Self> {
                 match path {
                     #(#paths => Some(Self::#variants),)*

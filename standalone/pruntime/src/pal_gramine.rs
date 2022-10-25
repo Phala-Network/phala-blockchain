@@ -107,7 +107,7 @@ fn vm_peak() -> Option<usize> {
     for line in status.lines() {
         if line.starts_with("VmPeak:") {
             let peak = line.split_ascii_whitespace().nth(1)?;
-            return Some(peak.parse().ok()?);
+            return peak.parse().ok();
         }
     }
     None

@@ -389,6 +389,7 @@ pub fn path_filestat_get(
     __WASI_ENOSYS
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn path_filestat_set_times(
     _env: FunctionEnvMut<WasiEnv>,
     _fd: __wasi_fd_t,
@@ -402,6 +403,7 @@ pub fn path_filestat_set_times(
     __WASI_ENOSYS
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn path_link(
     _env: FunctionEnvMut<WasiEnv>,
     _old_fd: __wasi_fd_t,
@@ -415,6 +417,7 @@ pub fn path_link(
     __WASI_ENOSYS
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn path_open(
     _env: FunctionEnvMut<WasiEnv>,
     _dirfd: __wasi_fd_t,

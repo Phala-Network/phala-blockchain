@@ -137,7 +137,7 @@ macro_rules! proxy_bin_routes {
 }
 
 #[post("/kick")]
-fn kick() {
+fn kick() -> String {
     std::process::exit(0);
 }
 

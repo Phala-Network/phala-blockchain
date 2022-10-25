@@ -254,7 +254,7 @@ async fn get_block_at<T: subxt::Config>(
     let hash = get_header_hash(client, h).await?;
     let block = client
         .rpc()
-        .block(Some(hash.clone()))
+        .block(Some(hash))
         .await?
         .ok_or(Error::BlockNotFound)?;
 
@@ -268,7 +268,7 @@ pub async fn get_header_at<T: subxt::Config>(
     let hash = get_header_hash(client, h).await?;
     let header = client
         .rpc()
-        .header(Some(hash.clone()))
+        .header(Some(hash))
         .await?
         .ok_or(Error::BlockNotFound)?;
 
@@ -278,7 +278,7 @@ pub async fn get_header_at<T: subxt::Config>(
 async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) -> Result<Block> {
     let (block, hash) = get_block_at(api, h).await?;
     info!("get_block: Got block {:?} hash {}", h, hash.to_string());
-    return Ok(block);
+    Ok(block)
 }
 
 pub async fn fetch_storage_changes(
@@ -369,7 +369,7 @@ async fn get_authority_with_proof_at(
     let id = api.current_set_id(Some(hash)).await?;
     // Proof
     let proof =
-        chain_client::read_proofs(&api, Some(hash), vec![GRANDPA_AUTHORITIES_KEY, &id_key]).await?;
+        chain_client::read_proofs(api, Some(hash), vec![GRANDPA_AUTHORITIES_KEY, &id_key]).await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
@@ -451,6 +451,7 @@ async fn req_dispatch_block(
 
 const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 
+#[allow(clippy::too_many_arguments)]
 async fn batch_sync_block(
     api: &RelaychainApi,
     paraclient: &ParachainApi,
@@ -498,7 +499,7 @@ async fn batch_sync_block(
             let hash = api.rpc().block_hash(Some(number.into())).await?;
             let set_id = api.current_set_id(hash).await?;
             let set = (number, set_id);
-            sync_state.authory_set_state = Some(set.clone());
+            sync_state.authory_set_state = Some(set);
             set
         };
         // Find the next set id change
@@ -519,8 +520,7 @@ async fn batch_sync_block(
             if block_buf[header_idx as usize]
                 .justifications
                 .as_ref()
-                .map(|v| v.get(GRANDPA_ENGINE_ID))
-                .flatten()
+                .and_then(|v| v.get(GRANDPA_ENGINE_ID))
                 .is_some()
             {
                 break;
@@ -544,8 +544,7 @@ async fn batch_sync_block(
                 justification: b
                     .justifications
                     .clone()
-                    .map(|v| v.into_justification(GRANDPA_ENGINE_ID))
-                    .flatten(),
+                    .and_then(|v| v.into_justification(GRANDPA_ENGINE_ID)),
             })
             .collect();
 
@@ -568,7 +567,7 @@ async fn batch_sync_block(
         let mut authrotiy_change: Option<AuthoritySetChange> = None;
         if let Some(change_at) = set_id_change_at {
             if change_at == last_header_number {
-                authrotiy_change = Some(get_authority_with_proof_at(&api, last_header_hash).await?);
+                authrotiy_change = Some(get_authority_with_proof_at(api, last_header_hash).await?);
             }
         }
 
@@ -689,7 +688,7 @@ async fn maybe_sync_waiting_parablocks(
     }
     if fin_header.is_none() {
         let last_header_hash = get_header_hash(api, Some(info.headernum - 1)).await?;
-        fin_header = get_finalized_header(&api, &para_api, last_header_hash)
+        fin_header = get_finalized_header(api, para_api, last_header_hash)
             .await?
             .map(|(h, proof)| (h.number, proof));
     }
@@ -707,8 +706,8 @@ async fn maybe_sync_waiting_parablocks(
             info.para_headernum, fin_header_num
         );
         let hdr_synced_to = sync_parachain_header(
-            &pr,
-            &para_api,
+            pr,
+            para_api,
             cache_client.as_ref(),
             fin_header_num,
             info.para_headernum,
@@ -717,8 +716,8 @@ async fn maybe_sync_waiting_parablocks(
         .await?;
         if info.blocknum <= hdr_synced_to {
             batch_sync_storage_changes(
-                &pr,
-                &para_api,
+                pr,
+                para_api,
                 cache_client.as_ref(),
                 info.blocknum,
                 hdr_synced_to,
@@ -807,6 +806,7 @@ async fn resolve_start_header(
     Ok((number - 1) as BlockNumber)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn init_runtime(
     cache: &Option<CacheClient>,
     api: &RelaychainApi,
@@ -851,7 +851,7 @@ async fn init_runtime(
         } else {
             info!("Inject key {}", inject_key);
         }
-        debug_set_key = Some(hex::decode(inject_key.to_string()).expect("Invalid dev key"));
+        debug_set_key = Some(hex::decode(inject_key).expect("Invalid dev key"));
     } else if use_dev_key {
         info!("Inject key {}", DEV_KEY);
         debug_set_key = Some(hex::decode(DEV_KEY).expect("Invalid dev key"));
@@ -879,7 +879,7 @@ async fn register_worker(
 ) -> Result<()> {
     let payload = attestation
         .payload
-        .ok_or(anyhow!("Missing attestation payload"))?;
+        .ok_or_else(|| anyhow!("Missing attestation payload"))?;
     let attestation = Attestation::SgxIas {
         ra_report: payload.report.as_bytes().to_vec(),
         signature: payload.signature,
@@ -913,7 +913,7 @@ async fn try_register_worker(
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
         register_worker(
-            &paraclient,
+            paraclient,
             info.encoded_runtime_info,
             attestation,
             signer,
@@ -1050,13 +1050,13 @@ async fn bridge(
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &para_api, &mut signer, operator, &args).await?;
+            try_register_worker(&pr, &para_api, &mut signer, operator, args).await?;
             flags.worker_registered = true;
         }
         // Try bind worker endpoint
         if !args.no_bind && info.public_key.is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args).await {
+            match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, args).await {
                 Ok(registered) => {
                     flags.endpoint_registered = registered;
                 }
@@ -1159,7 +1159,7 @@ async fn bridge(
 
         let latest_block = get_block_at(&api, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
-        while let Some(ref b) = sync_state.blocks.first() {
+        while let Some(b) = sync_state.blocks.first() {
             if b.block.header.number >= info.blocknum {
                 break;
             }
@@ -1222,26 +1222,20 @@ async fn bridge(
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
-            if !initial_sync_finished && !args.no_register {
-                if !flags.worker_registered {
-                    try_register_worker(&pr, &para_api, &mut signer, operator.clone(), &args)
-                        .await?;
-                    flags.worker_registered = true;
-                }
+            if !initial_sync_finished && !args.no_register && !flags.worker_registered {
+                try_register_worker(&pr, &para_api, &mut signer, operator.clone(), args).await?;
+                flags.worker_registered = true;
             }
 
-            if !args.no_bind {
-                if !flags.endpoint_registered && info.public_key.is_some() {
-                    // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
-                    match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, &args)
-                        .await
-                    {
-                        Ok(registered) => {
-                            flags.endpoint_registered = registered;
-                        }
-                        Err(e) => {
-                            error!("FailedToCallBindWorkerEndpoint: {:?}", e);
-                        }
+            if !args.no_bind && !flags.endpoint_registered && info.public_key.is_some() {
+                // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the pherry initialization)
+                match endpoint::try_update_worker_endpoint(&pr, &para_api, &mut signer, args).await
+                {
+                    Ok(registered) => {
+                        flags.endpoint_registered = registered;
+                    }
+                    Err(e) => {
+                        error!("FailedToCallBindWorkerEndpoint: {:?}", e);
                     }
                 }
             }

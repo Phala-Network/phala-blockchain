@@ -110,10 +110,10 @@ async fn main() {
             let mr_signer = &quote_body[176..208];
             let isv_prod_id = &quote_body[304..306];
             let isv_svn = &quote_body[306..308];
-            println!("- mr_enclave: {}", hex::encode(&mr_enclave));
-            println!("- mr_signer: {}", hex::encode(&mr_signer));
-            println!("- isv_prod_id: {}", hex::encode(&isv_prod_id));
-            println!("- isv_svn: {}", hex::encode(&isv_svn));
+            println!("- mr_enclave: {}", hex::encode(mr_enclave));
+            println!("- mr_signer: {}", hex::encode(mr_signer));
+            println!("- isv_prod_id: {}", hex::encode(isv_prod_id));
+            println!("- isv_svn: {}", hex::encode(isv_svn));
         }
         Cli::DecodeHeader { hex_data } => {
             use sp_runtime::{generic::Header, traits::BlakeTwo256};
@@ -122,7 +122,7 @@ async fn main() {
                 .expect("Faield to parse Header");
             let hash = header.hash();
             println!("Decoded: {:?}", header);
-            println!("Hash: 0x{}", hex::encode(&hash));
+            println!("Hash: 0x{}", hex::encode(hash));
         }
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
@@ -329,7 +329,7 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         destination: &[u8],
         payload: &[u8],
     ) -> Result<(), ()> {
-        if &T::topic() == destination {
+        if T::topic() == destination {
             let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
             println!("{:#?}", msg);
             return Ok(());

@@ -20,7 +20,7 @@ thread_local! {
     /// All async tasks in the sidevm guest.
     static TASKS: RefCell<Tasks> = {
         std::panic::set_hook(Box::new(|info| {
-            let _ = log::error!("{}", info);
+            log::error!("{}", info);
         }));
         RefCell::new(vec![Some(unsafe { sidevm_main_future() })])
     };
@@ -201,7 +201,7 @@ extern "C" fn sidevm_poll() -> i32 {
                     tasks[0].is_none()
                 };
                 if !exited {
-                    start_spawned_tasks(&mut *tasks.borrow_mut());
+                    start_spawned_tasks(&mut tasks.borrow_mut());
                 }
                 Some(exited)
             });

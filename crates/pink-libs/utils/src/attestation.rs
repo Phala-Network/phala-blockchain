@@ -38,7 +38,7 @@ impl Verifier {
 
     /// Verifies an attestation and decodes the inner data
     pub fn verify_as<T: Decode>(&self, attestation: &Attestation) -> Option<T> {
-        if !self.verify(&attestation) {
+        if !self.verify(attestation) {
             return None;
         }
         Decode::decode(&mut &attestation.data[..]).ok()

@@ -271,14 +271,14 @@ pub mod pallet {
 				initial_score: None,
 				features: vec![1, 4],
 			};
-			Workers::<T>::insert(&worker_info.pubkey, &worker_info);
+			Workers::<T>::insert(worker_info.pubkey, &worker_info);
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
 				WorkerEvent::Registered(messaging::WorkerInfo {
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
-			Self::deposit_event(Event::<T>::WorkerAdded { 
+			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
 				confidence_level: worker_info.confidence_level,
 			});
@@ -323,7 +323,7 @@ pub mod pallet {
 
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
-					Workers::<T>::get(&gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
+					Workers::<T>::get(gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
 				gatekeepers.push(gatekeeper);
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
@@ -460,9 +460,9 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerUpdated { 
+						Self::deposit_event(Event::<T>::WorkerUpdated {
 							pubkey,
-							confidence_level: fields.confidence_level, 
+							confidence_level: fields.confidence_level,
 						});
 					}
 					None => {
@@ -483,9 +483,9 @@ pub mod pallet {
 								confidence_level: fields.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerAdded { 
+						Self::deposit_event(Event::<T>::WorkerAdded {
 							pubkey,
-							confidence_level: fields.confidence_level,  
+							confidence_level: fields.confidence_level,
 						});
 					}
 				}
@@ -512,8 +512,7 @@ pub mod pallet {
 			let sig = sp_core::sr25519::Signature::try_from(signature.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
-			let data_to_sign =
-				wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
+			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
 
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
@@ -531,7 +530,7 @@ pub mod pallet {
 
 			// Validate the public key
 			ensure!(
-				Workers::<T>::contains_key(&endpoint_payload.pubkey),
+				Workers::<T>::contains_key(endpoint_payload.pubkey),
 				Error::<T>::InvalidPubKey
 			);
 
@@ -560,7 +559,7 @@ pub mod pallet {
 			PRuntimeAllowList::<T>::put(allowlist);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			PRuntimeAddedAt::<T>::insert(&pruntime_hash, &now);
+			PRuntimeAddedAt::<T>::insert(&pruntime_hash, now);
 
 			Ok(())
 		}
@@ -737,7 +736,7 @@ pub mod pallet {
 						*worker_pubkey,
 						WorkerEvent::BenchScore(score),
 					));
-					Self::deposit_event(Event::<T>::InitialScoreSet{
+					Self::deposit_event(Event::<T>::InitialScoreSet {
 						pubkey: *worker_pubkey,
 						init_score: score,
 					});
@@ -842,8 +841,8 @@ pub mod pallet {
 			use std::convert::TryInto;
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
 				Workers::<T>::insert(
-					&pubkey,
-					&WorkerInfo {
+					pubkey,
+					WorkerInfo {
 						pubkey: *pubkey,
 						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
 						runtime_version: 0,
@@ -870,7 +869,7 @@ pub mod pallet {
 			}
 			let mut gatekeepers: Vec<WorkerPublicKey> = Vec::new();
 			for gatekeeper in &self.gatekeepers {
-				if let Ok(worker_info) = Workers::<T>::try_get(&gatekeeper) {
+				if let Ok(worker_info) = Workers::<T>::try_get(gatekeeper) {
 					gatekeepers.push(*gatekeeper);
 					let gatekeeper_count = gatekeepers.len() as u32;
 					Gatekeeper::<T>::put(gatekeepers.clone());

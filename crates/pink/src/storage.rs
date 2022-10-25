@@ -165,7 +165,7 @@ where
     }
 
     pub fn system_contract(&mut self) -> Option<AccountId> {
-        self.execute_with(true, None, move || crate::runtime::Pink::system_contract())
+        self.execute_with(true, None, crate::runtime::Pink::system_contract)
             .0
     }
 

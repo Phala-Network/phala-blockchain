@@ -67,7 +67,7 @@ impl Nargs for () {
 impl Nargs for IntPtr {
     const N_ARGS: usize = 1;
     fn load(buf: &mut &[IntPtr]) -> Option<Self> {
-        let me = *buf.get(0)?;
+        let me = *buf.first()?;
         *buf = &buf[1..];
         Some(me)
     }
@@ -111,6 +111,7 @@ impl<T: Nargs> NotTooManyArgs for T {
 }
 
 pub(crate) fn check_args_length<T: Nargs + NotTooManyArgs>(v: StackedArgs<T>) -> StackedArgs<T> {
+    #[allow(clippy::let_unit_value)]
     let _ = T::TOO_MANY_ARGUMENTS;
     v
 }

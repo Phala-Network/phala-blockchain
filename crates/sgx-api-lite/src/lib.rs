@@ -113,7 +113,7 @@ pub fn verify(report: &Report) -> Result<()> {
     cmac.update(body);
 
     let mac = cmac.finalize().into_bytes();
-    if &mac[..] == &report.mac[..] {
+    if mac[..] == report.mac[..] {
         Ok(())
     } else {
         Err(SgxError)

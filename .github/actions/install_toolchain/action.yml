@@ -3,6 +3,13 @@ description: "Install toolchains"
 runs:
   using: "composite"
   steps:
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly-2022-09-08
+        override: true
+        target: wasm32-unknown-unknown
+        components: rustfmt
     - run: sudo apt-get install build-essential cmake pkg-config libssl-dev git llvm clang libclang-dev protobuf-compiler
       shell: bash
 

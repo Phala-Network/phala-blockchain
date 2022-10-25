@@ -182,7 +182,7 @@ impl FatContract {
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
-            contract_clusters: &mut env.contract_clusters,
+            contract_clusters: env.contract_clusters,
             self_id: self.id(),
             log_handler: env.log_handler.clone(),
         };
@@ -206,7 +206,7 @@ impl FatContract {
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
-            contract_clusters: &mut env.contract_clusters,
+            contract_clusters: env.contract_clusters,
             self_id: self.id(),
             log_handler: env.log_handler.clone(),
         };
@@ -259,7 +259,7 @@ impl FatContract {
                     let expected_hash = self
                         .sidevm_info
                         .as_ref()
-                        .ok_or(anyhow!("No sidevm info"))?
+                        .ok_or_else(|| anyhow!("No sidevm info"))?
                         .code_hash;
                     if actual_hash != expected_hash {
                         bail!(
@@ -385,7 +385,7 @@ impl FatContract {
         self.weight = weight;
         info!("Updated weight for contarct {:?} to {}", self.id(), weight);
         if let Some(SidevmHandle::Running(tx)) = self.sidevm_handle() {
-            if let Err(_) = tx.try_send(SidevmCommand::UpdateWeight(weight)) {
+            if tx.try_send(SidevmCommand::UpdateWeight(weight)).is_err() {
                 error!("Failed to update weight for sidevm, maybe it has crashed");
             }
         }
@@ -396,13 +396,13 @@ impl FatContract {
 
     pub fn info(&self) -> pb::ContractInfo {
         pb::ContractInfo {
-            id: hex(&self.contract_id),
+            id: hex(self.contract_id),
             weight: self.weight,
             code_hash: self.code_hash.as_ref().map(hex).unwrap_or_default(),
             sidevm: self.sidevm_info.as_ref().map(|info| {
                 let handle = info.handle.lock().unwrap().clone();
                 let start_time = info.start_time.clone();
-                let code_hash = hex(&info.code_hash);
+                let code_hash = hex(info.code_hash);
                 match handle {
                     SidevmHandle::Running(_) => pb::SidevmInfo {
                         state: "running".into(),
@@ -431,7 +431,7 @@ fn do_start_sidevm(
     let max_memory_pages: u32 = 1024; // 64MB
     let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
     let (sender, join_handle) = spawner.start(
-        &code,
+        code,
         max_memory_pages,
         id,
         gas_per_breath,

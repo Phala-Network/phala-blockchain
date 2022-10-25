@@ -102,7 +102,7 @@ impl MessageOrigin {
     /// Returns the account id if the origin is from a user, or `Err(BadOrigin)` otherwise
     pub fn account(&self) -> Result<AccountId32, BadOrigin> {
         match self {
-            Self::AccountId(account_id) => Ok(AccountId32::unchecked_from(account_id.clone())),
+            Self::AccountId(account_id) => Ok(AccountId32::unchecked_from(*account_id)),
             _ => Err(BadOrigin),
         }
     }

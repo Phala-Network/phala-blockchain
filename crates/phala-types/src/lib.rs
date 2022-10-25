@@ -46,7 +46,7 @@ pub mod messaging {
 
     impl Debug for WorkerEventWithKey {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            let pubkey = hex::encode(&self.pubkey.0);
+            let pubkey = hex::encode(self.pubkey.0);
             f.debug_struct("WorkerEventWithKey")
                 .field("pubkey", &pubkey)
                 .field("event", &self.event)
@@ -373,7 +373,7 @@ pub mod messaging {
             BatchRotateMasterKeyData {
                 rotation_id: self.rotation_id,
                 secret_keys: &self.secret_keys,
-                sender: self.sender.clone(),
+                sender: self.sender,
             }
             .encode()
         }
