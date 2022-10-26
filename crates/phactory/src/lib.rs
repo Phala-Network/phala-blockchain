@@ -1,6 +1,5 @@
 #![warn(unused_imports)]
 #![warn(unused_extern_crates)]
-#![feature(bench_black_box)]
 #![feature(panic_unwind)]
 #![feature(c_variadic)]
 
