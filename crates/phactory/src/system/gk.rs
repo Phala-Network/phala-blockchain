@@ -1574,7 +1574,7 @@ pub mod tests {
             self.drain()
                 .into_iter()
                 .filter_map(|m| {
-                    if &m.destination.path()[..] == &M::topic() {
+                    if m.destination.path()[..] == M::topic() {
                         Decode::decode(&mut &m.payload[..]).ok()
                     } else {
                         None

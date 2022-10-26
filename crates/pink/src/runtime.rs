@@ -203,6 +203,8 @@ pub fn emit_log(id: &AccountId, level: u8, msg: String) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::type_complexity)]
+
     use pallet_contracts::Config;
     use sp_runtime::{traits::Hash, AccountId32};
 
@@ -244,7 +246,7 @@ mod tests {
 
             Contracts::call(
                 Origin::signed(ALICE),
-                addr.clone(),
+                addr,
                 0,
                 QUERY_GAS_LIMIT * 2,
                 None,

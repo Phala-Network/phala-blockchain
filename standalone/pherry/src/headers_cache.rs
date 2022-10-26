@@ -383,7 +383,7 @@ impl Client {
     }
 
     pub async fn get_headers(&self, block_number: BlockNumber) -> Result<Vec<BlockInfo>> {
-        let url = format!("{}/headers/{}", self.base_uri, block_number);
+        let url = format!("{}/headers/{block_number}", self.base_uri);
         self.request(&url).await
     }
 
@@ -393,8 +393,8 @@ impl Client {
         count: BlockNumber,
     ) -> Result<Vec<Header>> {
         let url = format!(
-            "{}/parachain-headers/{}/{}",
-            self.base_uri, start_number, count
+            "{}/parachain-headers/{start_number}/{count}",
+            self.base_uri
         );
         self.request(&url).await
     }
@@ -405,14 +405,14 @@ impl Client {
         count: BlockNumber,
     ) -> Result<Vec<BlockHeaderWithChanges>> {
         let url = format!(
-            "{}/storage-changes/{}/{}",
-            self.base_uri, start_number, count
+            "{}/storage-changes/{start_number}/{count}",
+            self.base_uri
         );
         self.request(&url).await
     }
 
     pub async fn get_genesis(&self, block_number: BlockNumber) -> Result<GenesisBlockInfo> {
-        let url = format!("{}/genesis/{}", self.base_uri, block_number);
+        let url = format!("{}/genesis/{block_number}", self.base_uri);
         self.request(&url).await
     }
 }

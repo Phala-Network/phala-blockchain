@@ -29,4 +29,4 @@ endif
 
 .PHONY: clippy
 clippy:
-	cargo clippy
+	cargo clippy --tests

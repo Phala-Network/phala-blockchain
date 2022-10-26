@@ -303,7 +303,7 @@ fn cors_options() -> CorsOptions {
 fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     info!("Methods under {}:", prefix);
     for method in methods {
-        info!("    {}", format!("{}/{}", prefix, method).blue());
+        info!("    {}", format!("{prefix}/{method}").blue());
     }
 }
 

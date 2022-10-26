@@ -9,12 +9,12 @@ pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
 fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String, String)> {
     let encoded_quote = base64::encode(quote);
-    let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
+    let encoded_json = format!("{{\"isvEnclaveQuote\":\"{encoded_quote}\"}}\r\n");
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
 
-    let url: reqwest::Url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT).parse()?;
+    let url: reqwest::Url = format!("https://{IAS_HOST}{IAS_REPORT_ENDPOINT}").parse()?;
     info!("Getting RA report from {}", url);
     let mut res = reqwest::blocking::Client::builder()
         .timeout(timeout)
@@ -45,7 +45,7 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
         };
 
         error!("{}", msg);
-        return Err(anyhow!(format!("Bad http status: {}", status_code)));
+        return Err(anyhow!(format!("Bad http status: {status_code}")));
     }
 
     let content_len = match res.content_length() {

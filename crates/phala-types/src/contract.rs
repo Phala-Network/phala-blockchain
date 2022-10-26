@@ -245,7 +245,7 @@ pub enum ContractQueryError {
 
 impl From<ContractQueryError> for prpc::server::Error {
     fn from(err: ContractQueryError) -> Self {
-        Self::ContractQueryError(alloc::format!("{:?}", err))
+        Self::ContractQueryError(alloc::format!("{err:?}"))
     }
 }
 

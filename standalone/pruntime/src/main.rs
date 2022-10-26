@@ -137,12 +137,12 @@ async fn main() -> Result<(), rocket::Error> {
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {
-        panic!("Initialize Failed: {:?}", err);
+        panic!("Initialize Failed: {err:?}");
     }
 
     for i in 0..cores {
         thread::Builder::new()
-            .name(format!("bench-{}", i))
+            .name(format!("bench-{i}"))
             .spawn(move || {
                 set_thread_idle_policy();
                 loop {

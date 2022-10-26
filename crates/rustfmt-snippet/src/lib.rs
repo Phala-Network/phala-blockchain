@@ -33,7 +33,7 @@ pub fn rustfmt(source: &str) -> std::io::Result<String> {
 
 /// Format given TokenStream with rustfmt
 pub fn rustfmt_token_stream(stream: &proc_macro2::TokenStream) -> std::io::Result<String> {
-    rustfmt(&format!("{}", stream))
+    rustfmt(&format!("{stream}"))
 }
 
 #[test]

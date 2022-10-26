@@ -186,10 +186,8 @@ pub fn validate_ias_report(
 
 	// Validate PRuntime
 	let pruntime_hash = ias_fields.extend_mrenclave();
-	if verify_pruntime_hash {
-		if !pruntime_allowlist.contains(&pruntime_hash) {
-			return Err(Error::PRuntimeRejected);
-		}
+	if verify_pruntime_hash && !pruntime_allowlist.contains(&pruntime_hash) {
+		return Err(Error::PRuntimeRejected);
 	}
 
 	// Validate time
@@ -233,7 +231,7 @@ mod test {
 		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
 			.as_str()
 			.unwrap();
-		let quote_body = base64::decode(&raw_quote_body).unwrap();
+		let quote_body = base64::decode(raw_quote_body).unwrap();
 		let report_data = &quote_body[368..432];
 		let commit = &report_data[..32];
 

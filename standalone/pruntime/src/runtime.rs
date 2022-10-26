@@ -23,7 +23,7 @@ fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E
     match result {
         Ok(inner) => serde_json::to_string_pretty(&inner).unwrap_or_default(),
         Err(err) => {
-            let error = format!("{:?}", err);
+            let error = format!("{err:?}");
             serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
         }
         .unwrap_or_default(),

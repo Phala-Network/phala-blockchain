@@ -108,7 +108,7 @@ impl MessageDispatcher {
 pub enum TypedReceiveError {
     #[display(fmt = "All senders of the channel have gone")]
     SenderGone,
-    #[display(fmt = "Decode message failed: {}", _0)]
+    #[display(fmt = "Decode message failed: {_0}")]
     CodecError(CodecError),
 }
 

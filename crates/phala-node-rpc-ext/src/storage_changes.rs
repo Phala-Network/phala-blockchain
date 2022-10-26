@@ -29,7 +29,7 @@ pub enum Error {
 
 impl Error {
     fn invalid_block<Block: BlockT, E: Display>(id: BlockId<Block>, error: E) -> Self {
-        Self::InvalidBlock(format!("{}: {}", id, error))
+        Self::InvalidBlock(format!("{id}: {error}"))
     }
 }
 
@@ -80,8 +80,8 @@ where
 
     if n_from > n_to {
         return Err(Error::InvalidBlockRange {
-            from: format!("{}({})", from, n_from),
-            to: format!("{}({})", to, n_to),
+            from: format!("{from}({n_from})"),
+            to: format!("{to}({n_to})"),
         });
     }
 

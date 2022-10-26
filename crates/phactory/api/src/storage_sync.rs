@@ -21,10 +21,10 @@ pub enum Error {
     /// No Justification found in the last header
     MissingJustification,
     /// Header validation failed
-    #[display(fmt = "HeaderValidateFailed({})", _0)]
+    #[display(fmt = "HeaderValidateFailed({_0})")]
     HeaderValidateFailed(String),
     /// Storage proof failed
-    #[display(fmt = "StorageProofFailed({})", _0)]
+    #[display(fmt = "StorageProofFailed({_0})")]
     StorageProofFailed(String),
     /// Relay chain header not synced before syncing parachain header
     RelaychainHeaderNotSynced,

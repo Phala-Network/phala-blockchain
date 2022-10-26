@@ -219,7 +219,7 @@ impl Pink {
 
                 let _ = pink::transpose_contract_result(&result).map_err(|err| {
                     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
-                    TransactionError::Other(format!("Call contract method failed: {:?}", err))
+                    TransactionError::Other(format!("Call contract method failed: {err:?}"))
                 })?;
                 Ok(effects)
             }
@@ -245,7 +245,7 @@ impl Pink {
             )
             .map_err(|err| {
                 log::error!("Pink [{:?}] on_block_end exec error: {:?}", self.id(), err);
-                TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
+                TransactionError::Other(format!("Call contract on_block_end failed: {err:?}"))
             })?;
         Ok(effects)
     }

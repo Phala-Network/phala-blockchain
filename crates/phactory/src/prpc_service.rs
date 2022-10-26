@@ -37,7 +37,7 @@ fn from_display(e: impl core::fmt::Display) -> RpcError {
 }
 
 fn from_debug(e: impl core::fmt::Debug) -> RpcError {
-    RpcError::AppError(format!("{:?}", e))
+    RpcError::AppError(format!("{e:?}"))
 }
 
 pub const VERSION: u32 = 1;
@@ -464,7 +464,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 match self.platform.create_attestation_report(self.attestation_provider, &runtime_info_hash) {
                     Ok(r) => r,
                     Err(e) => {
-                        let message = format!("Failed to create attestation report: {:?}", e);
+                        let message = format!("Failed to create attestation report: {e:?}");
                         error!("{}", message);
                         return Err(from_display(message));
                     }
@@ -844,7 +844,7 @@ where
                     let (code, err) = match err {
                         Error::NotFound => (404, ProtoError::new("Method Not Found")),
                         Error::DecodeError(err) => {
-                            (400, ProtoError::new(format!("DecodeError({:?})", err)))
+                            (400, ProtoError::new(format!("DecodeError({err:?})")))
                         }
                         Error::AppError(msg) => (500, ProtoError::new(msg)),
                         Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
@@ -872,7 +872,7 @@ fn create_attestation_report_on<Platform: pal::Platform>(
         match platform.create_attestation_report(attestation_provider, data) {
             Ok(r) => r,
             Err(e) => {
-                let message = format!("Failed to create attestation report: {:?}", e);
+                let message = format!("Failed to create attestation report: {e:?}");
                 error!("{}", message);
                 return Err(from_display(message));
             }

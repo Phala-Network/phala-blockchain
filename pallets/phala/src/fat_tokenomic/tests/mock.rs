@@ -135,8 +135,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let zero_pubkey = sp_core::sr25519::Public::from_raw([0u8; 32]);
 	let zero_ecdh_pubkey = Vec::from(&[0u8; 32][..]);
 	crate::registry::GenesisConfig::<Test> {
-		workers: vec![(zero_pubkey.clone(), zero_ecdh_pubkey, None)],
-		gatekeepers: vec![(zero_pubkey.clone())],
+		workers: vec![(zero_pubkey, zero_ecdh_pubkey, None)],
+		gatekeepers: vec![zero_pubkey],
 		benchmark_duration: 0u32,
 	}
 	.assimilate_storage(&mut t)

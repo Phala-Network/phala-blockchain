@@ -1248,7 +1248,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                     block.block_number,
                                 ),
                             )
-                            .with_context(|| format!("Contract deployer: {:?}", deployer))?;
+                            .with_context(|| format!("Contract deployer: {deployer:?}"))?;
 
                         let cluster = self
                             .contract_clusters
@@ -1928,7 +1928,7 @@ impl fmt::Display for Error {
         match self {
             Error::NotAuthorized => write!(f, "not authorized"),
             Error::TxHashNotFound => write!(f, "transaction hash not found"),
-            Error::Other(e) => write!(f, "{}", e),
+            Error::Other(e) => write!(f, "{e}"),
         }
     }
 }
@@ -1959,6 +1959,6 @@ pub mod chain_state {
     ) -> Option<chain::BlockNumber> {
         let key =
             storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
-        chain_storage.get_decoded(&key)
+        chain_storage.get_decoded(key)
     }
 }

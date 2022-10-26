@@ -210,7 +210,7 @@ mod test {
         }
     }
 
-    fn cow<'a>(s: &'a impl AsRef<[u8]>) -> Cow<'a, [u8]> {
+    fn cow(s: &impl AsRef<[u8]>) -> Cow<[u8]> {
         Cow::Borrowed(s.as_ref())
     }
 

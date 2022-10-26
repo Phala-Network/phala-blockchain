@@ -121,6 +121,6 @@ impl CacheDB {
 
     pub fn put_metadata(&self, metadata: Metadata) -> Result<()> {
         let encoded = serde_json::to_vec(&metadata)?;
-        self.0.put(b"m-metadata", &encoded).map_err(Into::into)
+        self.0.put(b"m-metadata", encoded).map_err(Into::into)
     }
 }

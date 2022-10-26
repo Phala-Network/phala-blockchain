@@ -62,7 +62,7 @@ impl OcallEnv for TestHost {
 impl VmMemory for TestHost {
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
         let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
-        dst_buf.clone_from_slice(&data);
+        dst_buf.clone_from_slice(data);
         Ok(())
     }
 
@@ -91,7 +91,7 @@ extern "C" fn sidevm_ocall(
     p3: IntPtr,
 ) -> IntRet {
     let result = dispatch_ocall(false, &mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
-    println!("sidevm_ocall {} result={:?}", func_id, result);
+    println!("sidevm_ocall {func_id} result={result:?}");
     result.encode_ret()
 }
 
@@ -105,7 +105,7 @@ extern "C" fn sidevm_ocall_fast_return(
     p3: IntPtr,
 ) -> IntRet {
     let result = dispatch_ocall(true, &mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
-    println!("sidevm_ocall_fast_return {} result={:?}", func_id, result);
+    println!("sidevm_ocall_fast_return {func_id} result={result:?}");
     result.encode_ret()
 }
 

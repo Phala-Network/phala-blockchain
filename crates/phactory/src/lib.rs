@@ -1,7 +1,5 @@
 #![warn(unused_imports)]
 #![warn(unused_extern_crates)]
-#![feature(panic_unwind)]
-#![feature(c_variadic)]
 
 #[macro_use]
 extern crate log;
@@ -102,7 +100,7 @@ impl RuntimeState {
             let module_prefix = OffchainIngress::module_prefix();
             let storage_prefix = OffchainIngress::storage_prefix();
             let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
+            let sequence: u64 = self.chain_storage.get_decoded(key).unwrap_or(0);
             debug!("purging, sequence = {}", sequence);
             sequence
         })
@@ -114,11 +112,11 @@ const CHECKPOINT_FILE: &str = "checkpoint.seal";
 const CHECKPOINT_VERSION: u32 = 2;
 
 fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
-    format!("{}/{}-{:0>9}", basedir, CHECKPOINT_FILE, block_number)
+    format!("{basedir}/{CHECKPOINT_FILE}-{block_number:0>9}")
 }
 
 fn checkpoint_filename_pattern(basedir: &str) -> String {
-    format!("{}/{}-*", basedir, CHECKPOINT_FILE)
+    format!("{basedir}/{CHECKPOINT_FILE}-*")
 }
 
 fn glob_checkpoint_files(basedir: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
@@ -614,7 +612,7 @@ impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'d
         let mut factory = Phactory::load_state(deserializer)?;
         factory
             .on_restored()
-            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {:?}", err)))?;
+            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {err:?}")))?;
         Ok(Self(factory))
     }
 }
