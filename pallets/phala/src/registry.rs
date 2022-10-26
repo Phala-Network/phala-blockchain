@@ -1247,24 +1247,24 @@ pub mod pallet {
 				let sample: H256 = H256::repeat_byte(1);
 				assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(
 					Origin::root(),
-					sample
+					sample.clone()
 				));
 				assert_noop!(
 					PhalaRegistry::add_relaychain_genesis_block_hash(
 						Origin::root(),
-						sample
+						sample.clone()
 					),
 					Error::<Test>::GenesisBlockHashAlreadyExists
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 1);
 				assert_ok!(PhalaRegistry::remove_relaychain_genesis_block_hash(
 					Origin::root(),
-					sample
+					sample.clone()
 				));
 				assert_noop!(
 					PhalaRegistry::remove_relaychain_genesis_block_hash(
 						Origin::root(),
-						sample
+						sample.clone()
 					),
 					Error::<Test>::GenesisBlockHashNotFound
 				);

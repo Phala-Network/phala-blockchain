@@ -447,7 +447,7 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let pubkey = Self::ensure_miner_bound(&miner)?;
 			let worker =
-				registry::Workers::<T>::get(pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
 			ensure!(worker.operator == Some(who), Error::<T>::BadSender);
 			// Always notify the subscriber. Please note that even if the miner is not mining, we
 			// still have to notify the subscriber that an unbinding operation has just happened.
@@ -593,7 +593,7 @@ pub mod pallet {
 						let miner = Self::ensure_worker_bound(&worker)?;
 						let mut miner_info = Self::miners(&miner).expect("Bound miner; qed.");
 						let worker =
-							registry::Workers::<T>::get(worker).expect("Bound worker; qed.");
+							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
 						let now = Self::now_sec();
 						let challenge_time_sec = challenge_time / 1000;
 						miner_info
@@ -625,7 +625,7 @@ pub mod pallet {
 
 				// worker offline, update bound miner state to unresponsive
 				for worker in event.offline {
-					if let Some(account) = WorkerBindings::<T>::get(worker) {
+					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info = match Self::miners(&account) {
 							Some(miner) => miner,
 							None => continue, // Skip non-existing miners
@@ -647,7 +647,7 @@ pub mod pallet {
 
 				// worker recovered to online, update bound miner state to idle
 				for worker in event.recovered_to_online {
-					if let Some(account) = WorkerBindings::<T>::get(worker) {
+					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info = match Self::miners(&account) {
 							Some(miner) => miner,
 							None => continue, // Skip non-existing miners
@@ -689,7 +689,7 @@ pub mod pallet {
 		///
 		/// `now` and `emit_ts` are both in second.
 		fn try_handle_settle(info: &SettleInfo, now: u64, emit_ts: u64) -> DispatchResult {
-			if let Some(account) = WorkerBindings::<T>::get(info.pubkey) {
+			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
 				let mut miner_info = Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
 				debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
 				if miner_info.v_updated_at >= emit_ts {
@@ -771,9 +771,9 @@ pub mod pallet {
 		/// 4. There's no stake in CD associated with the miner
 		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let worker =
-				registry::Workers::<T>::get(pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
 			// Check the worker has finished the benchmark
-			ensure!(worker.initial_score.is_some(), Error::<T>::BenchmarkMissing);
+			ensure!(worker.initial_score != None, Error::<T>::BenchmarkMissing);
 			// Check miner and worker not bound
 			ensure!(
 				Self::ensure_miner_bound(&miner).is_err(),
@@ -791,8 +791,8 @@ pub mod pallet {
 			ensure!(can_bind, Error::<T>::MinerNotReady);
 
 			let now = Self::now_sec();
-			MinerBindings::<T>::insert(&miner, pubkey);
-			WorkerBindings::<T>::insert(pubkey, &miner);
+			MinerBindings::<T>::insert(&miner, &pubkey);
+			WorkerBindings::<T>::insert(&pubkey, &miner);
 			Miners::<T>::insert(
 				&miner,
 				MinerInfo {
@@ -838,7 +838,7 @@ pub mod pallet {
 				// TODO: consider the final state sync (could cause slash) when stopping mining
 			}
 			MinerBindings::<T>::remove(miner);
-			WorkerBindings::<T>::remove(worker);
+			WorkerBindings::<T>::remove(&worker);
 			Self::deposit_event(Event::<T>::MinerUnbound {
 				miner: miner.clone(),
 				worker,
@@ -862,12 +862,12 @@ pub mod pallet {
 			);
 			// Double check the Stake shouldn't be overrode
 			ensure!(
-				Stakes::<T>::get(&miner).is_none(),
+				Stakes::<T>::get(&miner) == None,
 				Error::<T>::InternalErrorCannotStartWithExistingStake,
 			);
 
 			let worker_info =
-				registry::Workers::<T>::get(worker).expect("Bounded worker must exist; qed.");
+				registry::Workers::<T>::get(&worker).expect("Bounded worker must exist; qed.");
 			let p = worker_info
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
@@ -950,12 +950,12 @@ pub mod pallet {
 
 		/// Returns if the worker is already bounded to a miner
 		pub fn ensure_worker_bound(pubkey: &WorkerPublicKey) -> Result<T::AccountId, Error<T>> {
-			WorkerBindings::<T>::get(pubkey).ok_or(Error::<T>::WorkerNotBound)
+			WorkerBindings::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotBound)
 		}
 
 		/// Returns if the miner is already bounded to a worker
 		pub fn ensure_miner_bound(miner: &T::AccountId) -> Result<WorkerPublicKey, Error<T>> {
-			MinerBindings::<T>::get(miner).ok_or(Error::<T>::MinerNotBound)
+			MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)
 		}
 
 		fn update_tokenomic_parameters(params: TokenomicParams) {
@@ -1058,7 +1058,7 @@ pub mod pallet {
 		fn confidence_score(confidence_level: u8) -> FixedPoint {
 			use fixed_macro::types::U64F64 as fp;
 			const SCORES: [FixedPoint; 5] = [fp!(1), fp!(1), fp!(1), fp!(0.8), fp!(0.7)];
-			if (1..=5).contains(&confidence_level) {
+			if 1 <= confidence_level && confidence_level <= 5 {
 				SCORES[confidence_level as usize - 1]
 			} else {
 				SCORES[0]

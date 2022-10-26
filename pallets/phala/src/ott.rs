@@ -128,7 +128,7 @@ pub mod pallet {
 				set_block_1();
 				assert_ok!(PhalaOneshotTransfer::distribute(
 					Origin::signed(1),
-					vec![(2, DOLLARS), (3, DOLLARS)]
+					vec![(2, 1 * DOLLARS), (3, 1 * DOLLARS)]
 				));
 				// Blacklist works
 				assert_eq!(BlacklistedAccounts::<Test>::get(0), None);
@@ -142,25 +142,25 @@ pub mod pallet {
 						TestEvent::Balances(pallet_balances::Event::Transfer {
 							from: 1,
 							to: 2,
-							amount: DOLLARS
+							amount: 1 * DOLLARS
 						}),
 						TestEvent::Balances(pallet_balances::Event::Transfer {
 							from: 1,
 							to: 3,
-							amount: DOLLARS
+							amount: 1 * DOLLARS
 						}),
 						TestEvent::PhalaOneshotTransfer(Event::AccountsBlacklisted(vec![2, 3, 1]))
 					]
 				);
 
 				assert_noop!(
-					PhalaOneshotTransfer::distribute(Origin::signed(1), vec![(4, DOLLARS)]),
+					PhalaOneshotTransfer::distribute(Origin::signed(1), vec![(4, 1 * DOLLARS)]),
 					Error::<Test>::SenderAlreadyBlacklisted
 				);
 				assert_noop!(
 					PhalaOneshotTransfer::distribute(
 						Origin::signed(5),
-						vec![(1, DOLLARS), (6, DOLLARS)]
+						vec![(1, 1 * DOLLARS), (6, 1 * DOLLARS)]
 					),
 					Error::<Test>::DestinationAlreadyBlacklisted
 				);
