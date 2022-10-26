@@ -1650,12 +1650,12 @@ pub mod tests {
     impl ForWorker<'_> {
         fn pallet_say(&mut self, event: msg::WorkerEvent) {
             let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
-            let message = msg::SystemEvent::new_worker_event(self.pubkey.clone(), event);
+            let message = msg::SystemEvent::new_worker_event(*self.pubkey, event);
             self.mq.dispatch_bound(&sender, message);
         }
 
         fn say<M: Encode + BindTopic>(&mut self, message: M) {
-            let sender = MessageOrigin::Worker(self.pubkey.clone());
+            let sender = MessageOrigin::Worker(*self.pubkey);
             self.mq.dispatch_bound(&sender, message);
         }
 
@@ -1712,6 +1712,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1745,6 +1746,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1842,6 +1844,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1907,6 +1910,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1961,6 +1965,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1998,7 +2003,7 @@ pub mod tests {
 
         assert!(r.get_worker(0).unresponsive);
         {
-            let offline = [r.workers[0].clone()].to_vec();
+            let offline = [r.workers[0]].to_vec();
             let expected_message = MiningInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
@@ -2042,6 +2047,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2115,6 +2121,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2162,7 +2169,7 @@ pub mod tests {
             "Worker should not be slashed or rewarded"
         );
         {
-            let recovered_to_online = [r.workers[0].clone()].to_vec();
+            let recovered_to_online = [r.workers[0]].to_vec();
             let expected_message = MiningInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
@@ -2185,6 +2192,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2257,7 +2265,7 @@ pub mod tests {
         }
         assert!(r.get_worker(0).unresponsive);
         let report = r.gk.egress.drain_mining_info_update_event();
-        assert_eq!(report[0].offline, vec![r.workers[0].clone()]);
+        assert_eq!(report[0].offline, vec![r.workers[0]]);
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check miner reconnection and V recovery
@@ -2272,6 +2280,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2302,7 +2311,7 @@ pub mod tests {
             r.for_worker(0).challenge();
             r.gk.test_process_messages(block);
         });
-        r.for_worker(0).heartbeat(1, block_number, 1000000 as u64);
+        r.for_worker(0).heartbeat(1, block_number, 1000000_u64);
         block_number += 1;
         with_block(block_number, |block| {
             r.gk.test_process_messages(block);
@@ -2345,6 +2354,7 @@ pub mod tests {
             for i in 0..=1 {
                 let mut worker = r.for_worker(i);
                 worker.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                    attestation_provider: None,
                     confidence_level: 2,
                 }));
             }

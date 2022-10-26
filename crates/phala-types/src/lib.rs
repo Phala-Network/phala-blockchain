@@ -6,10 +6,13 @@ pub mod contract;
 use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
-use codec::{Decode, Encode};
 use core::fmt::Debug;
 use scale_info::TypeInfo;
 use sp_core::H256;
+use codec::{Decode, Encode};
+
+#[cfg(feature = "enable_serde")]
+use serde::{Deserialize, Serialize};
 
 // Messages: Phase Wallet
 
@@ -24,7 +27,10 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::{EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey};
+    use super::{
+        EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey, AttestationProvider,
+    };
+
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -56,6 +62,7 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub struct WorkerInfo {
+        pub attestation_provider: Option<AttestationProvider>,
         pub confidence_level: u8,
     }
 
@@ -443,6 +450,24 @@ pub mod messaging {
 
 // Types used in storage
 
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub enum AttestationReport {
+    SgxIas {
+        ra_report: Vec<u8>,
+        signature: Vec<u8>,
+        raw_signing_cert: Vec<u8>,
+    },
+}
+
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AttestationProvider {
+    #[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
+    Root,
+    #[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
+    Ias,
+}
+
 #[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
 pub enum WorkerStateEnum<BlockNumber> {
     Empty,
@@ -469,7 +494,7 @@ pub struct WorkerInfo<BlockNumber> {
     pub state: WorkerStateEnum<BlockNumber>,
     // performance
     pub score: Option<Score>,
-    // confidence-level
+    pub attestation_provider: Option<AttestationProvider>,
     pub confidence_level: u8,
     // version
     pub runtime_version: u32,
@@ -500,6 +525,7 @@ pub use sp_core::sr25519::Public as ClusterPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
 pub use sp_core::sr25519::Signature as Sr25519Signature;
+
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerIdentity {
     pub pubkey: WorkerPublicKey,

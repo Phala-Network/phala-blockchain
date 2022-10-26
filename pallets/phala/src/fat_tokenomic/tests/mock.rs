@@ -1,5 +1,4 @@
 use crate::{
-	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
 	fat, fat_tokenomic, mq, registry,
 };
 
@@ -10,6 +9,7 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
+use crate::mock::{MockValidator, NoneAttestationEnabled};
 
 pub(crate) type Balance = u128;
 
@@ -109,8 +109,9 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 impl registry::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type AttestationValidator = MockValidator;
+	type LegacyAttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
+	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
@@ -125,26 +126,6 @@ impl fat::Config for Test {
 impl fat_tokenomic::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-}
-
-pub struct MockValidator;
-impl AttestationValidator for MockValidator {
-	fn validate(
-		_attestation: &Attestation,
-		_user_data_hash: &[u8; 32],
-		_now: u64,
-		_verify_pruntime: bool,
-		_pruntime_allowlist: Vec<Vec<u8>>,
-	) -> Result<IasFields, AttestationError> {
-		Ok(IasFields {
-			mr_enclave: [0u8; 32],
-			mr_signer: [0u8; 32],
-			isv_prod_id: [0u8; 2],
-			isv_svn: [0u8; 2],
-			report_data: [0u8; 64],
-			confidence_level: 128u8,
-		})
-	}
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

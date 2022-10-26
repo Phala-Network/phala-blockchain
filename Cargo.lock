@@ -7499,6 +7499,7 @@ name = "phactory-pal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "phala-types",
 ]
 
 [[package]]

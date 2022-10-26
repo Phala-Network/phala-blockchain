@@ -29,6 +29,7 @@ use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
+use phala_types::AttestationProvider;
 
 // use pink::InkModule;
 
@@ -67,7 +68,6 @@ mod contracts;
 mod cryptography;
 mod light_validation;
 mod prpc_service;
-mod rpc_types;
 mod secret_channel;
 mod storage;
 mod system;
@@ -223,8 +223,8 @@ enum RuntimeDataSeal {
 pub struct Phactory<Platform> {
     platform: Platform,
     pub args: InitArgs,
-    skip_ra: bool,
     dev_mode: bool,
+    attestation_provider: Option<AttestationProvider>,
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
@@ -266,8 +266,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         Phactory {
             platform,
             args: Default::default(),
-            skip_ra: false,
             dev_mode: false,
+            attestation_provider: None,
             machine_id,
             runtime_info: None,
             runtime_state: None,

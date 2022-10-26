@@ -3,6 +3,8 @@
 use std::fmt::Debug;
 use std::path::Path;
 
+use phala_types::AttestationProvider;
+
 pub trait ErrorType: Debug + Into<anyhow::Error> {}
 impl<T: Debug + Into<anyhow::Error>> ErrorType for T {}
 
@@ -16,8 +18,8 @@ pub trait Sealing {
 
 pub trait RA {
     type Error: ErrorType;
-    fn create_attestation_report(&self, data: &[u8]) -> Result<(String, String, String), Self::Error>;
-    fn quote_test(&self) -> Result<(), Self::Error>;
+    fn create_attestation_report(&self, provider: Option<AttestationProvider>, data: &[u8]) -> Result<Vec<u8>, Self::Error>;
+    fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
 }
 
 pub struct MemoryUsage {

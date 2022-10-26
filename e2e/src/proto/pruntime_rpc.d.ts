@@ -1718,6 +1718,9 @@ export namespace pruntime_rpc {
 
         /** InitRuntimeRequest isParachain */
         isParachain?: (boolean|null);
+
+        /** InitRuntimeRequest attestationProvider */
+        attestationProvider?: (Uint8Array|null);
     }
 
     /** Represents an InitRuntimeRequest. */
@@ -1747,11 +1750,17 @@ export namespace pruntime_rpc {
         /** InitRuntimeRequest isParachain. */
         public isParachain: boolean;
 
+        /** InitRuntimeRequest attestationProvider. */
+        public attestationProvider?: (Uint8Array|null);
+
         /** InitRuntimeRequest _debugSetKey. */
         public _debugSetKey?: "debugSetKey";
 
         /** InitRuntimeRequest _encodedOperator. */
         public _encodedOperator?: "encodedOperator";
+
+        /** InitRuntimeRequest _attestationProvider. */
+        public _attestationProvider?: "attestationProvider";
 
         /**
          * Creates a new InitRuntimeRequest instance using the specified properties.
@@ -2052,6 +2061,9 @@ export namespace pruntime_rpc {
         /** Attestation payload */
         payload?: (pruntime_rpc.IAttestationReport|null);
 
+        /** Attestation encodedReport */
+        encodedReport?: (Uint8Array|null);
+
         /** Attestation timestamp */
         timestamp?: (number|Long|null);
     }
@@ -2073,6 +2085,9 @@ export namespace pruntime_rpc {
 
         /** Attestation payload. */
         public payload?: (pruntime_rpc.IAttestationReport|null);
+
+        /** Attestation encodedReport. */
+        public encodedReport: Uint8Array;
 
         /** Attestation timestamp. */
         public timestamp: (number|Long);

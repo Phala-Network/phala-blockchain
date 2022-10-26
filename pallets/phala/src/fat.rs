@@ -12,8 +12,6 @@ pub mod pallet {
 	use sp_std::prelude::*;
 
 	use crate::{mq::MessageOriginInfo, registry};
-	// Re-export
-	pub use crate::attestation::{Attestation, IasValidator};
 	use phala_types::{
 		contract::{
 			messaging::{

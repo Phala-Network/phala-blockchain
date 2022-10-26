@@ -1,5 +1,5 @@
 use crate::{
-	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
+	attestation_legacy::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
 	mining, mq, ott, registry, stakepool,
 };
 
@@ -54,6 +54,7 @@ parameter_types! {
 	pub const MinInitP: u32 = 1;
 	pub const MiningEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
+	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
 }
@@ -124,8 +125,9 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 impl registry::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type AttestationValidator = MockValidator;
+	type LegacyAttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
+	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
