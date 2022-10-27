@@ -44,6 +44,9 @@ pub mod pallet {
     #[pallet::getter(fn deposit_per_item)]
     pub(crate) type DepositPerItem<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+    #[pallet::storage]
+    pub(crate) type TreasuryAccount<T: Config> = StorageValue<_, T::AccountId>;
+
     /// The seed used to derive custom keys in `ink!` contract.
     ///
     /// All contracts in a cluster shares the same seed. When deriving a key from the seed, the
@@ -119,10 +122,10 @@ pub mod pallet {
         }
 
         fn pay(user: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-            let Some(system) = <SystemContract<T>>::get() else {
+            let Some(treasury) = TreasuryAccount::<T>::get() else {
                 return Ok(());
             };
-            <T as Config>::Currency::transfer(user, &system, amount, KeepAlive)
+            <T as Config>::Currency::transfer(user, &treasury, amount, KeepAlive)
         }
 
         pub fn set_gas_price(price: BalanceOf<T>) {
@@ -135,6 +138,10 @@ pub mod pallet {
 
         pub fn set_deposit_per_byte(value: BalanceOf<T>) {
             <DepositPerByte<T>>::put(value);
+        }
+
+        pub fn set_treasury_account(account: &T::AccountId) {
+            <TreasuryAccount<T>>::put(account);
         }
     }
 

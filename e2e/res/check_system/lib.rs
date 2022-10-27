@@ -36,7 +36,7 @@ mod check_system {
 
         #[ink(message, selector = 0x01)]
         pub fn on_block_end(&mut self) {
-            if !pink::predefined_accounts::is_runtime(&self.env().caller()) {
+            if self.env().caller() != self.env().account_id() {
                 return;
             }
             self.on_block_end_called = true

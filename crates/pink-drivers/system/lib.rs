@@ -54,9 +54,9 @@ mod system {
             self.ensure_owner().or_else(|_| self.ensure_admin())
         }
 
-        fn ensure_pallet(&self) -> Result<AccountId> {
+        fn ensure_self(&self) -> Result<AccountId> {
             let caller = self.env().caller();
-            if pink::predefined_accounts::is_pallet(&caller) {
+            if caller == self.env().account_id() {
                 Ok(caller)
             } else {
                 Err(Error::BadOrigin)
@@ -127,7 +127,7 @@ mod system {
     impl ContractDeposit for System {
         #[ink(message)]
         fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
-            self.ensure_pallet()?;
+            self.ensure_self()?;
             let flags = ink_env::CallFlags::default().set_allow_reentry(true);
             match ContractDepositRef::instance_with_call_flags(flags) {
                 Some(mut driver) => driver.change_deposit(contract_id, deposit),

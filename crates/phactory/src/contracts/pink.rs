@@ -6,22 +6,12 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use phala_types::contract::ConvertTo;
-use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use pink::types::Weight;
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
-use sp_runtime::{traits::ConstU32, BoundedVec};
 
-#[derive(Debug, Encode, Decode)]
-pub enum Command {
-    InkMessage {
-        nonce: BoundedVec<u8, ConstU32<32>>,
-        message: Vec<u8>,
-        gas_limit: u64,
-        storage_deposit_limit: Option<u128>,
-    },
-}
+pub use phala_types::contract::InkCommand as Command;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
@@ -117,6 +107,7 @@ impl Pink {
                     block_number: context.block_number,
                     storage,
                     gas_limit: Weight::MAX,
+                    gas_free: false,
                     storage_deposit_limit: None,
                     callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
@@ -178,14 +169,20 @@ impl Pink {
                 gas_limit,
                 storage_deposit_limit,
             } => {
-                let origin: runtime::AccountId = match origin {
-                    MessageOrigin::AccountId(origin) => origin.0.into(),
-                    MessageOrigin::Pallet(_) => pallet_account(),
-                    _ => return Err(TransactionError::BadOrigin),
-                };
-
                 let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
                     .expect("Pink cluster should always exists!");
+
+                let mut gas_free = false;
+                let origin: runtime::AccountId = match origin {
+                    MessageOrigin::AccountId(origin) => origin.0.into(),
+                    MessageOrigin::Pallet(_) => {
+                        gas_free = true;
+                        storage
+                            .system_contract()
+                            .expect("BUG: system contract missing")
+                    }
+                    _ => return Err(TransactionError::BadOrigin),
+                };
 
                 let args = ::pink::TransactionArguments {
                     origin: origin.clone(),
@@ -193,6 +190,7 @@ impl Pink {
                     block_number: context.block.block_number,
                     storage,
                     gas_limit: Weight::from_ref_time(gas_limit),
+                    gas_free,
                     storage_deposit_limit,
                     callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
@@ -398,14 +396,23 @@ pub mod cluster {
             self.contracts.iter()
         }
 
-        pub fn config_price(
+        pub fn setup(
             &mut self,
             gas_price: Balance,
             deposit_per_item: Balance,
             deposit_per_byte: Balance,
+            treasury_account: &::pink::types::AccountId,
         ) {
-            self.storage
-                .config_price(gas_price, deposit_per_item, deposit_per_byte);
+            self.storage.setup(
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
+                treasury_account,
+            );
+        }
+
+        pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
+            self.storage.deposit(who, amount)
         }
     }
 }

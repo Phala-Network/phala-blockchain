@@ -3,6 +3,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_core::{bounded::BoundedVec, ConstU32};
 
 use crate::WorkerPublicKey;
 pub use phala_mq::{ContractClusterId, ContractId};
@@ -27,7 +28,12 @@ pub enum CodeIndex<CodeHash> {
 
 #[derive(Decode, Encode, TypeInfo)]
 pub enum InkCommand {
-    InkMessage { nonce: Vec<u8>, message: Vec<u8> },
+    InkMessage {
+        nonce: BoundedVec<u8, ConstU32<32>>,
+        message: Vec<u8>,
+        gas_limit: u64,
+        storage_deposit_limit: Option<u128>,
+    },
 }
 
 impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
@@ -58,9 +64,11 @@ pub mod messaging {
             owner: AccountId32,
             cluster: ContractClusterId,
             workers: Vec<WorkerIdentity>,
+            deposit: u128, // Amount of balance transfering from chain into the cluster for the owner
             gas_price: u128,
             deposit_per_item: u128,
             deposit_per_byte: u128,
+            treasury_account: AccountId32,
         },
     }
 
@@ -113,9 +121,11 @@ pub mod messaging {
         pub cluster: ContractClusterId,
         /// The owner of the cluster
         pub owner: AccountId32,
+        pub deposit: u128,
         pub gas_price: u128,
         pub deposit_per_item: u128,
         pub deposit_per_byte: u128,
+        pub treasury_account: AccountId32,
     }
 
     bind_topic!(ClusterOperation<AccountId>, b"phala/cluster/key");
@@ -136,24 +146,34 @@ pub mod messaging {
             resource_type: ResourceType,
             resource_data: Vec<u8>,
         },
+        Deposit {
+            cluster_id: ContractClusterId,
+            account: AccountId,
+            amount: u128,
+        },
     }
 
     impl<AccountId> ClusterOperation<AccountId> {
+        #[allow(clippy::too_many_arguments)]
         pub fn batch_distribution(
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             owner: AccountId32,
+            deposit: u128,
             gas_price: u128,
             deposit_per_item: u128,
             deposit_per_byte: u128,
+            treasury_account: AccountId32,
         ) -> Self {
             ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
                 owner,
+                deposit,
                 gas_price,
                 deposit_per_item,
                 deposit_per_byte,
+                treasury_account,
             })
         }
     }

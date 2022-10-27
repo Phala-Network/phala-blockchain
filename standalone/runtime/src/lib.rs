@@ -1321,6 +1321,7 @@ impl pallet_fat::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type InkCodeSizeLimit = ConstU32<{1024*1024*2}>;
 	type SidevmCodeSizeLimit = ConstU32<{1024*1024*8}>;
+	type Currency = Balances;
 }
 
 impl pallet_fat_tokenomic::Config for Runtime {

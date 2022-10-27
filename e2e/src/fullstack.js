@@ -25,6 +25,7 @@ const pathPRuntime = path.resolve(`${pRuntimeDir}/${pRuntimeBin}`);
 const inSgx = process.env.E2E_IN_SGX == '1';
 const sgxLoader = "gramine-sgx";
 
+const CENTS = 10_000_000_000;
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -503,7 +504,12 @@ describe('A full stack', function () {
             const runtime1 = await pruntime[1].getInfo();
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaFatContracts.addCluster(alice.address, perm, [hex(runtime0.system.publicKey), hex(runtime1.system.publicKey)])),
+                    api.tx.phalaFatContracts.addCluster(
+                        alice.address,
+                        perm,
+                        [hex(runtime0.system.publicKey), hex(runtime1.system.publicKey)],
+                        CENTS * 100, 1, 1, 1, alice.address
+                    )),
                 alice,
             );
 
@@ -557,12 +563,8 @@ describe('A full stack', function () {
 
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
-            await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
-                bob,
-            );
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 10_000_000_000_000, null),
                 alice,
             );
             assertEvents(events, [
@@ -601,12 +603,18 @@ describe('A full stack', function () {
         });
 
         it('can set hook with admin permission', async function () {
+            const config = { gas: 10_000_000_000_000, storageDepositLimit: null };
+            // Give some money to the ContractSystemChecker to run the on_block_end
             await assert.txAccepted(
-                ContractSystem.tx['system::grantAdmin']({}, ContractSystemChecker.address),
+                api.tx.phalaFatContracts.transferToCluster(CENTS * 100, clusterId, ContractSystemChecker.address),
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook({}),
+                ContractSystem.tx['system::grantAdmin'](config, ContractSystemChecker.address),
+                alice,
+            );
+            await assert.txAccepted(
+                ContractSystemChecker.tx.setHook(config),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -616,11 +624,15 @@ describe('A full stack', function () {
         });
 
         it('tokenomic driver works', async function () {
+            // Give some money to the System to receive messages from the pallet
+            await assert.txAccepted(
+                api.tx.phalaFatContracts.transferToCluster(CENTS * 100, clusterId, ContractSystem.address),
+                alice,
+            );
             await assert.txAccepted(
                 ContractSystem.tx['system::setDriver']({}, "ContractDeposit", ContractSystemChecker.address),
                 alice,
             );
-            const CENTS = 10_000_000_000;
             const weight = 10;
             await assert.txAccepted(
                 api.tx.phalaFatTokenomic.adjustStake(ContractSystemChecker.address, weight * CENTS),
@@ -650,7 +662,7 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 10_000_000_000_000, null),
                 alice,
             );
         });
@@ -925,7 +937,7 @@ function versionFromNumber(n) {
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
-        const unsub = await txBuilder.signAndSend(signer, {nonce: -1}, (result) => {
+        const unsub = await txBuilder.signAndSend(signer, { nonce: -1 }, (result) => {
             if (result.status.isInBlock) {
                 let error;
                 for (const e of result.events) {

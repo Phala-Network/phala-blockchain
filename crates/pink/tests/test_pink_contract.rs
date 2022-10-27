@@ -2,15 +2,29 @@
 
 use frame_support::assert_ok;
 use hex_literal::hex;
-use pink::{runtime::HookPoint, Contract, Storage};
+use pink::{runtime::HookPoint, types::Weight, Contract, Storage, TransactionArguments};
 use pink_extension::PinkEvent;
 use sp_runtime::AccountId32;
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
+fn tx_args(storage: &mut Storage) -> TransactionArguments {
+    TransactionArguments {
+        origin: ALICE.clone(),
+        now: 1,
+        block_number: 1,
+        storage,
+        gas_limit: Weight::MAX,
+        gas_free: false,
+        storage_deposit_limit: None,
+        callbacks: None,
+    }
+}
+
 #[test]
 fn test_ink_flip() {
     let mut storage = Storage::default();
+
     let code_hash = storage
         .upload_code(
             ALICE.clone(),
@@ -18,28 +32,21 @@ fn test_ink_flip() {
         )
         .unwrap();
     let contract = Contract::new_with_selector(
-        &mut storage,
-        ALICE.clone(),
         code_hash,
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
-        vec![],
-        0,
-        0,
+        tx_args(&mut storage),
     )
     .unwrap()
     .0;
 
     let result: bool = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("2f865bd9"), // get
             (),
             false,
-            0,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap()
         .0;
@@ -48,26 +55,20 @@ fn test_ink_flip() {
 
     let _: () = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("633aa551"), // flip
             (),
             false,
-            0,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap()
         .0;
 
     let result: bool = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("2f865bd9"), // get
             (),
             false,
-            0,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap()
         .0;
@@ -76,13 +77,10 @@ fn test_ink_flip() {
 
     let result: (u32, u128) = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("f7dff04c"), // echo
             (42u32, 24u128),
             false,
-            0,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap()
         .0;
@@ -106,15 +104,11 @@ fn test_ink_cross_contract_instanciate() {
         )
         .unwrap();
     let _flip = Contract::new_with_selector(
-        &mut storage,
-        ALICE.clone(),
         code_hash,
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
-        vec![],
-        0,
-        0,
+        tx_args(&mut storage),
     )
     .unwrap();
 
@@ -125,28 +119,21 @@ fn test_ink_cross_contract_instanciate() {
         )
         .unwrap();
     let contract = Contract::new_with_selector(
-        &mut storage,
-        ALICE.clone(),
         code_hash,
         hex!("9bae9d5e"),
         (),
         vec![],
-        vec![],
-        0,
-        0,
+        tx_args(&mut storage),
     )
     .unwrap()
     .0;
 
     let result: bool = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("c3220014"), // get
             (),
             false,
-            0,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap()
         .0;
@@ -164,15 +151,11 @@ fn test_mq_egress() {
         )
         .unwrap();
     let (contract, effects) = Contract::new_with_selector(
-        &mut storage,
-        ALICE.clone(),
         code_hash,
         hex!("ed4b9d1b"), // init_value
         (),
         vec![],
-        vec![],
-        1,
-        0,
+        tx_args(&mut storage),
     )
     .unwrap();
 
@@ -180,26 +163,20 @@ fn test_mq_egress() {
 
     let (_, effects): ((), _) = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("6495da7f"), // push_message
             (b"\x42\x42".to_vec(), b"\x24\x24".to_vec()),
             false,
-            1,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap();
     insta::assert_debug_snapshot!(effects);
 
     let (_, effects): ((), _) = contract
         .call_with_selector(
-            &mut storage,
-            ALICE.clone(),
             hex!("d09d68e0"), // push_osp_message
             (b"\x42\x42".to_vec(), b"\x24\x24".to_vec(), Some([0u8; 32])),
             false,
-            1,
-            0,
+            tx_args(&mut storage),
         )
         .unwrap();
     insta::assert_debug_snapshot!(effects);
@@ -215,15 +192,11 @@ fn test_on_block_end() {
         )
         .unwrap();
     let (mut contract, effects) = Contract::new_with_selector(
-        &mut storage,
-        ALICE.clone(),
         code_hash,
         hex!("ed4b9d1b"), // init_value
         (),
         vec![],
-        vec![],
-        1,
-        0,
+        tx_args(&mut storage),
     )
     .unwrap();
 
@@ -259,21 +232,12 @@ fn test_with_wasm(wasm: &[u8], constructor: [u8; 4], message: [u8; 4]) {
     storage.set_key_seed([1u8; 64]);
     let code_hash = storage.upload_code(ALICE.clone(), wasm.to_vec()).unwrap();
 
-    let (contract, _) = Contract::new_with_selector(
-        &mut storage,
-        ALICE.clone(),
-        code_hash,
-        constructor,
-        (),
-        vec![],
-        vec![],
-        1,
-        0,
-    )
-    .unwrap();
+    let (contract, _) =
+        Contract::new_with_selector(code_hash, constructor, (), vec![], tx_args(&mut storage))
+            .unwrap();
 
     let _: ((), _) = contract
-        .call_with_selector(&mut storage, ALICE.clone(), message, (), true, 1, 0)
+        .call_with_selector(message, (), true, tx_args(&mut storage))
         .unwrap();
 }
 

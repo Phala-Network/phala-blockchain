@@ -208,12 +208,13 @@ pub fn emit_log(id: &AccountId, level: u8, msg: String) {
 mod tests {
     #![allow(clippy::type_complexity)]
 
+    use frame_support::assert_ok;
     use pallet_contracts::Config;
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
         runtime::{Contracts, PinkRuntime, RuntimeOrigin as Origin},
-        types::{ENOUGH, QUERY_GAS_LIMIT},
+        types::ENOUGH,
     };
     pub use frame_support::weights::Weight;
 
@@ -238,7 +239,7 @@ mod tests {
             Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 ENOUGH,
-                QUERY_GAS_LIMIT,
+                Weight::MAX,
                 None,
                 wasm,
                 vec![],
@@ -251,7 +252,7 @@ mod tests {
                 Origin::signed(ALICE),
                 addr,
                 0,
-                QUERY_GAS_LIMIT * 2,
+                Weight::MAX,
                 None,
                 <PinkRuntime as Config>::Schedule::get()
                     .limits
@@ -274,7 +275,7 @@ mod tests {
 
         exec::execute_with(|| {
             // Instantiate the CRYPTO_HASHES contract.
-            assert!(Contracts::instantiate_with_code(
+            assert_ok!(Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 1_000_000_000_000_000,
                 GAS_LIMIT,
@@ -282,8 +283,7 @@ mod tests {
                 wasm,
                 vec![],
                 vec![],
-            )
-            .is_ok());
+            ));
             let addr = Contracts::contract_address(&ALICE, &code_hash, &[]);
             // Perform the call.
             let input = b"_DEAD_BEEF";

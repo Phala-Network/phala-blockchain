@@ -4,11 +4,18 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
+	#![allow(clippy::too_many_arguments)]
+
 	use codec::Encode;
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::StorageVersion};
+	use frame_support::{
+		dispatch::DispatchResult,
+		pallet_prelude::*,
+		traits::{Currency, ExistenceRequirement, StorageVersion},
+	};
 	use frame_system::pallet_prelude::*;
+	use sp_core::crypto::UncheckedFrom;
 	use sp_core::H256;
-	use sp_runtime::AccountId32;
+	use sp_runtime::{AccountId32, SaturatedConversion};
 	use sp_std::prelude::*;
 
 	use crate::{mq::MessageOriginInfo, registry};
@@ -23,6 +30,9 @@ pub mod pallet {
 		messaging::{bind_topic, DecodedMessage, MessageOrigin},
 		ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
+
+	type BalanceOf<T> =
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	bind_topic!(ClusterRegistryEvent, b"^phala/registry/cluster");
 	#[derive(Encode, Decode, Clone, Debug)]
@@ -48,6 +58,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type InkCodeSizeLimit: Get<u32>;
 		type SidevmCodeSizeLimit: Get<u32>;
+		type Currency: Currency<Self::AccountId>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
@@ -127,6 +138,11 @@ pub mod pallet {
 		ClusterDestroyed {
 			cluster: ContractClusterId,
 		},
+		Transfered {
+			cluster: ContractClusterId,
+			account: H256,
+			amount: u128,
+		},
 	}
 
 	#[pallet::error]
@@ -168,9 +184,11 @@ pub mod pallet {
 			owner: T::AccountId,
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
+			deposit: u128,
 			gas_price: u128,
 			deposit_per_item: u128,
 			deposit_per_byte: u128,
+			treasury_account: AccountId32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
@@ -219,13 +237,21 @@ pub mod pallet {
 				cluster,
 				system_contract,
 			});
+			<T as Config>::Currency::transfer(
+				&owner,
+				&cluster_account(&cluster),
+				BalanceOf::<T>::saturated_from(deposit),
+				ExistenceRequirement::KeepAlive,
+			)?;
 			Self::push_message(ClusterEvent::DeployCluster {
 				owner,
 				cluster,
 				workers,
+				deposit,
 				gas_price,
 				deposit_per_item,
 				deposit_per_byte,
+				treasury_account,
 			});
 			Ok(())
 		}
@@ -258,6 +284,34 @@ pub mod pallet {
 				cluster_id,
 				resource_type,
 				resource_data,
+			});
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn transfer_to_cluster(
+			origin: OriginFor<T>,
+			amount: u128,
+			cluster_id: ContractClusterId,
+			dest_account: H256,
+		) -> DispatchResult {
+			let user = ensure_signed(origin)?;
+			let cluster_account = cluster_account(&cluster_id);
+			<T as Config>::Currency::transfer(
+				&user,
+				&cluster_account,
+				BalanceOf::<T>::saturated_from(amount),
+				ExistenceRequirement::KeepAlive,
+			)?;
+			Self::push_message(ClusterOperation::Deposit {
+				cluster_id,
+				account: dest_account,
+				amount,
+			});
+			Self::deposit_event(Event::Transfered {
+				cluster: cluster_id,
+				account: dest_account,
+				amount,
 			});
 			Ok(())
 		}
@@ -431,5 +485,11 @@ pub mod pallet {
 
 	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
 		type Config = T;
+	}
+
+	pub fn cluster_account(cluster_id: &ContractClusterId) -> AccountId32 {
+		let mut buf = b"cluster:".to_vec();
+		buf.extend(cluster_id.as_ref());
+		AccountId32::unchecked_from(crate::hashing::blake2_256(&buf).into())
 	}
 }

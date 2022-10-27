@@ -477,9 +477,11 @@ where
                 owner,
                 cluster,
                 workers,
+                deposit,
                 gas_price,
                 deposit_per_item,
                 deposit_per_byte,
+                treasury_account,
             } => {
                 if !origin.is_pallet() {
                     error!("Attempt to deploy cluster from bad origin");
@@ -515,9 +517,11 @@ where
                         secret_keys,
                         cluster,
                         owner,
+                        deposit,
                         gas_price,
                         deposit_per_item,
                         deposit_per_byte,
+                        treasury_account,
                     ),
                 );
                 Ok(())

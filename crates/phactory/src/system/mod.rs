@@ -1157,6 +1157,7 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: MessageOrigin,
         event: ClusterOperation<chain::AccountId>,
     ) -> Result<()> {
+        let sender = &origin;
         match event {
             ClusterOperation::DispatchKeys(event) => {
                 let cluster = event.cluster;
@@ -1192,10 +1193,14 @@ impl<Platform: pal::Platform> System<Platform> {
                 resource_type,
                 resource_data,
             } => {
-                let cluster = self
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                let Some(cluster) = self
                     .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .context("Cluster not deployed")?;
+                    .get_cluster_mut(&cluster_id) else {
+                        return Ok(());
+                    };
                 let _uploader = phala_types::messaging::AccountId(origin.clone().into());
                 let hash = cluster
                     .upload_resource(origin, resource_type, resource_data)
@@ -1204,6 +1209,21 @@ impl<Platform: pal::Platform> System<Platform> {
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
                 );
+            }
+            ClusterOperation::Deposit {
+                cluster_id,
+                account,
+                amount,
+            } => {
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                let Some(cluster) = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id) else {
+                        return Ok(());
+                    };
+                cluster.deposit(&account, amount);
             }
         }
         Ok(())
@@ -1226,10 +1246,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 storage_deposit_limit,
             } => {
                 let cluster_id = contract_info.cluster_id;
-                let cluster = self
+                let Some(cluster) = self
                     .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .context("Cluster not deployed")?;
+                    .get_cluster_mut(&cluster_id) else {
+                        return Ok(());
+                    };
                 if cluster.system_contract().is_none() {
                     anyhow::bail!("The system contract is missing, Cannot deploy contract");
                 }
@@ -1250,6 +1271,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             block_number: block.block_number,
                             storage: &mut cluster.storage,
                             gas_limit: Weight::from_ref_time(gas_limit),
+                            gas_free: false,
                             storage_deposit_limit,
                             callbacks: ContractEventCallback::from_log_sender(
                                 &log_handler,
@@ -1465,9 +1487,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 secret_keys,
                 cluster: cluster_id,
                 owner,
+                deposit,
                 gas_price,
                 deposit_per_item,
                 deposit_per_byte,
+                treasury_account,
             } = event;
             let encrypted_key = &secret_keys[&my_pubkey];
             let cluster_key = self.decrypt_key_from(
@@ -1499,7 +1523,13 @@ impl<Platform: pal::Platform> System<Platform> {
             let cluster = self
                 .contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
-            cluster.config_price(gas_price, deposit_per_item, deposit_per_byte);
+            cluster.setup(
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
+                &treasury_account,
+            );
+            cluster.deposit(&owner, deposit);
             let code_hash = cluster
                 .upload_resource(owner.clone(), ResourceType::InkCode, system_code)
                 .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
@@ -1512,6 +1542,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 block_number: block.block_number,
                 storage: &mut cluster.storage,
                 gas_limit: Weight::MAX,
+                gas_free: false,
                 storage_deposit_limit: None,
                 callbacks: None,
             };
@@ -1525,6 +1556,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 block_number: block.block_number,
                 storage: &mut cluster.storage,
                 gas_limit: Weight::MAX,
+                gas_free: false,
                 storage_deposit_limit: None,
                 callbacks: None,
             };

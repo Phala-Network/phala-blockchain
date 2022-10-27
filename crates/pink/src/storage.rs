@@ -1,7 +1,8 @@
 use crate::{
-    runtime::{BoxedEventCallbacks, ExecSideEffects, Pink as PalletPink},
+    runtime::{Balances, BoxedEventCallbacks, ExecSideEffects, Pink as PalletPink},
     types::{AccountId, Balance, Hash, Hashing},
 };
+use frame_support::traits::Currency;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
@@ -120,16 +121,24 @@ where
             PalletPink::set_cluster_id(cluster_id);
         });
     }
-    pub fn config_price(
+    pub fn setup(
         &mut self,
         gas_price: Balance,
         deposit_per_item: Balance,
         deposit_per_byte: Balance,
+        treasury_account: &AccountId,
     ) {
         self.execute_with(false, None, || {
             PalletPink::set_gas_price(gas_price);
             PalletPink::set_deposit_per_item(deposit_per_item);
             PalletPink::set_deposit_per_byte(deposit_per_byte);
+            PalletPink::set_treasury_account(treasury_account);
+        });
+    }
+
+    pub fn deposit(&mut self, who: &AccountId, value: Balance) {
+        self.execute_with(false, None, || {
+            let _ = Balances::deposit_creating(who, value);
         });
     }
 

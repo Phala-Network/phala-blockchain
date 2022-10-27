@@ -48,6 +48,7 @@ pub struct TransactionArguments<'a> {
     pub block_number: BlockNumber,
     pub storage: &'a mut Storage,
     pub gas_limit: Weight,
+    pub gas_free: bool,
     pub storage_deposit_limit: Option<Balance>,
     pub callbacks: Option<BoxedEventCallbacks>,
 }
@@ -94,9 +95,10 @@ impl Contract {
             gas_limit,
             storage_deposit_limit,
             callbacks,
+            gas_free,
         } = args;
         storage.execute_with(false, callbacks, move || {
-            let result = contract_tx(origin.clone(), block_number, now, move || {
+            let result = contract_tx(origin.clone(), block_number, now, gas_free, move || {
                 Contracts::bare_instantiate(
                     origin,
                     0,
@@ -144,12 +146,13 @@ impl Contract {
             block_number,
             storage,
             gas_limit,
+            gas_free,
             callbacks,
             storage_deposit_limit,
         } = tx_args;
         let addr = self.address.clone();
         storage.execute_with(in_query, callbacks, move || {
-            contract_tx(origin.clone(), block_number, now, move || {
+            contract_tx(origin.clone(), block_number, now, gas_free, move || {
                 Contracts::bare_call(
                     origin,
                     addr,
@@ -204,6 +207,7 @@ impl Contract {
                     block_number,
                     storage,
                     gas_limit: Weight::MAX,
+                    gas_free: false,
                     storage_deposit_limit: None,
                     callbacks,
                 },
@@ -237,6 +241,7 @@ fn contract_tx<T>(
     origin: AccountId,
     block_number: BlockNumber,
     now: u64,
+    gas_free: bool,
     f: impl FnOnce() -> ContractResult<T>,
 ) -> ContractResult<T> {
     System::set_block_number(block_number);
@@ -245,10 +250,12 @@ fn contract_tx<T>(
         ext.storage_start_transaction();
     });
     let mut result = f();
-    if let Err(err) =
-        PalletPink::pay_for_gas(&origin, Weight::from_ref_time(result.gas_consumed))
-    {
-        result.result = Err(err);
+    if !gas_free {
+        if let Err(err) =
+            PalletPink::pay_for_gas(&origin, Weight::from_ref_time(result.gas_consumed))
+        {
+            result.result = Err(err);
+        }
     }
     sp_externalities::with_externalities(|ext| {
         if result.result.is_err() {
