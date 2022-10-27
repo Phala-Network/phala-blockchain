@@ -491,7 +491,7 @@ pub fn testnet_genesis(
 		},
 		vesting: Default::default(),
 		phala_registry,
-		phala_mining: Default::default(),
+		phala_computation: Default::default(),
 		transaction_payment: Default::default(),
 		nomination_pools: NominationPoolsConfig {
 			min_create_bond: 10 * DOLLARS,

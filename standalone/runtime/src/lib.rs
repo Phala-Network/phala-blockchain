@@ -107,7 +107,7 @@ mod voter_bags;
 pub use phala_pallets::{
 	pallet_mq,
 	pallet_registry,
-	pallet_mining,
+	pallet_computation,
 	pallet_stakepool,
 	pallet_vault,
 	pallet_basepool,
@@ -333,9 +333,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility { .. }
 					| Call::PhalaStakePool(pallet_stakepool::Call::add_worker { .. })
 					| Call::PhalaStakePool(pallet_stakepool::Call::remove_worker { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::start_mining { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::stop_mining { .. })
-					| Call::PhalaStakePool(pallet_stakepool::Call::restart_mining { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::start_computing { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::stop_computing { .. })
+					| Call::PhalaStakePool(pallet_stakepool::Call::restart_computing { .. })
 					| Call::PhalaStakePool(pallet_stakepool::Call::reclaim_pool_worker { .. })
 					| Call::PhalaStakePool(pallet_stakepool::Call::create { .. })
 					| Call::PhalaRegistry(pallet_registry::Call::register_worker { .. })
@@ -610,7 +610,7 @@ parameter_types! {
 
 	pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
-	// miner configs
+	// worker configs
 	pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
 	pub MinerMaxWeight: Weight = RuntimeBlockWeights::get()
 		.get(DispatchClass::Normal)
@@ -653,15 +653,15 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for ElectionProvid
 }
 
 /// Maximum number of iterations for balancing that will be executed in the embedded OCW
-/// miner of election provider multi phase.
-pub const MINER_MAX_ITERATIONS: u32 = 10;
+/// worker of election provider multi phase.
+pub const WORKER_MAX_ITERATIONS: u32 = 10;
 
-/// A source of random balance for NposSolver, which is meant to be run by the OCW election miner.
+/// A source of random balance for NposSolver, which is meant to be run by the OCW election worker.
 pub struct OffchainRandomBalancing;
 impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
 	fn get() -> Option<BalancingConfig> {
 		use sp_runtime::traits::TrailingZeroInput;
-		let iterations = match MINER_MAX_ITERATIONS {
+		let iterations = match WORKER_MAX_ITERATIONS {
 			0 => 0,
 			max => {
 				let seed = sp_io::offchain::random_seed();
@@ -1260,11 +1260,11 @@ impl pallet_lottery::Config for Runtime {
 
 parameter_types! {
 	pub ExpectedBlockTimeSec: u32 = SecsPerBlock::get() as u32;
-	pub const MinMiningStaking: Balance = 1 * DOLLARS;
+	pub const MinWorkingStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
+	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 50;
-	pub const MiningEnabledByDefault: bool = false;
+	pub const ComputingEnabledByDefault: bool = false;
 	pub const MaxPoolWorkers: u32 = 200;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = false;
@@ -1282,7 +1282,7 @@ impl pallet_mq::Config for Runtime {
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
 	type CallMatcher = MqCallMatcher;
 }
-impl pallet_mining::Config for Runtime {
+impl pallet_computation::Config for Runtime {
 	type Event = Event;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
@@ -1296,10 +1296,10 @@ impl pallet_mining::Config for Runtime {
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type MinContribution = MinContribution;
-	type GracePeriod = MiningGracePeriod;
-	type MiningEnabledByDefault = MiningEnabledByDefault;
+	type GracePeriod = WorkingGracePeriod;
+	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
+	type ComputingSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_vault::Config for Runtime {
@@ -1461,7 +1461,7 @@ construct_runtime!(
 		// Phala
 		PhalaMq: pallet_mq,
 		PhalaRegistry: pallet_registry,
-		PhalaMining: pallet_mining,
+		PhalaComputation: pallet_computation,
 		PhalaStakePool: pallet_stakepool,
 		PhalaVault: pallet_vault,
 		PhalaPawnshop: pallet_pawnshop,

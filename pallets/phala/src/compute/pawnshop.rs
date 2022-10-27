@@ -3,7 +3,7 @@ pub use self::pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::basepool;
-	use crate::mining;
+	use crate::computation;
 	use crate::poolproxy::PoolProxy;
 	use crate::registry;
 	use crate::vault;
@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Create, Inspect, Mutate},
+			tokens::fungibles::{Inspect, Mutate},
 			tokens::nonfungibles::InspectEnumerable,
 			Currency,
 			ExistenceRequirement::{AllowDeath, KeepAlive},
@@ -41,7 +41,7 @@ pub mod pallet {
 		+ crate::PhalaConfig
 		+ registry::Config
 		+ pallet_rmrk_core::Config
-		+ mining::Config
+		+ computation::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
 		+ basepool::Config
@@ -303,7 +303,7 @@ pub mod pallet {
 					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust)
 						.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
-					&<mining::pallet::Pallet<T>>::account_id(),
+					&<computation::pallet::Pallet<T>>::account_id(),
 					dust,
 				);
 				T::OnSlashed::on_unbalanced(imbalance);

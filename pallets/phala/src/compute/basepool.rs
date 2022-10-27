@@ -4,7 +4,7 @@ use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::mining;
+	use crate::computation;
 	use crate::pawnshop;
 	use crate::poolproxy::*;
 	use crate::registry;
@@ -64,7 +64,7 @@ pub mod pallet {
 		+ crate::PhalaConfig
 		+ registry::Config
 		+ pallet_rmrk_core::Config
-		+ mining::Config
+		+ computation::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
 	{
@@ -93,7 +93,7 @@ pub mod pallet {
 	#[pallet::getter(fn pool_count)]
 	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
-	/// Mapping from Pools (including stake pools and vaults) to pids
+	/// Mapping from pids to pools (including stake pools and vaults)
 	#[pallet::storage]
 	#[pallet::getter(fn pool_collection)]
 	pub type Pools<T: Config> =
@@ -176,7 +176,7 @@ pub mod pallet {
 		///
 		/// Including:
 		/// 1. Freestakes of the pool (both case)
-		/// 2. Stakes bounded to the miner (stakepool case)
+		/// 2. Stakes bounded to the worker (stakepool case)
 		/// 3. Shares' current values owned by pool_account_id (vault case)
 		/// 4. Shares' current values which is in withdraw_queue (both case)
 		pub total_value: Balance,
@@ -255,7 +255,7 @@ pub mod pallet {
 			let amount = self.total_value.min(amount);
 			// Note that once the stake reaches zero by slashing (implying the share is non-zero),
 			// the pool goes bankrupt. In such case, the pool becomes frozen.
-			// (TODO: maybe can be recovered by removing all the miners from the pool? How to take
+			// (TODO: maybe can be recovered by removing all the workers from the pool? How to take
 			// care of PoolUsers?)
 			let (new_stake, _) = extract_dust(self.total_value - amount);
 			self.total_value = new_stake;
@@ -462,7 +462,7 @@ pub mod pallet {
 
 		/// Checks if there has expired withdraw request in the withdraw queue
 		///
-		/// Releasing stakes (stakes in miners that is cooling down (stakepool case), or shares in withdraw_queue (vault case))
+		/// Releasing stakes (stakes in workers that is cooling down (stakepool case), or shares in withdraw_queue (vault case))
 		/// should be caculated outside the function and put in
 		pub fn has_expired_withdrawal(
 			pool: &BasePool<T::AccountId, BalanceOf<T>>,
@@ -783,7 +783,7 @@ pub mod pallet {
 		T: Encode + Decode,
 	{
 		let hash = crate::hashing::blake2_256(&(pid, owner).encode());
-		// stake pool miner
+		// stake pool worker
 		(b"bp/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
 			.expect("Decoding zero-padded account id should always succeed; qed")

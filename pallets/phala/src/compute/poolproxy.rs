@@ -15,7 +15,7 @@ pub struct StakePool<AccountId, Balance> {
 	pub basepool: basepool::BasePool<AccountId, Balance>,
 	/// The commission the pool owner takes
 	///
-	/// For example, 10% commission means 10% of the miner reward goes to the pool owner, and
+	/// For example, 10% commission means 10% of the worker reward goes to the pool owner, and
 	/// the remaining 90% is distributed to the contributors. Setting to `None` means a
 	/// commission of 0%.
 	pub payout_commission: Option<Permill>,
@@ -27,7 +27,7 @@ pub struct StakePool<AccountId, Balance> {
 	pub workers: VecDeque<WorkerPublicKey>,
 	/// The workers in cd in the pool
 	pub cd_workers: VecDeque<WorkerPublicKey>,
-	/// Generated account to store P-PHA locked in mining workers, controlled by the pallet
+	/// Generated account to store P-PHA locked in computing workers, controlled by the pallet
 	pub lock_account: AccountId,
 	/// Generated account to maintain owner rewards, controlled by the pallet
 	pub owner_reward_account: AccountId,

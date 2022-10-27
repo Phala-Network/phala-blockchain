@@ -9,7 +9,7 @@ pub mod pallet {
 
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::basepool;
-	use crate::mining;
+	use crate::computation;
 	use crate::pawnshop;
 	use crate::poolproxy::{ensure_stake_pool, ensure_vault, PoolProxy, Vault};
 	use crate::registry;
@@ -33,7 +33,7 @@ pub mod pallet {
 		frame_system::Config
 		+ crate::PhalaConfig
 		+ registry::Config
-		+ mining::Config
+		+ computation::Config
 		+ pallet_rmrk_core::Config
 		+ basepool::Config
 		+ pallet_assets::Config
