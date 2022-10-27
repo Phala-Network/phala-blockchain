@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use frame_support::{
-	traits::{Get, StorageVersion, ExistenceRequirement::{AllowDeath, KeepAlive}, tokens::fungibles::{Inspect, Mutate}, Currency,},
+	traits::{Get, StorageVersion, ExistenceRequirement::{AllowDeath, KeepAlive}, tokens::fungibles::{Inspect, Mutate}, Currency, LockIdentifier, LockableCurrency},
 	weights::Weight,
 	Twox64Concat,
 	BoundedVec,
@@ -139,7 +139,11 @@ pub mod v6 {
 
 pub mod stakepoolv2_migration {
 	use super::*;
-
+	
+	const STAKING_ID: LockIdentifier = *b"phala/sp";
+	const VESTING_ID: LockIdentifier = *b"vesting ";
+	const DEMOCRAC_ID: LockIdentifier = *b"democrac";
+	const PHRELECT_ID: LockIdentifier = *b"phrelect";
 	fn migrate_stake_pools<T : PhalaPallets>()
 	where
 		T: PhalaPallets + stakepool::pallet::Config + PhalaConfig,
@@ -208,10 +212,9 @@ pub mod stakepoolv2_migration {
 				&<T as pawnshop::Config>::PawnShopAccountId::get(),
 				pool_info.owner_reward,
 			);
-			pawnshop::Pallet::<T>::mint_into(&new_pool_info.owner_reward_account, pool_info.owner_reward)
-				.expect("mint into should be success");		
-			pawnshop::Pallet::<T>::mint_into(&new_pool_info.basepool.pool_account_id, pool_info.free_stake)
-				.expect("mint into should be success");		
+			// If the balance is too low to mint,we can just drop it.
+			pawnshop::Pallet::<T>::mint_into(&new_pool_info.owner_reward_account, pool_info.owner_reward);		
+			pawnshop::Pallet::<T>::mint_into(&new_pool_info.basepool.pool_account_id, pool_info.free_stake);		
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				poolproxy::PoolProxy::StakePool(new_pool_info),
@@ -248,10 +251,9 @@ pub mod stakepoolv2_migration {
 				account_status.invest_pools.push((pid, pool_info.basepool.cid));
 			}
 			pawnshop::StakerAccounts::<T>::insert(user_id.clone(), account_status);
-			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward)
-				.expect("mint into should be success");	
-			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id, staker_info.shares)
-				.expect("mint nft should always success");	
+			// If the balance is too low to mint,we can just drop it.
+			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);	
+			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id, staker_info.shares);	
 		});
 	}
 
@@ -264,12 +266,29 @@ pub mod stakepoolv2_migration {
 		T: pallet_assets::Config<Balance = BalanceOf<T>>,	
 	{
 		stakepool::pallet::StakeLedger::<T>::drain().for_each(|(user_id, balance)| {
-			<T as PhalaConfig>::Currency::transfer(
+			<T as PhalaConfig>::Currency::remove_lock(STAKING_ID, &user_id);
+			<T as PhalaConfig>::Currency::remove_lock(VESTING_ID, &user_id);
+			<T as PhalaConfig>::Currency::remove_lock(DEMOCRAC_ID, &user_id);
+			<T as PhalaConfig>::Currency::remove_lock(PHRELECT_ID, &user_id);
+			if <T as PhalaConfig>::Currency::transfer(
 				&user_id,
 				&<T as pawnshop::Config>::PawnShopAccountId::get(),
 				balance,
 				KeepAlive,
-			).expect("transfer should not fail; qed.");
+			).is_err() {
+				<T as PhalaConfig>::Currency::transfer(
+					&computation::Pallet::<T>::account_id(),
+					&user_id,
+					<T as PhalaConfig>::Currency::minimum_balance(),
+					KeepAlive,
+				);
+				<T as PhalaConfig>::Currency::transfer(
+					&user_id,
+					&<T as pawnshop::Config>::PawnShopAccountId::get(),
+					balance,
+					KeepAlive,
+				).expect("transfer should not fail; qed.");
+			}
 		});
 	}
 
