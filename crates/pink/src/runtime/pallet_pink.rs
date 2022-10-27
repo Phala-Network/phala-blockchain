@@ -2,15 +2,21 @@ pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use frame_support::pallet_prelude::*;
+    use frame_support::pallet_prelude::{ValueQuery, *};
+    use frame_support::traits::{Currency, ExistenceRequirement::KeepAlive};
     use pallet_contracts::AddressGenerator;
     use phala_crypto::sr25519::Sr25519SecretKey;
     use scale::{Decode, Encode};
     use scale_info::TypeInfo;
     use sp_core::crypto::UncheckedFrom;
-    use sp_runtime::traits::Hash as _;
+    use sp_runtime::{
+        traits::{Convert, Hash as _},
+        SaturatedConversion, Saturating,
+    };
 
     type CodeHash<T> = <T as frame_system::Config>::Hash;
+    type BalanceOf<T> =
+        <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[derive(Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
     pub struct WasmCode<AccountId> {
@@ -19,10 +25,24 @@ pub mod pallet {
     }
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {}
+    pub trait Config: frame_system::Config {
+        type Currency: Currency<Self::AccountId>;
+    }
 
     #[pallet::storage]
     pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn gas_price)]
+    pub(crate) type GasPrice<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn deposit_per_byte)]
+    pub(crate) type DepositPerByte<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn deposit_per_item)]
+    pub(crate) type DepositPerItem<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     /// The seed used to derive custom keys in `ink!` contract.
     ///
@@ -84,6 +104,34 @@ pub mod pallet {
 
         pub fn set_system_contract(address: T::AccountId) {
             <SystemContract<T>>::put(address);
+        }
+
+        pub fn pay_for_transaction(user: &T::AccountId, gas: Weight) -> DispatchResult {
+            let Some(system) = <SystemContract<T>>::get() else {
+                return Ok(());
+            };
+            let fee = Self::convert(gas);
+            <T as Config>::Currency::transfer(user, &system, fee, KeepAlive)?;
+            Ok(())
+        }
+
+        pub fn set_gas_price(price: BalanceOf<T>) {
+            <GasPrice<T>>::put(price);
+        }
+
+        pub fn set_deposit_per_item(value: BalanceOf<T>) {
+            <DepositPerItem<T>>::put(value);
+        }
+
+        pub fn set_deposit_per_byte(value: BalanceOf<T>) {
+            <DepositPerByte<T>>::put(value);
+        }
+    }
+
+    impl<T: Config> Convert<Weight, BalanceOf<T>> for Pallet<T> {
+        fn convert(w: Weight) -> BalanceOf<T> {
+            let weight = BalanceOf::<T>::saturated_from(w.ref_time());
+            weight.saturating_mul(GasPrice::<T>::get())
         }
     }
 }

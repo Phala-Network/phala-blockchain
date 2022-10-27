@@ -8,6 +8,7 @@ use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use phala_types::contract::ConvertTo;
 use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
+use pink::types::Weight;
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 use sp_runtime::{traits::ConstU32, BoundedVec};
@@ -17,6 +18,8 @@ pub enum Command {
     InkMessage {
         nonce: BoundedVec<u8, ConstU32<32>>,
         message: Vec<u8>,
+        gas_limit: u64,
+        storage_deposit_limit: Option<u128>,
     },
 }
 
@@ -48,30 +51,18 @@ pub struct Pink {
 }
 
 impl Pink {
-    #[allow(clippy::too_many_arguments)]
     pub fn instantiate(
         cluster_id: ContractClusterId,
-        storage: &mut pink::Storage,
-        origin: AccountId,
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
-        block_number: BlockNumber,
-        now: u64,
-        callbacks: Option<BoxedEventCallbacks>,
+        tx_args: ::pink::TransactionArguments,
     ) -> Result<(Self, ExecSideEffects)> {
-        let (instance, effects) = pink::Contract::new(
-            storage,
-            origin.clone(),
-            code_hash,
-            input_data,
-            cluster_id.as_bytes().to_vec(),
-            salt,
-            block_number,
-            now,
-            callbacks,
-        )
-        .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
+        let origin = tx_args.origin.clone();
+        let (instance, effects) = pink::Contract::new(code_hash, input_data, salt, tx_args)
+            .map_err(
+                |err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,),
+            )?;
         Ok((
             Self {
                 cluster_id,
@@ -118,21 +109,21 @@ impl Pink {
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
 
-                let origin = origin.ok_or(QueryError::BadOrigin)?;
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
-
-                let (ink_result, effects) = self.instance.bare_call(
+                let args = ::pink::TransactionArguments {
+                    origin,
+                    now: context.now_ms,
+                    block_number: context.block_number,
                     storage,
-                    origin.clone(),
-                    input_data,
-                    true,
-                    context.block_number,
-                    context.now_ms,
-                    ContractEventCallback::from_log_sender(
+                    gas_limit: Weight::MAX,
+                    storage_deposit_limit: None,
+                    callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
                         context.block_number,
                     ),
-                );
+                };
+                let (ink_result, effects) = self.instance.bare_call(input_data, true, args);
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
                 } else {
@@ -181,7 +172,12 @@ impl Pink {
         context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
         match cmd {
-            Command::InkMessage { nonce, message } => {
+            Command::InkMessage {
+                nonce,
+                message,
+                gas_limit,
+                storage_deposit_limit,
+            } => {
                 let origin: runtime::AccountId = match origin {
                     MessageOrigin::AccountId(origin) => origin.0.into(),
                     MessageOrigin::Pallet(_) => pallet_account(),
@@ -191,18 +187,20 @@ impl Pink {
                 let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
                     .expect("Pink cluster should always exists!");
 
-                let (result, effects) = self.instance.bare_call(
+                let args = ::pink::TransactionArguments {
+                    origin: origin.clone(),
+                    now: context.block.now_ms,
+                    block_number: context.block.block_number,
                     storage,
-                    origin.clone(),
-                    message,
-                    false,
-                    context.block.block_number,
-                    context.block.now_ms,
-                    ContractEventCallback::from_log_sender(
+                    gas_limit: Weight::from_ref_time(gas_limit),
+                    storage_deposit_limit,
+                    callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
                         context.block.block_number,
                     ),
-                );
+                };
+
+                let (result, effects) = self.instance.bare_call(message, false, args);
 
                 if let Some(log_handler) = &context.log_handler {
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
@@ -217,7 +215,7 @@ impl Pink {
                     }
                 }
 
-                let _ = pink::transpose_contract_result(&result).map_err(|err| {
+                let _ = pink::transpose_contract_result(result).map_err(|err| {
                     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                     TransactionError::Other(format!("Call contract method failed: {err:?}"))
                 })?;
@@ -265,18 +263,12 @@ fn cluster_storage<'a>(
 }
 
 pub mod cluster {
-    use super::Pink;
-
-    use anyhow::{Context, Result};
+    use anyhow::Result;
     use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use phala_types::contract::messaging::ResourceType;
-    use pink::{
-        runtime::{BoxedEventCallbacks, ExecSideEffects},
-        types::{AccountId, Hash},
-    };
-    use runtime::BlockNumber;
+    use pink::types::{AccountId, Balance, Hash};
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use sp_runtime::{AccountId32, DispatchError};
@@ -294,35 +286,6 @@ pub mod cluster {
 
         pub fn len(&self) -> usize {
             self.clusters.len()
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        pub fn instantiate_contract(
-            &mut self,
-            cluster_id: ContractClusterId,
-            origin: AccountId,
-            code_hash: Hash,
-            input_data: Vec<u8>,
-            salt: Vec<u8>,
-            block_number: BlockNumber,
-            now: u64,
-            callbacks: Option<BoxedEventCallbacks>,
-        ) -> Result<ExecSideEffects> {
-            let cluster = self
-                .get_cluster_mut(&cluster_id)
-                .context("Cluster must exist before instantiation")?;
-            let (_, effects) = Pink::instantiate(
-                cluster_id,
-                &mut cluster.storage,
-                origin,
-                code_hash,
-                input_data,
-                salt,
-                block_number,
-                now,
-                callbacks,
-            )?;
-            Ok(effects)
         }
 
         pub fn get_cluster_storage_mut(
@@ -433,6 +396,16 @@ pub mod cluster {
 
         pub fn iter_contracts(&self) -> impl Iterator<Item = &ContractId> {
             self.contracts.iter()
+        }
+
+        pub fn config_price(
+            &mut self,
+            gas_price: Balance,
+            deposit_per_item: Balance,
+            deposit_per_byte: Balance,
+        ) {
+            self.storage
+                .config_price(gas_price, deposit_per_item, deposit_per_byte);
         }
     }
 }

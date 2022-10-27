@@ -1,18 +1,13 @@
 mod extension;
-mod mock_types;
 mod pallet_pink;
 mod weights;
 
 use std::time::{Duration, Instant};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::{parameter_types, traits::ConstU128, weights::Weight};
+use frame_support::{parameter_types, weights::Weight};
 use pallet_contracts::{Config, Frame, Schedule};
-use sp_runtime::{
-    generic::Header,
-    traits::{Convert, IdentityLookup},
-    Perbill,
-};
+use sp_runtime::{generic::Header, traits::IdentityLookup};
 
 pub use extension::{get_side_effects, ExecSideEffects};
 pub use pink_extension::{HookPoint, Message, OspMessage, PinkEvent};
@@ -26,24 +21,45 @@ frame_support::construct_runtime! {
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Randomness: pallet_randomness_collective_flip::{Pallet, Storage},
-        Contracts: pallet_contracts::{Pallet, Call, Storage, Event<T>},
-        Pink: pallet_pink::{Pallet, Storage},
+        System: frame_system,
+        Timestamp: pallet_timestamp,
+        Balances: pallet_balances,
+        Randomness: pallet_randomness_collective_flip,
+        Contracts: pallet_contracts,
+        Pink: pallet_pink,
     }
 }
 
 const WEIGHT_PER_SECOND: Weight = Weight::from_ref_time(1_000_000_000_000);
 
+const UNIT: Balance = 1_000_000_000_000;
+const DOLLARS: Balance = UNIT;
+const CENTS: Balance = DOLLARS / 100;
+
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
         frame_system::limits::BlockWeights::simple_max(WEIGHT_PER_SECOND.saturating_mul(2));
-    pub static ExistentialDeposit: u64 = 0;
+    pub const ExistentialDeposit: Balance = CENTS;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
-impl pallet_pink::Config for PinkRuntime {}
+impl pallet_pink::Config for PinkRuntime {
+    type Currency = Balances;
+}
+
+impl pallet_balances::Config for PinkRuntime {
+    type Balance = Balance;
+    type DustRemoval = ();
+    type RuntimeEvent = RuntimeEvent;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = frame_system::Pallet<PinkRuntime>;
+    type WeightInfo = pallet_balances::weights::SubstrateWeight<PinkRuntime>;
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
+}
 
 impl frame_system::Config for PinkRuntime {
     type BaseCallFilter = frame_support::traits::Everything;
@@ -86,18 +102,11 @@ impl pallet_timestamp::Config for PinkRuntime {
 }
 
 parameter_types! {
-    pub const SignedClaimHandicap: u32 = 2;
-    pub const TombstoneDeposit: u64 = 16;
-    pub const DepositPerContract: u64 = 8 * DepositPerStorageByte::get();
-    pub const DepositPerStorageByte: u64 = 10_000;
-    pub const DepositPerStorageItem: u64 = 10_000;
-    pub RentFraction: Perbill = Perbill::from_rational(4u32, 10_000u32);
-    pub const SurchargeReward: u64 = 500_000;
-    pub const MaxValueSize: u32 = 16_384;
+    pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
+    pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
-    pub const TransactionByteFee: u64 = 0;
     pub const MaxStorageKeyLen: u32 = 128;
 
     pub DefaultSchedule: Schedule<PinkRuntime> = {
@@ -110,28 +119,22 @@ parameter_types! {
     };
 }
 
-impl Convert<Weight, Balance> for PinkRuntime {
-    fn convert(w: Weight) -> Balance {
-        w.ref_time() as _
-    }
-}
-
 impl Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
-    type Currency = mock_types::NoCurrency;
+    type Currency = Balances;
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type CallFilter = frame_support::traits::Everything;
+    type CallFilter = frame_support::traits::Nothing;
     type CallStack = [Frame<Self>; 31];
-    type WeightPrice = Self;
+    type WeightPrice = Pink;
     type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
-    type DepositPerByte = ConstU128<0>;
-    type DepositPerItem = ConstU128<0>;
+    type DepositPerByte = DepositPerStorageByte;
+    type DepositPerItem = DepositPerStorageItem;
     type AddressGenerator = Pink;
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;

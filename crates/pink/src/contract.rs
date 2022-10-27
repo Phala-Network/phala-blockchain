@@ -1,19 +1,21 @@
-use pallet_contracts_primitives::StorageDeposit;
-use phala_types::contract::contract_id_preimage;
-use pink_extension::predefined_accounts::ACCOUNT_RUNTIME;
+use frame_support::weights::Weight;
 use scale::{Decode, Encode};
-use sp_core::hashing;
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{BoxedEventCallbacks, Contracts, ExecSideEffects, System, Timestamp},
-    storage,
-    types::{
-        AccountId, BlockNumber, Hash, COMMAND_GAS_LIMIT, INSTANTIATE_GAS_LIMIT, QUERY_GAS_LIMIT,
+    runtime::{
+        BoxedEventCallbacks, Contracts, ExecSideEffects, Pink as PalletPink, System, Timestamp,
     },
+    storage,
+    types::{AccountId, Balance, BlockNumber, Hash},
 };
 
-type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
+type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
+type ContractInstantiateResult =
+    pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
+
+type ContractResult<T> =
+    pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance>;
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
@@ -29,12 +31,6 @@ impl Default for Storage {
     }
 }
 
-#[derive(Debug)]
-pub struct ExecError {
-    pub source: DispatchError,
-    pub message: String,
-}
-
 #[derive(Debug, Default, Encode, Decode, Clone)]
 struct HookSelectors {
     on_block_end: Option<u32>,
@@ -44,6 +40,16 @@ struct HookSelectors {
 pub struct Contract {
     pub address: AccountId,
     hooks: HookSelectors,
+}
+
+pub struct TransactionArguments<'a> {
+    pub origin: AccountId,
+    pub now: u64,
+    pub block_number: BlockNumber,
+    pub storage: &'a mut Storage,
+    pub gas_limit: Weight,
+    pub storage_deposit_limit: Option<Balance>,
+    pub callbacks: Option<BoxedEventCallbacks>,
 }
 
 impl Contract {
@@ -63,94 +69,61 @@ impl Contract {
     /// * `code_hash`: The hash of contract code which has been uploaded.
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        storage: &mut Storage,
-        origin: AccountId,
         code_hash: Hash,
         input_data: Vec<u8>,
-        cluster_id: Vec<u8>,
         salt: Vec<u8>,
-        block_number: BlockNumber,
-        now: u64,
-        callbacks: Option<BoxedEventCallbacks>,
-    ) -> Result<(Self, ExecSideEffects), ExecError> {
-        if origin == AccountId::new(ACCOUNT_RUNTIME) {
-            return Err(ExecError {
-                source: DispatchError::BadOrigin,
-                message: "Default account is not allowed to create contracts".to_string(),
-            });
-        }
-
-        let (address, effects) =
-            storage.execute_with(false, callbacks, move || -> Result<_, ExecError> {
-                System::set_block_number(block_number);
-                Timestamp::set_timestamp(now);
-
-                let result = Contracts::bare_instantiate(
-                    origin.clone(),
-                    0,
-                    INSTANTIATE_GAS_LIMIT,
-                    None,
-                    pallet_contracts_primitives::Code::Existing(code_hash),
-                    input_data,
-                    salt.clone(),
-                    false,
-                );
-                log::info!("Contract instantiation result: {:?}", &result);
-                match result.result {
-                    Err(err) => {
-                        return Err(ExecError {
-                            source: err,
-                            message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                        });
-                    }
-                    Ok(rv) => {
-                        if rv.result.did_revert() {
-                            return Err(ExecError {
-                                source: DispatchError::Other("Contract reverted"),
-                                message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                            });
-                        }
-                    }
-                }
-                let preimage = contract_id_preimage(
-                    origin.as_ref(),
-                    code_hash.as_ref(),
-                    cluster_id.as_ref(),
-                    salt.as_ref(),
-                );
-                Ok(AccountId::from(hashing::blake2_256(&preimage)))
-            });
-        Ok((Self::from_address(address?), effects))
+        args: TransactionArguments,
+    ) -> Result<(Self, ExecSideEffects), DispatchError> {
+        let (result, effects) = Self::instantiate(code_hash, input_data, salt, args);
+        let result = result.result?;
+        Ok((Self::from_address(result.account_id), effects))
     }
 
-    #[allow(clippy::too_many_arguments)]
+    pub fn instantiate(
+        code_hash: Hash,
+        input_data: Vec<u8>,
+        salt: Vec<u8>,
+        args: TransactionArguments,
+    ) -> (ContractInstantiateResult, ExecSideEffects) {
+        let TransactionArguments {
+            origin,
+            block_number,
+            now,
+            storage,
+            gas_limit,
+            storage_deposit_limit,
+            callbacks,
+        } = args;
+        storage.execute_with(false, callbacks, move || {
+            let result = contract_tx(origin.clone(), block_number, now, move || {
+                Contracts::bare_instantiate(
+                    origin,
+                    0,
+                    gas_limit,
+                    storage_deposit_limit,
+                    pallet_contracts_primitives::Code::Existing(code_hash),
+                    input_data,
+                    salt,
+                    false,
+                )
+            });
+            log::info!("Contract instantiation result: {:?}", &result);
+            result
+        })
+    }
+
     pub fn new_with_selector(
-        storage: &mut Storage,
-        origin: AccountId,
         code_hash: Hash,
         selector: [u8; 4],
         args: impl Encode,
-        cluster_id: Vec<u8>,
         salt: Vec<u8>,
-        block_number: BlockNumber,
-        now: u64,
-    ) -> Result<(Self, ExecSideEffects), ExecError> {
+        tx_args: TransactionArguments,
+    ) -> Result<(Self, ExecSideEffects), DispatchError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        Self::new(
-            storage,
-            origin,
-            code_hash,
-            input_data,
-            cluster_id,
-            salt,
-            block_number,
-            now,
-            None,
-        )
+        Self::new(code_hash, input_data, salt, tx_args)
     }
 
     /// Call a contract method
@@ -159,94 +132,53 @@ impl Contract {
     /// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
     /// # Return
     /// Returns the SCALE encoded method return value.
-    #[allow(clippy::too_many_arguments)]
     pub fn bare_call(
         &self,
-        storage: &mut Storage,
-        origin: AccountId,
         input_data: Vec<u8>,
-        rollback: bool,
-        block_number: BlockNumber,
-        now: u64,
-        callbacks: Option<BoxedEventCallbacks>,
+        in_query: bool,
+        tx_args: TransactionArguments,
     ) -> (ContractExecResult, ExecSideEffects) {
-        if origin == AccountId::new(ACCOUNT_RUNTIME) {
-            return (
-                ContractExecResult {
-                    gas_consumed: 0,
-                    gas_required: 0,
-                    debug_message: b"Default account is not allowed to call contracts".to_vec(),
-                    result: Err(DispatchError::BadOrigin),
-                    storage_deposit: StorageDeposit::Charge(0),
-                },
-                ExecSideEffects::default(),
-            );
-        }
-        self.unchecked_bare_call(
-            storage,
+        let TransactionArguments {
             origin,
-            input_data,
-            rollback,
-            block_number,
             now,
+            block_number,
+            storage,
+            gas_limit,
             callbacks,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn unchecked_bare_call(
-        &self,
-        storage: &mut Storage,
-        origin: AccountId,
-        input_data: Vec<u8>,
-        rollback: bool,
-        block_number: BlockNumber,
-        now: u64,
-        callbacks: Option<BoxedEventCallbacks>,
-    ) -> (ContractExecResult, ExecSideEffects) {
+            storage_deposit_limit,
+        } = tx_args;
         let addr = self.address.clone();
-        storage.execute_with(rollback, callbacks, move || {
-            System::set_block_number(block_number);
-            Timestamp::set_timestamp(now);
-            let gas_limit = if rollback {
-                QUERY_GAS_LIMIT
-            } else {
-                COMMAND_GAS_LIMIT
-            };
-            Contracts::bare_call(origin, addr, 0, gas_limit, None, input_data, false)
+        storage.execute_with(in_query, callbacks, move || {
+            contract_tx(origin.clone(), block_number, now, move || {
+                Contracts::bare_call(
+                    origin,
+                    addr,
+                    0,
+                    gas_limit,
+                    storage_deposit_limit,
+                    input_data,
+                    false,
+                )
+            })
         })
     }
 
     /// Call a contract method given it's selector
-    #[allow(clippy::too_many_arguments)]
     pub fn call_with_selector<RV: Decode>(
         &self,
-        storage: &mut Storage,
-        origin: AccountId,
         selector: [u8; 4],
         args: impl Encode,
-        rollback: bool,
-        block_number: BlockNumber,
-        now: u64,
-    ) -> Result<(RV, ExecSideEffects), ExecError> {
+        in_query: bool,
+        tx_args: TransactionArguments,
+    ) -> Result<(RV, ExecSideEffects), DispatchError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let (result, effects) = self.bare_call(
-            storage,
-            origin,
-            input_data,
-            rollback,
-            block_number,
-            now,
-            None,
-        );
-        let mut rv = transpose_contract_result(&result)?;
+        let (result, effects) = self.bare_call(input_data, in_query, tx_args);
+        let rv = transpose_contract_result(result)?;
         Ok((
-            Decode::decode(&mut rv).map_err(|_| ExecError {
-                source: DispatchError::Other("Decode result failed"),
-                message: Default::default(),
-            })?,
+            Decode::decode(&mut &rv[..])
+                .map_err(|_| DispatchError::Other("Decode result failed"))?,
             effects,
         ))
     }
@@ -258,21 +190,25 @@ impl Contract {
         block_number: BlockNumber,
         now: u64,
         callbacks: Option<BoxedEventCallbacks>,
-    ) -> Result<ExecSideEffects, ExecError> {
+    ) -> Result<ExecSideEffects, DispatchError> {
         if let Some(selector) = self.hooks.on_block_end {
             let mut input_data = vec![];
             selector.to_be_bytes().encode_to(&mut input_data);
 
-            let (result, effects) = self.unchecked_bare_call(
-                storage,
-                AccountId::new(ACCOUNT_RUNTIME),
+            let (result, effects) = self.bare_call(
                 input_data,
                 false,
-                block_number,
-                now,
-                callbacks,
+                TransactionArguments {
+                    origin: self.address.clone(),
+                    now,
+                    block_number,
+                    storage,
+                    gas_limit: Weight::MAX,
+                    storage_deposit_limit: None,
+                    callbacks,
+                },
             );
-            let _ = transpose_contract_result(&result)?;
+            let _ = transpose_contract_result(result)?;
             Ok(effects)
         } else {
             Ok(Default::default())
@@ -297,6 +233,35 @@ impl Contract {
     }
 }
 
+fn contract_tx<T>(
+    origin: AccountId,
+    block_number: BlockNumber,
+    now: u64,
+    f: impl FnOnce() -> ContractResult<T>,
+) -> ContractResult<T> {
+    System::set_block_number(block_number);
+    Timestamp::set_timestamp(now);
+    sp_externalities::with_externalities(|ext| {
+        ext.storage_start_transaction();
+    });
+    let mut result = f();
+    if let Err(err) =
+        PalletPink::pay_for_transaction(&origin, Weight::from_ref_time(result.gas_consumed))
+    {
+        result.result = Err(err);
+    }
+    sp_externalities::with_externalities(|ext| {
+        if result.result.is_err() {
+            ext.storage_rollback_transaction()
+                .expect("BUG: Failed to rallback transaction");
+        } else {
+            ext.storage_commit_transaction()
+                .expect("BUG: Failed to commit transaction");
+        }
+    });
+    result
+}
+
 /// Calculates the Substrate storage key prefix for a StorageMap
 pub fn storage_map_prefix_twox_64_concat(
     module: &[u8],
@@ -311,15 +276,8 @@ pub fn storage_map_prefix_twox_64_concat(
     bytes
 }
 
-pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], ExecError> {
-    result
-        .result
-        .as_ref()
-        .map(|v| &*v.data.0)
-        .map_err(|err| ExecError {
-            source: *err,
-            message: String::from_utf8_lossy(&result.debug_message).to_string(),
-        })
+pub fn transpose_contract_result(result: ContractExecResult) -> Result<Vec<u8>, DispatchError> {
+    result.result.map(|v| v.data.0)
 }
 
 pub use contract_file::ContractFile;

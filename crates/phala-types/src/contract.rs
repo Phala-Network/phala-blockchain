@@ -58,6 +58,9 @@ pub mod messaging {
             owner: AccountId32,
             cluster: ContractClusterId,
             workers: Vec<WorkerIdentity>,
+            gas_price: u128,
+            deposit_per_item: u128,
+            deposit_per_byte: u128,
         },
     }
 
@@ -66,12 +69,22 @@ pub mod messaging {
     pub enum ContractOperation<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
+            gas_limit: u64,
+            storage_deposit_limit: Option<u128>,
         },
     }
 
     impl<CodeHash, AccountId> ContractOperation<CodeHash, AccountId> {
-        pub fn instantiate_code(contract_info: ContractInfo<CodeHash, AccountId>) -> Self {
-            ContractOperation::InstantiateCode { contract_info }
+        pub fn instantiate_code(
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            gas_limit: u64,
+            storage_deposit_limit: Option<u128>,
+        ) -> Self {
+            ContractOperation::InstantiateCode {
+                contract_info,
+                gas_limit,
+                storage_deposit_limit,
+            }
         }
     }
 
@@ -94,21 +107,23 @@ pub mod messaging {
         },
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct BatchDispatchClusterKeyEvent<BlockNumber> {
+    #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Debug)]
+    pub struct BatchDispatchClusterKeyEvent {
         pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
         pub cluster: ContractClusterId,
-        pub expiration: BlockNumber,
         /// The owner of the cluster
         pub owner: AccountId32,
+        pub gas_price: u128,
+        pub deposit_per_item: u128,
+        pub deposit_per_byte: u128,
     }
 
-    bind_topic!(ClusterOperation<AccountId, BlockNumber>, b"phala/cluster/key");
+    bind_topic!(ClusterOperation<AccountId>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, TypeInfo)]
-    pub enum ClusterOperation<AccountId, BlockNumber> {
+    pub enum ClusterOperation<AccountId> {
         // TODO.shelven: a better way for real large batch key distribution
         /// MessageOrigin::Gatekeeper -> ALL
-        DispatchKeys(BatchDispatchClusterKeyEvent<BlockNumber>),
+        DispatchKeys(BatchDispatchClusterKeyEvent),
         /// Force destroying a cluster.
         ///
         /// This leaves a door to clean up the beta clusters in fat v1.
@@ -123,18 +138,22 @@ pub mod messaging {
         },
     }
 
-    impl<AccountId, BlockNumber> ClusterOperation<AccountId, BlockNumber> {
+    impl<AccountId> ClusterOperation<AccountId> {
         pub fn batch_distribution(
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
-            expiration: BlockNumber,
             owner: AccountId32,
+            gas_price: u128,
+            deposit_per_item: u128,
+            deposit_per_byte: u128,
         ) -> Self {
             ClusterOperation::DispatchKeys(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
-                expiration,
                 owner,
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
             })
         }
     }

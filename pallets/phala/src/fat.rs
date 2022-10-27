@@ -168,6 +168,9 @@ pub mod pallet {
 			owner: T::AccountId,
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
+			gas_price: u128,
+			deposit_per_item: u128,
+			deposit_per_byte: u128,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
@@ -220,6 +223,9 @@ pub mod pallet {
 				owner,
 				cluster,
 				workers,
+				gas_price,
+				deposit_per_item,
+				deposit_per_byte,
 			});
 			Ok(())
 		}
@@ -247,7 +253,7 @@ pub mod pallet {
 				Error::<T>::PayloadTooLarge
 			);
 
-			Self::push_message(ClusterOperation::<_, T::BlockNumber>::UploadResource {
+			Self::push_message(ClusterOperation::UploadResource {
 				origin,
 				cluster_id,
 				resource_type,
@@ -263,6 +269,8 @@ pub mod pallet {
 			data: Vec<u8>,
 			salt: Vec<u8>,
 			cluster_id: ContractClusterId,
+			gas_limit: u64,
+			storage_deposit_limit: Option<u128>,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
 			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
@@ -285,7 +293,11 @@ pub mod pallet {
 			);
 			Contracts::<T>::insert(contract_id, &contract_info);
 
-			Self::push_message(ContractOperation::instantiate_code(contract_info.clone()));
+			Self::push_message(ContractOperation::instantiate_code(
+				contract_info.clone(),
+				gas_limit,
+				storage_deposit_limit,
+			));
 			Self::deposit_event(Event::Instantiating {
 				contract: contract_id,
 				cluster: contract_info.cluster_id,
@@ -300,9 +312,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 
 			Clusters::<T>::take(cluster).ok_or(Error::<T>::ClusterNotFound)?;
-			Self::push_message(
-				ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster),
-			);
+			Self::push_message(ClusterOperation::<T::AccountId>::DestroyCluster(cluster));
 			Self::deposit_event(Event::ClusterDestroyed { cluster });
 			Ok(())
 		}
@@ -347,7 +357,11 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { contract, pubkey, deployer } => {
+				ContractRegistryEvent::PubkeyAvailable {
+					contract,
+					pubkey,
+					deployer,
+				} => {
 					registry::ContractKeys::<T>::insert(contract, pubkey);
 					Self::deposit_event(Event::ContractPubkeyAvailable {
 						contract,

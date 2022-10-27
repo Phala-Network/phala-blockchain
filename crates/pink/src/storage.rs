@@ -1,6 +1,6 @@
 use crate::{
-    runtime::{BoxedEventCallbacks, ExecSideEffects},
-    types::{AccountId, Hash, Hashing},
+    runtime::{BoxedEventCallbacks, ExecSideEffects, Pink as PalletPink},
+    types::{AccountId, Balance, Hash, Hashing},
 };
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
@@ -117,13 +117,25 @@ where
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
         self.execute_with(false, None, || {
-            crate::runtime::Pink::set_cluster_id(cluster_id);
+            PalletPink::set_cluster_id(cluster_id);
+        });
+    }
+    pub fn config_price(
+        &mut self,
+        gas_price: Balance,
+        deposit_per_item: Balance,
+        deposit_per_byte: Balance,
+    ) {
+        self.execute_with(false, None, || {
+            PalletPink::set_gas_price(gas_price);
+            PalletPink::set_deposit_per_item(deposit_per_item);
+            PalletPink::set_deposit_per_byte(deposit_per_byte);
         });
     }
 
     pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
         self.execute_with(false, None, || {
-            crate::runtime::Pink::set_key_seed(seed);
+            PalletPink::set_key_seed(seed);
         });
     }
 
@@ -145,28 +157,25 @@ where
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
         Ok(self
-            .execute_with(false, None, || {
-                crate::runtime::Pink::put_sidevm_code(account, code)
-            })
+            .execute_with(false, None, || PalletPink::put_sidevm_code(account, code))
             .0)
     }
 
     pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
         self.execute_with(false, None, || {
-            crate::runtime::Pink::sidevm_codes(&hash).map(|v| v.code)
+            PalletPink::sidevm_codes(&hash).map(|v| v.code)
         })
         .0
     }
 
     pub fn set_system_contract(&mut self, address: AccountId) {
         self.execute_with(false, None, move || {
-            crate::runtime::Pink::set_system_contract(address);
+            PalletPink::set_system_contract(address);
         });
     }
 
     pub fn system_contract(&mut self) -> Option<AccountId> {
-        self.execute_with(true, None, crate::runtime::Pink::system_contract)
-            .0
+        self.execute_with(true, None, PalletPink::system_contract).0
     }
 
     pub fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
