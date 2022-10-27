@@ -156,9 +156,8 @@ where
         account: AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        Ok(self
-            .execute_with(false, None, || PalletPink::put_sidevm_code(account, code))
-            .0)
+        self.execute_with(false, None, || PalletPink::put_sidevm_code(account, code))
+            .0
     }
 
     pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {

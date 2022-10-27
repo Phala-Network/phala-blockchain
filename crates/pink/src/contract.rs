@@ -246,7 +246,7 @@ fn contract_tx<T>(
     });
     let mut result = f();
     if let Err(err) =
-        PalletPink::pay_for_transaction(&origin, Weight::from_ref_time(result.gas_consumed))
+        PalletPink::pay_for_gas(&origin, Weight::from_ref_time(result.gas_consumed))
     {
         result.result = Err(err);
     }

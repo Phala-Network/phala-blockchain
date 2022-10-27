@@ -96,23 +96,33 @@ pub mod pallet {
             <KeySeed<T>>::put(seed);
         }
 
-        pub fn put_sidevm_code(owner: T::AccountId, code: Vec<u8>) -> T::Hash {
+        pub fn put_sidevm_code(
+            owner: T::AccountId,
+            code: Vec<u8>,
+        ) -> Result<T::Hash, DispatchError> {
             let hash = T::Hashing::hash(&code);
+            let bytes = code.len() + hash.as_ref().len();
+            let fee = Self::deposit_per_byte()
+                .saturating_mul(BalanceOf::<T>::saturated_from(bytes))
+                .saturating_add(Self::deposit_per_item());
+            Self::pay(&owner, fee)?;
             <SidevmCodes<T>>::insert(hash, WasmCode { owner, code });
-            hash
+            Ok(hash)
         }
 
         pub fn set_system_contract(address: T::AccountId) {
             <SystemContract<T>>::put(address);
         }
 
-        pub fn pay_for_transaction(user: &T::AccountId, gas: Weight) -> DispatchResult {
+        pub fn pay_for_gas(user: &T::AccountId, gas: Weight) -> DispatchResult {
+            Self::pay(user, Self::convert(gas))
+        }
+
+        fn pay(user: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
             let Some(system) = <SystemContract<T>>::get() else {
                 return Ok(());
             };
-            let fee = Self::convert(gas);
-            <T as Config>::Currency::transfer(user, &system, fee, KeepAlive)?;
-            Ok(())
+            <T as Config>::Currency::transfer(user, &system, amount, KeepAlive)
         }
 
         pub fn set_gas_price(price: BalanceOf<T>) {
