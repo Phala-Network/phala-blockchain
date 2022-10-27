@@ -130,4 +130,4 @@ jobs:
       - name: Install clippy
         run: rustup component add clippy
       - name: Run cargo clippy
-        run: cargo clippy -- -D warnings && cd standalone/pruntime && cargo clippy -- -D warnings
+        run: cargo clippy --tests -- -D warnings && cd standalone/pruntime && cargo clippy --tests -- -D warnings

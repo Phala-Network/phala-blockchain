@@ -31,9 +31,9 @@ async fn inspect_works() {
 	common::run_node_for_a_while(base_path.path(), &["--dev", "--no-hardware-benchmarks"]).await;
 
 	let status = Command::new(cargo_bin("phala-node"))
-		.args(&["inspect", "--dev", "-d"])
+		.args(["inspect", "--dev", "-d"])
 		.arg(base_path.path())
-		.args(&["block", "1"])
+		.args(["block", "1"])
 		.status()
 		.unwrap();
 	assert!(status.success());

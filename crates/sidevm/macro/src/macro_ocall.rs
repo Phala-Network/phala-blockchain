@@ -58,7 +58,7 @@ impl OcallMethod {
                                     attr => {
                                         return Err(syn::Error::new_spanned(
                                             name_value,
-                                            format!("Unknown attribute: {}", attr),
+                                            format!("Unknown attribute: {attr}"),
                                         ));
                                     }
                                 }
@@ -77,7 +77,7 @@ impl OcallMethod {
                                     attr => {
                                         return Err(syn::Error::new_spanned(
                                             path,
-                                            format!("Unknown attribute: {}", attr),
+                                            format!("Unknown attribute: {attr}"),
                                         ));
                                     }
                                 }

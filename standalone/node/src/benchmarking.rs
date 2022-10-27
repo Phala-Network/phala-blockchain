@@ -118,6 +118,6 @@ pub fn inherent_benchmark_data() -> Result<InherentData> {
 
 	timestamp
 		.provide_inherent_data(&mut inherent_data)
-		.map_err(|e| format!("creating inherent data: {:?}", e))?;
+		.map_err(|e| format!("creating inherent data: {e:?}"))?;
 	Ok(inherent_data)
 }

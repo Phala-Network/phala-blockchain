@@ -37,7 +37,7 @@ pub enum JustificationError {
     #[display(fmt = "error decoding justification for header")]
     JustificationDecode,
     /// Justification for header is correctly encoded, but invalid.
-    #[display(fmt = "bad justification for header: {}", _0)]
+    #[display(fmt = "bad justification for header: {_0}")]
     #[from(ignore)]
     BadJustification(String),
     // /// Not available on light client.

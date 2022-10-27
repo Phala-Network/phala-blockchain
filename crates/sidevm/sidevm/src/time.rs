@@ -37,7 +37,7 @@ impl Future for Sleep {
         match rv {
             Ok(_) => Poll::Ready(()),
             Err(OcallError::Pending) => Poll::Pending,
-            Err(err) => panic!("unexpected error: {:?}", err),
+            Err(err) => panic!("unexpected error: {err:?}"),
         }
     }
 }

@@ -297,7 +297,7 @@ pub async fn replay(args: Args) -> Result<()> {
                     if args.checkpoint_interval > 0
                         && block_number >= args.checkpoint_interval + last_checkpoint_block
                     {
-                        let filename = format!("checkpoint.{}", block_number);
+                        let filename = format!("checkpoint.{block_number}");
                         log::info!("Taking checkpoint: {}", filename);
                         factory.dump_to_file(&filename);
                         let link = Path::new("checkpoint.latest");
@@ -337,7 +337,7 @@ pub async fn replay(args: Args) -> Result<()> {
 }
 
 fn restart_required(error: &Error) -> bool {
-    format!("{}", error).contains("restart required")
+    format!("{error}").contains("restart required")
 }
 
 fn get_checkpoint_path(from: &Option<String>) -> Option<String> {

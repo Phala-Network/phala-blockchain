@@ -414,7 +414,7 @@ impl FatContract {
                         state: "stopped".into(),
                         code_hash,
                         start_time,
-                        stop_reason: format!("{}", reason),
+                        stop_reason: format!("{reason}"),
                     },
                 }
             }),

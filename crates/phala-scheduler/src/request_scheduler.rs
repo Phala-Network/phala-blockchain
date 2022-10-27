@@ -276,11 +276,8 @@ mod test {
 
         drop(tx);
         let mut order = vec![];
-        loop {
-            match rx.recv().await {
-                Some(v) => order.push(v),
-                None => break,
-            };
+        while let Some(v) = rx.recv().await {
+            order.push(v);
         }
         assert_eq!(
             order,
@@ -318,11 +315,8 @@ mod test {
 
         drop(tx);
         let mut order = vec![];
-        loop {
-            match rx.recv().await {
-                Some(v) => order.push(v),
-                None => break,
-            };
+        while let Some(v) = rx.recv().await {
+            order.push(v);
         }
         order.sort();
         assert_eq!(
@@ -378,11 +372,8 @@ mod test {
 
             drop(tx);
             let mut order = vec![];
-            loop {
-                match rx.recv().await {
-                    Some(v) => order.push(v),
-                    None => break,
-                };
+            while let Some(v) = rx.recv().await {
+                order.push(v);
             }
             assert_eq!(
                 order,
@@ -453,11 +444,8 @@ mod test {
 
             drop(tx);
             let mut order = vec![];
-            loop {
-                match rx.recv().await {
-                    Some(v) => order.push(v),
-                    None => break,
-                };
+            while let Some(v) = rx.recv().await {
+                order.push(v);
             }
             assert_eq!(
                 order,

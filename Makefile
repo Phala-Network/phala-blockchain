@@ -13,5 +13,5 @@ test:
 	cargo test --workspace --exclude node-executor --exclude phala-node
 
 clippy:
-	cargo clippy
+	cargo clippy --tests
 	make clippy -C standalone/pruntime

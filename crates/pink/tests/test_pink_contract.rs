@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value)]
+
 use frame_support::assert_ok;
 use hex_literal::hex;
 use pink::{runtime::HookPoint, Contract, Storage};
@@ -42,7 +44,7 @@ fn test_ink_flip() {
         .unwrap()
         .0;
 
-    assert_eq!(result, true); // Should equal to the init value
+    assert!(result); // Should equal to the init value
 
     let _: () = contract
         .call_with_selector(
@@ -70,7 +72,7 @@ fn test_ink_flip() {
         .unwrap()
         .0;
 
-    assert_eq!(result, false); // Should be flipped
+    assert!(!result); // Should be flipped
 
     let result: (u32, u128) = contract
         .call_with_selector(

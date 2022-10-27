@@ -108,7 +108,7 @@ impl<'a> S3<'a> {
         let payload_hash = format!("{:x}", Sha256::digest(value.unwrap_or_default()));
 
         let host = if self.virtual_host_mode {
-            format!("{}.{}", bucket_name, self.endpoint)
+            format!("{bucket_name}.{}", self.endpoint)
         } else {
             self.endpoint.to_owned()
         };
@@ -118,9 +118,9 @@ impl<'a> S3<'a> {
 
         // 1. Create canonical request
         let canonical_uri = if self.virtual_host_mode {
-            format!("/{}", object_key)
+            format!("/{object_key}")
         } else {
-            format!("/{}/{}", bucket_name, object_key)
+            format!("/{bucket_name}/{object_key}")
         };
         let canonical_querystring = "";
         let canonical_headers = format!(
@@ -140,7 +140,7 @@ impl<'a> S3<'a> {
 
         // 2. Create "String to sign"
         let algorithm = "AWS4-HMAC-SHA256";
-        let credential_scope = format!("{}/{}/{}/aws4_request", datestamp, self.region, service);
+        let credential_scope = format!("{datestamp}/{}/{service}/aws4_request", self.region);
         let canonical_request_hash = format!("{:x}", Sha256::digest(canonical_request.as_bytes()));
         let string_to_sign = format!(
             "{}\n{}\n{}\n{}",
@@ -178,7 +178,7 @@ impl<'a> S3<'a> {
         };
 
         // Make HTTP PUT request
-        let request_url = format!("https://{}{}", host, canonical_uri);
+        let request_url = format!("https://{host}{canonical_uri}");
         let response = pink::http_req!(method, request_url, body.to_vec(), headers);
 
         if response.status_code / 100 != 2 {

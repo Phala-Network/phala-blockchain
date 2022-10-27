@@ -6,7 +6,7 @@ runs:
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly-2022-09-08
+        toolchain: nightly-2022-10-25
         override: true
         target: wasm32-unknown-unknown
         components: rustfmt

@@ -78,7 +78,7 @@ impl Future for Next<'_, GeneralMessage> {
             Ok(msg) => Poll::Ready(Some(msg)),
             Err(OcallError::EndOfFile) => Poll::Ready(None), // tx dropped
             Err(OcallError::Pending) => Poll::Pending,
-            Err(err) => panic!("unexpected error: {:?}", err),
+            Err(err) => panic!("unexpected error: {err:?}"),
         }
     }
 }
@@ -92,7 +92,7 @@ impl Future for Next<'_, SystemMessage> {
             Ok(msg) => Poll::Ready(Some(SystemMessage::decode(&mut &msg[..]))),
             Err(OcallError::EndOfFile) => Poll::Ready(None), // The tx dropped
             Err(OcallError::Pending) => Poll::Pending,
-            Err(err) => panic!("unexpected error: {:?}", err),
+            Err(err) => panic!("unexpected error: {err:?}"),
         }
     }
 }
@@ -115,7 +115,7 @@ impl Future for Next<'_, Query> {
             }
             Err(OcallError::EndOfFile) => Poll::Ready(None), // The tx dropped
             Err(OcallError::Pending) => Poll::Pending,
-            Err(err) => panic!("unexpected error: {:?}", err),
+            Err(err) => panic!("unexpected error: {err:?}"),
         }
     }
 }

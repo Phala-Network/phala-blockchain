@@ -9,7 +9,7 @@ fn it_works() {
 
     // In Enclave B
     let its_target_info = unsafe { sgx::decode(target_info_bytes).unwrap() };
-    let report = sgx::report(&its_target_info, &[0; 64]).unwrap();
+    let report = sgx::report(its_target_info, &[0; 64]).unwrap();
     let report_bytes = sgx::encode(&report);
 
     // In Enclave A

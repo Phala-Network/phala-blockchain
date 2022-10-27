@@ -18,11 +18,11 @@ macro_rules! stake {
 }
 
 fn stake_of_contract() -> u128 {
-	ContractTotalStakes::<Test>::get(&CONTRACT)
+	ContractTotalStakes::<Test>::get(CONTRACT)
 }
 
 fn stake_of_user(user: &AccountId32) -> u128 {
-	ContractUserStakes::<Test>::get(user, &CONTRACT)
+	ContractUserStakes::<Test>::get(user, CONTRACT)
 }
 
 fn balance_of_user(user: &AccountId32) -> u128 {
@@ -33,21 +33,21 @@ fn prapare() {
 	mock::System::set_block_number(1);
 	mock::Balances::set_balance(Origin::root(), ALICE, 100 * DOLLARS, 0).unwrap();
 	mock::Balances::set_balance(Origin::root(), BOB, 100 * DOLLARS, 0).unwrap();
-	MinStake::<Test>::put(1 * DOLLARS);
+	MinStake::<Test>::put(DOLLARS);
 }
 
 #[test]
 fn should_be_happy_to_stake() {
 	mock::new_test_ext().execute_with(|| {
 		prapare();
-		assert_ok!(stake!(ALICE, 1 * DOLLARS));
-		assert_eq!(stake_of_user(&ALICE), 1 * DOLLARS);
+		assert_ok!(stake!(ALICE, DOLLARS));
+		assert_eq!(stake_of_user(&ALICE), DOLLARS);
 		assert_eq!(stake_of_user(&BOB), 0);
-		assert_eq!(stake_of_contract(), 1 * DOLLARS);
+		assert_eq!(stake_of_contract(), DOLLARS);
 		assert_eq!(balance_of_user(&ALICE), 99 * DOLLARS);
 
 		assert_ok!(stake!(BOB, 2 * DOLLARS));
-		assert_eq!(stake_of_user(&ALICE), 1 * DOLLARS);
+		assert_eq!(stake_of_user(&ALICE), DOLLARS);
 		assert_eq!(stake_of_user(&BOB), 2 * DOLLARS);
 		assert_eq!(stake_of_contract(), 3 * DOLLARS);
 		assert_eq!(balance_of_user(&BOB), 98 * DOLLARS);
@@ -81,17 +81,17 @@ fn can_restake_without_any_changes() {
 	mock::new_test_ext().execute_with(|| {
 		prapare();
 
-		assert_ok!(stake!(ALICE, 1 * DOLLARS));
-		assert_eq!(stake_of_user(&ALICE), 1 * DOLLARS);
-		assert_eq!(stake_of_contract(), 1 * DOLLARS);
+		assert_ok!(stake!(ALICE, DOLLARS));
+		assert_eq!(stake_of_user(&ALICE), DOLLARS);
+		assert_eq!(stake_of_contract(), DOLLARS);
 		assert_eq!(balance_of_user(&ALICE), 99 * DOLLARS);
 
 		let events = mock::take_events();
 		insta::assert_debug_snapshot!(events);
 
-		assert_ok!(stake!(ALICE, 1 * DOLLARS));
-		assert_eq!(stake_of_user(&ALICE), 1 * DOLLARS);
-		assert_eq!(stake_of_contract(), 1 * DOLLARS);
+		assert_ok!(stake!(ALICE, DOLLARS));
+		assert_eq!(stake_of_user(&ALICE), DOLLARS);
+		assert_eq!(stake_of_contract(), DOLLARS);
 		assert_eq!(balance_of_user(&ALICE), 99 * DOLLARS);
 
 		let events = mock::take_events();

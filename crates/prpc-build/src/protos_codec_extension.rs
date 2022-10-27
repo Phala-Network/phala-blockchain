@@ -327,7 +327,7 @@ impl<'a> CodeGenerator<'a> {
         if let Some((_name, type_path)) = self.codec_decoration() {
             let type_path = self.type_prefix.clone() + type_path.as_str();
             if self.optional(field) {
-                return format!("Option<{}>", type_path);
+                return format!("Option<{type_path}>");
             } else {
                 return type_path;
             }
@@ -349,14 +349,14 @@ impl<'a> CodeGenerator<'a> {
             Type::Group | Type::Message => self.resolve_ident(field.type_name()),
         };
         let ty = if self.boxed_decoration() {
-            format!("::prost::alloc::boxed::Box<{}>", ty)
+            format!("::prost::alloc::boxed::Box<{ty}>")
         } else {
             ty
         };
         if self.optional(field) {
-            format!("Option<{}>", ty)
+            format!("Option<{ty}>")
         } else if field.label() == Label::Repeated {
-            format!("::prost::alloc::vec::Vec<{}>", ty)
+            format!("::prost::alloc::vec::Vec<{ty}>")
         } else {
             ty
         }
@@ -442,7 +442,7 @@ pub fn extend_types(
     "#,
     );
     if !mod_prefix.is_empty() {
-        buf.push_str(&format!("use {}*;\n", mod_prefix));
+        buf.push_str(&format!("use {mod_prefix}*;\n"));
     }
     for file in file_descriptor_set.file {
         CodeGenerator::generate(file, &mut buf, mod_prefix, type_prefix);

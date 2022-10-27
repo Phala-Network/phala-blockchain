@@ -124,7 +124,7 @@ fn generate_attributes<'a>(
         .filter(|(matcher, _)| match_name(matcher, name))
         .flat_map(|(_, attr)| {
             // attributes cannot be parsed directly, so we pretend they're on a struct
-            syn::parse_str::<syn::DeriveInput>(&format!("{}\nstruct fake;", attr))
+            syn::parse_str::<syn::DeriveInput>(&format!("{attr}\nstruct fake;"))
                 .unwrap()
                 .attrs
         })
@@ -146,12 +146,12 @@ pub fn fmt(out_dir: &str) {
                 .arg("files")
                 .arg("--edition")
                 .arg("2018")
-                .arg(format!("{}/{}", out_dir, file))
+                .arg(format!("{out_dir}/{file}"))
                 .output();
 
         match result {
             Err(e) => {
-                eprintln!("error running rustfmt: {:?}", e);
+                eprintln!("error running rustfmt: {e:?}");
                 // exit(1)
             }
             Ok(output) => {

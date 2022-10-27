@@ -50,7 +50,7 @@ impl WasmRun {
             "cranelift" => metering(Cranelift::default()).into(),
             #[cfg(feature = "wasmer-compiler-llvm")]
             "llvm" => LLVM::default().into(),
-            _ => panic!("Unsupported compiler engine: {}", compiler_env),
+            _ => panic!("Unsupported compiler engine: {compiler_env}"),
         };
         let base = BaseTunables {
             // Always use dynamic heap memory to save memory

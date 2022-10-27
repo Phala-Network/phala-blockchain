@@ -206,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
                     output,
                 )
                 .await?;
-                println!("{} headers written", count);
+                println!("{count} headers written");
             }
             Grab::ParaHeaders {
                 para_node_uri,
@@ -218,7 +218,7 @@ async fn main() -> anyhow::Result<()> {
                 let output = File::create(output)?;
                 let count =
                     cache::grap_para_headers_to_file(&para_api, from_block, count, output).await?;
-                println!("{} headers written", count);
+                println!("{count} headers written");
             }
             Grab::StorageChanges {
                 para_node_uri,
@@ -233,7 +233,7 @@ async fn main() -> anyhow::Result<()> {
                     &para_api, from_block, count, batch_size, output,
                 )
                 .await?;
-                println!("{} blocks written", count);
+                println!("{count} blocks written");
             }
             Grab::Genesis {
                 node_uri,
@@ -251,7 +251,7 @@ async fn main() -> anyhow::Result<()> {
             match what {
                 Import::Headers { input_files } => {
                     for filename in input_files {
-                        println!("Importing headers from {}", filename);
+                        println!("Importing headers from {filename}");
                         let mut metadata = cache.get_metadata()?.unwrap_or_default();
                         let input = File::open(&filename)?;
                         let count = cache::read_items(input, |record| {
@@ -264,12 +264,12 @@ async fn main() -> anyhow::Result<()> {
                             Ok(false)
                         })?;
                         cache.put_metadata(metadata)?;
-                        println!("{} headers imported", count);
+                        println!("{count} headers imported");
                     }
                 }
                 Import::ParaHeaders { input_files } => {
                     for filename in input_files {
-                        println!("Importing parachain headers from {}", filename);
+                        println!("Importing parachain headers from {filename}");
                         let input = File::open(&filename)?;
                         let mut metadata = cache.get_metadata()?.unwrap_or_default();
                         let count = cache::read_items(input, |record| {
@@ -282,12 +282,12 @@ async fn main() -> anyhow::Result<()> {
                             Ok(false)
                         })?;
                         cache.put_metadata(metadata)?;
-                        println!("{} headers imported", count);
+                        println!("{count} headers imported");
                     }
                 }
                 Import::StorageChanges { input_files } => {
                     for filename in input_files {
-                        println!("Importing storage changes from {}", filename);
+                        println!("Importing storage changes from {filename}");
                         let input = File::open(&filename)?;
                         let mut metadata = cache.get_metadata()?.unwrap_or_default();
                         let count = cache::read_items(input, |record| {
@@ -300,7 +300,7 @@ async fn main() -> anyhow::Result<()> {
                             Ok(false)
                         })?;
                         cache.put_metadata(metadata)?;
-                        println!("{} blocks imported", count);
+                        println!("{count} blocks imported");
                     }
                 }
                 Import::Genesis { input } => {
@@ -322,7 +322,7 @@ async fn main() -> anyhow::Result<()> {
         Action::ShowSetId { uri, block } => {
             let api = pherry::subxt_connect(&uri).await?;
             let id = cache::get_set_id(&api, block).await?;
-            println!("{:?}", id);
+            println!("{id:?}");
         }
         Action::Split { size, file } => {
             let mut input = File::open(&file)?;
@@ -350,7 +350,7 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     let filename = format!("{file}_{first:0>9}-{last:0>9}");
                     std::fs::rename(&tmpfile, &filename)?;
-                    println!("Saved {}", filename);
+                    println!("Saved {filename}");
                 }
             }
         }
@@ -365,7 +365,7 @@ async fn main() -> anyhow::Result<()> {
                 File::create(dest_file)?
             };
             for filename in files {
-                println!("Merging {}", filename);
+                println!("Merging {filename}");
                 std::io::copy(&mut File::open(filename)?, &mut output)?;
             }
         }

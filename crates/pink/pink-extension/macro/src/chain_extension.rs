@@ -101,7 +101,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 let args: Vec<_> = m
                     .inputs()
                     .enumerate()
-                    .map(|(i, _)| Ident::new(&format!("arg_{}", i), Span::call_site()))
+                    .map(|(i, _)| Ident::new(&format!("arg_{i}"), Span::call_site()))
                     .collect();
                 (name, id, args)
             })
@@ -188,13 +188,13 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             let input_args: Vec<_> = input_types
                 .iter()
                 .enumerate()
-                .map(|(i, _)| Ident::new(&format!("arg_{}", i), Span::call_site()))
+                .map(|(i, _)| Ident::new(&format!("arg_{i}"), Span::call_site()))
                 .collect();
             let input_args_asref: Vec<TokenStream2> = input_types
                 .iter()
                 .enumerate()
                 .map(|(i, tp)| {
-                    let name = Ident::new(&format!("arg_{}", i), Span::call_site());
+                    let name = Ident::new(&format!("arg_{i}"), Span::call_site());
                     match tp {
                         Type::Reference(_) => {
                             syn::parse_quote! {

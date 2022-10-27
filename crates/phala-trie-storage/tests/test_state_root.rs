@@ -73,8 +73,8 @@ fn load_roots() -> Vec<String> {
 fn load_changes() -> Vec<Changes> {
     let json_str = std::fs::read_to_string(data_dir().join("changes.json")).unwrap();
     let response: RpcResponse = serde_json::from_str(json_str.as_str()).unwrap();
-    let changes = response.result;
-    changes
+
+    response.result
 }
 
 fn load_genesis_trie() -> TrieStorage<NativeBlakeTwo256> {
