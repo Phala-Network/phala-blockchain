@@ -1,30 +1,34 @@
-#[allow(unused_imports)]
-use frame_support::{
-	traits::{Get, StorageVersion, ExistenceRequirement::{AllowDeath, KeepAlive}, tokens::fungibles::{Inspect, Mutate}, Currency, LockIdentifier, LockableCurrency},
-	weights::Weight,
-	Twox64Concat,
-	BoundedVec,
-};
+use crate::balance_convert::mul;
 #[cfg(not(feature = "std"))]
 use alloc::format;
-#[cfg(feature = "std")]
-use std::format;
-use crate::balance_convert::mul;
-use sp_std::{collections::vec_deque::VecDeque, vec};
+#[allow(unused_imports)]
+use frame_support::{
+	traits::{
+		tokens::fungibles::{Inspect, Mutate},
+		Currency,
+		ExistenceRequirement::{AllowDeath, KeepAlive},
+		Get, LockIdentifier, LockableCurrency, StorageVersion,
+	},
+	weights::Weight,
+	BoundedVec, Twox64Concat,
+};
 use frame_system::Origin;
-use sp_runtime::traits::Zero;
 #[allow(unused_imports)]
 use log;
+use sp_runtime::traits::Zero;
+use sp_std::{collections::vec_deque::VecDeque, vec};
+#[cfg(feature = "std")]
+use std::format;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
-use crate::compute::{pawnshop, poolproxy, basepool, computation, stakepoolv2, vault};
+use crate::compute::{basepool, computation, pawnshop, poolproxy, stakepoolv2, vault};
 use crate::fat;
 use crate::mq;
 use crate::registry;
+use crate::stakepool;
 use crate::utils::balance_convert;
 use crate::{BalanceOf, PhalaConfig};
-use crate::stakepool;
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
@@ -139,18 +143,18 @@ pub mod v6 {
 
 pub mod stakepoolv2_migration {
 	use super::*;
-	
+
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 	const VESTING_ID: LockIdentifier = *b"vesting ";
 	const DEMOCRAC_ID: LockIdentifier = *b"democrac";
 	const PHRELECT_ID: LockIdentifier = *b"phrelect";
-	fn migrate_stake_pools<T : PhalaPallets>()
+	fn migrate_stake_pools<T: PhalaPallets>()
 	where
 		T: PhalaPallets + stakepool::pallet::Config + PhalaConfig,
 		BalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,	
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		stakepool::pallet::StakePools::<T>::iter().for_each(|(pid, pool_info)| {
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
@@ -165,56 +169,82 @@ pub mod stakepoolv2_migration {
 				Default::default(),
 				None,
 				symbol,
-			).expect("create collection should not fail; qed.");
-			let account_id =
-				basepool::pallet::create_staker_account::<T::AccountId>(pid, pool_info.owner.clone());
+			)
+			.expect("create collection should not fail; qed.");
+			let account_id = basepool::pallet::create_staker_account::<T::AccountId>(
+				pid,
+				pool_info.owner.clone(),
+			);
 			let (owner_reward_account, lock_account) =
-				stakepoolv2::pallet::create_owner_and_lock_account::<T::AccountId>(pid, pool_info.owner.clone());
+				stakepoolv2::pallet::create_owner_and_lock_account::<T::AccountId>(
+					pid,
+					pool_info.owner.clone(),
+				);
 			let mut new_pool_info = poolproxy::StakePool {
-					basepool: basepool::BasePool {
-						pid,
-						owner: pool_info.owner.clone(),
-						total_shares: pool_info.total_shares.clone(),
-						total_value: pool_info.total_stake.clone(),
-						withdraw_queue: VecDeque::new(),
-						value_subscribers: VecDeque::new(),
-						cid: collection_id,
-						pool_account_id: account_id,
-					},
-					payout_commission: pool_info.payout_commission.clone(),
-					cap: pool_info.cap.clone(),
-					workers: VecDeque::new(),
-					cd_workers: VecDeque::new(),
-					lock_account,
-					owner_reward_account,
-				};
+				basepool: basepool::BasePool {
+					pid,
+					owner: pool_info.owner.clone(),
+					total_shares: pool_info.total_shares.clone(),
+					total_value: pool_info.total_stake.clone(),
+					withdraw_queue: VecDeque::new(),
+					value_subscribers: VecDeque::new(),
+					cid: collection_id,
+					pool_account_id: account_id,
+				},
+				payout_commission: pool_info.payout_commission.clone(),
+				cap: pool_info.cap.clone(),
+				workers: VecDeque::new(),
+				cd_workers: VecDeque::new(),
+				lock_account,
+				owner_reward_account,
+			};
 			pool_info.workers.into_iter().for_each(|pubkey| {
 				new_pool_info.workers.push_back(pubkey);
 				let session: T::AccountId = stakepoolv2::pool_sub_account(pid, &pubkey);
-				let worker_info = computation::pallet::Sessions::<T>::get(&session).expect("session data should exist; qed.");
+				let worker_info = computation::pallet::Sessions::<T>::get(&session)
+					.expect("session data should exist; qed.");
 				if worker_info.state == computation::pallet::WorkerState::WorkerCoolingDown {
 					new_pool_info.cd_workers.push_back(pubkey);
 				}
 				let computing_stake = computation::Stakes::<T>::get(&session).unwrap_or_default();
-				pawnshop::Pallet::<T>::mint_into(&new_pool_info.owner_reward_account, computing_stake)
-				.expect("mint into should be success");		
+				pawnshop::Pallet::<T>::mint_into(
+					&new_pool_info.owner_reward_account,
+					computing_stake,
+				)
+				.expect("mint into should be success");
 			});
-			pool_info.withdraw_queue.into_iter().for_each(|withdraw_info| {
-				let nft_id = basepool::Pallet::<T>::mint_nft(collection_id, basepool::pallet::pallet_id(), withdraw_info.shares)
-					.expect("mint nft should always success");	
-				new_pool_info.basepool.withdraw_queue.push_back(basepool::WithdrawInfo {
-					user: withdraw_info.user,
-					start_time: withdraw_info.start_time,
-					nft_id,
+			pool_info
+				.withdraw_queue
+				.into_iter()
+				.for_each(|withdraw_info| {
+					let nft_id = basepool::Pallet::<T>::mint_nft(
+						collection_id,
+						basepool::pallet::pallet_id(),
+						withdraw_info.shares,
+					)
+					.expect("mint nft should always success");
+					new_pool_info
+						.basepool
+						.withdraw_queue
+						.push_back(basepool::WithdrawInfo {
+							user: withdraw_info.user,
+							start_time: withdraw_info.start_time,
+							nft_id,
+						});
 				});
-			});
 			let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
 				&<T as pawnshop::Config>::PawnShopAccountId::get(),
 				pool_info.owner_reward,
 			);
 			// If the balance is too low to mint,we can just drop it.
-			pawnshop::Pallet::<T>::mint_into(&new_pool_info.owner_reward_account, pool_info.owner_reward);		
-			pawnshop::Pallet::<T>::mint_into(&new_pool_info.basepool.pool_account_id, pool_info.free_stake);		
+			pawnshop::Pallet::<T>::mint_into(
+				&new_pool_info.owner_reward_account,
+				pool_info.owner_reward,
+			);
+			pawnshop::Pallet::<T>::mint_into(
+				&new_pool_info.basepool.pool_account_id,
+				pool_info.free_stake,
+			);
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				poolproxy::PoolProxy::StakePool(new_pool_info),
@@ -223,13 +253,13 @@ pub mod stakepoolv2_migration {
 		basepool::PoolCount::<T>::put(stakepool::PoolCount::<T>::get());
 	}
 
-	fn migrate_pool_stakers<T : PhalaPallets>()
+	fn migrate_pool_stakers<T: PhalaPallets>()
 	where
 		T: PhalaPallets + stakepool::pallet::Config,
 		BalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,	
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		stakepool::pallet::PoolStakers::<T>::drain().for_each(|((pid, user_id), staker_info)| {
 			let mut account_status = match pawnshop::StakerAccounts::<T>::get(&user_id) {
@@ -239,31 +269,39 @@ pub mod stakepoolv2_migration {
 					locked: Zero::zero(),
 				},
 			};
-			let deprecated_pool = stakepool::pallet::StakePools::<T>::get(pid).expect("get deprecated pool should success; qed.");
-			let pending_reward = mul(staker_info.shares, &deprecated_pool.reward_acc.into()) - staker_info.reward_debt;
+			let deprecated_pool = stakepool::pallet::StakePools::<T>::get(pid)
+				.expect("get deprecated pool should success; qed.");
+			let pending_reward = mul(staker_info.shares, &deprecated_pool.reward_acc.into())
+				- staker_info.reward_debt;
 			let user_reward = pending_reward + staker_info.available_rewards;
 			let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
 				&<T as pawnshop::Config>::PawnShopAccountId::get(),
 				user_reward,
 			);
-			let pool_info = poolproxy::ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
-			if !account_status.invest_pools.contains(&(pid, pool_info.basepool.cid)) {
-				account_status.invest_pools.push((pid, pool_info.basepool.cid));
+			let pool_info =
+				poolproxy::ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
+			if !account_status
+				.invest_pools
+				.contains(&(pid, pool_info.basepool.cid))
+			{
+				account_status
+					.invest_pools
+					.push((pid, pool_info.basepool.cid));
 			}
 			pawnshop::StakerAccounts::<T>::insert(user_id.clone(), account_status);
 			// If the balance is too low to mint,we can just drop it.
-			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);	
-			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id, staker_info.shares);	
+			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);
+			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id, staker_info.shares);
 		});
 	}
 
-	fn migrate_stake_ledger<T : PhalaPallets>()
+	fn migrate_stake_ledger<T: PhalaPallets>()
 	where
 		T: PhalaPallets + stakepool::pallet::Config + PhalaConfig,
 		BalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,	
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		stakepool::pallet::StakeLedger::<T>::drain().for_each(|(user_id, balance)| {
 			<T as PhalaConfig>::Currency::remove_lock(STAKING_ID, &user_id);
@@ -275,7 +313,9 @@ pub mod stakepoolv2_migration {
 				&<T as pawnshop::Config>::PawnShopAccountId::get(),
 				balance,
 				KeepAlive,
-			).is_err() {
+			)
+			.is_err()
+			{
 				<T as PhalaConfig>::Currency::transfer(
 					&computation::Pallet::<T>::account_id(),
 					&user_id,
@@ -287,18 +327,19 @@ pub mod stakepoolv2_migration {
 					&<T as pawnshop::Config>::PawnShopAccountId::get(),
 					balance,
 					KeepAlive,
-				).expect("transfer should not fail; qed.");
+				)
+				.expect("transfer should not fail; qed.");
 			}
 		});
 	}
 
-	fn migrate_unchanged_stuffs<T : PhalaPallets>()
+	fn migrate_unchanged_stuffs<T: PhalaPallets>()
 	where
 		T: PhalaPallets + stakepool::pallet::Config + PhalaConfig,
 		BalanceOf<T>: balance_convert::FixedPointConvert + sp_std::fmt::Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32>,
-		T: pallet_assets::Config<Balance = BalanceOf<T>>,	 
+		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
 		stakepool::pallet::WorkerAssignments::<T>::drain().for_each(|(k, v)| {
 			stakepoolv2::pallet::WorkerAssignments::<T>::insert(k, v);

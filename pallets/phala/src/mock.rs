@@ -1,6 +1,6 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, computation, mq, pawnshop, registry, stakepoolv2, vault, stakepool,
+	basepool, computation, mq, pawnshop, registry, stakepool, stakepoolv2, vault,
 };
 
 use frame_support::{

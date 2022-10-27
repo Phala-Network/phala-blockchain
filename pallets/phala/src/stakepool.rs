@@ -7,16 +7,14 @@ use crate::BalanceOf;
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::utils::fixed_point::CodecFixedPoint;
 	use crate::compute::{computation, stakepoolv2};
 	use crate::registry;
+	use crate::utils::fixed_point::CodecFixedPoint;
 
 	use super::BalanceOf;
 	use frame_support::{
 		pallet_prelude::*,
-		traits::{
-			LockableCurrency, StorageVersion,
-		},
+		traits::{LockableCurrency, StorageVersion},
 	};
 	use scale_info::TypeInfo;
 	use sp_runtime::Permill;
@@ -111,7 +109,7 @@ pub mod pallet {
 
 	/// Mapping for pools that specify certain stakers to contribute stakes
 	#[pallet::storage]
-	#[pallet::getter(fn pool_whitelist)] 
+	#[pallet::getter(fn pool_whitelist)]
 	pub type PoolContributionWhitelists<T: Config> =
 		StorageMap<_, Twox64Concat, u64, Vec<T::AccountId>>;
 

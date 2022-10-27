@@ -694,7 +694,11 @@ fn test_pool_cap() {
 			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner,
 		);
 		// Cap to 1000 PHA
-		assert_ok!(PhalaStakePoolv2::set_cap(Origin::signed(1), 0, 100 * DOLLARS));
+		assert_ok!(PhalaStakePoolv2::set_cap(
+			Origin::signed(1),
+			0,
+			100 * DOLLARS
+		));
 		assert_eq!(
 			ensure_stake_pool::<Test>(0).unwrap().cap,
 			Some(100 * DOLLARS)
@@ -1069,7 +1073,12 @@ fn restart_computing_should_work() {
 		));
 		// Bad cases
 		assert_noop!(
-			PhalaStakePoolv2::restart_computing(Origin::signed(1), 0, worker_pubkey(1), 50 * DOLLARS),
+			PhalaStakePoolv2::restart_computing(
+				Origin::signed(1),
+				0,
+				worker_pubkey(1),
+				50 * DOLLARS
+			),
 			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
 		);
 		assert_noop!(
@@ -1240,7 +1249,11 @@ fn test_claim_owner_rewards() {
 		}]);
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool.owner_reward_account), 500 * DOLLARS);
-		assert_ok!(PhalaStakePoolv2::claim_owner_rewards(Origin::signed(1), 0, 1));
+		assert_ok!(PhalaStakePoolv2::claim_owner_rewards(
+			Origin::signed(1),
+			0,
+			1
+		));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(get_balance(pool.owner_reward_account), 0 * DOLLARS);
 		assert_eq!(get_balance(1), 900 * DOLLARS);
