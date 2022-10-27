@@ -68,6 +68,8 @@ Make sure you have Rust and LLVM-10 installed.
 
 > Note for Mac users: you also need `llvm` and `binutils` from Homebrew or MacPort, and to add their binaries to your $PATH
 
+Run `git submodule update --init` to fetch submodules before build if you haven't add option `--recursive ` when clone code.
+
 ```bash
 cargo build --release
 ```
