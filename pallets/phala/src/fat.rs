@@ -18,9 +18,13 @@ pub mod pallet {
 	use sp_runtime::{AccountId32, SaturatedConversion};
 	use sp_std::prelude::*;
 
-	use crate::{mq::MessageOriginInfo, registry};
+	use crate::{
+		mq::{IntoH256, MessageOriginInfo, Pallet as PalletMq},
+		registry,
+	};
 	use phala_types::{
 		contract::{
+			command_topic,
 			messaging::{
 				ClusterEvent, ClusterOperation, ContractOperation, ResourceType,
 				WorkerClusterReport,
@@ -158,6 +162,7 @@ pub mod pallet {
 		WorkerNotFound,
 		PayloadTooLarge,
 		NoPinkSystemCode,
+		ContractNotFound,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -314,6 +319,28 @@ pub mod pallet {
 				amount,
 			});
 			Ok(())
+		}
+
+		// Push message to contract with some deposit into the cluster to pay the gas fee
+		#[pallet::weight(Weight::from_ref_time(10_000u64))]
+		pub fn push_contract_message(
+			origin: OriginFor<T>,
+			contract_id: ContractId,
+			payload: Vec<u8>,
+			deposit: u128,
+		) -> DispatchResult {
+			let user = ensure_signed(origin.clone())?;
+			if deposit > 0 {
+				let contract_info =
+					Contracts::<T>::get(contract_id).ok_or(Error::<T>::ContractNotFound)?;
+				Self::transfer_to_cluster(
+					origin.clone(),
+					deposit,
+					contract_info.cluster_id,
+					user.into_h256(),
+				)?;
+			}
+			PalletMq::<T>::push_message(origin, command_topic(contract_id), payload)
 		}
 
 		#[pallet::weight(0)]
