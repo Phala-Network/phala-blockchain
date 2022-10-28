@@ -15,7 +15,7 @@ pub use phala_types::contract::InkCommand as Command;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
-    InkMessage(Vec<u8>),
+    InkMessage { payload: Vec<u8>, deposit: u128 },
     SidevmQuery(Vec<u8>),
 }
 
@@ -92,7 +92,10 @@ impl Pink {
         side_effects: &mut ExecSideEffects,
     ) -> Result<Response, QueryError> {
         match req {
-            Query::InkMessage(input_data) => {
+            Query::InkMessage {
+                payload: input_data,
+                deposit,
+            } => {
                 let _guard = context
                     .query_scheduler
                     .acquire(self.id(), context.weight)
@@ -101,6 +104,9 @@ impl Pink {
 
                 let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
+                if deposit > 0 {
+                    storage.deposit(&origin, deposit);
+                }
                 let args = ::pink::TransactionArguments {
                     origin,
                     now: context.now_ms,
