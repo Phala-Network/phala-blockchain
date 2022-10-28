@@ -120,12 +120,14 @@ impl Pink {
                         context.block_number,
                     ),
                 };
-                let (ink_result, effects) = self.instance.bare_call(input_data, true, args);
+                let (mut ink_result, effects) = self.instance.bare_call(input_data, true, args);
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
                 } else {
                     *side_effects = effects.into_query_only_effects();
                 }
+                ink_result.gas_consumed = mask_low_bits(ink_result.gas_consumed);
+                ink_result.gas_required = mask_low_bits(ink_result.gas_required);
                 Ok(Response::Payload(ink_result.encode()))
             }
             Query::SidevmQuery(payload) => {
@@ -255,6 +257,22 @@ impl Pink {
     pub(crate) fn snapshot(&self) -> Self {
         self.clone()
     }
+}
+
+fn mask_low_bits(v: u64) -> u64 {
+    let pos: u64 = (1 << (64 - v.leading_zeros())) >> 9;
+    let pos = pos.max(0x1000000);
+    let mask = pos.saturating_sub(1);
+    v | mask
+}
+
+#[test]
+fn mask_low_bits_works() {
+    assert_eq!(mask_low_bits(0), 0xffffff);
+    assert_eq!(mask_low_bits(0x10), 0xffffff);
+    assert_eq!(mask_low_bits(0x1000_0000), 0x10ff_ffff);
+    assert_eq!(mask_low_bits(0x10_0000_0000), 0x10_0fff_ffff);
+    assert_eq!(mask_low_bits(0x10_0000_0000_0000), 0x10_0fff_ffff_ffff);
 }
 
 fn cluster_storage<'a>(
