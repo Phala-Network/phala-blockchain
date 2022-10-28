@@ -235,6 +235,9 @@ pub mod pallet {
 				permission,
 				workers: deploy_workers,
 				system_contract,
+				gas_price,
+				deposit_per_item,
+				deposit_per_byte,
 			};
 
 			Clusters::<T>::insert(cluster, &cluster_info);
