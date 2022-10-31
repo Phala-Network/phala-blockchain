@@ -296,6 +296,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Transfer `amount` of on-chain token to the `dest_account` in the cluster of id `cluster_id`.
 		#[pallet::weight(0)]
 		pub fn transfer_to_cluster(
 			origin: OriginFor<T>,
