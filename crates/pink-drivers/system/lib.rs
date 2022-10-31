@@ -110,9 +110,15 @@ mod system {
         }
 
         #[ink(message)]
-        fn set_hook(&mut self, hook: HookPoint, contract: AccountId, selector: u32) -> Result<()> {
+        fn set_hook(
+            &mut self,
+            hook: HookPoint,
+            contract: AccountId,
+            selector: u32,
+            gas_limit: u64,
+        ) -> Result<()> {
             self.ensure_admin()?;
-            pink::set_hook(hook, contract, selector);
+            pink::set_hook(hook, contract, selector, gas_limit);
             Ok(())
         }
 

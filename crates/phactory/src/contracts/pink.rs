@@ -15,7 +15,11 @@ pub use phala_types::contract::InkCommand as Command;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
-    InkMessage { payload: Vec<u8>, deposit: u128 },
+    InkMessage {
+        payload: Vec<u8>,
+        deposit: u128,
+        transfer: u128,
+    },
     SidevmQuery(Vec<u8>),
 }
 
@@ -78,8 +82,8 @@ impl Pink {
         self.instance.address.clone()
     }
 
-    pub fn set_on_block_end_selector(&mut self, selector: u32) {
-        self.instance.set_on_block_end_selector(selector)
+    pub fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
+        self.instance.set_on_block_end_selector(selector, gas_limit)
     }
 }
 
@@ -95,6 +99,7 @@ impl Pink {
             Query::InkMessage {
                 payload: input_data,
                 deposit,
+                transfer,
             } => {
                 let _guard = context
                     .query_scheduler
@@ -112,8 +117,9 @@ impl Pink {
                     now: context.now_ms,
                     block_number: context.block_number,
                     storage,
+                    transfer,
                     gas_limit: Weight::MAX,
-                    gas_free: false,
+                    gas_free: true,
                     storage_deposit_limit: None,
                     callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
@@ -174,6 +180,7 @@ impl Pink {
             Command::InkMessage {
                 nonce,
                 message,
+                transfer,
                 gas_limit,
                 storage_deposit_limit,
             } => {
@@ -197,6 +204,7 @@ impl Pink {
                     now: context.block.now_ms,
                     block_number: context.block.block_number,
                     storage,
+                    transfer,
                     gas_limit: Weight::from_ref_time(gas_limit),
                     gas_free,
                     storage_deposit_limit,

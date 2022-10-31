@@ -207,15 +207,17 @@ pub fn emit_log(id: &AccountId, level: u8, msg: String) {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::type_complexity)]
+    use super::*;
 
-    use frame_support::assert_ok;
+    use frame_support::{assert_ok, traits::Currency};
     use pallet_contracts::Config;
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
         runtime::{Contracts, PinkRuntime, RuntimeOrigin as Origin},
-        types::ENOUGH,
+        types::Balance,
     };
+
     pub use frame_support::weights::Weight;
 
     pub fn compile_wat<T>(wat_bytes: &[u8]) -> wat::Result<(Vec<u8>, <T::Hashing as Hash>::Output)>
@@ -231,11 +233,13 @@ mod tests {
     pub fn contract_test() {
         use scale::Encode;
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+        pub const ENOUGH: Balance = Balance::MAX.saturating_div(32);
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/event_size.wat")).unwrap();
 
         exec::execute_with(|| {
+            _ = Balances::deposit_creating(&ALICE, Balance::MAX.saturating_div(2));
             Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 ENOUGH,
@@ -274,6 +278,7 @@ mod tests {
                 .unwrap();
 
         exec::execute_with(|| {
+            _ = Balances::deposit_creating(&ALICE, Balance::MAX.saturating_div(2));
             // Instantiate the CRYPTO_HASHES contract.
             assert_ok!(Contracts::instantiate_with_code(
                 Origin::signed(ALICE),

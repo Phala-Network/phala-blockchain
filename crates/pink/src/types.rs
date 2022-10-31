@@ -8,5 +8,3 @@ pub type AccountId = AccountId32;
 pub type Balance = u128;
 pub type BlockNumber = u32;
 pub type Index = u64;
-
-pub const ENOUGH: Balance = Balance::MAX.saturating_div(2);

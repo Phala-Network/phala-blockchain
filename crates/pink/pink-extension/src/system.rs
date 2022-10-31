@@ -67,6 +67,7 @@ pub trait System {
         hook: crate::HookPoint,
         contract_id: AccountId,
         selector: u32,
+        gas_limit: u64,
     ) -> Result<()>;
 
     /// Set weight of the contract for query requests and sidevm scheduling.

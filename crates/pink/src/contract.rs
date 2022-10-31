@@ -33,7 +33,7 @@ impl Default for Storage {
 
 #[derive(Debug, Default, Encode, Decode, Clone)]
 struct HookSelectors {
-    on_block_end: Option<u32>,
+    on_block_end: Option<(u32, Weight)>,
 }
 
 #[derive(Debug, Encode, Decode, Clone)]
@@ -47,6 +47,7 @@ pub struct TransactionArguments<'a> {
     pub now: u64,
     pub block_number: BlockNumber,
     pub storage: &'a mut Storage,
+    pub transfer: Balance,
     pub gas_limit: Weight,
     pub gas_free: bool,
     pub storage_deposit_limit: Option<Balance>,
@@ -92,25 +93,33 @@ impl Contract {
             block_number,
             now,
             storage,
+            transfer,
             gas_limit,
             storage_deposit_limit,
             callbacks,
             gas_free,
         } = args;
         storage.execute_with(false, callbacks, move || {
-            let result = contract_tx(origin.clone(), block_number, now, gas_free, move || {
-                Contracts::bare_instantiate(
-                    origin,
-                    0,
-                    gas_limit,
-                    storage_deposit_limit,
-                    pallet_contracts_primitives::Code::Existing(code_hash),
-                    input_data,
-                    salt,
-                    false,
-                )
-            });
-            log::info!("Contract instantiation result: {:?}", &result);
+            let result = contract_tx(
+                origin.clone(),
+                block_number,
+                now,
+                gas_limit,
+                gas_free,
+                move || {
+                    Contracts::bare_instantiate(
+                        origin,
+                        transfer,
+                        gas_limit,
+                        storage_deposit_limit,
+                        pallet_contracts_primitives::Code::Existing(code_hash),
+                        input_data,
+                        salt,
+                        false,
+                    )
+                },
+            );
+            log::info!("Contract instantiation result: {:?}", &result.result);
             result
         })
     }
@@ -145,6 +154,7 @@ impl Contract {
             now,
             block_number,
             storage,
+            transfer,
             gas_limit,
             gas_free,
             callbacks,
@@ -152,17 +162,24 @@ impl Contract {
         } = tx_args;
         let addr = self.address.clone();
         storage.execute_with(in_query, callbacks, move || {
-            contract_tx(origin.clone(), block_number, now, gas_free, move || {
-                Contracts::bare_call(
-                    origin,
-                    addr,
-                    0,
-                    gas_limit,
-                    storage_deposit_limit,
-                    input_data,
-                    false,
-                )
-            })
+            contract_tx(
+                origin.clone(),
+                block_number,
+                now,
+                gas_limit,
+                gas_free,
+                move || {
+                    Contracts::bare_call(
+                        origin,
+                        addr,
+                        transfer,
+                        gas_limit,
+                        storage_deposit_limit,
+                        input_data,
+                        false,
+                    )
+                },
+            )
         })
     }
 
@@ -173,17 +190,17 @@ impl Contract {
         args: impl Encode,
         in_query: bool,
         tx_args: TransactionArguments,
-    ) -> Result<(RV, ExecSideEffects), DispatchError> {
+    ) -> (Result<RV, DispatchError>, ExecSideEffects) {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
         let (result, effects) = self.bare_call(input_data, in_query, tx_args);
-        let rv = transpose_contract_result(result)?;
-        Ok((
-            Decode::decode(&mut &rv[..])
-                .map_err(|_| DispatchError::Other("Decode result failed"))?,
-            effects,
-        ))
+        let result = result.result.and_then(|ret| {
+            Decode::decode(&mut &ret.data[..])
+                .map_err(|_| DispatchError::Other("Decode result failed"))
+        });
+
+        (result, effects)
     }
 
     /// Called by on each block end by the runtime
@@ -194,7 +211,7 @@ impl Contract {
         now: u64,
         callbacks: Option<BoxedEventCallbacks>,
     ) -> Result<ExecSideEffects, DispatchError> {
-        if let Some(selector) = self.hooks.on_block_end {
+        if let Some((selector, gas_limit)) = self.hooks.on_block_end {
             let mut input_data = vec![];
             selector.to_be_bytes().encode_to(&mut input_data);
 
@@ -206,21 +223,22 @@ impl Contract {
                     now,
                     block_number,
                     storage,
-                    gas_limit: Weight::MAX,
+                    transfer: 0,
+                    gas_limit,
                     gas_free: false,
                     storage_deposit_limit: None,
                     callbacks,
                 },
             );
-            let _ = transpose_contract_result(result)?;
+            let _ = result.result?;
             Ok(effects)
         } else {
             Ok(Default::default())
         }
     }
 
-    pub fn set_on_block_end_selector(&mut self, selector: u32) {
-        self.hooks.on_block_end = Some(selector)
+    pub fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
+        self.hooks.on_block_end = Some((selector, Weight::from_ref_time(gas_limit)));
     }
 
     pub fn code_hash(&self, storage: &Storage) -> Option<Hash> {
@@ -241,21 +259,30 @@ fn contract_tx<T>(
     origin: AccountId,
     block_number: BlockNumber,
     now: u64,
+    gas_limit: Weight,
     gas_free: bool,
-    f: impl FnOnce() -> ContractResult<T>,
+    tx_fn: impl FnOnce() -> ContractResult<T>,
 ) -> ContractResult<T> {
     System::set_block_number(block_number);
     Timestamp::set_timestamp(now);
     sp_externalities::with_externalities(|ext| {
         ext.storage_start_transaction();
     });
-    let mut result = f();
+    if !gas_free && PalletPink::pay_for_gas(&origin, gas_limit).is_err() {
+        return ContractResult {
+            gas_consumed: 0,
+            gas_required: 0,
+            storage_deposit: Default::default(),
+            debug_message: Default::default(),
+            result: Err(DispatchError::Other("InsufficientBalance")),
+        };
+    }
+    let result = tx_fn();
     if !gas_free {
-        if let Err(err) =
-            PalletPink::pay_for_gas(&origin, Weight::from_ref_time(result.gas_consumed))
-        {
-            result.result = Err(err);
-        }
+        let refund = gas_limit
+            .checked_sub(&Weight::from_ref_time(result.gas_consumed))
+            .expect("BUG: consumed gas more than the gas limit");
+        PalletPink::refund_gas(&origin, refund).expect("BUG: failed to refund gas");
     }
     sp_externalities::with_externalities(|ext| {
         if result.result.is_err() {
@@ -263,7 +290,7 @@ fn contract_tx<T>(
                 .expect("BUG: Failed to rallback transaction");
         } else {
             ext.storage_commit_transaction()
-                .expect("BUG: Failed to commit transaction");
+                .expect("Failed to commit transaction");
         }
     });
     result

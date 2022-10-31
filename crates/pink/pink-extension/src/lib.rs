@@ -63,6 +63,8 @@ pub enum PinkEvent {
         contract: AccountId,
         /// The selector to invoke on hooked event fired.
         selector: u32,
+        /// The gas limit when calling the selector
+        gas_limit: u64,
     },
     /// Deploy a sidevm instance to given contract instance
     DeploySidevmTo {
@@ -175,11 +177,12 @@ pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<
 
 /// Turn on on_block_end feature and set it's selector
 ///
-pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32) {
+pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32, gas_limit: u64) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
         hook,
         contract,
         selector,
+        gas_limit,
     })
 }
 

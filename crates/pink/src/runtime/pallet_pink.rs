@@ -3,7 +3,10 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
     use frame_support::pallet_prelude::{ValueQuery, *};
-    use frame_support::traits::{Currency, ExistenceRequirement::KeepAlive};
+    use frame_support::traits::{
+        Currency,
+        ExistenceRequirement::{AllowDeath, KeepAlive},
+    };
     use pallet_contracts::AddressGenerator;
     use phala_crypto::sr25519::Sr25519SecretKey;
     use scale::{Decode, Encode};
@@ -121,11 +124,22 @@ pub mod pallet {
             Self::pay(user, Self::convert(gas))
         }
 
+        pub fn refund_gas(user: &T::AccountId, gas: Weight) -> DispatchResult {
+            Self::refund(user, Self::convert(gas))
+        }
+
         fn pay(user: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
             let Some(treasury) = TreasuryAccount::<T>::get() else {
                 return Ok(());
             };
             <T as Config>::Currency::transfer(user, &treasury, amount, KeepAlive)
+        }
+
+        fn refund(user: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
+            let Some(treasury) = TreasuryAccount::<T>::get() else {
+                return Ok(());
+            };
+            <T as Config>::Currency::transfer(&treasury, user, amount, AllowDeath)
         }
 
         pub fn set_gas_price(price: BalanceOf<T>) {

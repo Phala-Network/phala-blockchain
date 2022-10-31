@@ -1242,6 +1242,7 @@ impl<Platform: pal::Platform> System<Platform> {
         match event {
             ContractOperation::InstantiateCode {
                 contract_info,
+                transfer,
                 gas_limit,
                 storage_deposit_limit,
             } => {
@@ -1270,6 +1271,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             now: block.now_ms,
                             block_number: block.block_number,
                             storage: &mut cluster.storage,
+                            transfer,
                             gas_limit: Weight::from_ref_time(gas_limit),
                             gas_free: false,
                             storage_deposit_limit,
@@ -1541,8 +1543,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 now: block.now_ms,
                 block_number: block.block_number,
                 storage: &mut cluster.storage,
+                transfer: 0,
                 gas_limit: Weight::MAX,
-                gas_free: false,
+                gas_free: true,
                 storage_deposit_limit: None,
                 callbacks: None,
             };
@@ -1555,8 +1558,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 now: block.now_ms,
                 block_number: block.block_number,
                 storage: &mut cluster.storage,
+                transfer: 0,
                 gas_limit: Weight::MAX,
-                gas_free: false,
+                gas_free: true,
                 storage_deposit_limit: None,
                 callbacks: None,
             };
@@ -1847,12 +1851,13 @@ pub(crate) fn apply_pink_events(
                 hook,
                 contract: target_contract,
                 selector,
+                gas_limit,
             } => {
                 ensure_system!();
                 let contract = get_contract!(&target_contract);
                 match hook {
                     HookPoint::OnBlockEnd => {
-                        contract.set_on_block_end_selector(selector);
+                        contract.set_on_block_end_selector(selector, gas_limit);
                     }
                 }
             }

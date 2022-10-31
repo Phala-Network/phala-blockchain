@@ -31,7 +31,11 @@ pub enum InkCommand {
     InkMessage {
         nonce: BoundedVec<u8, ConstU32<32>>,
         message: Vec<u8>,
+        // Amount of tokens transfer to the target contract
+        transfer: u128,
+        // Max value gas allowed to be consumed
         gas_limit: u64,
+        // Max value token allowed to be deposited to the storage usage
         storage_deposit_limit: Option<u128>,
     },
 }
@@ -77,6 +81,7 @@ pub mod messaging {
     pub enum ContractOperation<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
+            transfer: u128,
             gas_limit: u64,
             storage_deposit_limit: Option<u128>,
         },
@@ -85,11 +90,13 @@ pub mod messaging {
     impl<CodeHash, AccountId> ContractOperation<CodeHash, AccountId> {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
+            transfer: u128,
             gas_limit: u64,
             storage_deposit_limit: Option<u128>,
         ) -> Self {
             ContractOperation::InstantiateCode {
                 contract_info,
+                transfer,
                 gas_limit,
                 storage_deposit_limit,
             }

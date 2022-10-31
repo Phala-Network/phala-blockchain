@@ -29,9 +29,14 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn set_hook(&self) {
+        pub fn set_hook(&self, gas_limit: u64) {
             let mut system = pink::system::SystemRef::instance();
-            _ = system.set_hook(pink::HookPoint::OnBlockEnd, self.env().account_id(), 0x01);
+            _ = system.set_hook(
+                pink::HookPoint::OnBlockEnd,
+                self.env().account_id(),
+                0x01,
+                gas_limit,
+            );
         }
 
         #[ink(message, selector = 0x01)]

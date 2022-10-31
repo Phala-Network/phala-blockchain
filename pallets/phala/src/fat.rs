@@ -354,6 +354,7 @@ pub mod pallet {
 			data: Vec<u8>,
 			salt: Vec<u8>,
 			cluster_id: ContractClusterId,
+			transfer: u128,
 			gas_limit: u64,
 			storage_deposit_limit: Option<u128>,
 		) -> DispatchResult {
@@ -380,6 +381,7 @@ pub mod pallet {
 
 			Self::push_message(ContractOperation::instantiate_code(
 				contract_info.clone(),
+				transfer,
 				gas_limit,
 				storage_deposit_limit,
 			));
