@@ -197,6 +197,7 @@ fn rpc_type(method: &str) -> RpcType {
             HandoverReceive => Private,
             ConfigNetwork => Private,
             HttpFetch => Private,
+            GetNetworkConfig => Private,
             // Public RPCs
             GetInfo => Public,
             ContractQuery => Public,
@@ -238,6 +239,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         GetClusterInfo => 1.kibibytes(),
         UploadSidevmCode => 32.mebibytes(),
         CalculateContractId => 1.kibibytes(),
+        GetNetworkConfig => 1.kibibytes(),
     }
 }
 

@@ -9,7 +9,6 @@ use crate::system::{chain_state, System};
 
 use super::*;
 use crate::contracts::ContractClusterId;
-use phala_pallets::utils::attestation::{validate as validate_attestation_report, IasFields};
 use ::pink::runtime::ExecSideEffects;
 use parity_scale_codec::Encode;
 use pb::{
@@ -21,12 +20,12 @@ use phala_crypto::{
     key_share,
     sr25519::{Persistence, KDF},
 };
+use phala_pallets::utils::attestation::{validate as validate_attestation_report, IasFields};
 use phala_types::contract::contract_id_preimage;
 use phala_types::{
-    contract, messaging::EncryptedKey, wrap_content_to_sign, ChallengeHandlerInfo,
-    EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload,
-    WorkerPublicKey, WorkerRegistrationInfo,
-    AttestationReport,
+    contract, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport,
+    ChallengeHandlerInfo, EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints,
+    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfo,
 };
 use tokio::sync::oneshot::{channel, Sender};
 
@@ -127,10 +126,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 rust_used: m_usage.rust_used as _,
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
-            }),
-            network_status: Some(pb::NetworkStatus {
-                public_rpc_port: self.args.public_port.map(Into::into),
-                config: self.netconfig.clone(),
             }),
             system: system_info,
         }
@@ -310,7 +305,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ));
         }
 
-        self.platform.quote_test(self.attestation_provider).map_err(from_debug)?;
+        self.platform
+            .quote_test(self.attestation_provider)
+            .map_err(from_debug)?;
 
         let (identity_key, ecdh_key) = rt_data.decode_keys();
 
@@ -455,20 +452,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         if cached_resp.attestation.is_none() {
             // We hash the encoded bytes directly
-            let runtime_info_hash =
-                sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
+            let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
             info!("Encoded runtime info");
             info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
 
-            let encoded_report =
-                match self.platform.create_attestation_report(self.attestation_provider, &runtime_info_hash) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        let message = format!("Failed to create attestation report: {e:?}");
-                        error!("{}", message);
-                        return Err(from_display(message));
-                    }
-                };
+            let encoded_report = match self
+                .platform
+                .create_attestation_report(self.attestation_provider, &runtime_info_hash)
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let message = format!("Failed to create attestation report: {e:?}");
+                    error!("{}", message);
+                    return Err(from_display(message));
+                }
+            };
 
             cached_resp.attestation = Some(pb::Attestation {
                 version: 1,
@@ -868,15 +866,14 @@ fn create_attestation_report_on<Platform: pal::Platform>(
     attestation_provider: Option<AttestationProvider>,
     data: &[u8],
 ) -> RpcResult<pb::Attestation> {
-    let encoded_report =
-        match platform.create_attestation_report(attestation_provider, data) {
-            Ok(r) => r,
-            Err(e) => {
-                let message = format!("Failed to create attestation report: {e:?}");
-                error!("{}", message);
-                return Err(from_display(message));
-            }
-        };
+    let encoded_report = match platform.create_attestation_report(attestation_provider, data) {
+        Ok(r) => r,
+        Err(e) => {
+            let message = format!("Failed to create attestation report: {e:?}");
+            error!("{}", message);
+            return Err(from_display(message));
+        }
+    };
     Ok(pb::Attestation {
         version: 1,
         provider: serde_json::to_string(&attestation_provider).unwrap(),
@@ -1076,7 +1073,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
             let attn_to_validate =
-                AttestationReport::decode(&mut &raw_attestation.encoded_report[..]).map_err(|_| anyhow!("Decode attestation payload failed")).unwrap();
+                AttestationReport::decode(&mut &raw_attestation.encoded_report[..])
+                    .map_err(|_| anyhow!("Decode attestation payload failed"))
+                    .unwrap();
             // The time from attestation report is generated by IAS, thus trusted. By default, it's valid for 10h.
             // By ensuring our system timestamp is within the valid period, we know that this pRuntime is not hold back by
             // malicious workers.
@@ -1086,8 +1085,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 block_sec,
                 false,
                 vec![],
-                false
-            ).map_err(|_| from_display("Invalid RA report from client"))?;
+                false,
+            )
+            .map_err(|_| from_display("Invalid RA report from client"))?;
             Some(attn_to_validate)
         };
         // 2. verify challenge validity to prevent replay attack
@@ -1142,7 +1142,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     let (ias_fields, _) = IasFields::from_ias_report(&ra_report)
                         .map_err(|_| from_display("Invalid received RA report"))?;
                     ias_fields.extend_mrenclave()
-                },
+                }
             };
             let req_runtime_timestamp =
                 chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
@@ -1267,15 +1267,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
             let attn_to_validate =
-                AttestationReport::decode(&mut &raw_attestation.encoded_report[..]).map_err(|_| anyhow!("Decode attestation payload failed")).unwrap();
+                AttestationReport::decode(&mut &raw_attestation.encoded_report[..])
+                    .map_err(|_| anyhow!("Decode attestation payload failed"))
+                    .unwrap();
             validate_attestation_report(
                 Some(attn_to_validate),
                 &worker_key_hash,
                 now(),
                 false,
                 vec![],
-                false
-            ).map_err(|_| from_display("Invalid RA report from server"))?;
+                false,
+            )
+            .map_err(|_| from_display("Invalid RA report from server"))?;
         } else {
             info!("Skip RA report check in dev mode");
         }
@@ -1422,6 +1425,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let buf = contract_id_preimage(&deployer, &code_hash, &cluster_id, &salt);
         let hash = sp_core::blake2_256(&buf);
         Ok(pb::ContractId { id: hex(hash) })
+    }
+
+    async fn get_network_config(
+        &mut self,
+        _request: (),
+    ) -> Result<pb::NetworkConfigResponse, prpc::server::Error> {
+        let phactory = self.lock_phactory();
+        Ok(pb::NetworkConfigResponse {
+            public_rpc_port: phactory.args.public_port.map(Into::into),
+            config: phactory.netconfig.clone(),
+        })
     }
 }
 
