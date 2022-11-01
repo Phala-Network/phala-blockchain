@@ -353,12 +353,18 @@ mod tests {
 
         // Flipper::default()
         let default_selector = 0xed4b9d1b_u32.to_be_bytes().to_vec();
-        let result = Contract::new(code_hash, default_selector, vec![], tx_args(&mut storage));
+        let result = Contract::new(
+            code_hash,
+            default_selector,
+            vec![],
+            false,
+            tx_args(&mut storage),
+        );
         assert_ok!(&result);
 
         let flipper = result.unwrap().0;
 
-        let prev_free_balance = storage.free_balance(&ALICE);
+        let mut prev_free_balance = storage.free_balance(&ALICE);
 
         // The contract flipper instantiated
         let fn_flip = 0x633aa551_u32.to_be_bytes().to_vec();
@@ -384,13 +390,40 @@ mod tests {
         };
 
         {
-            let gas_limit = est_result.gas_required - 1;
+            // Zero gas limit should not work
+            let gas_limit = 0;
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
             args.gas_limit = Weight::from_ref_time(gas_limit);
             let result = flipper.bare_call(fn_flip.clone(), false, args).0;
             assert!(result.result.is_err());
             assert_eq!(prev_free_balance, storage.free_balance(&ALICE));
+
+            // Should NOT flipped
+            let value: bool = {
+                let mut args = tx_args(&mut storage);
+                args.gas_free = true;
+                flipper
+                    .call_with_selector(fn_get, (), true, args)
+                    .0
+                    .unwrap()
+            };
+            assert_eq!(init_value, value);
+        }
+
+        {
+            let gas_limit = est_result.gas_required - 1;
+            let mut args = tx_args(&mut storage);
+            args.gas_free = false;
+            args.gas_limit = Weight::from_ref_time(gas_limit);
+            let result = flipper.bare_call(fn_flip.clone(), false, args).0;
+            assert!(result.result.is_err());
+            assert_eq!(
+                prev_free_balance - result.gas_consumed as u128 * gas_price,
+                storage.free_balance(&ALICE)
+            );
+
+            prev_free_balance = storage.free_balance(&ALICE);
 
             // Should NOT flipped
             let value: bool = {

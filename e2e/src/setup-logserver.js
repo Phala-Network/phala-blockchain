@@ -52,14 +52,28 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
         async () => (await api.query.phalaRegistry.contractKeys(contract.address)).isSome,
         4 * 6000
     );
+
+    // use query to estimate the required gas for system::setDriver
+    const { gasRequired, storageDeposit } = await system.query["system::setDriver"](cert, {}, name, contract.address);
+    console.log("gasRequired:", gasRequired);
+    console.log("storageDeposit:", storageDeposit.asCharge);
+
+    // Submit the tx with the estimated gas args
+    const options = {
+        gasLimit: gasRequired,
+        storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null
+    };
     await txqueue.submit(
-        system.tx["system::setDriver"]({}, name, contract.address),
+        system.tx["system::setDriver"](options, name, contract.address),
         pair
     );
+
+    // If leave empty, the SDK would fill the gasLimit with a default value which doesn't work sometimes.
     await txqueue.submit(
         system.tx["system::grantAdmin"]({}, contract.address),
         pair
     );
+
     await checkUntil(
         async () => {
             const { output } = await system.query["system::getDriver"](cert, {}, name);
@@ -270,6 +284,7 @@ async function main() {
     const contractSystem = loadContractFile('./res/system.contract');
     const contractSidevmop = loadContractFile('./res/sidevm_deployer.contract');
     const contractLogServer = loadContractFile('./res/log_server.contract');
+    const contractTokenomic = loadContractFile('./res/tokenomic.contract');
     const logServerSidevmWasm = fs.readFileSync('./res/log_server.sidevm.wasm', 'hex');
     const nodeURL = 'ws://localhost:19944';
     const pruntimeURL = 'http://localhost:8000';
@@ -311,6 +326,25 @@ async function main() {
     contractSystem.address = systemContract;
 
     const system = await contractApi(api, pruntimeURL, contractSystem);
+
+    // Deploy the tokenomic contract
+    await deployDriverContract(api, txqueue, system, alice, certAlice, contractTokenomic, clusterId, "ContractDeposit");
+
+    // Stake some tokens to the system contract
+    const staked_cents = 42;
+    await txqueue.submit(
+        api.tx.phalaFatTokenomic.adjustStake(systemContract, CENTS * staked_cents),
+        alice
+    );
+    // Contract weight should be affected
+    await checkUntilEq(
+        async () => {
+            const { weight } = (await prpc.getContractInfo(systemContract));
+            return weight;
+        },
+        staked_cents,
+        4 * 6000
+    );
 
     // Deploy driver: Sidevm deployer
     await deployDriverContract(api, txqueue, system, alice, certAlice, contractSidevmop, clusterId, "SidevmOperation");
