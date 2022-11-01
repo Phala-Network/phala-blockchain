@@ -150,11 +150,11 @@ where
 
     pub fn upload_code(
         &mut self,
-        account: AccountId,
+        account: &AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
         self.execute_with(false, None, || {
-            crate::runtime::Contracts::bare_upload_code(account, code, None)
+            crate::runtime::Contracts::bare_upload_code(account.clone(), code, None)
         })
         .0
         .map(|v| v.code_hash)
@@ -162,11 +162,13 @@ where
 
     pub fn upload_sidevm_code(
         &mut self,
-        account: AccountId,
+        account: &AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        self.execute_with(false, None, || PalletPink::put_sidevm_code(account, code))
-            .0
+        self.execute_with(false, None, || {
+            PalletPink::put_sidevm_code(account.clone(), code)
+        })
+        .0
     }
 
     pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
@@ -192,6 +194,16 @@ where
 
     pub fn root(&self) -> Hash {
         *self.backend.as_trie_backend().root()
+    }
+
+    pub fn free_balance(&mut self, account: &AccountId) -> Balance {
+        self.execute_with(true, None, || Balances::free_balance(account))
+            .0
+    }
+
+    pub fn total_balance(&mut self, account: &AccountId) -> Balance {
+        self.execute_with(true, None, || Balances::total_balance(account))
+            .0
     }
 }
 

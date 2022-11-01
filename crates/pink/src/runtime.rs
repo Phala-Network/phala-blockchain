@@ -215,10 +215,19 @@ mod tests {
 
     use crate::{
         runtime::{Contracts, PinkRuntime, RuntimeOrigin as Origin},
+        storage::new_in_memory_backend,
         types::Balance,
+        Contract, Storage, TransactionArguments,
     };
 
     pub use frame_support::weights::Weight;
+
+    const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+    const TREASURY: AccountId32 = AccountId32::new([2u8; 32]);
+    const ENOUGH: Balance = Balance::MAX.saturating_div(32);
+    const GAS_LIMIT: Weight = Weight::from_ref_time(1_000_000_000_000_000);
+    const FLIPPER: &[u8] = include_bytes!("../tests/fixtures/flip/flip.wasm");
+    const CENT: u128 = 10_000_000_000;
 
     pub fn compile_wat<T>(wat_bytes: &[u8]) -> wat::Result<(Vec<u8>, <T::Hashing as Hash>::Output)>
     where
@@ -232,8 +241,6 @@ mod tests {
     #[test]
     pub fn contract_test() {
         use scale::Encode;
-        pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        pub const ENOUGH: Balance = Balance::MAX.saturating_div(32);
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/event_size.wat")).unwrap();
@@ -270,9 +277,6 @@ mod tests {
 
     #[test]
     pub fn crypto_hashes_test() {
-        pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        const GAS_LIMIT: Weight = Weight::from_ref_time(1_000_000_000_000_000);
-
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
                 .unwrap();
@@ -320,6 +324,124 @@ mod tests {
                 assert_eq!(&result.data[..*expected_size], &*expected);
             }
         })
+    }
+
+    #[test]
+    pub fn gas_limit_works() {
+        let mut storage = crate::Storage::new(new_in_memory_backend());
+
+        let gas_price = 2;
+        let deposit_per_item = CENT * 8;
+        let deposit_per_byte = CENT * 2;
+
+        storage.setup(gas_price, deposit_per_item, deposit_per_byte, &TREASURY);
+
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        assert!(upload_result.is_err());
+        let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
+        assert!(upload_result.is_err());
+
+        let total_issue = Balance::MAX.saturating_div(2);
+
+        storage.execute_with(false, None, || {
+            _ = Balances::deposit_creating(&ALICE, total_issue);
+        });
+
+        let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
+        assert_ok!(upload_result);
+
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        assert_ok!(&upload_result);
+        let code_hash = upload_result.unwrap();
+
+        // Flipper::default()
+        let default_selector = 0xed4b9d1b_u32.to_be_bytes().to_vec();
+        let result = Contract::new(code_hash, default_selector, vec![], tx_args(&mut storage));
+        assert_ok!(&result);
+
+        let flipper = result.unwrap().0;
+
+        let prev_free_balance = storage.free_balance(&ALICE);
+
+        // The contract flipper instantiated
+        let fn_flip = 0x633aa551_u32.to_be_bytes().to_vec();
+        let fn_get = 0x2f865bd9_u32.to_be_bytes();
+
+        let init_value: bool = {
+            let mut args = tx_args(&mut storage);
+            args.gas_free = true;
+            flipper
+                .call_with_selector(fn_get, (), true, args)
+                .0
+                .unwrap()
+        };
+
+        // Estimate gas
+        let est_result = {
+            let mut args = tx_args(&mut storage);
+            args.gas_free = true;
+            let result = flipper.bare_call(fn_flip.clone(), true, args).0;
+            assert_ok!(&result.result);
+            assert_eq!(storage.free_balance(&ALICE), prev_free_balance);
+            result
+        };
+
+        {
+            let gas_limit = est_result.gas_required - 1;
+            let mut args = tx_args(&mut storage);
+            args.gas_free = false;
+            args.gas_limit = Weight::from_ref_time(gas_limit);
+            let result = flipper.bare_call(fn_flip.clone(), false, args).0;
+            assert!(result.result.is_err());
+            assert_eq!(prev_free_balance, storage.free_balance(&ALICE));
+
+            // Should NOT flipped
+            let value: bool = {
+                let mut args = tx_args(&mut storage);
+                args.gas_free = true;
+                flipper
+                    .call_with_selector(fn_get, (), true, args)
+                    .0
+                    .unwrap()
+            };
+            assert_eq!(init_value, value);
+        }
+
+        {
+            let gas_limit = est_result.gas_required;
+            let mut args = tx_args(&mut storage);
+            args.gas_free = false;
+            args.gas_limit = Weight::from_ref_time(gas_limit);
+            let result = flipper.bare_call(fn_flip.clone(), false, args).0;
+            assert_ok!(result.result);
+            let cost = prev_free_balance - storage.free_balance(&ALICE);
+            assert_eq!(cost, result.gas_consumed as u128 * gas_price);
+
+            // Should flipped
+            let value: bool = {
+                let mut args = tx_args(&mut storage);
+                args.gas_free = true;
+                flipper
+                    .call_with_selector(fn_get, (), true, args)
+                    .0
+                    .unwrap()
+            };
+            assert_eq!(!init_value, value);
+        }
+    }
+
+    fn tx_args(storage: &mut Storage) -> TransactionArguments {
+        TransactionArguments {
+            origin: ALICE.clone(),
+            now: 1,
+            block_number: 1,
+            storage,
+            transfer: 0,
+            gas_limit: Weight::MAX,
+            gas_free: false,
+            storage_deposit_limit: None,
+            callbacks: None,
+        }
     }
 
     pub mod exec {

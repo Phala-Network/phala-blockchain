@@ -403,7 +403,7 @@ pub mod cluster {
 
         pub fn upload_resource(
             &mut self,
-            origin: AccountId,
+            origin: &AccountId,
             resource_type: ResourceType,
             resource_data: Vec<u8>,
         ) -> Result<Hash, DispatchError> {

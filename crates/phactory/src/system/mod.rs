@@ -1203,7 +1203,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     };
                 let _uploader = phala_types::messaging::AccountId(origin.clone().into());
                 let hash = cluster
-                    .upload_resource(origin, resource_type, resource_data)
+                    .upload_resource(&origin, resource_type, resource_data)
                     .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
@@ -1533,7 +1533,7 @@ impl<Platform: pal::Platform> System<Platform> {
             );
             cluster.deposit(&owner, deposit);
             let code_hash = cluster
-                .upload_resource(owner.clone(), ResourceType::InkCode, system_code)
+                .upload_resource(&owner, ResourceType::InkCode, system_code)
                 .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
             info!("Worker: pink system code hash {:?}", code_hash);
             let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
