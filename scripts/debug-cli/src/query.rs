@@ -25,8 +25,9 @@ pub async fn query<Request: Encode, Response: Decode>(
 
     let info = pr.get_info(()).await?;
     let remote_pubkey = info
-        .ecdh_public_key
-        .ok_or(anyhow!("Worker not initialized"))?;
+        .system
+        .ok_or_else(|| anyhow!("Worker not initialized"))?
+        .ecdh_public_key;
     let remote_pubkey = super::try_decode_hex(&remote_pubkey)?;
     let remote_pubkey = EcdhPublicKey::try_from(&remote_pubkey[..])?;
 
@@ -35,11 +36,11 @@ pub async fn query<Request: Encode, Response: Decode>(
     let ecdh_key = sp_core::sr25519::Pair::generate()
         .0
         .derive_ecdh_key()
-        .or(Err(anyhow!("Derive ecdh key failed")))?;
+        .map_err(|_| anyhow!("Derive ecdh key failed"))?;
 
     let iv = [1; 12];
     let encrypted_data = EncryptedData::encrypt(&ecdh_key, &remote_pubkey, iv, &query.encode())
-        .or(Err(anyhow!("Encrypt data failed")))?;
+        .map_err(|_| anyhow!("Encrypt data failed"))?;
 
     // 4. Sign the encrypted data.
     // 4.1 Make the root certificate.
@@ -80,7 +81,7 @@ pub async fn query<Request: Encode, Response: Decode>(
     let encrypted_data = response.decode_encrypted_data()?;
     let data = encrypted_data
         .decrypt(&ecdh_key)
-        .or(Err(anyhow!("Decrypt data failed")))?;
+        .map_err(|_| anyhow!("Decrypt data failed"))?;
 
     // 7. Decode the response.
     let response: contract::ContractQueryResponse<Response> = Decode::decode(&mut &data[..])?;

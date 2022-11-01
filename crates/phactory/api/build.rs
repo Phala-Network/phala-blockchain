@@ -9,7 +9,7 @@ fn main() {
     let render_dir = tmpdir.path();
 
     for tmpl in tera.templates.keys() {
-        println!("cargo:rerun-if-changed=proto/{}", tmpl);
+        println!("cargo:rerun-if-changed=proto/{tmpl}");
         let render_output = std::fs::File::create(render_dir.join(tmpl)).unwrap();
         tera.render_to(tmpl, &Context::new(), render_output)
             .unwrap();
@@ -36,6 +36,10 @@ fn main() {
         "PhactoryInfo",
         "MemoryUsage",
         "GatekeeperStatus",
+        "SystemInfo",
+        "ContractInfo",
+        "SidevmInfo",
+        "ClusterInfo",
     ] {
         builder = builder.type_attribute(
             r#type,
@@ -71,6 +75,6 @@ fn export_git_revision() {
         println!("cargo:warning=⚠️ Failed to get git revision for pRuntime.");
         println!("cargo:warning=⚠️ Please ensure you have git installed and are compiling from a git repository.");
     }
-    println!("cargo:rustc-env=PHALA_GIT_REVISION={}{}", revision, tail);
+    println!("cargo:rustc-env=PHALA_GIT_REVISION={revision}{tail}");
     println!("cargo:rerun-if-changed=always-rerun");
 }

@@ -68,7 +68,7 @@ pub async fn maybe_sync_mq_egress(
             signer.increment_nonce();
             match extrinsic {
                 Ok(extrinsic) => {
-                    let api = ParachainApi::from(api.clone());
+                    let api = api.clone();
                     let err_report = err_report.clone();
                     let extrinsic = crate::subxt::utils::Encoded(extrinsic.encoded().to_vec());
                     tokio::spawn(async move {
@@ -82,9 +82,9 @@ pub async fn maybe_sync_mq_egress(
                             }
                             Ok(Err(err)) => {
                                 error!("Error submitting message {}: {:?}", msg_info, err);
-                                use phaxt::subxt::{rpc::RpcError, Error as SubxtError};
+                                use phaxt::subxt::{error::RpcError, Error as SubxtError};
                                 let report = match err {
-                                    SubxtError::Rpc(RpcError::Custom(err)) => {
+                                    SubxtError::Rpc(RpcError(err)) => {
                                         if err.contains("bad signature") {
                                             Error::BadSignature
                                         } else {

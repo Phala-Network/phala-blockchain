@@ -96,9 +96,11 @@ pub struct ServingGuard<FlowId: FlowIdType> {
 
 impl<FlowId: FlowIdType> Drop for ServingGuard<FlowId> {
     fn drop(&mut self) {
-        let actual_cost = self
-            .actual_cost
-            .unwrap_or_else(|| self.start_time.elapsed().as_micros() as VirtualTime);
+        let actual_cost = self.actual_cost.unwrap_or_else(|| {
+            let cost = self.start_time.elapsed().as_nanos() as VirtualTime;
+            // Scale it in order to avoid underflow while dividing the cost by the weight.
+            cost << 32
+        });
         self.queue
             .inner
             .lock()
@@ -150,7 +152,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
         });
 
         let start_tag = self.virtual_time.max(flow.previous_finish_tag);
-        let cost = flow.average_cost / weight as VirtualTime;
+        let cost = flow.average_cost / weight.max(1) as VirtualTime;
         let cost = cost.max(1);
         let finish_tag = start_tag + cost;
         flow.previous_finish_tag = finish_tag;
@@ -274,11 +276,8 @@ mod test {
 
         drop(tx);
         let mut order = vec![];
-        loop {
-            match rx.recv().await {
-                Some(v) => order.push(v),
-                None => break,
-            };
+        while let Some(v) = rx.recv().await {
+            order.push(v);
         }
         assert_eq!(
             order,
@@ -316,11 +315,8 @@ mod test {
 
         drop(tx);
         let mut order = vec![];
-        loop {
-            match rx.recv().await {
-                Some(v) => order.push(v),
-                None => break,
-            };
+        while let Some(v) = rx.recv().await {
+            order.push(v);
         }
         order.sort();
         assert_eq!(
@@ -376,11 +372,8 @@ mod test {
 
             drop(tx);
             let mut order = vec![];
-            loop {
-                match rx.recv().await {
-                    Some(v) => order.push(v),
-                    None => break,
-                };
+            while let Some(v) = rx.recv().await {
+                order.push(v);
             }
             assert_eq!(
                 order,
@@ -451,11 +444,8 @@ mod test {
 
             drop(tx);
             let mut order = vec![];
-            loop {
-                match rx.recv().await {
-                    Some(v) => order.push(v),
-                    None => break,
-                };
+            while let Some(v) = rx.recv().await {
+                order.push(v);
             }
             assert_eq!(
                 order,

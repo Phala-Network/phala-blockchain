@@ -1,12 +1,16 @@
-use log::info;
 use std::alloc::System;
+use parity_scale_codec::Encode;
+use anyhow::anyhow;
+use log::info;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
 use std::io::ErrorKind;
 use std::str::FromStr as _;
 
-use crate::ra;
+use crate::ias;
+
+use phala_types::AttestationProvider;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct GraminePlatform;
@@ -40,15 +44,44 @@ impl RA for GraminePlatform {
 
     fn create_attestation_report(
         &self,
+        provider: Option<AttestationProvider>,
         data: &[u8],
-    ) -> Result<(String, String, String), Self::Error> {
-        // TODO.kevin: move the key out of the binary?
-        const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
-        ra::create_attestation_report(data, IAS_API_KEY_STR)
+    ) -> Result<Vec<u8>, Self::Error> {
+        match provider {
+            Some(AttestationProvider::Ias) => {
+                // TODO.kevin: move the key out of the binary?
+                const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
+
+                let (attn_report, sig, cert) = ias::create_attestation_report(data, IAS_API_KEY_STR)?;
+                let attestation_report = phala_types::AttestationReport::SgxIas {
+                    ra_report: attn_report.as_bytes().to_vec(),
+                    signature: sig.as_bytes().to_vec(),
+                    raw_signing_cert: cert.as_bytes().to_vec(),
+                };
+
+                Ok(Encode::encode(&attestation_report))
+            },
+            None => {
+                Ok(Encode::encode(&None::<AttestationProvider>))
+            },
+            _ => {
+                Err(anyhow!("Unknown attestation provider `{:?}`", provider))
+            }
+        }
     }
 
-    fn quote_test(&self) -> Result<(), Self::Error> {
-        ra::create_quote_vec(&[0u8; 64]).map(|_| ())
+    fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
+        match provider {
+            Some(AttestationProvider::Ias) => {
+                ias::create_quote_vec(&[0u8; 64]).map(|_| ())
+            },
+            None => {
+                Ok(())
+            },
+            _ => {
+                Err(anyhow!("Unknown attestation provider `{:?}`", provider))
+            }
+        }
     }
 }
 
@@ -62,6 +95,7 @@ impl Machine for GraminePlatform {
         num_cpus::get() as _
     }
 
+    #[cfg(target_arch = "x86_64")]
     fn cpu_feature_level(&self) -> u32 {
         let mut cpu_feature_level: u32 = 1;
         if is_x86_feature_detected!("avx2") {
@@ -75,6 +109,11 @@ impl Machine for GraminePlatform {
         }
         cpu_feature_level
     }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    fn cpu_feature_level(&self) -> u32 {
+        1
+    }
 }
 
 #[global_allocator]
@@ -84,7 +123,7 @@ impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
         let stats = ALLOCATOR.stats();
         MemoryUsage {
-            total_peak_used: vm_peak().unwrap_or_default(),
+            total_peak_used: vm_peak().unwrap_or_default() * 1024,
             rust_used: stats.current_used,
             rust_peak_used: stats.peak_used,
         }
@@ -107,7 +146,7 @@ fn vm_peak() -> Option<usize> {
     for line in status.lines() {
         if line.starts_with("VmPeak:") {
             let peak = line.split_ascii_whitespace().nth(1)?;
-            return Some(peak.parse().ok()?);
+            return peak.parse().ok();
         }
     }
     None

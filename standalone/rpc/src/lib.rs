@@ -162,7 +162,7 @@ pub fn create_full<C, P, SC, B>(
 	)?;
 
 	io.merge(
-		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
+		SyncState::new(chain_spec, client, shared_authority_set, shared_epoch_changes)?
 			.into_rpc(),
 	)?;
 

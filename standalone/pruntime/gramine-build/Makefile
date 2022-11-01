@@ -10,6 +10,7 @@ GRAMINE_LOG_LEVEL = error
 USE_MUSL ?= 0
 
 BIN_NAME = pruntime
+RA_METHOD ?= epid
 
 DATA_DIRS = data/protected_files \
             data/storage_files
@@ -63,6 +64,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
 		-Dlibos=${LIBOS} \
+		-Dra_method=${RA_METHOD} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
@@ -119,6 +121,9 @@ ifeq ($(SGX),1)
 	cp gramine-sgx ${PREFIX}/
 endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
+
+token-dist: token dist
+	cp ${BIN_NAME}.token ${PREFIX}/
 
 .PHONY: run
 run: all token

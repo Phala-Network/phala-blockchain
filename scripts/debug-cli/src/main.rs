@@ -37,10 +37,6 @@ enum Cli {
         #[clap(short)]
         hex_data: String,
     },
-    DecodeBridgeLotteryMessage {
-        #[clap(short)]
-        hex_data: String,
-    },
     DecodeMqPayload {
         destination: String,
         hex_data: String,
@@ -105,7 +101,7 @@ async fn main() {
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode message");
             match print_field {
                 Some(f) if f == "machine_id" => println!("{}", hex::encode(&msg.machine_id)),
-                _ => println!("Decoded: {:?}", msg),
+                _ => println!("Decoded: {msg:?}"),
             }
         }
         Cli::DecodeRaQuote { b64_data } => {
@@ -114,10 +110,10 @@ async fn main() {
             let mr_signer = &quote_body[176..208];
             let isv_prod_id = &quote_body[304..306];
             let isv_svn = &quote_body[306..308];
-            println!("- mr_enclave: {}", hex::encode(&mr_enclave));
-            println!("- mr_signer: {}", hex::encode(&mr_signer));
-            println!("- isv_prod_id: {}", hex::encode(&isv_prod_id));
-            println!("- isv_svn: {}", hex::encode(&isv_svn));
+            println!("- mr_enclave: {}", hex::encode(mr_enclave));
+            println!("- mr_signer: {}", hex::encode(mr_signer));
+            println!("- isv_prod_id: {}", hex::encode(isv_prod_id));
+            println!("- isv_svn: {}", hex::encode(isv_svn));
         }
         Cli::DecodeHeader { hex_data } => {
             use sp_runtime::{generic::Header, traits::BlakeTwo256};
@@ -125,39 +121,24 @@ async fn main() {
             let header = Header::<u128, BlakeTwo256>::decode(&mut data.as_slice())
                 .expect("Faield to parse Header");
             let hash = header.hash();
-            println!("Decoded: {:?}", header);
-            println!("Hash: 0x{}", hex::encode(&hash));
+            println!("Decoded: {header:?}");
+            println!("Hash: 0x{}", hex::encode(hash));
         }
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
             let snapshot =
                 phactory_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
 
-            println!("Decoded: {:?}", snapshot);
+            println!("Decoded: {snapshot:?}");
         }
         Cli::DecodeEgressMessages { b64_data } => {
             let data = decode_b64(&argument_or_stdin(&b64_data));
             let messages = phactory_api::prpc::EgressMessages::decode(&mut data.as_slice());
-            println!("Decoded: {:?}", messages);
+            println!("Decoded: {messages:?}");
         }
         Cli::DecodeSignedMessage { hex_data } => {
             use phala_types::messaging::SignedMessage;
             decode_hex_print::<SignedMessage>(&hex_data);
-        }
-        Cli::DecodeBridgeLotteryMessage { hex_data } => {
-            use phala_types::messaging::Lottery;
-            let lottery = decode_hex_print::<Lottery>(&hex_data);
-
-            match lottery {
-                Lottery::BtcAddresses { address_set } => {
-                    let addrs: Vec<_> = address_set
-                        .iter()
-                        .map(|raw_addr| std::str::from_utf8(&raw_addr).unwrap())
-                        .collect();
-                    println!("Lottery::BtcAddresses {:?}", addrs);
-                }
-                _ => {}
-            }
         }
         Cli::DecodeMqPayload {
             destination,
@@ -170,12 +151,12 @@ async fn main() {
             let data = decode_hex(&hex_data);
             let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..])
                 .expect("Error decoding FRNK justification");
-            println!("{:?}", j);
+            println!("{j:?}");
         }
         Cli::DecodeGenesisBlockInfo { b64_data } => {
             let data = decode_b64(&b64_data);
             let gi = phactory_api::blocks::GenesisBlockInfo::decode(&mut &data[..]).unwrap();
-            println!("{:?}", gi);
+            println!("{gi:?}");
         }
         Cli::EcdhKey { privkey } => {
             use phala_crypto::ecdh;
@@ -192,7 +173,7 @@ async fn main() {
             let pallet_id_array: [u8; 8] = pallet_id.as_bytes().try_into().expect("Bad length");
             let id = frame_support::PalletId(pallet_id_array);
             let account: AccountId = id.into_account_truncating();
-            println!("Pallet account: {}", account);
+            println!("Pallet account: {account}");
         }
         Cli::Rpc { url, command } => {
             handle_rpc_command(command, url).await;
@@ -207,8 +188,8 @@ async fn handle_rpc_command(command: RpcCommand, url: String) {
     let client = phactory_api::pruntime_client::new_pruntime_client(url);
     fn print_result<T: Debug, E: Debug>(result: Result<T, E>) {
         match result {
-            Ok(result) => println!("{:#?}", result),
-            Err(err) => println!("Error: {:?}", err),
+            Ok(result) => println!("{result:#?}"),
+            Err(err) => println!("Error: {err:?}"),
         }
     }
     match command {
@@ -271,7 +252,7 @@ async fn handle_pink_command(command: PinkCommand) {
 
             let response = match result {
                 Err(err) => {
-                    println!("Error: {:?}", err);
+                    println!("Error: {err:?}");
                     return;
                 }
                 Ok(response) => response,
@@ -279,7 +260,7 @@ async fn handle_pink_command(command: PinkCommand) {
             match response {
                 Response::Payload(response) => {
                     let s = std::str::from_utf8(&response).unwrap_or_default();
-                    println!("response: [{}]({}))", hex::encode(&response), s);
+                    println!("response: [{}]({s}))", hex::encode(&response));
                 }
             }
         }
@@ -315,7 +296,7 @@ fn decode_hex(hex_str: &str) -> Vec<u8> {
 fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
     let data = decode_hex(hex_data);
     let message = T::decode(&mut data.as_slice());
-    println!("Decode: {:?}", message);
+    println!("Decode: {message:?}");
     message.unwrap()
 }
 
@@ -348,9 +329,9 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         destination: &[u8],
         payload: &[u8],
     ) -> Result<(), ()> {
-        if &T::topic() == destination {
+        if T::topic() == destination {
             let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
-            println!("{:#?}", msg);
+            println!("{msg:#?}");
             return Ok(());
         }
         Err(())

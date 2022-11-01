@@ -4,8 +4,12 @@ use super::*;
 
 // For bin_api
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
-    pub fn getinfo(&self) -> String {
-        serde_json::to_string_pretty(&self.get_info()).unwrap_or_default()
+    pub fn sign_http_response(&self, body: &[u8]) -> Option<String> {
+        self.system.as_ref().map(|state| {
+            let bytes = wrap_content_to_sign(body, SignedContentType::RpcResponse);
+            let sig = state.identity_key.sign(&bytes).0;
+            hex::encode(sig)
+        })
     }
 
     fn get_info_json(&self) -> Result<Value, Value> {
@@ -13,24 +17,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn bin_sync_header(&mut self, input: blocks::SyncHeaderReq) -> Result<Value, Value> {
-        let resp =
-            self.sync_header(input.headers, input.authority_set_change).map_err(display)?;
+        let resp = self
+            .sync_header(input.headers, input.authority_set_change)
+            .map_err(display)?;
         Ok(json!({ "synced_to": resp.synced_to }))
     }
 
     fn bin_sync_para_header(&mut self, input: SyncParachainHeaderReq) -> Result<Value, Value> {
-        let resp = self.sync_para_header(input.headers, input.proof).map_err(display)?;
+        let resp = self
+            .sync_para_header(input.headers, input.proof)
+            .map_err(display)?;
         Ok(json!({ "synced_to": resp.synced_to }))
     }
 
     fn bin_sync_combined_headers(&mut self, input: SyncCombinedHeadersReq) -> Result<Value, Value> {
-        let resp = self.sync_combined_headers(
-            input.relaychain_headers,
-            input.authority_set_change,
-            input.parachain_headers,
-            input.proof,
-        )
-        .map_err(display)?;
+        let resp = self
+            .sync_combined_headers(
+                input.relaychain_headers,
+                input.authority_set_change,
+                input.parachain_headers,
+                input.proof,
+            )
+            .map_err(display)?;
         Ok(json!({
             "relaychain_synced_to": resp.relaychain_synced_to,
             "parachain_synced_to": resp.parachain_synced_to,
@@ -68,12 +76,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // Sign the output payload
         let str_payload = payload.to_string();
-        let signature: Option<String> = self.system.as_ref().map(|state| {
-            let bytes =
-                wrap_content_to_sign(str_payload.as_bytes(), SignedContentType::RpcResponse);
-            let sig = state.identity_key.sign(&bytes).0;
-            hex::encode(&sig)
-        });
+        let signature = self.sign_http_response(str_payload.as_bytes());
         let output_json = json!({
             "status": status,
             "payload": str_payload,

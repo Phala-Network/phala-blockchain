@@ -1,13 +1,8 @@
 #![warn(unused_imports)]
 #![warn(unused_extern_crates)]
-#![feature(bench_black_box)]
-#![feature(panic_unwind)]
-#![feature(c_variadic)]
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
@@ -31,6 +26,7 @@ use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
+use phala_types::AttestationProvider;
 
 // use pink::InkModule;
 
@@ -58,7 +54,6 @@ use types::Error;
 pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::RpcService;
-pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
@@ -70,9 +65,7 @@ mod contracts;
 mod cryptography;
 mod light_validation;
 mod prpc_service;
-mod rpc_types;
 mod secret_channel;
-mod side_task;
 mod storage;
 mod system;
 mod types;
@@ -107,7 +100,7 @@ impl RuntimeState {
             let module_prefix = OffchainIngress::module_prefix();
             let storage_prefix = OffchainIngress::storage_prefix();
             let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
+            let sequence: u64 = self.chain_storage.get_decoded(key).unwrap_or(0);
             debug!("purging, sequence = {}", sequence);
             sequence
         })
@@ -119,11 +112,11 @@ const CHECKPOINT_FILE: &str = "checkpoint.seal";
 const CHECKPOINT_VERSION: u32 = 2;
 
 fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> String {
-    format!("{}/{}-{:0>9}", basedir, CHECKPOINT_FILE, block_number)
+    format!("{basedir}/{CHECKPOINT_FILE}-{block_number:0>9}")
 }
 
 fn checkpoint_filename_pattern(basedir: &str) -> String {
-    format!("{}/{}-*", basedir, CHECKPOINT_FILE)
+    format!("{basedir}/{CHECKPOINT_FILE}-*")
 }
 
 fn glob_checkpoint_files(basedir: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
@@ -142,11 +135,8 @@ fn glob_checkpoint_files_sorted(
     let mut files = Vec::new();
 
     for filename in glob_checkpoint_files(basedir)? {
-        match parse_block(&filename) {
-            Some(block_number) => {
-                files.push((block_number, filename));
-            }
-            _ => {}
+        if let Some(block_number) = parse_block(&filename) {
+            files.push((block_number, filename));
         }
     }
     files.sort_by_key(|(block_number, _)| std::cmp::Reverse(*block_number));
@@ -208,13 +198,13 @@ impl PersistentRuntimeDataV2 {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
         let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
-        info!("Identity pubkey: {:?}", hex::encode(&identity_sk.public()));
+        info!("Identity pubkey: {:?}", hex::encode(identity_sk.public()));
 
         // derive ecdh key
         let ecdh_key = identity_sk
             .derive_ecdh_key()
             .expect("Unable to derive ecdh key");
-        info!("ECDH pubkey: {:?}", hex::encode(&ecdh_key.public()));
+        info!("ECDH pubkey: {:?}", hex::encode(ecdh_key.public()));
         (identity_sk, ecdh_key)
     }
 }
@@ -230,12 +220,11 @@ enum RuntimeDataSeal {
 pub struct Phactory<Platform> {
     platform: Platform,
     pub args: InitArgs,
-    skip_ra: bool,
     dev_mode: bool,
+    attestation_provider: Option<AttestationProvider>,
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    side_task_man: SideTaskManager,
     endpoints: BTreeMap<EndpointType, String>,
     #[serde(skip)]
     signed_endpoints: Option<GetEndpointResponse>,
@@ -274,15 +263,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         Phactory {
             platform,
             args: Default::default(),
-            skip_ra: false,
             dev_mode: false,
+            attestation_provider: None,
             machine_id,
             runtime_info: None,
             runtime_state: None,
             system: None,
             endpoints: Default::default(),
             signed_endpoints: None,
-            side_task_man: Default::default(),
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
@@ -312,7 +300,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
             system.storage_path = self.args.storage_path.clone();
-            system.geoip_city_db = self.args.geoip_city_db.clone();
         }
     }
 
@@ -462,7 +449,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         key: &[u8],
         writer: W,
     ) -> anyhow::Result<()> {
-        let key128 = derive_key_for_checkpoint(&key);
+        let key128 = derive_key_for_checkpoint(key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
         serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
@@ -491,7 +478,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         let (_block, ckpt_filename) = &files[0];
 
-        let file = match File::open(&ckpt_filename) {
+        let file = match File::open(ckpt_filename) {
             Ok(file) => file,
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => {
                 // This should never happen unless it was removed just after the glob.
@@ -504,7 +491,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 );
                 if remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
-                    std::fs::remove_file(&ckpt_filename)
+                    std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
                 anyhow::bail!(
@@ -515,6 +502,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
+        info!("Loading checkpoint from file {:?}", ckpt_filename);
         match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers) {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
@@ -524,7 +512,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 error!("Failed to load checkpoint file {:?}", ckpt_filename);
                 if remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
-                    std::fs::remove_file(&ckpt_filename)
+                    std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
                 }
                 anyhow::bail!("Failed to load checkpoint file {:?}", ckpt_filename);
@@ -589,7 +577,7 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                     let runtime_state = factory
                         .runtime_state
                         .as_mut()
-                        .ok_or(de::Error::custom("Missing runtime_state"))?;
+                        .ok_or_else(|| de::Error::custom("Missing runtime_state"))?;
 
                     let recv_mq = &mut runtime_state.recv_mq;
                     let send_mq = &mut runtime_state.send_mq;
@@ -624,7 +612,7 @@ impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'d
         let mut factory = Phactory::load_state(deserializer)?;
         factory
             .on_restored()
-            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {:?}", err)))?;
+            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {err:?}")))?;
         Ok(Self(factory))
     }
 }
@@ -663,4 +651,8 @@ fn error_msg(msg: &str) -> Value {
 
 fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
     sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
+}
+
+fn hex(data: impl AsRef<[u8]>) -> String {
+    format!("0x{}", hex_fmt::HexFmt(data))
 }

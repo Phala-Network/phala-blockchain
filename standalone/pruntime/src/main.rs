@@ -1,6 +1,6 @@
 mod api_server;
 mod pal_gramine;
-mod ra;
+mod ias;
 mod runtime;
 
 use std::{env, thread};
@@ -22,9 +22,6 @@ struct Args {
     /// Run benchmark at startup.
     #[clap(long)]
     init_bench: bool,
-
-    #[clap(long, default_value = "./GeoLite2-City.mmdb")]
-    geoip_city_db: String,
 
     /// Allow CORS for HTTP
     #[clap(long)]
@@ -129,7 +126,6 @@ async fn main() -> Result<(), rocket::Error> {
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
             git_revision: git_revision(),
-            geoip_city_db: args.geoip_city_db,
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
@@ -141,12 +137,12 @@ async fn main() -> Result<(), rocket::Error> {
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {
-        panic!("Initialize Failed: {:?}", err);
+        panic!("Initialize Failed: {err:?}");
     }
 
     for i in 0..cores {
         thread::Builder::new()
-            .name(format!("bench-{}", i))
+            .name(format!("bench-{i}"))
             .spawn(move || {
                 set_thread_idle_policy();
                 loop {
@@ -167,7 +163,6 @@ async fn main() -> Result<(), rocket::Error> {
                 .launch()
                 .await
                 .expect("Failed to launch API server");
-            ()
         });
         servers.push(server_acl);
     }
@@ -177,7 +172,6 @@ async fn main() -> Result<(), rocket::Error> {
             .launch()
             .await
             .expect("Failed to launch API server");
-        ()
     });
     servers.push(server_internal);
 

@@ -4,12 +4,12 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
+use crate::hex;
 use crate::system::{chain_state, System};
 
 use super::*;
 use crate::contracts::ContractClusterId;
 use ::pink::runtime::ExecSideEffects;
-use chain::pallet_registry::{Attestation, AttestationValidator, IasFields, IasValidator};
 use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
@@ -20,10 +20,12 @@ use phala_crypto::{
     key_share,
     sr25519::{Persistence, KDF},
 };
+use phala_pallets::utils::attestation::{validate as validate_attestation_report, IasFields};
+use phala_types::contract::contract_id_preimage;
 use phala_types::{
-    contract, messaging::EncryptedKey, wrap_content_to_sign, ChallengeHandlerInfo,
-    EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload,
-    WorkerPublicKey, WorkerRegistrationInfo,
+    contract, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport,
+    ChallengeHandlerInfo, EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints,
+    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfo,
 };
 use tokio::sync::oneshot::{channel, Sender};
 
@@ -34,7 +36,7 @@ fn from_display(e: impl core::fmt::Display) -> RpcError {
 }
 
 fn from_debug(e: impl core::fmt::Debug) -> RpcError {
-    RpcError::AppError(format!("{:?}", e))
+    RpcError::AppError(format!("{e:?}"))
 }
 
 pub const VERSION: u32 = 1;
@@ -63,10 +65,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
-        let system = self.system.as_ref();
-        let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
-        let public_key = system.map(|state| hex::encode(state.identity_key.public()));
-        let ecdh_public_key = system.map(|state| hex::encode(&state.ecdh_key.public()));
+        let genesis_block_hash = state.map(|state| hex::encode(state.genesis_block_hash));
         let dev_mode = self.dev_mode;
 
         let (state_root, pending_messages, counters) = match state.as_ref() {
@@ -79,39 +78,40 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None => Default::default(),
         };
 
-        let registered;
-        let gatekeeper_status;
-        let number_of_clusters;
-        let number_of_contracts;
-
-        match system {
-            Some(system) => {
-                registered = system.is_registered();
-                gatekeeper_status = system.gatekeeper_status();
-                number_of_clusters = system.contract_clusters.len();
-                number_of_contracts = system.contracts.len();
-            }
-            None => {
-                registered = false;
-                gatekeeper_status = pb::GatekeeperStatus {
-                    role: pb::GatekeeperRole::None.into(),
-                    master_public_key: Default::default(),
-                };
-                number_of_clusters = 0;
-                number_of_contracts = 0;
-            }
-        }
-
+        let system_info = self.system.as_ref().map(|s| s.get_info());
         let score = benchmark::score();
         let m_usage = self.platform.memory_usage();
+
+        // Deprecated fields
+        let registered;
+        let public_key;
+        let ecdh_public_key;
+        let gatekeeper;
+        match &system_info {
+            None => {
+                registered = false;
+                public_key = None;
+                ecdh_public_key = None;
+                gatekeeper = Some(pb::GatekeeperStatus {
+                    role: pb::GatekeeperRole::None.into(),
+                    master_public_key: Default::default(),
+                });
+            }
+            Some(sys) => {
+                registered = sys.registered;
+                public_key = Some(sys.public_key.clone());
+                ecdh_public_key = Some(sys.ecdh_public_key.clone());
+                gatekeeper = sys.gatekeeper.clone();
+            }
+        };
 
         pb::PhactoryInfo {
             initialized,
             registered,
-            gatekeeper: Some(gatekeeper_status),
-            genesis_block_hash,
             public_key,
             ecdh_public_key,
+            gatekeeper,
+            genesis_block_hash,
             headernum: counters.next_header_number,
             para_headernum: counters.next_para_header_number,
             blocknum: counters.next_block_number,
@@ -122,18 +122,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             score,
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
-            running_side_tasks: self.side_task_man.tasks_count() as _,
             memory_usage: Some(pb::MemoryUsage {
                 rust_used: m_usage.rust_used as _,
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
             }),
-            number_of_clusters: number_of_clusters as _,
-            number_of_contracts: number_of_contracts as _,
-            network_status: Some(pb::NetworkStatus {
-                public_rpc_port: self.args.public_port.map(Into::into),
-                config: self.netconfig.clone(),
-            }),
+            system: system_info,
         }
     }
 
@@ -243,7 +237,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             info!("State synced");
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
-            self.poll_side_tasks(block.block_header.number)?;
             if block
                 .block_header
                 .number
@@ -278,12 +271,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     fn init_runtime(
         &mut self,
-        skip_ra: bool,
         is_parachain: bool,
         genesis: blocks::GenesisBlockInfo,
         genesis_state: blocks::StorageState,
         operator: Option<chain::AccountId>,
         debug_set_key: ::core::option::Option<Vec<u8>>,
+        attestation_provider: ::core::option::Option<AttestationProvider>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         if self.system.is_some() {
             return Err(from_display("Runtime already initialized"));
@@ -294,11 +287,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // load identity
         let rt_data = if let Some(raw_key) = debug_set_key {
-            if !skip_ra {
-                return Err(from_display(
-                    "RA is disallowed when debug_set_key is enabled",
-                ));
-            }
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
             self.init_runtime_data(genesis_block_hash, Some(priv_key))
                 .map_err(from_debug)?
@@ -307,21 +295,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .map_err(from_debug)?
         };
         self.dev_mode = rt_data.dev_mode;
-        self.skip_ra = skip_ra;
 
-        if !skip_ra && self.dev_mode {
+        self.attestation_provider = attestation_provider;
+        info!("attestation_provider: {:?}", self.attestation_provider);
+
+        if self.dev_mode && self.attestation_provider.is_some() {
             return Err(from_display(
                 "RA is disallowed when debug_set_key is enabled",
             ));
         }
-        if !skip_ra {
-            self.platform.quote_test().map_err(from_debug)?;
-        }
+
+        self.platform
+            .quote_test(self.attestation_provider)
+            .map_err(from_debug)?;
 
         let (identity_key, ecdh_key) = rt_data.decode_keys();
 
         let ecdsa_pk = identity_key.public();
-        let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
+        let ecdsa_hex_pk = hex::encode(ecdsa_pk);
         info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
         // derive ecdh key
@@ -341,7 +332,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             version: VERSION,
             machine_id: self.machine_id.clone(),
             pubkey: ecdsa_pk,
-            ecdh_pubkey: ecdh_pubkey.clone(),
+            ecdh_pubkey,
             genesis_block_hash,
             features: vec![cpu_core_num, cpu_feature_level],
             operator,
@@ -351,7 +342,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
         let main_bridge = light_client
-            .initialize_bridge(genesis.block_header, genesis.authority_set, genesis.proof)
+            .initialize_bridge(
+                genesis.block_header.clone(),
+                genesis.authority_set,
+                genesis.proof,
+            )
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
@@ -381,13 +376,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             runtime_state.chain_storage.root()
         );
 
+        // In parachain mode the state root is stored in parachain header which isn't passed in here.
+        // The storage root would be checked at the time each block being synced in(where the storage
+        // being patched) and pRuntime doesn't read any data from the chain storage until the first
+        // block being synced in. So it's OK to skip the check here.
+        if !is_parachain && *runtime_state.chain_storage.root() != genesis.block_header.state_root {
+            error!(
+                "Genesis state root mismatch, required in header: {:?}, actual: {:?}",
+                genesis.block_header.state_root,
+                runtime_state.chain_storage.root(),
+            );
+            return Err(from_display("state root mismatch"));
+        }
+
         let system = system::System::new(
             self.platform.clone(),
             self.dev_mode,
             self.args.sealing_path.clone(),
             self.args.storage_path.clone(),
-            false,
-            self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
             rt_data.trusted_sk,
@@ -404,7 +410,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ecdh_pubkey,
             None,
         );
-        self.skip_ra = skip_ra;
         self.runtime_info = Some(resp.clone());
         self.runtime_state = Some(runtime_state);
         self.system = Some(system);
@@ -416,7 +421,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         refresh_ra: bool,
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        let skip_ra = self.skip_ra;
         let validated_identity_key = self.system()?.validated_identity_key();
 
         let mut cached_resp = self
@@ -435,7 +439,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // never generate RA report for a potentially injected identity key
         // else he is able to fake a Secure Worker
-        if !skip_ra && validated_identity_key {
+        if validated_identity_key {
             if let Some(cached_attestation) = &cached_resp.attestation {
                 const MAX_ATTESTATION_AGE: u64 = 60 * 60;
                 if refresh_ra
@@ -445,35 +449,34 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     cached_resp.attestation = None;
                 }
             }
-            if cached_resp.attestation.is_none() {
-                // We hash the encoded bytes directly
-                let runtime_info_hash =
-                    sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
-                info!("Encoded runtime info");
-                info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
-
-                let (attn_report, sig, cert) =
-                    match self.platform.create_attestation_report(&runtime_info_hash) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            let message = format!("Failed to create attestation report: {:?}", e);
-                            error!("{}", message);
-                            return Err(from_display(message));
-                        }
-                    };
-
-                cached_resp.attestation = Some(pb::Attestation {
-                    version: 1,
-                    provider: "SGX".to_string(),
-                    payload: Some(pb::AttestationReport {
-                        report: attn_report,
-                        signature: base64::decode(sig).map_err(from_display)?,
-                        signing_cert: base64::decode(cert).map_err(from_display)?,
-                    }),
-                    timestamp: now(),
-                });
-            }
         }
+        if cached_resp.attestation.is_none() {
+            // We hash the encoded bytes directly
+            let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
+            info!("Encoded runtime info");
+            info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
+
+            let encoded_report = match self
+                .platform
+                .create_attestation_report(self.attestation_provider, &runtime_info_hash)
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let message = format!("Failed to create attestation report: {e:?}");
+                    error!("{}", message);
+                    return Err(from_display(message));
+                }
+            };
+
+            cached_resp.attestation = Some(pb::Attestation {
+                version: 1,
+                provider: serde_json::to_string(&self.attestation_provider).unwrap(),
+                payload: None,
+                encoded_report,
+                timestamp: now(),
+            });
+        }
+
         Ok(cached_resp.clone())
     }
 
@@ -521,7 +524,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        info!("Verifying signature passed! origin={:?}", origin);
+        debug!(target: "query", "Verifying signature passed! origin={:?}", origin);
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
@@ -558,7 +561,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
             effects_queue
                 .send((cluster_id, effects))
-                .or(Err(from_display("Failed to apply side effects")))?;
+                .map_err(|_| from_display("Failed to apply side effects"))?;
 
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
@@ -608,7 +611,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             storage: &state.chain_storage,
             send_mq: &state.send_mq,
             recv_mq: &mut state.recv_mq,
-            side_task_man: &mut self.side_task_man,
         };
 
         system.will_process_block(&mut block);
@@ -664,20 +666,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         );
         benchmark::set_flag(Flags::SYNCING, syncing);
 
-        Ok(())
-    }
-
-    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
-        let state = self
-            .runtime_state
-            .as_ref()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let context = side_task::PollContext {
-            block_number,
-            send_mq: &state.send_mq,
-            storage: &state.chain_storage,
-        };
-        self.side_task_man.poll(&context);
         Ok(())
     }
 
@@ -750,6 +738,71 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .encode();
         Ok(signature)
     }
+
+    pub fn get_contract_info(
+        &mut self,
+        contract_ids: &[String],
+    ) -> RpcResult<pb::GetContractInfoResponse> {
+        // TODO: use `let else`
+        let system = match &self.system {
+            None => return Ok(Default::default()),
+            Some(system) => system,
+        };
+        let contracts = if contract_ids.is_empty() {
+            system
+                .contracts
+                .iter()
+                .map(|(_, contract)| contract.info())
+                .collect()
+        } else {
+            let mut contracts = vec![];
+            for id in contract_ids.iter() {
+                let raw: [u8; 32] = try_decode_hex(id)
+                    .map_err(|_| from_display("Invalid contract id"))?
+                    .try_into()
+                    .map_err(|_| from_display("Invalid contract id"))?;
+                let contract = system.contracts.get(&raw.into());
+                // TODO: use `let else`.
+                let contract = match contract {
+                    None => continue,
+                    Some(contract) => contract,
+                };
+                contracts.push(contract.info());
+            }
+            contracts
+        };
+        Ok(pb::GetContractInfoResponse { contracts })
+    }
+
+    pub fn get_cluster_info(&self) -> RpcResult<pb::GetClusterInfoResponse> {
+        // TODO: use `let else`.
+        let system = match &self.system {
+            None => return Ok(Default::default()),
+            Some(system) => system,
+        };
+        let clusters = system
+            .contract_clusters
+            .iter()
+            .map(|(id, cluster)| {
+                let contracts = cluster.iter_contracts().map(hex).collect();
+                let ver = cluster.config.version;
+                let version = format!("{}.{}", ver.0, ver.1);
+                pb::ClusterInfo {
+                    id: hex(id),
+                    state_root: hex(cluster.storage.root()),
+                    contracts,
+                    version,
+                }
+            })
+            .collect();
+        Ok(pb::GetClusterInfoResponse { clusters })
+    }
+
+    pub fn upload_sidevm_code(&mut self, contract_id: ContractId, code: Vec<u8>) -> RpcResult<()> {
+        self.system()?
+            .upload_sidevm_code(contract_id, code)
+            .map_err(from_display)
+    }
 }
 
 #[derive(Clone)]
@@ -789,7 +842,7 @@ where
                     let (code, err) = match err {
                         Error::NotFound => (404, ProtoError::new("Method Not Found")),
                         Error::DecodeError(err) => {
-                            (400, ProtoError::new(format!("DecodeError({:?})", err)))
+                            (400, ProtoError::new(format!("DecodeError({err:?})")))
                         }
                         Error::AppError(msg) => (500, ProtoError::new(msg)),
                         Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
@@ -810,24 +863,22 @@ impl<Platform: pal::Platform> RpcService<Platform> {
 
 fn create_attestation_report_on<Platform: pal::Platform>(
     platform: &Platform,
+    attestation_provider: Option<AttestationProvider>,
     data: &[u8],
 ) -> RpcResult<pb::Attestation> {
-    let (attn_report, sig, cert) = match platform.create_attestation_report(&data) {
+    let encoded_report = match platform.create_attestation_report(attestation_provider, data) {
         Ok(r) => r,
         Err(e) => {
-            let message = format!("Failed to create attestation report: {:?}", e);
+            let message = format!("Failed to create attestation report: {e:?}");
             error!("{}", message);
             return Err(from_display(message));
         }
     };
     Ok(pb::Attestation {
         version: 1,
-        provider: "SGX".to_string(),
-        payload: Some(pb::AttestationReport {
-            report: attn_report,
-            signature: base64::decode(sig).map_err(from_display)?,
-            signing_cert: base64::decode(cert).map_err(from_display)?,
-        }),
+        provider: serde_json::to_string(&attestation_provider).unwrap(),
+        payload: None,
+        encoded_report,
         timestamp: now(),
     })
 }
@@ -881,12 +932,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::InitRuntimeRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         self.lock_phactory().init_runtime(
-            request.skip_ra,
             request.is_parachain,
             request.decode_genesis_info()?,
             request.decode_genesis_state()?,
             request.decode_operator()?,
-            request.debug_set_key,
+            request.debug_set_key.clone(),
+            request.decode_attestation_provider()?,
         )
     }
 
@@ -1002,7 +1053,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::HandoverChallengeResponse,
     ) -> RpcResult<pb::HandoverWorkerKey> {
         let mut phactory = self.lock_phactory();
+        let attestation_provider = phactory.attestation_provider;
         let dev_mode = phactory.dev_mode;
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
         let system = phactory.system()?;
         let my_identity_key = system.identity_key.clone();
 
@@ -1011,7 +1064,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
         let block_sec = system.now_ms / 1000;
         let block_number = system.block_number;
-        let attestation = if dev_mode {
+        let attestation = if dev_mode || !in_sgx {
             info!("Skip RA report check in dev mode");
             None
         } else {
@@ -1019,19 +1072,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
-            let payload = raw_attestation
-                .payload
-                .ok_or_else(|| from_display("Missing attestation payload"))?;
-            let attn_to_validate = Attestation::SgxIas {
-                ra_report: payload.report.as_bytes().to_vec(),
-                signature: payload.signature,
-                raw_signing_cert: payload.signing_cert,
-            };
+            let attn_to_validate =
+                AttestationReport::decode(&mut &raw_attestation.encoded_report[..])
+                    .map_err(|_| anyhow!("Decode attestation payload failed"))
+                    .unwrap();
             // The time from attestation report is generated by IAS, thus trusted. By default, it's valid for 10h.
             // By ensuring our system timestamp is within the valid period, we know that this pRuntime is not hold back by
             // malicious workers.
-            IasValidator::validate(&attn_to_validate, &payload_hash, block_sec, false, vec![])
-                .map_err(|_| from_display("Invalid RA report from client"))?;
+            validate_attestation_report(
+                Some(attn_to_validate.clone()),
+                &payload_hash,
+                block_sec,
+                false,
+                vec![],
+                false,
+            )
+            .map_err(|_| from_display("Invalid RA report from client"))?;
             Some(attn_to_validate)
         };
         // 2. verify challenge validity to prevent replay attack
@@ -1040,13 +1096,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             return Err(from_display("Invalid challenge"));
         }
         // 3. verify sgx local attestation report to ensure the handover pRuntimes are on the same machine
-        if !dev_mode {
+        if !dev_mode && in_sgx {
             let recv_local_report =
                 unsafe { sgx_api_lite::decode(&challenge_handler.sgx_local_report).unwrap() };
             sgx_api_lite::verify(recv_local_report)
                 .map_err(|_| from_display("No remote handover"))?;
         } else {
-            info!("Skip pRuntime local attesatation check in dev mode");
+            info!("Skip pRuntime local attestation check in dev mode");
         }
         // 4. verify challenge block height and report timestamp
         // only challenge within 150 blocks (30 minutes) is accepted
@@ -1055,7 +1111,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             return Err(from_display("Outdated challenge"));
         }
         // 5. verify pruntime launch date
-        if !dev_mode {
+        if !dev_mode && in_sgx {
             let runtime_info = phactory
                 .runtime_info
                 .as_ref()
@@ -1068,9 +1124,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .payload
                 .as_ref()
                 .ok_or_else(|| from_display("My RA report not found"))?;
-            let (my_ias_fields, _) =
-                IasFields::from_ias_report(&my_attn_report.report.as_bytes().to_vec())
-                    .map_err(|_| from_display("Invalid RA report from client"))?;
+            let (my_ias_fields, _) = IasFields::from_ias_report(my_attn_report.report.as_bytes())
+                .map_err(|_| from_display("Invalid RA report from client"))?;
             let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp =
@@ -1079,7 +1134,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
             let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
             let mrenclave = match attestation {
-                Attestation::SgxIas {
+                AttestationReport::SgxIas {
                     ra_report,
                     signature: _,
                     raw_signing_cert: _,
@@ -1125,12 +1180,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         };
 
         let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
-        let attestation = if dev_mode {
+        let attestation = if dev_mode || !in_sgx {
             info!("Omit RA report in workerkey response in dev mode");
             None
         } else {
             Some(create_attestation_report_on(
                 &phactory.platform,
+                attestation_provider,
                 &worker_key_hash,
             )?)
         };
@@ -1158,29 +1214,35 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         phactory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let challenge = request.decode_challenge().map_err(from_display)?;
-        // generate local attesatation report to ensure the handover pRuntimes are on the same machine
-        let sgx_local_report = if challenge.dev_mode {
+        let attestation_provider = phactory.attestation_provider;
+
+        let dev_mode = challenge.dev_mode;
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
+
+        // generate local attestation report to ensure the handover pRuntimes are on the same machine
+        let sgx_local_report = if dev_mode || !in_sgx {
             vec![]
         } else {
             let its_target_info =
                 unsafe { sgx_api_lite::decode(&challenge.sgx_target_info).unwrap() };
             // the report data does not matter since we only care about the origin
-            let report = sgx_api_lite::report(&its_target_info, &[0; 64]).unwrap();
+            let report = sgx_api_lite::report(its_target_info, &[0; 64]).unwrap();
             sgx_api_lite::encode(&report).to_vec()
         };
 
         let challenge_handler = ChallengeHandlerInfo {
-            challenge: challenge.clone(),
+            challenge,
             sgx_local_report,
             ecdh_pubkey,
         };
         let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
-        let attestation = if challenge.dev_mode {
+        let attestation = if dev_mode || !in_sgx {
             info!("Omit RA report in challenge response in dev mode");
             None
         } else {
             Some(create_attestation_report_on(
                 &phactory.platform,
+                attestation_provider,
                 &handler_hash,
             )?)
         };
@@ -1193,25 +1255,30 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
 
     async fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
         let mut phactory = self.lock_phactory();
+        let attestation_provider = phactory.attestation_provider;
         let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
 
         let dev_mode = encrypted_worker_key.dev_mode;
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
         // verify RA report
-        if !dev_mode {
+        if !dev_mode && in_sgx {
             let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
             let raw_attestation = request
                 .attestation
                 .ok_or_else(|| from_display("Attestation not found"))?;
-            let payload = raw_attestation
-                .payload
-                .ok_or_else(|| from_display("Missing attestation payload"))?;
-            let attn_to_validate = Attestation::SgxIas {
-                ra_report: payload.report.as_bytes().to_vec(),
-                signature: payload.signature,
-                raw_signing_cert: payload.signing_cert,
-            };
-            IasValidator::validate(&attn_to_validate, &worker_key_hash, now(), false, vec![])
-                .map_err(|_| from_display("Invalid RA report from server"))?;
+            let attn_to_validate =
+                AttestationReport::decode(&mut &raw_attestation.encoded_report[..])
+                    .map_err(|_| anyhow!("Decode attestation payload failed"))
+                    .unwrap();
+            validate_attestation_report(
+                Some(attn_to_validate),
+                &worker_key_hash,
+                now(),
+                false,
+                vec![],
+                false,
+            )
+            .map_err(|_| from_display("Invalid RA report from server"))?;
         } else {
             info!("Skip RA report check in dev mode");
         }
@@ -1316,4 +1383,62 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             headers,
         })
     }
+
+    async fn get_contract_info(
+        &mut self,
+        request: pb::GetContractInfoRequest,
+    ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
+        self.lock_phactory()
+            .get_contract_info(&request.contract_ids)
+    }
+
+    async fn get_cluster_info(
+        &mut self,
+        _request: (),
+    ) -> Result<pb::GetClusterInfoResponse, prpc::server::Error> {
+        self.lock_phactory().get_cluster_info()
+    }
+
+    async fn upload_sidevm_code(
+        &mut self,
+        request: pb::SidevmCode,
+    ) -> Result<(), prpc::server::Error> {
+        let contract_id: [u8; 32] = request
+            .contract
+            .try_into()
+            .map_err(|_| from_display("Invalid contract id"))?;
+        self.lock_phactory()
+            .upload_sidevm_code(contract_id.into(), request.code)
+    }
+
+    async fn calculate_contract_id(
+        &mut self,
+        req: pb::ContractParameters,
+    ) -> Result<pb::ContractId, prpc::server::Error> {
+        let deployer =
+            try_decode_hex(&req.deployer).map_err(|_| from_display("Invalid deployer"))?;
+        let code_hash =
+            try_decode_hex(&req.code_hash).map_err(|_| from_display("Invalid code hash"))?;
+        let cluster_id =
+            try_decode_hex(&req.cluster_id).map_err(|_| from_display("Invalid cluster id"))?;
+        let salt = try_decode_hex(&req.salt).map_err(|_| from_display("Invalid code salt"))?;
+        let buf = contract_id_preimage(&deployer, &code_hash, &cluster_id, &salt);
+        let hash = sp_core::blake2_256(&buf);
+        Ok(pb::ContractId { id: hex(hash) })
+    }
+
+    async fn get_network_config(
+        &mut self,
+        _request: (),
+    ) -> Result<pb::NetworkConfigResponse, prpc::server::Error> {
+        let phactory = self.lock_phactory();
+        Ok(pb::NetworkConfigResponse {
+            public_rpc_port: phactory.args.public_port.map(Into::into),
+            config: phactory.netconfig.clone(),
+        })
+    }
+}
+
+fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
 }

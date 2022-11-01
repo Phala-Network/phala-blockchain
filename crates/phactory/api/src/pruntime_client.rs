@@ -34,7 +34,7 @@ impl RequestClient for RpcRequest {
             ClientError::RpcError(err.to_string())
         }
 
-        let url = alloc::format!("{}/prpc/{}", self.base_url, path);
+        let url = alloc::format!("{}/prpc/{path}", self.base_url);
         let res = reqwest::Client::new()
             .post(url)
             .header("Connection", "close")

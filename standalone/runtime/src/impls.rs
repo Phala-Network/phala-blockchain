@@ -102,7 +102,7 @@ mod multiplier_tests {
 
 	fn run_with_system_weight<F>(w: Weight, assertions: F)
 	where
-		F: Fn() -> (),
+		F: Fn(),
 	{
 		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
 			.build_storage::<Runtime>()
@@ -143,7 +143,7 @@ mod multiplier_tests {
 		// the weight is 1/100th bigger than target.
 		run_with_system_weight(target() * 101 / 100, || {
 			let next = runtime_multiplier_update(min_multiplier());
-			assert!(next > min_multiplier(), "{:?} !>= {:?}", next, min_multiplier());
+			assert!(next > min_multiplier(), "{next:?} !>= {:?}", min_multiplier());
 		})
 	}
 
@@ -306,7 +306,7 @@ mod multiplier_tests {
 					Multiplier::from_inner(100),
 				);
 				// must always increase
-				assert!(next > original, "{:?} !>= {:?}", next, original);
+				assert!(next > original, "{next:?} !>= {original:?}");
 				original = next;
 			});
 		});
@@ -321,7 +321,7 @@ mod multiplier_tests {
 			for _ in 0..100 {
 				// decreases
 				next = runtime_multiplier_update(original);
-				assert!(next < original, "{:?} !<= {:?}", next, original);
+				assert!(next < original, "{next:?} !<= {original:?}");
 				original = next;
 			}
 		})

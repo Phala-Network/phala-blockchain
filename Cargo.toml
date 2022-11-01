@@ -27,6 +27,10 @@ exclude = [
 	"vendor/ring",
 	"standalone/pruntime",
 	"standalone/prouter",
+	"crates/pink-drivers/system",
+	"crates/pink-drivers/sidevm_deployer",
+	"crates/pink-drivers/tokenomic",
+	"e2e/res/check_system",
 ]
 
 members = [
@@ -79,5 +83,5 @@ members = [
 rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocket" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }

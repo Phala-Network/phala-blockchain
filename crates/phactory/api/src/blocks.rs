@@ -4,21 +4,21 @@ use parity_scale_codec::{Decode, Encode, FullCodec};
 use scale_info::TypeInfo;
 pub use sp_finality_grandpa::{AuthorityList, SetId};
 
+pub use phala_trie_storage::ser::StorageChanges;
 use sp_core::U256;
 use sp_runtime::{generic::Header, traits::Hash as HashT};
-pub use phala_trie_storage::ser::StorageChanges;
 
 pub type StorageProof = Vec<Vec<u8>>;
 pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// The GRNADPA authority set with the id
-#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Eq, Debug)]
 pub struct AuthoritySet {
     pub list: AuthorityList,
     pub id: SetId,
 }
 /// AuthoritySet change with the storage proof (including both the authority set and the id)
-#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Eq, Debug)]
 pub struct AuthoritySetChange {
     pub authority_set: AuthoritySet,
     pub authority_proof: StorageProof,
@@ -29,7 +29,7 @@ pub struct AuthoritySetChange {
 /// The genesis block is the first block to start GRNADPA light validation tracking. It could
 /// be block 0 or a later block on the relay chain. The authority set represents the validator
 /// infomation at the selected block.
-#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Eq, Debug)]
 pub struct GenesisBlockInfo {
     pub block_header: chain::Header,
     pub authority_set: AuthoritySet,
@@ -38,8 +38,7 @@ pub struct GenesisBlockInfo {
 
 pub type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 pub type HeaderToSync = GenericHeaderToSync<chain::BlockNumber, RuntimeHasher>;
-pub type BlockHeaderWithChanges =
-    GenericBlockHeaderWithChanges<chain::BlockNumber, RuntimeHasher>;
+pub type BlockHeaderWithChanges = GenericBlockHeaderWithChanges<chain::BlockNumber, RuntimeHasher>;
 pub type Headers = Vec<Header<chain::BlockNumber, RuntimeHasher>>;
 pub type HeadersToSync = Vec<HeaderToSync>;
 pub type BlockHeader = chain::Header;

@@ -3,7 +3,7 @@ use phala_scheduler::TaskScheduler;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use wasmer::{BaseTunables, Instance, Module, NativeFunc, Pages, RuntimeError, Store, Universal};
+use wasmer::{BaseTunables, Engine, Instance, Module, Pages, RuntimeError, Store, TypedFunction};
 #[cfg(feature = "wasmer-compiler-cranelift")]
 use wasmer_compiler_cranelift::Cranelift;
 #[cfg(feature = "wasmer-compiler-llvm")]
@@ -17,7 +17,8 @@ use crate::{async_context, env, metering::metering, VmId};
 pub struct WasmRun {
     id: VmId,
     env: env::Env,
-    wasm_poll_entry: NativeFunc<(), i32>,
+    store: Store,
+    wasm_poll_entry: TypedFunction<(), i32>,
     scheduler: TaskScheduler<VmId>,
 }
 
@@ -43,15 +44,14 @@ impl WasmRun {
             .map(AsRef::as_ref)
             .unwrap_or("singlepass");
 
-        let engine = match compiler_env {
-            "singlepass" => Universal::new(metering(Singlepass::default())),
+        let engine: Engine = match compiler_env {
+            "singlepass" => metering(Singlepass::default()).into(),
             #[cfg(feature = "wasmer-compiler-cranelift")]
-            "cranelift" => Universal::new(metering(Cranelift::default())),
+            "cranelift" => metering(Cranelift::default()).into(),
             #[cfg(feature = "wasmer-compiler-llvm")]
-            "llvm" => Universal::new(LLVM::default()),
-            _ => panic!("Unsupported compiler engine: {}", compiler_env),
-        }
-        .engine();
+            "llvm" => LLVM::default().into(),
+            _ => panic!("Unsupported compiler engine: {compiler_env}"),
+        };
         let base = BaseTunables {
             // Always use dynamic heap memory to save memory
             static_memory_bound: Pages(0),
@@ -59,15 +59,15 @@ impl WasmRun {
             dynamic_memory_offset_guard_size: page_size::get() as _,
         };
         let tunables = LimitingTunables::new(base, Pages(max_pages));
-        let store = Store::new_with_tunables(&engine, tunables);
+        let mut store = Store::new_with_tunables(&engine, tunables);
         let module = Module::new(&store, code)?;
-        let (env, import_object) = env::create_env(id, &store, cache_ops);
-        let instance = Instance::new(&module, &import_object)?;
+        let (env, import_object) = env::create_env(id, &mut store, cache_ops);
+        let instance = Instance::new(&mut store, &module, &import_object)?;
         let memory = instance
             .exports
             .get_memory("memory")
             .context("No memory exported")?;
-        let wasm_poll_entry = instance.exports.get_native_function("sidevm_poll")?;
+        let wasm_poll_entry = instance.exports.get_typed_function(&store, "sidevm_poll")?;
         env.set_memory(memory.clone());
         env.set_instance(instance);
         env.set_gas_per_breath(gas_per_breath);
@@ -76,6 +76,7 @@ impl WasmRun {
             WasmRun {
                 env: env.clone(),
                 wasm_poll_entry,
+                store,
                 scheduler,
                 id,
             },
@@ -89,11 +90,13 @@ impl Future for WasmRun {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let _guard = futures::ready!(self.scheduler.poll_resume(cx, &self.id, self.env.weight()));
-        self.env.reset_gas_to_breath();
-        match async_context::set_task_cx(cx, || self.wasm_poll_entry.call()) {
+        let run = self.get_mut();
+        run.env.reset_gas_to_breath(&mut run.store);
+        match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store))
+        {
             Ok(rv) => {
                 if rv == 0 {
-                    if self.env.has_more_ready() {
+                    if run.env.has_more_ready() {
                         cx.waker().wake_by_ref();
                     }
                     Poll::Pending
@@ -102,8 +105,10 @@ impl Future for WasmRun {
                 }
             }
             Err(err) => {
-                if self.env.is_stifled() {
-                    Poll::Ready(Err(RuntimeError::user(crate::env::OcallAborted::Stifled.into())))
+                if run.env.is_stifled(&mut run.store) {
+                    Poll::Ready(Err(RuntimeError::user(
+                        crate::env::OcallAborted::Stifled.into(),
+                    )))
                 } else {
                     Poll::Ready(Err(err))
                 }

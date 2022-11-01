@@ -111,6 +111,10 @@ impl ext::PinkExtBackend for MockExtension {
             pubkey,
         )
     }
+
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        Err("No default system contract id".into())
+    }
 }
 
 thread_local! {

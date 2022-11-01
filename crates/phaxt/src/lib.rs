@@ -55,7 +55,7 @@ pub async fn connect(uri: &str) -> Result<ChainApi> {
     let update_client = client.subscribe_to_updates();
     tokio::spawn(async move {
         let result = update_client.perform_runtime_updates().await;
-        eprintln!("Runtime update failed with result={:?}", result);
+        eprintln!("Runtime update failed with result={result:?}");
     });
     Ok(ChainApi(client))
 }

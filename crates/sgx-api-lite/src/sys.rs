@@ -3,6 +3,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+#![allow(clippy::useless_transmute)]
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -3824,10 +3825,10 @@ extern "C" {
     pub fn sgx_getkey(keyrequest: *mut sgx_key_request_t, key: *mut sgx_key_128bit_t) -> i64;
 }
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(target_arch = "x86_64", not(target_os = "macos")))]
 core::arch::global_asm!(include_str!("enclave_api.S"));
 
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(any(not(target_arch = "x86_64"), target_os = "macos"))]
 const _: () = {
     #[no_mangle]
     extern "C" fn sgx_getkey(

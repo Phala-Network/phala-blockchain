@@ -3,7 +3,7 @@ use crate::pal_gramine::GraminePlatform;
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
 use log::info;
-use phactory::{benchmark, RpcService, Phactory};
+use phactory::{benchmark, Phactory, RpcService};
 
 lazy_static::lazy_static! {
     static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
@@ -15,7 +15,38 @@ pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn ecall_getinfo() -> String {
-    APPLICATION.lock_phactory().getinfo()
+    let info = APPLICATION.lock_phactory().get_info();
+    serde_json::to_string_pretty(&info).unwrap_or_default()
+}
+
+fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E>) -> String {
+    match result {
+        Ok(inner) => serde_json::to_string_pretty(&inner).unwrap_or_default(),
+        Err(err) => {
+            let error = format!("{err:?}");
+            serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
+        }
+        .unwrap_or_default(),
+    }
+}
+
+pub fn ecall_get_contract_info(ids: &str) -> String {
+    let ids = if ids.is_empty() {
+        vec![]
+    } else {
+        ids.split(',').map(|it| it.to_owned()).collect()
+    };
+    let result = APPLICATION.lock_phactory().get_contract_info(&ids);
+    serialize_result(result.map(|it| it.contracts))
+}
+
+pub fn ecall_get_cluster_info() -> String {
+    let result = APPLICATION.lock_phactory().get_cluster_info();
+    serialize_result(result.map(|it| it.clusters))
+}
+
+pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {
+    APPLICATION.lock_phactory().sign_http_response(data)
 }
 
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {

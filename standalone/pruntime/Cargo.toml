@@ -38,10 +38,11 @@ phactory-api = { path = "../../crates/phactory/api" }
 phactory-pal = { path = "../../crates/phactory/pal" }
 phala-allocator = { path = "../../crates/phala-allocator" }
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
+phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
 
 [patch.crates-io]
 rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocket" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }

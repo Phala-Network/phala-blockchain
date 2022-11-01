@@ -12,13 +12,13 @@ pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + Send + 'static
         static START_EXECUTOR: Once = Once::new();
 
         START_EXECUTOR.call_once(|| {
-            std::thread::spawn(|| run_executor());
+            std::thread::spawn(run_executor);
         });
     }
     EXECUTOR.spawn(async {
         // TODO: find out better ways to bypass the async when syncing.
         // Delay one second to avoid net traffic storm when pRuntime replaying blocks.
-        let _ = async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+        async_std::task::sleep(std::time::Duration::from_secs(1)).await;
         future.await
     })
 }

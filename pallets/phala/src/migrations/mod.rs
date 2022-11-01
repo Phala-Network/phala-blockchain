@@ -156,6 +156,7 @@ pub mod stakepoolv2_migration {
 		T: pallet_assets::Config<AssetId = u32>,
 		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
+		let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 		stakepool::pallet::StakePools::<T>::iter().for_each(|(pid, pool_info)| {
 			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =

@@ -36,12 +36,12 @@ async fn test(
     weight: u32,
     cost: u32,
 ) -> Result<String, Custom<String>> {
-    let flow_id = format!("{}/{}", flow, weight);
+    let flow_id = format!("{flow}/{weight}");
     let guard = state
         .queue
         .acquire(flow_id.clone(), weight)
         .await
-        .map_err(|e| Custom(Status { code: 500 }, format!("{}", e)));
+        .map_err(|e| Custom(Status { code: 500 }, format!("{e}")));
     {
         let mut stat = state.stats.lock().unwrap();
         match &guard {
@@ -72,9 +72,9 @@ async fn dump(state: &State<App>) -> String {
     result.push_str(&format!("Serving: {}\n", info.serving));
     result.push_str(&format!("Backlog: {}\n", info.backlog.len()));
     result.push_str("Flow stats:\n");
-    result.push_str(&format!(
+    result.push_str(
         "      flow, weight,        v clock,      time used,  avg cost,   backlog,  accepted,  rejected,     total\n"
-    ));
+    );
 
     let stats = state.stats.lock().unwrap();
 
@@ -97,7 +97,7 @@ async fn dump(state: &State<App>) -> String {
 #[launch]
 fn rocket() -> _ {
     let args = Args::parse();
-    println!("{:#?}", args);
+    println!("{args:#?}");
 
     rocket::build()
         .manage(App {

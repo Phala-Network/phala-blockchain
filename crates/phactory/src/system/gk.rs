@@ -230,7 +230,7 @@ where
                 rotated_master_key.rotation_id == self.master_key_history.len() as u64,
                 "Gatekeeper Master key history corrupted"
             );
-            self.master_key_history.push(rotated_master_key.clone());
+            self.master_key_history.push(rotated_master_key);
             return true;
         }
         false
@@ -261,7 +261,7 @@ where
                 master_pubkey,
             });
 
-        self.master_key = new_master_key.clone();
+        self.master_key = new_master_key;
         self.egress.set_signer(self.master_key.clone().into());
         true
     }
@@ -329,7 +329,7 @@ where
             .collect();
         self.egress.push_message(&KeyDistribution::MasterKeyHistory(
             DispatchMasterKeyHistoryEvent {
-                dest: pubkey.clone(),
+                dest: *pubkey,
                 encrypted_master_key_history,
             },
         ));
@@ -473,7 +473,11 @@ where
     ) -> Result<(), TransactionError> {
         info!("Incoming cluster event: {:?}", event);
         match event {
-            ClusterEvent::DeployCluster { cluster, workers } => {
+            ClusterEvent::DeployCluster {
+                owner,
+                cluster,
+                workers,
+            } => {
                 if !origin.is_pallet() {
                     error!("Attempt to deploy cluster from bad origin");
                     return Err(TransactionError::BadOrigin);
@@ -508,6 +512,7 @@ where
                         secret_keys,
                         cluster,
                         0,
+                        owner,
                     ),
                 );
                 Ok(())
@@ -558,7 +563,7 @@ where
             next_random_number(&self.master_key, block_number, self.last_random_number);
         info!(
             "Gatekeeper: emit random number {} in block {}",
-            hex::encode(&random_number),
+            hex::encode(random_number),
             block_number
         );
         self.egress
@@ -704,7 +709,7 @@ impl From<&WorkerInfo> for pb::WorkerState {
             stat: Some((&info.stat).into()),
             #[cfg(not(feature = "gk-stat"))]
             stat: None,
-            tokenomic_info: Some(info.tokenomic.clone().into()),
+            tokenomic_info: Some(info.tokenomic.into()),
         }
     }
 }
@@ -752,7 +757,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         for worker_info in self.workers.values_mut() {
             trace!(target: "computing",
                 "[{}] block_post_process",
-                hex::encode(&worker_info.state.pubkey)
+                hex::encode(worker_info.state.pubkey)
             );
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info.state.on_block_processed(block, &mut tracker);
@@ -771,7 +776,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     trace!(
                         target: "computing",
                         "[{}] case5: Unresponsive, successful heartbeat.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     worker_info.unresponsive = false;
                     self.eco_cache
@@ -791,7 +796,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     trace!(
                         target: "computing",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
-                        hex::encode(&worker_info.state.pubkey),
+                        hex::encode(worker_info.state.pubkey),
                         block.block_number,
                         hb_sent_at
                     );
@@ -813,7 +818,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 trace!(
                     target: "computing",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
-                    hex::encode(&worker_info.state.pubkey)
+                    hex::encode(worker_info.state.pubkey)
                 );
                 worker_info
                     .tokenomic
@@ -822,7 +827,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 trace!(
                     target: "computing",
                     "[{}] case1: Idle, no event",
-                    hex::encode(&worker_info.state.pubkey)
+                    hex::encode(worker_info.state.pubkey)
                 );
                 worker_info.tokenomic.update_v_idle(params);
             }
@@ -979,7 +984,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     trace!(
                         target: "computing",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     if self.unresp_fix {
                         worker_info
@@ -991,7 +996,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     trace!(
                         target: "computing",
                         "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.tokenomic_params,
@@ -1430,13 +1435,13 @@ mod tokenomic {
                 // (Current behavior)
                 actual_payout = to_payout; // w
                 actual_treasury = to_treasury;
-                let actual_v_deduct = self.v_deductible.max(fp!(0)).min(actual_payout);
+                let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
                 self.v -= actual_v_deduct;
             } else {
                 // Without `full_payout`, the worker gets paid up to the v increment to ensure v
                 // will not decrease over the time by payout.
                 // (Legacy behavior)
-                actual_payout = self.v_deductible.max(fp!(0)).min(to_payout); // w
+                actual_payout = self.v_deductible.clamp(fp!(0), to_payout); // w
                 actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
                 self.v -= actual_payout;
             }
@@ -1569,7 +1574,7 @@ pub mod tests {
             self.drain()
                 .into_iter()
                 .filter_map(|m| {
-                    if &m.destination.path()[..] == &M::topic() {
+                    if m.destination.path()[..] == M::topic() {
                         Decode::decode(&mut &m.payload[..]).ok()
                     } else {
                         None
@@ -1645,12 +1650,12 @@ pub mod tests {
     impl ForWorker<'_> {
         fn pallet_say(&mut self, event: msg::WorkerEvent) {
             let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
-            let message = msg::SystemEvent::new_worker_event(self.pubkey.clone(), event);
+            let message = msg::SystemEvent::new_worker_event(*self.pubkey, event);
             self.mq.dispatch_bound(&sender, message);
         }
 
         fn say<M: Encode + BindTopic>(&mut self, message: M) {
-            let sender = MessageOrigin::Worker(self.pubkey.clone());
+            let sender = MessageOrigin::Worker(*self.pubkey);
             self.mq.dispatch_bound(&sender, message);
         }
 
@@ -1692,7 +1697,6 @@ pub mod tests {
             storage: &storage,
             recv_mq: &mut recv_mq,
             send_mq: &mut send_mq,
-            side_task_man: &mut Default::default(),
         };
         call(&block);
     }
@@ -1708,6 +1712,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1741,6 +1746,7 @@ pub mod tests {
         with_block(1, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1838,6 +1844,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1903,6 +1910,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1957,6 +1965,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -1994,7 +2003,7 @@ pub mod tests {
 
         assert!(r.get_worker(0).unresponsive);
         {
-            let offline = [r.workers[0].clone()].to_vec();
+            let offline = [r.workers[0]].to_vec();
             let expected_message = WorkingInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
@@ -2038,6 +2047,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2111,6 +2121,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2158,7 +2169,7 @@ pub mod tests {
             "Worker should not be slashed or rewarded"
         );
         {
-            let recovered_to_online = [r.workers[0].clone()].to_vec();
+            let recovered_to_online = [r.workers[0]].to_vec();
             let expected_message = WorkingInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
@@ -2181,6 +2192,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2253,7 +2265,7 @@ pub mod tests {
         }
         assert!(r.get_worker(0).unresponsive);
         let report = r.gk.egress.drain_working_info_update_event();
-        assert_eq!(report[0].offline, vec![r.workers[0].clone()]);
+        assert_eq!(report[0].offline, vec![r.workers[0]]);
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check worker reconnection and V recovery
@@ -2268,6 +2280,7 @@ pub mod tests {
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                attestation_provider: None,
                 confidence_level: 2,
             }));
             r.gk.test_process_messages(block);
@@ -2298,7 +2311,7 @@ pub mod tests {
             r.for_worker(0).challenge();
             r.gk.test_process_messages(block);
         });
-        r.for_worker(0).heartbeat(1, block_number, 1000000 as u64);
+        r.for_worker(0).heartbeat(1, block_number, 1000000_u64);
         block_number += 1;
         with_block(block_number, |block| {
             r.gk.test_process_messages(block);
@@ -2341,6 +2354,7 @@ pub mod tests {
             for i in 0..=1 {
                 let mut worker = r.for_worker(i);
                 worker.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                    attestation_provider: None,
                     confidence_level: 2,
                 }));
             }

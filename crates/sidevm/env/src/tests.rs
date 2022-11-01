@@ -21,9 +21,6 @@ pub trait TestOcall {
 
     #[ocall(id = 105, encode_output)]
     fn sub_fi(a: i32, b: i32) -> Result<i32>;
-
-    #[ocall(id = 106)]
-    fn copy(dst: &mut [u8], src: &[u8]) -> Result<()>;
 }
 
 struct TestHost;
@@ -46,10 +43,6 @@ impl TestOcall for TestHost {
     fn sub_fi(&mut self, a: i32, b: i32) -> Result<i32> {
         Ok(a.wrapping_sub(b))
     }
-    fn copy(&mut self, dst: &mut [u8], src: &[u8]) -> Result<()> {
-        dst.copy_from_slice(src);
-        Ok(())
-    }
 }
 
 impl OcallEnv for TestHost {
@@ -69,7 +62,7 @@ impl OcallEnv for TestHost {
 impl VmMemory for TestHost {
     fn copy_to_vm(&self, data: &[u8], ptr: IntPtr) -> Result<()> {
         let dst_buf = unsafe { core::slice::from_raw_parts_mut(ptr as _, data.len()) };
-        dst_buf.clone_from_slice(&data);
+        dst_buf.clone_from_slice(data);
         Ok(())
     }
 
@@ -97,8 +90,8 @@ extern "C" fn sidevm_ocall(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call(&mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
-    println!("sidevm_ocall {} result={:?}", func_id, result);
+    let result = dispatch_ocall(false, &mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
+    println!("sidevm_ocall {func_id} result={result:?}");
     result.encode_ret()
 }
 
@@ -111,8 +104,8 @@ extern "C" fn sidevm_ocall_fast_return(
     p2: IntPtr,
     p3: IntPtr,
 ) -> IntRet {
-    let result = dispatch_call_fast_return(&mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
-    println!("sidevm_ocall_fast_return {} result={:?}", func_id, result);
+    let result = dispatch_ocall(true, &mut TestHost, &TestHost, func_id, p0, p1, p2, p3);
+    println!("sidevm_ocall_fast_return {func_id} result={result:?}");
     result.encode_ret()
 }
 
@@ -135,14 +128,6 @@ fn test_fi_fo() {
     assert_eq!(ocall::add_fi_fo(a, b).unwrap(), c);
     assert_eq!(ocall::sub_fi(4, 1).unwrap(), 3);
     assert_eq!(ocall::sub_fi(1, 4).unwrap(), -3);
-}
-
-#[test]
-fn test_fi_fo_buf() {
-    let mut a = [0u8; 4];
-    let b = [1u8, 2, 3, 4];
-    ocall::copy(&mut a[..], &b[..]).unwrap();
-    assert_eq!(a, b);
 }
 
 #[test]

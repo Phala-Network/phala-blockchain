@@ -4,29 +4,11 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{
 	borrow::ToOwned,
-	convert::{TryFrom, TryInto},
+	convert::TryFrom,
 	vec::Vec,
 };
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum Attestation {
-	SgxIas {
-		ra_report: Vec<u8>,
-		signature: Vec<u8>,
-		raw_signing_cert: Vec<u8>,
-	},
-}
-
-pub trait AttestationValidator {
-	/// Validates the attestation as well as the user data hash it commits to.
-	fn validate(
-		attestation: &Attestation,
-		user_data_hash: &[u8; 32],
-		now: u64,
-		verify_pruntime_hash: bool,
-		pruntime_allowlist: Vec<Vec<u8>>,
-	) -> Result<IasFields, Error>;
-}
+use phala_types::{AttestationProvider, AttestationReport};
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -38,6 +20,14 @@ pub enum Error {
 	OutdatedIASReport,
 	UnknownQuoteBodyFormat,
 	InvalidUserDataHash,
+	NoneAttestationDisabled,
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub struct ConfidentialReport {
+	pub confidence_level: u8,
+	pub provider: Option<AttestationProvider>,
+	pub runtime_hash: Vec<u8>,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -60,7 +50,7 @@ impl IasFields {
 		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
 			.as_str()
 			.ok_or(Error::UnknownQuoteBodyFormat)?;
-		let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
+		let quote_body = base64::decode(raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
 		let mr_enclave = &quote_body[112..144];
 		let mr_signer = &quote_body[176..208];
 		let isv_prod_id = &quote_body[304..306];
@@ -128,47 +118,53 @@ impl IasFields {
 	}
 }
 
-/// Attestation validator implementation for IAS
-pub struct IasValidator;
-impl AttestationValidator for IasValidator {
-	fn validate(
-		attestation: &Attestation,
-		user_data_hash: &[u8; 32],
-		now: u64,
-		verify_pruntime: bool,
-		pruntime_allowlist: Vec<Vec<u8>>,
-	) -> Result<IasFields, Error> {
-		let fields = match attestation {
-			Attestation::SgxIas {
-				ra_report,
-				signature,
-				raw_signing_cert,
-			} => validate_ias_report(
-				ra_report,
-				signature,
-				raw_signing_cert,
+pub fn validate(
+	attestation: Option<AttestationReport>,
+	user_data_hash: &[u8; 32],
+	now: u64,
+	verify_pruntime_hash: bool,
+	pruntime_allowlist: Vec<Vec<u8>>,
+	opt_out_enabled: bool
+) -> Result<ConfidentialReport, Error> {
+	match attestation {
+		Some(AttestationReport::SgxIas {
+			ra_report,
+			signature,
+			raw_signing_cert,
+		}) => {
+			validate_ias_report(
+				user_data_hash,
+				ra_report.as_slice(),
+				signature.as_slice(),
+				raw_signing_cert.as_slice(),
 				now,
-				verify_pruntime,
+				verify_pruntime_hash,
 				pruntime_allowlist,
-			),
-		}?;
-		let commit = &fields.report_data[..32];
-		if commit != user_data_hash {
-			Err(Error::InvalidUserDataHash)
-		} else {
-			Ok(fields)
+			)
+		},
+		None => {
+			if opt_out_enabled {
+				Ok(ConfidentialReport {
+					provider: None,
+					runtime_hash: Vec::new(),
+					confidence_level: 128u8
+				})
+			} else {
+				Err(Error::NoneAttestationDisabled)
+			}
 		}
 	}
 }
 
 pub fn validate_ias_report(
+	user_data_hash: &[u8],
 	report: &[u8],
 	signature: &[u8],
 	raw_signing_cert: &[u8],
 	now: u64,
-	verify_pruntime: bool,
+	verify_pruntime_hash: bool,
 	pruntime_allowlist: Vec<Vec<u8>>,
-) -> Result<IasFields, Error> {
+) -> Result<ConfidentialReport, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
 	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
@@ -186,14 +182,12 @@ pub fn validate_ias_report(
 	);
 	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
 
-	let (ias_fields, report_timestamp) = IasFields::from_ias_report(&report)?;
+	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
 
 	// Validate PRuntime
-	if verify_pruntime {
-		let t_mrenclave = ias_fields.extend_mrenclave();
-		if !pruntime_allowlist.contains(&t_mrenclave) {
-			return Err(Error::PRuntimeRejected);
-		}
+	let pruntime_hash = ias_fields.extend_mrenclave();
+	if verify_pruntime_hash && !pruntime_allowlist.contains(&pruntime_hash) {
+		return Err(Error::PRuntimeRejected);
 	}
 
 	// Validate time
@@ -201,7 +195,17 @@ pub fn validate_ias_report(
 		return Err(Error::OutdatedIASReport);
 	}
 
-	Ok(ias_fields)
+	let commit = &ias_fields.report_data[..32];
+	if commit != user_data_hash {
+		return Err(Error::InvalidUserDataHash)
+	}
+
+	// Check the following fields
+	Ok(ConfidentialReport {
+		provider: Some(AttestationProvider::Ias),
+		runtime_hash: pruntime_hash,
+		confidence_level: ias_fields.confidence_level,
+	})
 }
 
 #[cfg(test)]
@@ -222,8 +226,31 @@ mod test {
 		let raw_signing_cert =
 			hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
 
+		let parsed_report: serde_json::Value =
+			serde_json::from_slice(report).unwrap();
+		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
+			.as_str()
+			.unwrap();
+		let quote_body = base64::decode(raw_quote_body).unwrap();
+		let report_data = &quote_body[368..432];
+		let commit = &report_data[..32];
+
 		assert_eq!(
 			validate_ias_report(
+				&[0u8],
+				report,
+				&signature,
+				&raw_signing_cert,
+				ATTESTATION_TIMESTAMP,
+				false,
+				vec![]
+			),
+			Err(Error::InvalidUserDataHash)
+		);
+
+		assert_eq!(
+			validate_ias_report(
+				commit,
 				report,
 				&signature,
 				&raw_signing_cert,
@@ -236,6 +263,7 @@ mod test {
 
 		assert_eq!(
 			validate_ias_report(
+				commit,
 				report,
 				&signature,
 				&raw_signing_cert,
@@ -246,13 +274,16 @@ mod test {
 			Err(Error::PRuntimeRejected)
 		);
 
-		assert_ok!(validate_ias_report(
-			report,
-			&signature,
-			&raw_signing_cert,
-			ATTESTATION_TIMESTAMP,
-			true,
-			vec![hex::decode(PRUNTIME_HASH).unwrap()]
-		));
+		assert_ok!(
+			validate_ias_report(
+				commit,
+				report,
+				&signature,
+				&raw_signing_cert,
+				ATTESTATION_TIMESTAMP,
+				true,
+				vec![hex::decode(PRUNTIME_HASH).unwrap()]
+			)
+		);
 	}
 }

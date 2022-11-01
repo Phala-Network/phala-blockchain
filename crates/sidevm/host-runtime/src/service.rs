@@ -4,8 +4,8 @@ use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
 use log::{debug, error, info, trace, warn};
 use phala_scheduler::TaskScheduler;
-use sidevm_env::messages::AccountId;
 use serde::{Deserialize, Serialize};
+use sidevm_env::messages::AccountId;
 use std::future::Future;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
@@ -21,7 +21,7 @@ pub enum Report {
     VmTerminated { id: VmId, reason: ExitReason },
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, derive_more::Display)]
 pub enum ExitReason {
     /// The program returned from `fn main`.
     Exited(i32),
@@ -37,6 +37,8 @@ pub enum ExitReason {
     OcallAborted(OcallAborted),
     /// When a previous running instance restored from a checkpoint.
     Restore,
+    /// The sidevm was deployed without code, so it it waiting to a custom code uploading.
+    WaitingForCode,
 }
 
 pub enum Command {
@@ -52,6 +54,8 @@ pub enum Command {
         payload: Vec<u8>,
         reply_tx: OneshotSender<Vec<u8>>,
     },
+    // Update the task scheduling weight
+    UpdateWeight(u32),
 }
 
 pub struct ServiceRun {
@@ -69,6 +73,9 @@ pub fn service(worker_threads: usize) -> (ServiceRun, Spawner) {
     let worker_threads = worker_threads.max(1);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(16)
+        // Reason for the additional 2 threads:
+        // One for the blocking reactor thread, another one for receiving channel messages
+        // from the pink system
         .worker_threads(worker_threads + 2)
         .enable_all()
         .build()
@@ -171,6 +178,9 @@ impl Spawner {
                             }
                             Some(Command::PushQuery{ origin, payload, reply_tx }) => {
                                 spawn_push_msg!(env.push_query(origin, payload, reply_tx), debug, "query");
+                            }
+                            Some(Command::UpdateWeight(weight)) => {
+                                env.set_weight(weight);
                             }
                         }
                     }

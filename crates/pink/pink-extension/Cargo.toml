@@ -1,6 +1,6 @@
 [package]
 name = "pink-extension"
-version = "0.1.18"
+version = "0.1.19"
 edition = "2018"
 description = "Phala's ink! for writing fat contracts"
 license = "Apache-2.0"
@@ -15,14 +15,14 @@ ink_lang = { version = "3.3.1", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
-pink-extension-macro = { version = "0.1.2", path = "./macro" }
+pink-extension-macro = { version = "0.1.6", path = "./macro" }
 log = "0.4.17"
 
 [dev-dependencies]
 insta = "1.7.2"
 
 [features]
-default = ["std", "runtime_utils"]
+default = ["std", "runtime_utils", "ink-as-dependency"]
 std = [
     "ink_metadata/std",
     "ink_env/std",

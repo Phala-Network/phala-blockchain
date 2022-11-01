@@ -41,7 +41,7 @@ pub mod pallet {
 		+ pawnshop::Config
 		+ stakepoolv2::Config
 	{
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);

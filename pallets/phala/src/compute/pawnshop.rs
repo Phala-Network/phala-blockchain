@@ -47,7 +47,7 @@ pub mod pallet {
 		+ basepool::Config
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// P-PHA's asset id
 		#[pallet::constant]
 		type PPhaAssetId: Get<u32>;
@@ -59,7 +59,7 @@ pub mod pallet {
 	}
 
 	/// User's asset status proxy
-	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug, Default)]
 	pub struct FinanceAccount<Balance> {
 		/// The pools and their pool collection id the user delegated
 		pub invest_pools: Vec<(u64, CollectionId)>,

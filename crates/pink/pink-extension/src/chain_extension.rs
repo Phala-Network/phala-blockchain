@@ -4,6 +4,7 @@ use ink::ChainExtensionInstance;
 use ink_lang as ink;
 
 pub use http_request::{HttpRequest, HttpResponse};
+pub use ink_env::AccountId;
 pub use signing::SigType;
 
 use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
@@ -67,7 +68,7 @@ pub trait PinkExt {
     /// - `key`: The key of the value to set the expiration time for.
     /// - `expire`: The expiration time from now in seconds.
     #[ink(extension = 7, handle_status = false, returns_result = false)]
-    fn cache_set_expire(key: &[u8], expire: u64) -> ();
+    fn cache_set_expire(key: &[u8], expire: u64);
 
     /// Get a value from the local cache.
     ///
@@ -91,6 +92,7 @@ pub trait PinkExt {
     fn getrandom(length: u8) -> Vec<u8>;
 
     /// Check if it is running in a Command context.
+    #[allow(clippy::wrong_self_convention)]
     #[ink(extension = 12, handle_status = false, returns_result = false)]
     fn is_in_transaction() -> bool;
 
@@ -103,6 +105,9 @@ pub trait PinkExt {
         message_hash: Hash,
         pubkey: EcdsaPublicKey,
     ) -> bool;
+    /// Get the contract id of the preinstalled pink-system
+    #[ink(extension = 15, handle_status = false, returns_result = false)]
+    fn system_contract_id() -> AccountId;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

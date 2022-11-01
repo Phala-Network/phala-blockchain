@@ -1,3 +1,5 @@
+SGX_MODE ?= SW
+
 .PHONY: all clean
 ifeq ($(SGX_MODE),SW)
 all: bin/Rocket.toml bin/app
@@ -11,6 +13,7 @@ bin/Rocket.toml: gramine-build/Rocket.toml
 bin/pruntime: target/release/pruntime
 	cp $? $@
 
+.PHONY: target/release/pruntime
 target/release/pruntime:
 	cargo build --release
 
@@ -23,3 +26,7 @@ all:
 clean:
 	make clean -C gramine-build
 endif
+
+.PHONY: clippy
+clippy:
+	cargo clippy --tests

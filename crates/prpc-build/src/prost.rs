@@ -109,7 +109,7 @@ impl crate::Method for Method {
                 .unwrap()
                 .to_token_stream()
         } else {
-            syn::parse_str::<syn::Path>(&format!("{}::{}", proto_path, self.input_type))
+            syn::parse_str::<syn::Path>(&format!("{proto_path}::{}", self.input_type))
                 .unwrap()
                 .to_token_stream()
         };
@@ -123,7 +123,7 @@ impl crate::Method for Method {
                 .unwrap()
                 .to_token_stream()
         } else {
-            syn::parse_str::<syn::Path>(&format!("{}::{}", proto_path, self.output_type))
+            syn::parse_str::<syn::Path>(&format!("{proto_path}::{}", self.output_type))
                 .unwrap()
                 .to_token_stream()
         };

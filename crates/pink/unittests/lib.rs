@@ -39,11 +39,11 @@ mod tests {
 
         let privkey = sig::derive_sr25519_key(b"salt");
         let privkey = &privkey[..32];
-        let pubkey: pink::EcdsaPublicKey = sig::get_public_key(&privkey, SigType::Ecdsa)
+        let pubkey: pink::EcdsaPublicKey = sig::get_public_key(privkey, SigType::Ecdsa)
             .try_into()
             .unwrap();
         let message = [1u8; 32];
-        let signature = sig::ecdsa_sign_prehashed(&privkey, message);
+        let signature = sig::ecdsa_sign_prehashed(privkey, message);
         let pass = sig::ecdsa_verify_prehashed(signature, message, pubkey);
         let fake_message = [2u8; 32];
         assert!(pass);

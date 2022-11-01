@@ -67,11 +67,11 @@ impl CacheDB {
     }
 
     fn get(&self, prefix: u8, block: BlockNumber) -> Option<Vec<u8>> {
-        self.0.get(&mk_key(prefix, block)).ok().flatten()
+        self.0.get(mk_key(prefix, block)).ok().flatten()
     }
 
     fn put(&self, prefix: u8, block: BlockNumber, value: &[u8]) -> Result<()> {
-        self.0.put(&mk_key(prefix, block), value)?;
+        self.0.put(mk_key(prefix, block), value)?;
         Ok(())
     }
 
@@ -121,6 +121,6 @@ impl CacheDB {
 
     pub fn put_metadata(&self, metadata: Metadata) -> Result<()> {
         let encoded = serde_json::to_vec(&metadata)?;
-        self.0.put(b"m-metadata", &encoded).map_err(Into::into)
+        self.0.put(b"m-metadata", encoded).map_err(Into::into)
     }
 }

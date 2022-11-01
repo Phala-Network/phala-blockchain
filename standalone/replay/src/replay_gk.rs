@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Error;
 use anyhow::Result;
-use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
+use phactory::{gk, BlockInfo, StorageExt};
 use phactory_api::blocks::BlockHeaderWithChanges;
 use phala_mq::Path as MqPath;
 use phala_mq::{MessageDispatcher, Sr25519Signer};
@@ -94,20 +94,19 @@ impl ReplayFactory {
         let messages = self
             .storage
             .mq_messages()
-            .map_err(|_| "Can not get mq messages from storage")?;
+            .or(Err("Can not get mq messages from storage"))?;
 
         let now_ms = self
             .storage
             .timestamp_now()
-            .ok_or_else(|| "No timestamp found in block")?;
+            .ok_or("No timestamp found in block")?;
 
-        let mut block = BlockInfo {
+        let block = BlockInfo {
             block_number,
             now_ms,
             storage: &self.storage,
             recv_mq: &mut self.recv_mq,
             send_mq: &mut Default::default(),
-            side_task_man: &mut SideTaskManager::default(),
         };
 
         block.recv_mq.reset_local_index();
@@ -117,7 +116,7 @@ impl ReplayFactory {
         let mut event_handler = |event: gk::EconomicEvent, state: &gk::WorkerInfo| {
             let record = EventRecord {
                 sequence: *next_seq as _,
-                pubkey: state.pubkey().clone(),
+                pubkey: *state.pubkey(),
                 block_number,
                 time_ms: now_ms,
                 event,
@@ -131,7 +130,7 @@ impl ReplayFactory {
         self.gk.will_process_block(&block);
         for message in messages {
             block.recv_mq.dispatch(message);
-            self.gk.process_messages(&mut block, &mut event_handler);
+            self.gk.process_messages(&block, &mut event_handler);
         }
         self.gk.did_process_block(&block, &mut event_handler);
 
@@ -204,7 +203,9 @@ pub async fn fetch_genesis_storage(
 async fn finalized_number(api: &ParachainApi) -> Result<BlockNumber> {
     let hash = api.rpc().finalized_head().await?;
     let header = api.rpc().header(Some(hash)).await?;
-    Ok(header.ok_or(anyhow::anyhow!("Header not found"))?.number)
+    Ok(header
+        .ok_or_else(|| anyhow::anyhow!("Header not found"))?
+        .number)
 }
 
 async fn wait_for_block(
@@ -236,8 +237,7 @@ pub async fn replay(args: Args) -> Result<()> {
 
     let mut api: ParachainApi = pherry::subxt_connect(&args.node_uri)
         .await
-        .expect("Failed to connect to substrate")
-        .into();
+        .expect("Failed to connect to substrate");
     log::info!("Connected to substrate at: {}", args.node_uri);
 
     let genesis_state = fetch_genesis_storage(&api, args.start_at).await?;
@@ -297,7 +297,7 @@ pub async fn replay(args: Args) -> Result<()> {
                     if args.checkpoint_interval > 0
                         && block_number >= args.checkpoint_interval + last_checkpoint_block
                     {
-                        let filename = format!("checkpoint.{}", block_number);
+                        let filename = format!("checkpoint.{block_number}");
                         log::info!("Taking checkpoint: {}", filename);
                         factory.dump_to_file(&filename);
                         let link = Path::new("checkpoint.latest");
@@ -324,7 +324,7 @@ pub async fn replay(args: Args) -> Result<()> {
         api = loop {
             log::info!("Reconnecting to substrate");
             let api = match pherry::subxt_connect(&args.node_uri).await {
-                Ok(client) => client.into(),
+                Ok(client) => client,
                 Err(err) => {
                     log::error!("Failed to connect to substrate: {}", err);
                     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -337,7 +337,7 @@ pub async fn replay(args: Args) -> Result<()> {
 }
 
 fn restart_required(error: &Error) -> bool {
-    format!("{}", error).contains("restart required")
+    format!("{error}").contains("restart required")
 }
 
 fn get_checkpoint_path(from: &Option<String>) -> Option<String> {

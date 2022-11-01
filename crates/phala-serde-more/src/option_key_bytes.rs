@@ -15,7 +15,8 @@ pub fn deserialize<'de, De: Deserializer<'de>>(
     let bytes: Option<Vec<u8>> = Deserialize::deserialize(der)?;
     bytes
         .map(|bytes| {
-            sr25519::Pair::from_seed_slice(&bytes).or(Err(de::Error::custom("invalid sr25519 key")))
+            sr25519::Pair::from_seed_slice(&bytes)
+                .map_err(|_| de::Error::custom("invalid sr25519 key"))
         })
         .transpose()
 }

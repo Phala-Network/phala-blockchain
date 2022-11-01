@@ -1,15 +1,9 @@
-[submodule "substrate"]
-	path = substrate
-	url = https://github.com/paritytech/substrate.git
 [submodule "crates/phactory/api/proto"]
 	path = crates/phactory/api/proto
 	url = https://github.com/Phala-Network/prpc-protos.git
-[submodule "standalone/pruntime/rizin"]
-	path = standalone/pruntime/rizin
-	url = https://github.com/rizinorg/rizin
 [submodule "subxt"]
 	path = subxt
 	url = https://github.com/Phala-Network/substrate-subxt.git
 [submodule "standalone/prouter/i2pd"]
 	path = standalone/prouter/i2pd
-	url = https://github.com/Soptq/i2pd.git
+	url = https://github.com/Phala-Network/i2pd.git

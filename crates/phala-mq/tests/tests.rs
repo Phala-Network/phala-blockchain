@@ -157,7 +157,7 @@ fn test_select_order() {
     dispatcher.dispatch(Message::new(sender.clone(), *b"path1", b"1".to_vec()));
     dispatcher.dispatch(Message::new(sender.clone(), *b"path0", b"2".to_vec()));
     dispatcher.dispatch(Message::new(sender.clone(), *b"path0", b"3".to_vec()));
-    dispatcher.dispatch(Message::new(sender.clone(), *b"path1", b"4".to_vec()));
+    dispatcher.dispatch(Message::new(sender, *b"path1", b"4".to_vec()));
     let mut payloads = Vec::new();
     loop {
         let ok = phala_mq::select! {

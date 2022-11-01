@@ -12,13 +12,11 @@ pub mod pallet {
 	use sp_std::prelude::*;
 
 	use crate::{mq::MessageOriginInfo, registry};
-	// Re-export
-	pub use crate::attestation::{Attestation, IasValidator};
 	use phala_types::{
 		contract::{
 			messaging::{
 				ClusterEvent, ClusterOperation, ContractOperation, ResourceType,
-				WorkerClusterReport, WorkerContractReport,
+				WorkerClusterReport,
 			},
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
@@ -41,12 +39,13 @@ pub mod pallet {
 		PubkeyAvailable {
 			contract: ContractId,
 			pubkey: ContractPublicKey,
+			deployer: ContractId,
 		},
 	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type InkCodeSizeLimit: Get<u32>;
 		type SidevmCodeSizeLimit: Get<u32>;
 	}
@@ -79,11 +78,23 @@ pub mod pallet {
 	pub type ClusterWorkers<T> =
 		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>, ValueQuery>;
 
+	/// The pink-system contract code used to deploy new clusters
+	#[pallet::storage]
+	pub type PinkSystemCode<T> = StorageValue<_, (u16, Vec<u8>), ValueQuery>;
+	/// The blake2_256 hash of the pink-system contract code.
+	#[pallet::storage]
+	pub type PinkSystemCodeHash<T> = StorageValue<_, H256, OptionQuery>;
+
+	/// The next pink-system contract code to be applied from the next block
+	#[pallet::storage]
+	pub type NextPinkSystemCode<T> = StorageValue<_, Vec<u8>, OptionQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		ClusterCreated {
 			cluster: ContractClusterId,
+			system_contract: ContractId,
 		},
 		ClusterPubkeyAvailable {
 			cluster: ContractClusterId,
@@ -113,15 +124,6 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			deployer: H256,
 		},
-		InstantiationFailed {
-			contract: ContractId,
-			cluster: ContractClusterId,
-			deployer: H256,
-		},
-		ClusterSetLogReceiver {
-			cluster: ContractClusterId,
-			log_handler: ContractId,
-		},
 		ClusterDestroyed {
 			cluster: ContractClusterId,
 		},
@@ -139,6 +141,7 @@ pub mod pallet {
 		InvalidSender,
 		WorkerNotFound,
 		PayloadTooLarge,
+		NoPinkSystemCode,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -168,7 +171,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
+			ensure!(!deploy_workers.is_empty(), Error::<T>::NoWorkerSpecified);
 			let workers = deploy_workers
 				.iter()
 				.map(|worker| {
@@ -181,12 +184,6 @@ pub mod pallet {
 				})
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
-			let cluster_info = ClusterInfo {
-				owner,
-				permission,
-				workers: deploy_workers,
-			};
-
 			let cluster_id = ClusterCounter::<T>::mutate(|counter| {
 				let cluster_id = *counter;
 				*counter += 1;
@@ -194,9 +191,36 @@ pub mod pallet {
 			});
 			let cluster = ContractClusterId::from_low_u64_be(cluster_id);
 
-			Clusters::<T>::insert(&cluster, &cluster_info);
-			Self::deposit_event(Event::ClusterCreated { cluster });
-			Self::push_message(ClusterEvent::DeployCluster { cluster, workers });
+			let system_code_hash =
+				PinkSystemCodeHash::<T>::get().ok_or(Error::<T>::NoPinkSystemCode)?;
+			let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
+			let system_contract_info = ContractInfo {
+				deployer: owner.clone(),
+				code_index: CodeIndex::WasmCode(system_code_hash),
+				salt: Default::default(),
+				cluster_id: cluster,
+				instantiate_data: selector,
+			};
+
+			let system_contract = system_contract_info.contract_id(crate::hashing::blake2_256);
+
+			let cluster_info = ClusterInfo {
+				owner: owner.clone(),
+				permission,
+				workers: deploy_workers,
+				system_contract,
+			};
+
+			Clusters::<T>::insert(cluster, &cluster_info);
+			Self::deposit_event(Event::ClusterCreated {
+				cluster,
+				system_contract,
+			});
+			Self::push_message(ClusterEvent::DeployCluster {
+				owner,
+				cluster,
+				workers,
+			});
 			Ok(())
 		}
 
@@ -259,7 +283,7 @@ pub mod pallet {
 				!Contracts::<T>::contains_key(contract_id),
 				Error::<T>::DuplicatedContract
 			);
-			Contracts::<T>::insert(&contract_id, &contract_info);
+			Contracts::<T>::insert(contract_id, &contract_info);
 
 			Self::push_message(ContractOperation::instantiate_code(contract_info.clone()));
 			Self::deposit_event(Event::Instantiating {
@@ -272,40 +296,24 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn cluster_set_log_handler(
-			origin: OriginFor<T>,
-			cluster: ContractClusterId,
-			log_handler: ContractId,
-		) -> DispatchResult {
-			let origin = ensure_signed(origin)?;
-			let cluster_info = Clusters::<T>::get(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
-			ensure!(
-				origin == cluster_info.owner,
-				Error::<T>::ClusterPermissionDenied
-			);
-
-			Self::push_message(
-				ClusterOperation::<T::AccountId, T::BlockNumber>::SetLogReceiver {
-					cluster,
-					log_handler,
-				},
-			);
-			Self::deposit_event(Event::ClusterSetLogReceiver {
-				cluster,
-				log_handler,
-			});
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
 		pub fn cluster_destroy(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
 			ensure_root(origin)?;
 
-			Clusters::<T>::take(&cluster).ok_or(Error::<T>::ClusterNotFound)?;
+			Clusters::<T>::take(cluster).ok_or(Error::<T>::ClusterNotFound)?;
 			Self::push_message(
 				ClusterOperation::<T::AccountId, T::BlockNumber>::DestroyCluster(cluster),
 			);
 			Self::deposit_event(Event::ClusterDestroyed { cluster });
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn set_pink_system_code(
+			origin: OriginFor<T>,
+			code: BoundedVec<u8, T::InkCodeSizeLimit>,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			NextPinkSystemCode::<T>::put(code);
 			Ok(())
 		}
 	}
@@ -324,7 +332,7 @@ pub mod pallet {
 			match message.payload {
 				ClusterRegistryEvent::PubkeyAvailable { cluster, pubkey } => {
 					// The cluster key can be over-written with the latest value by Gatekeeper
-					registry::ClusterKeys::<T>::insert(&cluster, &pubkey);
+					registry::ClusterKeys::<T>::insert(cluster, pubkey);
 					Self::deposit_event(Event::ClusterPubkeyAvailable { cluster, pubkey });
 				}
 			}
@@ -339,12 +347,18 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { contract, pubkey } => {
-					registry::ContractKeys::<T>::insert(&contract, &pubkey);
+				ContractRegistryEvent::PubkeyAvailable { contract, pubkey, deployer } => {
+					registry::ContractKeys::<T>::insert(contract, pubkey);
 					Self::deposit_event(Event::ContractPubkeyAvailable {
 						contract,
 						cluster,
 						pubkey,
+					});
+					ClusterContracts::<T>::append(cluster, contract);
+					Self::deposit_event(Event::Instantiated {
+						contract,
+						cluster,
+						deployer,
 					});
 				}
 			}
@@ -361,7 +375,7 @@ pub mod pallet {
 			match message.payload {
 				WorkerClusterReport::ClusterDeployed { id, pubkey } => {
 					// TODO.shelven: scalability concern for large number of workers
-					ClusterWorkers::<T>::append(&id, &worker_pubkey);
+					ClusterWorkers::<T>::append(id, worker_pubkey);
 					Self::deposit_event(Event::ClusterDeployed {
 						cluster: id,
 						pubkey,
@@ -378,44 +392,26 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_worker_contract_message_received(
-			message: DecodedMessage<WorkerContractReport>,
-		) -> DispatchResult {
-			let _worker_pubkey = match &message.sender {
-				MessageOrigin::Worker(worker_pubkey) => worker_pubkey,
-				_ => return Err(Error::<T>::InvalidSender.into()),
-			};
-			match message.payload {
-				WorkerContractReport::ContractInstantiated {
-					id,
-					cluster_id,
-					deployer,
-					pubkey: _,
-				} => {
-					let contracts = ClusterContracts::<T>::get(&cluster_id);
-					if !contracts.contains(&id) {
-						ClusterContracts::<T>::append(&cluster_id, &id);
-					}
-					Self::deposit_event(Event::Instantiated {
-						contract: id,
-						cluster: cluster_id,
-						deployer,
-					});
-				}
-				WorkerContractReport::ContractInstantiationFailed {
-					id,
-					cluster_id,
-					deployer,
-				} => {
-					Self::deposit_event(Event::InstantiationFailed {
-						contract: id,
-						cluster: cluster_id,
-						deployer,
-					});
-					// TODO.shelven: some cleanup?
-				}
+		pub fn get_system_contract(contract: &ContractId) -> Option<ContractId> {
+			let contract_info = Contracts::<T>::get(contract)?;
+			let cluster_info = Clusters::<T>::get(contract_info.cluster_id)?;
+			Some(cluster_info.system_contract)
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
+			// TODO.kevin: use `let else` to early return once the next rustc released
+			if let Some(next_code) = NextPinkSystemCode::<T>::take() {
+				let hash: H256 = crate::hashing::blake2_256(&next_code).into();
+				PinkSystemCodeHash::<T>::put(hash);
+				PinkSystemCode::<T>::mutate(|(ver, code)| {
+					*ver += 1;
+					*code = next_code;
+				});
 			}
-			Ok(())
+			Weight::zero()
 		}
 	}
 

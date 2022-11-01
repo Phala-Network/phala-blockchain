@@ -1,7 +1,9 @@
-use derive_more::FromStr;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "std")]
+use derive_more::FromStr;
 
 #[derive(
     Serialize,
@@ -16,9 +18,9 @@ use serde::{Deserialize, Serialize};
     Hash,
     PartialOrd,
     Ord,
-    FromStr,
 )]
+#[cfg_attr(feature = "std", derive(FromStr))]
 pub enum EndpointType {
-    I2p = 0,
+    I2p = 0_isize,
     Http,
 }

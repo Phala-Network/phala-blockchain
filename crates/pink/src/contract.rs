@@ -1,5 +1,6 @@
 use pallet_contracts_primitives::StorageDeposit;
 use phala_types::contract::contract_id_preimage;
+use pink_extension::predefined_accounts::ACCOUNT_RUNTIME;
 use scale::{Decode, Encode};
 use sp_core::hashing;
 use sp_runtime::DispatchError;
@@ -7,7 +8,9 @@ use sp_runtime::DispatchError;
 use crate::{
     runtime::{BoxedEventCallbacks, Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hash, QUERY_GAS_LIMIT, COMMAND_GAS_LIMIT, INSTANTIATE_GAS_LIMIT},
+    types::{
+        AccountId, BlockNumber, Hash, COMMAND_GAS_LIMIT, INSTANTIATE_GAS_LIMIT, QUERY_GAS_LIMIT,
+    },
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -60,6 +63,7 @@ impl Contract {
     /// * `code_hash`: The hash of contract code which has been uploaded.
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         storage: &mut Storage,
         origin: AccountId,
@@ -71,7 +75,7 @@ impl Contract {
         now: u64,
         callbacks: Option<BoxedEventCallbacks>,
     ) -> Result<(Self, ExecSideEffects), ExecError> {
-        if origin == AccountId::new(Default::default()) {
+        if origin == AccountId::new(ACCOUNT_RUNTIME) {
             return Err(ExecError {
                 source: DispatchError::BadOrigin,
                 message: "Default account is not allowed to create contracts".to_string(),
@@ -155,6 +159,7 @@ impl Contract {
     /// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
     /// # Return
     /// Returns the SCALE encoded method return value.
+    #[allow(clippy::too_many_arguments)]
     pub fn bare_call(
         &self,
         storage: &mut Storage,
@@ -165,7 +170,7 @@ impl Contract {
         now: u64,
         callbacks: Option<BoxedEventCallbacks>,
     ) -> (ContractExecResult, ExecSideEffects) {
-        if origin == AccountId::new(Default::default()) {
+        if origin == AccountId::new(ACCOUNT_RUNTIME) {
             return (
                 ContractExecResult {
                     gas_consumed: 0,
@@ -188,6 +193,7 @@ impl Contract {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn unchecked_bare_call(
         &self,
         storage: &mut Storage,
@@ -259,7 +265,7 @@ impl Contract {
 
             let (result, effects) = self.unchecked_bare_call(
                 storage,
-                AccountId::new(Default::default()),
+                AccountId::new(ACCOUNT_RUNTIME),
                 input_data,
                 false,
                 block_number,
@@ -276,6 +282,33 @@ impl Contract {
     pub fn set_on_block_end_selector(&mut self, selector: u32) {
         self.hooks.on_block_end = Some(selector)
     }
+
+    pub fn code_hash(&self, storage: &Storage) -> Option<Hash> {
+        #[derive(Encode, Decode)]
+        struct ContractInfo {
+            trie_id: Vec<u8>,
+            code_hash: Hash,
+        }
+        // The pallet-contracts doesn't export an API the get the code hash. So we dig it out from the storage.
+        let key = storage_map_prefix_twox_64_concat(b"Contracts", b"ContractInfoOf", &self.address);
+        let value = storage.get(&key)?;
+        let info = ContractInfo::decode(&mut &value[..]).ok()?;
+        Some(info.code_hash)
+    }
+}
+
+/// Calculates the Substrate storage key prefix for a StorageMap
+pub fn storage_map_prefix_twox_64_concat(
+    module: &[u8],
+    storage_item: &[u8],
+    key: &impl Encode,
+) -> Vec<u8> {
+    let mut bytes = sp_core::twox_128(module).to_vec();
+    bytes.extend(&sp_core::twox_128(storage_item)[..]);
+    let encoded = key.encode();
+    bytes.extend(sp_core::twox_64(&encoded));
+    bytes.extend(&encoded);
+    bytes
 }
 
 pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], ExecError> {

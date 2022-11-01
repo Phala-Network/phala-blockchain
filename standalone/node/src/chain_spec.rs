@@ -117,7 +117,7 @@ fn session_keys(
 
 /// Helper function to generate a crypto pair from seed
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
-	TPublic::Pair::from_string(&format!("//{}", seed), None)
+	TPublic::Pair::from_string(&format!("//{seed}"), None)
 		.expect("static values are valid; qed")
 		.public()
 }
@@ -139,7 +139,7 @@ pub fn authority_keys_from_seed(seed: &str) -> (
 	AuthorityDiscoveryId,
 ) {
 	(
-		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
+		get_account_id_from_seed::<sr25519::Public>(&format!("{seed}//stash")),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<BabeId>(seed),
@@ -402,7 +402,7 @@ pub fn testnet_genesis(
 	let phala_registry = match dev {
 		true => PhalaRegistryConfig {
 			workers: vec![
-				(dev_sr25519_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
+				(dev_sr25519_pubkey, dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
 			],
 			gatekeepers: Vec::new(),
 			benchmark_duration: 1,
@@ -495,7 +495,8 @@ pub fn testnet_genesis(
 		transaction_payment: Default::default(),
 		nomination_pools: NominationPoolsConfig {
 			min_create_bond: 10 * DOLLARS,
-			min_join_bond: 1 * DOLLARS,
+			#[allow(clippy::identity_op)]
+			min_join_bond: DOLLARS,
 			..Default::default()
 		},
 	}

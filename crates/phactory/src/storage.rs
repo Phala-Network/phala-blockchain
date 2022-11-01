@@ -1,6 +1,6 @@
 use crate::light_validation::{storage_proof::StorageProof, LightValidation};
-use std::string::ToString;
 use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
+use std::string::ToString;
 
 pub use storage_ext::{Storage, StorageExt};
 
@@ -11,14 +11,14 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         header: chain::Header,
         ancestry_proof: Vec<chain::Header>,
         grandpa_proof: Vec<u8>,
-        auhtority_set_change: Option<phactory_api::blocks::AuthoritySetChange>,
+        authority_set_change: Option<phactory_api::blocks::AuthoritySetChange>,
     ) -> Result<()> {
         self.submit_finalized_headers(
             bridge_id,
             header,
             ancestry_proof,
             grandpa_proof,
-            auhtority_set_change,
+            authority_set_change,
         )
         .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
     }
@@ -71,10 +71,21 @@ mod storage_ext {
             self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
         }
         fn mq_messages(&self) -> Result<Vec<Message>, Error> {
-            self.get_decoded_or_default(storage_prefix("PhalaMq", "OutboundMessages"))
+            for key in ["OutboundMessagesV2", "OutboundMessages"] {
+                let messages: Vec<Message> =
+                    self.get_decoded_or_default(storage_prefix("PhalaMq", key))?;
+                if !messages.is_empty() {
+                    info!("Got {} messages from {key}", messages.len());
+                    return Ok(messages);
+                }
+            }
+            Ok(vec![])
         }
         fn timestamp_now(&self) -> Option<chain::Moment> {
             self.get_decoded(storage_prefix("Timestamp", "Now"))
+        }
+        fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
+            self.get_decoded(storage_prefix("PhalaFatContracts", "PinkSystemCode"))
         }
     }
 

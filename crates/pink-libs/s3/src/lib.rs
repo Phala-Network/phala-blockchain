@@ -5,7 +5,6 @@ use pink_extension as pink;
 
 use scale::{Decode, Encode};
 // To encrypt/decrypt HTTP payloads
-use base16;
 
 // To generate AWS4 Signature
 use hmac::{Hmac, Mac};
@@ -109,7 +108,7 @@ impl<'a> S3<'a> {
         let payload_hash = format!("{:x}", Sha256::digest(value.unwrap_or_default()));
 
         let host = if self.virtual_host_mode {
-            format!("{}.{}", bucket_name, self.endpoint)
+            format!("{bucket_name}.{}", self.endpoint)
         } else {
             self.endpoint.to_owned()
         };
@@ -119,9 +118,9 @@ impl<'a> S3<'a> {
 
         // 1. Create canonical request
         let canonical_uri = if self.virtual_host_mode {
-            format!("/{}", object_key)
+            format!("/{object_key}")
         } else {
-            format!("/{}/{}", bucket_name, object_key)
+            format!("/{bucket_name}/{object_key}")
         };
         let canonical_querystring = "";
         let canonical_headers = format!(
@@ -141,8 +140,8 @@ impl<'a> S3<'a> {
 
         // 2. Create "String to sign"
         let algorithm = "AWS4-HMAC-SHA256";
-        let credential_scope = format!("{}/{}/{}/aws4_request", datestamp, self.region, service);
-        let canonical_request_hash = format!("{:x}", Sha256::digest(&canonical_request.as_bytes()));
+        let credential_scope = format!("{datestamp}/{}/{service}/aws4_request", self.region);
+        let canonical_request_hash = format!("{:x}", Sha256::digest(canonical_request.as_bytes()));
         let string_to_sign = format!(
             "{}\n{}\n{}\n{}",
             algorithm, amz_date, credential_scope, canonical_request_hash
@@ -155,8 +154,8 @@ impl<'a> S3<'a> {
             self.region.as_bytes(),
             service.as_bytes(),
         );
-        let signature_bytes = hmac_sign(&signature_key, &string_to_sign.as_bytes());
-        let signature = format!("{}", base16::encode_lower(&signature_bytes));
+        let signature_bytes = hmac_sign(&signature_key, string_to_sign.as_bytes());
+        let signature = base16::encode_lower(&signature_bytes);
 
         // 4. Create authorization header
         let authorization_header = format!(
@@ -179,7 +178,7 @@ impl<'a> S3<'a> {
         };
 
         // Make HTTP PUT request
-        let request_url = format!("https://{}{}", host, canonical_uri);
+        let request_url = format!("https://{host}{canonical_uri}");
         let response = pink::http_req!(method, request_url, body.to_vec(), headers);
 
         if response.status_code / 100 != 2 {
@@ -230,8 +229,7 @@ fn get_signature_key(
     let k_date = hmac_sign(&[b"AWS4", key].concat(), datestamp);
     let k_region = hmac_sign(&k_date, region_name);
     let k_service = hmac_sign(&k_region, service_name);
-    let k_signing = hmac_sign(&k_service, b"aws4_request");
-    return k_signing;
+    hmac_sign(&k_service, b"aws4_request")
 }
 
 #[cfg(test)]

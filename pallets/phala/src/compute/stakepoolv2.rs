@@ -55,7 +55,7 @@ pub mod pallet {
 		+ pallet_democracy::Config
 		+ pawnshop::Config
 	{
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		#[pallet::constant]
 		type MinContribution: Get<BalanceOf<Self>>;
@@ -73,10 +73,10 @@ pub mod pallet {
 		type MaxPoolWorkers: Get<u32>;
 
 		/// The origin that can turn on or off computing
-		type ComputingSwitchOrigin: EnsureOrigin<Self::Origin>;
+		type ComputingSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// The origin that can trigger backfill tasks.
-		type BackfillOrigin: EnsureOrigin<Self::Origin>;
+		type BackfillOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);

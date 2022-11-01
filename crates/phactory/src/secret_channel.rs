@@ -13,7 +13,6 @@ pub enum Payload<T> {
 mod sender {
     use crate::contracts::Data as OpaqueData;
     use phactory_api::crypto::{ecdh, EncryptedData};
-    use phala_crypto::ecdh::EcdhPublicKey;
     use phala_mq::traits::{MessageChannel, MessagePrepareChannel};
     use phala_mq::Path;
 
@@ -83,14 +82,6 @@ mod sender {
             let payload = self.encrypt_payload(data);
             self.inner.mq.prepare_message_to(&payload, to)
         }
-    }
-
-    pub fn bind_remote<'a, MsgChan: Clone>(
-        channel: &'a MsgChan,
-        ecdh_key: &'a ecdh::EcdhKey,
-        remote_pubkey: Option<&'a EcdhPublicKey>,
-    ) -> BoundSecretMessageChannel<'a, MsgChan> {
-        SecretMessageChannel::new(ecdh_key, channel).bind_remote_key(remote_pubkey)
     }
 }
 
@@ -241,6 +232,6 @@ pub(crate) mod ecdh_serde {
         D: Deserializer<'de>,
     {
         let secret = more::scale_bytes::deserialize(deserializer)?;
-        Ok(EcdhKey::from_secret(&secret).or(Err(serde::de::Error::custom("invalid ECDH key")))?)
+        EcdhKey::from_secret(&secret).map_err(|_| serde::de::Error::custom("invalid ECDH key"))
     }
 }

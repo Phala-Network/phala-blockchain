@@ -38,6 +38,11 @@ pub mod pallet {
     pub(crate) type SidevmCodes<T: Config> =
         StorageMap<_, Twox64Concat, T::Hash, WasmCode<T::AccountId>>;
 
+    /// The system contract address
+    #[pallet::storage]
+    #[pallet::getter(fn system_contract)]
+    pub(crate) type SystemContract<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
+
     #[pallet::pallet]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
@@ -75,6 +80,10 @@ pub mod pallet {
             let hash = T::Hashing::hash(&code);
             <SidevmCodes<T>>::insert(hash, WasmCode { owner, code });
             hash
+        }
+
+        pub fn set_system_contract(address: T::AccountId) {
+            <SystemContract<T>>::put(address);
         }
     }
 }

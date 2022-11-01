@@ -72,7 +72,9 @@ pub mod ocall_guest {
         }
     }
 }
-pub fn dispatch_call_fast_return<Env: Ocall + OcallEnv, Vm: VmMemory>(
+#[allow(clippy::too_many_arguments)]
+pub fn dispatch_ocall<Env: Ocall + OcallEnv, Vm: VmMemory>(
+    fast_return: bool,
     env: &mut Env,
     vm: &Vm,
     id: i32,
@@ -81,61 +83,56 @@ pub fn dispatch_call_fast_return<Env: Ocall + OcallEnv, Vm: VmMemory>(
     p2: IntPtr,
     p3: IntPtr,
 ) -> Result<i32> {
-    match id {
-        0 => {
-            let buffer = env.take_return().ok_or(OcallError::NotFound)?;
-            let len = p1 as usize;
-            if buffer.len() != len {
-                return Err(OcallError::InvalidParameter);
+    if fast_return {
+        match id {
+            0 => {
+                let buffer = env.take_return().ok_or(OcallError::NotFound)?;
+                let len = p1 as usize;
+                if buffer.len() != len {
+                    return Err(OcallError::InvalidParameter);
+                }
+                vm.copy_to_vm(&buffer, p0)?;
+                Ok(len as i32)
             }
-            vm.copy_to_vm(&buffer, p0)?;
-            Ok(len as i32)
+            104 => {
+                let (a, b) = {
+                    let mut buf = vm.slice_from_vm(p0, p1)?;
+                    Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
+                };
+                env.call_fo(a, b).map(|x| x.to_i32())
+            }
+            102 => {
+                let stack =
+                    StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
+                let (b, stack) = stack.pop_arg(vm)?;
+                let (a, stack) = stack.pop_arg(vm)?;
+                let _: StackedArgs<()> = stack;
+                env.poll_fi_fo(a, b).map(|x| x.to_i32())
+            }
+            _ => Err(OcallError::UnknownCallNumber),
         }
-        104 => {
-            let (a, b) = {
-                let mut buf = vm.slice_from_vm(p0, p1)?;
-                Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
-            };
-            env.call_fo(a, b).map(|x| x.to_i32())
-        }
-        102 => {
-            let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
-            let (b, stack) = stack.pop_arg(vm)?;
-            let (a, stack) = stack.pop_arg(vm)?;
-            let _: StackedArgs<()> = stack;
-            env.poll_fi_fo(a, b).map(|x| x.to_i32())
-        }
-        _ => Err(OcallError::UnknownCallNumber),
+    } else {
+        Ok(match id {
+            101 => {
+                let (a, b) = {
+                    let mut buf = vm.slice_from_vm(p0, p1)?;
+                    Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
+                };
+                let ret = env.call_slow(a, b);
+                env.put_return(ret?.encode()) as _
+            }
+            103 => {
+                let stack =
+                    StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
+                let (b, stack) = stack.pop_arg(vm)?;
+                let (a, stack) = stack.pop_arg(vm)?;
+                let _: StackedArgs<()> = stack;
+                let ret = env.call_fi(a, b);
+                env.put_return(ret?.encode()) as _
+            }
+            _ => return Err(OcallError::UnknownCallNumber),
+        })
     }
-}
-pub fn dispatch_call<Env: Ocall + OcallEnv, Vm: VmMemory>(
-    env: &mut Env,
-    vm: &Vm,
-    id: i32,
-    p0: IntPtr,
-    p1: IntPtr,
-    p2: IntPtr,
-    p3: IntPtr,
-) -> Result<i32> {
-    Ok(match id {
-        101 => {
-            let (a, b) = {
-                let mut buf = vm.slice_from_vm(p0, p1)?;
-                Decode::decode(&mut buf).or(Err(OcallError::InvalidParameter))?
-            };
-            let ret = env.call_slow(a, b);
-            env.put_return(ret?.encode()) as _
-        }
-        103 => {
-            let stack = StackedArgs::load(&[p0, p1, p2, p3]).ok_or(OcallError::InvalidParameter)?;
-            let (b, stack) = stack.pop_arg(vm)?;
-            let (a, stack) = stack.pop_arg(vm)?;
-            let _: StackedArgs<()> = stack;
-            let ret = env.call_fi(a, b);
-            env.put_return(ret?.encode()) as _
-        }
-        _ => return Err(OcallError::UnknownCallNumber),
-    })
 }
 pub fn ocall_id2name(id: i32) -> &'static str {
     match id {

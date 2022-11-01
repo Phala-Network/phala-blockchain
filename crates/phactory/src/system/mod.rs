@@ -1,13 +1,13 @@
 pub mod gk;
 mod master_key;
-mod side_tasks;
 
 use crate::{
     benchmark,
-    contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv},
+    contracts::{pink::cluster::Cluster, AnyContract, ContractsKeeper, ExecuteEnv, SidevmCode},
     pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
+    StorageExt,
 };
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
@@ -22,7 +22,7 @@ use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
 pub use master_key::RotatedMasterKey;
 use parity_scale_codec::{Decode, Encode};
-pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
+pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus, SystemInfo};
 use phala_crypto::{
     ecdh::EcdhKey,
     key_share,
@@ -38,30 +38,30 @@ use phala_types::{
         self,
         messaging::{
             BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
-            WorkerClusterReport, WorkerContractReport,
+            WorkerClusterReport,
         },
-        CodeIndex,
+        CodeIndex, ConvertTo,
     },
     messaging::{
-        AeadIV, BatchRotateMasterKeyEvent, Condition, DispatchMasterKeyEvent,
-        DispatchMasterKeyHistoryEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
-        KeyDistribution, WorkingReportEvent, NewGatekeeperEvent, PRuntimeManagementEvent,
-        RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+        AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, WorkingReportEvent,
+        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RetireCondition,
+        RotateMasterKeyEvent, SystemEvent, WorkerEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use side_tasks::geo_probe;
 use sidevm::service::{Command as SidevmCommand, CommandSender, Report, Spawner, SystemMessage};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
-use sp_io;
 
-use pink::runtime::PinkEvent;
+use pink::runtime::{HookPoint, PinkEvent};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
+
+const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 1;
 
 #[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
 #[error("TransactionError: {:?}", self)]
@@ -104,7 +104,10 @@ pub enum TransactionError {
     // for contract
     CodeNotFound,
     DuplicatedClusterDeploy,
+    FailedToUploadResourceToCluster,
     NoClusterOnGatekeeper,
+    NoPinkSystemCode,
+    BadPinkSystemVersion,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -424,8 +427,6 @@ pub struct System<Platform> {
     dev_mode: bool,
     pub(crate) sealing_path: String,
     pub(crate) storage_path: String,
-    enable_geoprobing: bool,
-    pub(crate) geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
@@ -456,7 +457,10 @@ pub struct System<Platform> {
     // Cached for query
     pub(crate) block_number: BlockNumber,
     pub(crate) now_ms: u64,
-    retired_versions: Vec<Condition>,
+    retired_versions: Vec<RetireCondition>,
+
+    // The version flag used to coordinate the pruntime's behavior.
+    pub(crate) consensus_version: u32,
 }
 
 thread_local! {
@@ -484,13 +488,12 @@ fn create_sidevm_service(worker_threads: usize) -> Spawner {
 }
 
 impl<Platform: pal::Platform> System<Platform> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         platform: Platform,
         dev_mode: bool,
         sealing_path: String,
         storage_path: String,
-        enable_geoprobing: bool,
-        geoip_city_db: String,
         identity_key: sr25519::Pair,
         ecdh_key: EcdhKey,
         trusted_identity_key: bool,
@@ -511,8 +514,6 @@ impl<Platform: pal::Platform> System<Platform> {
             dev_mode,
             sealing_path,
             storage_path,
-            enable_geoprobing,
-            geoip_city_db,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
             pruntime_management_events: recv_mq.subscribe_bound(),
@@ -533,6 +534,7 @@ impl<Platform: pal::Platform> System<Platform> {
             now_ms: 0,
             sidevm_spawner: create_sidevm_service(worker_threads),
             retired_versions: vec![],
+            consensus_version: 0,
         }
     }
 
@@ -627,6 +629,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .storage
             .snapshot();
         let sidevm_handle = contract.sidevm_handle();
+        let weight = contract.weight();
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
@@ -635,6 +638,7 @@ impl<Platform: pal::Platform> System<Platform> {
             sidevm_handle,
             log_handler: self.get_system_message_handler(&cluster_id),
             query_scheduler,
+            weight,
         };
         let origin = origin.cloned();
         Ok(async move {
@@ -682,15 +686,6 @@ impl<Platform: pal::Platform> System<Platform> {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
-        if self.enable_geoprobing {
-            geo_probe::process_block(
-                block.block_number,
-                &self.egress,
-                block.side_task_man,
-                &self.identity_key,
-                self.geoip_city_db.clone(),
-            );
-        }
         if let Some(gatekeeper) = &mut self.gatekeeper {
             gatekeeper.will_process_block(block);
         }
@@ -733,7 +728,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 let cluster_id = contract.cluster_id();
                 let mut env = ExecuteEnv {
-                    block: block,
+                    block,
                     contract_clusters: &mut self.contract_clusters,
                     log_handler: log_handler.clone(),
                 };
@@ -776,7 +771,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 Some(v) => v,
             };
             let mut env = ExecuteEnv {
-                block: block,
+                block,
                 contract_clusters: &mut self.contract_clusters,
                 log_handler: log_handler.clone(),
             };
@@ -813,10 +808,20 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
+        info!("PRuntime management event received: {:?}", event);
         match event {
             PRuntimeManagementEvent::RetirePRuntime(condition) => {
-                self.retired_versions.push(condition.clone());
+                self.retired_versions.push(condition);
                 self.check_retirement();
+            }
+            PRuntimeManagementEvent::SetConsensusVersion(version) => {
+                if version > MAX_SUPPORTED_CONSENSUS_VERSION {
+                    panic!(
+                        "Unsupported system consensus version {}, please upgrade the pRuntime",
+                        version
+                    );
+                }
+                self.consensus_version = version;
             }
         }
     }
@@ -825,10 +830,10 @@ impl<Platform: pal::Platform> System<Platform> {
         let cur_ver = Platform::app_version();
         for condition in self.retired_versions.iter() {
             let should_retire = match *condition {
-                Condition::VersionLessThan(major, minor, patch) => {
+                RetireCondition::VersionLessThan(major, minor, patch) => {
                     (cur_ver.major, cur_ver.minor, cur_ver.patch) < (major, minor, patch)
                 }
-                Condition::VersionIs(major, minor, patch) => {
+                RetireCondition::VersionIs(major, minor, patch) => {
                     (cur_ver.major, cur_ver.minor, cur_ver.patch) == (major, minor, patch)
                 }
             };
@@ -1162,24 +1167,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     self.egress.push_message(&message);
                 }
             }
-            ClusterOperation::SetLogReceiver {
-                cluster: cluster_id,
-                log_handler,
-            } => {
-                if !origin.is_pallet() {
-                    error!("Invalid origin {:?} sent a {:?}", origin, event);
-                    anyhow::bail!("Invalid origin");
-                }
-                let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
-                if let Some(cluster) = cluster {
-                    info!(
-                        "Set log handler for cluster {}: {:?}",
-                        hex_fmt::HexFmt(cluster_id),
-                        log_handler
-                    );
-                    cluster.config.log_handler = Some(log_handler);
-                }
-            }
             ClusterOperation::DestroyCluster(cluster_id) => {
                 if !origin.is_pallet() {
                     error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -1192,7 +1179,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 info!("Destroying cluster {}", hex_fmt::HexFmt(&cluster_id));
                 for contract in cluster.iter_contracts() {
-                    if let Some(contract) = self.contracts.remove(&contract) {
+                    if let Some(contract) = self.contracts.remove(contract) {
                         contract.destroy(&self.sidevm_spawner);
                     }
                 }
@@ -1237,89 +1224,12 @@ impl<Platform: pal::Platform> System<Platform> {
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
                     .context("Cluster not deployed")?;
-                // We generate a unique key for each contract instead of
-                // sharing the same cluster key to prevent replay attack
-                let contract_id = contract_info.contract_id(blake2_256);
-                let contract_key = get_contract_key(cluster.key(), &contract_id);
-                let contract_pubkey = contract_key.public();
-                let ecdh_key = contract_key
-                    .derive_ecdh_key()
-                    .or(Err(anyhow::anyhow!("Invalid contract key")))?;
-
-                let sender = MessageOrigin::Cluster(cluster_id);
-                let cluster_mq: SignedMessageChannel =
-                    block.send_mq.channel(sender, cluster.key().clone().into());
-
+                if cluster.system_contract().is_none() {
+                    anyhow::bail!("The system contract is missing, Cannot deploy contract");
+                }
                 match contract_info.code_index {
-                    CodeIndex::NativeCode(code_id) => {
-                        use contracts::*;
-                        let deployer = phala_types::messaging::AccountId(
-                            contract_info.clone().deployer.into(),
-                        );
-
-                        macro_rules! match_and_install_contract {
-                            ($(($id: path => $contract: expr)),*) => {{
-                                match code_id {
-                                    $(
-                                        $id => {
-                                            let id = contract_info.contract_id(blake2_256);
-                                            install_contract(
-                                                &mut self.contracts,
-                                                id,
-                                                $contract,
-                                                contract_key.clone(),
-                                                ecdh_key,
-                                                block,
-                                                cluster_id,
-                                            )?;
-                                            id
-                                        }
-                                    )*
-                                    _ => {
-                                        anyhow::bail!(
-                                            "Invalid contract code id: {:?}",
-                                            code_id
-                                        );
-                                    }
-                                }
-                            }};
-                        }
-
-                        let contract_id = match_and_install_contract! {
-                            (BALANCES => balances::Balances::new()),
-                            (ASSETS => assets::Assets::new()),
-                            (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.to_raw_vec()))),
-                            // (GEOLOCATION => geolocation::Geolocation::new()),
-                            (GUESS_NUMBER => guess_number::GuessNumber::new())
-                            // (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
-                        };
-
-                        let message = ContractRegistryEvent::PubkeyAvailable {
-                            contract: contract_id,
-                            pubkey: contract_pubkey.clone(),
-                        };
-                        cluster_mq.push_message(&message);
-
-                        cluster.add_contract(contract_id);
-
-                        let message = WorkerContractReport::ContractInstantiated {
-                            id: contract_id,
-                            cluster_id,
-                            deployer,
-                            pubkey: contract_pubkey,
-                        };
-                        info!("Native contract instantiate status: {:?}", message);
-                        self.egress.push_message(&message);
-                    }
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
-                        let contract_id = contract_info.contract_id(blake2_256);
-
-                        let message = ContractRegistryEvent::PubkeyAvailable {
-                            contract: contract_id,
-                            pubkey: contract_pubkey,
-                        };
-                        cluster_mq.push_message(&message);
 
                         let log_handler = self.get_system_message_handler(&cluster_id);
 
@@ -1338,7 +1248,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                     block.block_number,
                                 ),
                             )
-                            .with_context(|| format!("Contract deployer: {:?}", deployer))?;
+                            .with_context(|| format!("Contract deployer: {deployer:?}"))?;
 
                         let cluster = self
                             .contract_clusters
@@ -1367,7 +1277,7 @@ impl<Platform: pal::Platform> System<Platform> {
     fn decrypt_key_from(
         &self,
         ecdh_pubkey: &EcdhPublicKey,
-        encrypted_key: &Vec<u8>,
+        encrypted_key: &[u8],
         iv: &AeadIV,
     ) -> sr25519::Pair {
         let my_ecdh_key = self
@@ -1375,7 +1285,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
         let secret =
-            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, &encrypted_key, &iv)
+            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
                 .expect("Failed to decrypt dispatched key");
         sr25519::Pair::restore_from_secret_key(&secret)
     }
@@ -1446,7 +1356,7 @@ impl<Platform: pal::Platform> System<Platform> {
         // is updated, which may cause problem in the future.
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin.into());
+            return Err(TransactionError::BadOrigin);
         }
 
         // check the event sender identity and signature to ensure it's not forged with a leaked master key and really from
@@ -1456,7 +1366,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .or(Err(TransactionError::BadSenderSignature))?;
         let data = wrap_content_to_sign(&data, SignedContentType::MasterKeyRotation);
         if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
-            return Err(TransactionError::BadSenderSignature.into());
+            return Err(TransactionError::BadSenderSignature);
         }
         // valid master key but from a non-gk
         if !chain_state::is_gatekeeper(&event.sender, block.storage) {
@@ -1493,7 +1403,7 @@ impl<Platform: pal::Platform> System<Platform> {
             }) {
                 master_key::seal(
                     self.sealing_path.clone(),
-                    &gatekeeper.master_key_history(),
+                    gatekeeper.master_key_history(),
                     &self.identity_key,
                     &self.platform,
                 );
@@ -1520,7 +1430,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_cluster_key_distribution(
         &mut self,
-        _block: &mut BlockInfo,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
         event: BatchDispatchClusterKeyEvent<chain::BlockNumber>,
     ) -> anyhow::Result<()> {
@@ -1549,9 +1459,77 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &event.cluster);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
+            let system_code = block
+                .storage
+                .pink_system_code()
+                .map(|it| it.1)
+                .filter(|code| !code.is_empty())
+                .ok_or(TransactionError::NoPinkSystemCode)?;
+            info!(
+                "Worker: creating cluster {:?}, owner={:?}, code length={}",
+                event.cluster,
+                event.owner,
+                system_code.len()
+            );
             // register cluster
-            self.contract_clusters
+            let cluster = self
+                .contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+            let code_hash = cluster
+                .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
+                .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
+            info!("Worker: pink system code hash {:?}", code_hash);
+            let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
+
+            let (pink, effects) = Pink::instantiate(
+                event.cluster,
+                &mut cluster.storage,
+                event.owner.clone(),
+                code_hash,
+                selector,
+                vec![],
+                block.block_number,
+                block.now_ms,
+                None,
+            )?;
+            // Record the version
+            let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
+            let (result, _) = pink.instance.bare_call(
+                &mut cluster.storage,
+                event.owner.clone(),
+                selector,
+                true,
+                block.block_number,
+                block.now_ms,
+                None,
+            );
+            let output = result
+                .result
+                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            cluster.config.version = Decode::decode(&mut &output.data[..])
+                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            info!(
+                "Cluster deployed, id={:?}, system={:?}, version={:?}",
+                event.cluster,
+                pink.id(),
+                cluster.config.version
+            );
+            const SUPPORTED_API_VERSION: u16 = 0;
+            if cluster.config.version.0 > SUPPORTED_API_VERSION {
+                panic!("The pink-system version is not supported, please upgrade the pRuntime");
+            }
+            cluster.set_system_contract(pink.address());
+            apply_pink_side_effects(
+                effects,
+                event.cluster,
+                &mut self.contracts,
+                cluster,
+                block,
+                &self.egress,
+                &self.sidevm_spawner,
+                None,
+            );
+
             let message = WorkerClusterReport::ClusterDeployed {
                 id: event.cluster,
                 pubkey: cluster_key.public(),
@@ -1579,11 +1557,24 @@ impl<Platform: pal::Platform> System<Platform> {
         let master_public_key = self
             .gatekeeper
             .as_ref()
-            .map(|gk| hex::encode(&gk.master_pubkey()))
+            .map(|gk| hex::encode(gk.master_pubkey()))
             .unwrap_or_default();
         GatekeeperStatus {
             role: role.into(),
             master_public_key,
+        }
+    }
+
+    pub fn get_info(&self) -> SystemInfo {
+        SystemInfo {
+            registered: self.is_registered(),
+            gatekeeper: Some(self.gatekeeper_status()),
+            number_of_clusters: self.contract_clusters.len() as _,
+            number_of_contracts: self.contracts.len() as _,
+            public_key: hex::encode(self.identity_key.public()),
+            ecdh_public_key: hex::encode(self.ecdh_key.public()),
+            consensus_version: self.consensus_version,
+            max_supported_consensus_version: MAX_SUPPORTED_CONSENSUS_VERSION,
         }
     }
 }
@@ -1618,8 +1609,21 @@ impl<P: pal::Platform> System<P> {
             &self.sidevm_spawner,
         );
     }
+
+    pub(crate) fn upload_sidevm_code(
+        &mut self,
+        contract_id: ContractId,
+        code: Vec<u8>,
+    ) -> Result<()> {
+        let contract = self
+            .contracts
+            .get_mut(&contract_id)
+            .ok_or_else(|| anyhow!("Contract not found"))?;
+        contract.start_sidevm(&self.sidevm_spawner, SidevmCode::Code(code), true)
+    }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle_contract_command_result(
     result: TransactionResult,
     cluster_id: phala_mq::ContractClusterId,
@@ -1659,6 +1663,7 @@ pub fn handle_contract_command_result(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn apply_pink_side_effects(
     effects: ExecSideEffects,
     cluster_id: phala_mq::ContractClusterId,
@@ -1687,7 +1692,7 @@ fn apply_instantiating_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     block: &mut BlockInfo,
-    egress: &SignedMessageChannel,
+    _egress: &SignedMessageChannel,
 ) {
     for (deployer, address) in instantiated_events {
         let pink = Pink::from_address(address.clone(), cluster_id);
@@ -1697,10 +1702,12 @@ fn apply_instantiating_events(
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
         let id = pink.id();
+        let code_hash = pink.instance.code_hash(&cluster.storage);
         let result = install_contract(
             contracts,
             id,
             pink,
+            code_hash,
             contract_key.clone(),
             ecdh_key.clone(),
             block,
@@ -1717,15 +1724,16 @@ fn apply_instantiating_events(
 
         cluster.add_contract(id);
 
-        let message = WorkerContractReport::ContractInstantiated {
-            id,
-            cluster_id,
+        let message = ContractRegistryEvent::PubkeyAvailable {
+            contract: contract_id,
+            pubkey: contract_key.public(),
             deployer: phala_types::messaging::AccountId(deployer.into()),
-            pubkey: EcdhPublicKey(ecdh_key.public()),
         };
-
-        info!("pink instantiate status: {:?}", message);
-        egress.push_message(&message);
+        let sender = MessageOrigin::Cluster(cluster_id);
+        let cluster_mq: SignedMessageChannel =
+            block.send_mq.channel(sender, cluster.key().clone().into());
+        cluster_mq.push_message(&message);
+        info!("Pink instantiated: cluster={cluster_id} {message:?}");
     }
 }
 
@@ -1736,49 +1744,79 @@ pub(crate) fn apply_pink_events(
     cluster: &mut Cluster,
     spawner: &Spawner,
 ) {
-    for (address, event) in pink_events {
-        let id = contracts::contract_address_to_id(&address);
-        let contract = match contracts.get_mut(&id) {
-            Some(contract) => contract,
-            None => {
-                panic!(
-                    "BUG: Unknown contract sending pink event, address={:?}, cluster_id={:?}",
-                    address, cluster_id
-                );
-            }
-        };
-        let vmid = sidevm::ShortId(address.as_ref());
+    for (origin, event) in pink_events {
+        macro_rules! get_contract {
+            ($origin: expr) => {{
+                match contracts.get_mut(&$origin.convert_to()) {
+                    Some(contract) => contract,
+                    None => {
+                        error!(
+                            "Unknown contract sending pink event, address={:?}, cluster_id={:?}",
+                            $origin, cluster_id
+                        );
+                        continue;
+                    }
+                }
+            }};
+        }
+
+        let event_name = event.name();
+        macro_rules! ensure_system {
+            () => {
+                if Some(&origin) != cluster.system_contract().as_ref() {
+                    error!(
+                        "Unpermitted operation from {:?}, operation={:?}",
+                        &origin, &event_name
+                    );
+                    continue;
+                }
+            };
+        }
         match event {
             PinkEvent::Message(message) => {
+                let contract = get_contract!(&origin);
                 contract.push_message(message.payload, message.topic);
             }
             PinkEvent::OspMessage(message) => {
+                let contract = get_contract!(&origin);
                 contract.push_osp_message(
                     message.message.payload,
                     message.message.topic,
                     message.remote_pubkey.as_ref(),
                 );
             }
-            PinkEvent::OnBlockEndSelector(selector) => {
-                contract.set_on_block_end_selector(selector);
-            }
-            PinkEvent::StartSidevm {
-                code_hash,
-                auto_restart,
+            PinkEvent::SetHook {
+                hook,
+                contract: target_contract,
+                selector,
             } => {
-                let code_hash = code_hash.into();
-                let wasm_code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
-                    Some(code) => code,
-                    None => {
-                        error!(target: "sidevm", "[{vmid}] Start sidevm failed: code not found, code_hash={code_hash:?}");
-                        continue;
+                ensure_system!();
+                let contract = get_contract!(&target_contract);
+                match hook {
+                    HookPoint::OnBlockEnd => {
+                        contract.set_on_block_end_selector(selector);
                     }
+                }
+            }
+            PinkEvent::DeploySidevmTo {
+                contract: target_contract,
+                code_hash,
+            } => {
+                ensure_system!();
+                let vmid = sidevm::ShortId(target_contract.as_ref());
+                let target_contract = get_contract!(&target_contract);
+                let code_hash = code_hash.into();
+                let code = match cluster.get_resource(ResourceType::SidevmCode, &code_hash) {
+                    Some(code) => SidevmCode::Code(code),
+                    None => SidevmCode::Hash(code_hash),
                 };
-                if let Err(err) = contract.start_sidevm(&spawner, wasm_code, auto_restart) {
+                if let Err(err) = target_contract.start_sidevm(spawner, code, false) {
                     error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
+                let vmid = sidevm::ShortId(origin.as_ref());
+                let contract = get_contract!(&origin);
                 if let Err(err) =
                     contract.push_message_to_sidevm(SidevmCommand::PushMessage(payload))
                 {
@@ -1786,12 +1824,34 @@ pub(crate) fn apply_pink_events(
                 }
             }
             PinkEvent::CacheOp(op) => {
-                pink::local_cache::local_cache_op(&address, op);
+                pink::local_cache::local_cache_op(&origin, op);
             }
             PinkEvent::StopSidevm => {
+                let vmid = sidevm::ShortId(origin.as_ref());
+                let contract = get_contract!(&origin);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
                     error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
                 }
+            }
+            PinkEvent::ForceStopSidevm {
+                contract: target_contract,
+            } => {
+                ensure_system!();
+                let vmid = sidevm::ShortId(target_contract.as_ref());
+                let contract = get_contract!(&origin);
+                if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
+                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
+                }
+            }
+            PinkEvent::SetLogHandler(handler) => {
+                ensure_system!();
+                info!("Set logger for {:?} to {:?}", cluster_id, handler);
+                cluster.config.log_handler = Some(handler.convert_to());
+            }
+            PinkEvent::SetContractWeight { contract, weight } => {
+                ensure_system!();
+                let contract = get_contract!(&contract);
+                contract.set_weight(weight);
             }
         }
     }
@@ -1805,13 +1865,14 @@ fn apply_ink_side_effects(
 ) {
     if let Some(log_handler) = log_handler {
         for (contract, topics, payload) in ink_events {
-            if let Err(_) =
-                log_handler.try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
+            if log_handler
+                .try_send(SidevmCommand::PushSystemMessage(SystemMessage::PinkEvent {
                     contract: contract.into(),
                     block_number: block.block_number,
                     payload,
                     topics: topics.into_iter().map(Into::into).collect(),
                 }))
+                .is_err()
             {
                 warn!("Cluster [{cluster_id}] emit ink event to log handler failed");
             }
@@ -1819,11 +1880,12 @@ fn apply_ink_side_effects(
     }
 }
 
-#[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn install_contract(
     contracts: &mut ContractsKeeper,
     contract_id: phala_mq::ContractId,
     contract: impl Into<AnyContract>,
+    code_hash: Option<crate::H256>,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
     block: &mut BlockInfo,
@@ -1845,9 +1907,10 @@ pub fn install_contract(
         contract,
         mq,
         cmd_mq,
-        ecdh_key.clone(),
+        ecdh_key,
         cluster_id,
         contract_id,
+        code_hash,
     );
     contracts.insert(wrapped);
     Ok(())
@@ -1865,7 +1928,7 @@ impl fmt::Display for Error {
         match self {
             Error::NotAuthorized => write!(f, "not authorized"),
             Error::TxHashNotFound => write!(f, "transaction hash not found"),
-            Error::Other(e) => write!(f, "{}", e),
+            Error::Other(e) => write!(f, "{e}"),
         }
     }
 }
@@ -1896,82 +1959,6 @@ pub mod chain_state {
     ) -> Option<chain::BlockNumber> {
         let key =
             storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
-        chain_storage.get_decoded(&key)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sp_runtime::AccountId32;
-
-    const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-
-    #[test]
-    fn test_on_block_end() {
-        let cluster_key = sp_core::Pair::from_seed(&Default::default());
-        let mut contracts = ContractsKeeper::default();
-        let mut keeper = ClusterKeeper::default();
-        let wasm_bin = pink::load_test_wasm("hooks_test");
-        let cluster_id = phala_mq::ContractClusterId(Default::default());
-        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
-        let code_hash = cluster
-            .upload_resource(ALICE.clone(), ResourceType::InkCode, wasm_bin)
-            .unwrap();
-        let effects = keeper
-            .instantiate_contract(
-                cluster_id,
-                ALICE,
-                code_hash,
-                vec![0xed, 0x4b, 0x9d, 0x1b],
-                Default::default(),
-                1,
-                1,
-                None,
-            )
-            .unwrap();
-        insta::assert_debug_snapshot!(effects);
-
-        let cluster = keeper.get_cluster_mut(&cluster_id).unwrap();
-        let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
-        let signer = sr25519::Pair::from_seed(&Default::default());
-        let egress = builder
-            .send_mq
-            .channel(MessageOrigin::Gatekeeper, signer.into());
-        let mut block_info = builder.build();
-        let spawner = create_sidevm_service(4);
-
-        apply_pink_side_effects(
-            effects,
-            cluster_id,
-            &mut contracts,
-            cluster,
-            &mut block_info,
-            &egress,
-            &spawner,
-            None,
-        );
-
-        insta::assert_display_snapshot!(contracts.len());
-
-        let mut env = ExecuteEnv {
-            block: &mut block_info,
-            contract_clusters: &mut keeper,
-            log_handler: None,
-        };
-
-        for contract in contracts.values_mut() {
-            let effects = contract.on_block_end(&mut env).unwrap();
-            insta::assert_debug_snapshot!(effects);
-        }
-
-        let messages: Vec<_> = builder
-            .send_mq
-            .all_messages()
-            .into_iter()
-            .map(|msg| (msg.sequence, msg.message))
-            .collect();
-        // WorkerContractReport::ContractInstantiated
-        insta::assert_debug_snapshot!(messages);
+        chain_storage.get_decoded(key)
     }
 }

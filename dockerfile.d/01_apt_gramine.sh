@@ -7,4 +7,5 @@ echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/gramine-keyring.gpg] https:/
 apt update
 apt install gramine -y
 apt autoremove -y
+python3 -m pip install -U protobuf==3.20
 rm -rf /var/lib/apt/lists/*

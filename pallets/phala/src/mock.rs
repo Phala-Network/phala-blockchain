@@ -70,6 +70,7 @@ parameter_types! {
 	pub const MinInitP: u32 = 1;
 	pub const ComputingEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
+	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
 }
@@ -77,8 +78,8 @@ impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -86,7 +87,7 @@ impl system::Config for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
@@ -117,7 +118,7 @@ impl pallet_scheduler::Config for Test {
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -154,9 +155,9 @@ impl mq::Config for Test {
 
 pub struct MqCallMatcher;
 impl mq::CallMatcher<Test> for MqCallMatcher {
-	fn match_call(call: &Call) -> Option<&mq::Call<Test>> {
+	fn match_call(call: &RuntimeCall) -> Option<&mq::Call<Test>> {
 		match call {
-			Call::PhalaMq(mq_call) => Some(mq_call),
+			RuntimeCall::PhalaMq(mq_call) => Some(mq_call),
 			_ => None,
 		}
 	}
@@ -166,6 +167,7 @@ impl registry::Config for Test {
 	type Event = Event;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
+	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
@@ -396,8 +398,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	.assimilate_storage(&mut t)
 	.unwrap();
 	crate::registry::GenesisConfig::<Test> {
-		workers: vec![(zero_pubkey.clone(), zero_ecdh_pubkey, None)],
-		gatekeepers: vec![(zero_pubkey.clone())],
+		workers: vec![(zero_pubkey, zero_ecdh_pubkey, None)],
+		gatekeepers: vec![zero_pubkey],
 		benchmark_duration: 0u32,
 	}
 	.assimilate_storage(&mut t)
@@ -411,19 +413,19 @@ pub fn set_block_1() {
 	System::set_block_number(1);
 }
 
-pub fn take_events() -> Vec<Event> {
+pub fn take_events() -> Vec<RuntimeEvent> {
 	let evt = System::events()
 		.into_iter()
 		.map(|evt| evt.event)
 		.collect::<Vec<_>>();
-	println!("event(): {:?}", evt);
+	println!("event(): {evt:?}");
 	System::reset_events();
 	evt
 }
 
 pub fn take_messages() -> Vec<Message> {
 	let messages = PhalaMq::messages();
-	println!("messages(): {:?}", messages);
+	println!("messages(): {messages:?}");
 	mq::OutboundMessages::<Test>::kill();
 	messages
 }
@@ -447,7 +449,7 @@ pub fn setup_relaychain_genesis_allowlist() {
 	use frame_support::assert_ok;
 	let sample: H256 = H256::repeat_byte(1);
 	assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(
-		Origin::root(),
+		RuntimeOrigin::root(),
 		sample
 	));
 }
@@ -458,8 +460,8 @@ pub fn setup_workers(n: u8) {
 	for i in 1..=n {
 		let worker = worker_pubkey(i);
 		assert_ok!(PhalaRegistry::force_register_worker(
-			Origin::root(),
-			worker.clone(),
+			RuntimeOrigin::root(),
+			worker,
 			ecdh_pubkey(1),
 			Some(1)
 		));
@@ -474,8 +476,8 @@ pub fn setup_workers_linked_operators(n: u8) {
 	for i in 1..=n {
 		let worker = worker_pubkey(i);
 		assert_ok!(PhalaRegistry::force_register_worker(
-			Origin::root(),
-			worker.clone(),
+			RuntimeOrigin::root(),
+			worker,
 			ecdh_pubkey(1),
 			Some(i as _)
 		));

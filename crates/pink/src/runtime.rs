@@ -1,15 +1,12 @@
 mod extension;
 mod mock_types;
 mod pallet_pink;
+mod weights;
 
 use std::time::{Duration, Instant};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::{
-    parameter_types,
-    traits::ConstU128,
-    weights::{constants::WEIGHT_PER_SECOND, Weight},
-};
+use frame_support::{parameter_types, traits::ConstU128, weights::Weight};
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{
     generic::Header,
@@ -18,7 +15,7 @@ use sp_runtime::{
 };
 
 pub use extension::{get_side_effects, ExecSideEffects};
-pub use pink_extension::{Message, OspMessage, PinkEvent};
+pub use pink_extension::{HookPoint, Message, OspMessage, PinkEvent};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
@@ -37,6 +34,8 @@ frame_support::construct_runtime! {
     }
 }
 
+const WEIGHT_PER_SECOND: Weight = Weight::from_ref_time(1_000_000_000_000);
+
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
@@ -51,16 +50,16 @@ impl frame_system::Config for PinkRuntime {
     type BlockWeights = RuntimeBlockWeights;
     type BlockLength = ();
     type DbWeight = ();
-    type Origin = Origin;
+    type RuntimeOrigin = RuntimeOrigin;
     type Index = Index;
     type BlockNumber = BlockNumber;
     type Hash = Hash;
-    type Call = Call;
+    type RuntimeCall = RuntimeCall;
     type Hashing = Hashing;
     type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header<Self::BlockNumber, Self::Hashing>;
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
@@ -98,7 +97,6 @@ parameter_types! {
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
-    pub const RelaxedMaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const TransactionByteFee: u64 = 0;
     pub const MaxStorageKeyLen: u32 = 128;
 
@@ -122,12 +120,12 @@ impl Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
     type Currency = mock_types::NoCurrency;
-    type Event = Event;
-    type Call = Call;
+    type RuntimeEvent = RuntimeEvent;
+    type RuntimeCall = RuntimeCall;
     type CallFilter = frame_support::traits::Everything;
     type CallStack = [Frame<Self>; 31];
     type WeightPrice = Self;
-    type WeightInfo = ();
+    type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
@@ -137,8 +135,21 @@ impl Config for PinkRuntime {
     type AddressGenerator = Pink;
     type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
-    type RelaxedMaxCodeLen = RelaxedMaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
+}
+
+#[test]
+fn detect_parameter_changes() {
+    use sp_core::Get;
+    insta::assert_debug_snapshot!((
+        <PinkRuntime as frame_system::Config>::BlockWeights::get(),
+        <PinkRuntime as Config>::Schedule::get(),
+        <PinkRuntime as Config>::ContractAccessWeight::get(),
+        <PinkRuntime as Config>::DeletionQueueDepth::get(),
+        <PinkRuntime as Config>::DeletionWeightLimit::get(),
+        <PinkRuntime as Config>::MaxCodeLen::get(),
+        <PinkRuntime as Config>::MaxStorageKeyLen::get(),
+    ));
 }
 
 #[derive(Clone, Copy)]
@@ -192,11 +203,13 @@ pub fn emit_log(id: &AccountId, level: u8, msg: String) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::type_complexity)]
+
     use pallet_contracts::Config;
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
-        runtime::{Contracts, Origin, PinkRuntime},
+        runtime::{Contracts, PinkRuntime, RuntimeOrigin as Origin},
         types::{ENOUGH, QUERY_GAS_LIMIT},
     };
     pub use frame_support::weights::Weight;
@@ -233,7 +246,7 @@ mod tests {
 
             Contracts::call(
                 Origin::signed(ALICE),
-                addr.clone(),
+                addr,
                 0,
                 QUERY_GAS_LIMIT * 2,
                 None,

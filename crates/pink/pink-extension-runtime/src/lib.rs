@@ -2,7 +2,9 @@ use std::borrow::Cow;
 use std::{fmt::Display, str::FromStr, time::Duration};
 
 use pink_extension::{
-    chain_extension::{HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded},
+    chain_extension::{
+        self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
+    },
     EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
@@ -233,6 +235,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
             &message_hash,
             &public,
         ))
+    }
+
+    fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
+        Err("No default system contract id".into())
     }
 }
 

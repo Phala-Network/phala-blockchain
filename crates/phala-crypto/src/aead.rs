@@ -74,7 +74,7 @@ mod test {
         let mut encrypted_message = Vec::new();
         encrypted_message.extend_from_slice(&message);
 
-        let _ = encrypt(&iv, &secret, &mut encrypted_message).unwrap();
+        encrypt(&iv, &secret, &mut encrypted_message).unwrap();
         let decrypted_messgae = decrypt(&iv, &secret, &mut encrypted_message[..]).unwrap();
 
         assert_eq!(decrypted_messgae, message);

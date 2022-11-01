@@ -1,6 +1,8 @@
+#![allow(clippy::let_unit_value)]
+
 use frame_support::assert_ok;
 use hex_literal::hex;
-use pink::{Contract, Storage};
+use pink::{runtime::HookPoint, Contract, Storage};
 use pink_extension::PinkEvent;
 use sp_runtime::AccountId32;
 
@@ -42,7 +44,7 @@ fn test_ink_flip() {
         .unwrap()
         .0;
 
-    assert_eq!(result, true); // Should equal to the init value
+    assert!(result); // Should equal to the init value
 
     let _: () = contract
         .call_with_selector(
@@ -70,7 +72,7 @@ fn test_ink_flip() {
         .unwrap()
         .0;
 
-    assert_eq!(result, false); // Should be flipped
+    assert!(!result); // Should be flipped
 
     let result: (u32, u128) = contract
         .call_with_selector(
@@ -229,10 +231,20 @@ fn test_on_block_end() {
 
     insta::assert_debug_snapshot!(effects);
 
-    for (account, event) in effects.pink_events {
-        if let PinkEvent::OnBlockEndSelector(selector) = event {
-            if account == contract.address {
-                contract.set_on_block_end_selector(selector);
+    for (_account, event) in effects.pink_events {
+        if let PinkEvent::SetHook {
+            hook,
+            contract: target_contract,
+            selector,
+        } = event
+        {
+            use phala_types::contract::ConvertTo;
+            match hook {
+                HookPoint::OnBlockEnd => {
+                    if target_contract == contract.address.convert_to() {
+                        contract.set_on_block_end_selector(selector);
+                    }
+                }
             }
         }
     }
@@ -288,15 +300,6 @@ fn test_logging() {
 fn test_use_cache() {
     test_with_wasm(
         include_bytes!("./fixtures/use_cache/use_cache.wasm"),
-        hex!("ed4b9d1b"),
-        hex!("928b2036"),
-    );
-}
-
-#[test]
-fn test_start_sidevm() {
-    test_with_wasm(
-        include_bytes!("./fixtures/start_sidevm.wasm"),
         hex!("ed4b9d1b"),
         hex!("928b2036"),
     );

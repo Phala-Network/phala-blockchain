@@ -72,7 +72,7 @@ impl AeadInPlace for Aes128Gcm {
         if buffer.len() != out.len() {
             return Err(aead::Error);
         }
-        buffer.copy_from_slice(&out);
+        buffer.copy_from_slice(out);
         Ok(())
     }
 

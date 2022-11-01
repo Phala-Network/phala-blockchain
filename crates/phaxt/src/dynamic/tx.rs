@@ -1,16 +1,15 @@
 use parity_scale_codec::Encode;
-use phala_pallets::pallet_registry::Attestation;
 use phala_types::messaging::SignedMessage;
 use subxt::{tx::StaticTxPayload, utils::Encoded};
 
 pub fn register_worker(
     pruntime_info: Vec<u8>,
-    attestation: Attestation,
+    attestation: Vec<u8>,
 ) -> StaticTxPayload<Encoded> {
-    let args = (Encoded(pruntime_info), attestation).encode();
+    let args = (Encoded(pruntime_info), Encoded(attestation)).encode();
     StaticTxPayload::new(
         "PhalaRegistry",
-        "register_worker",
+        "register_worker_v2",
         Encoded(args),
         Default::default(),
     )

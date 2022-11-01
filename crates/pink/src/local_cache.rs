@@ -125,11 +125,12 @@ impl LocalCache {
         self.maybe_clear_expired();
         if expire == 0 {
             let _ = self.remove(id.as_ref(), key.as_ref());
-        } else {
-            self.storages
-                .get_mut(id.as_ref())
-                .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
-                .map(|v| v.expire_at = now().saturating_add(expire));
+        } else if let Some(v) = self
+            .storages
+            .get_mut(id.as_ref())
+            .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
+        {
+            v.expire_at = now().saturating_add(expire)
         }
     }
 
@@ -209,7 +210,7 @@ mod test {
         }
     }
 
-    fn cow<'a>(s: &'a impl AsRef<[u8]>) -> Cow<'a, [u8]> {
+    fn cow(s: &impl AsRef<[u8]>) -> Cow<[u8]> {
         Cow::Borrowed(s.as_ref())
     }
 

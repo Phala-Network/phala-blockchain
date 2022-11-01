@@ -44,7 +44,7 @@ async fn telemetry_works() {
 			match server.next_event().await {
 				// New connection on the listener.
 				Event::ConnectionOpen { address } => {
-					println!("New connection from {:?}", address);
+					println!("New connection from {address:?}");
 					server.accept();
 				},
 
@@ -69,8 +69,8 @@ async fn telemetry_works() {
 	let mut substrate = process::Command::new(cargo_bin("phala-node"));
 
 	let mut substrate = substrate
-		.args(&["--dev", "--tmp", "--telemetry-url"])
-		.arg(format!("ws://{} 10", addr))
+		.args(["--dev", "--tmp", "--telemetry-url"])
+		.arg(format!("ws://{addr} 10"))
 		.stdout(process::Stdio::piped())
 		.stderr(process::Stdio::piped())
 		.stdin(process::Stdio::null())
