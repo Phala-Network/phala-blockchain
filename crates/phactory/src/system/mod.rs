@@ -1286,6 +1286,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             code_hash,
                             contract_info.instantiate_data,
                             contract_info.salt,
+                            false,
                             tx_args,
                         )
                         .with_context(|| format!("Contract deployer: {deployer:?}"))?;
@@ -1550,7 +1551,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 callbacks: None,
             };
             let (pink, effects) =
-                Pink::instantiate(event.cluster, code_hash, selector, vec![], args)?;
+                Pink::instantiate(event.cluster, code_hash, selector, vec![], false, args)?;
             // Record the version
             let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
             let args = ::pink::TransactionArguments {

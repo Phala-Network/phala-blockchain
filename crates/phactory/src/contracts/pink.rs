@@ -24,6 +24,15 @@ pub enum Query {
         transfer: u128,
     },
     SidevmQuery(Vec<u8>),
+    InkInstantiate {
+        code_hash: sp_core::H256,
+        salt: Vec<u8>,
+        instantiate_data: Vec<u8>,
+        /// Amount of token deposit to the caller.
+        deposit: u128,
+        /// Amount of token transfer from the caller to the target contract.
+        transfer: u128,
+    },
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -53,13 +62,14 @@ impl Pink {
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
+        in_query: bool,
         tx_args: ::pink::TransactionArguments,
     ) -> Result<(Self, ExecSideEffects)> {
         let origin = tx_args.origin.clone();
-        let (instance, effects) = pink::Contract::new(code_hash, input_data, salt, tx_args)
-            .map_err(
-                |err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,),
-            )?;
+        let (instance, effects) =
+            pink::Contract::new(code_hash, input_data, salt, in_query, tx_args).map_err(|err| {
+                anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,)
+            })?;
         Ok((
             Self {
                 cluster_id,
@@ -170,6 +180,52 @@ impl Pink {
                 })
                 .await
                 .or(Err(QueryError::Timeout))?
+            }
+            Query::InkInstantiate {
+                code_hash,
+                salt,
+                instantiate_data,
+                deposit,
+                transfer,
+            } => {
+                let _guard = context
+                    .query_scheduler
+                    .acquire(self.id(), context.weight)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
+
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
+                let storage = &mut context.storage;
+                if deposit > 0 {
+                    storage.deposit(&origin, deposit);
+                }
+                let args = ::pink::TransactionArguments {
+                    origin,
+                    now: context.now_ms,
+                    block_number: context.block_number,
+                    storage,
+                    transfer,
+                    gas_limit: WEIGHT_PER_SECOND * 10,
+                    gas_free: true,
+                    storage_deposit_limit: None,
+                    callbacks: ContractEventCallback::from_log_sender(
+                        &context.log_handler,
+                        context.block_number,
+                    ),
+                };
+                let (mut ink_result, _effects) =
+                    ::pink::Contract::instantiate(code_hash, instantiate_data, salt, true, args);
+                if ink_result.result.is_err() {
+                    log::error!(
+                        "Pink [{:?}] est instantiate error: {:?}",
+                        self.id(),
+                        ink_result
+                    );
+                }
+                // Prevent side-channel attack
+                ink_result.gas_consumed = mask_low_bits(ink_result.gas_consumed);
+                ink_result.gas_required = mask_low_bits(ink_result.gas_required);
+                Ok(Response::Payload(ink_result.encode()))
             }
         }
     }

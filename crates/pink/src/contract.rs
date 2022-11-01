@@ -75,9 +75,10 @@ impl Contract {
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
+        in_query: bool,
         args: TransactionArguments,
     ) -> Result<(Self, ExecSideEffects), DispatchError> {
-        let (result, effects) = Self::instantiate(code_hash, input_data, salt, args);
+        let (result, effects) = Self::instantiate(code_hash, input_data, salt, in_query, args);
         let result = result.result?;
         Ok((Self::from_address(result.account_id), effects))
     }
@@ -86,6 +87,7 @@ impl Contract {
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
+        in_query: bool,
         args: TransactionArguments,
     ) -> (ContractInstantiateResult, ExecSideEffects) {
         let TransactionArguments {
@@ -99,7 +101,7 @@ impl Contract {
             callbacks,
             gas_free,
         } = args;
-        storage.execute_with(false, callbacks, move || {
+        storage.execute_with(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
                 block_number,
@@ -134,7 +136,7 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        Self::new(code_hash, input_data, salt, tx_args)
+        Self::new(code_hash, input_data, salt, false, tx_args)
     }
 
     /// Call a contract method
