@@ -5,7 +5,10 @@ mod weights;
 use std::time::{Duration, Instant};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::{parameter_types, weights::Weight};
+use frame_support::{
+    parameter_types,
+    weights::{constants::WEIGHT_PER_SECOND, Weight},
+};
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup};
 
@@ -30,17 +33,11 @@ frame_support::construct_runtime! {
     }
 }
 
-const WEIGHT_PER_SECOND: Weight = Weight::from_ref_time(1_000_000_000_000);
-
-const UNIT: Balance = 1_000_000_000_000;
-const DOLLARS: Balance = UNIT;
-const CENTS: Balance = DOLLARS / 100;
-
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
         frame_system::limits::BlockWeights::simple_max(WEIGHT_PER_SECOND.saturating_mul(2));
-    pub const ExistentialDeposit: Balance = CENTS;
+    pub const ExistentialDeposit: Balance = 1;
     pub const MaxLocks: u32 = 50;
     pub const MaxReserves: u32 = 50;
 }
