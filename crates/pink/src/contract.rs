@@ -265,9 +265,6 @@ fn contract_tx<T>(
 ) -> ContractResult<T> {
     System::set_block_number(block_number);
     Timestamp::set_timestamp(now);
-    sp_externalities::with_externalities(|ext| {
-        ext.storage_start_transaction();
-    });
     if !gas_free && PalletPink::pay_for_gas(&origin, gas_limit).is_err() {
         return ContractResult {
             gas_consumed: 0,
@@ -284,15 +281,6 @@ fn contract_tx<T>(
             .expect("BUG: consumed gas more than the gas limit");
         PalletPink::refund_gas(&origin, refund).expect("BUG: failed to refund gas");
     }
-    sp_externalities::with_externalities(|ext| {
-        if result.result.is_err() {
-            ext.storage_rollback_transaction()
-                .expect("BUG: Failed to rallback transaction");
-        } else {
-            ext.storage_commit_transaction()
-                .expect("Failed to commit transaction");
-        }
-    });
     result
 }
 
