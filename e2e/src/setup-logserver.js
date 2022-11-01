@@ -5,6 +5,9 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { PRuntimeApi } = require('./utils/pruntime');
 
+const CENTS = 10_000_000_000;
+const SECONDS = 1_000_000_000_000;
+
 function loadContractFile(contractFile) {
     const metadata = JSON.parse(fs.readFileSync(contractFile));
     const constructor = metadata.V3.spec.constructors.find(c => c.label == 'default').selector;
@@ -25,6 +28,7 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
                     contract.constructor,
                     salt ? salt : hex(crypto.randomBytes(4)),
                     clusterId,
+                    0, SECONDS * 10, null
                 )
             ]
         ),
@@ -213,7 +217,7 @@ async function setupGatekeeper(api, txpool, pair, worker) {
     console.log('Gatekeeper: master key ready');
 }
 
-async function deployCluster(api, txqueue, sudoer, owner, worker, defaultCluster = '0x0000000000000000000000000000000000000000000000000000000000000000') {
+async function deployCluster(api, txqueue, sudoer, owner, worker, treasury, defaultCluster = '0x0000000000000000000000000000000000000000000000000000000000000000') {
     const clusterInfo = await api.query.phalaFatContracts.clusters(defaultCluster);
     if (clusterInfo.isSome) {
         return { clusterId: defaultCluster, systemContract: clusterInfo.unwrap().systemContract.toHex() };
@@ -223,8 +227,9 @@ async function deployCluster(api, txqueue, sudoer, owner, worker, defaultCluster
     const { events } = await txqueue.submit(
         api.tx.sudo.sudo(api.tx.phalaFatContracts.addCluster(
             owner,
-            'Public', // can be {'OnlyOwner': accountId}
-            [worker]
+            'Public',
+            [worker],
+            "100000000000000000", 1, 1, 1, treasury.address
         )),
         sudoer
     );
@@ -246,7 +251,7 @@ async function deployCluster(api, txqueue, sudoer, owner, worker, defaultCluster
 
 async function contractApi(api, pruntimeURL, contract) {
     const newApi = await api.clone().isReady;
-    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId: contract.address });
+    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId: contract.address, autoDeposit: true });
     const contractApi = new ContractPromise(
         phala.api,
         contract.metadata,
@@ -286,6 +291,7 @@ async function main() {
     // Prepare accounts
     const keyring = new Keyring({ type: 'sr25519' })
     const alice = keyring.addFromUri('//Alice')
+    const treasury = keyring.addFromUri('//Treasury')
     const certAlice = await Phala.signCertificate({ api, pair: alice });
 
     // Connect to pruntime
@@ -301,7 +307,7 @@ async function main() {
     // Upload the pink-system wasm to the chain. It is required to create a cluster.
     await uploadSystemCode(api, txqueue, alice, contractSystem.wasm);
 
-    const { clusterId, systemContract } = await deployCluster(api, txqueue, alice, alice.address, worker);
+    const { clusterId, systemContract } = await deployCluster(api, txqueue, alice, alice.address, worker, treasury);
     contractSystem.address = systemContract;
 
     const system = await contractApi(api, pruntimeURL, contractSystem);
@@ -353,10 +359,9 @@ async function main() {
     };
     const data = hex(toBytes(JSON.stringify(condition)));
     const hexlog = await logger.sidevmQuery(data, certAlice);
-    const bytes = api.createType("Vec<u8>", hexlog);
-    const decoder = new TextDecoder();
-    const jsonText = decoder.decode(bytes);
-    console.log('log:', jsonText);
+    const resp = api.createType('InkResponse', hexlog);
+    const result = resp.result.toHuman()
+    console.log(result.Ok.InkMessageReturn);
     // Sample query response:
     const _ = {
         "next": 3, // Sequence number for the next query. For pagination.
