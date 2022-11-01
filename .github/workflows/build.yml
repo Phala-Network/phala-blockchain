@@ -13,15 +13,6 @@ jobs:
     name: Build core blockchain
     runs-on: ubuntu-20.04
     steps:
-<<<<<<< HEAD
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
-=======
->>>>>>> upstream/master
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -40,15 +31,6 @@ jobs:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
-<<<<<<< HEAD
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
-=======
->>>>>>> upstream/master
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -70,15 +52,6 @@ jobs:
     name: Build prouter
     runs-on: ubuntu-20.04
     steps:
-<<<<<<< HEAD
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
-=======
->>>>>>> upstream/master
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -98,15 +71,6 @@ jobs:
     name: Run E2E tests
     runs-on: ubuntu-20.04
     steps:
-<<<<<<< HEAD
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
-=======
->>>>>>> upstream/master
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -148,16 +112,6 @@ jobs:
     name: Run cargo tests
     runs-on: ubuntu-20.04
     steps:
-<<<<<<< HEAD
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2022-09-08
-          override: true
-          target: wasm32-unknown-unknown
-          components: rustfmt
-=======
->>>>>>> upstream/master
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
