@@ -154,7 +154,7 @@ pub mod pallet {
 				symbol,
 			)?;
 			let account_id =
-				basepool::pallet::create_staker_account::<T::AccountId>(pid, owner.clone());
+				basepool::pallet::generate_staker_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::Vault(Vault {

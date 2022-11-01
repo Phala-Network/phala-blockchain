@@ -172,12 +172,12 @@ pub mod stakepoolv2_migration {
 				symbol,
 			)
 			.expect("create collection should not fail; qed.");
-			let account_id = basepool::pallet::create_staker_account::<T::AccountId>(
+			let account_id = basepool::pallet::generate_staker_account::<T::AccountId>(
 				pid,
 				pool_info.owner.clone(),
 			);
 			let (owner_reward_account, lock_account) =
-				stakepoolv2::pallet::create_owner_and_lock_account::<T::AccountId>(
+				stakepoolv2::pallet::generate_owner_and_lock_account::<T::AccountId>(
 					pid,
 					pool_info.owner.clone(),
 				);
@@ -233,15 +233,16 @@ pub mod stakepoolv2_migration {
 							nft_id,
 						});
 				});
-			let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-				&pawnshop_accountid,
-				pool_info.owner_reward,
-			);
-			// If the balance is too low to mint,we can just drop it.
-			pawnshop::Pallet::<T>::mint_into(
+			// If the balance is too low to mint, we can just drop it.
+			if !pawnshop::Pallet::<T>::mint_into(
 				&new_pool_info.owner_reward_account,
 				pool_info.owner_reward,
-			);
+			).is_err() {
+				let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
+					&pawnshop_accountid,
+					pool_info.owner_reward,
+				);
+			};
 			pawnshop::Pallet::<T>::mint_into(
 				&new_pool_info.basepool.pool_account_id,
 				pool_info.free_stake,
@@ -276,6 +277,10 @@ pub mod stakepoolv2_migration {
 			);
 			let pool_info =
 				poolproxy::ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
+			// If the balance is too low to mint, we can just drop it.
+			// Even if user_reward is a dust, we should still create user's shares
+			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);
+			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id.clone(), staker_info.shares);
 			if !account_status
 				.invest_pools
 				.contains(&(pid, pool_info.basepool.cid))
@@ -284,11 +289,10 @@ pub mod stakepoolv2_migration {
 					.invest_pools
 					.push((pid, pool_info.basepool.cid));
 			}
-			pawnshop::StakerAccounts::<T>::insert(user_id.clone(), account_status);
-			// If the balance is too low to mint,we can just drop it.
-			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);
-			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id, staker_info.shares);
+			pawnshop::StakerAccounts::<T>::insert(user_id, account_status);
+
 		});
+		stakepool::pallet::StakePools::<T>::drain().for_each(|(pid, pool_info)| {});
 	}
 
 	fn migrate_stake_ledger<T: PhalaPallets>()

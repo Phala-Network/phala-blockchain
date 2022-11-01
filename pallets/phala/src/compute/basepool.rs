@@ -778,7 +778,7 @@ pub mod pallet {
 	}
 
 	/// Creates a pool_account_id bounded with the pool
-	pub fn create_staker_account<T>(pid: u64, owner: T) -> T
+	pub fn generate_staker_account<T>(pid: u64, owner: T) -> T
 	where
 		T: Encode + Decode,
 	{

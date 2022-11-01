@@ -385,9 +385,9 @@ pub mod pallet {
 				symbol,
 			)?;
 			let account_id =
-				basepool::pallet::create_staker_account::<T::AccountId>(pid, owner.clone());
+				basepool::pallet::generate_staker_account::<T::AccountId>(pid, owner.clone());
 			let (owner_reward_account, lock_account) =
-				create_owner_and_lock_account::<T::AccountId>(pid, owner.clone());
+				generate_owner_and_lock_account::<T::AccountId>(pid, owner.clone());
 			basepool::pallet::Pools::<T>::insert(
 				pid,
 				PoolProxy::StakePool(StakePool {
@@ -1280,7 +1280,7 @@ pub mod pallet {
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
-	pub fn create_owner_and_lock_account<T>(pid: u64, owner: T) -> (T, T)
+	pub fn generate_owner_and_lock_account<T>(pid: u64, owner: T) -> (T, T)
 	where
 		T: Encode + Decode,
 	{
