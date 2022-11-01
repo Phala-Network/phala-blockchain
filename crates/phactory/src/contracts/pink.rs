@@ -8,6 +8,7 @@ use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use phala_types::contract::ConvertTo;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use pink::types::Weight;
+use pink::weights::constants::WEIGHT_PER_SECOND;
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 
@@ -17,7 +18,9 @@ pub use phala_types::contract::InkCommand as Command;
 pub enum Query {
     InkMessage {
         payload: Vec<u8>,
+        /// Amount of token deposit to the caller.
         deposit: u128,
+        /// Amount of token transfer from the caller to the target contract.
         transfer: u128,
     },
     SidevmQuery(Vec<u8>),
@@ -118,7 +121,7 @@ impl Pink {
                     block_number: context.block_number,
                     storage,
                     transfer,
-                    gas_limit: Weight::MAX,
+                    gas_limit: WEIGHT_PER_SECOND * 10,
                     gas_free: true,
                     storage_deposit_limit: None,
                     callbacks: ContractEventCallback::from_log_sender(
