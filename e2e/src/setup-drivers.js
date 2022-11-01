@@ -60,6 +60,7 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
 
     // Submit the tx with the estimated gas args
     const options = {
+        value: 0,
         gasLimit: gasRequired,
         storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null
     };

@@ -15,7 +15,7 @@
   "scripts": {
     "test": "mocha src/fullstack.js -j 1",
     "test-dbg": "mocha --inspect-brk src/fullstack.js -j 1",
-    "setup:logserver": "node src/setup-logserver.js",
+    "setup:drivers": "node src/setup-drivers.js",
     "build:proto": "scripts/build_proto.sh"
   },
   "dependencies": {
