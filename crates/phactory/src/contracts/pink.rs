@@ -132,6 +132,7 @@ impl Pink {
                 } else {
                     *side_effects = effects.into_query_only_effects();
                 }
+                // Prevent side-channel attack
                 ink_result.gas_consumed = mask_low_bits(ink_result.gas_consumed);
                 ink_result.gas_required = mask_low_bits(ink_result.gas_required);
                 Ok(Response::Payload(ink_result.encode()))

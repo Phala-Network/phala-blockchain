@@ -526,11 +526,11 @@ describe('A full stack', function () {
                 return info.system.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
-            const contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
-            const { systemContract } = contractInfo.unwrap();
+            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            const { systemContract } = clusterInfo.unwrap();
             assert.isTrue(await checkUntil(async () => {
-                const clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
-                return (clusterContracts.length == 1 && clusterContracts[0].eq(systemContract));
+                const contractInfo = await api.query.phalaFatContracts.contracts(systemContract.toHex());
+                return contractInfo.isSome;
             }, 4 * 6000), 'system contract instantiation failed');
             ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
         });
@@ -1270,7 +1270,7 @@ function hex(b) {
 
 async function createContractApi(api, pruntimeURL, contractId, metadata) {
     const newApi = await api.clone().isReady;
-    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId });
+    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId, autoDeposit: true });
     return new ContractPromise(
         phala.api,
         metadata,

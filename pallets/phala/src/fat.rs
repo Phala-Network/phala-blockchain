@@ -37,6 +37,11 @@ pub mod pallet {
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+	#[derive(Encode, Decode, Clone, Debug, TypeInfo)]
+	pub struct BasicContractInfo {
+		deployer: AccountId32,
+		cluster: ContractClusterId,
+	}
 
 	bind_topic!(ClusterRegistryEvent, b"^phala/registry/cluster");
 	#[derive(Encode, Decode, Clone, Debug)]
@@ -74,8 +79,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::storage]
-	pub type Contracts<T: Config> =
-		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
+	pub type Contracts<T: Config> = StorageMap<_, Twox64Concat, ContractId, BasicContractInfo>;
 
 	/// The contract cluster counter, it always equals to the latest cluster id.
 	#[pallet::storage]
@@ -340,7 +344,7 @@ pub mod pallet {
 				Self::transfer_to_cluster(
 					origin.clone(),
 					deposit,
-					contract_info.cluster_id,
+					contract_info.cluster,
 					user.into_h256(),
 				)?;
 			}
@@ -377,7 +381,13 @@ pub mod pallet {
 				!Contracts::<T>::contains_key(contract_id),
 				Error::<T>::DuplicatedContract
 			);
-			Contracts::<T>::insert(contract_id, &contract_info);
+			Contracts::<T>::insert(
+				contract_id,
+				&BasicContractInfo {
+					deployer: contract_info.deployer.clone(),
+					cluster: contract_info.cluster_id,
+				},
+			);
 
 			Self::push_message(ContractOperation::instantiate_code(
 				contract_info.clone(),
@@ -456,6 +466,14 @@ pub mod pallet {
 						pubkey,
 					});
 					ClusterContracts::<T>::append(cluster, contract);
+					Contracts::<T>::mutate(contract, |info| {
+						if info.is_none() {
+							*info = Some(BasicContractInfo {
+								deployer: AccountId32::from(deployer.0),
+								cluster,
+							});
+						}
+					});
 					Self::deposit_event(Event::Instantiated {
 						contract,
 						cluster,
@@ -495,7 +513,7 @@ pub mod pallet {
 
 		pub fn get_system_contract(contract: &ContractId) -> Option<ContractId> {
 			let contract_info = Contracts::<T>::get(contract)?;
-			let cluster_info = Clusters::<T>::get(contract_info.cluster_id)?;
+			let cluster_info = Clusters::<T>::get(contract_info.cluster)?;
 			Some(cluster_info.system_contract)
 		}
 	}
