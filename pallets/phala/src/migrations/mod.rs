@@ -183,16 +183,16 @@ pub mod stakepoolv2_migration {
 			let mut new_pool_info = poolproxy::StakePool {
 				basepool: basepool::BasePool {
 					pid,
-					owner: pool_info.owner.clone(),
-					total_shares: pool_info.total_shares.clone(),
-					total_value: pool_info.total_stake.clone(),
+					owner: pool_info.owner,
+					total_shares: pool_info.total_shares,
+					total_value: pool_info.total_stake,
 					withdraw_queue: VecDeque::new(),
 					value_subscribers: VecDeque::new(),
 					cid: collection_id,
 					pool_account_id: account_id,
 				},
-				payout_commission: pool_info.payout_commission.clone(),
-				cap: pool_info.cap.clone(),
+				payout_commission: pool_info.payout_commission,
+				cap: pool_info.cap,
 				workers: VecDeque::new(),
 				cd_workers: VecDeque::new(),
 				lock_account,
@@ -233,7 +233,7 @@ pub mod stakepoolv2_migration {
 						});
 				});
 			let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-				&<T as pawnshop::Config>::PawnShopAccountId::get(),
+				&pawnshop_accountid,
 				pool_info.owner_reward,
 			);
 			// If the balance is too low to mint,we can just drop it.
@@ -261,21 +261,16 @@ pub mod stakepoolv2_migration {
 		T: pallet_assets::Config<AssetId = u32>,
 		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
+		let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 		stakepool::pallet::PoolStakers::<T>::drain().for_each(|((pid, user_id), staker_info)| {
-			let mut account_status = match pawnshop::StakerAccounts::<T>::get(&user_id) {
-				Some(account_status) => account_status,
-				None => pawnshop::FinanceAccount::<BalanceOf<T>> {
-					invest_pools: vec![],
-					locked: Zero::zero(),
-				},
-			};
+			let mut account_status = pawnshop::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
 			let deprecated_pool = stakepool::pallet::StakePools::<T>::get(pid)
 				.expect("get deprecated pool should success; qed.");
 			let pending_reward = mul(staker_info.shares, &deprecated_pool.reward_acc.into())
 				- staker_info.reward_debt;
 			let user_reward = pending_reward + staker_info.available_rewards;
 			let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-				&<T as pawnshop::Config>::PawnShopAccountId::get(),
+				&pawnshop_accountid,
 				user_reward,
 			);
 			let pool_info =
@@ -303,6 +298,7 @@ pub mod stakepoolv2_migration {
 		T: pallet_assets::Config<AssetId = u32>,
 		T: pallet_assets::Config<Balance = BalanceOf<T>>,
 	{
+		let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 		stakepool::pallet::StakeLedger::<T>::drain().for_each(|(user_id, balance)| {
 			<T as PhalaConfig>::Currency::remove_lock(STAKING_ID, &user_id);
 			<T as PhalaConfig>::Currency::remove_lock(VESTING_ID, &user_id);
@@ -310,7 +306,7 @@ pub mod stakepoolv2_migration {
 			<T as PhalaConfig>::Currency::remove_lock(PHRELECT_ID, &user_id);
 			if <T as PhalaConfig>::Currency::transfer(
 				&user_id,
-				&<T as pawnshop::Config>::PawnShopAccountId::get(),
+				&pawnshop_accountid,
 				balance,
 				KeepAlive,
 			)
@@ -324,7 +320,7 @@ pub mod stakepoolv2_migration {
 				);
 				<T as PhalaConfig>::Currency::transfer(
 					&user_id,
-					&<T as pawnshop::Config>::PawnShopAccountId::get(),
+					&pawnshop_accountid,
 					balance,
 					KeepAlive,
 				)
