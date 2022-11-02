@@ -15,7 +15,7 @@ use phactory_api::ecall_args::{git_revision, InitArgs};
 #[clap(about = "The Phala TEE worker app.", version, author)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 struct Args {
-    /// Number of CPU cores to be used for mining.
+    /// Number of CPU cores to be used for computing.
     #[clap(short, long)]
     cores: Option<u32>,
 

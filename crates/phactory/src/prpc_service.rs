@@ -989,7 +989,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             .try_into()
             .map_err(|_| from_display("Bad public key"))?;
         let state = gk
-            .mining_economics
+            .computing_economics
             .worker_state(&pubkey)
             .ok_or_else(|| from_display("Worker not found"))?;
         Ok(state)

@@ -50,7 +50,7 @@ pub mod pallet {
 		type SidevmCodeSizeLimit: Get<u32>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

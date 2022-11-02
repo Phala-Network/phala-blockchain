@@ -11,28 +11,46 @@ extern crate webpki_wasm as webpki;
 extern crate alloc;
 
 // Re-export
-use utils::{accumulator, attestation, attestation_legacy, balance_convert, constants, fixed_point};
+use utils::{attestation, balance_convert, constants};
 
 pub mod migrations;
 pub mod utils;
 
+pub mod compute;
 pub mod fat;
-pub mod fat_tokenomic;
-pub mod mining;
 pub mod mq;
-pub mod ott;
 pub mod puppets;
 pub mod registry;
 pub mod stakepool;
 
+use compute::{basepool, computation, pawnshop, poolproxy, stakepoolv2, vault};
+
+use frame_support::traits::LockableCurrency;
+/// The unified config of the compute pallets
+pub trait PhalaConfig: frame_system::Config {
+	type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+}
+/// The unified type Balance of pallets from the runtime T.
+type BalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
+	<T as frame_system::Config>::AccountId,
+>>::Balance;
+/// The unified type ImBalance of pallets from the runtime T.
+type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
+
 // Alias
-pub use fat as pallet_fat;
+pub use compute::basepool as pallet_basepool;
 pub use fat_tokenomic as pallet_fat_tokenomic;
-pub use mining as pallet_mining;
+pub use compute::computation as pallet_computation;
+pub use compute::pawnshop as pallet_pawnshop;
+pub use compute::stakepoolv2 as pallet_stakepoolv2;
+pub use compute::vault as pallet_vault;
+pub use fat as pallet_fat;
 pub use mq as pallet_mq;
-pub use ott as pallet_ott;
 pub use registry as pallet_registry;
 pub use stakepool as pallet_stakepool;
+pub mod fat_tokenomic;
 
 #[cfg(feature = "native")]
 use sp_core::hashing;
@@ -42,3 +60,6 @@ use sp_io::hashing;
 
 #[cfg(test)]
 mod mock;
+
+#[cfg(test)]
+mod test;

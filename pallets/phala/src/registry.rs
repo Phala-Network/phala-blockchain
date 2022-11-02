@@ -17,7 +17,7 @@ pub mod pallet {
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
 
-	use crate::attestation::Error as AttestationError;
+	use crate::utils::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
 	use phala_types::{
 		messaging::{
@@ -33,7 +33,7 @@ pub mod pallet {
 	pub use phala_types::AttestationReport;
 	// Re-export
 	// TODO: Legacy
-	pub use crate::attestation_legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
+	pub use crate::utils::attestation_legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]

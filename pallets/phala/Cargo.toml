@@ -15,6 +15,16 @@ codec = { package = "parity-scale-codec", version = "3.1", default-features = fa
 scale-info = { version = "2.1", default-features = false, features = ["derive"] }
 
 primitive-types = { version = "0.11.0", default-features = false, features = ["codec", "byteorder"] }
+pallet-assets = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
+pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
+
+# RMRK dependencies
+pallet-rmrk-core = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.30", default-features = false }
+pallet-rmrk-equip = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.30", default-features = false }
+pallet-rmrk-market = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.30", default-features = false }
+rmrk-traits = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.30", default-features = false }
+
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
@@ -51,6 +61,8 @@ assert_matches = "1.4.0"
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
 rand = "0.8.5"
 insta = "1"
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
+pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
 
 [features]
 default = ["std"]
@@ -58,6 +70,10 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"pallet-assets/std",
+	"pallet-democracy/std",
 	"sp-io/std",
 	"sp-std/std",
 	"sp-core/std",
@@ -66,9 +82,15 @@ std = [
 	"frame-system/std",
 	"frame-benchmarking/std",
 	"pallet-balances/std",
-	"pallet-randomness-collective-flip/std",
+	"pallet-uniques/std",
 	"log/std",
 	"phala-types/enable_serde",
+	"pallet-rmrk-core/std",
+	"pallet-rmrk-equip/std",
+	"pallet-rmrk-market/std",
+	"rmrk-traits/std",
+	"pallet-collective/std",
+	"pallet-randomness-collective-flip/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks"
