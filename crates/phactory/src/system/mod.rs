@@ -1201,10 +1201,47 @@ impl<Platform: pal::Platform> System<Platform> {
                     .get_cluster_mut(&cluster_id) else {
                         return Ok(());
                     };
-                let _uploader = phala_types::messaging::AccountId(origin.clone().into());
-                let hash = cluster
-                    .upload_resource(&origin, resource_type, resource_data)
-                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                let system_contract = cluster.system_contract().ok_or_else(|| {
+                    anyhow!(
+                        "Failed to upload resource to cluster {cluster_id:?}: No system contract"
+                    )
+                })?;
+                let result = cluster.upload_resource(&origin, resource_type, resource_data);
+                let log_handler = self.get_system_message_handler(&cluster_id);
+                if let Some(log_handler) = &log_handler {
+                    macro_rules! send_log {
+                        ($level: expr, $msg: expr) => {
+                            let result = log_handler.try_send(SidevmCommand::PushSystemMessage(
+                                SystemMessage::PinkLog {
+                                    block_number: block.block_number,
+                                    contract: system_contract.into(),
+                                    in_query: false,
+                                    timestamp_ms: block.now_ms,
+                                    level: $level as usize as u8,
+                                    message: $msg,
+                                },
+                            ));
+                            if result.is_err() {
+                                error!("Failed to send log to log handler");
+                            }
+                        };
+                    }
+                    match &result {
+                        Ok(hash) => {
+                            send_log!(
+                                log::Level::Info,
+                                format!("Resource uploaded to cluster, by: {origin:?} res hash={hash:?}")
+                            );
+                        }
+                        Err(err) => {
+                            send_log!(
+                                log::Level::Error,
+                                format!("Failed to upload resource to cluster, by: {origin:?} err={err:?}")
+                            );
+                        }
+                    }
+                }
+                let hash = result.map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
