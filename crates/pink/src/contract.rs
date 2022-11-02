@@ -80,6 +80,9 @@ impl Contract {
     ) -> Result<(Self, ExecSideEffects), DispatchError> {
         let (result, effects) = Self::instantiate(code_hash, input_data, salt, in_query, args);
         let result = result.result?;
+        if result.result.did_revert() {
+            return Err(DispatchError::Other("Exec reverted"));
+        }
         Ok((Self::from_address(result.account_id), effects))
     }
 
