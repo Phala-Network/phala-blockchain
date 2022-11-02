@@ -7857,6 +7857,7 @@ dependencies = [
  "frame-system",
  "hex",
  "hex-literal",
+ "insta",
  "log",
  "pallet-assets",
  "pallet-balances",

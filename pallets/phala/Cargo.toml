@@ -60,6 +60,7 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 assert_matches = "1.4.0"
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
 rand = "0.8.5"
+insta = "1"
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
 

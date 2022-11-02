@@ -1,5 +1,5 @@
 use crate::{
-	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
+	utils::attestation_legacy::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
 	basepool, computation, mq, pawnshop, registry, stakepool, stakepoolv2, vault,
 };
 
@@ -102,10 +102,10 @@ impl system::Config for Test {
 }
 
 impl pallet_scheduler::Config for Test {
-	type Event = Event;
-	type Origin = Origin;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
 	type PalletsOrigin = OriginCaller;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = ();
 	type ScheduleOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type MaxScheduledPerBlock = ();
@@ -164,8 +164,9 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 }
 
 impl registry::Config for Test {
-	type Event = Event;
-	type AttestationValidator = MockValidator;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type LegacyAttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
@@ -184,7 +185,7 @@ parameter_types! {
 	pub const DepositPerByte: Balance = 0;
 }
 impl pallet_uniques::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type CollectionId = u32;
 	type ItemId = u32;
 	type Currency = Balances;
@@ -212,7 +213,7 @@ parameter_types! {
 	pub const MaxResourcesOnMint: u32 = 100;
 }
 impl pallet_rmrk_core::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
 	type MaxRecursions = MaxRecursions;
 	type ResourceSymbolLimit = ResourceSymbolLimit;
@@ -223,7 +224,7 @@ impl pallet_rmrk_core::Config for Test {
 }
 
 impl computation::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
 	type Randomness = TestRandomness<Self>;
@@ -239,7 +240,7 @@ parameter_types! {
 }
 
 impl pawnshop::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type PPhaAssetId = PPhaAssetId;
 	type PawnShopAccountId = ConstU64<1234>;
 	type OnSlashed = ();
@@ -268,8 +269,8 @@ ord_parameter_types! {
 }
 
 impl pallet_democracy::Config for Test {
-	type Proposal = Call;
-	type Event = Event;
+	type Proposal = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EnactmentPeriod = EnactmentPeriod;
 	type LaunchPeriod = LaunchPeriod;
@@ -318,7 +319,7 @@ parameter_types! {
 }
 
 impl pallet_assets::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Balance = Balance;
 	type AssetId = u32;
 	type Currency = Balances;
@@ -335,25 +336,25 @@ impl pallet_assets::Config for Test {
 }
 
 impl stakepoolv2::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
 	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type WorkingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ComputingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl vault::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 }
 
 impl basepool::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 }
 
 impl stakepool::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
 
