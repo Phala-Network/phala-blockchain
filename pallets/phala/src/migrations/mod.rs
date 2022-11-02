@@ -199,6 +199,7 @@ pub mod stakepoolv2_migration {
 				lock_account,
 				owner_reward_account,
 			};
+			// TODO(mingxuan): Will include removed workers after we measure how to get their pool-belonging.
 			pool_info.workers.into_iter().for_each(|pubkey| {
 				new_pool_info.workers.push_back(pubkey);
 				let session: T::AccountId = stakepoolv2::pool_sub_account(pid, &pubkey);
@@ -317,6 +318,7 @@ pub mod stakepoolv2_migration {
 			)
 			.is_err()
 			{
+				// TODO(mingxuan): switch the currency sending account to a identical account before final push.
 				<T as PhalaConfig>::Currency::transfer(
 					&computation::Pallet::<T>::account_id(),
 					&user_id,
@@ -384,6 +386,7 @@ pub mod stakepoolv2_migration {
 			migrate_stake_ledger::<T>();
 			migrate_unchanged_stuffs::<T>();
 			set_unified_version::<T>(7);
+			// TODO(mingxuan): Do benchmarking before final push.
 			weight += T::DbWeight::get().reads_writes(5, 5);
 			weight
 		} else {
