@@ -5,7 +5,7 @@ use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    EcdsaPublicKey, EcdsaSignature, Hash,
+    Balance, EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -239,6 +239,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         Err("No default system contract id".into())
+    }
+
+    fn balance_of(&self, _account: ext::AccountId) -> Result<(Balance, Balance), Self::Error> {
+        Ok((0, 0))
     }
 }
 

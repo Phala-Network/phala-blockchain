@@ -75,6 +75,14 @@ pub trait System {
     /// Higher weight would let the contract to get more resource.
     #[ink(message)]
     fn set_contract_weight(&self, contract_id: AccountId, weight: u32) -> Result<()>;
+
+    /// Return the total balance of the caller
+    #[ink(message)]
+    fn total_balance(&self) -> Balance;
+
+    /// Return the free balance of the caller
+    #[ink(message)]
+    fn free_balance(&self) -> Balance;
 }
 
 /// Driver to manage sidevm deployments.

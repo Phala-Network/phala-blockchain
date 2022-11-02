@@ -18,9 +18,9 @@ pub use phala_types::contract::InkCommand as Command;
 pub enum Query {
     InkMessage {
         payload: Vec<u8>,
-        /// Amount of token deposit to the caller.
+        /// Amount of tokens deposit to the caller.
         deposit: u128,
-        /// Amount of token transfer from the caller to the target contract.
+        /// Amount of tokens transfer from the caller to the target contract.
         transfer: u128,
     },
     SidevmQuery(Vec<u8>),
@@ -28,9 +28,9 @@ pub enum Query {
         code_hash: sp_core::H256,
         salt: Vec<u8>,
         instantiate_data: Vec<u8>,
-        /// Amount of token deposit to the caller.
+        /// Amount of tokens deposit to the caller.
         deposit: u128,
-        /// Amount of token transfer from the caller to the target contract.
+        /// Amount of tokens transfer from the caller to the target contract.
         transfer: u128,
     },
 }

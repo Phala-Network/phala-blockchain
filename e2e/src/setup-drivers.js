@@ -69,6 +69,16 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
         pair
     );
 
+    {
+        const { output } = await system.query["system::freeBalance"](cert, {});
+        console.log("freeBalance:", output);
+    }
+    {
+        const { output } = await system.query["system::totalBalance"](cert, {});
+        console.log("totalBalance:", output);
+    }
+
+
     // If leave empty, the SDK would fill the gasLimit with a default value which doesn't work sometimes.
     await txqueue.submit(
         system.tx["system::grantAdmin"]({}, contract.address),
@@ -325,16 +335,21 @@ async function main() {
 
     const { clusterId, systemContract } = await deployCluster(api, txqueue, alice, alice.address, worker, treasury);
     contractSystem.address = systemContract;
-
     const system = await contractApi(api, pruntimeURL, contractSystem);
+
+    // Transfer some tokens to the cluster for alice
+    await txqueue.submit(
+        api.tx.phalaFatContracts.transferToCluster(CENTS * 100, clusterId, alice.address),
+        alice,
+    );
 
     // Deploy the tokenomic contract
     await deployDriverContract(api, txqueue, system, alice, certAlice, contractTokenomic, clusterId, "ContractDeposit");
 
     // Stake some tokens to the system contract
-    const staked_cents = 42;
+    const stakedCents = 42;
     await txqueue.submit(
-        api.tx.phalaFatTokenomic.adjustStake(systemContract, CENTS * staked_cents),
+        api.tx.phalaFatTokenomic.adjustStake(systemContract, CENTS * stakedCents),
         alice
     );
     // Contract weight should be affected
@@ -343,9 +358,21 @@ async function main() {
             const { weight } = (await prpc.getContractInfo(systemContract));
             return weight;
         },
-        staked_cents,
+        stakedCents,
         4 * 6000
     );
+
+    // Total stakes to the contract should be changed
+    const total = await api.query.phalaFatTokenomic.contractTotalStakes(systemContract);
+    console.assert(total.eq(CENTS * stakedCents));
+
+    // Stakes of the user
+    const stakesOfAlice = await api.query.phalaFatTokenomic.contractUserStakes.entries(alice.address);
+    console.log('Stakes of alice:');
+    stakesOfAlice.forEach(([key, stake]) => {
+        console.log('contract:', key.args[1].toHex());
+        console.log('   stake:', stake.toHuman());
+    });
 
     // Deploy driver: Sidevm deployer
     await deployDriverContract(api, txqueue, system, alice, certAlice, contractSidevmop, clusterId, "SidevmOperation");

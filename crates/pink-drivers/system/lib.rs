@@ -128,6 +128,16 @@ mod system {
             pink::set_contract_weight(contract_id, weight);
             Ok(())
         }
+
+        #[ink(message)]
+        fn total_balance(&self) -> Balance {
+            pink::ext().balance_of(self.env().caller()).0
+        }
+
+        #[ink(message)]
+        fn free_balance(&self) -> Balance {
+            pink::ext().balance_of(self.env().caller()).1
+        }
     }
 
     impl ContractDeposit for System {

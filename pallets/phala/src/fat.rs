@@ -306,7 +306,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			amount: u128,
 			cluster_id: ContractClusterId,
-			dest_account: H256,
+			dest_account: AccountId32,
 		) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			let cluster_account = cluster_account(&cluster_id);
@@ -318,12 +318,12 @@ pub mod pallet {
 			)?;
 			Self::push_message(ClusterOperation::Deposit {
 				cluster_id,
-				account: dest_account,
+				account: dest_account.clone().into_h256(),
 				amount,
 			});
 			Self::deposit_event(Event::Transfered {
 				cluster: cluster_id,
-				account: dest_account,
+				account: dest_account.into_h256(),
 				amount,
 			});
 			Ok(())
@@ -345,7 +345,7 @@ pub mod pallet {
 					origin.clone(),
 					deposit,
 					contract_info.cluster,
-					user.into_h256(),
+					user,
 				)?;
 			}
 			PalletMq::<T>::push_message(origin, command_topic(contract_id), payload)
