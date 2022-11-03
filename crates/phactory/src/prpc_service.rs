@@ -326,6 +326,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
         info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
+        ::pink::runtime::set_worker_pubkey(ecdh_pubkey.0);
+
         // Measure machine score
         let cpu_core_num: u32 = self.platform.cpu_core_num();
         info!("CPU cores: {}", cpu_core_num);

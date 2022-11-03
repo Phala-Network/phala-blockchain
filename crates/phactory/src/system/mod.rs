@@ -1722,6 +1722,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
 impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
+        ::pink::runtime::set_worker_pubkey(self.ecdh_key.public());
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
         self.check_retirement();
         Ok(())

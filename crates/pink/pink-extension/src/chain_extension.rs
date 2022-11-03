@@ -113,6 +113,10 @@ pub trait PinkExt {
     #[ink(extension = 16, handle_status = false, returns_result = false)]
     fn balance_of(account: AccountId) -> (Balance, Balance);
 
+    /// Get worker public key. Query only.
+    #[ink(extension = 17, handle_status = false, returns_result = false)]
+    fn worker_pubkey() -> crate::EcdhPublicKey;
+
     /// Get current millis since unix epoch from the OS. (Query only)
     #[ink(extension = 18, handle_status = false, returns_result = false)]
     fn untrusted_millis_since_unix_epoch() -> u64;

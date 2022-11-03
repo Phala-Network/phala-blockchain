@@ -126,6 +126,10 @@ impl ext::PinkExtBackend for MockExtension {
     fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
         super::DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
     }
+
+    fn worker_pubkey(&self) -> Result<crate::EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
+    }
 }
 
 thread_local! {

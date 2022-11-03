@@ -9,7 +9,7 @@ use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    Balance, EcdsaPublicKey, EcdsaSignature, Hash,
+    Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -271,6 +271,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
             .duration_since(SystemTime::UNIX_EPOCH)
             .or(Err("The system time is earlier than UNIX_EPOCH"))?;
         Ok(duration.as_millis() as u64)
+    }
+
+    fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
     }
 }
 
