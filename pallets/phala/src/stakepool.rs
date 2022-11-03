@@ -357,10 +357,6 @@ pub mod pallet {
 		WorkerExists,
 		/// The target worker is not in the pool
 		WorkerDoesNotExist,
-		/// The target miner is not in the 	`miner` storage
-		MinerDoesNotExist,
-		/// The target worker is not reclaimed and can not be removed from a pool.
-		WorkerIsNotReady,
 		/// The worker is already added to another pool
 		WorkerInAnotherPool,
 		/// The owner of the pool doesn't have the access to the worker
@@ -415,6 +411,10 @@ pub mod pallet {
 		NoWhitelistCreated,
 		/// Too long for pool description length
 		ExceedMaxDescriptionLen,
+		/// The target miner is not in the 	`miner` storage
+		MinerDoesNotExist,
+		/// The target worker is not reclaimed and can not be removed from a pool.
+		WorkerIsNotReady,
 	}
 
 	#[pallet::hooks]
