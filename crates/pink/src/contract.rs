@@ -25,6 +25,60 @@ fn _compilation_hint_for_kvdb(db: Storage) {
     let _dont_forget_to_clean_up_disk: storage::Storage<storage::InMemoryBackend> = db;
 }
 
+macro_rules! define_mask_fn {
+    ($name: ident, $bits: expr, $typ: ty) => {
+        fn $name(v: $typ, p: $typ) -> $typ {
+            let pos: $typ = (1 << ($bits - v.leading_zeros())) >> 9;
+            let pos = pos.max(p);
+            let mask = pos.saturating_sub(1);
+            v | mask
+        }
+    };
+}
+
+define_mask_fn!(mask_low_bits64, 64, u64);
+define_mask_fn!(mask_low_bits128, 128, u128);
+
+fn mask_deposit(deposit: u128, deposit_per_byte: u128) -> u128 {
+    let gain = 1 << (128 - (deposit_per_byte * 1024).leading_zeros());
+    mask_low_bits128(deposit, gain)
+}
+
+#[test]
+fn mask_low_bits_works() {
+    let p = 0x1000000;
+    assert_eq!(mask_low_bits64(0, p), 0xffffff);
+    assert_eq!(mask_low_bits64(0x10, p), 0xffffff);
+    assert_eq!(mask_low_bits64(0x1000_0000, p), 0x10ff_ffff);
+    assert_eq!(mask_low_bits64(0x10_0000_0000, p), 0x10_0fff_ffff);
+    assert_eq!(mask_low_bits64(0x10_0000_0000_0000, p), 0x10_0fff_ffff_ffff);
+
+    let p = 10;
+    assert_eq!(mask_deposit(0, p), 0x3fff);
+    assert_eq!(mask_deposit(0x10, p), 0x3fff);
+    assert_eq!(mask_deposit(0x10_0000, p), 0x10_3fff);
+    assert_eq!(mask_deposit(0x10_0000_0000, p), 0x10_0fff_ffff);
+    assert_eq!(mask_deposit(0x10_0000_0000_0000, p), 0x10_0fff_ffff_ffff);
+}
+
+fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> ContractResult<T> {
+    use pallet_contracts_primitives::StorageDeposit;
+
+    let gain = 0x10000000;
+    result.gas_consumed = mask_low_bits64(result.gas_consumed, gain);
+    result.gas_required = mask_low_bits64(result.gas_required, gain);
+
+    match &mut result.storage_deposit {
+        StorageDeposit::Charge(v) => {
+            *v = mask_deposit(*v, deposit_per_byte);
+        }
+        StorageDeposit::Refund(v) => {
+            *v = mask_deposit(*v, deposit_per_byte);
+        }
+    }
+    result
+}
+
 impl Default for Storage {
     fn default() -> Self {
         Self::new(storage::new_in_memory_backend())
@@ -125,7 +179,11 @@ impl Contract {
                 },
             );
             log::info!("Contract instantiation result: {:?}", &result.result);
-            result
+            if in_query {
+                coarse_grained(result, PalletPink::deposit_per_byte())
+            } else {
+                result
+            }
         })
     }
 
@@ -167,7 +225,7 @@ impl Contract {
         } = tx_args;
         let addr = self.address.clone();
         storage.execute_with(in_query, callbacks, move || {
-            contract_tx(
+            let result = contract_tx(
                 origin.clone(),
                 block_number,
                 now,
@@ -184,7 +242,12 @@ impl Contract {
                         false,
                     )
                 },
-            )
+            );
+            if in_query {
+                coarse_grained(result, PalletPink::deposit_per_byte())
+            } else {
+                result
+            }
         })
     }
 
