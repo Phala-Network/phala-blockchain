@@ -411,6 +411,10 @@ pub mod pallet {
 		NoWhitelistCreated,
 		/// Too long for pool description length
 		ExceedMaxDescriptionLen,
+		/// The target miner is not in the 	`miner` storage
+		MinerDoesNotExist,
+		/// The target worker is not reclaimed and can not be removed from a pool.
+		WorkerIsNotReady,
 	}
 
 	#[pallet::hooks]
@@ -553,6 +557,8 @@ pub mod pallet {
 			ensure!(pid == lookup_pid, Error::<T>::WorkerInAnotherPool);
 			// Remove the worker from the pool (notification suspended)
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
+			let miner = mining::pallet::Pallet::<T>::miners(&sub_account).ok_or(Error::<T>::MinerDoesNotExist)?;
+			ensure!(miner.state == mining::MinerState::Ready, Error::<T>::WorkerIsNotReady);
 			mining::pallet::Pallet::<T>::unbind_miner(&sub_account, false)?;
 			// Manually clean up the worker, including the pool worker list, and the assignment
 			// indices. (Theoretically we can enable the unbinding notification, and follow the
@@ -3790,49 +3796,6 @@ pub mod pallet {
 			});
 		}
 
-		#[test]
-		fn issue500_should_not_restart_worker_in_cool_down() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid=0
-								  // Start a worker as usual
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					1500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					1500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::stop_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
-				let subaccount: u64 = pool_sub_account(0, &worker_pubkey(1));
-				let miner = PhalaMining::miners(subaccount).unwrap();
-				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
-				// Remove the worker
-				assert_ok!(PhalaStakePool::remove_worker(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1)
-				));
-				let miner = PhalaMining::miners(subaccount).unwrap();
-				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
-				// Now the stake is still in CD state. We cannot add it back.
-				assert_noop!(
-					PhalaStakePool::add_worker(Origin::signed(1), 0, worker_pubkey(1)),
-					Error::<Test>::FailedToBindMinerAndWorker,
-				);
-				let miner = PhalaMining::miners(subaccount).unwrap();
-				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
-			});
-		}
 
 		#[test]
 		fn issue257_reconcile_reduced_withdraw() {
