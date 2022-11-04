@@ -566,7 +566,7 @@ describe('A full stack', function () {
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, 10_000_000_000_000, null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
                 alice,
             );
             assertEvents(events, [
@@ -600,7 +600,7 @@ describe('A full stack', function () {
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook({}, 1_000_000_000_000),
+                ContractSystemChecker.tx.setHook({}, "1000000000000"),
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
@@ -610,13 +610,13 @@ describe('A full stack', function () {
         });
 
         it('can set hook with admin permission', async function () {
-            const config = { gas: 10_000_000_000_000, storageDepositLimit: null };
+            const config = { gas: "10000000000000", storageDepositLimit: null };
             await assert.txAccepted(
                 ContractSystem.tx['system::grantAdmin'](config, ContractSystemChecker.address),
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook(config, 1_000_000_000_000),
+                ContractSystemChecker.tx.setHook(config, "1000000000000"),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -659,7 +659,7 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, 10_000_000_000_000, null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
                 alice,
             );
         });
