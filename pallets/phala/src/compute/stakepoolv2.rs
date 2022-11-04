@@ -37,11 +37,7 @@ pub mod pallet {
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
-	const MAX_WHITELIST_LEN: u32 = 100;
 
-	type DescMaxLen = ConstU32<4400>;
-
-	pub type DescStr = BoundedVec<u8, DescMaxLen>;
 
 	#[pallet::config]
 	pub trait Config:
@@ -112,17 +108,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type SubAccountPreimages<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
-
-	/// Mapping for pools that specify certain stakers to contribute stakes
-	#[pallet::storage]
-	#[pallet::getter(fn pool_whitelist)]
-	pub type PoolContributionWhitelists<T: Config> =
-		StorageMap<_, Twox64Concat, u64, Vec<T::AccountId>>;
-
-	/// Mapping for pools that store their descriptions set by owner
-	#[pallet::storage]
-	#[pallet::getter(fn pool_descriptions)]
-	pub type PoolDescriptions<T: Config> = StorageMap<_, Twox64Concat, u64, DescStr>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -247,22 +232,6 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 		},
 
-		/// A pool contribution whitelist is added
-		///
-		/// - lazy operated when the first staker is added to the whitelist
-		PoolWhitelistCreated { pid: u64 },
-
-		/// The pool contribution whitelist is deleted
-		///
-		/// - lazy operated when the last staker is removed from the whitelist
-		PoolWhitelistDeleted { pid: u64 },
-
-		/// A staker is added to the pool contribution whitelist
-		PoolWhitelistStakerAdded { pid: u64, staker: T::AccountId },
-
-		/// A staker is removed from the pool contribution whitelist
-		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
-
 		/// A worker is reclaimed from the pool
 		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
 
@@ -337,22 +306,16 @@ pub mod pallet {
 		CannotRestartWithLessStake,
 		/// Invalid amount of balance input when force reward.
 		InvalidForceRewardAmount,
-		/// Invalid staker to contribute because origin isn't in Pool's contribution whitelist.
-		NotInContributeWhitelist,
-		/// Can not add the staker to whitelist because the staker is already in whitelist.
-		AlreadyInContributeWhitelist,
-		/// Too many stakers in contribution whitelist that exceed the limit
-		ExceedWhitelistMaxLen,
-		/// The pool hasn't have a whitelist created
-		NoWhitelistCreated,
-		/// Too long for pool description length
-		ExceedMaxDescriptionLen,
 		/// Withdraw queue is not empty so that we can't restart computing
 		WithdrawQueueNotEmpty,
 		/// Stakepool's collection_id isn't founded
 		MissingCollectionId,
 		/// Vault is forced locked for it has some expired withdrawal
 		VaultIsLocked,
+		/// The target miner is not in the 	`miner` storage
+		SessionDoesNotExist,
+		/// The target worker is not reclaimed and can not be removed from a pool.
+		WorkerIsNotReady,
 	}
 
 	#[pallet::call]
@@ -510,6 +473,8 @@ pub mod pallet {
 			ensure!(pid == lookup_pid, Error::<T>::WorkerInAnotherPool);
 			// Remove the worker from the pool (notification suspended)
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
+			let session = computation::pallet::Pallet::<T>::sessions(&sub_account).ok_or(Error::<T>::SessionDoesNotExist)?;
+			ensure!(session.state == computation::WorkerState::Ready, Error::<T>::WorkerIsNotReady);
 			computation::pallet::Pallet::<T>::unbind_session(&sub_account, false)?;
 			// Manually clean up the worker, including the pool worker list, and the assignment
 			// indices. (Theoretically we can enable the unbinding notification, and follow the
@@ -571,106 +536,6 @@ pub mod pallet {
 				commission = ratio.deconstruct();
 			}
 			Self::deposit_event(Event::<T>::PoolCommissionSet { pid, commission });
-
-			Ok(())
-		}
-
-		/// Adds a staker accountid to contribution whitelist.
-		///
-		/// Calling this method will forbide stakers contribute who isn't in the whitelist.
-		/// The caller must be the owner of the pool.
-		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
-		/// The whitelist has a lmit len of 100 stakers.
-		#[pallet::weight(0)]
-		pub fn add_staker_to_whitelist(
-			origin: OriginFor<T>,
-			pid: u64,
-			staker: T::AccountId,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			let pool_info = ensure_stake_pool::<T>(pid)?;
-			ensure!(
-				pool_info.basepool.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
-			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
-				ensure!(
-					!whitelist.contains(&staker),
-					Error::<T>::AlreadyInContributeWhitelist
-				);
-				ensure!(
-					(whitelist.len() as u32) < MAX_WHITELIST_LEN,
-					Error::<T>::ExceedWhitelistMaxLen
-				);
-				whitelist.push(staker.clone());
-				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
-			} else {
-				let new_list = vec![staker.clone()];
-				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
-				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
-			}
-			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
-
-			Ok(())
-		}
-
-		/// Adds a description to the pool
-		///
-		/// The caller must be the owner of the pool.
-		#[pallet::weight(0)]
-		pub fn set_pool_description(
-			origin: OriginFor<T>,
-			pid: u64,
-			description: DescStr,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			let pool_info = ensure_stake_pool::<T>(pid)?;
-			ensure!(
-				pool_info.basepool.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
-			PoolDescriptions::<T>::insert(&pid, description);
-
-			Ok(())
-		}
-
-		/// Removes a staker accountid to contribution whitelist.
-		///
-		/// The caller must be the owner of the pool.
-		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
-		#[pallet::weight(0)]
-		pub fn remove_staker_from_whitelist(
-			origin: OriginFor<T>,
-			pid: u64,
-			staker: T::AccountId,
-		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
-			let pool_info = ensure_stake_pool::<T>(pid)?;
-			ensure!(
-				pool_info.basepool.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
-			let mut whitelist =
-				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
-			ensure!(
-				whitelist.contains(&staker),
-				Error::<T>::NotInContributeWhitelist
-			);
-			whitelist.retain(|accountid| accountid != &staker);
-			if whitelist.is_empty() {
-				PoolContributionWhitelists::<T>::remove(&pid);
-				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
-					pid,
-					staker: staker.clone(),
-				});
-				Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
-			} else {
-				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
-				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
-					pid,
-					staker: staker.clone(),
-				});
-			}
 
 			Ok(())
 		}
@@ -786,10 +651,10 @@ pub mod pallet {
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
 				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
-			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+			if let Some(whitelist) = basepool::PoolContributionWhitelists::<T>::get(&pid) {
 				ensure!(
 					whitelist.contains(&who) || pool_info.basepool.owner == who,
-					Error::<T>::NotInContributeWhitelist
+					basepool::Error::<T>::NotInContributeWhitelist
 				);
 			}
 			ensure!(
@@ -1183,12 +1048,6 @@ pub mod pallet {
 						pid,
 						worker: *worker,
 					});
-					// To adjust the case that skip stakepool::stop_computing when call remove_worker
-					// (TODO(mingxuan): should let remove_worker in stakepool call computing directly instead of stakepool -> computation -> stakepool
-					// and remove this cover code.)
-					if !pool.cd_workers.contains(worker) {
-						pool.cd_workers.push_back(*worker);
-					}
 				}
 			});
 		}

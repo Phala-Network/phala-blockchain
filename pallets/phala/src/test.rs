@@ -564,18 +564,18 @@ fn test_set_pool_description() {
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]);
-		let str_hello: stakepoolv2::DescStr = ("hello").as_bytes().to_vec().try_into().unwrap();
-		assert_ok!(PhalaStakePoolv2::set_pool_description(
+		let str_hello: basepool::DescStr = ("hello").as_bytes().to_vec().try_into().unwrap();
+		assert_ok!(PhalaBasePool::set_pool_description(
 			RuntimeOrigin::signed(1),
 			0,
 			str_hello.clone(),
 		));
-		let list = PhalaStakePoolv2::pool_descriptions(0).unwrap();
+		let list = PhalaBasePool::pool_descriptions(0).unwrap();
 		assert_eq!(list, str_hello);
-		let str_bye: stakepoolv2::DescStr = ("bye").as_bytes().to_vec().try_into().unwrap();
+		let str_bye: basepool::DescStr = ("bye").as_bytes().to_vec().try_into().unwrap();
 		assert_noop!(
-			PhalaStakePoolv2::set_pool_description(RuntimeOrigin::signed(2), 0, str_bye,),
-			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner
+			PhalaBasePool::set_pool_description(RuntimeOrigin::signed(2), 0, str_bye,),
+			basepool::Error::<Test>::UnauthorizedPoolOwner
 		);
 	});
 }
@@ -609,12 +609,12 @@ fn test_staker_whitelist() {
 			40 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePoolv2::add_staker_to_whitelist(
+		assert_ok!(PhalaBasePool::add_staker_to_whitelist(
 			RuntimeOrigin::signed(1),
 			0,
 			2,
 		));
-		let whitelist = PhalaStakePoolv2::pool_whitelist(0).unwrap();
+		let whitelist = PhalaBasePool::pool_whitelist(0).unwrap();
 		assert_eq!(whitelist, [2]);
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
@@ -630,14 +630,14 @@ fn test_staker_whitelist() {
 		));
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(3), 0, 40 * DOLLARS, None),
-			stakepoolv2::Error::<Test>::NotInContributeWhitelist
+			basepool::Error::<Test>::NotInContributeWhitelist
 		);
-		assert_ok!(PhalaStakePoolv2::add_staker_to_whitelist(
+		assert_ok!(PhalaBasePool::add_staker_to_whitelist(
 			RuntimeOrigin::signed(1),
 			0,
 			3,
 		));
-		let whitelist = PhalaStakePoolv2::pool_whitelist(0).unwrap();
+		let whitelist = PhalaBasePool::pool_whitelist(0).unwrap();
 		assert_eq!(whitelist, [2, 3]);
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(3),
@@ -645,23 +645,23 @@ fn test_staker_whitelist() {
 			20 * DOLLARS,
 			None
 		));
-		assert_ok!(PhalaStakePoolv2::remove_staker_from_whitelist(
+		assert_ok!(PhalaBasePool::remove_staker_from_whitelist(
 			RuntimeOrigin::signed(1),
 			0,
 			2
 		));
-		let whitelist = PhalaStakePoolv2::pool_whitelist(0).unwrap();
+		let whitelist = PhalaBasePool::pool_whitelist(0).unwrap();
 		assert_eq!(whitelist, [3]);
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(2), 0, 20 * DOLLARS, None),
-			stakepoolv2::Error::<Test>::NotInContributeWhitelist
+			basepool::Error::<Test>::NotInContributeWhitelist
 		);
-		assert_ok!(PhalaStakePoolv2::remove_staker_from_whitelist(
+		assert_ok!(PhalaBasePool::remove_staker_from_whitelist(
 			RuntimeOrigin::signed(1),
 			0,
 			3
 		));
-		assert!(PhalaStakePoolv2::pool_whitelist(0).is_none());
+		assert!(PhalaBasePool::pool_whitelist(0).is_none());
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(3),
 			0,
@@ -1136,15 +1136,24 @@ fn test_for_cdworkers() {
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		assert_ok!(PhalaStakePoolv2::remove_worker(
+		assert_noop!(
+			PhalaStakePoolv2::remove_worker(RuntimeOrigin::signed(1), 0, worker_pubkey(1)),
+			stakepoolv2::Error::<Test>::WorkerIsNotReady,
+		);
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(pool.cd_workers, []);
+		assert_ok!(PhalaStakePoolv2::stop_computing(
 			RuntimeOrigin::signed(1),
 			0,
 			worker_pubkey(1),
 		));
-		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
 		elapse_cool_down();
 		assert_ok!(PhalaStakePoolv2::reclaim_pool_worker(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+		));
+		assert_ok!(PhalaStakePoolv2::remove_worker(
 			RuntimeOrigin::signed(1),
 			0,
 			worker_pubkey(1),

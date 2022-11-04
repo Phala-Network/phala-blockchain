@@ -351,10 +351,10 @@ pub mod stakepoolv2_migration {
 			stakepoolv2::pallet::SubAccountPreimages::<T>::insert(k, v);
 		});
 		stakepool::pallet::PoolContributionWhitelists::<T>::drain().for_each(|(k, v)| {
-			stakepoolv2::pallet::PoolContributionWhitelists::<T>::insert(k, v);
+			basepool::pallet::PoolContributionWhitelists::<T>::insert(k, v);
 		});
 		stakepool::pallet::PoolDescriptions::<T>::drain().for_each(|(k, v)| {
-			stakepoolv2::pallet::PoolDescriptions::<T>::insert(k, v);
+			basepool::pallet::PoolDescriptions::<T>::insert(k, v);
 		});
 	}
 

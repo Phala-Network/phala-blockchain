@@ -38,7 +38,7 @@ pub mod pallet {
 		SaturatedConversion,
 	};
 
-	use frame_system::Origin;
+	use frame_system::{pallet_prelude::*, Origin};
 
 	use scale_info::TypeInfo;
 
@@ -47,6 +47,12 @@ pub mod pallet {
 	const NFT_PROPERTY_KEY: &str = "stake-info";
 
 	const MAX_RECURSIONS: u32 = 100;
+
+	const MAX_WHITELIST_LEN: u32 = 100;
+
+	type DescMaxLen = ConstU32<4400>;
+
+	pub type DescStr = BoundedVec<u8, DescMaxLen>;
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WithdrawInfo<AccountId> {
@@ -103,6 +109,17 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type NftLocks<T: Config> = StorageMap<_, Twox64Concat, (CollectionId, NftId), ()>;
 
+	/// Mapping for pools that specify certain stakers to contribute stakes
+	#[pallet::storage]
+	#[pallet::getter(fn pool_whitelist)]
+	pub type PoolContributionWhitelists<T: Config> =
+		StorageMap<_, Twox64Concat, u64, Vec<T::AccountId>>;
+
+	/// Mapping for pools that store their descriptions set by owner
+	#[pallet::storage]
+	#[pallet::getter(fn pool_descriptions)]
+	pub type PoolDescriptions<T: Config> = StorageMap<_, Twox64Concat, u64, DescStr>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -130,6 +147,21 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 			shares: BalanceOf<T>,
 		},
+		/// A pool contribution whitelist is added
+		///
+		/// - lazy operated when the first staker is added to the whitelist
+		PoolWhitelistCreated { pid: u64 },
+
+		/// The pool contribution whitelist is deleted
+		///
+		/// - lazy operated when the last staker is removed from the whitelist
+		PoolWhitelistDeleted { pid: u64 },
+
+		/// A staker is added to the pool contribution whitelist
+		PoolWhitelistStakerAdded { pid: u64, staker: T::AccountId },
+
+		/// A staker is removed from the pool contribution whitelist
+		PoolWhitelistStakerRemoved { pid: u64, staker: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -159,6 +191,18 @@ pub mod pallet {
 		InvalidSharePrice,
 		/// Tried to get a `NftGuard` when the nft is locked. It indicates an internal error occured.
 		AttrLocked,
+		/// The caller is not the owner of the pool
+		UnauthorizedPoolOwner,
+		/// Can not add the staker to whitelist because the staker is already in whitelist.
+		AlreadyInContributeWhitelist,
+		/// Invalid staker to contribute because origin isn't in Pool's contribution whitelist.
+		NotInContributeWhitelist,
+		/// Too many stakers in contribution whitelist that exceed the limit
+		ExceedWhitelistMaxLen,
+		/// The pool hasn't have a whitelist created
+		NoWhitelistCreated,
+		/// Too long for pool description length
+		ExceedMaxDescriptionLen,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -341,6 +385,115 @@ pub mod pallet {
 			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
+	#[pallet::call]
+	impl<T: Config> Pallet<T>
+	where
+		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+		T: Config + vault::Config,
+	{
+		/// Adds a staker accountid to contribution whitelist.
+		///
+		/// Calling this method will forbide stakers contribute who isn't in the whitelist.
+		/// The caller must be the owner of the pool.
+		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
+		/// The whitelist has a lmit len of 100 stakers.
+		#[pallet::weight(0)]
+		pub fn add_staker_to_whitelist(
+			origin: OriginFor<T>,
+			pid: u64,
+			staker: T::AccountId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				pool_info.basepool.owner == owner,
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+				ensure!(
+					!whitelist.contains(&staker),
+					Error::<T>::AlreadyInContributeWhitelist
+				);
+				ensure!(
+					(whitelist.len() as u32) < MAX_WHITELIST_LEN,
+					Error::<T>::ExceedWhitelistMaxLen
+				);
+				whitelist.push(staker.clone());
+				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+			} else {
+				let new_list = vec![staker.clone()];
+				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
+				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
+			}
+			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
+
+			Ok(())
+		}
+
+		/// Adds a description to the pool
+		///
+		/// The caller must be the owner of the pool.
+		#[pallet::weight(0)]
+		pub fn set_pool_description(
+			origin: OriginFor<T>,
+			pid: u64,
+			description: DescStr,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				pool_info.basepool.owner == owner,
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			PoolDescriptions::<T>::insert(&pid, description);
+
+			Ok(())
+		}
+
+		/// Removes a staker accountid to contribution whitelist.
+		///
+		/// The caller must be the owner of the pool.
+		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
+		#[pallet::weight(0)]
+		pub fn remove_staker_from_whitelist(
+			origin: OriginFor<T>,
+			pid: u64,
+			staker: T::AccountId,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				pool_info.basepool.owner == owner,
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			let mut whitelist =
+				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
+			ensure!(
+				whitelist.contains(&staker),
+				Error::<T>::NotInContributeWhitelist
+			);
+			whitelist.retain(|accountid| accountid != &staker);
+			if whitelist.is_empty() {
+				PoolContributionWhitelists::<T>::remove(&pid);
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+					pid,
+					staker: staker.clone(),
+				});
+				Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
+			} else {
+				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
+					pid,
+					staker: staker.clone(),
+				});
+			}
+
+			Ok(())
+		}
+	}
+
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
@@ -493,6 +646,7 @@ pub mod pallet {
 			false
 		}
 
+		
 		/// Mints a new nft in the Pool's collection and store some shares in it
 		pub fn add_stake_to_new_nft(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
