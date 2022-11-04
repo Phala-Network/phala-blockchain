@@ -755,7 +755,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         event_listener: &mut impl EconomicEventListener,
     ) {
         for worker_info in self.workers.values_mut() {
-            trace!(target: "computing",
+            trace!(target: "gk_computing",
                 "[{}] block_post_process",
                 hex::encode(worker_info.state.pubkey)
             );
@@ -764,7 +764,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
 
             if worker_info.state.working_state.is_none() {
                 trace!(
-                    target: "computing",
+                    target: "gk_computing",
                     "[{}] Computing already stopped, do nothing.",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -774,7 +774,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
                     trace!(
-                        target: "computing",
+                        target: "gk_computing",
                         "[{}] case5: Unresponsive, successful heartbeat.",
                         hex::encode(worker_info.state.pubkey)
                     );
@@ -794,7 +794,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if block.block_number - hb_sent_at > self.tokenomic_params.heartbeat_window {
                     trace!(
-                        target: "computing",
+                        target: "gk_computing",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
                         hex::encode(worker_info.state.pubkey),
                         block.block_number,
@@ -816,7 +816,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             let params = &self.tokenomic_params;
             if worker_info.unresponsive {
                 trace!(
-                    target: "computing",
+                    target: "gk_computing",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(worker_info.state.pubkey)
                 );
@@ -825,7 +825,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     .update_v_slash(params, block.block_number);
             } else if !worker_info.heartbeat_flag {
                 trace!(
-                    target: "computing",
+                    target: "gk_computing",
                     "[{}] case1: Idle, no event",
                     hex::encode(worker_info.state.pubkey)
                 );
@@ -836,7 +836,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         let report = &self.eco_cache.report;
 
         if !report.is_empty() {
-            debug!(target: "computing", "Report: {:?}", report);
+            debug!(target: "gk_computing", "Report: {:?}", report);
             self.egress.push_message(report);
         }
     }
@@ -850,20 +850,20 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             let ok = phala_mq::select! {
                 message = self.computing_events => match message {
                     Ok((_, event, origin)) => {
-                        trace!(target: "computing", "Processing computing report: {:?}, origin: {}",  event, origin);
+                        trace!(target: "gk_computing", "Processing computing report: {:?}, origin: {}",  event, origin);
                         self.process_computing_report(origin, event, block, event_listener);
                     }
                     Err(e) => {
-                        error!(target: "computing", "Read message failed: {:?}", e);
+                        error!(target: "gk_computing", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.system_events => match message {
                     Ok((_, event, origin)) => {
-                        trace!(target: "computing", "Processing system event: {:?}, origin: {}",  event, origin);
+                        trace!(target: "gk_computing", "Processing system event: {:?}, origin: {}",  event, origin);
                         self.process_system_event(origin, event, block, event_listener);
                     }
                     Err(e) => {
-                        error!(target: "computing", "Read message failed: {:?}", e);
+                        error!(target: "gk_computing", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.gatekeeper_events => match message {
@@ -871,7 +871,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                         self.process_gatekeeper_event(origin, event, block, event_listener);
                     }
                     Err(e) => {
-                        error!(target: "computing", "Read message failed: {:?}", e);
+                        error!(target: "gk_computing", "Read message failed: {:?}", e);
                     }
                 },
             };
@@ -927,7 +927,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     Some(info) => info,
                     None => {
                         error!(
-                            target: "computing",
+                            target: "gk_computing",
                             "Unknown worker {} sent a {:?}",
                             hex::encode(worker_pubkey),
                             event
@@ -943,9 +943,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 }
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
-                    error!(target: "computing", "Fatal error: Unexpected heartbeat {:?}", event);
-                    error!(target: "computing", "Sent from worker {}", hex::encode(worker_pubkey));
-                    error!(target: "computing", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
+                    error!(target: "gk_computing", "Fatal error: Unexpected heartbeat {:?}", event);
+                    error!(target: "gk_computing", "Sent from worker {}", hex::encode(worker_pubkey));
+                    error!(target: "gk_computing", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
                     // The state has been poisoned. Make no sence to keep moving on.
                     panic!("GK or Worker state poisoned");
                 }
@@ -957,7 +957,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     state
                 } else {
                     trace!(
-                        target: "computing",
+                        target: "gk_computing",
                         "[{}] Computing already stopped, ignore the heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -966,7 +966,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
 
                 if session_id != working_state.session_id {
                     trace!(
-                        target: "computing",
+                        target: "gk_computing",
                         "[{}] Heartbeat response to previous computing sessions, ignore it.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -982,7 +982,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
 
                 let payout = if worker_info.unresponsive {
                     trace!(
-                        target: "computing",
+                        target: "gk_computing",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(worker_info.state.pubkey)
                     );
@@ -994,7 +994,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     fp!(0)
                 } else {
                     trace!(
-                        target: "computing",
+                        target: "gk_computing",
                         "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
                         hex::encode(worker_info.state.pubkey)
                     );
@@ -1138,7 +1138,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 if origin.is_pallet() {
                     self.tokenomic_params = params.into();
                     info!(
-                        target: "computing",
+                        target: "gk_computing",
                         "Tokenomic parameter updated: {:#?}",
                         &self.tokenomic_params
                     );
@@ -1146,7 +1146,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             }
             GatekeeperEvent::RepairV => {
                 if origin.is_pallet() {
-                    info!(target: "computing", "Repairing V");
+                    info!(target: "gk_computing", "Repairing V");
                     // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
                     // not being applied.
                     //
@@ -1216,7 +1216,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
         _challenge_time: u64,
         _iterations: u64,
     ) {
-        trace!(target: "computing", "Worker should emit heartbeat for {}", challenge_block);
+        trace!(target: "gk_computing", "Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
         self.challenge_received = true;
     }

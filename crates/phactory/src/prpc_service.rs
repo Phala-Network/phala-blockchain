@@ -524,7 +524,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        debug!(target: "query", "Verifying signature passed! origin={:?}", origin);
+        debug!("Verifying signature passed! origin={:?}", origin);
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
@@ -623,13 +623,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                         parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
                     match event {
                         Ok(event) => {
-                            debug!(target: "mq",
+                            debug!(target: "phala_mq",
                                 "mq dispatching message: sender={} dest={:?} payload={:?}",
                                 $msg.sender, $msg.destination, event
                             );
                         }
                         Err(_) => {
-                            debug!(target: "mq", "mq dispatching message (decode failed): {:?}", $msg);
+                            debug!(target: "phala_mq", "mq dispatching message (decode failed): {:?}", $msg);
                         }
                     }
                 }};
@@ -638,7 +638,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             if message.destination.path() == &SystemEvent::topic() {
                 log_message!(message, SystemEvent);
             } else {
-                debug!(target: "mq",
+                debug!(target: "phala_mq",
                     "mq dispatching message: sender={}, dest={:?}",
                     message.sender, message.destination
                 );
