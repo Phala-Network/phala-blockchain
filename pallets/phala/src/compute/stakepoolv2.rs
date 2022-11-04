@@ -116,7 +116,11 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - a new entry in [`Pools`] with the pid
-		PoolCreated { owner: T::AccountId, pid: u64 },
+		PoolCreated { 
+			owner: T::AccountId, 
+			pid: u64, 
+			cid: CollectionId,
+		},
 
 		/// The commission of a pool is updated
 		///
@@ -372,7 +376,12 @@ pub mod pallet {
 					owner_reward_account,
 				}),
 			);
-			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
+			Self::deposit_event(
+				Event::<T>::PoolCreated { 
+					owner, 
+					pid, 
+					cid: collection_id, 
+				});
 			Ok(())
 		}
 

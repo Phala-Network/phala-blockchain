@@ -63,7 +63,11 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - a new entry in [`Pools`] with the pid
-		PoolCreated { owner: T::AccountId, pid: u64 },
+		PoolCreated { 
+			owner: T::AccountId, 
+			pid: u64, 
+			cid: CollectionId,
+		},
 
 		/// The commission of a vault is updated
 		///
@@ -174,7 +178,12 @@ pub mod pallet {
 					invest_pools: VecDeque::new(),
 				}),
 			);
-			Self::deposit_event(Event::<T>::PoolCreated { owner, pid });
+			Self::deposit_event(
+				Event::<T>::PoolCreated { 
+					owner, 
+					pid, 
+					cid: collection_id, 
+				});
 
 			Ok(())
 		}
@@ -392,6 +401,12 @@ pub mod pallet {
 			let mut pool_info = ensure_vault::<T>(pid)?;
 			let a = amount; // Alias to reduce confusion in the code below
 
+			if let Some(whitelist) = basepool::PoolContributionWhitelists::<T>::get(&pid) {
+				ensure!(
+					whitelist.contains(&who) || pool_info.basepool.owner == who,
+					basepool::Error::<T>::NotInContributeWhitelist
+				);
+			}
 			ensure!(
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
