@@ -7,7 +7,8 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use codec::Decode;
+use codec::{Decode, Encode};
+use phala_pallets::pallet_registry::Attestation;
 use phaxt::rpc::ExtraRpcExt as _;
 use phaxt::{subxt, RpcClient};
 use sp_core::{crypto::Pair, sr25519};
@@ -214,9 +215,23 @@ pub struct Args {
     disable_sync_waiting_paraheaders: bool,
 
     /// Attestation provider
-    #[structopt(long)]
-    #[structopt(default_value = "ias")]
-    pub attestation_provider: String,
+    #[clap(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
+    attestation_provider: RaOption,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+enum RaOption {
+    None,
+    Ias,
+}
+
+impl From<RaOption> for Option<AttestationProvider> {
+    fn from(other: RaOption) -> Self {
+        match other {
+            RaOption::None => None,
+            RaOption::Ias => Some(AttestationProvider::Ias),
+        }
+    }
 }
 
 struct RunningFlags {
@@ -812,7 +827,7 @@ async fn init_runtime(
     api: &RelaychainApi,
     para_api: &ParachainApi,
     pr: &PrClient,
-    attestation_provider: String,
+    attestation_provider: Option<AttestationProvider>,
     use_dev_key: bool,
     inject_key: &str,
     operator: Option<AccountId32>,
@@ -857,16 +872,9 @@ async fn init_runtime(
         debug_set_key = Some(hex::decode(DEV_KEY).expect("Invalid dev key"));
     }
 
-    let attestation_provider =
-        match attestation_provider.as_str() {
-            "none" => None,
-            "ias" => Some(AttestationProvider::Ias),
-            _ => panic!("Invalid attestation-provider")
-        };
-
     let resp = pr
         .init_runtime(prpc::InitRuntimeRequest::new(
-            false,
+            attestation_provider.is_none(),
             genesis_info,
             debug_set_key,
             genesis_state,
@@ -887,7 +895,17 @@ async fn register_worker(
 ) -> Result<()> {
     chain_client::update_signer_nonce(para_api, signer).await?;
     let params = mk_params(para_api, args.longevity, args.tip).await?;
-    let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation.encoded_report);
+    let v2 = attestation.payload.is_none();
+    let attestation = match attestation.payload {
+        Some(payload) => Attestation::SgxIas {
+            ra_report: payload.report.as_bytes().to_vec(),
+            signature: payload.signature,
+            raw_signing_cert: payload.signing_cert,
+        }
+        .encode(),
+        None => attestation.encoded_report,
+    };
+    let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
     let ret = para_api
         .tx()
         .sign_and_submit_then_watch(&tx, signer, params)
@@ -1008,7 +1026,7 @@ async fn bridge(
                 &api,
                 &para_api,
                 &pr,
-                args.attestation_provider.clone(),
+                args.attestation_provider.into(),
                 args.use_dev_key,
                 &args.inject_key,
                 operator.clone(),
@@ -1287,7 +1305,7 @@ fn preprocess_args(args: &mut Args) {
     if args.dev {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
-        args.attestation_provider = String::from("none");
+        args.attestation_provider = RaOption::None;
     }
     if args.longevity > 0 {
         assert!(args.longevity >= 4, "Option --longevity must be 0 or >= 4.");
