@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn white_list_works() {
+fn whitelist_works() {
     let allowed: Vec<_> = include_str!("all-log-targets.txt")
         .split('\n')
         .filter(|t| target_allowed(t))
@@ -44,4 +44,13 @@ fn white_list_works() {
             "sidevm_host_runtime::resource",
         ]
     );
+}
+
+#[test]
+fn see_log() {
+    use log::info;
+
+    init(true);
+    info!(target: "pink", "target pink");
+    info!(target: "other", "target other");
 }

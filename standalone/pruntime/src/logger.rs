@@ -23,10 +23,7 @@ pub(crate) fn init(sanitized: bool) {
 
 impl log::Log for SanitizedLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        if !target_allowed(metadata.target()) {
-            return false;
-        }
-        self.0.enabled(metadata)
+        self.0.enabled(metadata) && target_allowed(metadata.target())
     }
 
     fn log(&self, record: &log::Record) {
@@ -40,16 +37,15 @@ impl log::Log for SanitizedLogger {
     }
 }
 
-enum MatchMode {
-    Prefix,
-    Eq,
-}
-
 fn target_allowed(target: &str) -> bool {
     use MatchMode::*;
+    enum MatchMode {
+        Prefix,
+        Eq,
+    }
 
     // Keep more frequantly targets in the front
-    let prefix_whitelist = [
+    let whitelist = [
         ("phactory", Prefix),
         ("rocket::launch", Prefix),
         ("rocket::server", Eq),
@@ -60,7 +56,7 @@ fn target_allowed(target: &str) -> bool {
         ("phala_mq", Eq),
         ("pruntime", Prefix),
     ];
-    for (rule, mode) in prefix_whitelist.into_iter() {
+    for (rule, mode) in whitelist.into_iter() {
         match mode {
             Prefix => {
                 if target.starts_with(rule) {
