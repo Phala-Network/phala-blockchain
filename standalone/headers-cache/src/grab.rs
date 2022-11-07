@@ -27,16 +27,16 @@ pub async fn run(
         tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
 
         let Ok(api) = pherry::subxt_connect(node_uri).await else {
-            warn!("Failed to connect to substrate, try again later");
+            warn!("Failed to connect to {node_uri}, try again later");
             continue;
         };
         let Ok(para_api) = pherry::subxt_connect(para_node_uri).await else {
-            warn!("Failed to connect to substrate, try again later");
+            warn!("Failed to connect to {para_node_uri}, try again later");
             continue;
         };
 
         loop {
-            info!("Start to grabing headers from {from_block}...");
+            info!("Starting to grab headers from {from_block}...");
             let mut buffer = vec![];
             let result =
                 cache::grap_headers_to_file(&api, &para_api, from_block, 10, 0, &mut buffer).await;
