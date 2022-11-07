@@ -282,6 +282,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return Err(from_display("Runtime already initialized"));
         }
 
+        info!("Initializing runtime");
+        info!("is_parachain  : {is_parachain}");
+        info!("operator      : {operator:?}");
+        info!("ra_provider   : {attestation_provider:?}");
+        info!("debug_set_key : {debug_set_key:?}");
+
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
 

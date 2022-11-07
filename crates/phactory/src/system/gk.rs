@@ -766,7 +766,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 trace!(
                     target: "computing",
                     "[{}] Computing already stopped, do nothing.",
-                    hex::encode(&worker_info.state.pubkey)
+                    hex::encode(worker_info.state.pubkey)
                 );
                 continue;
             }
@@ -959,7 +959,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     trace!(
                         target: "computing",
                         "[{}] Computing already stopped, ignore the heartbeat.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     return;
                 };
@@ -968,7 +968,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     trace!(
                         target: "computing",
                         "[{}] Heartbeat response to previous computing sessions, ignore it.",
-                        hex::encode(&worker_info.state.pubkey)
+                        hex::encode(worker_info.state.pubkey)
                     );
                     return;
                 }
