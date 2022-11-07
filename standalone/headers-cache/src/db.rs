@@ -2,7 +2,7 @@ use crate::BlockNumber;
 
 use anyhow::Result;
 use rocksdb::DB;
-use std::mem::size_of;
+use std::{mem::size_of, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +48,8 @@ impl Metadata {
     }
 }
 
-pub struct CacheDB(DB);
+#[derive(Clone)]
+pub struct CacheDB(Arc<DB>);
 
 fn mk_key(prefix: u8, block_number: BlockNumber) -> [u8; size_of::<BlockNumber>() + 1] {
     let mut key = [prefix; size_of::<BlockNumber>() + 1];
@@ -58,7 +59,7 @@ fn mk_key(prefix: u8, block_number: BlockNumber) -> [u8; size_of::<BlockNumber>(
 
 impl CacheDB {
     pub fn open(path: &str) -> Result<Self> {
-        Ok(CacheDB(DB::open_default(path)?))
+        Ok(CacheDB(Arc::new(DB::open_default(path)?)))
     }
 
     pub fn flush(&self) -> Result<()> {
@@ -119,8 +120,8 @@ impl CacheDB {
         Ok(metadata)
     }
 
-    pub fn put_metadata(&self, metadata: Metadata) -> Result<()> {
-        let encoded = serde_json::to_vec(&metadata)?;
+    pub fn put_metadata(&self, metadata: &Metadata) -> Result<()> {
+        let encoded = serde_json::to_vec(metadata)?;
         self.0.put(b"m-metadata", encoded).map_err(Into::into)
     }
 }
