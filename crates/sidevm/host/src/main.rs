@@ -12,9 +12,9 @@ mod web_api;
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub struct Args {
     /// The gas limit for each poll.
-    #[clap(long, default_value_t = 50_000_000_000_u64)]
+    #[arg(long, default_value_t = 50_000_000_000_u64)]
     gas_per_breath: u64,
-    #[clap(long, default_value_t = 1)]
+    #[arg(long, default_value_t = 1)]
     workers: usize,
     /// The WASM program to run
     program: Option<String>,

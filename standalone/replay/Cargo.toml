@@ -10,11 +10,11 @@ phala-trie-storage = { path = "../../crates/phala-trie-storage" }
 phactory = { path = "../../crates/phactory", features = ["gk-stat"] }
 phactory-api = { path = "../../crates/phactory/api" }
 pherry = { path = "../pherry" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false }
 
 log = "0.4.14"
 anyhow = "1.0.43"
-clap = { version = "3", features = ["derive"] }
+clap = { version = "4.0.19", features = ["derive"] }
 tokio = { version = "1.9.0", features = ["full"] }
 sqlx = { version = "0.5.13", features = ["postgres", "decimal", "chrono", "runtime-tokio-rustls"] }
 chrono = { version = "0.4.22" }

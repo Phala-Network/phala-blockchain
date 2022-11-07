@@ -1,10 +1,9 @@
 mod replay_gk;
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[clap(about = "The Phala TEE worker app.", version, author)]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+#[clap(about = "The Phala TEE worker app.", version, author, next_display_order = None)]
 pub struct Args {
     #[clap(
         default_value = "ws://localhost:9944",

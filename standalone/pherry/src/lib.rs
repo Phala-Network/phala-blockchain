@@ -36,7 +36,7 @@ use phactory_api::blocks::{
 use phactory_api::prpc::{self, InitRuntimeResponse, PhactoryInfo};
 use phactory_api::pruntime_client;
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use headers_cache::Client as CacheClient;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
@@ -48,9 +48,9 @@ pub use phaxt::connect as subxt_connect;
 #[clap(
     about = "Sync messages between pruntime and the blockchain.",
     version,
-    author
+    author,
+    next_display_order = None
 )]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub struct Args {
     #[clap(
         long,
@@ -67,13 +67,13 @@ pub struct Args {
     )]
     no_sync: bool,
 
-    #[clap(long, help = "Don't write pRuntime egress data back to Substarte.")]
+    #[arg(long, help = "Don't write pRuntime egress data back to Substarte.")]
     no_msg_submit: bool,
 
-    #[clap(long, help = "Skip registering the worker.")]
+    #[arg(long, help = "Skip registering the worker.")]
     no_register: bool,
 
-    #[clap(long, help = "Skip binding the worker endpoint.")]
+    #[arg(long, help = "Skip binding the worker endpoint.")]
     no_bind: bool,
 
     #[clap(
@@ -116,7 +116,7 @@ pub struct Args {
     )]
     next_pruntime_endpoint: Option<String>,
 
-    #[clap(default_value = "", long, help = "notify endpoint")]
+    #[arg(default_value = "", long, help = "notify endpoint")]
     notify_endpoint: String,
 
     #[clap(
@@ -147,7 +147,7 @@ pub struct Args {
     )]
     operator: Option<String>,
 
-    #[clap(long = "parachain", help = "Parachain mode")]
+    #[arg(long = "parachain", help = "Parachain mode")]
     parachain: bool,
 
     #[clap(
@@ -156,7 +156,7 @@ pub struct Args {
     )]
     start_header: Option<BlockNumber>,
 
-    #[clap(long, help = "Don't wait the substrate nodes to sync blocks")]
+    #[arg(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
 
     #[clap(
@@ -186,7 +186,7 @@ pub struct Args {
     )]
     max_sync_msgs_per_round: u64,
 
-    #[clap(long, help = "Auto restart self after an error occurred")]
+    #[arg(long, help = "Auto restart self after an error occurred")]
     auto_restart: bool,
 
     #[clap(
@@ -196,16 +196,16 @@ pub struct Args {
     )]
     max_restart_retries: u32,
 
-    #[clap(long, help = "Restart if number of rpc errors reaches the threshold")]
+    #[arg(long, help = "Restart if number of rpc errors reaches the threshold")]
     restart_on_rpc_error_threshold: Option<u64>,
 
 
-    #[clap(long, help = "URI to fetch cached headers from")]
-    #[clap(default_value = "")]
+    #[arg(long, help = "URI to fetch cached headers from")]
+    #[arg(default_value = "")]
     headers_cache_uri: String,
 
-    #[clap(long, help = "Stop when synced to given parachain block")]
-    #[clap(default_value_t = BlockNumber::MAX)]
+    #[arg(long, help = "Stop when synced to given parachain block")]
+    #[arg(default_value_t = BlockNumber::MAX)]
     to_block: BlockNumber,
 
     #[clap(

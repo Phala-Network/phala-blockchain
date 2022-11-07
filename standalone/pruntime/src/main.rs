@@ -5,7 +5,7 @@ mod runtime;
 
 use std::{env, thread};
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use log::{error, info};
 
 use phactory::BlockNumber;
@@ -14,62 +14,61 @@ use phactory_api::ecall_args::{git_revision, InitArgs};
 mod logger;
 
 #[derive(Parser, Debug, Clone)]
-#[clap(about = "The Phala TEE worker app.", version, author)]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+#[clap(about = "The Phala TEE worker app.", version, author, next_display_order = None)]
 struct Args {
     /// Number of CPU cores to be used for mining.
-    #[clap(short, long)]
+    #[arg(short, long)]
     cores: Option<u32>,
 
     /// Run benchmark at startup.
-    #[clap(long)]
+    #[arg(long)]
     init_bench: bool,
 
     /// Allow CORS for HTTP
-    #[clap(long)]
+    #[arg(long)]
     allow_cors: bool,
 
     /// Turn on /kick API
-    #[clap(long)]
+    #[arg(long)]
     enable_kick_api: bool,
 
     /// Listening IP address of HTTP
-    #[clap(long)]
+    #[arg(long)]
     address: Option<String>,
 
     /// Listening port of HTTP
-    #[clap(long)]
+    #[arg(long)]
     port: Option<u16>,
 
     /// Listening port of HTTP (with access control)
-    #[clap(long)]
+    #[arg(long)]
     public_port: Option<u16>,
 
     /// Disable checkpoint
-    #[clap(long)]
+    #[arg(long)]
     disable_checkpoint: bool,
 
     /// Checkpoint interval in seconds, default to 5 minutes
-    #[clap(long)]
-    #[clap(default_value_t = 300)]
+    #[arg(long)]
+    #[arg(default_value_t = 300)]
     checkpoint_interval: u64,
 
     /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
-    #[clap(long)]
+    #[arg(long)]
     remove_corrupted_checkpoint: bool,
 
     /// Max number of checkpoint files kept
-    #[clap(long)]
-    #[clap(default_value_t = 5)]
+    #[arg(long)]
+    #[arg(default_value_t = 5)]
     max_checkpoint_files: u32,
 
     /// Measuring the time it takes to process each RPC call.
-    #[clap(long)]
+    #[arg(long)]
     measure_rpc_time: bool,
 
     /// Run the database garbage collection at given interval in blocks
-    #[clap(long)]
-    #[clap(default_value_t = 100)]
+    #[arg(long)]
+    #[arg(default_value_t = 100)]
     gc_interval: BlockNumber,
 }
 

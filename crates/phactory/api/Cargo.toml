@@ -9,8 +9,7 @@ parity-scale-codec   = { package = "parity-scale-codec", version = "3.1", defaul
 scale-info = { version = "2.1", default-features = false, features = ["derive"] }
 serde = { version = "1", features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
-# TODO.kevin: Move back to crates.io once it released 1.0
-derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
+derive_more = { version = "0.99.17" }
 prost = { version = "0.11.0", default-features = false }
 
 phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
@@ -20,11 +19,11 @@ phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
 
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false, features = ["full_crypto"] }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false, features = ["full_crypto"] }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30", default-features = false }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false, features = ["full_crypto"] }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false, features = ["full_crypto"] }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false }
 
 # for pruntime_client
 async-trait = "0.1.57"
@@ -32,7 +31,7 @@ anyhow = { version = "1.0.43", optional = true }
 log = { version = "0.4.14" }
 reqwest = { version = "0.11.4", optional = true }
 
-primitive-types = { version = "0.11.0", optional = true, default-features = false }
+primitive-types = { version = "0.12.1", optional = true, default-features = false }
 
 [dev-dependencies]
 insta = "1.13.0"

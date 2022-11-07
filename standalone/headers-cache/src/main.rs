@@ -5,7 +5,7 @@ use anyhow::Context;
 use log::info;
 use scale::{Decode, Encode};
 
-use clap::{AppSettings, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use pherry::headers_cache as cache;
 
 mod db;
@@ -14,10 +14,9 @@ mod web_api;
 type BlockNumber = u32;
 
 #[derive(Parser)]
-#[clap(about = "Cache server for relaychain headers", version, author)]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+#[clap(about = "Cache server for relaychain headers", version, author, next_display_order = None)]
 pub struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     action: Action,
 }
 
@@ -26,25 +25,25 @@ enum Import {
     /// Import headers from given file to database.
     Headers {
         /// The grabbed headers files to read from
-        #[clap(default_value = "headers.bin")]
+        #[arg(default_value = "headers.bin")]
         input_files: Vec<String>,
     },
     /// Import parachain headers from given file to database.
     ParaHeaders {
         /// The grabbed headers files to read from
-        #[clap(default_value = "parachain-headers.bin")]
+        #[arg(default_value = "parachain-headers.bin")]
         input_files: Vec<String>,
     },
     /// Import storage changes from given file to database.
     StorageChanges {
         /// The grabbed files to read from
-        #[clap(default_value = "storage-changes.bin")]
+        #[arg(default_value = "storage-changes.bin")]
         input_files: Vec<String>,
     },
     /// Import genesis from given file to database.
     Genesis {
         /// The grabbed genesis file to read from
-        #[clap(default_value = "genesis.bin")]
+        #[arg(default_value = "genesis.bin")]
         input: String,
     },
 }
@@ -54,66 +53,66 @@ enum Grab {
     /// Grap headers from the chain and dump them to a file
     Headers {
         /// The relaychain RPC endpoint
-        #[clap(long, default_value = "ws://localhost:9945")]
+        #[arg(long, default_value = "ws://localhost:9945")]
         node_uri: String,
         /// The parachain RPC endpoint
-        #[clap(long, default_value = "ws://localhost:9944")]
+        #[arg(long, default_value = "ws://localhost:9944")]
         para_node_uri: String,
         /// The block number to start at
-        #[clap(long, default_value_t = 1)]
+        #[arg(long, default_value_t = 1)]
         from_block: BlockNumber,
         /// Number of headers to grab
-        #[clap(long, default_value_t = BlockNumber::MAX)]
+        #[arg(long, default_value_t = BlockNumber::MAX)]
         count: BlockNumber,
         /// Prefered minimum number of blocks between justification
-        #[clap(long, default_value_t = 1000)]
+        #[arg(long, default_value_t = 1000)]
         justification_interval: BlockNumber,
         /// The file to write the headers to
-        #[clap(default_value = "headers.bin")]
+        #[arg(default_value = "headers.bin")]
         output: String,
     },
     /// Grap parachain headers from the chain and dump them to a file
     ParaHeaders {
         /// The parachain RPC endpoint
-        #[clap(long, default_value = "ws://localhost:9944")]
+        #[arg(long, default_value = "ws://localhost:9944")]
         para_node_uri: String,
         /// The block number to start at
-        #[clap(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0)]
         from_block: BlockNumber,
         /// Number of headers to grab
-        #[clap(long, default_value_t = BlockNumber::MAX)]
+        #[arg(long, default_value_t = BlockNumber::MAX)]
         count: BlockNumber,
         /// The file to write the headers to
-        #[clap(default_value = "parachain-headers.bin")]
+        #[arg(default_value = "parachain-headers.bin")]
         output: String,
     },
     /// Grap storage changes from the chain and dump them to a file
     StorageChanges {
         /// The parachain RPC endpoint
-        #[clap(long, default_value = "ws://localhost:9944")]
+        #[arg(long, default_value = "ws://localhost:9944")]
         para_node_uri: String,
         /// The block number to start at
-        #[clap(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0)]
         from_block: BlockNumber,
         /// Number of headers to grab
-        #[clap(long, default_value_t = BlockNumber::MAX)]
+        #[arg(long, default_value_t = BlockNumber::MAX)]
         count: BlockNumber,
         /// Number of blocks requested in a single RPC.
-        #[clap(long, default_value_t = 10)]
+        #[arg(long, default_value_t = 10)]
         batch_size: BlockNumber,
         /// The file to write the headers to
-        #[clap(default_value = "storage-changes.bin")]
+        #[arg(default_value = "storage-changes.bin")]
         output: String,
     },
     Genesis {
         /// The relaychain RPC endpoint
-        #[clap(long, default_value = "ws://localhost:9945")]
+        #[arg(long, default_value = "ws://localhost:9945")]
         node_uri: String,
         /// The block number to be treated as genesis
-        #[clap(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0)]
         from_block: BlockNumber,
         /// The file to write the result to
-        #[clap(default_value = "genesis.bin")]
+        #[arg(default_value = "genesis.bin")]
         output: String,
     },
 }
@@ -123,28 +122,28 @@ enum Action {
     /// Grab genesis or headers from the blockchain and dump it to a file
     Grab {
         /// What to grab
-        #[clap(subcommand)]
+        #[command(subcommand)]
         what: Grab,
     },
     /// Import genesis or headers from a file into the cache database
     Import {
         /// The database file to use
-        #[clap(long, default_value = "cache.db")]
+        #[arg(long, default_value = "cache.db")]
         db: String,
         /// What type of data to import
-        #[clap(subcommand)]
+        #[command(subcommand)]
         what: Import,
     },
     /// Run the cache server
     Serve {
         /// The database file to use
-        #[clap(long, default_value = "cache.db")]
+        #[arg(long, default_value = "cache.db")]
         db: String,
     },
     /// Split given grabbed headers file into chunks
     Split {
         /// Size in MB of each chunk
-        #[clap(long, default_value_t = 200)]
+        #[arg(long, default_value_t = 200)]
         size: usize,
 
         /// The headers file to split
@@ -158,13 +157,13 @@ enum Action {
     /// Show imported block number info in the cache database
     InspectDb {
         /// The database file to use
-        #[clap(long, default_value = "cache.db")]
+        #[arg(long, default_value = "cache.db")]
         db: String,
     },
     /// Merge given chunks into a single file
     Merge {
         /// Appending to existing file
-        #[clap(long, short = 'a')]
+        #[arg(long, short = 'a')]
         append: bool,
         /// The destination file to write to
         dest_file: String,
@@ -173,7 +172,7 @@ enum Action {
     },
     /// For debug. Show the authority set id for a given block
     ShowSetId {
-        #[clap(long)]
+        #[arg(long)]
         uri: String,
         block: BlockNumber,
     },

@@ -1,3 +1,4 @@
+use frame_support::weights::Weight;
 use pallet_contracts_primitives::StorageDeposit;
 use phala_types::contract::contract_id_preimage;
 use pink_extension::predefined_accounts::ACCOUNT_RUNTIME;
@@ -173,8 +174,8 @@ impl Contract {
         if origin == AccountId::new(ACCOUNT_RUNTIME) {
             return (
                 ContractExecResult {
-                    gas_consumed: 0,
-                    gas_required: 0,
+                    gas_consumed: Weight::zero(),
+                    gas_required: Weight::zero(),
                     debug_message: b"Default account is not allowed to call contracts".to_vec(),
                     result: Err(DispatchError::BadOrigin),
                     storage_deposit: StorageDeposit::Charge(0),
@@ -315,7 +316,7 @@ pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], E
     result
         .result
         .as_ref()
-        .map(|v| &*v.data.0)
+        .map(|v| &*v.data)
         .map_err(|err| ExecError {
             source: *err,
             message: String::from_utf8_lossy(&result.debug_message).to_string(),

@@ -133,7 +133,6 @@ impl Config for PinkRuntime {
     type DepositPerByte = ConstU128<0>;
     type DepositPerItem = ConstU128<0>;
     type AddressGenerator = Pink;
-    type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
 }
