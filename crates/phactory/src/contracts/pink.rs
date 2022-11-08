@@ -245,6 +245,8 @@ impl Pink {
                 let origin: runtime::AccountId = match origin {
                     MessageOrigin::AccountId(origin) => origin.0.into(),
                     MessageOrigin::Pallet(_) => {
+                        // The caller will be set to the system contract if it's from a pallet call
+                        // and without charging for gas
                         gas_free = true;
                         storage
                             .system_contract()

@@ -70,11 +70,11 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
     );
 
     {
-        const { output } = await system.query["system::freeBalance"](cert, {});
+        const { output } = await system.query["system::freeBalanceOf"](cert, {}, pair.address);
         console.log("freeBalance:", output);
     }
     {
-        const { output } = await system.query["system::totalBalance"](cert, {});
+        const { output } = await system.query["system::totalBalanceOf"](cert, {}, pair.address);
         console.log("totalBalance:", output);
     }
 

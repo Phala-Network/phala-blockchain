@@ -27,10 +27,49 @@ fn _compilation_hint_for_kvdb(db: Storage) {
 
 macro_rules! define_mask_fn {
     ($name: ident, $bits: expr, $typ: ty) => {
-        fn $name(v: $typ, p: $typ) -> $typ {
-            let pos: $typ = (1 << ($bits - v.leading_zeros())) >> 9;
-            let pos = pos.max(p);
-            let mask = pos.saturating_sub(1);
+        /// Mask given number's lowest bits.
+        ///
+        /// Given a number 0x1000beef, in binary representation:
+        ///     0b_10000_00000000_10111110_11101111
+        /// We want to mask it to 0x100fffff.
+        /// Rough steps:
+        ///     0b_10000_00000000_10111110_11101111
+        ///        ^
+        ///      1. we find the most left bit position here
+        ///     0b_10000_00000000_10111110_11101111
+        ///                  ^^^^^^^^^^^^^^^^^^^^^^
+        ///               2. than calculate these bits need to be mask
+        ///     0b_10000_00001111_11111111_11111111
+        ///                  ^^^^^^^^^^^^^^^^^^^^^^
+        ///               3. mask it
+        fn $name(v: $typ, min_mask_bits: u32) -> $typ {
+            // Given v = 0x1000_beef
+            // Suppose we have:
+            // bits = 64
+            // v =0b010000_00000000_10111110_11101111
+            let pos = $bits - v.leading_zeros();
+            //    0b010000_00000000_10111110_11101111
+            //      ^
+            //     here, pos=30
+            // shift right by 9
+            let pos = pos.max(9) - 9;
+            // Now pos =  0b_10000_00000000_00000000
+            //               ^
+            //              now here, pos=21
+            // If min_mask_bits = 16
+            //                  0b_10000000_00000000
+            //                     ^
+            //                  min_mask_bits here
+            let pos = pos.clamp(min_mask_bits, $bits - 1);
+            let cursor: $typ = 1 << pos;
+            //            0b_10000_00000000_00000000
+            //               ^
+            //               cursor here
+            let mask = cursor.saturating_sub(1);
+            // mask =  0b_00001111_11111111_11111111
+            // v | mask =
+            //    0b10000_00001111_11111111_11111111
+            //  = 0x100fffff
             v | mask
         }
     };
@@ -40,33 +79,46 @@ define_mask_fn!(mask_low_bits64, 64, u64);
 define_mask_fn!(mask_low_bits128, 128, u128);
 
 fn mask_deposit(deposit: u128, deposit_per_byte: u128) -> u128 {
-    let gain = 1 << (128 - (deposit_per_byte * 1024).leading_zeros());
-    mask_low_bits128(deposit, gain)
+    let min_mask_bits = 128 - (deposit_per_byte * 1024).leading_zeros();
+    mask_low_bits128(deposit, min_mask_bits)
 }
 
 #[test]
 fn mask_low_bits_works() {
-    let p = 0x1000000;
-    assert_eq!(mask_low_bits64(0, p), 0xffffff);
-    assert_eq!(mask_low_bits64(0x10, p), 0xffffff);
-    assert_eq!(mask_low_bits64(0x1000_0000, p), 0x10ff_ffff);
-    assert_eq!(mask_low_bits64(0x10_0000_0000, p), 0x10_0fff_ffff);
-    assert_eq!(mask_low_bits64(0x10_0000_0000_0000, p), 0x10_0fff_ffff_ffff);
+    let min_mask_bits = 24;
+    assert_eq!(mask_low_bits64(0, min_mask_bits), 0xffffff);
+    assert_eq!(mask_low_bits64(0x10, min_mask_bits), 0xffffff);
+    assert_eq!(mask_low_bits64(0x1000_0000, min_mask_bits), 0x10ff_ffff);
+    assert_eq!(
+        mask_low_bits64(0x10_0000_0000, min_mask_bits),
+        0x10_0fff_ffff
+    );
+    assert_eq!(
+        mask_low_bits64(0x10_0000_0000_0000, min_mask_bits),
+        0x10_0fff_ffff_ffff
+    );
+    assert_eq!(
+        mask_low_bits64(0xffffffff_00000000, min_mask_bits),
+        0xffffffff_ffffffff
+    );
 
-    let p = 10;
-    assert_eq!(mask_deposit(0, p), 0x3fff);
-    assert_eq!(mask_deposit(0x10, p), 0x3fff);
-    assert_eq!(mask_deposit(0x10_0000, p), 0x10_3fff);
-    assert_eq!(mask_deposit(0x10_0000_0000, p), 0x10_0fff_ffff);
-    assert_eq!(mask_deposit(0x10_0000_0000_0000, p), 0x10_0fff_ffff_ffff);
+    let price = 10;
+    assert_eq!(mask_deposit(0, price), 0x3fff);
+    assert_eq!(mask_deposit(0x10, price), 0x3fff);
+    assert_eq!(mask_deposit(0x10_0000, price), 0x10_3fff);
+    assert_eq!(mask_deposit(0x10_0000_0000, price), 0x10_0fff_ffff);
+    assert_eq!(
+        mask_deposit(0x10_0000_0000_0000, price),
+        0x10_0fff_ffff_ffff
+    );
 }
 
 fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> ContractResult<T> {
     use pallet_contracts_primitives::StorageDeposit;
 
-    let gain = 0x10000000;
-    result.gas_consumed = mask_low_bits64(result.gas_consumed, gain);
-    result.gas_required = mask_low_bits64(result.gas_required, gain);
+    let min_mask_bits = 28;
+    result.gas_consumed = mask_low_bits64(result.gas_consumed, min_mask_bits);
+    result.gas_required = mask_low_bits64(result.gas_required, min_mask_bits);
 
     match &mut result.storage_deposit {
         StorageDeposit::Charge(v) => {

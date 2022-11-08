@@ -412,7 +412,7 @@ mod tests {
         }
 
         {
-            let gas_limit = est_result.gas_required - 1;
+            let gas_limit = est_result.gas_required / 2;
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
             args.gas_limit = Weight::from_ref_time(gas_limit);

@@ -130,13 +130,13 @@ mod system {
         }
 
         #[ink(message)]
-        fn total_balance(&self) -> Balance {
-            pink::ext().balance_of(self.env().caller()).0
+        fn total_balance_of(&self, account: AccountId) -> Balance {
+            pink::ext().balance_of(account).0
         }
 
         #[ink(message)]
-        fn free_balance(&self) -> Balance {
-            pink::ext().balance_of(self.env().caller()).1
+        fn free_balance_of(&self, account: AccountId) -> Balance {
+            pink::ext().balance_of(account).1
         }
     }
 
