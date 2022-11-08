@@ -64,15 +64,26 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
             headers.insert(key, value);
         }
 
-        let mut response = client
+        let result = client
             .request(method, url)
             .headers(headers)
             .body(request.body)
-            .send()
-            .map_err(|err| {
+            .send();
+
+        let mut response = match result {
+            Ok(response) => response,
+            Err(err) => {
+                // If there is somthing wrong with the network, we can not inspect the reason too
+                // much here. Let it return a non-standard 523 here.
                 log::info!("HTTP request error: {}", err);
-                "Failed to send request"
-            })?;
+                return Ok(HttpResponse {
+                    status_code: 523,
+                    reason_phrase: "Unreachable".into(),
+                    body: format!("{:?}", err).into_bytes(),
+                    headers: vec![],
+                });
+            }
+        };
 
         let headers: Vec<_> = response
             .headers()
@@ -83,9 +94,15 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         let mut body = Vec::new();
         let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
 
-        response
-            .copy_to(&mut writer)
-            .or(Err("Failed to copy response body"))?;
+        if let Err(err) = response.copy_to(&mut writer) {
+            log::info!("Failed to read HTTP body: {}", err);
+            return Ok(HttpResponse {
+                status_code: 524,
+                reason_phrase: "IO Error".into(),
+                body: format!("{:?}", err).into_bytes(),
+                headers: vec![],
+            });
+        };
 
         let response = HttpResponse {
             status_code: response.status().as_u16(),
