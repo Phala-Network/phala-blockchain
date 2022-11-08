@@ -6,7 +6,13 @@ mod weights;
 use std::time::{Duration, Instant};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::{parameter_types, traits::ConstU128, weights::Weight};
+use frame_support::{
+    parameter_types,
+    traits::ConstU128,
+    weights::{
+        Weight,
+        constants::WEIGHT_PER_SECOND,
+    }};
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{
     generic::Header,
@@ -34,12 +40,15 @@ frame_support::construct_runtime! {
     }
 }
 
-const WEIGHT_PER_SECOND: Weight = Weight::from_ref_time(1_000_000_000_000);
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(WEIGHT_PER_SECOND.saturating_mul(2));
+        frame_system::limits::BlockWeights::with_sensible_defaults(
+			(2u64 * WEIGHT_PER_SECOND).set_proof_size(u64::MAX),
+			NORMAL_DISPATCH_RATIO,
+		);
     pub static ExistentialDeposit: u64 = 0;
 }
 
@@ -260,7 +269,7 @@ mod tests {
     #[test]
     pub fn crypto_hashes_test() {
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        const GAS_LIMIT: Weight = Weight::from_ref_time(1_000_000_000_000_000);
+        pub const GAS_LIMIT: Weight = Weight::from_ref_time(100_000_000_000).set_proof_size(256 * 1024);
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))

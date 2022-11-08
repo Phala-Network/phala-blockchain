@@ -1,52 +1,71 @@
 ---
 source: crates/pink/src/runtime.rs
-assertion_line: 144
-expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <PinkRuntime as Config>::Schedule::get(),\n    <PinkRuntime as Config>::ContractAccessWeight::get(),\n    <PinkRuntime as Config>::DeletionQueueDepth::get(),\n    <PinkRuntime as Config>::DeletionWeightLimit::get(),\n    <PinkRuntime as Config>::MaxCodeLen::get(),\n    <PinkRuntime as Config>::MaxStorageKeyLen::get())"
+assertion_line: 151
+expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <PinkRuntime as Config>::Schedule::get(),\n    <PinkRuntime as Config>::DeletionQueueDepth::get(),\n    <PinkRuntime as Config>::DeletionWeightLimit::get(),\n    <PinkRuntime as Config>::MaxCodeLen::get(),\n    <PinkRuntime as Config>::MaxStorageKeyLen::get())"
 ---
 (
     BlockWeights {
         base_block: Weight {
-            ref_time: 0,
+            ref_time: 5346284000,
+            proof_size: 0,
         },
         max_block: Weight {
             ref_time: 2000000000000,
+            proof_size: 18446744073709551615,
         },
         per_class: PerDispatchClass {
             normal: WeightsPerClass {
                 base_extrinsic: Weight {
-                    ref_time: 0,
+                    ref_time: 86298000,
+                    proof_size: 0,
                 },
-                max_extrinsic: None,
+                max_extrinsic: Some(
+                    Weight {
+                        ref_time: 1299913702000,
+                        proof_size: 11990383647911208550,
+                    },
+                ),
                 max_total: Some(
                     Weight {
-                        ref_time: 2000000000000,
+                        ref_time: 1500000000000,
+                        proof_size: 13835058055282163711,
                     },
                 ),
                 reserved: Some(
                     Weight {
                         ref_time: 0,
+                        proof_size: 0,
                     },
                 ),
             },
             operational: WeightsPerClass {
                 base_extrinsic: Weight {
-                    ref_time: 0,
+                    ref_time: 86298000,
+                    proof_size: 0,
                 },
-                max_extrinsic: None,
+                max_extrinsic: Some(
+                    Weight {
+                        ref_time: 1799913702000,
+                        proof_size: 16602069666338596454,
+                    },
+                ),
                 max_total: Some(
                     Weight {
                         ref_time: 2000000000000,
+                        proof_size: 18446744073709551615,
                     },
                 ),
                 reserved: Some(
                     Weight {
-                        ref_time: 0,
+                        ref_time: 500000000000,
+                        proof_size: 4611686018427387904,
                     },
                 ),
             },
             mandatory: WeightsPerClass {
                 base_extrinsic: Weight {
-                    ref_time: 0,
+                    ref_time: 86298000,
+                    proof_size: 0,
                 },
                 max_extrinsic: None,
                 max_total: None,
@@ -178,12 +197,10 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             ecdsa_to_eth_address: "25.8 µs",
         },
     },
-    Weight {
-        ref_time: 381469,
-    },
     1024,
     Weight {
         ref_time: 500000000000,
+        proof_size: 0,
     },
     2097152,
     128,
