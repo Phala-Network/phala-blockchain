@@ -1,5 +1,5 @@
-use crate::constants::*;
 pub use crate::attestation::Error;
+use crate::constants::*;
 
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -200,7 +200,7 @@ mod test {
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
-pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
+	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
 
 	#[test]
 	fn test_ias_validator() {

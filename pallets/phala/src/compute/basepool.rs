@@ -646,7 +646,6 @@ pub mod pallet {
 			false
 		}
 
-		
 		/// Mints a new nft in the Pool's collection and store some shares in it
 		pub fn add_stake_to_new_nft(
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,

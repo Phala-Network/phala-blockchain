@@ -9,14 +9,14 @@ pub mod pallet {
 	#[cfg(feature = "std")]
 	use std::format;
 
-	use crate::balance_convert::{FixedPointConvert, mul};
+	use crate::balance_convert::{mul, FixedPointConvert};
 	use crate::basepool;
 	use crate::computation;
 	use crate::pawnshop;
 	use crate::poolproxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool};
 	use crate::registry;
-	use crate::vault;
 	use crate::stakepool;
+	use crate::vault;
 
 	use fixed::types::U64F64 as FixedPoint;
 
@@ -24,7 +24,12 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{tokens::fungibles::{Inspect, Transfer}, StorageVersion, UnixTime, LockIdentifier, ExistenceRequirement::{AllowDeath, KeepAlive}, LockableCurrency, Currency},
+		traits::{
+			tokens::fungibles::{Inspect, Transfer},
+			Currency,
+			ExistenceRequirement::{AllowDeath, KeepAlive},
+			LockIdentifier, LockableCurrency, StorageVersion, UnixTime,
+		},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
@@ -114,13 +119,13 @@ pub mod pallet {
 	pub type SubAccountPreimages<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
 
-
 	#[pallet::type_value]
 	pub fn StakepoolIterateStartPosByDefault<T: Config>() -> Option<u64> {
 		None
 	}
 	#[pallet::storage]
-	pub type StakepoolIterateStartPos<T> = StorageValue<_, Option<u64>, ValueQuery, StakepoolIterateStartPosByDefault<T>>;
+	pub type StakepoolIterateStartPos<T> =
+		StorageValue<_, Option<u64>, ValueQuery, StakepoolIterateStartPosByDefault<T>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -129,9 +134,9 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - a new entry in [`Pools`] with the pid
-		PoolCreated { 
-			owner: T::AccountId, 
-			pid: u64, 
+		PoolCreated {
+			owner: T::AccountId,
+			pid: u64,
 			cid: CollectionId,
 		},
 
@@ -389,12 +394,11 @@ pub mod pallet {
 					owner_reward_account,
 				}),
 			);
-			Self::deposit_event(
-				Event::<T>::PoolCreated { 
-					owner, 
-					pid, 
-					cid: collection_id, 
-				});
+			Self::deposit_event(Event::<T>::PoolCreated {
+				owner,
+				pid,
+				cid: collection_id,
+			});
 			Ok(())
 		}
 
@@ -495,8 +499,12 @@ pub mod pallet {
 			ensure!(pid == lookup_pid, Error::<T>::WorkerInAnotherPool);
 			// Remove the worker from the pool (notification suspended)
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
-			let session = computation::pallet::Pallet::<T>::sessions(&sub_account).ok_or(Error::<T>::SessionDoesNotExist)?;
-			ensure!(session.state == computation::WorkerState::Ready, Error::<T>::WorkerIsNotReady);
+			let session = computation::pallet::Pallet::<T>::sessions(&sub_account)
+				.ok_or(Error::<T>::SessionDoesNotExist)?;
+			ensure!(
+				session.state == computation::WorkerState::Ready,
+				Error::<T>::WorkerIsNotReady
+			);
 			computation::pallet::Pallet::<T>::unbind_session(&sub_account, false)?;
 			// Manually clean up the worker, including the pool worker list, and the assignment
 			// indices. (Theoretically we can enable the unbinding notification, and follow the
@@ -805,17 +813,14 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_stakepools(
-			origin: OriginFor<T>, 
-			max_iterations: u32
-		) -> DispatchResult {
+		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 			let mut iter = match StakepoolIterateStartPos::<T>::get() {
 				Some(pid) => {
 					let key: Vec<u8> = pid.to_le_bytes().to_vec();
 					stakepool::pallet::StakePools::<T>::iter_from(key)
-				},
+				}
 				None => stakepool::pallet::StakePools::<T>::iter(),
 			};
 			let mut i = 0;
@@ -839,10 +844,7 @@ pub mod pallet {
 					pool_info.owner.clone(),
 				);
 				let (owner_reward_account, lock_account) =
-					generate_owner_and_lock_account::<T::AccountId>(
-						pid,
-						pool_info.owner.clone(),
-					);
+					generate_owner_and_lock_account::<T::AccountId>(pid, pool_info.owner.clone());
 				let mut new_pool_info = StakePool {
 					basepool: basepool::BasePool {
 						pid,
@@ -870,7 +872,8 @@ pub mod pallet {
 					if worker_info.state == computation::pallet::WorkerState::WorkerCoolingDown {
 						new_pool_info.cd_workers.push_back(pubkey);
 					}
-					let computing_stake = computation::Stakes::<T>::get(&session).unwrap_or_default();
+					let computing_stake =
+						computation::Stakes::<T>::get(&session).unwrap_or_default();
 					pawnshop::Pallet::<T>::mint_into(
 						&new_pool_info.owner_reward_account,
 						computing_stake,
@@ -900,7 +903,9 @@ pub mod pallet {
 				if !pawnshop::Pallet::<T>::mint_into(
 					&new_pool_info.owner_reward_account,
 					pool_info.owner_reward,
-				).is_err() {
+				)
+				.is_err()
+				{
 					let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
 						&pawnshop_accountid,
 						pool_info.owner_reward,
@@ -910,10 +915,7 @@ pub mod pallet {
 					&new_pool_info.basepool.pool_account_id,
 					pool_info.free_stake,
 				);
-				basepool::pallet::Pools::<T>::insert(
-					pid,
-					PoolProxy::StakePool(new_pool_info),
-				);
+				basepool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(new_pool_info));
 				i += 1;
 				if i >= max_iterations {
 					break;
@@ -930,136 +932,153 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_pool_stakers(
-			origin: OriginFor<T>, 
-			max_iterations: u32
-		) -> DispatchResult {
+		pub fn migrate_pool_stakers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
-			stakepool::pallet::PoolStakers::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|((pid, user_id), staker_info)| {
-				let mut account_status = pawnshop::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
-				let deprecated_pool = stakepool::pallet::StakePools::<T>::get(pid)
-					.expect("get deprecated pool should success; qed.");
-				let pending_reward = mul(staker_info.shares, &deprecated_pool.reward_acc.into())
-					- staker_info.reward_debt;
-				let user_reward = pending_reward + staker_info.available_rewards;
-				let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-					&pawnshop_accountid,
-					user_reward,
-				);
-				let pool_info =
-					ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
-				// If the balance is too low to mint, we can just drop it.
-				// Even if user_reward is a dust, we should still create user's shares
-				pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);
-				basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id.clone(), staker_info.shares);
-				if !account_status
-					.invest_pools
-					.contains(&(pid, pool_info.basepool.cid))
-				{
-					account_status
+			stakepool::pallet::PoolStakers::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|((pid, user_id), staker_info)| {
+					let mut account_status =
+						pawnshop::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
+					let deprecated_pool = stakepool::pallet::StakePools::<T>::get(pid)
+						.expect("get deprecated pool should success; qed.");
+					let pending_reward =
+						mul(staker_info.shares, &deprecated_pool.reward_acc.into())
+							- staker_info.reward_debt;
+					let user_reward = pending_reward + staker_info.available_rewards;
+					let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
+						&pawnshop_accountid,
+						user_reward,
+					);
+					let pool_info =
+						ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
+					// If the balance is too low to mint, we can just drop it.
+					// Even if user_reward is a dust, we should still create user's shares
+					pawnshop::Pallet::<T>::mint_into(
+						&pool_info.basepool.pool_account_id,
+						user_reward,
+					);
+					basepool::Pallet::<T>::mint_nft(
+						pool_info.basepool.cid,
+						user_id.clone(),
+						staker_info.shares,
+					);
+					if !account_status
 						.invest_pools
-						.push((pid, pool_info.basepool.cid));
-				}
-				pawnshop::StakerAccounts::<T>::insert(user_id, account_status);
-			});
+						.contains(&(pid, pool_info.basepool.cid))
+					{
+						account_status
+							.invest_pools
+							.push((pid, pool_info.basepool.cid));
+					}
+					pawnshop::StakerAccounts::<T>::insert(user_id, account_status);
+				});
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_stake_ledger(
-			origin: OriginFor<T>, 
-			max_iterations: u32
-		) -> DispatchResult {
+		pub fn migrate_stake_ledger(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
-			stakepool::pallet::StakeLedger::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|(user_id, balance)| {
-				<T as PhalaConfig>::Currency::remove_lock(STAKING_ID, &user_id);
-				<T as PhalaConfig>::Currency::remove_lock(VESTING_ID, &user_id);
-				<T as PhalaConfig>::Currency::remove_lock(DEMOCRAC_ID, &user_id);
-				<T as PhalaConfig>::Currency::remove_lock(PHRELECT_ID, &user_id);
-				if <T as PhalaConfig>::Currency::transfer(
-					&user_id,
-					&pawnshop_accountid,
-					balance,
-					KeepAlive,
-				)
-				.is_err()
-				{
-					// TODO(mingxuan): switch the currency sending account to a identical account before final push.
-					<T as PhalaConfig>::Currency::transfer(
-						&computation::Pallet::<T>::account_id(),
-						&user_id,
-						<T as PhalaConfig>::Currency::minimum_balance(),
-						KeepAlive,
-					);
-					<T as PhalaConfig>::Currency::transfer(
+			stakepool::pallet::StakeLedger::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|(user_id, balance)| {
+					<T as PhalaConfig>::Currency::remove_lock(STAKING_ID, &user_id);
+					<T as PhalaConfig>::Currency::remove_lock(VESTING_ID, &user_id);
+					<T as PhalaConfig>::Currency::remove_lock(DEMOCRAC_ID, &user_id);
+					<T as PhalaConfig>::Currency::remove_lock(PHRELECT_ID, &user_id);
+					if <T as PhalaConfig>::Currency::transfer(
 						&user_id,
 						&pawnshop_accountid,
 						balance,
 						KeepAlive,
 					)
-					.expect("transfer should not fail; qed.");
-				}
-			});
+					.is_err()
+					{
+						// TODO(mingxuan): switch the currency sending account to a identical account before final push.
+						<T as PhalaConfig>::Currency::transfer(
+							&computation::Pallet::<T>::account_id(),
+							&user_id,
+							<T as PhalaConfig>::Currency::minimum_balance(),
+							KeepAlive,
+						);
+						<T as PhalaConfig>::Currency::transfer(
+							&user_id,
+							&pawnshop_accountid,
+							balance,
+							KeepAlive,
+						)
+						.expect("transfer should not fail; qed.");
+					}
+				});
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
 		pub fn drain_stakepool_storages(
-			origin: OriginFor<T>, 
-			max_iterations: u32
+			origin: OriginFor<T>,
+			max_iterations: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			stakepool::pallet::StakePools::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|(k, v)| {});
+			stakepool::pallet::StakePools::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|(k, v)| {});
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
 		pub fn migrate_worker_assignments(
-			origin: OriginFor<T>, 
-			max_iterations: u32
+			origin: OriginFor<T>,
+			max_iterations: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			stakepool::pallet::WorkerAssignments::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|(k, v)| {
-				WorkerAssignments::<T>::insert(k, v);
-			});
+			stakepool::pallet::WorkerAssignments::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|(k, v)| {
+					WorkerAssignments::<T>::insert(k, v);
+				});
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
 		pub fn migrate_subaccount_preimage(
-			origin: OriginFor<T>, 
-			max_iterations: u32
+			origin: OriginFor<T>,
+			max_iterations: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			stakepool::pallet::SubAccountPreimages::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|(k, v)| {
-				SubAccountPreimages::<T>::insert(k, v);
-			});
+			stakepool::pallet::SubAccountPreimages::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|(k, v)| {
+					SubAccountPreimages::<T>::insert(k, v);
+				});
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
 		pub fn migrate_contribution_whitelist(
-			origin: OriginFor<T>, 
-			max_iterations: u32
+			origin: OriginFor<T>,
+			max_iterations: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			stakepool::pallet::PoolContributionWhitelists::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|(k, v)| {
-				basepool::pallet::PoolContributionWhitelists::<T>::insert(k, v);
-			});
+			stakepool::pallet::PoolContributionWhitelists::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|(k, v)| {
+					basepool::pallet::PoolContributionWhitelists::<T>::insert(k, v);
+				});
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
 		pub fn migrate_pool_description(
-			origin: OriginFor<T>, 
-			max_iterations: u32
+			origin: OriginFor<T>,
+			max_iterations: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			stakepool::pallet::PoolDescriptions::<T>::drain().take(max_iterations.try_into().unwrap()).for_each(|(k, v)| {
-				basepool::pallet::PoolDescriptions::<T>::insert(k, v);
-			});
+			stakepool::pallet::PoolDescriptions::<T>::drain()
+				.take(max_iterations.try_into().unwrap())
+				.for_each(|(k, v)| {
+					basepool::pallet::PoolDescriptions::<T>::insert(k, v);
+				});
 			Ok(())
 		}
 

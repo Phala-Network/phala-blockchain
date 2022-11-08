@@ -1,7 +1,6 @@
-use crate::{
-	fat, fat_tokenomic, mq, registry,
-};
+use crate::{fat, fat_tokenomic, mq, registry};
 
+use crate::mock::{MockValidator, NoneAttestationEnabled};
 use frame_support::{pallet_prelude::ConstU32, parameter_types, traits::GenesisBuild};
 use frame_system as system;
 use sp_core::H256;
@@ -9,7 +8,6 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use crate::mock::{MockValidator, NoneAttestationEnabled};
 
 pub(crate) type Balance = u128;
 
@@ -145,10 +143,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 }
 
 pub fn take_events() -> Vec<RuntimeEvent> {
-	let evt = System::events()
-		.into_iter()
-		.map(|evt| evt.event)
-		.collect();
+	let evt = System::events().into_iter().map(|evt| evt.event).collect();
 	System::reset_events();
 	evt
 }

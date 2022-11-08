@@ -17,23 +17,25 @@ pub mod pallet {
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
 
-	use crate::utils::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
+	use crate::utils::attestation::Error as AttestationError;
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, PRuntimeManagementEvent, SignedMessage, SystemEvent,
 			WorkerEvent,
 		},
-		wrap_content_to_sign, ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity,
-		WorkerPublicKey, WorkerRegistrationInfo, AttestationProvider,
+		wrap_content_to_sign, AttestationProvider, ClusterPublicKey, ContractPublicKey,
+		EcdhPublicKey, MasterPublicKey, SignedContentType, VersionedWorkerEndpoints,
+		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	pub use phala_types::AttestationReport;
 	// Re-export
 	// TODO: Legacy
-	pub use crate::utils::attestation_legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
+	pub use crate::utils::attestation_legacy::{
+		Attestation, AttestationValidator, IasFields, IasValidator,
+	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
@@ -443,7 +445,7 @@ pub mod pallet {
 				T::VerifyPRuntime::get(),
 				PRuntimeAllowList::<T>::get(),
 			)
-				.map_err(Into::<Error<T>>::into)?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
@@ -573,7 +575,7 @@ pub mod pallet {
 								confidence_level: attestation_report.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerUpdated { 
+						Self::deposit_event(Event::<T>::WorkerUpdated {
 							pubkey,
 							attestation_provider: attestation_report.provider,
 							confidence_level: attestation_report.confidence_level,
@@ -599,7 +601,7 @@ pub mod pallet {
 								confidence_level: attestation_report.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerAdded { 
+						Self::deposit_event(Event::<T>::WorkerAdded {
 							pubkey,
 							attestation_provider: attestation_report.provider,
 							confidence_level: attestation_report.confidence_level,
@@ -1063,8 +1065,6 @@ pub mod pallet {
 		}
 	}
 
-
-
 	#[cfg(test)]
 	mod test {
 		use frame_support::{assert_noop, assert_ok};
@@ -1250,10 +1250,7 @@ pub mod pallet {
 					sample
 				));
 				assert_noop!(
-					PhalaRegistry::add_relaychain_genesis_block_hash(
-						Origin::root(),
-						sample
-					),
+					PhalaRegistry::add_relaychain_genesis_block_hash(Origin::root(), sample),
 					Error::<Test>::GenesisBlockHashAlreadyExists
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 1);
@@ -1262,10 +1259,7 @@ pub mod pallet {
 					sample
 				));
 				assert_noop!(
-					PhalaRegistry::remove_relaychain_genesis_block_hash(
-						Origin::root(),
-						sample
-					),
+					PhalaRegistry::remove_relaychain_genesis_block_hash(Origin::root(), sample),
 					Error::<Test>::GenesisBlockHashNotFound
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 0);

@@ -7,7 +7,7 @@ use crate::BalanceOf;
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::compute::{computation, basepool};
+	use crate::compute::{basepool, computation};
 	use crate::registry;
 	use crate::utils::fixed_point::CodecFixedPoint;
 

@@ -41,12 +41,12 @@ type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::tr
 
 // Alias
 pub use compute::basepool as pallet_basepool;
-pub use fat_tokenomic as pallet_fat_tokenomic;
 pub use compute::computation as pallet_computation;
 pub use compute::pawnshop as pallet_pawnshop;
 pub use compute::stakepoolv2 as pallet_stakepoolv2;
 pub use compute::vault as pallet_vault;
 pub use fat as pallet_fat;
+pub use fat_tokenomic as pallet_fat_tokenomic;
 pub use mq as pallet_mq;
 pub use registry as pallet_registry;
 pub use stakepool as pallet_stakepool;

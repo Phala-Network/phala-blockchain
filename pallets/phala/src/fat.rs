@@ -347,7 +347,11 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { contract, pubkey, deployer } => {
+				ContractRegistryEvent::PubkeyAvailable {
+					contract,
+					pubkey,
+					deployer,
+				} => {
 					registry::ContractKeys::<T>::insert(contract, pubkey);
 					Self::deposit_event(Event::ContractPubkeyAvailable {
 						contract,

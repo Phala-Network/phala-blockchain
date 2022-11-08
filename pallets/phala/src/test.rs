@@ -61,7 +61,10 @@ fn test_redeem() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::redeem(RuntimeOrigin::signed(1), 50 * DOLLARS,));
+		assert_ok!(PhalaPawnshop::redeem(
+			RuntimeOrigin::signed(1),
+			50 * DOLLARS,
+		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
 		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
@@ -524,7 +527,11 @@ fn test_contribute() {
 		assert_eq!(free, 130 * DOLLARS);
 
 		assert_ok!(PhalaVault::create(RuntimeOrigin::signed(1)));
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(2), 1, 200 * DOLLARS,));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(2),
+			1,
+			200 * DOLLARS,
+		));
 		let pool = ensure_vault::<Test>(1).unwrap();
 		assert_eq!(pool.basepool.total_shares, 200 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
@@ -825,7 +832,10 @@ fn test_start_computing() {
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(99), 50000 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(
+			RuntimeOrigin::signed(99),
+			50000 * DOLLARS
+		));
 		// Cannot start computing without a bound worker
 		assert_noop!(
 			PhalaStakePoolv2::start_computing(RuntimeOrigin::signed(1), 0, worker_pubkey(1), 0),
@@ -910,7 +920,10 @@ fn test_force_unbind() {
 			Some(101)
 		));
 		let sub_account = stakepoolv2::pool_sub_account(0, &worker_pubkey(1));
-		assert_ok!(PhalaComputation::unbind(RuntimeOrigin::signed(101), sub_account));
+		assert_ok!(PhalaComputation::unbind(
+			RuntimeOrigin::signed(101),
+			sub_account
+		));
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stakepoolv2::pallet::WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
@@ -940,7 +953,10 @@ fn test_force_unbind() {
 			Some(102)
 		));
 		let sub_account = stakepoolv2::pool_sub_account(1, &worker_pubkey(2));
-		assert_ok!(PhalaComputation::unbind(RuntimeOrigin::signed(102), sub_account));
+		assert_ok!(PhalaComputation::unbind(
+			RuntimeOrigin::signed(102),
+			sub_account
+		));
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stakepoolv2::WorkerAssignments::<Test>::contains_key(
 			&worker_pubkey(2)
@@ -1180,7 +1196,11 @@ fn test_on_reward_for_vault() {
 			1,
 			Some(Permill::from_percent(50))
 		));
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(3), 0, 100 * DOLLARS));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(3),
+			0,
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(3),
 			1,
@@ -1286,7 +1306,11 @@ fn test_vault_owner_shares() {
 			Some(Permill::from_percent(50))
 		));
 		setup_stake_pool_with_workers(1, &[1]);
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(3), 0, 100 * DOLLARS));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(3),
+			0,
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(3),
 			1,
@@ -1295,7 +1319,10 @@ fn test_vault_owner_shares() {
 		));
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.commission.unwrap(), Permill::from_percent(50));
-		assert_ok!(PhalaVault::maybe_gain_owner_shares(RuntimeOrigin::signed(3), 0));
+		assert_ok!(PhalaVault::maybe_gain_owner_shares(
+			RuntimeOrigin::signed(3),
+			0
+		));
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.owner_shares, 0);
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -1326,7 +1353,10 @@ fn test_vault_owner_shares() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		assert_ok!(PhalaVault::maybe_gain_owner_shares(RuntimeOrigin::signed(3), 0));
+		assert_ok!(PhalaVault::maybe_gain_owner_shares(
+			RuntimeOrigin::signed(3),
+			0
+		));
 		let vault_info = ensure_vault::<Test>(0).unwrap();
 		assert_eq!(vault_info.owner_shares, 20 * DOLLARS);
 		assert_eq!(vault_info.basepool.total_shares, 120 * DOLLARS);
@@ -1366,7 +1396,10 @@ fn test_withdraw() {
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(99), 5000 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(
+			RuntimeOrigin::signed(99),
+			5000 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
@@ -1483,15 +1516,27 @@ fn test_withdraw() {
 			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
 		}
 		let _pid = setup_vault(99);
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(1), 1, 300 * DOLLARS,));
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(99), 1, 300 * DOLLARS,));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(1),
+			1,
+			300 * DOLLARS,
+		));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(99),
+			1,
+			300 * DOLLARS,
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(99),
 			0,
 			500 * DOLLARS,
 			Some(1)
 		));
-		assert_ok!(PhalaVault::withdraw(RuntimeOrigin::signed(1), 1, 200 * DOLLARS,));
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(1),
+			1,
+			200 * DOLLARS,
+		));
 		let pool = ensure_vault::<Test>(1).unwrap();
 		let item = pool
 			.basepool
@@ -1594,7 +1639,10 @@ fn test_check_and_maybe_force_withdraw() {
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(99), 500 * DOLLARS));
+		assert_ok!(PhalaPawnshop::pawn(
+			RuntimeOrigin::signed(99),
+			500 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
@@ -1682,7 +1730,11 @@ fn test_check_and_maybe_force_withdraw() {
 		));
 		let pid = setup_vault(99);
 
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(3), 1, 400 * DOLLARS,));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(3),
+			1,
+			400 * DOLLARS,
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(99),
 			0,
@@ -1701,7 +1753,11 @@ fn test_check_and_maybe_force_withdraw() {
 			worker_pubkey(2),
 			100 * DOLLARS
 		));
-		assert_ok!(PhalaVault::withdraw(RuntimeOrigin::signed(3), 1, 400 * DOLLARS,));
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(3),
+			1,
+			400 * DOLLARS,
+		));
 		assert_ok!(PhalaStakePoolv2::withdraw(
 			RuntimeOrigin::signed(99),
 			0,
@@ -1752,7 +1808,11 @@ fn test_check_and_maybe_force_withdraw() {
 			PhalaStakePoolv2::withdraw(RuntimeOrigin::signed(99), 0, 100 * DOLLARS, Some(pid)),
 			stakepoolv2::Error::<Test>::VaultIsLocked,
 		);
-		assert_ok!(PhalaVault::contribute(RuntimeOrigin::signed(99), 1, 400 * DOLLARS,));
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(99),
+			1,
+			400 * DOLLARS,
+		));
 		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
 			RuntimeOrigin::signed(4),
 			pid

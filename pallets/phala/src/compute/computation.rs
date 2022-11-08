@@ -1158,8 +1158,8 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
-			worker_pubkey,
-			BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test, DOLLARS,
+			worker_pubkey, BlockNumber, RuntimeEvent as TestEvent, RuntimeOrigin as Origin, Test,
+			DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{PhalaComputation, PhalaRegistry, System};

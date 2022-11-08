@@ -1,6 +1,9 @@
 use crate::{
-	utils::attestation_legacy::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	basepool, computation, mq, pawnshop, registry, stakepool, stakepoolv2, vault,
+	basepool, computation, mq, pawnshop, registry, stakepool, stakepoolv2,
+	utils::attestation_legacy::{
+		Attestation, AttestationValidator, Error as AttestationError, IasFields,
+	},
+	vault,
 };
 
 use frame_support::{

@@ -63,10 +63,11 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - a new entry in [`Pools`] with the pid
-		PoolCreated { 
-			owner: T::AccountId, 
-			pid: u64, 
+		PoolCreated {
+			owner: T::AccountId,
+			pid: u64,
 			cid: CollectionId,
+			pool_account_id: T::AccountId,
 		},
 
 		/// The commission of a vault is updated
@@ -178,12 +179,12 @@ pub mod pallet {
 					invest_pools: VecDeque::new(),
 				}),
 			);
-			Self::deposit_event(
-				Event::<T>::PoolCreated { 
-					owner, 
-					pid, 
-					cid: collection_id, 
-				});
+			Self::deposit_event(Event::<T>::PoolCreated {
+				owner,
+				pid,
+				cid: collection_id,
+				pool_account_id: account_id,
+			});
 
 			Ok(())
 		}

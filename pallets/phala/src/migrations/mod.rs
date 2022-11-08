@@ -238,7 +238,9 @@ pub mod stakepoolv2_migration {
 			if !pawnshop::Pallet::<T>::mint_into(
 				&new_pool_info.owner_reward_account,
 				pool_info.owner_reward,
-			).is_err() {
+			)
+			.is_err()
+			{
 				let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
 					&pawnshop_accountid,
 					pool_info.owner_reward,
@@ -266,22 +268,25 @@ pub mod stakepoolv2_migration {
 	{
 		let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 		stakepool::pallet::PoolStakers::<T>::drain().for_each(|((pid, user_id), staker_info)| {
-			let mut account_status = pawnshop::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
+			let mut account_status =
+				pawnshop::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
 			let deprecated_pool = stakepool::pallet::StakePools::<T>::get(pid)
 				.expect("get deprecated pool should success; qed.");
 			let pending_reward = mul(staker_info.shares, &deprecated_pool.reward_acc.into())
 				- staker_info.reward_debt;
 			let user_reward = pending_reward + staker_info.available_rewards;
-			let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-				&pawnshop_accountid,
-				user_reward,
-			);
+			let _ =
+				computation::Pallet::<T>::withdraw_subsidy_pool(&pawnshop_accountid, user_reward);
 			let pool_info =
 				poolproxy::ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
 			// If the balance is too low to mint, we can just drop it.
 			// Even if user_reward is a dust, we should still create user's shares
 			pawnshop::Pallet::<T>::mint_into(&pool_info.basepool.pool_account_id, user_reward);
-			basepool::Pallet::<T>::mint_nft(pool_info.basepool.cid, user_id.clone(), staker_info.shares);
+			basepool::Pallet::<T>::mint_nft(
+				pool_info.basepool.cid,
+				user_id.clone(),
+				staker_info.shares,
+			);
 			if !account_status
 				.invest_pools
 				.contains(&(pid, pool_info.basepool.cid))
@@ -291,7 +296,6 @@ pub mod stakepoolv2_migration {
 					.push((pid, pool_info.basepool.cid));
 			}
 			pawnshop::StakerAccounts::<T>::insert(user_id, account_status);
-
 		});
 		stakepool::pallet::StakePools::<T>::drain().for_each(|(pid, pool_info)| {});
 	}
