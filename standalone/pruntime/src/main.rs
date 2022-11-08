@@ -1,6 +1,6 @@
 mod api_server;
-mod pal_gramine;
 mod ias;
+mod pal_gramine;
 mod runtime;
 
 use std::{env, thread};
@@ -10,6 +10,8 @@ use log::{error, info};
 
 use phactory::BlockNumber;
 use phactory_api::ecall_args::{git_revision, InitArgs};
+
+mod logger;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
@@ -112,8 +114,7 @@ async fn main() -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port.to_string());
     }
 
-    let env = env_logger::Env::default().default_filter_or("info");
-    env_logger::Builder::from_env(env).format_timestamp_micros().init();
+    logger::init(running_under_gramine);
 
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", cores);
