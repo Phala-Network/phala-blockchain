@@ -9,7 +9,7 @@ const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
 const { typeDefinitions } = require('@polkadot/types/bundle');
 
-const { types, typeAlias } = require('./utils/typeoverride');
+const { types, typeAlias, typeOverrides } = require('./utils/typeoverride');
 // TODO: fixit
 // const types = require('@phala/typedefs').phalaDev;
 
@@ -1157,7 +1157,7 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types: { ...types, ...Phala.types, ...typeDefinitions },
+            types: { ...types, ...Phala.types, ...typeDefinitions, ...typeOverrides },
             typeAlias
         });
         this.workers.forEach(w => {
