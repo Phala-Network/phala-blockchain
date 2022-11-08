@@ -44,7 +44,7 @@ fn target_allowed(target: &str) -> bool {
         Eq,
     }
 
-    // Keep more frequantly targets in the front
+    // Keep more frequently targets in the front
     let whitelist = [
         ("phactory", Prefix),
         ("rocket::launch", Prefix),
