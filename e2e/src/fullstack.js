@@ -7,6 +7,7 @@ const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
+const { typeDefinitions } = require('@polkadot/types/bundle');
 
 const { types, typeAlias } = require('./utils/typeoverride');
 // TODO: fixit
@@ -1156,7 +1157,7 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types: { ...types, ...Phala.types },
+            types: { ...types, ...Phala.types, ...typeDefinitions },
             typeAlias
         });
         this.workers.forEach(w => {
