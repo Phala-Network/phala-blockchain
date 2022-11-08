@@ -1,6 +1,6 @@
 use sidevm_host_runtime::{CacheOps, DynCacheOps, OcallError};
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -9,7 +9,6 @@ mod web_api;
 
 #[derive(Parser)]
 #[clap(about = "Demo sidevm host app", version, author)]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 pub struct Args {
     /// The gas limit for each poll.
     #[arg(long, default_value_t = 50_000_000_000_u64)]

@@ -14,7 +14,7 @@ mod web_api;
 type BlockNumber = u32;
 
 #[derive(Parser)]
-#[clap(about = "Cache server for relaychain headers", version, author, next_display_order = None)]
+#[clap(about = "Cache server for relaychain headers", version, author)]
 pub struct Args {
     #[command(subcommand)]
     action: Action,

@@ -24,8 +24,7 @@ use nix::{
 	sys::signal::{kill, Signal::SIGINT},
 	unistd::Pid,
 };
-use node_primitives::Block;
-use remote_externalities::rpc_api::RpcService;
+use node_primitives::{Hash, Header};
 use std::{
 	io::{BufRead, BufReader, Read},
 	ops::{Deref, DerefMut},

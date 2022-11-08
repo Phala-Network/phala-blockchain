@@ -48,20 +48,19 @@ pub use phaxt::connect as subxt_connect;
 #[clap(
     about = "Sync messages between pruntime and the blockchain.",
     version,
-    author,
-    next_display_order = None
+    author
 )]
 pub struct Args {
-    #[clap(
+    #[arg(
         long,
         help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
     )]
     dev: bool,
 
-    #[clap(short = 'n', long = "no-init", help = "Should init pRuntime?")]
+    #[arg(short = 'n', long = "no-init", help = "Should init pRuntime?")]
     no_init: bool,
 
-    #[clap(
+    #[arg(
         long = "no-sync",
         help = "Don't sync pRuntime. Quit right after initialization."
     )]
@@ -76,41 +75,41 @@ pub struct Args {
     #[arg(long, help = "Skip binding the worker endpoint.")]
     no_bind: bool,
 
-    #[clap(
+    #[arg(
         long,
         help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled."
     )]
     use_dev_key: bool,
 
-    #[clap(
+    #[arg(
         default_value = "",
         long = "inject-key",
         help = "Inject key to pRuntime."
     )]
     inject_key: String,
 
-    #[clap(
+    #[arg(
         default_value = "ws://localhost:9944",
         long,
         help = "Substrate rpc websocket endpoint"
     )]
     substrate_ws_endpoint: String,
 
-    #[clap(
+    #[arg(
         default_value = "ws://localhost:9977",
         long,
         help = "Parachain collator rpc websocket endpoint"
     )]
     collator_ws_endpoint: String,
 
-    #[clap(
+    #[arg(
         default_value = "http://localhost:8000",
         long,
         help = "pRuntime http endpoint"
     )]
     pruntime_endpoint: String,
 
-    #[clap(
+    #[arg(
         long,
         help = "pRuntime http endpoint to handover the key. The handover will only happen when the old pRuntime is synced."
     )]
@@ -119,7 +118,7 @@ pub struct Args {
     #[arg(default_value = "", long, help = "notify endpoint")]
     notify_endpoint: String,
 
-    #[clap(
+    #[arg(
         default_value = "//Alice",
         short = 'm',
         long = "mnemonic",
@@ -127,21 +126,21 @@ pub struct Args {
     )]
     mnemonic: String,
 
-    #[clap(
+    #[arg(
         default_value = "1000",
         long = "fetch-blocks",
         help = "The batch size to fetch blocks from Substrate."
     )]
     fetch_blocks: u32,
 
-    #[clap(
+    #[arg(
         default_value = "4",
         long = "sync-blocks",
         help = "The batch size to sync blocks to pRuntime."
     )]
     sync_blocks: BlockNumber,
 
-    #[clap(
+    #[arg(
         long = "operator",
         help = "The operator account to set the miner for the worker."
     )]
@@ -150,7 +149,7 @@ pub struct Args {
     #[arg(long = "parachain", help = "Parachain mode")]
     parachain: bool,
 
-    #[clap(
+    #[arg(
         long,
         help = "The first parent header to be synced, default to auto-determine"
     )]
@@ -159,27 +158,28 @@ pub struct Args {
     #[arg(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
 
-    #[clap(
+    #[arg(
         default_value = "5000",
         long,
         help = "(Debug only) Set the wait block duration in ms"
     )]
     dev_wait_block_ms: u64,
 
-    #[clap(
+    #[arg(
         default_value = "0",
         long,
         help = "The charge transaction payment, unit: balance"
     )]
     tip: u128,
-    #[clap(
+
+    #[arg(
         default_value = "4",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
     longevity: u64,
 
-    #[clap(
+    #[arg(
         default_value = "200",
         long,
         help = "Max number of messages to be submitted per-round"
@@ -189,7 +189,7 @@ pub struct Args {
     #[arg(long, help = "Auto restart self after an error occurred")]
     auto_restart: bool,
 
-    #[clap(
+    #[arg(
         default_value = "10",
         long,
         help = "Max auto restart retries if it continiously failing. Only used with --auto-restart"
@@ -208,14 +208,14 @@ pub struct Args {
     #[arg(default_value_t = BlockNumber::MAX)]
     to_block: BlockNumber,
 
-    #[clap(
+    #[arg(
         long,
         help = "Disable syncing waiting parachain blocks in the beginning of each round"
     )]
     disable_sync_waiting_paraheaders: bool,
 
     /// Attestation provider
-    #[clap(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
+    #[arg(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
     attestation_provider: RaOption,
 }
 

@@ -14,7 +14,7 @@ use phactory_api::ecall_args::{git_revision, InitArgs};
 mod logger;
 
 #[derive(Parser, Debug, Clone)]
-#[clap(about = "The Phala TEE worker app.", version, author, next_display_order = None)]
+#[clap(about = "The Phala TEE worker app.", version, author)]
 struct Args {
     /// Number of CPU cores to be used for mining.
     #[arg(short, long)]

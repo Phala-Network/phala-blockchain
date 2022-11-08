@@ -11,9 +11,9 @@ use rocket::{get, launch, routes, State};
 #[derive(Parser, Debug)]
 #[clap(about = "SFQ test server", version, author)]
 pub struct Args {
-    #[clap(short, long, default_value = "32")]
+    #[arg(short, long, default_value = "32")]
     backlog: usize,
-    #[clap(short, long, default_value = "3")]
+    #[arg(short, long, default_value = "3")]
     depth: u32,
 }
 

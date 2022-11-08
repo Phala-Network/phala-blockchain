@@ -139,11 +139,9 @@ impl Config for PinkRuntime {
 
 #[test]
 fn detect_parameter_changes() {
-    use sp_core::Get;
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
-        <PinkRuntime as Config>::ContractAccessWeight::get(),
         <PinkRuntime as Config>::DeletionQueueDepth::get(),
         <PinkRuntime as Config>::DeletionWeightLimit::get(),
         <PinkRuntime as Config>::MaxCodeLen::get(),
