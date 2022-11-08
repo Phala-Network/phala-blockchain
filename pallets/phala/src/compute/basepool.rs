@@ -666,7 +666,7 @@ pub mod pallet {
 				&account_id,
 				&pool.pool_account_id,
 				amount,
-				true,
+				false,
 			)
 			.expect("transfer should not fail");
 			shares
