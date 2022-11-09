@@ -1157,7 +1157,7 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types: { ...types, ...Phala.types, ...typeDefinitions, ...typeOverrides },
+            types: { ...types, ...typeDefinitions, ...Phala.types, ...typeOverrides },
             typeAlias
         });
         this.workers.forEach(w => {
