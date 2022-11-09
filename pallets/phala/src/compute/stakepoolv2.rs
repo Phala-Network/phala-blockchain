@@ -24,6 +24,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
+		storage::{storage_prefix, migration},
 		traits::{
 			tokens::fungibles::{Inspect, Transfer},
 			Currency,
@@ -813,12 +814,19 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		pub fn migrate_computation(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+			//ensure_root(origin)?;
+			migration::move_pallet(b"PhalaMining", b"PhalaComputation");
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 			let mut iter = match StakepoolIterateStartPos::<T>::get() {
 				Some(pid) => {
-					let key: Vec<u8> = pid.to_le_bytes().to_vec();
+					let key: Vec<u8> = stakepool::pallet::StakePools::<T>::hashed_key_for(pid);
 					stakepool::pallet::StakePools::<T>::iter_from(key)
 				}
 				None => stakepool::pallet::StakePools::<T>::iter(),
@@ -933,7 +941,7 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_pool_stakers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 			stakepool::pallet::PoolStakers::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -978,7 +986,7 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_stake_ledger(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			let pawnshop_accountid = <T as pawnshop::Config>::PawnShopAccountId::get();
 			stakepool::pallet::StakeLedger::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1019,7 +1027,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			stakepool::pallet::StakePools::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {});
@@ -1031,7 +1039,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			stakepool::pallet::WorkerAssignments::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
@@ -1045,7 +1053,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			stakepool::pallet::SubAccountPreimages::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
@@ -1059,7 +1067,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			stakepool::pallet::PoolContributionWhitelists::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
@@ -1073,7 +1081,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			//ensure_root(origin)?;
 			stakepool::pallet::PoolDescriptions::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
