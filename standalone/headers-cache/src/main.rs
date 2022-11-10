@@ -2,13 +2,14 @@ use std::fs::File;
 use std::io::Write;
 
 use anyhow::Context;
-use log::info;
+use log::{error, info};
 use scale::{Decode, Encode};
 
 use clap::{Parser, Subcommand};
 use pherry::headers_cache as cache;
 
 mod db;
+mod grab;
 mod web_api;
 
 type BlockNumber = u32;
@@ -139,6 +140,18 @@ enum Action {
         /// The database file to use
         #[arg(long, default_value = "cache.db")]
         db: String,
+        /// Auto grab new headers from the node
+        #[clap(long)]
+        grab: bool,
+        /// The relaychain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9945")]
+        node_uri: String,
+        /// The parachain RPC endpoint
+        #[clap(long, default_value = "ws://localhost:9944")]
+        para_node_uri: String,
+        /// Interval that start a batch of grab
+        #[clap(long, default_value_t = 600)]
+        interval: u64,
     },
     /// Split given grabbed headers file into chunks
     Split {
@@ -262,7 +275,7 @@ async fn main() -> anyhow::Result<()> {
                             metadata.update_header(header.number);
                             Ok(false)
                         })?;
-                        cache.put_metadata(metadata)?;
+                        cache.put_metadata(&metadata)?;
                         println!("{count} headers imported");
                     }
                 }
@@ -280,7 +293,7 @@ async fn main() -> anyhow::Result<()> {
                             metadata.update_para_header(header.number);
                             Ok(false)
                         })?;
-                        cache.put_metadata(metadata)?;
+                        cache.put_metadata(&metadata)?;
                         println!("{count} headers imported");
                     }
                 }
@@ -298,7 +311,7 @@ async fn main() -> anyhow::Result<()> {
                             metadata.update_storage_changes(header.number);
                             Ok(false)
                         })?;
-                        cache.put_metadata(metadata)?;
+                        cache.put_metadata(&metadata)?;
                         println!("{count} blocks imported");
                     }
                 }
@@ -309,14 +322,30 @@ async fn main() -> anyhow::Result<()> {
                     cache.put_genesis(info.block_header.number, &data)?;
                     let mut metadata = cache.get_metadata()?.unwrap_or_default();
                     metadata.put_genesis(info.block_header.number);
-                    cache.put_metadata(metadata)?;
+                    cache.put_metadata(&metadata)?;
                     println!("genesis at {} put", info.block_header.number);
                 }
             }
             cache.flush()?;
         }
-        Action::Serve { db } => {
-            web_api::serve(&db).await?;
+        Action::Serve {
+            db,
+            grab,
+            node_uri,
+            para_node_uri,
+            interval,
+        } => {
+            let db = db::CacheDB::open(&db)?;
+            if grab {
+                let db = db.clone();
+                tokio::spawn(async move {
+                    let result = grab::run(db, &node_uri, &para_node_uri, interval).await;
+                    if let Err(err) = result {
+                        error!("The grabbing task exited with error: {}", err);
+                    }
+                });
+            }
+            web_api::serve(db).await?;
         }
         Action::ShowSetId { uri, block } => {
             let api = pherry::subxt_connect(&uri).await?;
