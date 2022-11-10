@@ -21,7 +21,7 @@ phactory-pal    = { path = "../../crates/phactory/pal" }
 phaxt           = { path = "../../crates/phaxt" }
 
 codec           = { package = 'parity-scale-codec', version = "3.0" }
-zip             = "0.5.13"
+zip             = "0.6.3"
 glob            = "0.3.0"
 byteorder       = "1.4.3"
 hex             = { version = "*" }
@@ -35,4 +35,8 @@ reqwest         = { version = "0.11.6", features = ["blocking"]}
 binascii        = { version = "0.1", default-features = false, features = ["decode"] }
 
 [build-dependencies]
-bindgen         = "0.59.1"
+bindgen         = "0.61.0"
+
+[patch.crates-io]
+# TODO.kevin: Move back to crates.io once it released 1.0
+derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }

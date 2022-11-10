@@ -80,7 +80,7 @@ pub fn generate_ident_to_file(
             PRouterSigningKeyType::SigningKeyTypeEDDSASha512Ed25519 as u16,
             PRouterCryptoKeyType::CryptoKeyTypeElgamal as u16,
             buf.as_mut_ptr(),
-            buf.len() as u64,
+            buf.len(),
         )
     };
 
@@ -94,7 +94,7 @@ pub fn generate_ident_to_file(
 
 fn get_client_tunnel_name_by_id(index: i32) -> Result<String> {
     let mut buf = [0 as c_char; BUFFER_SIZE];
-    let ret = unsafe { C_GetClientTunnelsName(index, buf.as_mut_ptr(), buf.len() as u64) };
+    let ret = unsafe { C_GetClientTunnelsName(index, buf.as_mut_ptr(), buf.len()) };
     if ret != 0 {
         error!("The name returned from C is corrupted");
         return Err(anyhow!("The name returned from C is corrupted"));
@@ -105,7 +105,7 @@ fn get_client_tunnel_name_by_id(index: i32) -> Result<String> {
 
 fn get_client_tunnel_ident_by_id(index: i32) -> Result<String> {
     let mut buf = [0 as c_char; BUFFER_SIZE];
-    let ret = unsafe { C_GetClientTunnelsIdent(index, buf.as_mut_ptr(), buf.len() as u64) };
+    let ret = unsafe { C_GetClientTunnelsIdent(index, buf.as_mut_ptr(), buf.len()) };
     if ret != 0 {
         error!("The ident returned from C is corrupted");
         return Err(anyhow!("The ident returned from C is corrupted"));
@@ -116,7 +116,7 @@ fn get_client_tunnel_ident_by_id(index: i32) -> Result<String> {
 
 fn get_server_tunnel_name_by_id(index: i32) -> Result<String> {
     let mut buf = [0 as c_char; BUFFER_SIZE];
-    let ret = unsafe { C_GetServerTunnelsName(index, buf.as_mut_ptr(), buf.len() as u64) };
+    let ret = unsafe { C_GetServerTunnelsName(index, buf.as_mut_ptr(), buf.len()) };
     if ret != 0 {
         error!("The name returned from C is corrupted");
         return Err(anyhow!("The name returned from C is corrupted"));
@@ -127,7 +127,7 @@ fn get_server_tunnel_name_by_id(index: i32) -> Result<String> {
 
 fn get_server_tunnel_ident_by_id(index: i32) -> Result<String> {
     let mut buf = [0 as c_char; BUFFER_SIZE];
-    let ret = unsafe { C_GetServerTunnelsIdent(index, buf.as_mut_ptr(), buf.len() as u64) };
+    let ret = unsafe { C_GetServerTunnelsIdent(index, buf.as_mut_ptr(), buf.len()) };
     if ret != 0 {
         error!("The ident returned from C is corrupted");
         return Err(anyhow!("The ident returned from C is corrupted"));
@@ -221,7 +221,7 @@ impl I2pd {
             return Err(anyhow!("I2pd is not running"));
         }
         let mut buf = [0 as c_char; BUFFER_SIZE];
-        let ret = unsafe { C_GetNetworkStatus(buf.as_mut_ptr(), buf.len() as u64) };
+        let ret = unsafe { C_GetNetworkStatus(buf.as_mut_ptr(), buf.len()) };
         if ret != 0 {
             error!("The status returned from C is corrupted");
             return Err(anyhow!("The status returned from C is corrupted"));
@@ -389,7 +389,7 @@ impl I2pd {
             return Err(anyhow!("I2pd is not running"));
         }
         let mut buf = [0 as c_char; BUFFER_SIZE];
-        let ret = unsafe { C_GetHTTPProxyIdent(buf.as_mut_ptr(), buf.len() as u64) };
+        let ret = unsafe { C_GetHTTPProxyIdent(buf.as_mut_ptr(), buf.len()) };
         if ret != 0 {
             error!("The ident returned from C is corrupted");
             return Err(anyhow!("The ident returned from C is corrupted"));
@@ -406,7 +406,7 @@ impl I2pd {
             return Err(anyhow!("I2pd is not running"));
         }
         let mut buf = [0 as c_char; BUFFER_SIZE];
-        let ret = unsafe { C_GetSOCKSProxyIdent(buf.as_mut_ptr(), buf.len() as u64) };
+        let ret = unsafe { C_GetSOCKSProxyIdent(buf.as_mut_ptr(), buf.len()) };
         if ret != 0 {
             error!("The ident returned from C is corrupted");
             return Err(anyhow!("The ident returned from C is corrupted"));
@@ -457,7 +457,7 @@ impl I2pd {
         }
         let mut buf = [0 as c_char; BUFFER_SIZE];
         let ret =
-            unsafe { C_GetInboundTunnelsFormattedInfo(index, buf.as_mut_ptr(), buf.len() as u64) };
+            unsafe { C_GetInboundTunnelsFormattedInfo(index, buf.as_mut_ptr(), buf.len()) };
         if ret != 0 {
             error!("The info returned from C is corrupted");
             return Err(anyhow!("The info returned from C is corrupted"));
@@ -472,7 +472,7 @@ impl I2pd {
         }
         let mut buf = [0 as c_char; BUFFER_SIZE];
         let ret =
-            unsafe { C_GetOutboundTunnelsFormattedInfo(index, buf.as_mut_ptr(), buf.len() as u64) };
+            unsafe { C_GetOutboundTunnelsFormattedInfo(index, buf.as_mut_ptr(), buf.len()) };
         if ret != 0 {
             error!("The info returned from C is corrupted");
             return Err(anyhow!("The info returned from C is corrupted"));
