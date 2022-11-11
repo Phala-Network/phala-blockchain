@@ -30,6 +30,8 @@ pub mod predefined_accounts {
     }
 }
 
+pub use logger::ResultExt;
+
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
 pub type EcdhPublicKey = [u8; 32];
