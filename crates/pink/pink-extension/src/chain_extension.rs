@@ -54,7 +54,7 @@ pub trait PinkExt {
 
     /// Set a value in the local cache.
     ///
-    /// The default expiration time is 7 days. Use `cache_set_expire` to set a custom expiration
+    /// The default expiration time is 7 days. Use `cache_set_expiration` to set a custom expiration
     /// time.
     /// Values stored in cache can only be read in query functions.
     ///
@@ -68,7 +68,7 @@ pub trait PinkExt {
     /// - `key`: The key of the value to set the expiration time for.
     /// - `expire`: The expiration time from now in seconds.
     #[ink(extension = 7, handle_status = false, returns_result = false)]
-    fn cache_set_expire(key: &[u8], expire: u64);
+    fn cache_set_expiration(key: &[u8], expire: u64);
 
     /// Get a value from the local cache.
     ///

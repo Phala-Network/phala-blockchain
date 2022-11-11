@@ -89,31 +89,35 @@ define_any_native_contract!(
 );
 
 #[derive(Default, Serialize, Deserialize)]
-pub struct ContractsKeeper(ContractMap);
+pub struct ContractsKeeper {
+    contracts: ContractMap,
+    #[serde(skip)]
+    pub(crate) weight_changed: bool,
+}
 
 impl ContractsKeeper {
     pub fn insert(&mut self, contract: FatContract) {
-        self.0.insert(contract.id(), contract);
+        self.contracts.insert(contract.id(), contract);
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &ContractId> {
-        self.0.keys()
+        self.contracts.keys()
     }
 
     pub fn get_mut(&mut self, id: &ContractId) -> Option<&mut FatContract> {
-        self.0.get_mut(id)
+        self.contracts.get_mut(id)
     }
 
     pub fn get(&self, id: &ContractId) -> Option<&FatContract> {
-        self.0.get(id)
+        self.contracts.get(id)
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.contracts.len()
     }
 
     pub fn try_restart_sidevms(&mut self, spawner: &Spawner) {
-        for contract in self.0.values_mut() {
+        for contract in self.contracts.values_mut() {
             if let Err(err) = contract.restart_sidevm_if_needed(spawner) {
                 error!("Failed to restart sidevm instance: {:?}", err);
             }
@@ -121,10 +125,25 @@ impl ContractsKeeper {
     }
 
     pub fn remove(&mut self, id: &ContractId) -> Option<FatContract> {
-        self.0.remove(id)
+        self.contracts.remove(id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&ContractId, &FatContract)> {
-        self.0.iter()
+        self.contracts.iter()
+    }
+
+    pub fn apply_local_cache_quotas(&self) {
+        const TOTAL_MEMORY: u64 = 1024 * 1024 * 20;
+        let total_weight = self
+            .contracts
+            .values()
+            .map(|c| c.weight as u64)
+            .sum::<u64>()
+            .max(1);
+        let quotas = self.iter().map(|(id, contract)| {
+            let contract_quota = (TOTAL_MEMORY * contract.weight as u64) / total_weight;
+            (id.as_bytes(), contract_quota as usize)
+        });
+        ::pink::local_cache::apply_quotas(quotas);
     }
 }

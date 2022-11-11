@@ -2,7 +2,7 @@
 
 use frame_support::assert_ok;
 use hex_literal::hex;
-use pink::{runtime::HookPoint, Contract, Storage};
+use pink::{runtime::HookPoint, Contract, Storage, local_cache};
 use pink_extension::PinkEvent;
 use sp_runtime::AccountId32;
 
@@ -271,6 +271,8 @@ fn test_with_wasm(wasm: &[u8], constructor: [u8; 4], message: [u8; 4]) {
         0,
     )
     .unwrap();
+
+    local_cache::apply_quotas([(contract.address.as_ref(), 1024)]);
 
     let _: ((), _) = contract
         .call_with_selector(&mut storage, ALICE.clone(), message, (), true, 1, 0)

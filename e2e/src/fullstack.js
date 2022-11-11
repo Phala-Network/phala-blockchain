@@ -617,6 +617,13 @@ describe('A full stack', function () {
         });
 
         it('tokenomic driver works', async function () {
+            {
+                // Should be unable to use local cache before staking
+                const result = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                console.log('result', result);
+                const { output } = result;
+                assert.isFalse(output.valueOf());
+            }
             await assert.txAccepted(
                 ContractSystem.tx['system::setDriver']({}, "ContractDeposit", ContractSystemChecker.address),
                 alice,
@@ -631,6 +638,18 @@ describe('A full stack', function () {
                 const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
                 return info?.weight == weight;
             }, 4 * 6000), 'Failed to apply deposit to contract weight');
+            {
+                // Should be able to use local cache after staking
+                {
+                    const { output } = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                    assert.isTrue(output.valueOf());
+                }
+                {
+                    const { output } = await ContractSystemChecker.query.cacheGet(certAlice, {}, "0xdead");
+                    assert.isTrue(output.isSome);
+                    assert.equal(output.unwrap(), "0xbeef");
+                }
+            }
         });
 
         it('can set the sidevm as pending state without code uploaded', async function () {
@@ -926,7 +945,7 @@ function versionFromNumber(n) {
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
-        const unsub = await txBuilder.signAndSend(signer, {nonce: -1}, (result) => {
+        const unsub = await txBuilder.signAndSend(signer, { nonce: -1 }, (result) => {
             if (result.status.isInBlock) {
                 let error;
                 for (const e of result.events) {

@@ -4802,7 +4802,6 @@ dependencies = [
  "hex",
  "impl-serde 0.4.0",
  "log",
- "once_cell",
  "pallet-balances",
  "pallet-contracts",
  "pallet-contracts-primitives",
@@ -4870,7 +4869,9 @@ name = "pink-extension-runtime"
 version = "0.1.5"
 dependencies = [
  "getrandom 0.2.7",
+ "hex_fmt",
  "log",
+ "once_cell",
  "pink-extension",
  "reqwest",
  "reqwest-env-proxy",

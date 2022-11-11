@@ -1,10 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use pink_extension as pink;
 
 #[pink::contract(env = PinkEnvironment)]
 mod check_system {
     use super::pink;
+    use alloc::vec::Vec;
     use pink::system::{ContractDeposit, Result, SystemRef};
     use pink::PinkEnvironment;
 
@@ -50,6 +53,16 @@ mod check_system {
                 .deploy_sidevm_to(self.env().account_id(), hash)
                 .expect("Failed to deploy sidevm");
             true
+        }
+
+        #[ink(message)]
+        pub fn cache_set(&self, key: Vec<u8>, value: Vec<u8>) -> bool {
+            pink::ext().cache_set(&key, &value).is_ok()
+        }
+
+        #[ink(message)]
+        pub fn cache_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
+            pink::ext().cache_get(&key)
         }
     }
 

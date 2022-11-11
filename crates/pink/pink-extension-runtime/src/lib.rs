@@ -14,6 +14,7 @@ use reqwest::{
 use reqwest_env_proxy::EnvProxyBuilder;
 use sp_core::{ByteArray as _, Pair};
 
+pub mod local_cache;
 pub mod mock_ext;
 
 pub trait PinkRuntimeEnv {
@@ -193,7 +194,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
+    fn cache_set_expiration(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
         Ok(())
     }
 

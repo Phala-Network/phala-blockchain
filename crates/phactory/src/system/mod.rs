@@ -44,9 +44,9 @@ use phala_types::{
     },
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
-        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, WorkingReportEvent,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution,
         NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RetireCondition,
-        RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+        RotateMasterKeyEvent, SystemEvent, WorkerEvent, WorkingReportEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
@@ -176,8 +176,8 @@ impl WorkerState {
                     return;
                 }
 
-                use WorkingState::*;
                 use WorkerEvent::*;
+                use WorkingState::*;
                 if log_on {
                     info!("System::handle_event: {:?}", evt.event);
                 }
@@ -787,6 +787,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.sidevm_spawner,
                 log_handler,
             );
+        }
+        if self.contracts.weight_changed {
+            self.contracts.weight_changed = false;
+            self.contracts.apply_local_cache_quotas();
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
 
@@ -1582,6 +1586,7 @@ impl<Platform: pal::Platform> System<Platform> {
 impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
+        self.contracts.apply_local_cache_quotas();
         self.check_retirement();
         Ok(())
     }
@@ -1824,7 +1829,7 @@ pub(crate) fn apply_pink_events(
                 }
             }
             PinkEvent::CacheOp(op) => {
-                pink::local_cache::local_cache_op(&origin, op);
+                pink::local_cache::apply_cache_op(&origin, op);
             }
             PinkEvent::StopSidevm => {
                 let vmid = sidevm::ShortId(origin.as_ref());
@@ -1852,6 +1857,7 @@ pub(crate) fn apply_pink_events(
                 ensure_system!();
                 let contract = get_contract!(&contract);
                 contract.set_weight(weight);
+                contracts.weight_changed = true;
             }
         }
     }

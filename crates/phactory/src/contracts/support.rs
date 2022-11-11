@@ -459,11 +459,11 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
     struct CacheOps;
     impl sidevm::CacheOps for CacheOps {
         fn get(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
-            Ok(cache::local_cache_get(contract, key))
+            Ok(cache::get(contract, key))
         }
 
         fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> OpResult<()> {
-            cache::local_cache_set(contract, key, value)
+            cache::set(contract, key, value)
                 .map_err(|_| sidevm::OcallError::ResourceLimited)
         }
 
@@ -473,12 +473,12 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
             key: &[u8],
             expire_after_secs: u64,
         ) -> OpResult<()> {
-            cache::local_cache_set_expiration(contract, key, expire_after_secs);
+            cache::set_expiration(contract, key, expire_after_secs);
             Ok(())
         }
 
         fn remove(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
-            Ok(cache::local_cache_remove(contract, key))
+            Ok(cache::remove(contract, key))
         }
     }
     &CacheOps
