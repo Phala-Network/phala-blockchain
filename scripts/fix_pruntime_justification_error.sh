@@ -8,13 +8,29 @@ set -e
 # EDIT THESE VARIABLES
 # Do not use loopback address (ie 127.0.0.1 / localhost)
 
-PRB_IP=""
+PRB_MONITOR_HOST="" # "http://127.0.0.1:3000"
 PRB_LFM_PEER_ID=""
-KHALA_NODE_IP=""
+KHALA_PARACHAIN_ENDPOINT="" # "ws://KHALA_NODE_IP:9945"
+KHALA_RELAYCHAIN_ENDPOINT="" # "ws://KHALA_NODE_IP:9944"
 
 ############## DO NOT EDIT BELOW THIS LINE
 
-if [ -z "$PRB_IP" ]
+if [ -z "$PRB_MONITOR_HOST" ]
+  then echo "Please edit variables in script"
+  exit 1
+fi
+
+if [ -z "$PRB_LFM_PEER_ID" ]
+  then echo "Please edit variables in script"
+  exit 1
+fi
+
+if [ -z "$KHALA_PARACHAIN_ENDPOINT" ]
+  then echo "Please edit variables in script"
+  exit 1
+fi
+
+if [ -z "$KHALA_RELAYCHAIN_ENDPOINT" ]
   then echo "Please edit variables in script"
   exit 1
 fi
@@ -25,14 +41,11 @@ if [ "$EUID" -ne 0 ]
 fi
 
 # Template variables
-PRB_MONITOR_HOST="http://$PRB_IP:3000"
 PRB_MONITOR_LIST_WORKER="$PRB_MONITOR_HOST/ptp/proxy/$PRB_LFM_PEER_ID/GetWorkerStatus"
-PARACHAIN_ENDPOINT="ws://KHALA_NODE_IP:9945"
-RELAYCHAIN_ENDPOINT="ws://KHALA_NODE_IP:9944"
 
 echo "Getting dependencies..."
 apt-get -qq install -q -y jq curl
-docker pull -q phalanetwork/phala-pherry:latest
+docker pull -q phalanetwork/phala-pherry:prb-fix
 
 echo "Status of nodes"
 NODE_COUNT=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerStates | length')
@@ -49,14 +62,14 @@ echo "Found ${NODE_COUNT_REQ_FIX} that appear stuck"
 
 for endpoint in $(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerStates | .[] | select(.paraHeaderSynchedTo==2702763) | select(.paraHeaderSynchedTo==2702764) | .worker.endpoint'); do
   echo "Running fix on $endpoint"
-  docker run -it --rm phalanetwork/phala-pherry:latest \
+  docker run -it --rm phalanetwork/phala-pherry:prb-fix \
     /root/pherry \
     --no-msg-submit \
     --no-register \
     --no-bind \
     --parachain \
-    --substrate-ws-endpoint $PARACHAIN_ENDPOINT \
-    --collator-ws-endpoint $RELAYCHAIN_ENDPOINT \
+    --substrate-ws-endpoint $KHALA_PARACHAIN_ENDPOINT \
+    --collator-ws-endpoint $KHALA_RELAYCHAIN_ENDPOINT \
     --pruntime-endpoint $endpoint \
     --fetch-blocks 4 \
     --to-block 2702765 \
