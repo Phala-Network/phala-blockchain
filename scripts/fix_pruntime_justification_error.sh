@@ -15,23 +15,28 @@ KHALA_RELAYCHAIN_ENDPOINT="" # "ws://KHALA_NODE_IP:9944"
 
 ############## DO NOT EDIT BELOW THIS LINE
 
+BAD_BLOCK_FROM=2702763
+BAD_BLOCK_UNTIL=2702764
+FETCH_BLOCKS=4
+TO_BLOCK=2702765
+
 if [ -z "$PRB_MONITOR_HOST" ]
-  then echo "Please add a value for PRB_MONITOR_HOST in script"
+  then echo "Please edit PRB_MONITOR_HOST variable in the script"
   exit 1
 fi
 
 if [ -z "$PRB_LFM_PEER_ID" ]
-  then echo "Please add a value for PRB_LFM_PEER_ID in script"
+  then echo "Please edit PRB_LFM_PEER_ID variable in the script"
   exit 1
 fi
 
 if [ -z "$KHALA_PARACHAIN_ENDPOINT" ]
-  then echo "Please add a value for KHALA_PARACHAIN_ENDPOINT in script"
+  then echo "Please edit KHALA_PARACHAIN_ENDPOINT variable in the script"
   exit 1
 fi
 
 if [ -z "$KHALA_RELAYCHAIN_ENDPOINT" ]
-  then echo "Please add a value for KHALA_RELAYCHAIN_ENDPOINT in script"
+  then echo "Please edit KHALA_RELAYCHAIN_ENDPOINT variables in the script"
   exit 1
 fi
 
@@ -51,7 +56,7 @@ echo "Status of nodes"
 NODE_COUNT=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerStates | length')
 echo "Found ${NODE_COUNT} nodes"
 
-NODE_COUNT_REQ_FIX=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerStates | .[] | select(.paraHeaderSynchedTo==2702763) | select(.paraHeaderSynchedTo==2702764) | length')
+NODE_COUNT_REQ_FIX=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r ".data.workerStates | .[] | select((.paraHeaderSynchedTo >= $BAD_BLOCK_FROM) and (.paraHeaderSynchedTo <= $BAD_BLOCK_UNTIL))") | wc -l
 if [ -z "$NODE_COUNT_REQ_FIX" ]
   then
   echo "Found no node stuck nodes, exiting"
@@ -60,7 +65,7 @@ fi
 
 echo "Found ${NODE_COUNT_REQ_FIX} that appear stuck"
 
-for endpoint in $(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerStates | .[] | select(.paraHeaderSynchedTo==2702763) | select(.paraHeaderSynchedTo==2702764) | .worker.endpoint'); do
+for endpoint in $(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r ".data.workerStates | .[] | select((.paraHeaderSynchedTo >= $BAD_BLOCK_FROM) and (.paraHeaderSynchedTo <= $BAD_BLOCK_UNTIL)) | .worker.endpoint"); do
   echo "Running fix on $endpoint"
   docker run -it --rm phalanetwork/phala-pherry:prb-fix \
     /root/pherry \
@@ -68,11 +73,11 @@ for endpoint in $(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerSta
     --no-register \
     --no-bind \
     --parachain \
-    --substrate-ws-endpoint $KHALA_PARACHAIN_ENDPOINT \
-    --collator-ws-endpoint $KHALA_RELAYCHAIN_ENDPOINT \
-    --pruntime-endpoint $endpoint \
-    --fetch-blocks 4 \
-    --to-block 2702765 \
+    --substrate-ws-endpoint "$KHALA_PARACHAIN_ENDPOINT" \
+    --collator-ws-endpoint "$KHALA_RELAYCHAIN_ENDPOINT" \
+    --pruntime-endpoint "$endpoint" \
+    --fetch-blocks $FETCH_BLOCKS \
+    --to-block $TO_BLOCK \
     --no-storage-sync \
     >/dev/null
 done
