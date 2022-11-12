@@ -16,22 +16,22 @@ KHALA_RELAYCHAIN_ENDPOINT="" # "ws://KHALA_NODE_IP:9944"
 ############## DO NOT EDIT BELOW THIS LINE
 
 if [ -z "$PRB_MONITOR_HOST" ]
-  then echo "Please edit variables in script"
+  then echo "Please add a value for PRB_MONITOR_HOST in script"
   exit 1
 fi
 
 if [ -z "$PRB_LFM_PEER_ID" ]
-  then echo "Please edit variables in script"
+  then echo "Please add a value for PRB_LFM_PEER_ID in script"
   exit 1
 fi
 
 if [ -z "$KHALA_PARACHAIN_ENDPOINT" ]
-  then echo "Please edit variables in script"
+  then echo "Please add a value for KHALA_PARACHAIN_ENDPOINT in script"
   exit 1
 fi
 
 if [ -z "$KHALA_RELAYCHAIN_ENDPOINT" ]
-  then echo "Please edit variables in script"
+  then echo "Please add a value for KHALA_RELAYCHAIN_ENDPOINT in script"
   exit 1
 fi
 
