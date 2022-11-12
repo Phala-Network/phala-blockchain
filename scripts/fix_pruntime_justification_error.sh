@@ -60,5 +60,6 @@ for endpoint in $(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerSta
     --pruntime-endpoint $endpoint \
     --fetch-blocks 4 \
     --to-block 2702765 \
+    --no-storage-sync \
     >/dev/null
 done
