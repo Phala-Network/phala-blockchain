@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 # You need use `sudo` to run the script
 # You need edit ENV before you run the script
 # It's won't run parallel, so it's slow if you have > 100 workers
