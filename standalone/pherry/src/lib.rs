@@ -149,6 +149,9 @@ pub struct Args {
     #[clap(long = "parachain", help = "Parachain mode")]
     parachain: bool,
 
+    #[clap(long = "no-storage-sync", help = "Exit before syncing storgae changes. Used for test purpose.")]
+    no_storage_sync: bool,
+
     #[clap(
         long,
         help = "The first parent header to be synced, default to auto-determine"
@@ -331,7 +334,12 @@ pub async fn batch_sync_storage_changes(
     from: BlockNumber,
     to: BlockNumber,
     batch_size: BlockNumber,
+    exit: bool,
 ) -> Result<()> {
+    if exit {
+        info!("Exiting because no_storage_sync enabled...");
+        std::process::exit(0);
+    }
     info!(
         "batch syncing from {from} to {to} ({} blocks)",
         to as i64 - from as i64 + 1
@@ -461,6 +469,7 @@ async fn batch_sync_block(
     batch_window: BlockNumber,
     info: &prpc::PhactoryInfo,
     parachain: bool,
+    no_storage_sync: bool,
 ) -> Result<BlockNumber> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
@@ -480,7 +489,7 @@ async fn batch_sync_block(
     macro_rules! sync_blocks_to {
         ($to: expr) => {
             if next_blocknum <= $to {
-                batch_sync_storage_changes(pr, paraclient, cache, next_blocknum, $to, batch_window)
+                batch_sync_storage_changes(pr, paraclient, cache, next_blocknum, $to, batch_window, no_storage_sync)
                     .await?;
                 synced_blocks += $to - next_blocknum + 1;
                 next_blocknum = $to + 1;
@@ -667,6 +676,7 @@ async fn maybe_sync_waiting_parablocks(
     cache_client: &Option<CacheClient>,
     info: &PhactoryInfo,
     batch_window: BlockNumber,
+    no_storage_sync: bool,
 ) -> Result<()> {
     info!("Syncing waiting parablocks...");
     let mut fin_header = None;
@@ -722,6 +732,7 @@ async fn maybe_sync_waiting_parablocks(
                 info.blocknum,
                 hdr_synced_to,
                 batch_window,
+                no_storage_sync,
             )
             .await?;
         }
@@ -1110,6 +1121,7 @@ async fn bridge(
                 info.blocknum,
                 next_headernum - 1,
                 args.sync_blocks,
+                args.no_storage_sync,
             )
             .await?;
         }
@@ -1125,6 +1137,7 @@ async fn bridge(
                 &cache_client,
                 &info,
                 args.sync_blocks,
+                args.no_storage_sync,
             )
             .await?;
         }
@@ -1151,6 +1164,7 @@ async fn bridge(
                     info.para_headernum,
                     cached_headers,
                     args.sync_blocks,
+                    args.no_storage_sync,
                 )
                 .await?;
                 continue;
@@ -1217,6 +1231,7 @@ async fn bridge(
             args.sync_blocks,
             &info,
             args.parachain,
+            args.no_storage_sync,
         )
         .await?;
 
@@ -1414,6 +1429,7 @@ async fn sync_with_cached_headers(
     next_para_headernum: BlockNumber,
     mut headers: Vec<headers_cache::BlockInfo>,
     batch_window: BlockNumber,
+    no_storage_sync: bool,
 ) -> Result<()> {
     let last_header = match headers.last_mut() {
         Some(header) => header,
@@ -1450,6 +1466,7 @@ async fn sync_with_cached_headers(
                 next_blocknum,
                 hdr_synced_to,
                 batch_window,
+                no_storage_sync,
             )
             .await?;
         }
