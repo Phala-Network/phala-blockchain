@@ -56,7 +56,7 @@ echo "Status of nodes"
 NODE_COUNT=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r '.data.workerStates | length')
 echo "Found ${NODE_COUNT} nodes"
 
-NODE_COUNT_REQ_FIX=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r ".data.workerStates | .[] | select((.paraHeaderSynchedTo >= $BAD_BLOCK_FROM) and (.paraHeaderSynchedTo <= $BAD_BLOCK_UNTIL))") | wc -l
+NODE_COUNT_REQ_FIX=$(curl -s "$PRB_MONITOR_LIST_WORKER" | jq -c -r ".data.workerStates | .[] | select((.paraHeaderSynchedTo >= $BAD_BLOCK_FROM) and (.paraHeaderSynchedTo <= $BAD_BLOCK_UNTIL))" | wc -l)
 if [ -z "$NODE_COUNT_REQ_FIX" ]
   then
   echo "Found no node stuck nodes, exiting"
