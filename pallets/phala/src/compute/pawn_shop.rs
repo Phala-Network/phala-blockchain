@@ -2,9 +2,9 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::basepool;
+	use crate::base_pool;
 	use crate::computation;
-	use crate::poolproxy::PoolProxy;
+	use crate::pool_proxy::PoolProxy;
 	use crate::registry;
 	use crate::vault;
 
@@ -44,7 +44,7 @@ pub mod pallet {
 		+ computation::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
-		+ basepool::Config
+		+ base_pool::Config
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -360,10 +360,10 @@ pub mod pallet {
 			};
 			for (pid, cid) in &account_status.invest_pools {
 				pallet_uniques::Pallet::<T>::owned_in_collection(cid, &who).for_each(|nftid| {
-					let property_guard = basepool::Pallet::<T>::get_nft_attr_guard(*cid, nftid)
+					let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(*cid, nftid)
 						.expect("get nft should not fail: qed.");
 					let property = &property_guard.attr;
-					let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
+					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
 						.expect("get pool should not fail: qed.");
 					let basepool = &match pool_proxy {
 						PoolProxy::Vault(p) => p.basepool,

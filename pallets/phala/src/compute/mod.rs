@@ -1,6 +1,6 @@
-pub mod basepool;
+pub mod base_pool;
 pub mod computation;
-pub mod pawnshop;
-pub mod poolproxy;
-pub mod stakepoolv2;
+pub mod pawn_shop;
+pub mod pool_proxy;
+pub mod stake_pool_v2;
 pub mod vault;

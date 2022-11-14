@@ -9,9 +9,9 @@ pub mod pallet {
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
 	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
-		storage::{storage_prefix, migration, PrefixIterator, unhashed},
 		dispatch::DispatchResult,
 		pallet_prelude::*,
+		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{
 			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
 			UnixTime,
@@ -35,8 +35,8 @@ pub mod pallet {
 	};
 	use sp_std::cmp;
 
-	use codec::{Decode, Encode};
 	use crate::balance_convert::FixedPointConvert;
+	use codec::{Decode, Encode};
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
 	use fixed_sqrt::FixedSqrt;
@@ -500,29 +500,31 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_miners(
-			origin: OriginFor<T>,
-			max_iterations: u32,
-		) -> DispatchResult {
+		pub fn migrate_miners(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			//ensure_root(origin)?;
 			let mining_prefix = storage_prefix(b"PhalaMining", b"Miners");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"Sessions");
 
-			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), max_iterations);
+			Self::move_prefix(
+				mining_prefix.as_slice(),
+				computation_prefix.as_slice(),
+				max_iterations,
+			);
 
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_miner_bindings(
-			origin: OriginFor<T>,
-			max_iterations: u32,
-		) -> DispatchResult {
+		pub fn migrate_miner_bindings(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			//ensure_root(origin)?;
 			let mining_prefix = storage_prefix(b"PhalaMining", b"MinerBindings");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"SessionBindings");
 
-			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), max_iterations);
+			Self::move_prefix(
+				mining_prefix.as_slice(),
+				computation_prefix.as_slice(),
+				max_iterations,
+			);
 
 			Ok(())
 		}
@@ -536,36 +538,40 @@ pub mod pallet {
 			let mining_prefix = storage_prefix(b"PhalaMining", b"WorkerBindings");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"WorkerBindings");
 
-			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), max_iterations);
+			Self::move_prefix(
+				mining_prefix.as_slice(),
+				computation_prefix.as_slice(),
+				max_iterations,
+			);
 
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_stakes(
-			origin: OriginFor<T>,
-			max_iterations: u32,
-		) -> DispatchResult {
+		pub fn migrate_stakes(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			//ensure_root(origin)?;
 			let mining_prefix = storage_prefix(b"PhalaMining", b"Stakes");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"Stakes");
 
-			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), max_iterations);
+			Self::move_prefix(
+				mining_prefix.as_slice(),
+				computation_prefix.as_slice(),
+				max_iterations,
+			);
 
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_storage_values(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
+		pub fn migrate_storage_values(origin: OriginFor<T>) -> DispatchResult {
 			//ensure_root(origin)?;
 			let mining_prefix = storage_prefix(b"PhalaMining", b"TokenomicParameters");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"TokenomicParameters");
 			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), 1);
 
 			let mining_prefix = storage_prefix(b"PhalaMining", b"ScheduledTokenomicUpdate");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"ScheduledTokenomicUpdate");
+			let computation_prefix =
+				storage_prefix(b"PhalaComputation", b"ScheduledTokenomicUpdate");
 			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), 1);
 
 			let mining_prefix = storage_prefix(b"PhalaMining", b"OnlineMiners");
@@ -589,7 +595,8 @@ pub mod pallet {
 			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), 1);
 
 			let mining_prefix = storage_prefix(b"PhalaMining", b"MiningHalvingInterval");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"ComputingHalvingInterval");
+			let computation_prefix =
+				storage_prefix(b"PhalaComputation", b"ComputingHalvingInterval");
 			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), 1);
 			Ok(())
 		}
@@ -630,23 +637,26 @@ pub mod pallet {
 
 		pub fn move_prefix(from_prefix: &[u8], to_prefix: &[u8], max_iterations: u32) {
 			if from_prefix == to_prefix {
-				return
+				return;
 			}
-		
-			let mut iter = PrefixIterator::<_>::new(from_prefix.clone().into(), from_prefix.into(), |key, value| Ok((key.to_vec(), value.to_vec())));
+
+			let mut iter = PrefixIterator::<_>::new(
+				from_prefix.clone().into(),
+				from_prefix.into(),
+				|key, value| Ok((key.to_vec(), value.to_vec())),
+			);
 			iter = iter.drain();
 			let mut i = 0;
-		
+
 			for (key, value) in iter {
 				let full_key = [to_prefix, &key].concat();
 				unhashed::put_raw(&full_key, &value);
 				i += 1;
-				if (i >= max_iterations) {
-					return
+				if i >= max_iterations {
+					return;
 				}
 			}
 		}
-		
 
 		fn heartbeat_challenge() {
 			// Random seed for the heartbeat challenge

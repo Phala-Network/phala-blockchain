@@ -7,7 +7,7 @@ use crate::BalanceOf;
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::compute::{basepool, computation};
+	use crate::compute::{base_pool, computation};
 	use crate::registry;
 	use crate::utils::fixed_point::CodecFixedPoint;
 
@@ -16,7 +16,6 @@ pub mod pallet {
 		pallet_prelude::*,
 		traits::{LockableCurrency, StorageVersion},
 	};
-	use frame_system::{pallet_prelude::*, Origin};
 	use scale_info::TypeInfo;
 	use sp_runtime::Permill;
 	use sp_std::{collections::vec_deque::VecDeque, prelude::*};
@@ -118,7 +117,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn pool_descriptions)]
 	pub type PoolDescriptions<T: Config> =
-		StorageMap<_, Twox64Concat, u64, basepool::pallet::DescStr>;
+		StorageMap<_, Twox64Concat, u64, base_pool::pallet::DescStr>;
 
 	#[pallet::event]
 	pub enum Event<T: Config> {}

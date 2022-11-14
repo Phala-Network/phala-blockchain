@@ -5,8 +5,8 @@ use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::computation;
-	use crate::pawnshop;
-	use crate::poolproxy::*;
+	use crate::pawn_shop;
+	use crate::pool_proxy::*;
 	use crate::registry;
 	use crate::vault;
 	use crate::BalanceOf;
@@ -266,7 +266,7 @@ pub mod pallet {
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-			T: Config + pawnshop::Config + vault::Config,
+			T: Config + pawn_shop::Config + vault::Config,
 		{
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
@@ -309,10 +309,10 @@ pub mod pallet {
 		where
 			T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
 			T: Config<AccountId = AccountId>,
-			T: Config + pawnshop::Config + vault::Config,
+			T: Config + pawn_shop::Config + vault::Config,
 		{
 			pallet_assets::Pallet::<T>::balance(
-				<T as pawnshop::Config>::PPhaAssetId::get(),
+				<T as pawn_shop::Config>::PPhaAssetId::get(),
 				&self.pool_account_id,
 			)
 		}
@@ -333,7 +333,7 @@ pub mod pallet {
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 			T: Config<AccountId = AccountId>,
-			T: Config + pawnshop::Config + vault::Config,
+			T: Config + pawn_shop::Config + vault::Config,
 		{
 			self.total_value += rewards;
 			for vault_staker in &self.value_subscribers {
@@ -499,7 +499,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pawnshop::Config + vault::Config,
+		T: Config + pawn_shop::Config + vault::Config,
 	{
 		/// Returns a [`NftGuard`] object that can read or write to the nft attributes
 		///
@@ -540,6 +540,13 @@ pub mod pallet {
                 || pool.total_value > Zero::zero(),
 				Error::<T>::PoolBankrupt
 			);
+
+			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pool.pid) {
+				ensure!(
+					whitelist.contains(&account_id) || pool.owner == account_id,
+					Error::<T>::NotInContributeWhitelist
+				);
+			}
 			Self::merge_or_init_nft_for_staker(pool.cid, account_id.clone())?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
@@ -661,7 +668,7 @@ pub mod pallet {
 			pool.total_shares += shares;
 			pool.total_value += amount;
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawnshop::Config>::PPhaAssetId::get(),
+				<T as pawn_shop::Config>::PPhaAssetId::get(),
 				&account_id,
 				&pool.pool_account_id,
 				amount,
@@ -692,7 +699,7 @@ pub mod pallet {
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawnshop::Config>::PPhaAssetId::get(),
+				<T as pawn_shop::Config>::PPhaAssetId::get(),
 				&pool.pool_account_id,
 				userid,
 				amount,

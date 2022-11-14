@@ -1,5 +1,5 @@
-use crate::basepool;
-use crate::pawnshop;
+use crate::base_pool;
+use crate::pawn_shop;
 use crate::vault;
 use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
@@ -12,7 +12,7 @@ use frame_support::pallet_prelude::*;
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct StakePool<AccountId, Balance> {
 	/// General fields of a pool
-	pub basepool: basepool::BasePool<AccountId, Balance>,
+	pub basepool: base_pool::BasePool<AccountId, Balance>,
 	/// The commission the pool owner takes
 	///
 	/// For example, 10% commission means 10% of the worker reward goes to the pool owner, and
@@ -36,7 +36,7 @@ pub struct StakePool<AccountId, Balance> {
 #[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Vault<AccountId, Balance> {
 	/// General fields of a pool
-	pub basepool: basepool::BasePool<AccountId, Balance>,
+	pub basepool: base_pool::BasePool<AccountId, Balance>,
 	/// Record the share price when function: `maybe_gain_owner_shares` is called last time
 	pub last_share_price_checkpoint: Balance,
 	/// The commission the owner takes
@@ -75,11 +75,11 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 	pub fn get_owner_stakes<T>(&self) -> Balance
 	where
 		T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
-		T: basepool::Config<AccountId = AccountId>,
-		T: basepool::Config + pawnshop::Config + vault::Config,
+		T: base_pool::Config<AccountId = AccountId>,
+		T: base_pool::Config + pawn_shop::Config + vault::Config,
 	{
 		pallet_assets::Pallet::<T>::balance(
-			<T as pawnshop::Config>::PPhaAssetId::get(),
+			<T as pawn_shop::Config>::PPhaAssetId::get(),
 			&self.owner_reward_account,
 		)
 	}
@@ -95,27 +95,27 @@ pub enum PoolProxy<AccountId, Balance> {
 /// Returns a stakepool object by pid directly
 ///
 /// Returns error when the mapping pool type of the pid mismatch a stake pool
-pub fn ensure_stake_pool<T: basepool::Config>(
+pub fn ensure_stake_pool<T: base_pool::Config>(
 	pid: u64,
-) -> Result<StakePool<T::AccountId, BalanceOf<T>>, basepool::Error<T>> {
-	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
-		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
+) -> Result<StakePool<T::AccountId, BalanceOf<T>>, base_pool::Error<T>> {
+	let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+		.ok_or(base_pool::Error::<T>::PoolDoesNotExist)?;
 	match pool_proxy {
 		PoolProxy::StakePool(res) => Ok(res),
-		_other => Err(basepool::Error::<T>::PoolTypeNotMatch),
+		_other => Err(base_pool::Error::<T>::PoolTypeNotMatch),
 	}
 }
 
 /// Returns a vault object by pid directly
 ///
 /// Returns error when the mapping pool type of the pid mismatch a vault
-pub fn ensure_vault<T: basepool::Config>(
+pub fn ensure_vault<T: base_pool::Config>(
 	pid: u64,
-) -> Result<Vault<T::AccountId, BalanceOf<T>>, basepool::Error<T>> {
-	let pool_proxy = basepool::Pallet::<T>::pool_collection(pid)
-		.ok_or(basepool::Error::<T>::PoolDoesNotExist)?;
+) -> Result<Vault<T::AccountId, BalanceOf<T>>, base_pool::Error<T>> {
+	let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+		.ok_or(base_pool::Error::<T>::PoolDoesNotExist)?;
 	match pool_proxy {
 		PoolProxy::Vault(res) => Ok(res),
-		_other => Err(basepool::Error::<T>::PoolTypeNotMatch),
+		_other => Err(base_pool::Error::<T>::PoolTypeNotMatch),
 	}
 }

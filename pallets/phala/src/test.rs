@@ -1,8 +1,8 @@
-use crate::basepool;
+use crate::base_pool;
 use crate::computation;
-use crate::pawnshop;
-use crate::poolproxy::*;
-use crate::stakepoolv2;
+use crate::pawn_shop;
+use crate::pool_proxy::*;
+use crate::stake_pool_v2;
 use crate::vault;
 use fixed::types::U64F64 as FixedPoint;
 use frame_support::{
@@ -31,7 +31,7 @@ use sp_std::collections::vec_deque::VecDeque;
 #[test]
 fn test_pool_subaccount() {
 	let sub_account: AccountId32 =
-		stakepoolv2::pool_sub_account(1, &WorkerPublicKey::from_raw([0u8; 32]));
+		stake_pool_v2::pool_sub_account(1, &WorkerPublicKey::from_raw([0u8; 32]));
 	let expected = AccountId32::new(hex!(
 		"73706d2f02ab4d74c86ec3b3997a4fadf33e55e8279650c8539ea67e053c02dc"
 	));
@@ -42,12 +42,12 @@ fn test_pool_subaccount() {
 fn test_pawn() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 0);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 100 * DOLLARS);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
@@ -67,20 +67,20 @@ fn test_redeem() {
 		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 50 * DOLLARS);
 		let ppha_free = get_balance(1);
 		assert_eq!(ppha_free, 50 * DOLLARS);
-		pawnshop::pallet::StakerAccounts::<Test>::insert(
+		pawn_shop::pallet::StakerAccounts::<Test>::insert(
 			1,
-			pawnshop::FinanceAccount::<u128> {
+			pawn_shop::FinanceAccount::<u128> {
 				invest_pools: vec![],
 				locked: 20 * DOLLARS,
 			},
 		);
 		assert_noop!(
 			PhalaPawnshop::redeem(RuntimeOrigin::signed(1), 50 * DOLLARS),
-			pawnshop::Error::<Test>::RedeemAmountExceedsAvaliableStake
+			pawn_shop::Error::<Test>::RedeemAmountExceedsAvaliableStake
 		);
 	});
 }
@@ -131,7 +131,7 @@ fn test_vote() {
 		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 100 * DOLLARS));
 		assert_noop!(
 			PhalaPawnshop::vote(RuntimeOrigin::signed(1), 90 * DOLLARS, 90 * DOLLARS, 0),
-			pawnshop::Error::<Test>::VoteAmountLargerThanTotalStakes,
+			pawn_shop::Error::<Test>::VoteAmountLargerThanTotalStakes,
 		);
 		assert_ok!(PhalaPawnshop::vote(
 			RuntimeOrigin::signed(1),
@@ -139,7 +139,7 @@ fn test_vote() {
 			10 * DOLLARS,
 			0
 		));
-		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 30 * DOLLARS);
 		assert_ok!(PhalaPawnshop::vote(
 			RuntimeOrigin::signed(1),
@@ -147,7 +147,7 @@ fn test_vote() {
 			20 * DOLLARS,
 			1
 		));
-		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 60 * DOLLARS);
 		assert_ok!(PhalaPawnshop::vote(
 			RuntimeOrigin::signed(2),
@@ -168,7 +168,7 @@ fn test_vote() {
 			10 * DOLLARS,
 			1
 		));
-		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 30 * DOLLARS);
 	});
 }
@@ -198,16 +198,16 @@ fn test_unlock() {
 		));
 		assert_noop!(
 			PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 0, 1),
-			pawnshop::Error::<Test>::ReferendumOngoing,
+			pawn_shop::Error::<Test>::ReferendumOngoing,
 		);
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(0);
 		assert_ok!(PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 0, 1));
-		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 0 * DOLLARS);
-		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		let account2_status = pawn_shop::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 30 * DOLLARS);
 		assert_ok!(PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 0, 2));
-		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		let account2_status = pawn_shop::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 0 * DOLLARS);
 		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
 			H256::zero(),
@@ -228,9 +228,9 @@ fn test_unlock() {
 		));
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(1);
 		assert_ok!(PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 1, 2));
-		let account1_status = pawnshop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 0 * DOLLARS);
-		let account2_status = pawnshop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		let account2_status = pawn_shop::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 0 * DOLLARS);
 	});
 }
@@ -256,7 +256,7 @@ fn test_mint_nft() {
 			assert_ok!(PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0));
 			assert_noop!(
 				PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0),
-				basepool::Error::<Test>::AttrLocked
+				base_pool::Error::<Test>::AttrLocked
 			);
 		}
 		let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0)
@@ -402,12 +402,12 @@ fn test_create_stakepool() {
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(2)));
 		assert_eq!(
-			basepool::Pools::<Test>::get(0),
+			base_pool::Pools::<Test>::get(0),
 			Some(PoolProxy::<u64, Balance>::StakePool(StakePool::<
 				u64,
 				Balance,
 			> {
-				basepool: basepool::BasePool {
+				basepool: base_pool::BasePool {
 					pid: 0,
 					owner: 1,
 					total_shares: 0,
@@ -425,7 +425,7 @@ fn test_create_stakepool() {
 				owner_reward_account: 16637257129592319859,
 			})),
 		);
-		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
+		assert_eq!(base_pool::PoolCount::<Test>::get(), 2);
 	});
 }
 
@@ -436,9 +436,9 @@ fn test_create_vault() {
 		assert_ok!(PhalaVault::create(RuntimeOrigin::signed(1)));
 		assert_ok!(PhalaVault::create(RuntimeOrigin::signed(2)));
 		assert_eq!(
-			basepool::Pools::<Test>::get(0),
+			base_pool::Pools::<Test>::get(0),
 			Some(PoolProxy::Vault(Vault::<u64, Balance> {
-				basepool: basepool::BasePool {
+				basepool: base_pool::BasePool {
 					pid: 0,
 					owner: 1,
 					total_shares: 0,
@@ -454,7 +454,7 @@ fn test_create_vault() {
 				invest_pools: VecDeque::new(),
 			})),
 		);
-		assert_eq!(basepool::PoolCount::<Test>::get(), 2);
+		assert_eq!(base_pool::PoolCount::<Test>::get(), 2);
 	});
 }
 
@@ -467,7 +467,7 @@ fn test_contribute() {
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(1), 0, 50 * DOLLARS, None,),
-			stakepoolv2::Error::<Test>::InsufficientBalance,
+			stake_pool_v2::Error::<Test>::InsufficientBalance,
 		);
 
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
@@ -540,7 +540,7 @@ fn test_contribute() {
 
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(2), 0, 10 * DOLLARS, Some(1),),
-			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner,
+			stake_pool_v2::Error::<Test>::UnauthorizedPoolOwner,
 		);
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
@@ -571,7 +571,7 @@ fn test_set_pool_description() {
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]);
-		let str_hello: basepool::DescStr = ("hello").as_bytes().to_vec().try_into().unwrap();
+		let str_hello: base_pool::DescStr = ("hello").as_bytes().to_vec().try_into().unwrap();
 		assert_ok!(PhalaBasePool::set_pool_description(
 			RuntimeOrigin::signed(1),
 			0,
@@ -579,10 +579,10 @@ fn test_set_pool_description() {
 		));
 		let list = PhalaBasePool::pool_descriptions(0).unwrap();
 		assert_eq!(list, str_hello);
-		let str_bye: basepool::DescStr = ("bye").as_bytes().to_vec().try_into().unwrap();
+		let str_bye: base_pool::DescStr = ("bye").as_bytes().to_vec().try_into().unwrap();
 		assert_noop!(
 			PhalaBasePool::set_pool_description(RuntimeOrigin::signed(2), 0, str_bye,),
-			basepool::Error::<Test>::UnauthorizedPoolOwner
+			base_pool::Error::<Test>::UnauthorizedPoolOwner
 		);
 	});
 }
@@ -637,7 +637,7 @@ fn test_staker_whitelist() {
 		));
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(3), 0, 40 * DOLLARS, None),
-			basepool::Error::<Test>::NotInContributeWhitelist
+			base_pool::Error::<Test>::NotInContributeWhitelist
 		);
 		assert_ok!(PhalaBasePool::add_staker_to_whitelist(
 			RuntimeOrigin::signed(1),
@@ -661,7 +661,7 @@ fn test_staker_whitelist() {
 		assert_eq!(whitelist, [3]);
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(2), 0, 20 * DOLLARS, None),
-			basepool::Error::<Test>::NotInContributeWhitelist
+			base_pool::Error::<Test>::NotInContributeWhitelist
 		);
 		assert_ok!(PhalaBasePool::remove_staker_from_whitelist(
 			RuntimeOrigin::signed(1),
@@ -693,12 +693,12 @@ fn test_pool_cap() {
 		// Pool existence
 		assert_noop!(
 			PhalaStakePoolv2::set_cap(RuntimeOrigin::signed(2), 100, 1),
-			basepool::Error::<Test>::PoolDoesNotExist,
+			base_pool::Error::<Test>::PoolDoesNotExist,
 		);
 		// Owner only
 		assert_noop!(
 			PhalaStakePoolv2::set_cap(RuntimeOrigin::signed(2), 0, 1),
-			stakepoolv2::Error::<Test>::UnauthorizedPoolOwner,
+			stake_pool_v2::Error::<Test>::UnauthorizedPoolOwner,
 		);
 		// Cap to 1000 PHA
 		assert_ok!(PhalaStakePoolv2::set_cap(
@@ -719,7 +719,7 @@ fn test_pool_cap() {
 		));
 		assert_noop!(
 			PhalaStakePoolv2::set_cap(RuntimeOrigin::signed(1), 0, 9 * DOLLARS),
-			stakepoolv2::Error::<Test>::InadequateCapacity,
+			stake_pool_v2::Error::<Test>::InadequateCapacity,
 		);
 		// Stake to the cap
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -731,7 +731,7 @@ fn test_pool_cap() {
 		// Exceed the cap
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(2), 0, 90 * DOLLARS, None),
-			stakepoolv2::Error::<Test>::StakeExceedsCapacity,
+			stake_pool_v2::Error::<Test>::StakeExceedsCapacity,
 		);
 
 		// Can stake exceed the cap to swap the withdrawing stake out, as long as the cap
@@ -750,7 +750,7 @@ fn test_pool_cap() {
 		));
 		assert_noop!(
 			PhalaStakePoolv2::contribute(RuntimeOrigin::signed(2), 0, 101 * DOLLARS, None),
-			stakepoolv2::Error::<Test>::StakeExceedsCapacity
+			stake_pool_v2::Error::<Test>::StakeExceedsCapacity
 		);
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(2),
@@ -780,15 +780,15 @@ fn test_add_worker() {
 		// Bad inputs
 		assert_noop!(
 			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker2.clone()),
-			stakepoolv2::Error::<Test>::WorkerNotRegistered
+			stake_pool_v2::Error::<Test>::WorkerNotRegistered
 		);
 		assert_noop!(
 			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(2), 0, worker1.clone()),
-			stakepoolv2::Error::<Test>::UnauthorizedOperator
+			stake_pool_v2::Error::<Test>::UnauthorizedOperator
 		);
 		assert_noop!(
 			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 0, worker1.clone()),
-			stakepoolv2::Error::<Test>::BenchmarkMissing
+			stake_pool_v2::Error::<Test>::BenchmarkMissing
 		);
 		// Add benchmark and retry
 		PhalaRegistry::internal_set_benchmark(&worker1, Some(1));
@@ -798,7 +798,7 @@ fn test_add_worker() {
 			worker1.clone()
 		));
 		// Check binding
-		let subaccount = stakepoolv2::pool_sub_account(0, &worker_pubkey(1));
+		let subaccount = stake_pool_v2::pool_sub_account(0, &worker_pubkey(1));
 		assert_eq!(
 			PhalaComputation::ensure_worker_bound(&worker_pubkey(1)).unwrap(),
 			subaccount,
@@ -809,19 +809,19 @@ fn test_add_worker() {
 		);
 		// Check assignments
 		assert_eq!(
-			stakepoolv2::pallet::WorkerAssignments::<Test>::get(&worker_pubkey(1)),
+			stake_pool_v2::pallet::WorkerAssignments::<Test>::get(&worker_pubkey(1)),
 			Some(0)
 		);
 		// Other bad cases
 		assert_noop!(
 			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 100, worker1.clone()),
-			basepool::Error::<Test>::PoolDoesNotExist
+			base_pool::Error::<Test>::PoolDoesNotExist
 		);
 		// Bind one worker to antoher pool (pid = 1)
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		assert_noop!(
 			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker1.clone()),
-			stakepoolv2::Error::<Test>::FailedToBindSessionAndWorker
+			stake_pool_v2::Error::<Test>::FailedToBindSessionAndWorker
 		);
 	});
 }
@@ -839,7 +839,7 @@ fn test_start_computing() {
 		// Cannot start computing without a bound worker
 		assert_noop!(
 			PhalaStakePoolv2::start_computing(RuntimeOrigin::signed(1), 0, worker_pubkey(1), 0),
-			stakepoolv2::Error::<Test>::WorkerDoesNotExist
+			stake_pool_v2::Error::<Test>::WorkerDoesNotExist
 		);
 		// Basic setup
 		setup_workers(2);
@@ -919,13 +919,13 @@ fn test_force_unbind() {
 			ecdh_pubkey(1),
 			Some(101)
 		));
-		let sub_account = stakepoolv2::pool_sub_account(0, &worker_pubkey(1));
+		let sub_account = stake_pool_v2::pool_sub_account(0, &worker_pubkey(1));
 		assert_ok!(PhalaComputation::unbind(
 			RuntimeOrigin::signed(101),
 			sub_account
 		));
 		// Check worker assignments cleared, and the worker removed from the pool
-		assert!(!stakepoolv2::pallet::WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
+		assert!(!stake_pool_v2::pallet::WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(1)), false);
 		// Check the computing is ready
@@ -952,13 +952,13 @@ fn test_force_unbind() {
 			ecdh_pubkey(2),
 			Some(102)
 		));
-		let sub_account = stakepoolv2::pool_sub_account(1, &worker_pubkey(2));
+		let sub_account = stake_pool_v2::pool_sub_account(1, &worker_pubkey(2));
 		assert_ok!(PhalaComputation::unbind(
 			RuntimeOrigin::signed(102),
 			sub_account
 		));
 		// Check worker assignments cleared, and the worker removed from the pool
-		assert!(!stakepoolv2::WorkerAssignments::<Test>::contains_key(
+		assert!(!stake_pool_v2::WorkerAssignments::<Test>::contains_key(
 			&worker_pubkey(2)
 		));
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
@@ -980,7 +980,7 @@ fn test_stop_computing() {
 		// Cannot start computing without a bound worker
 		assert_noop!(
 			PhalaStakePoolv2::start_computing(RuntimeOrigin::signed(1), 0, worker_pubkey(1), 0),
-			stakepoolv2::Error::<Test>::WorkerDoesNotExist
+			stake_pool_v2::Error::<Test>::WorkerDoesNotExist
 		);
 		// Basic setup
 		setup_workers(2);
@@ -1095,7 +1095,7 @@ fn restart_computing_should_work() {
 				worker_pubkey(1),
 				50 * DOLLARS
 			),
-			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
+			stake_pool_v2::Error::<Test>::CannotRestartWithLessStake
 		);
 		assert_noop!(
 			PhalaStakePoolv2::restart_computing(
@@ -1104,7 +1104,7 @@ fn restart_computing_should_work() {
 				worker_pubkey(1),
 				150 * DOLLARS
 			),
-			stakepoolv2::Error::<Test>::CannotRestartWithLessStake
+			stake_pool_v2::Error::<Test>::CannotRestartWithLessStake
 		);
 		// Happy path
 		let pool0 = ensure_stake_pool::<Test>(0).unwrap();
@@ -1131,7 +1131,7 @@ fn test_for_cdworkers() {
 		// Cannot start computing without a bound worker
 		assert_noop!(
 			PhalaStakePoolv2::start_computing(RuntimeOrigin::signed(1), 0, worker_pubkey(1), 0),
-			stakepoolv2::Error::<Test>::WorkerDoesNotExist
+			stake_pool_v2::Error::<Test>::WorkerDoesNotExist
 		);
 		// Basic setup
 		setup_workers(2);
@@ -1154,7 +1154,7 @@ fn test_for_cdworkers() {
 		));
 		assert_noop!(
 			PhalaStakePoolv2::remove_worker(RuntimeOrigin::signed(1), 0, worker_pubkey(1)),
-			stakepoolv2::Error::<Test>::WorkerIsNotReady,
+			stake_pool_v2::Error::<Test>::WorkerIsNotReady,
 		);
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.cd_workers, []);
@@ -1238,7 +1238,7 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		let free = Balances::free_balance(&<Test as pawnshop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }
@@ -1806,7 +1806,7 @@ fn test_check_and_maybe_force_withdraw() {
 		}
 		assert_noop!(
 			PhalaStakePoolv2::withdraw(RuntimeOrigin::signed(99), 0, 100 * DOLLARS, Some(pid)),
-			stakepoolv2::Error::<Test>::VaultIsLocked,
+			stake_pool_v2::Error::<Test>::VaultIsLocked,
 		);
 		assert_ok!(PhalaVault::contribute(
 			RuntimeOrigin::signed(99),
@@ -1828,7 +1828,7 @@ fn test_check_and_maybe_force_withdraw() {
 
 fn mock_asset_id() {
 	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
-		<Test as pawnshop::Config>::PPhaAssetId::get(),
+		<Test as pawn_shop::Config>::PPhaAssetId::get(),
 		1,
 		true,
 		1,
@@ -1838,7 +1838,7 @@ fn mock_asset_id() {
 
 fn get_balance(account_id: u64) -> u128 {
 	<pallet_assets::pallet::Pallet<Test> as Inspect<u64>>::balance(
-		<Test as pawnshop::Config>::PPhaAssetId::get(),
+		<Test as pawn_shop::Config>::PPhaAssetId::get(),
 		&account_id,
 	)
 }
