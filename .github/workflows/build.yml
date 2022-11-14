@@ -1,4 +1,4 @@
-name: Build and Test (Gramine)
+name: Build and Test
 
 on:
   push:
@@ -9,24 +9,14 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-core-blockchain:
-    name: Build core blockchain
+  build-core:
+    name: Build core
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-      - uses: ./.github/actions/install_toolchain
-      - name: Build core blockchain
-        run: cargo build -vv --profile testnet
-      - name: Save core-blockchain binaries
-        uses: actions/upload-artifact@v3
-        with:
-          name: core-blockchain-binaries
-          path: |
-            ./target/testnet/phala-node
-            ./target/testnet/pherry
-
+      - uses: ./.github/actions/build-core
   build-pruntime:
     name: Build pruntime
     runs-on: ubuntu-20.04
@@ -34,20 +24,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-      - uses: ./.github/actions/install_toolchain
-      - name: Install gramine
-        run: sudo bash dockerfile.d/01_apt_gramine.sh
-      - name: Build pruntime
-        run: make V=1 dist -C ./standalone/pruntime/gramine-build/
-      - name: Save pruntime binaries
-        uses: actions/upload-artifact@v3
-        with:
-          name: pruntime-binaries
-          path: |
-            ./standalone/pruntime/bin/pruntime
-            ./standalone/pruntime/bin/pruntime.manifest
-            ./standalone/pruntime/bin/Rocket.toml
-
+      - uses: ./.github/actions/build-pruntime
   build-prouter:
     name: Build prouter
     runs-on: ubuntu-20.04
@@ -55,18 +32,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-      - uses: ./.github/actions/install_toolchain
-      - name: Install prouter dependencies
-        run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc
-      - name: Build prouter
-        run: cd ./standalone/prouter/ && cargo build -vv
-      - name: Save prouter binaries
-        uses: actions/upload-artifact@v3
-        with:
-          name: prouter-binaries
-          path: |
-            ./standalone/prouter/target/release/prouter
-
+      - uses: ./.github/actions/build-prouter
   e2e-test:
     name: Run E2E tests
     runs-on: ubuntu-20.04
@@ -106,7 +72,7 @@ jobs:
         with:
           name: e2e-logs
           path: e2e-logs.tar.gz
-    needs: [ build-core-blockchain, build-pruntime ]
+    needs: [ build-core, build-pruntime ]
 
   cargo-tests:
     name: Run cargo tests
