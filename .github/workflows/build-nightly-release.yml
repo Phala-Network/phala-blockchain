@@ -43,7 +43,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         env:
-          TAG_NAME: nightly-tag-${{ steps.date.outputs.date }}
+          TAG_NAME: nightly-${{ steps.date.outputs.date }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ env.TAG_NAME }}
@@ -57,3 +57,10 @@ jobs:
             ./e2e/res/log_server.contract
             ./e2e/res/sidevm_deployer.contract
             ./e2e/res/tokenomic.contract
+      - name: Delete older nightly releases
+        - uses: Phala-Network/delete-older-releases
+          with:
+            keep_latest: 1
+            delete_tag_pattern: nightly
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
