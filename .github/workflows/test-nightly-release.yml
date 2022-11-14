@@ -1,0 +1,23 @@
+name: Create release
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  create-release:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        - uses: actions/checkout@v3
+      - name: Create nightly release
+        id: create_release
+        uses: viperproject/create-nightly-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          release_name: Nightly Release ${{ env.TAG_NAME }}
+          body: Body for the release
+          keep_num: 0
+          keep_tags: false
