@@ -1,0 +1,18 @@
+name: Build core block chain
+description: Build core block chain
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/install_toolchain
+    - name: Build core blockchain
+      run: cargo build -vv --profile testnet
+    - name: Save core-blockchain binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: core-blockchain-binaries
+        path: |
+          ./target/testnet/phala-node
+          ./target/testnet/pherry
