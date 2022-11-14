@@ -51,6 +51,11 @@ mod sidevm_deployer {
             system.deploy_sidevm_to(caller, code_hash)?;
             Ok(())
         }
+
+        #[ink(message)]
+        fn can_deploy(&self, contract: AccountId) -> bool {
+            self.whitelist.contains(&contract)
+        }
     }
 
     #[cfg(test)]
