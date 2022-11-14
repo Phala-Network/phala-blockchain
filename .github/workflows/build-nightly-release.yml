@@ -1,7 +1,9 @@
 name: Build release
 
 on:
-  [push]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 1-5"
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,20 +15,22 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: true
       - uses: ./.github/actions/build-core
         with:
           profile: release
+
   build-pruntime:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'true'
+          submodules: true
       - uses: ./.github/actions/build-pruntime
+
   publish:
-    needs: [ build-core, build-pruntime ]
+    needs: [build-core, build-pruntime]
     name: Pack and publish
     runs-on: ubuntu-20.04
     steps:
@@ -40,7 +44,7 @@ jobs:
         with:
           path: ./dist
 
-      - name: Release
+      - name: Publish
         uses: softprops/action-gh-release@v1
         env:
           TAG_NAME: nightly-${{ steps.date.outputs.date }}
@@ -57,10 +61,12 @@ jobs:
             ./e2e/res/log_server.contract
             ./e2e/res/sidevm_deployer.contract
             ./e2e/res/tokenomic.contract
+
       - name: Delete older nightly releases
         uses: Phala-Network/delete-older-releases@master
         with:
-          keep_latest: 1
+          keep_latest: 10
+          delete_tags: true
           delete_tag_pattern: nightly
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
