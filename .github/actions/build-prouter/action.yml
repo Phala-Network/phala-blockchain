@@ -3,9 +3,6 @@ description: Build prouter
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: 'true'
     - uses: ./.github/actions/install_toolchain
     - name: Install prouter dependencies
       run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc

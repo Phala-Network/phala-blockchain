@@ -3,9 +3,6 @@ description: Build core block chain
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: 'true'
     - uses: ./.github/actions/install_toolchain
     - name: Build core blockchain
       run: cargo build -vv --profile testnet
