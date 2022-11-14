@@ -5,6 +5,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  TAG_NAME: tag-name
 
 jobs:
   build-core-blockchain:
@@ -20,6 +21,6 @@ jobs:
         with:
           tag_name: ${{ env.TAG_NAME }}
           release_name: Nightly Release ${{ env.TAG_NAME }}
-          body: Body for the release
-          keep_num: 0
+          body: Bot packed
+          keep_num: 1
           keep_tags: false
