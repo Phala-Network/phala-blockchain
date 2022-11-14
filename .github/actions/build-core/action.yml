@@ -1,11 +1,16 @@
 name: Build core block chain
 description: Build core block chain
+inputs:
+  profile:
+    description: 'The `--profile` of cargo build'
+    required: true
+    default: 'testnet'
 runs:
   using: "composite"
   steps:
     - uses: ./.github/actions/install_toolchain
     - name: Build core blockchain
-      run: cargo build -vv --profile testnet
+      run: cargo build -vv --profile ${{ inputs.profile }}
       shell: bash
     - name: Save core-blockchain binaries
       uses: actions/upload-artifact@v3

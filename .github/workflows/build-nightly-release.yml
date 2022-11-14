@@ -15,6 +15,8 @@ jobs:
         with:
           submodules: 'true'
       - uses: ./.github/actions/build-core
+        with:
+          profile: release
   build-pruntime:
     name: Build pruntime
     runs-on: ubuntu-20.04
@@ -48,9 +50,9 @@ jobs:
           prerelease: true
           body: Nighty build
           files: |
-            ./dist/pruntime
-            ./dist/phala-node
-            ./dist/pherry
+            ./dist/pruntime-binaries/pruntime
+            ./dist/core-blockchain-binaries/phala-node
+            ./dist/core-blockchain-binaries/pherry
             ./e2e/res/system.contract
             ./e2e/res/log_server.contract
             ./e2e/res/sidevm_deployer.contract
