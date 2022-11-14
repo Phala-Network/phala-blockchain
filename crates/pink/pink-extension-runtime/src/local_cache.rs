@@ -121,6 +121,7 @@ impl Storage {
         Ok(())
     }
 
+    #[cfg(test)]
     fn get(&self, key: &[u8]) -> Option<&StorageValue> {
         self.kvs.get(key)
     }

@@ -133,38 +133,38 @@ impl ContractsKeeper {
     }
 
     pub fn apply_local_cache_quotas(&self) {
-        ::pink::local_cache::apply_quotas(quotas::calc_cache_quotas(&self.contracts));
+        ::pink::local_cache::apply_quotas(calc_cache_quotas(&self.contracts));
     }
 }
 
-mod quotas {
+const TOTAL_MEMORY: u64 = 1024 * 1024 * 20;
+pub(super) trait ToWeight {
+    fn to_weight(&self) -> u32;
+}
+
+impl ToWeight for FatContract {
+    fn to_weight(&self) -> u32 {
+        self.weight
+    }
+}
+
+pub(super) fn calc_cache_quotas<K: AsRef<[u8]> + Ord, C: ToWeight>(
+    contracts: &BTreeMap<K, C>,
+) -> impl Iterator<Item = (&[u8], usize)> {
+    let total_weight = contracts
+        .values()
+        .map(|c| c.to_weight() as u64)
+        .sum::<u64>()
+        .max(1);
+    contracts.iter().map(move |(id, contract)| {
+        let contract_quota = (TOTAL_MEMORY * contract.to_weight() as u64) / total_weight;
+        (id.as_ref(), contract_quota as usize)
+    })
+}
+
+#[cfg(test)]
+mod tests {
     use super::*;
-
-    const TOTAL_MEMORY: u64 = 1024 * 1024 * 20;
-
-    pub(super) trait ToWeight {
-        fn to_weight(&self) -> u32;
-    }
-
-    impl ToWeight for FatContract {
-        fn to_weight(&self) -> u32 {
-            self.weight
-        }
-    }
-
-    pub(super) fn calc_cache_quotas<K: AsRef<[u8]> + Ord, C: ToWeight>(
-        contracts: &BTreeMap<K, C>,
-    ) -> impl Iterator<Item = (&[u8], usize)> {
-        let total_weight = contracts
-            .values()
-            .map(|c| c.to_weight() as u64)
-            .sum::<u64>()
-            .max(1);
-        contracts.iter().map(move |(id, contract)| {
-            let contract_quota = (TOTAL_MEMORY * contract.to_weight() as u64) / total_weight;
-            (id.as_ref(), contract_quota as usize)
-        })
-    }
 
     #[cfg(test)]
     impl ToWeight for u32 {
