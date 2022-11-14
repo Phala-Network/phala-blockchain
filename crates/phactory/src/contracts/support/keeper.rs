@@ -133,17 +133,107 @@ impl ContractsKeeper {
     }
 
     pub fn apply_local_cache_quotas(&self) {
-        const TOTAL_MEMORY: u64 = 1024 * 1024 * 20;
-        let total_weight = self
-            .contracts
+        ::pink::local_cache::apply_quotas(quotas::calc_cache_quotas(&self.contracts));
+    }
+}
+
+mod quotas {
+    use super::*;
+
+    const TOTAL_MEMORY: u64 = 1024 * 1024 * 20;
+
+    pub(super) trait ToWeight {
+        fn to_weight(&self) -> u32;
+    }
+
+    impl ToWeight for FatContract {
+        fn to_weight(&self) -> u32 {
+            self.weight
+        }
+    }
+
+    pub(super) fn calc_cache_quotas<K: AsRef<[u8]> + Ord, C: ToWeight>(
+        contracts: &BTreeMap<K, C>,
+    ) -> impl Iterator<Item = (&[u8], usize)> {
+        let total_weight = contracts
             .values()
-            .map(|c| c.weight as u64)
+            .map(|c| c.to_weight() as u64)
             .sum::<u64>()
             .max(1);
-        let quotas = self.iter().map(|(id, contract)| {
-            let contract_quota = (TOTAL_MEMORY * contract.weight as u64) / total_weight;
-            (id.as_bytes(), contract_quota as usize)
-        });
-        ::pink::local_cache::apply_quotas(quotas);
+        contracts.iter().map(move |(id, contract)| {
+            let contract_quota = (TOTAL_MEMORY * contract.to_weight() as u64) / total_weight;
+            (id.as_ref(), contract_quota as usize)
+        })
+    }
+
+    #[cfg(test)]
+    impl ToWeight for u32 {
+        fn to_weight(&self) -> u32 {
+            *self
+        }
+    }
+
+    #[test]
+    fn zero_quotas_works() {
+        let mut contracts = BTreeMap::new();
+        contracts.insert(b"foo", 0_u32);
+        contracts.insert(b"bar", 0_u32);
+
+        let quotas: Vec<_> = calc_cache_quotas(&contracts).collect();
+        assert_eq!(quotas, sorted(vec![(&b"foo"[..], 0), (b"bar", 0)]));
+    }
+
+    #[test]
+    fn little_quotas_works() {
+        let mut contracts = BTreeMap::new();
+        contracts.insert(b"foo", 0_u32);
+        contracts.insert(b"bar", 1_u32);
+
+        let quotas: Vec<_> = calc_cache_quotas(&contracts).collect();
+        assert_eq!(
+            quotas,
+            sorted(vec![(&b"foo"[..], 0), (b"bar", TOTAL_MEMORY as usize),])
+        );
+    }
+
+    #[test]
+    fn it_wont_overflow() {
+        let mut contracts = BTreeMap::new();
+        contracts.insert(b"foo", 0_u32);
+        contracts.insert(b"bar", u32::MAX);
+        contracts.insert(b"baz", u32::MAX);
+
+        let quotas: Vec<_> = calc_cache_quotas(&contracts).collect();
+        assert_eq!(
+            quotas,
+            sorted(vec![
+                (&b"foo"[..], 0),
+                (b"bar", TOTAL_MEMORY as usize / 2),
+                (b"baz", TOTAL_MEMORY as usize / 2),
+            ])
+        );
+    }
+
+    #[test]
+    fn fraction_works() {
+        let mut contracts = BTreeMap::new();
+        contracts.insert(b"foo", 0_u32);
+        contracts.insert(b"bar", 1);
+        contracts.insert(b"baz", u32::MAX);
+
+        let quotas: Vec<_> = calc_cache_quotas(&contracts).collect();
+        assert_eq!(
+            quotas,
+            sorted(vec![
+                (&b"foo"[..], 0),
+                (b"bar", 0),
+                (b"baz", TOTAL_MEMORY as usize - 1),
+            ])
+        );
+    }
+
+    fn sorted<T: Ord>(mut v: Vec<T>) -> Vec<T> {
+        v.sort();
+        v
     }
 }
