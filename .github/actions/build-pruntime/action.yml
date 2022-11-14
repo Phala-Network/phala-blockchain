@@ -6,8 +6,10 @@ runs:
     - uses: ./.github/actions/install_toolchain
     - name: Install gramine
       run: sudo bash dockerfile.d/01_apt_gramine.sh
+      shell: bash
     - name: Build pruntime
       run: make V=1 dist -C ./standalone/pruntime/gramine-build/
+      shell: bash
     - name: Save pruntime binaries
       uses: actions/upload-artifact@v3
       with:

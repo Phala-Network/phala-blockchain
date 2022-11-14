@@ -6,6 +6,7 @@ runs:
     - uses: ./.github/actions/install_toolchain
     - name: Build core blockchain
       run: cargo build -vv --profile testnet
+      shell: bash
     - name: Save core-blockchain binaries
       uses: actions/upload-artifact@v3
       with:

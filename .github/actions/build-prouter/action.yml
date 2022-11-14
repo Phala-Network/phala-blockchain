@@ -6,8 +6,10 @@ runs:
     - uses: ./.github/actions/install_toolchain
     - name: Install prouter dependencies
       run: sudo apt-get install libboost-all-dev libssl-dev zlib1g-dev miniupnpc
+      shell: bash
     - name: Build prouter
       run: cd ./standalone/prouter/ && cargo build -vv
+      shell: bash
     - name: Save prouter binaries
       uses: actions/upload-artifact@v3
       with:
