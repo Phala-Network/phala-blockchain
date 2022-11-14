@@ -1,15 +1,17 @@
-name: Create release
+name: Build release
 
 on:
-  push:
-    branches: [ master ]
+  [push]
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  create-release:
-    runs-on: ubuntu-18.04
+  build-core-blockchain:
+    name: Pack and release
+    runs-on: ubuntu-20.04
     steps:
-      - name: Checkout
-        - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
       - name: Create nightly release
         id: create_release
         uses: viperproject/create-nightly-release@v1
