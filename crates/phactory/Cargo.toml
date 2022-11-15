@@ -61,7 +61,7 @@ csv-core = { version = "0.1.10", default-features = false }
 derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
-finality-grandpa = { version = "0.14", default-features = false, features = ["derive-codec"] }
+finality-grandpa = { version = "0.16", default-features = false, features = ["derive-codec"] }
 trie = { package = "sp-trie", path = "../../substrate/primitives/trie" }
 frame-system = { package = "frame-system", path = "../../substrate/frame/system" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }

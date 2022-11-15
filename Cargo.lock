@@ -2453,6 +2453,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "finality-grandpa"
+version = "0.16.0"
+source = "git+https://github.com/Phala-Network/finality-grandpa.git?branch=scale2#430cc8c7c1f000452546975c0ed83cca9beddf90"
+dependencies = [
+ "either",
+ "futures 0.3.18",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "fixed"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6794,7 +6806,7 @@ dependencies = [
  "ciborium",
  "csv-core",
  "derive_more",
- "finality-grandpa",
+ "finality-grandpa 0.16.0",
  "fixed",
  "fixed-macro",
  "fixed-sqrt",
@@ -9018,7 +9030,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "dyn-clone",
- "finality-grandpa",
+ "finality-grandpa 0.14.4",
  "fork-tree",
  "futures 0.3.18",
  "futures-timer 3.0.2",
@@ -9052,7 +9064,7 @@ name = "sc-finality-grandpa-rpc"
 version = "0.10.0-dev"
 dependencies = [
  "derive_more",
- "finality-grandpa",
+ "finality-grandpa 0.14.4",
  "futures 0.3.18",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -10320,7 +10332,7 @@ dependencies = [
 name = "sp-finality-grandpa"
 version = "4.0.0-dev"
 dependencies = [
- "finality-grandpa",
+ "finality-grandpa 0.14.4",
  "log",
  "parity-scale-codec",
  "scale-info",
