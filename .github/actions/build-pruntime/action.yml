@@ -1,0 +1,19 @@
+name: Build pruntime
+description: Build pruntime
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/install_toolchain
+    - name: Install gramine
+      run: sudo bash dockerfile.d/01_apt.sh
+      shell: bash
+    - name: Build pruntime
+      run: make -C ./standalone/pruntime/
+      shell: bash
+    - name: Save pruntime binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: pruntime-binaries
+        path: |
+          ./standalone/pruntime/bin/pruntime
+          ./standalone/pruntime/bin/Rocket.toml
