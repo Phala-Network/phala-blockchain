@@ -468,6 +468,7 @@ describe('A full stack', function () {
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function
+        const txConfig = { gasLimit: "10000000000000", storageDepositLimit: null };
 
         let certAlice;
         let ContractSystemChecker;
@@ -601,7 +602,7 @@ describe('A full stack', function () {
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook({}, "1000000000000"),
+                ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
@@ -611,13 +612,12 @@ describe('A full stack', function () {
         });
 
         it('can set hook with admin permission', async function () {
-            const config = { gas: "10000000000000", storageDepositLimit: null };
             await assert.txAccepted(
-                ContractSystem.tx['system::grantAdmin'](config, ContractSystemChecker.address),
+                ContractSystem.tx['system::grantAdmin'](txConfig, ContractSystemChecker.address),
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook(config, "1000000000000"),
+                ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -628,7 +628,7 @@ describe('A full stack', function () {
 
         it('tokenomic driver works', async function () {
             await assert.txAccepted(
-                ContractSystem.tx['system::setDriver']({}, "ContractDeposit", ContractSystemChecker.address),
+                ContractSystem.tx['system::setDriver'](txConfig, "ContractDeposit", ContractSystemChecker.address),
                 alice,
             );
             const weight = 10;
