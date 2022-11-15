@@ -4,10 +4,11 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use codec::Encode;
+	use codec::{Decode, Encode};
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
+		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{Currency, StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
@@ -165,6 +166,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Endpoints<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
+
+	/// Allow list of pRuntime binary digest
+	///
+	/// Only pRuntime within the list can register.
+	#[pallet::storage]
+	#[pallet::getter(fn temp_workers_iter_key)]
+	pub type TempWorkersIterKey<T: Config> = StorageValue<_, Option<Vec<u8>>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -778,6 +786,55 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
 			Ok(())
 		}
+
+		#[pallet::weight(0)]
+		pub fn migrate_workers(
+			origin: OriginFor<T>, max_iterations: u32
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			let prefix = storage_prefix(b"PhalaRegistry", b"Workers");
+
+			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or(prefix.into());
+
+			let iter = PrefixIterator::<_>::new(
+				prefix.into(),
+				previous_key,
+				|key, mut value| {
+					Ok((key.to_vec(), OldWorkerInfo::<T::AccountId>::decode(&mut value)))
+				}
+			);
+
+			let mut i = 0;
+			for (key, old) in iter {
+				log::info!("worker key: {}", hex::encode(&key) );
+				if let Ok(old) = old {
+					let new = WorkerInfo {
+						pubkey: old.pubkey,
+						ecdh_pubkey: old.ecdh_pubkey,
+						runtime_version: old.runtime_version,
+						last_updated: old.last_updated,
+						operator: old.operator,
+						attestation_provider: Some(AttestationProvider::Ias),
+						confidence_level: old.confidence_level,
+						initial_score: old.initial_score,
+						features: old.features
+					};
+
+					let full_key = [prefix.as_slice(), &key].concat();
+					unhashed::put_raw(&full_key, &new.encode());
+					i += 1;
+					if i >= max_iterations {
+						TempWorkersIterKey::<T>::set(Some(full_key));
+						break;
+					}
+				} else {
+					continue;
+				}
+			}
+
+			Ok(())
+		}
 	}
 
 	// TODO.kevin: Move it to mq
@@ -1012,6 +1069,38 @@ pub mod pallet {
 
 	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
 		type Config = T;
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
+	pub struct OldWorkerInfo<AccountId> {
+		/// The identity public key of the worker
+		pub pubkey: WorkerPublicKey,
+		/// The public key for ECDH communication
+		pub ecdh_pubkey: EcdhPublicKey,
+		/// The pruntime version of the worker upon registering
+		pub runtime_version: u32,
+		/// The unix timestamp of the last updated time
+		pub last_updated: u64,
+		/// The stake pool owner that can control this worker
+		///
+		/// When initializing pruntime, the user can specify an _operator account_. Then this field
+		/// will be updated when the worker is being registered on the blockchain. Once it's set,
+		/// the worker can only be added to a stake pool if the pool owner is the same as the
+		/// operator. It ensures only the trusted person can control the worker.
+		pub operator: Option<AccountId>,
+		/// The [confidence level](https://wiki.phala.network/en-us/mine/solo/1-2-confidential-level-evaluation/#confidence-level-of-a-miner)
+		/// of the worker
+		pub confidence_level: u8,
+		/// The performance score by benchmark
+		///
+		/// When a worker is registered, this field is set to `None`, indicating the worker is
+		/// requested to run a benchmark. The benchmark lasts [`BenchmarkDuration`] blocks, and
+		/// this field will be updated with the score once it finishes.
+		///
+		/// The `initial_score` is used as the baseline for mining performance test.
+		pub initial_score: Option<u32>,
+		/// Deprecated
+		pub features: Vec<u32>,
 	}
 
 	/// The basic information of a registered worker
