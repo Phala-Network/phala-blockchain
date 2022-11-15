@@ -224,7 +224,6 @@ mod tests {
     const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
     const TREASURY: AccountId32 = AccountId32::new([2u8; 32]);
     const ENOUGH: Balance = Balance::MAX.saturating_div(32);
-    const GAS_LIMIT: Weight = Weight::from_ref_time(1_000_000_000_000_000);
     const FLIPPER: &[u8] = include_bytes!("../tests/fixtures/flip/flip.wasm");
     const CENT: u128 = 10_000_000_000;
 
@@ -421,11 +420,11 @@ mod tests {
             let gas_limit = est_result.gas_required / 2;
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
-            args.gas_limit = Weight::from_ref_time(gas_limit);
+            args.gas_limit = gas_limit;
             let result = flipper.bare_call(fn_flip.clone(), false, args).0;
             assert!(result.result.is_err());
             assert_eq!(
-                prev_free_balance - result.gas_consumed as u128 * gas_price,
+                prev_free_balance - result.gas_consumed.ref_time() as u128 * gas_price,
                 storage.free_balance(&ALICE)
             );
 
@@ -447,11 +446,11 @@ mod tests {
             let gas_limit = est_result.gas_required;
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
-            args.gas_limit = Weight::from_ref_time(gas_limit);
+            args.gas_limit = gas_limit;
             let result = flipper.bare_call(fn_flip.clone(), false, args).0;
             assert_ok!(result.result);
             let cost = prev_free_balance - storage.free_balance(&ALICE);
-            assert_eq!(cost, result.gas_consumed as u128 * gas_price);
+            assert_eq!(cost, result.gas_consumed.ref_time() as u128 * gas_price);
 
             // Should flipped
             let value: bool = {
