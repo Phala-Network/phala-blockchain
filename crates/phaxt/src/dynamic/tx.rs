@@ -5,11 +5,17 @@ use subxt::{tx::StaticTxPayload, utils::Encoded};
 pub fn register_worker(
     pruntime_info: Vec<u8>,
     attestation: Vec<u8>,
+    v2: bool,
 ) -> StaticTxPayload<Encoded> {
     let args = (Encoded(pruntime_info), Encoded(attestation)).encode();
+    let call_name = if v2 {
+        "register_worker_v2"
+    } else {
+        "register_worker"
+    };
     StaticTxPayload::new(
         "PhalaRegistry",
-        "register_worker_v2",
+        call_name,
         Encoded(args),
         Default::default(),
     )

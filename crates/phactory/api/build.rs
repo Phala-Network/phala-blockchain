@@ -30,7 +30,7 @@ fn main() {
         "WorkerState",
         "WorkerStat",
         "BenchState",
-        "MiningState",
+        "WorkingState",
         "NetworkConfig",
         "NetworkStatus",
         "PhactoryInfo",

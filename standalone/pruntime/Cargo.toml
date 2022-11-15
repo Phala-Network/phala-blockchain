@@ -8,7 +8,7 @@ panic = "abort"
 
 [dependencies]
 anyhow = "1.0"
-clap = { version = "3", features = ["derive"] }
+clap = { version = "4.0.19", features = ["derive"] }
 colored = "2"
 reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
@@ -43,6 +43,9 @@ phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "
 [patch.crates-io]
 rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocket" }
 
+# TODO.kevin: Move back to crates.io once it released 1.0
+derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
+
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }

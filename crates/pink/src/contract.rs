@@ -1,4 +1,5 @@
 use frame_support::weights::Weight;
+use pallet_contracts_primitives::StorageDeposit;
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
@@ -83,6 +84,10 @@ fn mask_deposit(deposit: u128, deposit_per_byte: u128) -> u128 {
     mask_low_bits128(deposit, min_mask_bits)
 }
 
+fn mask_gas(weight: Weight) -> Weight {
+    Weight::from_ref_time(mask_low_bits64(weight.ref_time(), 28))
+}
+
 #[test]
 fn mask_low_bits_works() {
     let min_mask_bits = 24;
@@ -114,11 +119,8 @@ fn mask_low_bits_works() {
 }
 
 fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> ContractResult<T> {
-    use pallet_contracts_primitives::StorageDeposit;
-
-    let min_mask_bits = 28;
-    result.gas_consumed = mask_low_bits64(result.gas_consumed, min_mask_bits);
-    result.gas_required = mask_low_bits64(result.gas_required, min_mask_bits);
+    result.gas_consumed = mask_gas(result.gas_consumed);
+    result.gas_required = mask_gas(result.gas_required);
 
     match &mut result.storage_deposit {
         StorageDeposit::Charge(v) => {
@@ -210,6 +212,7 @@ impl Contract {
             callbacks,
             gas_free,
         } = args;
+        let gas_limit = gas_limit.set_proof_size(u64::MAX);
         storage.execute_with(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
@@ -276,6 +279,7 @@ impl Contract {
             storage_deposit_limit,
         } = tx_args;
         let addr = self.address.clone();
+        let gas_limit = gas_limit.set_proof_size(u64::MAX);
         storage.execute_with(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
@@ -387,8 +391,8 @@ fn contract_tx<T>(
     Timestamp::set_timestamp(now);
     if !gas_free && PalletPink::pay_for_gas(&origin, gas_limit).is_err() {
         return ContractResult {
-            gas_consumed: 0,
-            gas_required: 0,
+            gas_consumed: Weight::zero(),
+            gas_required: Weight::zero(),
             storage_deposit: Default::default(),
             debug_message: Default::default(),
             result: Err(DispatchError::Other("InsufficientBalance")),
@@ -397,7 +401,7 @@ fn contract_tx<T>(
     let result = tx_fn();
     if !gas_free {
         let refund = gas_limit
-            .checked_sub(&Weight::from_ref_time(result.gas_consumed))
+            .checked_sub(&result.gas_consumed)
             .expect("BUG: consumed gas more than the gas limit");
         PalletPink::refund_gas(&origin, refund).expect("BUG: failed to refund gas");
     }
@@ -419,7 +423,7 @@ pub fn storage_map_prefix_twox_64_concat(
 }
 
 pub fn transpose_contract_result(result: ContractExecResult) -> Result<Vec<u8>, DispatchError> {
-    result.result.map(|v| v.data.0)
+    result.result.map(|v| v.data)
 }
 
 pub use contract_file::ContractFile;

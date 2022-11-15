@@ -21,7 +21,7 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			DecodedMessage, GatekeeperEvent, HeartbeatChallenge, MessageOrigin,
-			MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
+			WorkingInfoUpdateEvent, WorkingReportEvent, SettleInfo, SystemEvent,
 			TokenomicParameters as TokenomicParams, WorkerEvent,
 		},
 		WorkerPublicKey,
@@ -565,16 +565,16 @@ pub mod pallet {
 		}
 
 		pub fn on_mining_message_received(
-			message: DecodedMessage<MiningReportEvent>,
+			message: DecodedMessage<WorkingReportEvent>,
 		) -> DispatchResult {
 			if let MessageOrigin::Worker(worker) = message.sender {
 				match message.payload {
-					MiningReportEvent::Heartbeat {
+					WorkingReportEvent::Heartbeat {
 						iterations,
 						challenge_time,
 						..
 					} |
-					MiningReportEvent::HeartbeatV2 {
+					WorkingReportEvent::HeartbeatV2 {
 						iterations,
 						challenge_time,
 						..
@@ -612,7 +612,7 @@ pub mod pallet {
 		}
 
 		pub fn on_gk_message_received(
-			message: DecodedMessage<MiningInfoUpdateEvent<T::BlockNumber>>,
+			message: DecodedMessage<WorkingInfoUpdateEvent<T::BlockNumber>>,
 		) -> DispatchResult {
 			if !matches!(message.sender, MessageOrigin::Gatekeeper) {
 				return Err(Error::<T>::BadSender.into());
@@ -640,7 +640,7 @@ pub mod pallet {
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive { miner: account });
 						Self::push_message(SystemEvent::new_worker_event(
 							worker,
-							WorkerEvent::MiningEnterUnresponsive,
+							WorkerEvent::EnterUnresponsive,
 						));
 					}
 				}
@@ -662,7 +662,7 @@ pub mod pallet {
 						Self::deposit_event(Event::<T>::MinerExitUnresponsive { miner: account });
 						Self::push_message(SystemEvent::new_worker_event(
 							worker,
-							WorkerEvent::MiningExitUnresponsive,
+							WorkerEvent::ExitUnresponsive,
 						));
 					}
 				}
@@ -900,7 +900,7 @@ pub mod pallet {
 			NextSessionId::<T>::put(session_id + 1);
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
-				WorkerEvent::MiningStart {
+				WorkerEvent::Started {
 					session_id,
 					init_v: ve.to_bits(),
 					init_p: p,
@@ -942,7 +942,7 @@ pub mod pallet {
 
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
-				WorkerEvent::MiningStop,
+				WorkerEvent::Stopped,
 			));
 			Self::deposit_event(Event::<T>::MinerStopped { miner });
 			Ok(())
@@ -1506,7 +1506,7 @@ pub mod pallet {
 
 		#[test]
 		fn test_benchmark_report() {
-			use phala_types::messaging::{DecodedMessage, MessageOrigin, MiningReportEvent, Topic};
+			use phala_types::messaging::{DecodedMessage, MessageOrigin, WorkingReportEvent, Topic};
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(1);
@@ -1521,11 +1521,11 @@ pub mod pallet {
 				// 110% boost
 				elapse_seconds(100);
 				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
-					MiningReportEvent,
+					WorkingReportEvent,
 				> {
 					sender: MessageOrigin::Worker(worker_pubkey(1)),
 					destination: Topic::new(*b"phala/mining/report"),
-					payload: MiningReportEvent::Heartbeat {
+					payload: WorkingReportEvent::Heartbeat {
 						session_id: 0,
 						challenge_block: 2,
 						challenge_time: 100_000,
@@ -1547,11 +1547,11 @@ pub mod pallet {
 				// 150% boost (capped)
 				elapse_seconds(100);
 				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
-					MiningReportEvent,
+					WorkingReportEvent,
 				> {
 					sender: MessageOrigin::Worker(worker_pubkey(1)),
 					destination: Topic::new(*b"phala/mining/report"),
-					payload: MiningReportEvent::Heartbeat {
+					payload: WorkingReportEvent::Heartbeat {
 						session_id: 0,
 						challenge_block: 3,
 						challenge_time: 200_000,
@@ -1620,11 +1620,11 @@ pub mod pallet {
 				assert_ok!(PhalaMining::start_mining(1, 3000 * DOLLARS));
 				take_events();
 				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
-					MiningInfoUpdateEvent<BlockNumber>,
+					WorkingInfoUpdateEvent<BlockNumber>,
 				> {
 					sender: MessageOrigin::Gatekeeper,
 					destination: Topic::new(*b"^phala/mining/update"),
-					payload: MiningInfoUpdateEvent::<BlockNumber> {
+					payload: WorkingInfoUpdateEvent::<BlockNumber> {
 						block_number: 1,
 						timestamp_ms: 100_000,
 						offline: vec![],

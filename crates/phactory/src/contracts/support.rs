@@ -190,7 +190,7 @@ impl FatContract {
         phala_mq::select! {
             next_cmd = self.cmd_rcv_mq => match next_cmd {
                 Ok((_, cmd, origin)) => {
-                    info!(target: "contract", "Contract {:?} handling command", self.id());
+                    info!("Contract {:?} handling command", self.id());
                     self.contract.handle_command(origin, cmd.0, &mut context)
                 }
                 Err(_e) => {

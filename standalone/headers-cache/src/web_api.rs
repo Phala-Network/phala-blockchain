@@ -98,11 +98,9 @@ fn get_storage_changes(
     Ok(changes.encode())
 }
 
-pub(crate) async fn serve(db: &str) -> anyhow::Result<()> {
+pub(crate) async fn serve(db: CacheDB) -> anyhow::Result<()> {
     let _rocket = rocket::build()
-        .manage(App {
-            db: CacheDB::open(db)?,
-        })
+        .manage(App { db })
         .mount(
             "/",
             routes![

@@ -10,7 +10,7 @@ use frame_support::{
     weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use pallet_contracts::{Config, Frame, Schedule};
-use sp_runtime::{generic::Header, traits::IdentityLookup};
+use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::{get_side_effects, ExecSideEffects};
 pub use pink_extension::{HookPoint, Message, OspMessage, PinkEvent};
@@ -33,10 +33,15 @@ frame_support::construct_runtime! {
     }
 }
 
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(WEIGHT_PER_SECOND.saturating_mul(2));
+        frame_system::limits::BlockWeights::with_sensible_defaults(
+            (2u64 * WEIGHT_PER_SECOND).set_proof_size(u64::MAX),
+            NORMAL_DISPATCH_RATIO,
+        );
     pub const ExistentialDeposit: Balance = 1;
     pub const MaxLocks: u32 = 50;
     pub const MaxReserves: u32 = 50;
@@ -133,18 +138,15 @@ impl Config for PinkRuntime {
     type DepositPerByte = DepositPerStorageByte;
     type DepositPerItem = DepositPerStorageItem;
     type AddressGenerator = Pink;
-    type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
 }
 
 #[test]
 fn detect_parameter_changes() {
-    use sp_core::Get;
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
-        <PinkRuntime as Config>::ContractAccessWeight::get(),
         <PinkRuntime as Config>::DeletionQueueDepth::get(),
         <PinkRuntime as Config>::DeletionWeightLimit::get(),
         <PinkRuntime as Config>::MaxCodeLen::get(),
@@ -274,6 +276,10 @@ mod tests {
 
     #[test]
     pub fn crypto_hashes_test() {
+        pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+        pub const GAS_LIMIT: Weight =
+            Weight::from_ref_time(100_000_000_000).set_proof_size(256u64 * 1024 * 1024);
+
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
                 .unwrap();

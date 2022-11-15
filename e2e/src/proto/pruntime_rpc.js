@@ -908,6 +908,39 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getNetworkConfig}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef GetNetworkConfigCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {pruntime_rpc.NetworkConfigResponse} [response] NetworkConfigResponse
+         */
+
+        /**
+         * Calls GetNetworkConfig.
+         * @function getNetworkConfig
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.GetNetworkConfigCallback} callback Node-style callback called with the error, if any, and NetworkConfigResponse
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.getNetworkConfig = function getNetworkConfig(request, callback) {
+            return this.rpcCall(getNetworkConfig, $root.google.protobuf.Empty, $root.pruntime_rpc.NetworkConfigResponse, request, callback);
+        }, "name", { value: "GetNetworkConfig" });
+
+        /**
+         * Calls GetNetworkConfig.
+         * @function getNetworkConfig
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {google.protobuf.IEmpty} request Empty message or plain object
+         * @returns {Promise<pruntime_rpc.NetworkConfigResponse>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -934,7 +967,6 @@ $root.pruntime_rpc = (function() {
          * @property {string|null} [gitRevision] PhactoryInfo gitRevision
          * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
          * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
-         * @property {pruntime_rpc.INetworkStatus|null} [networkStatus] PhactoryInfo networkStatus
          * @property {pruntime_rpc.ISystemInfo|null} [system] PhactoryInfo system
          */
 
@@ -1090,14 +1122,6 @@ $root.pruntime_rpc = (function() {
         PhactoryInfo.prototype.waitingForParaheaders = false;
 
         /**
-         * PhactoryInfo networkStatus.
-         * @member {pruntime_rpc.INetworkStatus|null|undefined} networkStatus
-         * @memberof pruntime_rpc.PhactoryInfo
-         * @instance
-         */
-        PhactoryInfo.prototype.networkStatus = null;
-
-        /**
          * PhactoryInfo system.
          * @member {pruntime_rpc.ISystemInfo|null|undefined} system
          * @memberof pruntime_rpc.PhactoryInfo
@@ -1199,8 +1223,6 @@ $root.pruntime_rpc = (function() {
                 $root.pruntime_rpc.MemoryUsage.encode(message.memoryUsage, writer.uint32(/* id 18, wireType 2 =*/146).fork()).ldelim();
             if (message.waitingForParaheaders != null && Object.hasOwnProperty.call(message, "waitingForParaheaders"))
                 writer.uint32(/* id 21, wireType 0 =*/168).bool(message.waitingForParaheaders);
-            if (message.networkStatus != null && Object.hasOwnProperty.call(message, "networkStatus"))
-                $root.pruntime_rpc.NetworkStatus.encode(message.networkStatus, writer.uint32(/* id 22, wireType 2 =*/178).fork()).ldelim();
             if (message.system != null && Object.hasOwnProperty.call(message, "system"))
                 $root.pruntime_rpc.SystemInfo.encode(message.system, writer.uint32(/* id 23, wireType 2 =*/186).fork()).ldelim();
             return writer;
@@ -1287,9 +1309,6 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 21:
                     message.waitingForParaheaders = reader.bool();
-                    break;
-                case 22:
-                    message.networkStatus = $root.pruntime_rpc.NetworkStatus.decode(reader, reader.uint32());
                     break;
                 case 23:
                     message.system = $root.pruntime_rpc.SystemInfo.decode(reader, reader.uint32());
@@ -1391,11 +1410,6 @@ $root.pruntime_rpc = (function() {
             if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
                 if (typeof message.waitingForParaheaders !== "boolean")
                     return "waitingForParaheaders: boolean expected";
-            if (message.networkStatus != null && message.hasOwnProperty("networkStatus")) {
-                var error = $root.pruntime_rpc.NetworkStatus.verify(message.networkStatus);
-                if (error)
-                    return "networkStatus." + error;
-            }
             if (message.system != null && message.hasOwnProperty("system")) {
                 var error = $root.pruntime_rpc.SystemInfo.verify(message.system);
                 if (error)
@@ -1470,11 +1484,6 @@ $root.pruntime_rpc = (function() {
             }
             if (object.waitingForParaheaders != null)
                 message.waitingForParaheaders = Boolean(object.waitingForParaheaders);
-            if (object.networkStatus != null) {
-                if (typeof object.networkStatus !== "object")
-                    throw TypeError(".pruntime_rpc.PhactoryInfo.networkStatus: object expected");
-                message.networkStatus = $root.pruntime_rpc.NetworkStatus.fromObject(object.networkStatus);
-            }
             if (object.system != null) {
                 if (typeof object.system !== "object")
                     throw TypeError(".pruntime_rpc.PhactoryInfo.system: object expected");
@@ -1519,7 +1528,6 @@ $root.pruntime_rpc = (function() {
                 object.gitRevision = "";
                 object.memoryUsage = null;
                 object.waitingForParaheaders = false;
-                object.networkStatus = null;
                 object.system = null;
             }
             if (message.initialized != null && message.hasOwnProperty("initialized"))
@@ -1571,8 +1579,6 @@ $root.pruntime_rpc = (function() {
                 object.memoryUsage = $root.pruntime_rpc.MemoryUsage.toObject(message.memoryUsage, options);
             if (message.waitingForParaheaders != null && message.hasOwnProperty("waitingForParaheaders"))
                 object.waitingForParaheaders = message.waitingForParaheaders;
-            if (message.networkStatus != null && message.hasOwnProperty("networkStatus"))
-                object.networkStatus = $root.pruntime_rpc.NetworkStatus.toObject(message.networkStatus, options);
             if (message.system != null && message.hasOwnProperty("system"))
                 object.system = $root.pruntime_rpc.SystemInfo.toObject(message.system, options);
             return object;
@@ -10388,25 +10394,25 @@ $root.pruntime_rpc = (function() {
         return TokenomicInfo;
     })();
 
-    pruntime_rpc.NetworkStatus = (function() {
+    pruntime_rpc.NetworkConfigResponse = (function() {
 
         /**
-         * Properties of a NetworkStatus.
+         * Properties of a NetworkConfigResponse.
          * @memberof pruntime_rpc
-         * @interface INetworkStatus
-         * @property {number|null} [publicRpcPort] NetworkStatus publicRpcPort
-         * @property {pruntime_rpc.INetworkConfig|null} [config] NetworkStatus config
+         * @interface INetworkConfigResponse
+         * @property {number|null} [publicRpcPort] NetworkConfigResponse publicRpcPort
+         * @property {pruntime_rpc.INetworkConfig|null} [config] NetworkConfigResponse config
          */
 
         /**
-         * Constructs a new NetworkStatus.
+         * Constructs a new NetworkConfigResponse.
          * @memberof pruntime_rpc
-         * @classdesc Represents a NetworkStatus.
-         * @implements INetworkStatus
+         * @classdesc Represents a NetworkConfigResponse.
+         * @implements INetworkConfigResponse
          * @constructor
-         * @param {pruntime_rpc.INetworkStatus=} [properties] Properties to set
+         * @param {pruntime_rpc.INetworkConfigResponse=} [properties] Properties to set
          */
-        function NetworkStatus(properties) {
+        function NetworkConfigResponse(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -10414,68 +10420,68 @@ $root.pruntime_rpc = (function() {
         }
 
         /**
-         * NetworkStatus publicRpcPort.
+         * NetworkConfigResponse publicRpcPort.
          * @member {number|null|undefined} publicRpcPort
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @instance
          */
-        NetworkStatus.prototype.publicRpcPort = null;
+        NetworkConfigResponse.prototype.publicRpcPort = null;
 
         /**
-         * NetworkStatus config.
+         * NetworkConfigResponse config.
          * @member {pruntime_rpc.INetworkConfig|null|undefined} config
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @instance
          */
-        NetworkStatus.prototype.config = null;
+        NetworkConfigResponse.prototype.config = null;
 
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
         /**
-         * NetworkStatus _publicRpcPort.
+         * NetworkConfigResponse _publicRpcPort.
          * @member {"publicRpcPort"|undefined} _publicRpcPort
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @instance
          */
-        Object.defineProperty(NetworkStatus.prototype, "_publicRpcPort", {
+        Object.defineProperty(NetworkConfigResponse.prototype, "_publicRpcPort", {
             get: $util.oneOfGetter($oneOfFields = ["publicRpcPort"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
         /**
-         * NetworkStatus _config.
+         * NetworkConfigResponse _config.
          * @member {"config"|undefined} _config
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @instance
          */
-        Object.defineProperty(NetworkStatus.prototype, "_config", {
+        Object.defineProperty(NetworkConfigResponse.prototype, "_config", {
             get: $util.oneOfGetter($oneOfFields = ["config"]),
             set: $util.oneOfSetter($oneOfFields)
         });
 
         /**
-         * Creates a new NetworkStatus instance using the specified properties.
+         * Creates a new NetworkConfigResponse instance using the specified properties.
          * @function create
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
-         * @param {pruntime_rpc.INetworkStatus=} [properties] Properties to set
-         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus instance
+         * @param {pruntime_rpc.INetworkConfigResponse=} [properties] Properties to set
+         * @returns {pruntime_rpc.NetworkConfigResponse} NetworkConfigResponse instance
          */
-        NetworkStatus.create = function create(properties) {
-            return new NetworkStatus(properties);
+        NetworkConfigResponse.create = function create(properties) {
+            return new NetworkConfigResponse(properties);
         };
 
         /**
-         * Encodes the specified NetworkStatus message. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
+         * Encodes the specified NetworkConfigResponse message. Does not implicitly {@link pruntime_rpc.NetworkConfigResponse.verify|verify} messages.
          * @function encode
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
-         * @param {pruntime_rpc.INetworkStatus} message NetworkStatus message or plain object to encode
+         * @param {pruntime_rpc.INetworkConfigResponse} message NetworkConfigResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        NetworkStatus.encode = function encode(message, writer) {
+        NetworkConfigResponse.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
             if (message.publicRpcPort != null && Object.hasOwnProperty.call(message, "publicRpcPort"))
@@ -10486,33 +10492,33 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Encodes the specified NetworkStatus message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
+         * Encodes the specified NetworkConfigResponse message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkConfigResponse.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
-         * @param {pruntime_rpc.INetworkStatus} message NetworkStatus message or plain object to encode
+         * @param {pruntime_rpc.INetworkConfigResponse} message NetworkConfigResponse message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        NetworkStatus.encodeDelimited = function encodeDelimited(message, writer) {
+        NetworkConfigResponse.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes a NetworkStatus message from the specified reader or buffer.
+         * Decodes a NetworkConfigResponse message from the specified reader or buffer.
          * @function decode
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus
+         * @returns {pruntime_rpc.NetworkConfigResponse} NetworkConfigResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        NetworkStatus.decode = function decode(reader, length) {
+        NetworkConfigResponse.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkStatus();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.NetworkConfigResponse();
             while (reader.pos < end) {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -10531,30 +10537,30 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Decodes a NetworkStatus message from the specified reader or buffer, length delimited.
+         * Decodes a NetworkConfigResponse message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus
+         * @returns {pruntime_rpc.NetworkConfigResponse} NetworkConfigResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        NetworkStatus.decodeDelimited = function decodeDelimited(reader) {
+        NetworkConfigResponse.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies a NetworkStatus message.
+         * Verifies a NetworkConfigResponse message.
          * @function verify
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        NetworkStatus.verify = function verify(message) {
+        NetworkConfigResponse.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             var properties = {};
@@ -10575,37 +10581,37 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Creates a NetworkStatus message from a plain object. Also converts values to their respective internal types.
+         * Creates a NetworkConfigResponse message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pruntime_rpc.NetworkStatus} NetworkStatus
+         * @returns {pruntime_rpc.NetworkConfigResponse} NetworkConfigResponse
          */
-        NetworkStatus.fromObject = function fromObject(object) {
-            if (object instanceof $root.pruntime_rpc.NetworkStatus)
+        NetworkConfigResponse.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.NetworkConfigResponse)
                 return object;
-            var message = new $root.pruntime_rpc.NetworkStatus();
+            var message = new $root.pruntime_rpc.NetworkConfigResponse();
             if (object.publicRpcPort != null)
                 message.publicRpcPort = object.publicRpcPort >>> 0;
             if (object.config != null) {
                 if (typeof object.config !== "object")
-                    throw TypeError(".pruntime_rpc.NetworkStatus.config: object expected");
+                    throw TypeError(".pruntime_rpc.NetworkConfigResponse.config: object expected");
                 message.config = $root.pruntime_rpc.NetworkConfig.fromObject(object.config);
             }
             return message;
         };
 
         /**
-         * Creates a plain object from a NetworkStatus message. Also converts values to other types if specified.
+         * Creates a plain object from a NetworkConfigResponse message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @static
-         * @param {pruntime_rpc.NetworkStatus} message NetworkStatus
+         * @param {pruntime_rpc.NetworkConfigResponse} message NetworkConfigResponse
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        NetworkStatus.toObject = function toObject(message, options) {
+        NetworkConfigResponse.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             var object = {};
@@ -10623,17 +10629,17 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Converts this NetworkStatus to JSON.
+         * Converts this NetworkConfigResponse to JSON.
          * @function toJSON
-         * @memberof pruntime_rpc.NetworkStatus
+         * @memberof pruntime_rpc.NetworkConfigResponse
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        NetworkStatus.prototype.toJSON = function toJSON() {
+        NetworkConfigResponse.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
-        return NetworkStatus;
+        return NetworkConfigResponse;
     })();
 
     pruntime_rpc.NetworkConfig = (function() {
