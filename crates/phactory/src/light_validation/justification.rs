@@ -136,7 +136,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
         let ancestry_chain = AncestryChain::<Block>::new(&self.votes_ancestries);
 
         match finality_grandpa::validate_commit(&self.commit, voters, &ancestry_chain) {
-            Ok(ref result) if result.ghost().is_some() => {}
+            Ok(result) if result.is_valid() => {}
             _ => {
                 let msg = "invalid commit in grandpa justification".to_string();
                 return Err(anyhow::Error::msg(ClientError::BadJustification(msg)));
