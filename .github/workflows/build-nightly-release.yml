@@ -57,6 +57,7 @@ jobs:
             ./dist/core-blockchain-binaries/pherry
             ./e2e/res/system.contract
             ./e2e/res/log_server.contract
+            ./e2e/res/log_server.sidevm.wasm
             ./e2e/res/sidevm_deployer.contract
             ./e2e/res/tokenomic.contract
 
