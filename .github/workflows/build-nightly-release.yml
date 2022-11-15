@@ -64,7 +64,7 @@ jobs:
       - name: Delete older nightly releases
         uses: Phala-Network/delete-older-releases@master
         with:
-          keep_latest: 10
+          keep_latest: 30
           delete_tags: true
           delete_tag_pattern: nightly
         env:
