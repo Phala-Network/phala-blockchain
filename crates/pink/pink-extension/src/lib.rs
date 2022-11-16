@@ -14,21 +14,6 @@ pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
 pub mod logger;
 pub mod system;
-pub mod predefined_accounts {
-    use super::AccountId;
-
-    // TODO.kevin: Should move to a separate crates. Maybe after https://github.com/Phala-Network/phala-blockchain/issues/861 resolved.
-    pub const ACCOUNT_PALLET: [u8; 32] = *b"sys::pellet\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
-    pub const ACCOUNT_RUNTIME: [u8; 32] = *b"sys::runtime\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
-
-    pub fn is_pallet(account_id: &AccountId) -> bool {
-        account_id.as_ref() as &[u8] == ACCOUNT_PALLET
-    }
-
-    pub fn is_runtime(account_id: &ink_env::AccountId) -> bool {
-        account_id.as_ref() as &[u8] == ACCOUNT_RUNTIME
-    }
-}
 
 pub use logger::ResultExt;
 
@@ -80,6 +65,8 @@ pub enum PinkEvent {
         contract: AccountId,
         /// The selector to invoke on hooked event fired.
         selector: u32,
+        /// The gas limit when calling the selector
+        gas_limit: u64,
     },
     /// Deploy a sidevm instance to given contract instance
     DeploySidevmTo {
@@ -192,11 +179,12 @@ pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<
 
 /// Turn on on_block_end feature and set it's selector
 ///
-pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32) {
+pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32, gas_limit: u64) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetHook {
         hook,
         contract,
         selector,
+        gas_limit,
     })
 }
 

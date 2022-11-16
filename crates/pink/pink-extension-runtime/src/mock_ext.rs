@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use pink_extension::chain_extension::SigType;
 use pink_extension::chain_extension::mock::mock_all_with;
+use pink_extension::chain_extension::SigType;
 use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
 
@@ -114,6 +114,13 @@ impl ext::PinkExtBackend for MockExtension {
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         Err("No default system contract id".into())
+    }
+
+    fn balance_of(
+        &self,
+        _account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        Ok((0, 0))
     }
 }
 

@@ -2,11 +2,13 @@ use std::time::Duration;
 use std::{borrow::Cow, convert::TryFrom};
 
 use frame_support::log::error;
+use frame_support::traits::Currency;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal, SysConfig,
     UncheckedFrom,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
+use phala_types::contract::ConvertTo;
 use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
@@ -16,7 +18,7 @@ use pink_extension::{
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_core::H256;
-use sp_runtime::DispatchError;
+use sp_runtime::{AccountId32, DispatchError};
 
 use crate::{
     runtime::{get_call_elapsed, get_call_mode, CallMode},
@@ -159,6 +161,16 @@ impl PinkRuntimeEnv for CallInQuery {
     }
 }
 
+impl CallInQuery {
+    fn ensure_system(&self) -> Result<(), DispatchError> {
+        let contract: AccountId32 = self.address.convert_to();
+        if Some(contract) != crate::runtime::Pink::system_contract() {
+            return Err(DispatchError::BadOrigin);
+        }
+        Ok(())
+    }
+}
+
 impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
@@ -272,6 +284,17 @@ impl PinkExtBackend for CallInQuery {
                     .expect("Convert from AccountId32 to ink_env::AccountId should always success")
             })
             .ok_or(DispatchError::Other("No system contract installed"))
+    }
+
+    fn balance_of(
+        &self,
+        account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        self.ensure_system()?;
+        let account: AccountId32 = account.convert_to();
+        let total = crate::runtime::Balances::total_balance(&account);
+        let free = crate::runtime::Balances::free_balance(&account);
+        Ok((total, free))
     }
 }
 
@@ -392,5 +415,12 @@ impl PinkExtBackend for CallInCommand {
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         self.as_in_query.system_contract_id()
+    }
+
+    fn balance_of(
+        &self,
+        account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        self.as_in_query.balance_of(account)
     }
 }

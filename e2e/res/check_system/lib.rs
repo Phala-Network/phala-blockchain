@@ -29,14 +29,19 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn set_hook(&self) {
+        pub fn set_hook(&self, gas_limit: u64) {
             let mut system = pink::system::SystemRef::instance();
-            _ = system.set_hook(pink::HookPoint::OnBlockEnd, self.env().account_id(), 0x01);
+            _ = system.set_hook(
+                pink::HookPoint::OnBlockEnd,
+                self.env().account_id(),
+                0x01,
+                gas_limit,
+            );
         }
 
         #[ink(message, selector = 0x01)]
         pub fn on_block_end(&mut self) {
-            if !pink::predefined_accounts::is_runtime(&self.env().caller()) {
+            if self.env().caller() != self.env().account_id() {
                 return;
             }
             self.on_block_end_called = true

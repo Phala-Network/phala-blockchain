@@ -6,24 +6,33 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use phala_types::contract::ConvertTo;
-use pink::predefined_accounts::pallet_account;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
+use pink::types::Weight;
+use pink::weights::constants::WEIGHT_PER_SECOND;
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
-use sp_runtime::{traits::ConstU32, BoundedVec};
 
-#[derive(Debug, Encode, Decode)]
-pub enum Command {
-    InkMessage {
-        nonce: BoundedVec<u8, ConstU32<32>>,
-        message: Vec<u8>,
-    },
-}
+pub use phala_types::contract::InkCommand as Command;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
-    InkMessage(Vec<u8>),
+    InkMessage {
+        payload: Vec<u8>,
+        /// Amount of tokens deposit to the caller.
+        deposit: u128,
+        /// Amount of tokens transfer from the caller to the target contract.
+        transfer: u128,
+    },
     SidevmQuery(Vec<u8>),
+    InkInstantiate {
+        code_hash: sp_core::H256,
+        salt: Vec<u8>,
+        instantiate_data: Vec<u8>,
+        /// Amount of tokens deposit to the caller.
+        deposit: u128,
+        /// Amount of tokens transfer from the caller to the target contract.
+        transfer: u128,
+    },
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -48,30 +57,19 @@ pub struct Pink {
 }
 
 impl Pink {
-    #[allow(clippy::too_many_arguments)]
     pub fn instantiate(
         cluster_id: ContractClusterId,
-        storage: &mut pink::Storage,
-        origin: AccountId,
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
-        block_number: BlockNumber,
-        now: u64,
-        callbacks: Option<BoxedEventCallbacks>,
+        in_query: bool,
+        tx_args: ::pink::TransactionArguments,
     ) -> Result<(Self, ExecSideEffects)> {
-        let (instance, effects) = pink::Contract::new(
-            storage,
-            origin.clone(),
-            code_hash,
-            input_data,
-            cluster_id.as_bytes().to_vec(),
-            salt,
-            block_number,
-            now,
-            callbacks,
-        )
-        .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
+        let origin = tx_args.origin.clone();
+        let (instance, effects) =
+            pink::Contract::new(code_hash, input_data, salt, in_query, tx_args).map_err(|err| {
+                anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,)
+            })?;
         Ok((
             Self {
                 cluster_id,
@@ -97,8 +95,8 @@ impl Pink {
         self.instance.address.clone()
     }
 
-    pub fn set_on_block_end_selector(&mut self, selector: u32) {
-        self.instance.set_on_block_end_selector(selector)
+    pub fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
+        self.instance.set_on_block_end_selector(selector, gas_limit)
     }
 }
 
@@ -111,28 +109,37 @@ impl Pink {
         side_effects: &mut ExecSideEffects,
     ) -> Result<Response, QueryError> {
         match req {
-            Query::InkMessage(input_data) => {
+            Query::InkMessage {
+                payload: input_data,
+                deposit,
+                transfer,
+            } => {
                 let _guard = context
                     .query_scheduler
                     .acquire(self.id(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
 
-                let origin = origin.ok_or(QueryError::BadOrigin)?;
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                 let storage = &mut context.storage;
-
-                let (ink_result, effects) = self.instance.bare_call(
+                if deposit > 0 {
+                    storage.deposit(&origin, deposit);
+                }
+                let args = ::pink::TransactionArguments {
+                    origin,
+                    now: context.now_ms,
+                    block_number: context.block_number,
                     storage,
-                    origin.clone(),
-                    input_data,
-                    true,
-                    context.block_number,
-                    context.now_ms,
-                    ContractEventCallback::from_log_sender(
+                    transfer,
+                    gas_limit: WEIGHT_PER_SECOND * 10,
+                    gas_free: true,
+                    storage_deposit_limit: None,
+                    callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
                         context.block_number,
                     ),
-                );
+                };
+                let (ink_result, effects) = self.instance.bare_call(input_data, true, args);
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
                 } else {
@@ -171,6 +178,49 @@ impl Pink {
                 .await
                 .or(Err(QueryError::Timeout))?
             }
+            Query::InkInstantiate {
+                code_hash,
+                salt,
+                instantiate_data,
+                deposit,
+                transfer,
+            } => {
+                let _guard = context
+                    .query_scheduler
+                    .acquire(self.id(), context.weight)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
+
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
+                let storage = &mut context.storage;
+                if deposit > 0 {
+                    storage.deposit(&origin, deposit);
+                }
+                let args = ::pink::TransactionArguments {
+                    origin,
+                    now: context.now_ms,
+                    block_number: context.block_number,
+                    storage,
+                    transfer,
+                    gas_limit: WEIGHT_PER_SECOND * 10,
+                    gas_free: true,
+                    storage_deposit_limit: None,
+                    callbacks: ContractEventCallback::from_log_sender(
+                        &context.log_handler,
+                        context.block_number,
+                    ),
+                };
+                let (ink_result, _effects) =
+                    ::pink::Contract::instantiate(code_hash, instantiate_data, salt, true, args);
+                if ink_result.result.is_err() {
+                    log::error!(
+                        "Pink [{:?}] est instantiate error: {:?}",
+                        self.id(),
+                        ink_result
+                    );
+                }
+                Ok(Response::Payload(ink_result.encode()))
+            }
         }
     }
 
@@ -181,28 +231,46 @@ impl Pink {
         context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
         match cmd {
-            Command::InkMessage { nonce, message } => {
-                let origin: runtime::AccountId = match origin {
-                    MessageOrigin::AccountId(origin) => origin.0.into(),
-                    MessageOrigin::Pallet(_) => pallet_account(),
-                    _ => return Err(TransactionError::BadOrigin),
-                };
-
+            Command::InkMessage {
+                nonce,
+                message,
+                transfer,
+                gas_limit,
+                storage_deposit_limit,
+            } => {
                 let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
                     .expect("Pink cluster should always exists!");
 
-                let (result, effects) = self.instance.bare_call(
+                let mut gas_free = false;
+                let origin: runtime::AccountId = match origin {
+                    MessageOrigin::AccountId(origin) => origin.0.into(),
+                    MessageOrigin::Pallet(_) => {
+                        // The caller will be set to the system contract if it's from a pallet call
+                        // and without charging for gas
+                        gas_free = true;
+                        storage
+                            .system_contract()
+                            .expect("BUG: system contract missing")
+                    }
+                    _ => return Err(TransactionError::BadOrigin),
+                };
+
+                let args = ::pink::TransactionArguments {
+                    origin: origin.clone(),
+                    now: context.block.now_ms,
+                    block_number: context.block.block_number,
                     storage,
-                    origin.clone(),
-                    message,
-                    false,
-                    context.block.block_number,
-                    context.block.now_ms,
-                    ContractEventCallback::from_log_sender(
+                    transfer,
+                    gas_limit: Weight::from_ref_time(gas_limit),
+                    gas_free,
+                    storage_deposit_limit,
+                    callbacks: ContractEventCallback::from_log_sender(
                         &context.log_handler,
                         context.block.block_number,
                     ),
-                );
+                };
+
+                let (result, effects) = self.instance.bare_call(message, false, args);
 
                 if let Some(log_handler) = &context.log_handler {
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
@@ -217,7 +285,7 @@ impl Pink {
                     }
                 }
 
-                let _ = pink::transpose_contract_result(&result).map_err(|err| {
+                let _ = pink::transpose_contract_result(result).map_err(|err| {
                     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                     TransactionError::Other(format!("Call contract method failed: {err:?}"))
                 })?;
@@ -265,18 +333,12 @@ fn cluster_storage<'a>(
 }
 
 pub mod cluster {
-    use super::Pink;
-
-    use anyhow::{Context, Result};
+    use anyhow::Result;
     use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use phala_types::contract::messaging::ResourceType;
-    use pink::{
-        runtime::{BoxedEventCallbacks, ExecSideEffects},
-        types::{AccountId, Hash},
-    };
-    use runtime::BlockNumber;
+    use pink::types::{AccountId, Balance, Hash};
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use sp_runtime::{AccountId32, DispatchError};
@@ -294,35 +356,6 @@ pub mod cluster {
 
         pub fn len(&self) -> usize {
             self.clusters.len()
-        }
-
-        #[allow(clippy::too_many_arguments)]
-        pub fn instantiate_contract(
-            &mut self,
-            cluster_id: ContractClusterId,
-            origin: AccountId,
-            code_hash: Hash,
-            input_data: Vec<u8>,
-            salt: Vec<u8>,
-            block_number: BlockNumber,
-            now: u64,
-            callbacks: Option<BoxedEventCallbacks>,
-        ) -> Result<ExecSideEffects> {
-            let cluster = self
-                .get_cluster_mut(&cluster_id)
-                .context("Cluster must exist before instantiation")?;
-            let (_, effects) = Pink::instantiate(
-                cluster_id,
-                &mut cluster.storage,
-                origin,
-                code_hash,
-                input_data,
-                salt,
-                block_number,
-                now,
-                callbacks,
-            )?;
-            Ok(effects)
         }
 
         pub fn get_cluster_storage_mut(
@@ -410,7 +443,7 @@ pub mod cluster {
 
         pub fn upload_resource(
             &mut self,
-            origin: AccountId,
+            origin: &AccountId,
             resource_type: ResourceType,
             resource_data: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
@@ -433,6 +466,25 @@ pub mod cluster {
 
         pub fn iter_contracts(&self) -> impl Iterator<Item = &ContractId> {
             self.contracts.iter()
+        }
+
+        pub fn setup(
+            &mut self,
+            gas_price: Balance,
+            deposit_per_item: Balance,
+            deposit_per_byte: Balance,
+            treasury_account: &::pink::types::AccountId,
+        ) {
+            self.storage.setup(
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
+                treasury_account,
+            );
+        }
+
+        pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
+            self.storage.deposit(who, amount)
         }
     }
 }

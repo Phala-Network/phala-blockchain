@@ -7,7 +7,7 @@ pub use http_request::{HttpRequest, HttpResponse};
 pub use ink_env::AccountId;
 pub use signing::SigType;
 
-use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
+use crate::{EcdsaPublicKey, EcdsaSignature, Hash, Balance};
 
 mod http_request;
 pub mod signing;
@@ -108,6 +108,10 @@ pub trait PinkExt {
     /// Get the contract id of the preinstalled pink-system
     #[ink(extension = 15, handle_status = false, returns_result = false)]
     fn system_contract_id() -> AccountId;
+
+    /// Get (total, free) balance of given contract
+    #[ink(extension = 16, handle_status = false, returns_result = false)]
+    fn balance_of(account: AccountId) -> (Balance, Balance);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

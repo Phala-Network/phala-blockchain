@@ -213,9 +213,9 @@ impl FatContract {
         self.contract.on_block_end(&mut context)
     }
 
-    pub(crate) fn set_on_block_end_selector(&mut self, selector: u32) {
+    pub(crate) fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
         let AnyContract::Pink(pink) = &mut self.contract;
-        pink.set_on_block_end_selector(selector)
+        pink.set_on_block_end_selector(selector, gas_limit)
     }
 
     pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
