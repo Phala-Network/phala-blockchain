@@ -1208,6 +1208,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 })?;
                 let result = cluster.upload_resource(&origin, resource_type, resource_data);
                 let log_handler = self.get_system_message_handler(&cluster_id);
+                // Send the reault to the log server
                 if let Some(log_handler) = &log_handler {
                     macro_rules! send_log {
                         ($level: expr, $msg: expr) => {
@@ -1335,6 +1336,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             tx_args,
                         )
                         .with_context(|| format!("Contract deployer: {deployer:?}"));
+                        // Send the reault to the log server
                         if let Some(log_handler) = &log_handler {
                             macro_rules! send_log {
                                 ($level: expr, $msg: expr) => {
