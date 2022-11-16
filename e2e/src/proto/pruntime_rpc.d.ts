@@ -385,6 +385,20 @@ export namespace pruntime_rpc {
          * @returns Promise
          */
         public calculateContractId(request: pruntime_rpc.IContractParameters): Promise<pruntime_rpc.ContractId>;
+
+        /**
+         * Calls GetNetworkConfig.
+         * @param request Empty message or plain object
+         * @param callback Node-style callback called with the error, if any, and NetworkConfigResponse
+         */
+        public getNetworkConfig(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GetNetworkConfigCallback): void;
+
+        /**
+         * Calls GetNetworkConfig.
+         * @param request Empty message or plain object
+         * @returns Promise
+         */
+        public getNetworkConfig(request: google.protobuf.IEmpty): Promise<pruntime_rpc.NetworkConfigResponse>;
     }
 
     namespace PhactoryAPI {
@@ -570,6 +584,13 @@ export namespace pruntime_rpc {
          * @param [response] ContractId
          */
         type CalculateContractIdCallback = (error: (Error|null), response?: pruntime_rpc.ContractId) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getNetworkConfig}.
+         * @param error Error, if any
+         * @param [response] NetworkConfigResponse
+         */
+        type GetNetworkConfigCallback = (error: (Error|null), response?: pruntime_rpc.NetworkConfigResponse) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -625,9 +646,6 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo waitingForParaheaders */
         waitingForParaheaders?: (boolean|null);
-
-        /** PhactoryInfo networkStatus */
-        networkStatus?: (pruntime_rpc.INetworkStatus|null);
 
         /** PhactoryInfo system */
         system?: (pruntime_rpc.ISystemInfo|null);
@@ -692,9 +710,6 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo waitingForParaheaders. */
         public waitingForParaheaders: boolean;
-
-        /** PhactoryInfo networkStatus. */
-        public networkStatus?: (pruntime_rpc.INetworkStatus|null);
 
         /** PhactoryInfo system. */
         public system?: (pruntime_rpc.ISystemInfo|null);
@@ -4322,103 +4337,103 @@ export namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
-    /** Properties of a NetworkStatus. */
-    interface INetworkStatus {
+    /** Properties of a NetworkConfigResponse. */
+    interface INetworkConfigResponse {
 
-        /** NetworkStatus publicRpcPort */
+        /** NetworkConfigResponse publicRpcPort */
         publicRpcPort?: (number|null);
 
-        /** NetworkStatus config */
+        /** NetworkConfigResponse config */
         config?: (pruntime_rpc.INetworkConfig|null);
     }
 
-    /** Represents a NetworkStatus. */
-    class NetworkStatus implements INetworkStatus {
+    /** Represents a NetworkConfigResponse. */
+    class NetworkConfigResponse implements INetworkConfigResponse {
 
         /**
-         * Constructs a new NetworkStatus.
+         * Constructs a new NetworkConfigResponse.
          * @param [properties] Properties to set
          */
-        constructor(properties?: pruntime_rpc.INetworkStatus);
+        constructor(properties?: pruntime_rpc.INetworkConfigResponse);
 
-        /** NetworkStatus publicRpcPort. */
+        /** NetworkConfigResponse publicRpcPort. */
         public publicRpcPort?: (number|null);
 
-        /** NetworkStatus config. */
+        /** NetworkConfigResponse config. */
         public config?: (pruntime_rpc.INetworkConfig|null);
 
-        /** NetworkStatus _publicRpcPort. */
+        /** NetworkConfigResponse _publicRpcPort. */
         public _publicRpcPort?: "publicRpcPort";
 
-        /** NetworkStatus _config. */
+        /** NetworkConfigResponse _config. */
         public _config?: "config";
 
         /**
-         * Creates a new NetworkStatus instance using the specified properties.
+         * Creates a new NetworkConfigResponse instance using the specified properties.
          * @param [properties] Properties to set
-         * @returns NetworkStatus instance
+         * @returns NetworkConfigResponse instance
          */
-        public static create(properties?: pruntime_rpc.INetworkStatus): pruntime_rpc.NetworkStatus;
+        public static create(properties?: pruntime_rpc.INetworkConfigResponse): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Encodes the specified NetworkStatus message. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
-         * @param message NetworkStatus message or plain object to encode
+         * Encodes the specified NetworkConfigResponse message. Does not implicitly {@link pruntime_rpc.NetworkConfigResponse.verify|verify} messages.
+         * @param message NetworkConfigResponse message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encode(message: pruntime_rpc.INetworkStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encode(message: pruntime_rpc.INetworkConfigResponse, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Encodes the specified NetworkStatus message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
-         * @param message NetworkStatus message or plain object to encode
+         * Encodes the specified NetworkConfigResponse message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkConfigResponse.verify|verify} messages.
+         * @param message NetworkConfigResponse message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encodeDelimited(message: pruntime_rpc.INetworkStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encodeDelimited(message: pruntime_rpc.INetworkConfigResponse, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Decodes a NetworkStatus message from the specified reader or buffer.
+         * Decodes a NetworkConfigResponse message from the specified reader or buffer.
          * @param reader Reader or buffer to decode from
          * @param [length] Message length if known beforehand
-         * @returns NetworkStatus
+         * @returns NetworkConfigResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.NetworkStatus;
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Decodes a NetworkStatus message from the specified reader or buffer, length delimited.
+         * Decodes a NetworkConfigResponse message from the specified reader or buffer, length delimited.
          * @param reader Reader or buffer to decode from
-         * @returns NetworkStatus
+         * @returns NetworkConfigResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.NetworkStatus;
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Verifies a NetworkStatus message.
+         * Verifies a NetworkConfigResponse message.
          * @param message Plain object to verify
          * @returns `null` if valid, otherwise the reason why it is not
          */
         public static verify(message: { [k: string]: any }): (string|null);
 
         /**
-         * Creates a NetworkStatus message from a plain object. Also converts values to their respective internal types.
+         * Creates a NetworkConfigResponse message from a plain object. Also converts values to their respective internal types.
          * @param object Plain object
-         * @returns NetworkStatus
+         * @returns NetworkConfigResponse
          */
-        public static fromObject(object: { [k: string]: any }): pruntime_rpc.NetworkStatus;
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Creates a plain object from a NetworkStatus message. Also converts values to other types if specified.
-         * @param message NetworkStatus
+         * Creates a plain object from a NetworkConfigResponse message. Also converts values to other types if specified.
+         * @param message NetworkConfigResponse
          * @param [options] Conversion options
          * @returns Plain object
          */
-        public static toObject(message: pruntime_rpc.NetworkStatus, options?: $protobuf.IConversionOptions): { [k: string]: any };
+        public static toObject(message: pruntime_rpc.NetworkConfigResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
         /**
-         * Converts this NetworkStatus to JSON.
+         * Converts this NetworkConfigResponse to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };

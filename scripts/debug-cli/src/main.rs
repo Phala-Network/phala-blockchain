@@ -1,6 +1,6 @@
 mod query;
 
-use clap::{AppSettings, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use codec::{Decode, Encode};
 use phala_types::contract::ContractId;
 use std::convert::TryInto;
@@ -10,31 +10,30 @@ use std::fmt::Debug;
 
 #[derive(Debug, Parser)]
 #[clap(name = "Phala Debug Utility CLI")]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 enum Cli {
     DecodeWorkerRegistrationInfo {
-        #[clap(short)]
+        #[arg(short)]
         hex_data: String,
-        #[clap(long)]
+        #[arg(long)]
         print_field: Option<String>,
     },
     DecodeRaQuote {
-        #[clap(short)]
+        #[arg(short)]
         b64_data: String,
     },
     DecodeHeader {
-        #[clap(short)]
+        #[arg(short)]
         hex_data: String,
     },
     DecodeBhwe {
-        #[clap(short)]
+        #[arg(short)]
         b64_data: String,
     },
     DecodeEgressMessages {
         b64_data: String,
     },
     DecodeSignedMessage {
-        #[clap(short)]
+        #[arg(short)]
         hex_data: String,
     },
     DecodeMqPayload {
@@ -54,14 +53,14 @@ enum Cli {
         pallet_id: String,
     },
     Rpc {
-        #[clap(long, default_value = "http://localhost:8000")]
+        #[arg(long, default_value = "http://localhost:8000")]
         url: String,
 
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: RpcCommand,
     },
     Pink {
-        #[clap(subcommand)]
+        #[command(subcommand)]
         command: PinkCommand,
     },
 }
@@ -75,9 +74,9 @@ enum RpcCommand {
 #[derive(Debug, Subcommand)]
 enum PinkCommand {
     Query {
-        #[clap(long, default_value = "http://localhost:8000")]
+        #[arg(long, default_value = "http://localhost:8000")]
         url: String,
-        #[clap(long)]
+        #[arg(long)]
         sidevm: bool,
         id: String,
         message: String,
@@ -352,8 +351,8 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         //Web3AnalyticsCommand,
         // KittyEvent<AccountId, Hash>,
         SystemEvent,
-        MiningReportEvent,
-        MiningInfoUpdateEvent<u32>,
+        WorkingReportEvent,
+        WorkingInfoUpdateEvent<u32>,
         GatekeeperEvent,
         phala_pallets::registry::RegistryEvent,
     );

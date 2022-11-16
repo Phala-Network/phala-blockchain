@@ -1,12 +1,15 @@
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
+const { typeDefinitions } = require('@polkadot/types');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
 const fs = require('fs');
 const crypto = require('crypto');
 const { PRuntimeApi } = require('./utils/pruntime');
+const { assert } = require('console');
 
 const CENTS = 10_000_000_000;
 const SECONDS = 1_000_000_000_000;
+const defaultTxConfig = { gasLimit: "10000000000000" };
 
 function loadContractFile(contractFile) {
     const metadata = JSON.parse(fs.readFileSync(contractFile));
@@ -17,21 +20,69 @@ function loadContractFile(contractFile) {
 }
 
 async function deployDriverContract(api, txqueue, system, pair, cert, contract, clusterId, name, salt) {
-    console.log(`Contracts: uploading ${contract.name}`);
+    salt = salt ? salt : hex(crypto.randomBytes(4)),
+        console.log(`Contracts: uploading ${contract.name}`);
+
     // upload the contract 
+    await txqueue.submit(
+        api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', contract.wasm),
+        pair);
+
+    // Not sure how much time it would take to sync the code into pruntime
+    console.log("Waiting the code to be synced into pruntime to estmate the instantiation");
+    await sleep(10000);
+
+    // Estimate gas limit
+    /*
+        InkInstantiate {
+            code_hash: sp_core::H256,
+            salt: Vec<u8>,
+            instantiate_data: Vec<u8>,
+            /// Amount of tokens deposit to the caller.
+            deposit: u128,
+            /// Amount of tokens transfer from the caller to the target contract.
+            transfer: u128,
+        },
+     */
+    const instantiateReturn = await system.instantiate({
+        codeHash: contract.metadata.source.hash,
+        salt,
+        instantiateData: contract.constructor, // please concat with args if needed
+        deposit: 0,
+        transfer: 0,
+    }, cert);
+
+    console.log("instantiate result:", instantiateReturn);
+    const queryResponse = api.createType('InkResponse', instantiateReturn);
+    const queryResult = queryResponse.result.toHuman()
+    console.log("InkMessageReturn", queryResult.Ok.InkMessageReturn);
+    const instantiateResult = api.createType('ContractInstantiateResult', queryResult.Ok.InkMessageReturn);
+    console.assert(instantiateResult.result.isOk);
+    console.log("gasRequired", instantiateResult.gasRequired);
+
     const { events: deployEvents } = await txqueue.submit(
-        api.tx.utility.batchAll(
-            [
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', contract.wasm),
-                api.tx.phalaFatContracts.instantiateContract(
-                    { WasmCode: contract.metadata.source.hash },
-                    contract.constructor,
-                    salt ? salt : hex(crypto.randomBytes(4)),
-                    clusterId,
-                    0, SECONDS * 10, null
-                )
-            ]
-        ),
+        /*
+        pub fn instantiate_contract(
+            origin: OriginFor<T>,
+            code_index: CodeIndex<CodeHash<T>>,
+            data: Vec<u8>,
+            salt: Vec<u8>,
+            cluster_id: ContractClusterId,
+            transfer: u128,
+            gas_limit: u64,
+            storage_deposit_limit: Option<u128>,
+        ) -> DispatchResult {
+        */
+        api.tx.phalaFatContracts.instantiateContract(
+            { WasmCode: contract.metadata.source.hash },
+            contract.constructor,
+            salt,
+            clusterId,
+            0,
+            instantiateResult.gasRequired.refTime,
+            instantiateResult.storageDeposit.asCharge || 0,
+        )
+        ,
         pair
     );
     const contractIds = deployEvents
@@ -70,18 +121,18 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
     );
 
     {
-        const { output } = await system.query["system::freeBalance"](cert, {});
+        const { output } = await system.query["system::freeBalanceOf"](cert, {}, pair.address);
         console.log("freeBalance:", output);
     }
     {
-        const { output } = await system.query["system::totalBalance"](cert, {});
+        const { output } = await system.query["system::totalBalanceOf"](cert, {}, pair.address);
         console.log("totalBalance:", output);
     }
 
 
     // If leave empty, the SDK would fill the gasLimit with a default value which doesn't work sometimes.
     await txqueue.submit(
-        system.tx["system::grantAdmin"]({}, contract.address),
+        system.tx["system::grantAdmin"](defaultTxConfig, contract.address),
         pair
     );
 
@@ -283,6 +334,7 @@ async function contractApi(api, pruntimeURL, contract) {
         contract.address,
     );
     contractApi.sidevmQuery = phala.sidevmQuery;
+    contractApi.instantiate = phala.instantiate;
     return contractApi;
 }
 
@@ -310,6 +362,7 @@ async function main() {
                 username: 'String',
                 accountId: 'AccountId',
             },
+            ...typeDefinitions.contracts.types,
         }
     });
     const txqueue = new TxQueue(api);
@@ -390,7 +443,7 @@ async function main() {
     console.log(`calculated loggerId = ${loggerId}`);
 
     await txqueue.submit(
-        sidevmDeployer.tx.allow({}, loggerId),
+        sidevmDeployer.tx.allow(defaultTxConfig, loggerId),
         alice
     );
 

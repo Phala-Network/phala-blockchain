@@ -76,13 +76,13 @@ pub trait System {
     #[ink(message)]
     fn set_contract_weight(&self, contract_id: AccountId, weight: u32) -> Result<()>;
 
-    /// Return the total balance of the caller
+    /// Return the total balance of given account
     #[ink(message)]
-    fn total_balance(&self) -> Balance;
+    fn total_balance_of(&self, account: AccountId) -> Balance;
 
-    /// Return the free balance of the caller
+    /// Return the free balance of given account
     #[ink(message)]
-    fn free_balance(&self) -> Balance;
+    fn free_balance_of(&self, account: AccountId) -> Balance;
 }
 
 /// Driver to manage sidevm deployments.

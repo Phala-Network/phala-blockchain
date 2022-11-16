@@ -7,8 +7,9 @@ const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
+const { typeDefinitions } = require('@polkadot/types/bundle');
 
-const { types, typeAlias } = require('./utils/typeoverride');
+const { types, typeAlias, typeOverrides } = require('./utils/typeoverride');
 // TODO: fixit
 // const types = require('@phala/typedefs').phalaDev;
 
@@ -467,6 +468,7 @@ describe('A full stack', function () {
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function
+        const txConfig = { gasLimit: "10000000000000", storageDepositLimit: null };
 
         let certAlice;
         let ContractSystemChecker;
@@ -566,7 +568,7 @@ describe('A full stack', function () {
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, 10_000_000_000_000, null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
                 alice,
             );
             assertEvents(events, [
@@ -600,7 +602,7 @@ describe('A full stack', function () {
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook({}, 1_000_000_000_000),
+                ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
@@ -610,13 +612,12 @@ describe('A full stack', function () {
         });
 
         it('can set hook with admin permission', async function () {
-            const config = { gas: 10_000_000_000_000, storageDepositLimit: null };
             await assert.txAccepted(
-                ContractSystem.tx['system::grantAdmin'](config, ContractSystemChecker.address),
+                ContractSystem.tx['system::grantAdmin'](txConfig, ContractSystemChecker.address),
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook(config, 1_000_000_000_000),
+                ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -627,7 +628,7 @@ describe('A full stack', function () {
 
         it('tokenomic driver works', async function () {
             await assert.txAccepted(
-                ContractSystem.tx['system::setDriver']({}, "ContractDeposit", ContractSystemChecker.address),
+                ContractSystem.tx['system::setDriver'](txConfig, "ContractDeposit", ContractSystemChecker.address),
                 alice,
             );
             const weight = 10;
@@ -659,7 +660,7 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, 10_000_000_000_000, null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
                 alice,
             );
         });
@@ -1165,7 +1166,7 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types: { ...types, ...Phala.types },
+            types: { ...types, ...typeDefinitions, ...Phala.types, ...typeOverrides },
             typeAlias
         });
         this.workers.forEach(w => {

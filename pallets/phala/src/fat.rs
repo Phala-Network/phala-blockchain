@@ -15,7 +15,10 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_core::crypto::UncheckedFrom;
 	use sp_core::H256;
-	use sp_runtime::{AccountId32, SaturatedConversion};
+	use sp_runtime::{
+		traits::{UniqueSaturatedInto, Zero},
+		AccountId32, SaturatedConversion,
+	};
 	use sp_std::prelude::*;
 
 	use crate::{
@@ -149,7 +152,7 @@ pub mod pallet {
 		Transfered {
 			cluster: ContractClusterId,
 			account: H256,
-			amount: u128,
+			amount: BalanceOf<T>,
 		},
 	}
 
@@ -187,16 +190,27 @@ pub mod pallet {
 		T: crate::mq::Config + crate::registry::Config,
 		T: frame_system::Config<AccountId = AccountId32>,
 	{
+		/// Create a new cluster
+		///
+		/// # Arguments
+		/// - `owner` - The owner of the cluster.
+		/// - `permission` - Who can deploy contracts in the cluster.
+		/// - `deploy_workers` - Workers included in the cluster.
+		/// - `deposit` - Transfer amount of tokens from the owner on chain to the owner in cluster.
+		/// - `gas_price` - Gas price for contract transactions.
+		/// - `deposit_per_item` - Price for contract storage per item.
+		/// - `deposit_per_byte` - Price for contract storage per byte.
+		/// - `treasury_account` - The treasury account used to collect the gas and storage fee.
 		#[pallet::weight(0)]
 		pub fn add_cluster(
 			origin: OriginFor<T>,
 			owner: T::AccountId,
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
-			deposit: u128,
-			gas_price: u128,
-			deposit_per_item: u128,
-			deposit_per_byte: u128,
+			deposit: BalanceOf<T>,
+			gas_price: BalanceOf<T>,
+			deposit_per_item: BalanceOf<T>,
+			deposit_per_byte: BalanceOf<T>,
 			treasury_account: AccountId32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -239,9 +253,9 @@ pub mod pallet {
 				permission,
 				workers: deploy_workers,
 				system_contract,
-				gas_price,
-				deposit_per_item,
-				deposit_per_byte,
+				gas_price: gas_price.unique_saturated_into(),
+				deposit_per_item: deposit_per_item.unique_saturated_into(),
+				deposit_per_byte: deposit_per_byte.unique_saturated_into(),
 			};
 
 			Clusters::<T>::insert(cluster, &cluster_info);
@@ -252,17 +266,17 @@ pub mod pallet {
 			<T as Config>::Currency::transfer(
 				&owner,
 				&cluster_account(&cluster),
-				BalanceOf::<T>::saturated_from(deposit),
+				deposit,
 				ExistenceRequirement::KeepAlive,
 			)?;
 			Self::push_message(ClusterEvent::DeployCluster {
 				owner,
 				cluster,
 				workers,
-				deposit,
-				gas_price,
-				deposit_per_item,
-				deposit_per_byte,
+				deposit: deposit.unique_saturated_into(),
+				gas_price: gas_price.unique_saturated_into(),
+				deposit_per_item: deposit_per_item.unique_saturated_into(),
+				deposit_per_byte: deposit_per_byte.unique_saturated_into(),
 				treasury_account,
 			});
 			Ok(())
@@ -304,22 +318,21 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn transfer_to_cluster(
 			origin: OriginFor<T>,
-			amount: u128,
+			amount: BalanceOf<T>,
 			cluster_id: ContractClusterId,
 			dest_account: AccountId32,
 		) -> DispatchResult {
 			let user = ensure_signed(origin)?;
-			let cluster_account = cluster_account(&cluster_id);
 			<T as Config>::Currency::transfer(
 				&user,
-				&cluster_account,
-				BalanceOf::<T>::saturated_from(amount),
+				&cluster_account(&cluster_id),
+				amount,
 				ExistenceRequirement::KeepAlive,
 			)?;
 			Self::push_message(ClusterOperation::Deposit {
 				cluster_id,
 				account: dest_account.clone().into_h256(),
-				amount,
+				amount: amount.unique_saturated_into(),
 			});
 			Self::deposit_event(Event::Transfered {
 				cluster: cluster_id,
@@ -335,18 +348,13 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			contract_id: ContractId,
 			payload: Vec<u8>,
-			deposit: u128,
+			deposit: BalanceOf<T>,
 		) -> DispatchResult {
 			let user = ensure_signed(origin.clone())?;
-			if deposit > 0 {
+			if !deposit.is_zero() {
 				let contract_info =
 					Contracts::<T>::get(contract_id).ok_or(Error::<T>::ContractNotFound)?;
-				Self::transfer_to_cluster(
-					origin.clone(),
-					deposit,
-					contract_info.cluster,
-					user,
-				)?;
+				Self::transfer_to_cluster(origin.clone(), deposit, contract_info.cluster, user)?;
 			}
 			PalletMq::<T>::push_message(origin, command_topic(contract_id), payload)
 		}
@@ -368,6 +376,13 @@ pub mod pallet {
 				check_cluster_permission::<T>(&deployer, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
 			);
+
+			<T as Config>::Currency::transfer(
+				&deployer,
+				&cluster_account(&cluster_id),
+				BalanceOf::<T>::saturated_from(transfer),
+				ExistenceRequirement::KeepAlive,
+			)?;
 
 			let contract_info = ContractInfo {
 				deployer,
@@ -467,6 +482,7 @@ pub mod pallet {
 					});
 					ClusterContracts::<T>::append(cluster, contract);
 					Contracts::<T>::mutate(contract, |info| {
+						// If the info is Some, it was instantiated by user.
 						if info.is_none() {
 							*info = Some(BasicContractInfo {
 								deployer: AccountId32::from(deployer.0),

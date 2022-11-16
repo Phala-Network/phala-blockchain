@@ -281,7 +281,7 @@ mod communication {
         if AuthorityPair::verify(signature, buf, &as_public) {
             Ok(())
         } else {
-            debug!(target: "afg", "Bad signature on message from {:?} (round: {}, set_id: {})", id, round, set_id);
+            debug!("Bad signature on message from {:?} (round: {}, set_id: {})", id, round, set_id);
             Err(anyhow::Error::msg(""))
         }
     }

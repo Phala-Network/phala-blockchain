@@ -14,7 +14,7 @@ use phala_types::{
     },
     messaging::{
         BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, GatekeeperEvent,
-        KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
+        KeyDistribution, MessageOrigin, WorkingInfoUpdateEvent, WorkingReportEvent, RandomNumber,
         RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent,
         WorkerEventWithKey,
     },
@@ -127,7 +127,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
-    pub(crate) mining_economics: MiningEconomics<MsgChan>,
+    pub(crate) computing_economics: ComputingEconomics<MsgChan>,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -157,7 +157,7 @@ where
             cluster_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
-            mining_economics: MiningEconomics::new(recv_mq, egress),
+            computing_economics: ComputingEconomics::new(recv_mq, egress),
         }
     }
 
@@ -378,7 +378,7 @@ where
                 "Gatekeeper: not handle the messages because Gatekeeper has not launched on chain"
             );
         }
-        self.mining_economics.will_process_block(block);
+        self.computing_economics.will_process_block(block);
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -405,12 +405,12 @@ where
             }
         }
 
-        self.mining_economics.process_messages(block, &mut ());
+        self.computing_economics.process_messages(block, &mut ());
     }
 
     pub fn did_process_block(&mut self, block: &BlockInfo<'_>) {
         if self.master_pubkey_on_chain {
-            self.mining_economics.did_process_block(block, &mut ());
+            self.computing_economics.did_process_block(block, &mut ());
         }
         self.emit_random_number(block.block_number);
     }
@@ -422,16 +422,16 @@ where
                 self.process_random_number_event(origin, random_number_event)
             }
             GatekeeperEvent::TokenomicParametersChanged(_params) => {
-                // Handled by MiningEconomics
+                // Handled by ComputingEconomics
             }
             GatekeeperEvent::RepairV => {
-                // Handled by MiningEconomics
+                // Handled by ComputingEconomics
             }
             GatekeeperEvent::PhalaLaunched => {
-                // Handled by MiningEconomics
+                // Handled by ComputingEconomics
             }
             GatekeeperEvent::UnrespFix => {
-                // Handled by MiningEconomics
+                // Handled by ComputingEconomics
             }
         }
     }
@@ -587,8 +587,8 @@ where
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EconomicEvent {
-    MiningStart,
-    MiningStop,
+    WorkingStarted,
+    WorkingStopped,
     HeartbeatChallenge,
     Heartbeat { payout: FixedPoint },
     EnterUnresponsive,
@@ -599,8 +599,8 @@ pub enum EconomicEvent {
 impl EconomicEvent {
     pub fn event_string(&self) -> &'static str {
         match self {
-            EconomicEvent::MiningStart => "mining_start",
-            EconomicEvent::MiningStop => "mining_stop",
+            EconomicEvent::WorkingStarted => "working_started",
+            EconomicEvent::WorkingStopped => "working_stopped",
             EconomicEvent::HeartbeatChallenge => "heartbeat_challenge",
             EconomicEvent::Heartbeat { .. } => "heartbeat",
             EconomicEvent::EnterUnresponsive => "enter_unresponsive",
@@ -633,9 +633,9 @@ impl<F: FnMut(EconomicEvent, &WorkerInfo)> EconomicEventListener for F {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MiningEconomics<MsgChan> {
+pub struct ComputingEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
-    mining_events: TypedReceiver<MiningReportEvent>,
+    computing_events: TypedReceiver<WorkingReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
@@ -656,29 +656,29 @@ pub struct MiningEconomics<MsgChan> {
 #[derive(Default)]
 struct EconomicCalcCache {
     sum_share: FixedPoint,
-    report: MiningInfoUpdateEvent<chain::BlockNumber>,
+    report: WorkingInfoUpdateEvent<chain::BlockNumber>,
 }
 
 #[test]
 fn test_restore_phala_launched() {
     #[derive(Serialize, Deserialize)]
-    struct MiningEconomics0 {
+    struct ComputingEconomics0 {
         tokenomic_params: u32,
     }
 
     #[derive(Serialize, Deserialize)]
-    struct MiningEconomics1 {
+    struct ComputingEconomics1 {
         tokenomic_params: u32,
         #[serde(default)]
         phala_launched: bool,
     }
 
-    let checkpoint = serde_cbor::to_vec(&MiningEconomics0 {
+    let checkpoint = serde_cbor::to_vec(&ComputingEconomics0 {
         tokenomic_params: 1,
     })
     .unwrap();
 
-    let state: MiningEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
+    let state: ComputingEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
     assert!(!state.phala_launched);
 }
 
@@ -704,13 +704,13 @@ impl From<&WorkerInfo> for pb::WorkerState {
                 start_time: state.start_time,
                 duration: state.duration,
             }),
-            mining_state: info
+            working_state: info
                 .state
-                .mining_state
+                .working_state
                 .as_ref()
-                .map(|state| pb::MiningState {
+                .map(|state| pb::WorkingState {
                     session_id: state.session_id,
-                    paused: matches!(state.state, super::MiningState::Paused),
+                    paused: matches!(state.state, super::WorkingState::Paused),
                     start_time: state.start_time,
                 }),
             waiting_heartbeats: info.waiting_heartbeats.iter().copied().collect(),
@@ -723,11 +723,11 @@ impl From<&WorkerInfo> for pb::WorkerState {
     }
 }
 
-impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
+impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan> {
     pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
-        MiningEconomics {
+        ComputingEconomics {
             egress,
-            mining_events: recv_mq.subscribe_bound(),
+            computing_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
@@ -751,7 +751,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
 
     pub fn will_process_block(&mut self, block: &BlockInfo<'_>) {
         let sum_share = self.sum_share();
-        let report = MiningInfoUpdateEvent::new(block.block_number, block.now_ms);
+        let report = WorkingInfoUpdateEvent::new(block.block_number, block.now_ms);
         self.eco_cache = EconomicCalcCache { sum_share, report };
         for worker in self.workers.values_mut() {
             worker.heartbeat_flag = false;
@@ -764,17 +764,17 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
         event_listener: &mut impl EconomicEventListener,
     ) {
         for worker_info in self.workers.values_mut() {
-            trace!(target: "mining",
+            trace!(target: "gk_computing",
                 "[{}] block_post_process",
                 hex::encode(worker_info.state.pubkey)
             );
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info.state.on_block_processed(block, &mut tracker);
 
-            if worker_info.state.mining_state.is_none() {
+            if worker_info.state.working_state.is_none() {
                 trace!(
-                    target: "mining",
-                    "[{}] Mining already stopped, do nothing.",
+                    target: "gk_computing",
+                    "[{}] Computing already stopped, do nothing.",
                     hex::encode(worker_info.state.pubkey)
                 );
                 continue;
@@ -783,7 +783,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
                     trace!(
-                        target: "mining",
+                        target: "gk_computing",
                         "[{}] case5: Unresponsive, successful heartbeat.",
                         hex::encode(worker_info.state.pubkey)
                     );
@@ -803,7 +803,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if block.block_number - hb_sent_at > self.tokenomic_params.heartbeat_window {
                     trace!(
-                        target: "mining",
+                        target: "gk_computing",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
                         hex::encode(worker_info.state.pubkey),
                         block.block_number,
@@ -825,7 +825,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             let params = &self.tokenomic_params;
             if worker_info.unresponsive {
                 trace!(
-                    target: "mining",
+                    target: "gk_computing",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(worker_info.state.pubkey)
                 );
@@ -834,7 +834,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     .update_v_slash(params, block.block_number);
             } else if !worker_info.heartbeat_flag {
                 trace!(
-                    target: "mining",
+                    target: "gk_computing",
                     "[{}] case1: Idle, no event",
                     hex::encode(worker_info.state.pubkey)
                 );
@@ -845,7 +845,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
         let report = &self.eco_cache.report;
 
         if !report.is_empty() {
-            debug!(target: "mining", "Report: {:?}", report);
+            debug!(target: "gk_computing", "Report: {:?}", report);
             self.egress.push_message(report);
         }
     }
@@ -857,22 +857,22 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
     ) {
         loop {
             let ok = phala_mq::select! {
-                message = self.mining_events => match message {
+                message = self.computing_events => match message {
                     Ok((_, event, origin)) => {
-                        trace!(target: "mining", "Processing mining report: {:?}, origin: {}",  event, origin);
-                        self.process_mining_report(origin, event, block, event_listener);
+                        trace!(target: "gk_computing", "Processing computing report: {:?}, origin: {}",  event, origin);
+                        self.process_computing_report(origin, event, block, event_listener);
                     }
                     Err(e) => {
-                        error!(target: "mining", "Read message failed: {:?}", e);
+                        error!(target: "gk_computing", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.system_events => match message {
                     Ok((_, event, origin)) => {
-                        trace!(target: "mining", "Processing system event: {:?}, origin: {}",  event, origin);
+                        trace!(target: "gk_computing", "Processing system event: {:?}, origin: {}",  event, origin);
                         self.process_system_event(origin, event, block, event_listener);
                     }
                     Err(e) => {
-                        error!(target: "mining", "Read message failed: {:?}", e);
+                        error!(target: "gk_computing", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.gatekeeper_events => match message {
@@ -880,7 +880,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                         self.process_gatekeeper_event(origin, event, block, event_listener);
                     }
                     Err(e) => {
-                        error!(target: "mining", "Read message failed: {:?}", e);
+                        error!(target: "gk_computing", "Read message failed: {:?}", e);
                     }
                 },
             };
@@ -898,10 +898,10 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
         self.did_process_block(block, &mut ());
     }
 
-    fn process_mining_report(
+    fn process_computing_report(
         &mut self,
         origin: MessageOrigin,
-        event: MiningReportEvent,
+        event: WorkingReportEvent,
         block: &BlockInfo<'_>,
         event_listener: &mut impl EconomicEventListener,
     ) {
@@ -912,13 +912,13 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             return;
         };
         match event {
-            MiningReportEvent::Heartbeat {
+            WorkingReportEvent::Heartbeat {
                 session_id,
                 challenge_block,
                 challenge_time,
                 iterations,
             }
-            | MiningReportEvent::HeartbeatV2 {
+            | WorkingReportEvent::HeartbeatV2 {
                 session_id,
                 challenge_block,
                 challenge_time,
@@ -926,7 +926,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 ..
             } => {
                 let contract_running =
-                    if let MiningReportEvent::HeartbeatV2 { n_clusters, .. } = event {
+                    if let WorkingReportEvent::HeartbeatV2 { n_clusters, .. } = event {
                         n_clusters > 0
                     } else {
                         false
@@ -936,7 +936,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     Some(info) => info,
                     None => {
                         error!(
-                            target: "mining",
+                            target: "gk_computing",
                             "Unknown worker {} sent a {:?}",
                             hex::encode(worker_pubkey),
                             event
@@ -952,9 +952,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 }
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
-                    error!(target: "mining", "Fatal error: Unexpected heartbeat {:?}", event);
-                    error!(target: "mining", "Sent from worker {}", hex::encode(worker_pubkey));
-                    error!(target: "mining", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
+                    error!(target: "gk_computing", "Fatal error: Unexpected heartbeat {:?}", event);
+                    error!(target: "gk_computing", "Sent from worker {}", hex::encode(worker_pubkey));
+                    error!(target: "gk_computing", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
                     // The state has been poisoned. Make no sence to keep moving on.
                     panic!("GK or Worker state poisoned");
                 }
@@ -962,21 +962,21 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 // The oldest one comfirmed.
                 let _ = worker_info.waiting_heartbeats.pop_front();
 
-                let mining_state = if let Some(state) = &worker_info.state.mining_state {
+                let working_state = if let Some(state) = &worker_info.state.working_state {
                     state
                 } else {
                     trace!(
-                        target: "mining",
-                        "[{}] Mining already stopped, ignore the heartbeat.",
+                        target: "gk_computing",
+                        "[{}] Computing already stopped, ignore the heartbeat.",
                         hex::encode(worker_info.state.pubkey)
                     );
                     return;
                 };
 
-                if session_id != mining_state.session_id {
+                if session_id != working_state.session_id {
                     trace!(
-                        target: "mining",
-                        "[{}] Heartbeat response to previous mining sessions, ignore it.",
+                        target: "gk_computing",
+                        "[{}] Heartbeat response to previous computing sessions, ignore it.",
                         hex::encode(worker_info.state.pubkey)
                     );
                     return;
@@ -991,7 +991,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
 
                 let payout = if worker_info.unresponsive {
                     trace!(
-                        target: "mining",
+                        target: "gk_computing",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(worker_info.state.pubkey)
                     );
@@ -1003,7 +1003,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     fp!(0)
                 } else {
                     trace!(
-                        target: "mining",
+                        target: "gk_computing",
                         "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
                         hex::encode(worker_info.state.pubkey)
                     );
@@ -1015,7 +1015,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                         self.phala_launched,
                     );
 
-                    // NOTE: keep the reporting order (vs the one while mining stop).
+                    // NOTE: keep the reporting order (vs the one while computing stop).
                     self.eco_cache.report.settle.push(SettleInfo {
                         pubkey: worker_pubkey,
                         v: worker_info.tokenomic.v.to_bits(),
@@ -1075,7 +1075,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                         }
                         WorkerEvent::BenchStart { .. } => {}
                         WorkerEvent::BenchScore(_) => {}
-                        WorkerEvent::MiningStart {
+                        WorkerEvent::Started {
                             session_id: _, // Aready recorded by the state machine.
                             init_v,
                             init_p,
@@ -1101,9 +1101,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                                 #[cfg(feature = "gk-stat")]
                                 stat: Default::default(),
                             };
-                            event_listener.emit_event(EconomicEvent::MiningStart, worker);
+                            event_listener.emit_event(EconomicEvent::WorkingStarted, worker);
                         }
-                        WorkerEvent::MiningStop => {
+                        WorkerEvent::Stopped => {
                             // TODO.kevin: report the final V?
                             // We may need to report a Stop event in worker.
                             // Then GK report the final V to pallet, when observed the Stop event from worker.
@@ -1121,10 +1121,10 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                                 payout: 0,
                                 treasury: 0,
                             });
-                            event_listener.emit_event(EconomicEvent::MiningStop, worker);
+                            event_listener.emit_event(EconomicEvent::WorkingStopped, worker);
                         }
-                        WorkerEvent::MiningEnterUnresponsive => {}
-                        WorkerEvent::MiningExitUnresponsive => {}
+                        WorkerEvent::EnterUnresponsive => {}
+                        WorkerEvent::ExitUnresponsive => {}
                     }
                 }
             }
@@ -1147,7 +1147,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                 if origin.is_pallet() {
                     self.tokenomic_params = params.into();
                     info!(
-                        target: "mining",
+                        target: "gk_computing",
                         "Tokenomic parameter updated: {:#?}",
                         &self.tokenomic_params
                     );
@@ -1155,7 +1155,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             }
             GatekeeperEvent::RepairV => {
                 if origin.is_pallet() {
-                    info!(target: "mining", "Repairing V");
+                    info!(target: "gk_computing", "Repairing V");
                     // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
                     // not being applied.
                     //
@@ -1165,7 +1165,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
                     // https://forum.phala.network/t/topic/2753#timeline
                     // https://forum.phala.network/t/topic/2909
                     for w in self.workers.values_mut() {
-                        if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
+                        if w.state.working_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
                             w.tokenomic.v = w.tokenomic.v_init;
                             event_listener.emit_event(EconomicEvent::RecoverV, w)
                         }
@@ -1193,7 +1193,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> MiningEconomics<MsgChan> {
             .values()
             .filter(|info| {
                 if self.phala_launched {
-                    !info.unresponsive && info.state.mining_state.is_some()
+                    !info.unresponsive && info.state.working_state.is_some()
                 } else {
                     !info.unresponsive
                 }
@@ -1225,7 +1225,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
         _challenge_time: u64,
         _iterations: u64,
     ) {
-        trace!(target: "mining", "Worker should emit heartbeat for {}", challenge_block);
+        trace!(target: "gk_computing", "Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
         self.challenge_received = true;
     }
@@ -1439,7 +1439,7 @@ mod tokenomic {
             let actual_payout;
             let actual_treasury;
             if full_payout {
-                // With `full_payout`, the miner gets paid with its share directly. However, v can
+                // With `full_payout`, the worker gets paid with its share directly. However, v can
                 // only be deducted up to the v increment since the last payout.
                 // (Current behavior)
                 actual_payout = to_payout; // w
@@ -1447,7 +1447,7 @@ mod tokenomic {
                 let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
                 self.v -= actual_v_deduct;
             } else {
-                // Without `full_payout`, the miner gets paid up to the v increment to ensure v
+                // Without `full_payout`, the worker gets paid up to the v increment to ensure v
                 // will not decrease over the time by payout.
                 // (Legacy behavior)
                 actual_payout = self.v_deductible.clamp(fp!(0), to_payout); // w
@@ -1542,14 +1542,14 @@ mod serde_fp {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{BlockInfo, FixedPoint, MessageChannel, MiningEconomics};
+    use super::{BlockInfo, FixedPoint, MessageChannel, ComputingEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path, Sr25519Signer};
     use phala_types::{messaging as msg, WorkerPublicKey};
     use std::cell::RefCell;
 
-    type MiningInfoUpdateEvent = super::MiningInfoUpdateEvent<chain::BlockNumber>;
+    type WorkingInfoUpdateEvent = super::WorkingInfoUpdateEvent<chain::BlockNumber>;
 
     trait DispatcherExt {
         fn dispatch_bound<M: Encode + BindTopic>(&mut self, sender: &MessageOrigin, msg: M);
@@ -1592,7 +1592,7 @@ pub mod tests {
                 .collect()
         }
 
-        fn drain_mining_info_update_event(&self) -> Vec<MiningInfoUpdateEvent> {
+        fn drain_working_info_update_event(&self) -> Vec<WorkingInfoUpdateEvent> {
             self.drain_decode()
         }
 
@@ -1616,7 +1616,7 @@ pub mod tests {
 
     struct Roles {
         mq: MessageDispatcher,
-        gk: MiningEconomics<CollectChannel>,
+        gk: ComputingEconomics<CollectChannel>,
         workers: [WorkerPublicKey; 2],
     }
 
@@ -1624,7 +1624,7 @@ pub mod tests {
         fn test_roles() -> Roles {
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let gk = MiningEconomics::new(&mut mq, egress);
+            let gk = ComputingEconomics::new(&mut mq, egress);
             Roles {
                 mq,
                 gk,
@@ -1685,7 +1685,7 @@ pub mod tests {
         }
 
         fn heartbeat(&mut self, session_id: u32, block: chain::BlockNumber, iterations: u64) {
-            let message = msg::MiningReportEvent::Heartbeat {
+            let message = msg::WorkingReportEvent::Heartbeat {
                 session_id,
                 challenge_block: block,
                 challenge_time: block_ts(block),
@@ -1733,7 +1733,7 @@ pub mod tests {
 
         with_block(2, |block| {
             let mut worker1 = r.for_worker(1);
-            worker1.pallet_say(msg::WorkerEvent::MiningStart {
+            worker1.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: 1,
                 init_p: 100,
@@ -1744,7 +1744,7 @@ pub mod tests {
         assert_eq!(
             r.gk.workers.len(),
             1,
-            "Unregistered worker should not start mining."
+            "Unregistered worker should not start computing."
         );
     }
 
@@ -1767,7 +1767,7 @@ pub mod tests {
 
         with_block(2, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: 1,
                 init_p: 100,
@@ -1776,10 +1776,10 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Stop mining before the heartbeat response.
+        // Stop computing before the heartbeat response.
         with_block(3, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStop);
+            worker0.pallet_say(msg::WorkerEvent::Stopped);
             r.gk.test_process_messages(block);
         });
 
@@ -1789,7 +1789,7 @@ pub mod tests {
 
         with_block(5, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 2,
                 init_v: 1,
                 init_p: 100,
@@ -1840,7 +1840,7 @@ pub mod tests {
 
         assert!(
             !r.get_worker(0).unresponsive,
-            "The worker should be mining idle now"
+            "The worker should be computing idle now"
         );
     }
 
@@ -1859,11 +1859,11 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -1882,7 +1882,7 @@ pub mod tests {
 
         assert!(!r.get_worker(0).unresponsive, "Worker should be online");
         assert_eq!(
-            r.gk.egress.drain_mining_info_update_event().len(),
+            r.gk.egress.drain_working_info_update_event().len(),
             0,
             "Should not report any event"
         );
@@ -1900,7 +1900,7 @@ pub mod tests {
 
         assert!(!r.get_worker(0).unresponsive, "Worker should be online");
         assert_eq!(
-            r.gk.egress.drain_mining_info_update_event().len(),
+            r.gk.egress.drain_working_info_update_event().len(),
             0,
             "Should not report any event"
         );
@@ -1925,11 +1925,11 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -1957,7 +1957,7 @@ pub mod tests {
         );
 
         {
-            let messages = r.gk.egress.drain_mining_info_update_event();
+            let messages = r.gk.egress.drain_working_info_update_event();
             assert_eq!(messages.len(), 1);
             assert_eq!(messages[0].offline.len(), 0);
             assert_eq!(messages[0].recovered_to_online.len(), 0);
@@ -1980,11 +1980,11 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -1993,7 +1993,7 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        assert!(r.get_worker(0).state.mining_state.is_some());
+        assert!(r.get_worker(0).state.working_state.is_some());
 
         block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
@@ -2012,15 +2012,15 @@ pub mod tests {
 
         assert!(r.get_worker(0).unresponsive);
         {
-            let offline = [r.workers[0]].to_vec();
-            let expected_message = MiningInfoUpdateEvent {
+            let offline = [r.workers[0].clone()].to_vec();
+            let expected_message = WorkingInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
                 offline,
                 recovered_to_online: Vec::new(),
                 settle: Vec::new(),
             };
-            let messages = r.gk.egress.drain_mining_info_update_event();
+            let messages = r.gk.egress.drain_working_info_update_event();
             assert_eq!(messages.len(), 1);
             assert_eq!(messages[0], expected_message);
         }
@@ -2037,7 +2037,7 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.drain_mining_info_update_event().len(),
+            r.gk.egress.drain_working_info_update_event().len(),
             0,
             "Should not report offline workers"
         );
@@ -2062,11 +2062,11 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -2096,7 +2096,7 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.drain_mining_info_update_event().len(),
+            r.gk.egress.drain_working_info_update_event().len(),
             0,
             "Should not report offline workers"
         );
@@ -2111,7 +2111,7 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.drain_mining_info_update_event().len(),
+            r.gk.egress.drain_working_info_update_event().len(),
             0,
             "Should not report offline workers"
         );
@@ -2136,11 +2136,11 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(1).to_bits(),
                 init_p: 100,
@@ -2178,15 +2178,15 @@ pub mod tests {
             "Worker should not be slashed or rewarded"
         );
         {
-            let recovered_to_online = [r.workers[0]].to_vec();
-            let expected_message = MiningInfoUpdateEvent {
+            let recovered_to_online = [r.workers[0].clone()].to_vec();
+            let expected_message = WorkingInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
                 offline: Vec::new(),
                 recovered_to_online,
                 settle: Vec::new(),
             };
-            let messages = r.gk.egress.drain_mining_info_update_event();
+            let messages = r.gk.egress.drain_working_info_update_event();
             assert_eq!(messages.len(), 1, "Should report recover event");
             assert_eq!(messages[0], expected_message);
         }
@@ -2207,19 +2207,19 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(3000).to_bits(),
                 init_p: 100,
             });
             r.gk.test_process_messages(block);
         });
-        assert!(r.get_worker(0).state.mining_state.is_some());
+        assert!(r.get_worker(0).state.working_state.is_some());
         assert_eq!(r.get_worker(0).tokenomic.p_bench, fp!(100));
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(3000.00203509369147797934));
 
@@ -2253,7 +2253,7 @@ pub mod tests {
             fp!(109.96945292974173840575)
         );
         // Payout settlement has correct treasury split
-        let report = r.gk.egress.drain_mining_info_update_event();
+        let report = r.gk.egress.drain_working_info_update_event();
         assert_eq!(
             FixedPoint::from_bits(report[0].settle[0].payout),
             fp!(14.69197867920878555043)
@@ -2264,7 +2264,7 @@ pub mod tests {
         );
 
         // Slash 0.1% (1hr + 10 blocks challenge window)
-        let _ = r.gk.egress.drain_mining_info_update_event();
+        let _ = r.gk.egress.drain_working_info_update_event();
         r.for_worker(0).challenge();
         for _ in 0..=3600 / 12 + 10 {
             block_number += 1;
@@ -2273,11 +2273,11 @@ pub mod tests {
             });
         }
         assert!(r.get_worker(0).unresponsive);
-        let report = r.gk.egress.drain_mining_info_update_event();
-        assert_eq!(report[0].offline, vec![r.workers[0]]);
+        let report = r.gk.egress.drain_working_info_update_event();
+        assert_eq!(report[0].offline, vec![r.workers[0].clone()]);
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
-        // TODO(hangyin): also check miner reconnection and V recovery
+        // TODO(hangyin): also check worker reconnection and V recovery
     }
 
     #[test]
@@ -2295,19 +2295,19 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
-            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+            worker0.pallet_say(msg::WorkerEvent::Started {
                 session_id: 1,
                 init_v: fp!(30000).to_bits(),
                 init_p: 3000,
             });
             r.gk.test_process_messages(block);
         });
-        // Mine for 24h
+        // Work for 24h
         for _ in 0..7200 {
             block_number += 1;
             with_block(block_number, |block| {
@@ -2328,7 +2328,7 @@ pub mod tests {
         // Check payout
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(29855.38985958385856094607));
         assert_eq!(r.get_worker(0).tokenomic.v_deductible, fp!(0));
-        let report = r.gk.egress.drain_mining_info_update_event();
+        let report = r.gk.egress.drain_working_info_update_event();
         assert_eq!(
             FixedPoint::from_bits(report[0].settle[0].payout),
             fp!(144.61014041614143905393)
@@ -2370,13 +2370,13 @@ pub mod tests {
             r.gk.test_process_messages(block);
         });
 
-        // Start mining & send heartbeat challenge
+        // Start computing & send heartbeat challenge
         block_number += 1;
         with_block(block_number, |block| {
             for i in 0..=1 {
                 let mut worker = r.for_worker(i);
                 worker.pallet_say(msg::WorkerEvent::BenchScore(3000));
-                worker.pallet_say(msg::WorkerEvent::MiningStart {
+                worker.pallet_say(msg::WorkerEvent::Started {
                     session_id: 1,
                     init_v: fp!(30000).to_bits(),
                     init_p: 3000,

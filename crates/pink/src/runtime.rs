@@ -10,7 +10,7 @@ use frame_support::{
     weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use pallet_contracts::{Config, Frame, Schedule};
-use sp_runtime::{generic::Header, traits::IdentityLookup};
+use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::{get_side_effects, ExecSideEffects};
 pub use pink_extension::{HookPoint, Message, OspMessage, PinkEvent};
@@ -33,10 +33,15 @@ frame_support::construct_runtime! {
     }
 }
 
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
 parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(WEIGHT_PER_SECOND.saturating_mul(2));
+        frame_system::limits::BlockWeights::with_sensible_defaults(
+            (2u64 * WEIGHT_PER_SECOND).set_proof_size(u64::MAX),
+            NORMAL_DISPATCH_RATIO,
+        );
     pub const ExistentialDeposit: Balance = 1;
     pub const MaxLocks: u32 = 50;
     pub const MaxReserves: u32 = 50;
@@ -133,18 +138,15 @@ impl Config for PinkRuntime {
     type DepositPerByte = DepositPerStorageByte;
     type DepositPerItem = DepositPerStorageItem;
     type AddressGenerator = Pink;
-    type ContractAccessWeight = pallet_contracts::DefaultContractAccessWeight<RuntimeBlockWeights>;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
 }
 
 #[test]
 fn detect_parameter_changes() {
-    use sp_core::Get;
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
-        <PinkRuntime as Config>::ContractAccessWeight::get(),
         <PinkRuntime as Config>::DeletionQueueDepth::get(),
         <PinkRuntime as Config>::DeletionWeightLimit::get(),
         <PinkRuntime as Config>::MaxCodeLen::get(),
@@ -222,7 +224,6 @@ mod tests {
     const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
     const TREASURY: AccountId32 = AccountId32::new([2u8; 32]);
     const ENOUGH: Balance = Balance::MAX.saturating_div(32);
-    const GAS_LIMIT: Weight = Weight::from_ref_time(1_000_000_000_000_000);
     const FLIPPER: &[u8] = include_bytes!("../tests/fixtures/flip/flip.wasm");
     const CENT: u128 = 10_000_000_000;
 
@@ -274,6 +275,10 @@ mod tests {
 
     #[test]
     pub fn crypto_hashes_test() {
+        pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+        pub const GAS_LIMIT: Weight =
+            Weight::from_ref_time(100_000_000_000).set_proof_size(256u64 * 1024 * 1024);
+
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
                 .unwrap();
@@ -412,14 +417,14 @@ mod tests {
         }
 
         {
-            let gas_limit = est_result.gas_required - 1;
+            let gas_limit = est_result.gas_required / 2;
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
-            args.gas_limit = Weight::from_ref_time(gas_limit);
+            args.gas_limit = gas_limit;
             let result = flipper.bare_call(fn_flip.clone(), false, args).0;
             assert!(result.result.is_err());
             assert_eq!(
-                prev_free_balance - result.gas_consumed as u128 * gas_price,
+                prev_free_balance - result.gas_consumed.ref_time() as u128 * gas_price,
                 storage.free_balance(&ALICE)
             );
 
@@ -441,11 +446,11 @@ mod tests {
             let gas_limit = est_result.gas_required;
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
-            args.gas_limit = Weight::from_ref_time(gas_limit);
+            args.gas_limit = gas_limit;
             let result = flipper.bare_call(fn_flip.clone(), false, args).0;
             assert_ok!(result.result);
             let cost = prev_free_balance - storage.free_balance(&ALICE);
-            assert_eq!(cost, result.gas_consumed as u128 * gas_price);
+            assert_eq!(cost, result.gas_consumed.ref_time() as u128 * gas_price);
 
             // Should flipped
             let value: bool = {

@@ -1,4 +1,5 @@
 use frame_support::weights::Weight;
+use pallet_contracts_primitives::StorageDeposit;
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
@@ -23,6 +24,113 @@ fn _compilation_hint_for_kvdb(db: Storage) {
     // TODO.kevin: Don't forget to clean up the disk space on cluster destroying when we switch to
     // a KVDB backend.
     let _dont_forget_to_clean_up_disk: storage::Storage<storage::InMemoryBackend> = db;
+}
+
+macro_rules! define_mask_fn {
+    ($name: ident, $bits: expr, $typ: ty) => {
+        /// Mask given number's lowest bits.
+        ///
+        /// Given a number 0x1000beef, in binary representation:
+        ///     0b_10000_00000000_10111110_11101111
+        /// We want to mask it to 0x100fffff.
+        /// Rough steps:
+        ///     0b_10000_00000000_10111110_11101111
+        ///        ^
+        ///      1. we find the most left bit position here
+        ///     0b_10000_00000000_10111110_11101111
+        ///                  ^^^^^^^^^^^^^^^^^^^^^^
+        ///               2. than calculate these bits need to be mask
+        ///     0b_10000_00001111_11111111_11111111
+        ///                  ^^^^^^^^^^^^^^^^^^^^^^
+        ///               3. mask it
+        fn $name(v: $typ, min_mask_bits: u32) -> $typ {
+            // Given v = 0x1000_beef
+            // Suppose we have:
+            // bits = 64
+            // v =0b010000_00000000_10111110_11101111
+            let pos = $bits - v.leading_zeros();
+            //    0b010000_00000000_10111110_11101111
+            //      ^
+            //     here, pos=30
+            // shift right by 9
+            let pos = pos.max(9) - 9;
+            // Now pos =  0b_10000_00000000_00000000
+            //               ^
+            //              now here, pos=21
+            // If min_mask_bits = 16
+            //                  0b_10000000_00000000
+            //                     ^
+            //                  min_mask_bits here
+            let pos = pos.clamp(min_mask_bits, $bits - 1);
+            let cursor: $typ = 1 << pos;
+            //            0b_10000_00000000_00000000
+            //               ^
+            //               cursor here
+            let mask = cursor.saturating_sub(1);
+            // mask =  0b_00001111_11111111_11111111
+            // v | mask =
+            //    0b10000_00001111_11111111_11111111
+            //  = 0x100fffff
+            v | mask
+        }
+    };
+}
+
+define_mask_fn!(mask_low_bits64, 64, u64);
+define_mask_fn!(mask_low_bits128, 128, u128);
+
+fn mask_deposit(deposit: u128, deposit_per_byte: u128) -> u128 {
+    let min_mask_bits = 128 - (deposit_per_byte * 1024).leading_zeros();
+    mask_low_bits128(deposit, min_mask_bits)
+}
+
+fn mask_gas(weight: Weight) -> Weight {
+    Weight::from_ref_time(mask_low_bits64(weight.ref_time(), 28))
+}
+
+#[test]
+fn mask_low_bits_works() {
+    let min_mask_bits = 24;
+    assert_eq!(mask_low_bits64(0, min_mask_bits), 0xffffff);
+    assert_eq!(mask_low_bits64(0x10, min_mask_bits), 0xffffff);
+    assert_eq!(mask_low_bits64(0x1000_0000, min_mask_bits), 0x10ff_ffff);
+    assert_eq!(
+        mask_low_bits64(0x10_0000_0000, min_mask_bits),
+        0x10_0fff_ffff
+    );
+    assert_eq!(
+        mask_low_bits64(0x10_0000_0000_0000, min_mask_bits),
+        0x10_0fff_ffff_ffff
+    );
+    assert_eq!(
+        mask_low_bits64(0xffffffff_00000000, min_mask_bits),
+        0xffffffff_ffffffff
+    );
+
+    let price = 10;
+    assert_eq!(mask_deposit(0, price), 0x3fff);
+    assert_eq!(mask_deposit(0x10, price), 0x3fff);
+    assert_eq!(mask_deposit(0x10_0000, price), 0x10_3fff);
+    assert_eq!(mask_deposit(0x10_0000_0000, price), 0x10_0fff_ffff);
+    assert_eq!(
+        mask_deposit(0x10_0000_0000_0000, price),
+        0x10_0fff_ffff_ffff
+    );
+}
+
+fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> ContractResult<T> {
+    result.gas_consumed = mask_gas(result.gas_consumed);
+    result.gas_required = mask_gas(result.gas_required);
+
+    match &mut result.storage_deposit {
+        StorageDeposit::Charge(v) => {
+            *v = mask_deposit(*v, deposit_per_byte);
+        }
+        StorageDeposit::Refund(v) => {
+            *v = mask_deposit(*v, deposit_per_byte);
+        }
+    }
+    result
 }
 
 impl Default for Storage {
@@ -104,6 +212,7 @@ impl Contract {
             callbacks,
             gas_free,
         } = args;
+        let gas_limit = gas_limit.set_proof_size(u64::MAX);
         storage.execute_with(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
@@ -125,7 +234,11 @@ impl Contract {
                 },
             );
             log::info!("Contract instantiation result: {:?}", &result.result);
-            result
+            if in_query {
+                coarse_grained(result, PalletPink::deposit_per_byte())
+            } else {
+                result
+            }
         })
     }
 
@@ -166,8 +279,9 @@ impl Contract {
             storage_deposit_limit,
         } = tx_args;
         let addr = self.address.clone();
+        let gas_limit = gas_limit.set_proof_size(u64::MAX);
         storage.execute_with(in_query, callbacks, move || {
-            contract_tx(
+            let result = contract_tx(
                 origin.clone(),
                 block_number,
                 now,
@@ -184,7 +298,12 @@ impl Contract {
                         false,
                     )
                 },
-            )
+            );
+            if in_query {
+                coarse_grained(result, PalletPink::deposit_per_byte())
+            } else {
+                result
+            }
         })
     }
 
@@ -272,8 +391,8 @@ fn contract_tx<T>(
     Timestamp::set_timestamp(now);
     if !gas_free && PalletPink::pay_for_gas(&origin, gas_limit).is_err() {
         return ContractResult {
-            gas_consumed: 0,
-            gas_required: 0,
+            gas_consumed: Weight::zero(),
+            gas_required: Weight::zero(),
             storage_deposit: Default::default(),
             debug_message: Default::default(),
             result: Err(DispatchError::Other("InsufficientBalance")),
@@ -282,7 +401,7 @@ fn contract_tx<T>(
     let result = tx_fn();
     if !gas_free {
         let refund = gas_limit
-            .checked_sub(&Weight::from_ref_time(result.gas_consumed))
+            .checked_sub(&result.gas_consumed)
             .expect("BUG: consumed gas more than the gas limit");
         PalletPink::refund_gas(&origin, refund).expect("BUG: failed to refund gas");
     }
@@ -304,7 +423,7 @@ pub fn storage_map_prefix_twox_64_concat(
 }
 
 pub fn transpose_contract_result(result: ContractExecResult) -> Result<Vec<u8>, DispatchError> {
-    result.result.map(|v| v.data.0)
+    result.result.map(|v| v.data)
 }
 
 pub use contract_file::ContractFile;
