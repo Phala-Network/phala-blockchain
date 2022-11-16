@@ -1201,10 +1201,48 @@ impl<Platform: pal::Platform> System<Platform> {
                     .get_cluster_mut(&cluster_id) else {
                         return Ok(());
                     };
-                let _uploader = phala_types::messaging::AccountId(origin.clone().into());
-                let hash = cluster
-                    .upload_resource(&origin, resource_type, resource_data)
-                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                let system_contract = cluster.system_contract().ok_or_else(|| {
+                    anyhow!(
+                        "Failed to upload resource to cluster {cluster_id:?}: No system contract"
+                    )
+                })?;
+                let result = cluster.upload_resource(&origin, resource_type, resource_data);
+                let log_handler = self.get_system_message_handler(&cluster_id);
+                // Send the reault to the log server
+                if let Some(log_handler) = &log_handler {
+                    macro_rules! send_log {
+                        ($level: expr, $msg: expr) => {
+                            let result = log_handler.try_send(SidevmCommand::PushSystemMessage(
+                                SystemMessage::PinkLog {
+                                    block_number: block.block_number,
+                                    contract: system_contract.into(),
+                                    in_query: false,
+                                    timestamp_ms: block.now_ms,
+                                    level: $level as usize as u8,
+                                    message: $msg,
+                                },
+                            ));
+                            if result.is_err() {
+                                error!("Failed to send log to log handler");
+                            }
+                        };
+                    }
+                    match &result {
+                        Ok(hash) => {
+                            send_log!(
+                                log::Level::Info,
+                                format!("Resource uploaded to cluster, by: {origin:?} res hash={hash:?}")
+                            );
+                        }
+                        Err(err) => {
+                            send_log!(
+                                log::Level::Error,
+                                format!("Failed to upload resource to cluster, by: {origin:?} err={err:?}")
+                            );
+                        }
+                    }
+                }
+                let hash = result.map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
@@ -1280,8 +1318,16 @@ impl<Platform: pal::Platform> System<Platform> {
                                 block.block_number,
                             ),
                         };
-
-                        let (_, effects) = Pink::instantiate(
+                        let contract_id = {
+                            let buf = phala_types::contract::contract_id_preimage(
+                                deployer.as_ref(),
+                                code_hash.as_ref(),
+                                cluster_id.as_ref(),
+                                &contract_info.salt,
+                            );
+                            blake2_256(&buf)
+                        };
+                        let result = Pink::instantiate(
                             cluster_id,
                             code_hash,
                             contract_info.instantiate_data,
@@ -1289,7 +1335,39 @@ impl<Platform: pal::Platform> System<Platform> {
                             false,
                             tx_args,
                         )
-                        .with_context(|| format!("Contract deployer: {deployer:?}"))?;
+                        .with_context(|| format!("Contract deployer: {deployer:?}"));
+                        // Send the reault to the log server
+                        if let Some(log_handler) = &log_handler {
+                            macro_rules! send_log {
+                                ($level: expr, $msg: expr) => {
+                                    let result = log_handler.try_send(
+                                        SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
+                                            block_number: block.block_number,
+                                            contract: contract_id,
+                                            in_query: false,
+                                            timestamp_ms: block.now_ms,
+                                            level: $level as usize as u8,
+                                            message: $msg,
+                                        }),
+                                    );
+                                    if result.is_err() {
+                                        error!("Failed to send log to log handler");
+                                    }
+                                };
+                            }
+                            match &result {
+                                Ok(_) => {
+                                    send_log!(log::Level::Info, "Instantiated".to_owned());
+                                }
+                                Err(err) => {
+                                    send_log!(
+                                        log::Level::Error,
+                                        format!("Instantiating failed: {err:?}")
+                                    );
+                                }
+                            }
+                        }
+                        let (_, effects) = result?;
 
                         let cluster = self
                             .contract_clusters
