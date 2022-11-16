@@ -50,7 +50,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: nightly-${{ steps.date.outputs.date }}
           prerelease: true
-          body: Nighty build
+          body: Nightly build
           files: |
             ./dist/pruntime-binaries/pruntime
             ./dist/core-blockchain-binaries/phala-node
