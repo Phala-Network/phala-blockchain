@@ -122,6 +122,10 @@ impl ext::PinkExtBackend for MockExtension {
     ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
         Ok((0, 0))
     }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        super::DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
+    }
 }
 
 thread_local! {

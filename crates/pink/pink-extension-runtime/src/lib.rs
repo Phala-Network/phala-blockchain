@@ -1,5 +1,9 @@
 use std::borrow::Cow;
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{
+    fmt::Display,
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
 
 use pink_extension::{
     chain_extension::{
@@ -260,6 +264,13 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn balance_of(&self, _account: ext::AccountId) -> Result<(Balance, Balance), Self::Error> {
         Ok((0, 0))
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        let duration = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .or(Err("The system time is earlier than UNIX_EPOCH"))?;
+        Ok(duration.as_millis() as u64)
     }
 }
 

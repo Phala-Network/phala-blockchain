@@ -7,7 +7,7 @@ pub use http_request::{HttpRequest, HttpResponse};
 pub use ink_env::AccountId;
 pub use signing::SigType;
 
-use crate::{EcdsaPublicKey, EcdsaSignature, Hash, Balance};
+use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
 
 mod http_request;
 pub mod signing;
@@ -112,6 +112,10 @@ pub trait PinkExt {
     /// Get (total, free) balance of given contract
     #[ink(extension = 16, handle_status = false, returns_result = false)]
     fn balance_of(account: AccountId) -> (Balance, Balance);
+
+    /// Get current millis since unix epoch from the OS. (Query only)
+    #[ink(extension = 18, handle_status = false, returns_result = false)]
+    fn untrusted_millis_since_unix_epoch() -> u64;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

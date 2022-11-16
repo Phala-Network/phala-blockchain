@@ -296,6 +296,10 @@ impl PinkExtBackend for CallInQuery {
         let free = crate::runtime::Balances::free_balance(&account);
         Ok((total, free))
     }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
+    }
 }
 
 struct CallInCommand {
@@ -422,5 +426,9 @@ impl PinkExtBackend for CallInCommand {
         account: ext::AccountId,
     ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
         self.as_in_query.balance_of(account)
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        Err("untrusted_millis_since_unix_epoch is not allowed in command".into())
     }
 }

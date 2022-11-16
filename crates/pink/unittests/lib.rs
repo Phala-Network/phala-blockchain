@@ -50,4 +50,17 @@ mod tests {
         let pass = sig::ecdsa_verify_prehashed(signature, fake_message, pubkey);
         assert!(!pass);
     }
+
+    #[test]
+    fn test_systime() {
+        use std::time::SystemTime;
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let ms = pink::ext().untrusted_millis_since_unix_epoch();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        assert!((now as i128 - ms as i128).abs() < 100);
+    }
 }
