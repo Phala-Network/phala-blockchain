@@ -279,10 +279,7 @@ impl PinkExtBackend for CallInQuery {
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         crate::runtime::Pink::system_contract()
-            .map(|address| {
-                ext::AccountId::try_from(address.as_ref())
-                    .expect("Convert from AccountId32 to ink_env::AccountId should always success")
-            })
+            .map(|address| address.convert_to())
             .ok_or(DispatchError::Other("No system contract installed"))
     }
 
@@ -313,9 +310,12 @@ impl PinkExtBackend for CallInCommand {
     type Error = DispatchError;
 
     fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        Err(DispatchError::Other(
-            "http_request can only be called in query mode",
-        ))
+        Ok(HttpResponse {
+            status_code: 523,
+            reason_phrase: "API Unavailable".into(),
+            headers: vec![],
+            body: vec![],
+        })
     }
     fn sign(
         &self,
@@ -324,7 +324,7 @@ impl PinkExtBackend for CallInCommand {
         message: Cow<[u8]>,
     ) -> Result<Vec<u8>, Self::Error> {
         if matches!(sigtype, SigType::Sr25519) {
-            return Err("signing with sr25519 is not allowed in command".into());
+            return Ok(vec![]);
         }
         self.as_in_query.sign(sigtype, key, message)
     }
@@ -392,7 +392,7 @@ impl PinkExtBackend for CallInCommand {
     }
 
     fn getrandom(&self, _length: u8) -> Result<Vec<u8>, Self::Error> {
-        Err("getrandom is not allowed in command".into())
+        Ok(vec![])
     }
 
     fn is_in_transaction(&self) -> Result<bool, Self::Error> {
@@ -429,6 +429,6 @@ impl PinkExtBackend for CallInCommand {
     }
 
     fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
-        Err("untrusted_millis_since_unix_epoch is not allowed in command".into())
+        Ok(0)
     }
 }
