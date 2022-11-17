@@ -7012,7 +7012,7 @@ $root.pruntime_rpc = (function() {
          * @property {boolean|null} [registered] WorkerState registered
          * @property {boolean|null} [unresponsive] WorkerState unresponsive
          * @property {pruntime_rpc.IBenchState|null} [benchState] WorkerState benchState
-         * @property {pruntime_rpc.IMiningState|null} [miningState] WorkerState miningState
+         * @property {pruntime_rpc.IWorkingState|null} [workingState] WorkerState workingState
          * @property {Array.<number>|null} [waitingHeartbeats] WorkerState waitingHeartbeats
          * @property {pruntime_rpc.ITokenomicInfo|null} [tokenomicInfo] WorkerState tokenomicInfo
          * @property {pruntime_rpc.IWorkerStat|null} [stat] WorkerState stat
@@ -7059,12 +7059,12 @@ $root.pruntime_rpc = (function() {
         WorkerState.prototype.benchState = null;
 
         /**
-         * WorkerState miningState.
-         * @member {pruntime_rpc.IMiningState|null|undefined} miningState
+         * WorkerState workingState.
+         * @member {pruntime_rpc.IWorkingState|null|undefined} workingState
          * @memberof pruntime_rpc.WorkerState
          * @instance
          */
-        WorkerState.prototype.miningState = null;
+        WorkerState.prototype.workingState = null;
 
         /**
          * WorkerState waitingHeartbeats.
@@ -7120,8 +7120,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 2, wireType 0 =*/16).bool(message.unresponsive);
             if (message.benchState != null && Object.hasOwnProperty.call(message, "benchState"))
                 $root.pruntime_rpc.BenchState.encode(message.benchState, writer.uint32(/* id 3, wireType 2 =*/26).fork()).ldelim();
-            if (message.miningState != null && Object.hasOwnProperty.call(message, "miningState"))
-                $root.pruntime_rpc.MiningState.encode(message.miningState, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
+            if (message.workingState != null && Object.hasOwnProperty.call(message, "workingState"))
+                $root.pruntime_rpc.WorkingState.encode(message.workingState, writer.uint32(/* id 4, wireType 2 =*/34).fork()).ldelim();
             if (message.waitingHeartbeats != null && message.waitingHeartbeats.length) {
                 writer.uint32(/* id 5, wireType 2 =*/42).fork();
                 for (var i = 0; i < message.waitingHeartbeats.length; ++i)
@@ -7176,7 +7176,7 @@ $root.pruntime_rpc = (function() {
                     message.benchState = $root.pruntime_rpc.BenchState.decode(reader, reader.uint32());
                     break;
                 case 4:
-                    message.miningState = $root.pruntime_rpc.MiningState.decode(reader, reader.uint32());
+                    message.workingState = $root.pruntime_rpc.WorkingState.decode(reader, reader.uint32());
                     break;
                 case 5:
                     if (!(message.waitingHeartbeats && message.waitingHeartbeats.length))
@@ -7240,10 +7240,10 @@ $root.pruntime_rpc = (function() {
                 if (error)
                     return "benchState." + error;
             }
-            if (message.miningState != null && message.hasOwnProperty("miningState")) {
-                var error = $root.pruntime_rpc.MiningState.verify(message.miningState);
+            if (message.workingState != null && message.hasOwnProperty("workingState")) {
+                var error = $root.pruntime_rpc.WorkingState.verify(message.workingState);
                 if (error)
-                    return "miningState." + error;
+                    return "workingState." + error;
             }
             if (message.waitingHeartbeats != null && message.hasOwnProperty("waitingHeartbeats")) {
                 if (!Array.isArray(message.waitingHeartbeats))
@@ -7286,10 +7286,10 @@ $root.pruntime_rpc = (function() {
                     throw TypeError(".pruntime_rpc.WorkerState.benchState: object expected");
                 message.benchState = $root.pruntime_rpc.BenchState.fromObject(object.benchState);
             }
-            if (object.miningState != null) {
-                if (typeof object.miningState !== "object")
-                    throw TypeError(".pruntime_rpc.WorkerState.miningState: object expected");
-                message.miningState = $root.pruntime_rpc.MiningState.fromObject(object.miningState);
+            if (object.workingState != null) {
+                if (typeof object.workingState !== "object")
+                    throw TypeError(".pruntime_rpc.WorkerState.workingState: object expected");
+                message.workingState = $root.pruntime_rpc.WorkingState.fromObject(object.workingState);
             }
             if (object.waitingHeartbeats) {
                 if (!Array.isArray(object.waitingHeartbeats))
@@ -7330,7 +7330,7 @@ $root.pruntime_rpc = (function() {
                 object.registered = false;
                 object.unresponsive = false;
                 object.benchState = null;
-                object.miningState = null;
+                object.workingState = null;
                 object.tokenomicInfo = null;
                 object.stat = null;
             }
@@ -7340,8 +7340,8 @@ $root.pruntime_rpc = (function() {
                 object.unresponsive = message.unresponsive;
             if (message.benchState != null && message.hasOwnProperty("benchState"))
                 object.benchState = $root.pruntime_rpc.BenchState.toObject(message.benchState, options);
-            if (message.miningState != null && message.hasOwnProperty("miningState"))
-                object.miningState = $root.pruntime_rpc.MiningState.toObject(message.miningState, options);
+            if (message.workingState != null && message.hasOwnProperty("workingState"))
+                object.workingState = $root.pruntime_rpc.WorkingState.toObject(message.workingState, options);
             if (message.waitingHeartbeats && message.waitingHeartbeats.length) {
                 object.waitingHeartbeats = [];
                 for (var j = 0; j < message.waitingHeartbeats.length; ++j)
@@ -8258,26 +8258,26 @@ $root.pruntime_rpc = (function() {
         return BenchState;
     })();
 
-    pruntime_rpc.MiningState = (function() {
+    pruntime_rpc.WorkingState = (function() {
 
         /**
-         * Properties of a MiningState.
+         * Properties of a WorkingState.
          * @memberof pruntime_rpc
-         * @interface IMiningState
-         * @property {number|null} [sessionId] MiningState sessionId
-         * @property {boolean|null} [paused] MiningState paused
-         * @property {number|Long|null} [startTime] MiningState startTime
+         * @interface IWorkingState
+         * @property {number|null} [sessionId] WorkingState sessionId
+         * @property {boolean|null} [paused] WorkingState paused
+         * @property {number|Long|null} [startTime] WorkingState startTime
          */
 
         /**
-         * Constructs a new MiningState.
+         * Constructs a new WorkingState.
          * @memberof pruntime_rpc
-         * @classdesc Represents a MiningState.
-         * @implements IMiningState
+         * @classdesc Represents a WorkingState.
+         * @implements IWorkingState
          * @constructor
-         * @param {pruntime_rpc.IMiningState=} [properties] Properties to set
+         * @param {pruntime_rpc.IWorkingState=} [properties] Properties to set
          */
-        function MiningState(properties) {
+        function WorkingState(properties) {
             if (properties)
                 for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
                     if (properties[keys[i]] != null)
@@ -8285,51 +8285,51 @@ $root.pruntime_rpc = (function() {
         }
 
         /**
-         * MiningState sessionId.
+         * WorkingState sessionId.
          * @member {number} sessionId
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @instance
          */
-        MiningState.prototype.sessionId = 0;
+        WorkingState.prototype.sessionId = 0;
 
         /**
-         * MiningState paused.
+         * WorkingState paused.
          * @member {boolean} paused
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @instance
          */
-        MiningState.prototype.paused = false;
+        WorkingState.prototype.paused = false;
 
         /**
-         * MiningState startTime.
+         * WorkingState startTime.
          * @member {number|Long} startTime
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @instance
          */
-        MiningState.prototype.startTime = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
+        WorkingState.prototype.startTime = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
-         * Creates a new MiningState instance using the specified properties.
+         * Creates a new WorkingState instance using the specified properties.
          * @function create
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
-         * @param {pruntime_rpc.IMiningState=} [properties] Properties to set
-         * @returns {pruntime_rpc.MiningState} MiningState instance
+         * @param {pruntime_rpc.IWorkingState=} [properties] Properties to set
+         * @returns {pruntime_rpc.WorkingState} WorkingState instance
          */
-        MiningState.create = function create(properties) {
-            return new MiningState(properties);
+        WorkingState.create = function create(properties) {
+            return new WorkingState(properties);
         };
 
         /**
-         * Encodes the specified MiningState message. Does not implicitly {@link pruntime_rpc.MiningState.verify|verify} messages.
+         * Encodes the specified WorkingState message. Does not implicitly {@link pruntime_rpc.WorkingState.verify|verify} messages.
          * @function encode
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
-         * @param {pruntime_rpc.IMiningState} message MiningState message or plain object to encode
+         * @param {pruntime_rpc.IWorkingState} message WorkingState message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MiningState.encode = function encode(message, writer) {
+        WorkingState.encode = function encode(message, writer) {
             if (!writer)
                 writer = $Writer.create();
             if (message.sessionId != null && Object.hasOwnProperty.call(message, "sessionId"))
@@ -8342,33 +8342,33 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Encodes the specified MiningState message, length delimited. Does not implicitly {@link pruntime_rpc.MiningState.verify|verify} messages.
+         * Encodes the specified WorkingState message, length delimited. Does not implicitly {@link pruntime_rpc.WorkingState.verify|verify} messages.
          * @function encodeDelimited
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
-         * @param {pruntime_rpc.IMiningState} message MiningState message or plain object to encode
+         * @param {pruntime_rpc.IWorkingState} message WorkingState message or plain object to encode
          * @param {$protobuf.Writer} [writer] Writer to encode to
          * @returns {$protobuf.Writer} Writer
          */
-        MiningState.encodeDelimited = function encodeDelimited(message, writer) {
+        WorkingState.encodeDelimited = function encodeDelimited(message, writer) {
             return this.encode(message, writer).ldelim();
         };
 
         /**
-         * Decodes a MiningState message from the specified reader or buffer.
+         * Decodes a WorkingState message from the specified reader or buffer.
          * @function decode
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
          * @param {number} [length] Message length if known beforehand
-         * @returns {pruntime_rpc.MiningState} MiningState
+         * @returns {pruntime_rpc.WorkingState} WorkingState
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MiningState.decode = function decode(reader, length) {
+        WorkingState.decode = function decode(reader, length) {
             if (!(reader instanceof $Reader))
                 reader = $Reader.create(reader);
-            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.MiningState();
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.WorkingState();
             while (reader.pos < end) {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
@@ -8390,30 +8390,30 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Decodes a MiningState message from the specified reader or buffer, length delimited.
+         * Decodes a WorkingState message from the specified reader or buffer, length delimited.
          * @function decodeDelimited
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
          * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
-         * @returns {pruntime_rpc.MiningState} MiningState
+         * @returns {pruntime_rpc.WorkingState} WorkingState
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        MiningState.decodeDelimited = function decodeDelimited(reader) {
+        WorkingState.decodeDelimited = function decodeDelimited(reader) {
             if (!(reader instanceof $Reader))
                 reader = new $Reader(reader);
             return this.decode(reader, reader.uint32());
         };
 
         /**
-         * Verifies a MiningState message.
+         * Verifies a WorkingState message.
          * @function verify
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
          * @param {Object.<string,*>} message Plain object to verify
          * @returns {string|null} `null` if valid, otherwise the reason why it is not
          */
-        MiningState.verify = function verify(message) {
+        WorkingState.verify = function verify(message) {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.sessionId != null && message.hasOwnProperty("sessionId"))
@@ -8429,17 +8429,17 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Creates a MiningState message from a plain object. Also converts values to their respective internal types.
+         * Creates a WorkingState message from a plain object. Also converts values to their respective internal types.
          * @function fromObject
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
          * @param {Object.<string,*>} object Plain object
-         * @returns {pruntime_rpc.MiningState} MiningState
+         * @returns {pruntime_rpc.WorkingState} WorkingState
          */
-        MiningState.fromObject = function fromObject(object) {
-            if (object instanceof $root.pruntime_rpc.MiningState)
+        WorkingState.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.WorkingState)
                 return object;
-            var message = new $root.pruntime_rpc.MiningState();
+            var message = new $root.pruntime_rpc.WorkingState();
             if (object.sessionId != null)
                 message.sessionId = object.sessionId >>> 0;
             if (object.paused != null)
@@ -8457,15 +8457,15 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Creates a plain object from a MiningState message. Also converts values to other types if specified.
+         * Creates a plain object from a WorkingState message. Also converts values to other types if specified.
          * @function toObject
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @static
-         * @param {pruntime_rpc.MiningState} message MiningState
+         * @param {pruntime_rpc.WorkingState} message WorkingState
          * @param {$protobuf.IConversionOptions} [options] Conversion options
          * @returns {Object.<string,*>} Plain object
          */
-        MiningState.toObject = function toObject(message, options) {
+        WorkingState.toObject = function toObject(message, options) {
             if (!options)
                 options = {};
             var object = {};
@@ -8491,17 +8491,17 @@ $root.pruntime_rpc = (function() {
         };
 
         /**
-         * Converts this MiningState to JSON.
+         * Converts this WorkingState to JSON.
          * @function toJSON
-         * @memberof pruntime_rpc.MiningState
+         * @memberof pruntime_rpc.WorkingState
          * @instance
          * @returns {Object.<string,*>} JSON object
          */
-        MiningState.prototype.toJSON = function toJSON() {
+        WorkingState.prototype.toJSON = function toJSON() {
             return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
         };
 
-        return MiningState;
+        return WorkingState;
     })();
 
     pruntime_rpc.EchoMessage = (function() {
