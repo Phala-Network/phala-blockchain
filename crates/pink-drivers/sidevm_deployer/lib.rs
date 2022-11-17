@@ -8,8 +8,10 @@ use pink_extension as pink;
 mod sidevm_deployer {
     use super::pink;
     use ink_storage::{traits::SpreadAllocate, Mapping};
-    use pink::system::{Error, Result};
+    use pink::system::DriverError as Error;
     use pink::PinkEnvironment;
+
+    type Result<T> = core::result::Result<T, Error>;
 
     #[ink(storage)]
     #[derive(SpreadAllocate)]
@@ -46,7 +48,8 @@ mod sidevm_deployer {
                 return Err(Error::BadOrigin);
             }
             let system = pink::system::SystemRef::instance();
-            system.deploy_sidevm_to(caller, code_hash)
+            system.deploy_sidevm_to(caller, code_hash)?;
+            Ok(())
         }
     }
 

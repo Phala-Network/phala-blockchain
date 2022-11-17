@@ -11,7 +11,7 @@ mod system {
     use super::pink;
     use alloc::string::String;
     use ink_storage::{traits::SpreadAllocate, Mapping};
-    use pink::system::{ContractDeposit, ContractDepositRef, Error, Result};
+    use pink::system::{ContractDeposit, ContractDepositRef, Error, Result, DriverError};
     use pink::{HookPoint, PinkEnvironment};
 
     /// Pink's system contract.
@@ -38,7 +38,7 @@ mod system {
             if caller == self.owner {
                 Ok(caller)
             } else {
-                Err(Error::BadOrigin)
+                Err(Error::PermisionDenied)
             }
         }
 
@@ -47,7 +47,7 @@ mod system {
             if self.administrators.contains(&caller) {
                 return Ok(caller);
             }
-            Err(Error::BadOrigin)
+            Err(Error::PermisionDenied)
         }
 
         fn ensure_owner_or_admin(&self) -> Result<AccountId> {
@@ -59,7 +59,7 @@ mod system {
             if caller == self.env().account_id() {
                 Ok(caller)
             } else {
-                Err(Error::BadOrigin)
+                Err(Error::PermisionDenied)
             }
         }
     }
@@ -142,7 +142,7 @@ mod system {
 
     impl ContractDeposit for System {
         #[ink(message)]
-        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
+        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<(), DriverError> {
             self.ensure_self()?;
             let flags = ink_env::CallFlags::default().set_allow_reentry(true);
             match ContractDepositRef::instance_with_call_flags(flags) {

@@ -8,7 +8,7 @@ use pink_extension as pink;
 mod check_system {
     use super::pink;
     use alloc::vec::Vec;
-    use pink::system::{ContractDeposit, Result, SystemRef};
+    use pink::system::{ContractDeposit, Result, SystemRef, DriverError};
     use pink::PinkEnvironment;
 
     #[ink(storage)]
@@ -73,11 +73,12 @@ mod check_system {
 
     impl ContractDeposit for CheckSystem {
         #[ink(message)]
-        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
+        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<(), DriverError> {
             const CENTS: Balance = 10_000_000_000;
             let system = SystemRef::instance();
             let weight = deposit / CENTS;
-            system.set_contract_weight(contract_id, weight as u32)
+            system.set_contract_weight(contract_id, weight as u32)?;
+            Ok(())
         }
     }
 }
