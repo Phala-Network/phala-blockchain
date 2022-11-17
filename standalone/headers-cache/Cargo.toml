@@ -18,3 +18,4 @@ rocksdb = { version = "0.19.0", default-features = false, features = ["snappy", 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
+reqwest = "0.11.12"

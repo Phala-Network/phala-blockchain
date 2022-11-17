@@ -1,66 +1,91 @@
 use anyhow::Context as _;
 use log::{info, warn};
+use scale::Encode;
 
-use pherry::headers_cache as cache;
+use pherry::{headers_cache as cache, types::rpc::ExtraRpcExt};
 
-use crate::db::CacheDB;
+use crate::{db::CacheDB, BlockNumber};
 
 pub async fn run(
     db: CacheDB,
     node_uri: &str,
     para_node_uri: &str,
-    interval: u64,
+    check_interval: u64,
+    justification_interval: BlockNumber,
 ) -> anyhow::Result<()> {
     let Some(mut metadata) = db.get_metadata()? else {
-        info!("No metadata in the DB, can not grab");
-        return Ok(());
+        anyhow::bail!("No metadata in the DB, can not grab");
     };
-    let Some(highest) = metadata.higest.header else {
-        info!("There aren't any headers in the DB, can not grab");
-        return Ok(());
+    let Some(highest) = metadata.recent_imported.header else {
+        anyhow::bail!("There aren't any headers in the DB, can not grab");
     };
 
-    let mut from_block = highest + 1;
+    let mut next_block = highest + 1;
 
     loop {
-        info!("Sleeping for {interval} seconds...");
-        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
-
+        info!("Connecting to {node_uri}...");
         let Ok(api) = pherry::subxt_connect(node_uri).await else {
             warn!("Failed to connect to {node_uri}, try again later");
+            sleep(check_interval).await;
             continue;
         };
+
+        info!("Connecting to {para_node_uri}...");
         let Ok(para_api) = pherry::subxt_connect(para_node_uri).await else {
             warn!("Failed to connect to {para_node_uri}, try again later");
+            sleep(check_interval).await;
             continue;
         };
 
         loop {
-            info!("Starting to grab headers from {from_block}...");
-            let mut buffer = vec![];
-            let result =
-                cache::grap_headers_to_file(&api, &para_api, from_block, 10, 0, &mut buffer).await;
-            match result {
-                Ok(count) => {
-                    if count == 0 {
-                        break;
-                    }
-                    let count = cache::read_items(&buffer[..], |record| {
-                        let header = record.header().context("Failed to decode record header")?;
-                        db.put_header(header.number, record.payload())
-                            .context("Failed to put record to DB")?;
-                        metadata.update_header(header.number);
-                        Ok(false)
-                    })?;
-                    db.put_metadata(&metadata)
-                        .context("Failed to update metadata")?;
-                    from_block += count;
-                }
+            info!("Trying to grab next={next_block}, just_interval={justification_interval}");
+            let state = match api.extra_rpc().system_sync_state().await {
+                Ok(state) => state,
                 Err(err) => {
-                    warn!("Failed to grab header from node: {err:?}");
+                    warn!("Failed to get node state: {err:?}");
+                    sleep(check_interval).await;
                     break;
                 }
+            };
+            info!("Node state: {state:?}");
+            if (state.current_block as BlockNumber) < next_block + justification_interval {
+                info!("Continue waiting for enough blocks in node");
+                sleep(check_interval).await;
+                continue;
             }
+
+            info!("Grabbing...");
+            let result = cache::grab_headers(
+                &api,
+                &para_api,
+                next_block,
+                u32::MAX,
+                justification_interval,
+                |info| {
+                    if info.justification.is_some() {
+                        info!("Got justification at {}", info.header.number);
+                    }
+                    db.put_header(info.header.number, &info.encode())
+                        .context("Failed to put record to DB")?;
+                    metadata.update_header(info.header.number);
+                    db.put_metadata(&metadata)
+                        .context("Failed to update metadata")?;
+                    next_block = info.header.number + 1;
+                    Ok(())
+                },
+            )
+            .await;
+            if let Err(err) = result {
+                warn!("Failed to grab header from node: {err:?}");
+                sleep(check_interval).await;
+                break;
+            }
+            sleep(check_interval).await;
         }
     }
+}
+
+async fn sleep(secs: u64) {
+    info!("Sleeping for {secs} seconds...");
+    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
 }
