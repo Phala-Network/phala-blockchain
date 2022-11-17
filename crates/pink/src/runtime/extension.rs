@@ -13,7 +13,7 @@ use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    dispatch_ext_call, CacheOp, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
+    dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
@@ -21,7 +21,7 @@ use sp_core::H256;
 use sp_runtime::{AccountId32, DispatchError};
 
 use crate::{
-    runtime::{get_call_elapsed, get_call_mode, CallMode},
+    runtime::{get_call_elapsed, get_call_mode_info, CallMode},
     types::AccountId,
 };
 
@@ -113,10 +113,12 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             .as_ref()
             .try_into()
             .expect("Address should be valid");
+        let call_info = get_call_mode_info().expect("BUG: call ext out of runtime context");
         let call_in_query = CallInQuery {
             address: AccountId::new(address),
+            worker_pubkey: call_info.worker_pubkey,
         };
-        let result = if matches!(get_call_mode(), Some(CallMode::Command)) {
+        let result = if matches!(call_info.mode, CallMode::Command) {
             let call = CallInCommand {
                 as_in_query: call_in_query,
             };
@@ -147,6 +149,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
 
 struct CallInQuery {
     address: AccountId,
+    worker_pubkey: EcdhPublicKey,
 }
 
 impl PinkRuntimeEnv for CallInQuery {
@@ -297,6 +300,10 @@ impl PinkExtBackend for CallInQuery {
     fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
         DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
     }
+
+    fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
+        Ok(self.worker_pubkey)
+    }
 }
 
 struct CallInCommand {
@@ -430,5 +437,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
         Ok(0)
+    }
+
+    fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
     }
 }
