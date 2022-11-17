@@ -13,7 +13,10 @@ use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
 use phala_scheduler::RequestScheduler;
-use pink::{runtime::ExecSideEffects, types::AccountId};
+use pink::{
+    runtime::ExecSideEffects,
+    types::{AccountId, Weight},
+};
 use runtime::BlockNumber;
 
 use crate::contracts;
@@ -434,8 +437,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
-    cluster_key_distribution_events:
-        TypedReceiver<ClusterOperation<chain::AccountId, chain::BlockNumber>>,
+    cluster_key_distribution_events: TypedReceiver<ClusterOperation<chain::AccountId>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -1157,8 +1159,9 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ClusterOperation<chain::AccountId, chain::BlockNumber>,
+        event: ClusterOperation<chain::AccountId>,
     ) -> Result<()> {
+        let sender = &origin;
         match event {
             ClusterOperation::DispatchKeys(event) => {
                 let cluster = event.cluster;
@@ -1194,18 +1197,75 @@ impl<Platform: pal::Platform> System<Platform> {
                 resource_type,
                 resource_data,
             } => {
-                let cluster = self
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                let Some(cluster) = self
                     .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .context("Cluster not deployed")?;
-                let _uploader = phala_types::messaging::AccountId(origin.clone().into());
-                let hash = cluster
-                    .upload_resource(origin, resource_type, resource_data)
-                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                    .get_cluster_mut(&cluster_id) else {
+                        return Ok(());
+                    };
+                let system_contract = cluster.system_contract().ok_or_else(|| {
+                    anyhow!(
+                        "Failed to upload resource to cluster {cluster_id:?}: No system contract"
+                    )
+                })?;
+                let result = cluster.upload_resource(&origin, resource_type, resource_data);
+                let log_handler = self.get_system_message_handler(&cluster_id);
+                // Send the reault to the log server
+                if let Some(log_handler) = &log_handler {
+                    macro_rules! send_log {
+                        ($level: expr, $msg: expr) => {
+                            let result = log_handler.try_send(SidevmCommand::PushSystemMessage(
+                                SystemMessage::PinkLog {
+                                    block_number: block.block_number,
+                                    contract: system_contract.into(),
+                                    in_query: false,
+                                    timestamp_ms: block.now_ms,
+                                    level: $level as usize as u8,
+                                    message: $msg,
+                                },
+                            ));
+                            if result.is_err() {
+                                error!("Failed to send log to log handler");
+                            }
+                        };
+                    }
+                    match &result {
+                        Ok(hash) => {
+                            send_log!(
+                                log::Level::Info,
+                                format!("Resource uploaded to cluster, by: {origin:?} res hash={hash:?}")
+                            );
+                        }
+                        Err(err) => {
+                            send_log!(
+                                log::Level::Error,
+                                format!("Failed to upload resource to cluster, by: {origin:?} err={err:?}")
+                            );
+                        }
+                    }
+                }
+                let hash = result.map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
                 );
+            }
+            ClusterOperation::Deposit {
+                cluster_id,
+                account,
+                amount,
+            } => {
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                let Some(cluster) = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id) else {
+                        return Ok(());
+                    };
+                cluster.deposit(&account, amount);
             }
         }
         Ok(())
@@ -1222,12 +1282,18 @@ impl<Platform: pal::Platform> System<Platform> {
             anyhow::bail!("Invalid origin {:?} for contract operation", sender);
         }
         match event {
-            ContractOperation::InstantiateCode { contract_info } => {
+            ContractOperation::InstantiateCode {
+                contract_info,
+                transfer,
+                gas_limit,
+                storage_deposit_limit,
+            } => {
                 let cluster_id = contract_info.cluster_id;
-                let cluster = self
+                let Some(cluster) = self
                     .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .context("Cluster not deployed")?;
+                    .get_cluster_mut(&cluster_id) else {
+                        return Ok(());
+                    };
                 if cluster.system_contract().is_none() {
                     anyhow::bail!("The system contract is missing, Cannot deploy contract");
                 }
@@ -1237,22 +1303,75 @@ impl<Platform: pal::Platform> System<Platform> {
 
                         let log_handler = self.get_system_message_handler(&cluster_id);
 
-                        let effects = self
+                        let cluster = self
                             .contract_clusters
-                            .instantiate_contract(
-                                cluster_id,
-                                deployer.clone(),
-                                code_hash,
-                                contract_info.instantiate_data,
-                                contract_info.salt,
+                            .get_cluster_mut(&cluster_id)
+                            .context("Cluster must exist before instantiation")?;
+
+                        let tx_args = ::pink::TransactionArguments {
+                            origin: deployer.clone(),
+                            now: block.now_ms,
+                            block_number: block.block_number,
+                            storage: &mut cluster.storage,
+                            transfer,
+                            gas_limit: Weight::from_ref_time(gas_limit),
+                            gas_free: false,
+                            storage_deposit_limit,
+                            callbacks: ContractEventCallback::from_log_sender(
+                                &log_handler,
                                 block.block_number,
-                                block.now_ms,
-                                ContractEventCallback::from_log_sender(
-                                    &log_handler,
-                                    block.block_number,
-                                ),
-                            )
-                            .with_context(|| format!("Contract deployer: {deployer:?}"))?;
+                            ),
+                        };
+                        let contract_id = {
+                            let buf = phala_types::contract::contract_id_preimage(
+                                deployer.as_ref(),
+                                code_hash.as_ref(),
+                                cluster_id.as_ref(),
+                                &contract_info.salt,
+                            );
+                            blake2_256(&buf)
+                        };
+                        let result = Pink::instantiate(
+                            cluster_id,
+                            code_hash,
+                            contract_info.instantiate_data,
+                            contract_info.salt,
+                            false,
+                            tx_args,
+                        )
+                        .with_context(|| format!("Contract deployer: {deployer:?}"));
+                        // Send the reault to the log server
+                        if let Some(log_handler) = &log_handler {
+                            macro_rules! send_log {
+                                ($level: expr, $msg: expr) => {
+                                    let result = log_handler.try_send(
+                                        SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
+                                            block_number: block.block_number,
+                                            contract: contract_id,
+                                            in_query: false,
+                                            timestamp_ms: block.now_ms,
+                                            level: $level as usize as u8,
+                                            message: $msg,
+                                        }),
+                                    );
+                                    if result.is_err() {
+                                        error!("Failed to send log to log handler");
+                                    }
+                                };
+                            }
+                            match &result {
+                                Ok(_) => {
+                                    send_log!(log::Level::Info, "Instantiated".to_owned());
+                                }
+                                Err(err) => {
+                                    send_log!(
+                                        log::Level::Error,
+                                        format!("Instantiating failed: {err:?}")
+                                    );
+                                }
+                            }
+                        }
+                        let (_, effects) = result?;
 
                         let cluster = self
                             .contract_clusters
@@ -1436,7 +1555,7 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: BatchDispatchClusterKeyEvent<chain::BlockNumber>,
+        event: BatchDispatchClusterKeyEvent,
     ) -> anyhow::Result<()> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -1449,7 +1568,17 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let my_pubkey = self.identity_key.public();
         if event.secret_keys.contains_key(&my_pubkey) {
-            let encrypted_key = &event.secret_keys[&my_pubkey];
+            let BatchDispatchClusterKeyEvent {
+                secret_keys,
+                cluster: cluster_id,
+                owner,
+                deposit,
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
+                treasury_account,
+            } = event;
+            let encrypted_key = &secret_keys[&my_pubkey];
             let cluster_key = self.decrypt_key_from(
                 &encrypted_key.ecdh_pubkey,
                 &encrypted_key.encrypted_key,
@@ -1458,9 +1587,9 @@ impl<Platform: pal::Platform> System<Platform> {
             info!("Worker: successfully decrypt received cluster key");
 
             // TODO(shelven): forget cluster key after expiration time
-            let cluster = self.contract_clusters.get_cluster_mut(&event.cluster);
+            let cluster = self.contract_clusters.get_cluster_mut(&cluster_id);
             if cluster.is_some() {
-                error!("Cluster {:?} is already deployed", &event.cluster);
+                error!("Cluster {:?} is already deployed", &cluster_id);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
             let system_code = block
@@ -1471,42 +1600,54 @@ impl<Platform: pal::Platform> System<Platform> {
                 .ok_or(TransactionError::NoPinkSystemCode)?;
             info!(
                 "Worker: creating cluster {:?}, owner={:?}, code length={}",
-                event.cluster,
-                event.owner,
+                cluster_id,
+                owner,
                 system_code.len()
             );
             // register cluster
             let cluster = self
                 .contract_clusters
                 .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+            cluster.setup(
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
+                &treasury_account,
+            );
+            cluster.deposit(&owner, deposit);
             let code_hash = cluster
-                .upload_resource(event.owner.clone(), ResourceType::InkCode, system_code)
+                .upload_resource(&owner, ResourceType::InkCode, system_code)
                 .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
             info!("Worker: pink system code hash {:?}", code_hash);
             let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
 
-            let (pink, effects) = Pink::instantiate(
-                event.cluster,
-                &mut cluster.storage,
-                event.owner.clone(),
-                code_hash,
-                selector,
-                vec![],
-                block.block_number,
-                block.now_ms,
-                None,
-            )?;
+            let args = ::pink::TransactionArguments {
+                origin: owner.clone(),
+                now: block.now_ms,
+                block_number: block.block_number,
+                storage: &mut cluster.storage,
+                transfer: 0,
+                gas_limit: Weight::MAX,
+                gas_free: true,
+                storage_deposit_limit: None,
+                callbacks: None,
+            };
+            let (pink, effects) =
+                Pink::instantiate(event.cluster, code_hash, selector, vec![], false, args)?;
             // Record the version
             let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
-            let (result, _) = pink.instance.bare_call(
-                &mut cluster.storage,
-                event.owner.clone(),
-                selector,
-                true,
-                block.block_number,
-                block.now_ms,
-                None,
-            );
+            let args = ::pink::TransactionArguments {
+                origin: owner,
+                now: block.now_ms,
+                block_number: block.block_number,
+                storage: &mut cluster.storage,
+                transfer: 0,
+                gas_limit: Weight::MAX,
+                gas_free: true,
+                storage_deposit_limit: None,
+                callbacks: None,
+            };
+            let (result, _) = pink.instance.bare_call(selector, true, args);
             let output = result
                 .result
                 .or(Err(TransactionError::BadPinkSystemVersion))?;
@@ -1585,6 +1726,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
 impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self) -> Result<()> {
+        ::pink::runtime::set_worker_pubkey(self.ecdh_key.public());
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
         self.contracts.apply_local_cache_quotas();
         self.check_retirement();
@@ -1794,12 +1936,13 @@ pub(crate) fn apply_pink_events(
                 hook,
                 contract: target_contract,
                 selector,
+                gas_limit,
             } => {
                 ensure_system!();
                 let contract = get_contract!(&target_contract);
                 match hook {
                     HookPoint::OnBlockEnd => {
-                        contract.set_on_block_end_selector(selector);
+                        contract.set_on_block_end_selector(selector, gas_limit);
                     }
                 }
             }

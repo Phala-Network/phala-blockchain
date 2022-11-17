@@ -114,6 +114,21 @@ impl ext::PinkExtBackend for MockExtension {
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         Err("No default system contract id".into())
     }
+
+    fn balance_of(
+        &self,
+        _account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        Ok((0, 0))
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        super::DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
+    }
+
+    fn worker_pubkey(&self) -> Result<crate::EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
+    }
 }
 
 thread_local! {

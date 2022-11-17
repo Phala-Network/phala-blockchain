@@ -140,6 +140,12 @@ enum Action {
         /// The database file to use
         #[arg(long, default_value = "cache.db")]
         db: String,
+        /// If set, it will sync headers from the given mirror cache
+        #[clap(long)]
+        mirror: Option<String>,
+        /// The genesis block bo be synced
+        #[clap(long, default_value_t = 8325311)]
+        genesis_block: BlockNumber,
         /// Auto grab new headers from the node
         #[clap(long)]
         grab: bool,
@@ -152,6 +158,9 @@ enum Action {
         /// Interval that start a batch of grab
         #[clap(long, default_value_t = 600)]
         interval: u64,
+        /// Prefered minimum number of blocks between justification
+        #[arg(long, default_value_t = 1000)]
+        justification_interval: BlockNumber,
     },
     /// Split given grabbed headers file into chunks
     Split {
@@ -330,19 +339,43 @@ async fn main() -> anyhow::Result<()> {
         }
         Action::Serve {
             db,
+            mirror,
+            genesis_block,
             grab,
             node_uri,
             para_node_uri,
             interval,
+            justification_interval,
         } => {
             let db = db::CacheDB::open(&db)?;
-            if grab {
+
+            if let Some(upstream) = mirror {
+                if grab {
+                    error!("ignored --grab since --mirror is turned on");
+                }
                 let db = db.clone();
                 tokio::spawn(async move {
-                    let result = grab::run(db, &node_uri, &para_node_uri, interval).await;
+                    let result = web_api::sync_from(db, &upstream, interval, genesis_block).await;
+                    if let Err(err) = result {
+                        error!("The mirror task exited with error: {}", err);
+                    }
+                    std::process::exit(1);
+                });
+            } else if grab {
+                let db = db.clone();
+                tokio::spawn(async move {
+                    let result = grab::run(
+                        db,
+                        &node_uri,
+                        &para_node_uri,
+                        interval,
+                        justification_interval,
+                    )
+                    .await;
                     if let Err(err) = result {
                         error!("The grabbing task exited with error: {}", err);
                     }
+                    std::process::exit(1);
                 });
             }
             web_api::serve(db).await?;

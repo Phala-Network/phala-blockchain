@@ -1,27 +1,22 @@
 mod extension;
-mod mock_types;
 mod pallet_pink;
 mod weights;
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::RwLock,
+    time::{Duration, Instant},
+};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
-    traits::ConstU128,
-    weights::{
-        Weight,
-        constants::WEIGHT_PER_SECOND,
-    }};
-use pallet_contracts::{Config, Frame, Schedule};
-use sp_runtime::{
-    generic::Header,
-    traits::{Convert, IdentityLookup},
-    Perbill,
+    weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
+use pallet_contracts::{Config, Frame, Schedule};
+use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::{get_side_effects, ExecSideEffects};
-pub use pink_extension::{HookPoint, Message, OspMessage, PinkEvent};
+pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEvent};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
@@ -32,11 +27,12 @@ frame_support::construct_runtime! {
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Randomness: pallet_randomness_collective_flip::{Pallet, Storage},
-        Contracts: pallet_contracts::{Pallet, Call, Storage, Event<T>},
-        Pink: pallet_pink::{Pallet, Storage},
+        System: frame_system,
+        Timestamp: pallet_timestamp,
+        Balances: pallet_balances,
+        Randomness: pallet_randomness_collective_flip,
+        Contracts: pallet_contracts,
+        Pink: pallet_pink,
     }
 }
 
@@ -46,13 +42,29 @@ parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
         frame_system::limits::BlockWeights::with_sensible_defaults(
-			(2u64 * WEIGHT_PER_SECOND).set_proof_size(u64::MAX),
-			NORMAL_DISPATCH_RATIO,
-		);
-    pub static ExistentialDeposit: u64 = 0;
+            (2u64 * WEIGHT_PER_SECOND).set_proof_size(u64::MAX),
+            NORMAL_DISPATCH_RATIO,
+        );
+    pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
-impl pallet_pink::Config for PinkRuntime {}
+impl pallet_pink::Config for PinkRuntime {
+    type Currency = Balances;
+}
+
+impl pallet_balances::Config for PinkRuntime {
+    type Balance = Balance;
+    type DustRemoval = ();
+    type RuntimeEvent = RuntimeEvent;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = frame_system::Pallet<PinkRuntime>;
+    type WeightInfo = pallet_balances::weights::SubstrateWeight<PinkRuntime>;
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
+}
 
 impl frame_system::Config for PinkRuntime {
     type BaseCallFilter = frame_support::traits::Everything;
@@ -95,18 +107,11 @@ impl pallet_timestamp::Config for PinkRuntime {
 }
 
 parameter_types! {
-    pub const SignedClaimHandicap: u32 = 2;
-    pub const TombstoneDeposit: u64 = 16;
-    pub const DepositPerContract: u64 = 8 * DepositPerStorageByte::get();
-    pub const DepositPerStorageByte: u64 = 10_000;
-    pub const DepositPerStorageItem: u64 = 10_000;
-    pub RentFraction: Perbill = Perbill::from_rational(4u32, 10_000u32);
-    pub const SurchargeReward: u64 = 500_000;
-    pub const MaxValueSize: u32 = 16_384;
+    pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
+    pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
-    pub const TransactionByteFee: u64 = 0;
     pub const MaxStorageKeyLen: u32 = 128;
 
     pub DefaultSchedule: Schedule<PinkRuntime> = {
@@ -119,28 +124,22 @@ parameter_types! {
     };
 }
 
-impl Convert<Weight, Balance> for PinkRuntime {
-    fn convert(w: Weight) -> Balance {
-        w.ref_time() as _
-    }
-}
-
 impl Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
-    type Currency = mock_types::NoCurrency;
+    type Currency = Balances;
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
-    type CallFilter = frame_support::traits::Everything;
+    type CallFilter = frame_support::traits::Nothing;
     type CallStack = [Frame<Self>; 31];
-    type WeightPrice = Self;
+    type WeightPrice = Pink;
     type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
-    type DepositPerByte = ConstU128<0>;
-    type DepositPerItem = ConstU128<0>;
+    type DepositPerByte = DepositPerStorageByte;
+    type DepositPerItem = DepositPerStorageItem;
     type AddressGenerator = Pink;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
@@ -170,6 +169,11 @@ pub trait EventCallbacks {
 
 pub type BoxedEventCallbacks = Box<dyn EventCallbacks>;
 
+pub struct CallModeInfo {
+    pub mode: CallMode,
+    pub worker_pubkey: EcdhPublicKey,
+}
+
 struct CallInfo {
     mode: CallMode,
     start_at: Instant,
@@ -177,6 +181,12 @@ struct CallInfo {
 }
 
 environmental::environmental!(call_info: CallInfo);
+
+static WORKER_PUBKEY: RwLock<EcdhPublicKey> = RwLock::new([0; 32]);
+
+pub fn set_worker_pubkey(key: EcdhPublicKey) {
+    *WORKER_PUBKEY.write().unwrap() = key;
+}
 
 pub fn using_mode<T>(
     mode: CallMode,
@@ -191,8 +201,11 @@ pub fn using_mode<T>(
     call_info::using(&mut info, f)
 }
 
-pub fn get_call_mode() -> Option<CallMode> {
-    call_info::with(|info| info.mode)
+pub fn get_call_mode_info() -> Option<CallModeInfo> {
+    call_info::with(|info| CallModeInfo {
+        mode: info.mode,
+        worker_pubkey: *WORKER_PUBKEY.read().unwrap(),
+    })
 }
 
 pub fn get_call_elapsed() -> Option<Duration> {
@@ -210,15 +223,26 @@ pub fn emit_log(id: &AccountId, level: u8, msg: String) {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::type_complexity)]
+    use super::*;
 
+    use frame_support::{assert_ok, traits::Currency};
     use pallet_contracts::Config;
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
         runtime::{Contracts, PinkRuntime, RuntimeOrigin as Origin},
-        types::{ENOUGH, QUERY_GAS_LIMIT},
+        storage::new_in_memory_backend,
+        types::Balance,
+        Contract, Storage, TransactionArguments,
     };
+
     pub use frame_support::weights::Weight;
+
+    const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+    const TREASURY: AccountId32 = AccountId32::new([2u8; 32]);
+    const ENOUGH: Balance = Balance::MAX.saturating_div(32);
+    const FLIPPER: &[u8] = include_bytes!("../tests/fixtures/flip/flip.wasm");
+    const CENT: u128 = 10_000_000_000;
 
     pub fn compile_wat<T>(wat_bytes: &[u8]) -> wat::Result<(Vec<u8>, <T::Hashing as Hash>::Output)>
     where
@@ -232,16 +256,16 @@ mod tests {
     #[test]
     pub fn contract_test() {
         use scale::Encode;
-        pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/event_size.wat")).unwrap();
 
         exec::execute_with(|| {
+            _ = Balances::deposit_creating(&ALICE, Balance::MAX.saturating_div(2));
             Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 ENOUGH,
-                QUERY_GAS_LIMIT,
+                Weight::MAX,
                 None,
                 wasm,
                 vec![],
@@ -254,7 +278,7 @@ mod tests {
                 Origin::signed(ALICE),
                 addr,
                 0,
-                QUERY_GAS_LIMIT * 2,
+                Weight::MAX,
                 None,
                 <PinkRuntime as Config>::Schedule::get()
                     .limits
@@ -269,15 +293,17 @@ mod tests {
     #[test]
     pub fn crypto_hashes_test() {
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        pub const GAS_LIMIT: Weight = Weight::from_ref_time(100_000_000_000).set_proof_size(256u64 * 1024 * 1024);
+        pub const GAS_LIMIT: Weight =
+            Weight::from_ref_time(100_000_000_000).set_proof_size(256u64 * 1024 * 1024);
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
                 .unwrap();
 
         exec::execute_with(|| {
+            _ = Balances::deposit_creating(&ALICE, Balance::MAX.saturating_div(2));
             // Instantiate the CRYPTO_HASHES contract.
-            assert!(Contracts::instantiate_with_code(
+            assert_ok!(Contracts::instantiate_with_code(
                 Origin::signed(ALICE),
                 1_000_000_000_000_000,
                 GAS_LIMIT,
@@ -285,8 +311,7 @@ mod tests {
                 wasm,
                 vec![],
                 vec![],
-            )
-            .is_ok());
+            ));
             let addr = Contracts::contract_address(&ALICE, &code_hash, &[]);
             // Perform the call.
             let input = b"_DEAD_BEEF";
@@ -318,6 +343,157 @@ mod tests {
                 assert_eq!(&result.data[..*expected_size], &*expected);
             }
         })
+    }
+
+    #[test]
+    pub fn gas_limit_works() {
+        let mut storage = crate::Storage::new(new_in_memory_backend());
+
+        let gas_price = 2;
+        let deposit_per_item = CENT * 8;
+        let deposit_per_byte = CENT * 2;
+
+        storage.setup(gas_price, deposit_per_item, deposit_per_byte, &TREASURY);
+
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        assert!(upload_result.is_err());
+        let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
+        assert!(upload_result.is_err());
+
+        let total_issue = Balance::MAX.saturating_div(2);
+
+        storage.execute_with(false, None, || {
+            _ = Balances::deposit_creating(&ALICE, total_issue);
+        });
+
+        let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
+        assert_ok!(upload_result);
+
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        assert_ok!(&upload_result);
+        let code_hash = upload_result.unwrap();
+
+        // Flipper::default()
+        let default_selector = 0xed4b9d1b_u32.to_be_bytes().to_vec();
+        let result = Contract::new(
+            code_hash,
+            default_selector,
+            vec![],
+            false,
+            tx_args(&mut storage),
+        );
+        assert_ok!(&result);
+
+        let flipper = result.unwrap().0;
+
+        let mut prev_free_balance = storage.free_balance(&ALICE);
+
+        // The contract flipper instantiated
+        let fn_flip = 0x633aa551_u32.to_be_bytes().to_vec();
+        let fn_get = 0x2f865bd9_u32.to_be_bytes();
+
+        let init_value: bool = {
+            let mut args = tx_args(&mut storage);
+            args.gas_free = true;
+            flipper
+                .call_with_selector(fn_get, (), true, args)
+                .0
+                .unwrap()
+        };
+
+        // Estimate gas
+        let est_result = {
+            let mut args = tx_args(&mut storage);
+            args.gas_free = true;
+            let result = flipper.bare_call(fn_flip.clone(), true, args).0;
+            assert_ok!(&result.result);
+            assert_eq!(storage.free_balance(&ALICE), prev_free_balance);
+            result
+        };
+
+        {
+            // Zero gas limit should not work
+            let gas_limit = 0;
+            let mut args = tx_args(&mut storage);
+            args.gas_free = false;
+            args.gas_limit = Weight::from_ref_time(gas_limit);
+            let result = flipper.bare_call(fn_flip.clone(), false, args).0;
+            assert!(result.result.is_err());
+            assert_eq!(prev_free_balance, storage.free_balance(&ALICE));
+
+            // Should NOT flipped
+            let value: bool = {
+                let mut args = tx_args(&mut storage);
+                args.gas_free = true;
+                flipper
+                    .call_with_selector(fn_get, (), true, args)
+                    .0
+                    .unwrap()
+            };
+            assert_eq!(init_value, value);
+        }
+
+        {
+            let gas_limit = est_result.gas_required / 2;
+            let mut args = tx_args(&mut storage);
+            args.gas_free = false;
+            args.gas_limit = gas_limit;
+            let result = flipper.bare_call(fn_flip.clone(), false, args).0;
+            assert!(result.result.is_err());
+            assert_eq!(
+                prev_free_balance - result.gas_consumed.ref_time() as u128 * gas_price,
+                storage.free_balance(&ALICE)
+            );
+
+            prev_free_balance = storage.free_balance(&ALICE);
+
+            // Should NOT flipped
+            let value: bool = {
+                let mut args = tx_args(&mut storage);
+                args.gas_free = true;
+                flipper
+                    .call_with_selector(fn_get, (), true, args)
+                    .0
+                    .unwrap()
+            };
+            assert_eq!(init_value, value);
+        }
+
+        {
+            let gas_limit = est_result.gas_required;
+            let mut args = tx_args(&mut storage);
+            args.gas_free = false;
+            args.gas_limit = gas_limit;
+            let result = flipper.bare_call(fn_flip, false, args).0;
+            assert_ok!(result.result);
+            let cost = prev_free_balance - storage.free_balance(&ALICE);
+            assert_eq!(cost, result.gas_consumed.ref_time() as u128 * gas_price);
+
+            // Should flipped
+            let value: bool = {
+                let mut args = tx_args(&mut storage);
+                args.gas_free = true;
+                flipper
+                    .call_with_selector(fn_get, (), true, args)
+                    .0
+                    .unwrap()
+            };
+            assert_eq!(!init_value, value);
+        }
+    }
+
+    fn tx_args(storage: &mut Storage) -> TransactionArguments {
+        TransactionArguments {
+            origin: ALICE.clone(),
+            now: 1,
+            block_number: 1,
+            storage,
+            transfer: 0,
+            gas_limit: Weight::MAX,
+            gas_free: false,
+            storage_deposit_limit: None,
+            callbacks: None,
+        }
     }
 
     pub mod exec {

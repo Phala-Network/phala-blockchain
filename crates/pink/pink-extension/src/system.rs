@@ -67,6 +67,7 @@ pub trait System {
         hook: crate::HookPoint,
         contract_id: AccountId,
         selector: u32,
+        gas_limit: u64,
     ) -> Result<()>;
 
     /// Set weight of the contract for query requests and sidevm scheduling.
@@ -74,6 +75,14 @@ pub trait System {
     /// Higher weight would let the contract to get more resource.
     #[ink(message)]
     fn set_contract_weight(&self, contract_id: AccountId, weight: u32) -> Result<()>;
+
+    /// Return the total balance of given account
+    #[ink(message)]
+    fn total_balance_of(&self, account: AccountId) -> Balance;
+
+    /// Return the free balance of given account
+    #[ink(message)]
+    fn free_balance_of(&self, account: AccountId) -> Balance;
 }
 
 /// Driver to manage sidevm deployments.

@@ -477,6 +477,11 @@ where
                 owner,
                 cluster,
                 workers,
+                deposit,
+                gas_price,
+                deposit_per_item,
+                deposit_per_byte,
+                treasury_account,
             } => {
                 if !origin.is_pallet() {
                     error!("Attempt to deploy cluster from bad origin");
@@ -508,11 +513,15 @@ where
                     })
                     .collect();
                 self.egress.push_message(
-                    &ClusterOperation::<chain::AccountId, _>::batch_distribution(
+                    &ClusterOperation::<chain::AccountId>::batch_distribution(
                         secret_keys,
                         cluster,
-                        0,
                         owner,
+                        deposit,
+                        gas_price,
+                        deposit_per_item,
+                        deposit_per_byte,
+                        treasury_account,
                     ),
                 );
                 Ok(())

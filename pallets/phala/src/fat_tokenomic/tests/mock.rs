@@ -121,6 +121,7 @@ impl fat::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
 	type SidevmCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
+	type Currency = Balances;
 }
 
 impl fat_tokenomic::Config for Test {
