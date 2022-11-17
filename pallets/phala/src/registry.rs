@@ -124,7 +124,7 @@ pub mod pallet {
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Workers<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
+		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfoV2<T::AccountId>>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -279,7 +279,7 @@ pub mod pallet {
 			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let worker_info = WorkerInfo {
+			let worker_info = WorkerInfoV2 {
 				pubkey,
 				ecdh_pubkey,
 				runtime_version: 0,
@@ -491,7 +491,7 @@ pub mod pallet {
 					}
 					None => {
 						// Case 2 - New worker register
-						*v = Some(WorkerInfo {
+						*v = Some(WorkerInfoV2 {
 							pubkey,
 							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
@@ -589,7 +589,7 @@ pub mod pallet {
 					}
 					None => {
 						// Case 2 - New worker register
-						*v = Some(WorkerInfo {
+						*v = Some(WorkerInfoV2 {
 							pubkey,
 							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
@@ -822,7 +822,7 @@ pub mod pallet {
 			for (key, old) in iter {
 				log::info!("worker key: {}", hex::encode(&key) );
 				if let Ok(old) = old {
-					let new = WorkerInfo {
+					let new = WorkerInfoV2 {
 						pubkey: old.pubkey,
 						ecdh_pubkey: old.ecdh_pubkey,
 						runtime_version: old.runtime_version,
@@ -839,7 +839,7 @@ pub mod pallet {
 					let full_key = [prefix.as_slice(), &key].concat();
 					unhashed::put_raw(&full_key, &new.encode());
 
-					let new_worker =  unhashed::get::<WorkerInfo<T::AccountId>>(&full_key);
+					let new_worker =  unhashed::get::<WorkerInfoV2<T::AccountId>>(&full_key);
 					if let Some(w) = new_worker {
 						log::info!("Decoded new {}: {:?}", hex::encode(&key), w);
 						log::info!(
@@ -1049,7 +1049,7 @@ pub mod pallet {
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
 				Workers::<T>::insert(
 					pubkey,
-					WorkerInfo {
+					WorkerInfoV2 {
 						pubkey: *pubkey,
 						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
 						runtime_version: 0,
@@ -1136,7 +1136,7 @@ pub mod pallet {
 
 	/// The basic information of a registered worker
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
-	pub struct WorkerInfo<AccountId> {
+	pub struct WorkerInfoV2<AccountId> {
 		/// The identity public key of the worker
 		pub pubkey: WorkerPublicKey,
 		/// The public key for ECDH communication
