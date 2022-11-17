@@ -4,10 +4,11 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use codec::Encode;
+	use codec::{Decode, Encode};
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
+		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{Currency, StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
@@ -123,7 +124,7 @@ pub mod pallet {
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Workers<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
+		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfoV2<T::AccountId>>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -163,6 +164,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Endpoints<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
+
+	/// Allow list of pRuntime binary digest
+	///
+	/// Only pRuntime within the list can register.
+	#[pallet::storage]
+	#[pallet::getter(fn temp_workers_iter_key)]
+	pub type TempWorkersIterKey<T: Config> = StorageValue<_, Option<Vec<u8>>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -271,7 +279,7 @@ pub mod pallet {
 			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let worker_info = WorkerInfo {
+			let worker_info = WorkerInfoV2 {
 				pubkey,
 				ecdh_pubkey,
 				runtime_version: 0,
@@ -483,7 +491,7 @@ pub mod pallet {
 					}
 					None => {
 						// Case 2 - New worker register
-						*v = Some(WorkerInfo {
+						*v = Some(WorkerInfoV2 {
 							pubkey,
 							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
@@ -581,7 +589,7 @@ pub mod pallet {
 					}
 					None => {
 						// Case 2 - New worker register
-						*v = Some(WorkerInfo {
+						*v = Some(WorkerInfoV2 {
 							pubkey,
 							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
@@ -776,6 +784,88 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
 			Ok(())
 		}
+
+		#[pallet::weight(0)]
+		pub fn migrate_workers(
+			origin: OriginFor<T>, max_iterations: u32
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			let prefix = storage_prefix(b"PhalaRegistry", b"Workers");
+			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or(prefix.into());
+
+			let iter = PrefixIterator::<_>::new(
+				prefix.into(),
+				previous_key,
+				|key, mut value| {
+					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
+
+					if let Ok(w) = old_worker.clone() {
+						log::info!("Decoded old {}: {:?}", hex::encode(&key), w);
+						log::info!(
+							"Old: pubkey {} ecdh_pubkey {}",
+							hex::encode(&w.pubkey),
+							hex::encode(&w.ecdh_pubkey)
+						);
+						if let Some(op) = w.operator {
+							log::info!("Old: operator {:?}", op);
+						}
+					} else {
+						log::info!("Can't decode old {}", hex::encode(&key));
+					}
+
+					Ok((key.to_vec(), old_worker))
+				}
+			);
+
+			let mut i = 0;
+			for (key, old) in iter {
+				log::info!("worker key: {}", hex::encode(&key) );
+				if let Ok(old) = old {
+					let new = WorkerInfoV2 {
+						pubkey: old.pubkey,
+						ecdh_pubkey: old.ecdh_pubkey,
+						runtime_version: old.runtime_version,
+						last_updated: old.last_updated,
+						operator: old.operator,
+						attestation_provider: Some(AttestationProvider::Ias),
+						confidence_level: old.confidence_level,
+						initial_score: old.initial_score,
+						features: old.features
+					};
+
+					log::info!("new {}: {:?}", hex::encode(&key), new);
+
+					let full_key = [prefix.as_slice(), &key].concat();
+					unhashed::put_raw(&full_key, &new.encode());
+
+					let new_worker =  unhashed::get::<WorkerInfoV2<T::AccountId>>(&full_key);
+					if let Some(w) = new_worker {
+						log::info!("Decoded new {}: {:?}", hex::encode(&key), w);
+						log::info!(
+							"New: pubkey {} ecdh_pubkey {}",
+							hex::encode(&w.pubkey),
+							hex::encode(&w.ecdh_pubkey)
+						);
+						if let Some(op) = w.operator {
+							log::info!("New: operator {:?}", op);
+						}
+					} else {
+						log::info!("Can't decode {}", hex::encode(&key))
+					}
+
+					i += 1;
+					if i >= max_iterations {
+						TempWorkersIterKey::<T>::set(Some(full_key));
+						break;
+					}
+				} else {
+					continue;
+				}
+			}
+
+			Ok(())
+		}
 	}
 
 	// TODO.kevin: Move it to mq
@@ -959,7 +1049,7 @@ pub mod pallet {
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
 				Workers::<T>::insert(
 					pubkey,
-					WorkerInfo {
+					WorkerInfoV2 {
 						pubkey: *pubkey,
 						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
 						runtime_version: 0,
@@ -1012,9 +1102,41 @@ pub mod pallet {
 		type Config = T;
 	}
 
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
+	pub struct OldWorkerInfo<AccountId> {
+		/// The identity public key of the worker
+		pub pubkey: WorkerPublicKey,
+		/// The public key for ECDH communication
+		pub ecdh_pubkey: EcdhPublicKey,
+		/// The pruntime version of the worker upon registering
+		pub runtime_version: u32,
+		/// The unix timestamp of the last updated time
+		pub last_updated: u64,
+		/// The stake pool owner that can control this worker
+		///
+		/// When initializing pruntime, the user can specify an _operator account_. Then this field
+		/// will be updated when the worker is being registered on the blockchain. Once it's set,
+		/// the worker can only be added to a stake pool if the pool owner is the same as the
+		/// operator. It ensures only the trusted person can control the worker.
+		pub operator: Option<AccountId>,
+		/// The [confidence level](https://wiki.phala.network/en-us/mine/solo/1-2-confidential-level-evaluation/#confidence-level-of-a-miner)
+		/// of the worker
+		pub confidence_level: u8,
+		/// The performance score by benchmark
+		///
+		/// When a worker is registered, this field is set to `None`, indicating the worker is
+		/// requested to run a benchmark. The benchmark lasts [`BenchmarkDuration`] blocks, and
+		/// this field will be updated with the score once it finishes.
+		///
+		/// The `initial_score` is used as the baseline for mining performance test.
+		pub initial_score: Option<u32>,
+		/// Deprecated
+		pub features: Vec<u32>,
+	}
+
 	/// The basic information of a registered worker
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
-	pub struct WorkerInfo<AccountId> {
+	pub struct WorkerInfoV2<AccountId> {
 		/// The identity public key of the worker
 		pub pubkey: WorkerPublicKey,
 		/// The public key for ECDH communication
