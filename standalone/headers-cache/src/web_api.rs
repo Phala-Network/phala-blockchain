@@ -125,8 +125,8 @@ pub(crate) async fn serve(db: CacheDB) -> Result<()> {
     Ok(())
 }
 
-async fn http_get(url: &str) -> Result<Option<Vec<u8>>> {
-    let response = reqwest::get(url).await?;
+async fn http_get(client: &reqwest::Client, url: &str) -> Result<Option<Vec<u8>>> {
+    let response = client.get(url).send().await?;
     if response.status() == 404 {
         return Ok(None);
     }
@@ -149,10 +149,14 @@ pub(crate) async fn sync_from(
         .unwrap_or_default();
     let highest = metadata.recent_imported.header.unwrap_or(genesis_block);
 
+    let http_client = reqwest::Client::builder()
+        .build()
+        .context("Failed to build HTTP client")?;
+
     'sync_genesis: {
         if metadata.genesis.is_empty() {
             let url = format!("{base_uri}/genesis/{genesis_block}");
-            let body = match http_get(&url).await {
+            let body = match http_get(&http_client, &url).await {
                 Ok(Some(body)) => body,
                 Ok(None) => {
                     info!("Genesis {genesis_block} not found in upstream cache");
@@ -177,7 +181,7 @@ pub(crate) async fn sync_from(
         loop {
             info!("Syncing {next_block}");
             let url = format!("{base_uri}/headers/{next_block}");
-            let body = match http_get(&url).await {
+            let body = match http_get(&http_client, &url).await {
                 Ok(Some(body)) => body,
                 Ok(None) => {
                     debug!("Block {next_block} not found in upstream cache");
