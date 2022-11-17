@@ -52,6 +52,9 @@ impl Storage {
         }
     }
 
+    /// Runs garbage collection in cache to fit the max size
+    ///
+    /// Remove the items closest to the expiration date until the size can be fit into `max_size`.
     fn fit_size(&mut self) {
         if self.size <= self.max_size {
             return;
@@ -66,7 +69,7 @@ impl Storage {
         self.kvs = kvs
             .into_iter()
             .filter_map(|(_, (k, v))| {
-                if self.size < self.max_size {
+                if self.size <= self.max_size {
                     return Some((k, v));
                 }
                 self.size -= k.len() + v.value.len();
@@ -128,17 +131,17 @@ impl Storage {
 }
 
 struct StorageValue {
-    // Expiration time in seconds since the first call to `now`.
+    /// Expiration time in seconds since the first call to `now`.
     expire_at: u64,
     value: Vec<u8>,
 }
 
 pub struct LocalCache {
-    // Number of set ops between two GC ops.
+    /// Number of set ops between two GC ops.
     gc_interval: u64,
-    // Accumulated number of set ops since last GC.
+    /// Accumulated number of set ops since last GC.
     sets_since_last_gc: u64,
-    // Default expiration time in seconds.
+    /// Default expiration time in seconds.
     default_value_lifetime: u64,
     storages: BTreeMap<Vec<u8>, Storage>,
 }
