@@ -12,6 +12,12 @@ struct App {
     db: CacheDB,
 }
 
+#[get("/state")]
+fn state(app: &State<App>) -> String {
+    let metadata = app.db.get_metadata().ok().flatten().unwrap_or_default();
+    serde_json::to_string_pretty(&metadata).unwrap_or("{}".into())
+}
+
 #[get("/genesis/<block_number>")]
 fn get_genesis(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
     app.db
@@ -105,6 +111,7 @@ pub(crate) async fn serve(db: CacheDB) -> Result<()> {
         .mount(
             "/",
             routes![
+                state,
                 get_genesis,
                 get_header,
                 get_headers,

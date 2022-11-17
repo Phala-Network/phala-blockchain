@@ -39,7 +39,14 @@ pub async fn run(
 
         loop {
             info!("Trying to grab next={next_block}, just_interval={justification_interval}");
-            let state = api.extra_rpc().system_sync_state().await?;
+            let state = match api.extra_rpc().system_sync_state().await {
+                Ok(state) => state,
+                Err(err) => {
+                    warn!("Failed to get node state: {err:?}");
+                    sleep(check_interval).await;
+                    break;
+                }
+            };
             info!("Node state: {state:?}");
             if (state.current_block as BlockNumber) < next_block + justification_interval {
                 info!("Continue waiting for enough blocks in node");
@@ -61,13 +68,13 @@ pub async fn run(
                     db.put_header(info.header.number, &info.encode())
                         .context("Failed to put record to DB")?;
                     metadata.update_header(info.header.number);
+                    db.put_metadata(&metadata)
+                        .context("Failed to update metadata")?;
                     next_block = info.header.number + 1;
                     Ok(())
                 },
             )
             .await;
-            db.put_metadata(&metadata)
-                .context("Failed to update metadata")?;
             if let Err(err) = result {
                 warn!("Failed to grab header from node: {err:?}");
                 sleep(check_interval).await;
