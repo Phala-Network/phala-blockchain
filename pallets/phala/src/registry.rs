@@ -792,7 +792,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			let prefix = storage_prefix(b"PhalaRegistry", b"Workers");
-			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or(prefix.into());
+			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or_else(|| prefix.into());
 
 			let iter = PrefixIterator::<_>::new(
 				prefix.into(),
@@ -801,17 +801,17 @@ pub mod pallet {
 					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
 
 					if let Ok(w) = old_worker.clone() {
-						log::info!("Decoded old {}: {:?}", hex::encode(&key), w);
+						log::info!("Decoded old {}: {:?}", hex::encode(key), w);
 						log::info!(
 							"Old: pubkey {} ecdh_pubkey {}",
-							hex::encode(&w.pubkey),
-							hex::encode(&w.ecdh_pubkey)
+							hex::encode(w.pubkey),
+							hex::encode(w.ecdh_pubkey)
 						);
 						if let Some(op) = w.operator {
 							log::info!("Old: operator {:?}", op);
 						}
 					} else {
-						log::info!("Can't decode old {}", hex::encode(&key));
+						log::info!("Can't decode old {}", hex::encode(key));
 					}
 
 					Ok((key.to_vec(), old_worker))
@@ -844,8 +844,8 @@ pub mod pallet {
 						log::info!("Decoded new {}: {:?}", hex::encode(&key), w);
 						log::info!(
 							"New: pubkey {} ecdh_pubkey {}",
-							hex::encode(&w.pubkey),
-							hex::encode(&w.ecdh_pubkey)
+							hex::encode(w.pubkey),
+							hex::encode(w.ecdh_pubkey)
 						);
 						if let Some(op) = w.operator {
 							log::info!("New: operator {:?}", op);
