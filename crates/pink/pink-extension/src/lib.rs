@@ -189,7 +189,7 @@ pub fn set_hook(hook: HookPoint, contract: AccountId, selector: u32, gas_limit: 
 }
 
 /// Start a SideVM instance
-pub fn start_sidevm(code_hash: Hash) -> Result<(), system::Error> {
+pub fn start_sidevm(code_hash: Hash) -> Result<(), system::DriverError> {
     let driver =
         crate::system::SidevmOperationRef::instance().ok_or(system::Error::DriverNotFound)?;
     driver.deploy(code_hash)

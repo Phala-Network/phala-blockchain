@@ -12,12 +12,12 @@ use crate::{AccountId, Balance, Hash};
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum Error {
-    BadOrigin,
+    PermisionDenied,
     DriverNotFound,
 }
 
 /// Result type for the system contract messages
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// The pink system contract interface.
 ///
@@ -85,13 +85,28 @@ pub trait System {
     fn free_balance_of(&self, account: AccountId) -> Balance;
 }
 
+/// Errors that can occur upon calling a driver contract.
+#[derive(Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum DriverError {
+    Other(String),
+    SystemError(Error),
+    BadOrigin,
+}
+
+impl From<Error> for DriverError {
+    fn from(value: Error) -> Self {
+        Self::SystemError(value)
+    }
+}
+
 /// Driver to manage sidevm deployments.
 #[pink::driver]
 #[ink::trait_definition]
 pub trait SidevmOperation {
     /// Invoked by a contract to deploy a sidevm instance that attached to itself.
     #[ink(message)]
-    fn deploy(&self, code_hash: Hash) -> Result<()>;
+    fn deploy(&self, code_hash: Hash) -> Result<(), DriverError>;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.
@@ -101,5 +116,9 @@ pub trait ContractDeposit {
     /// Change deposit of a contract. A driver should set the contract weight according to the
     /// new deposit.
     #[ink(message, selector = 0xa24bcb44)]
-    fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()>;
+    fn change_deposit(
+        &mut self,
+        contract_id: AccountId,
+        deposit: Balance,
+    ) -> Result<(), DriverError>;
 }
