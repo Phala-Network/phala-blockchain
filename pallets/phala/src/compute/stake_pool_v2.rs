@@ -137,6 +137,7 @@ pub mod pallet {
 			owner: T::AccountId,
 			pid: u64,
 			cid: CollectionId,
+			pool_account_id: T::AccountId,
 		},
 
 		/// The commission of a pool is updated
@@ -180,18 +181,7 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 			shares: BalanceOf<T>,
-		},
-
-		/// Some stake was withdrawn from a pool
-		///
-		/// Affected states:
-		/// - the stake related fields in [`Pools`]
-		/// - the user asset account
-		Withdrawal {
-			pid: u64,
-			user: T::AccountId,
-			amount: BalanceOf<T>,
-			shares: BalanceOf<T>,
+			as_vault: Option<u64>,
 		},
 
 		/// Owner rewards were withdrawn by pool owner
@@ -241,17 +231,6 @@ pub mod pallet {
 		/// - the worker item in [`WorkerAssignments`] is removed
 		/// - the worker is removed from the [`Pools`] item
 		PoolWorkerRemoved { pid: u64, worker: WorkerPublicKey },
-
-		/// A withdrawal request is inserted to a queue
-		///
-		/// Affected states:
-		/// - a new item is inserted to or an old item is being replaced by the new item in the
-		///   withdraw queue in [`Pools`]
-		WithdrawalQueued {
-			pid: u64,
-			user: T::AccountId,
-			shares: BalanceOf<T>,
-		},
 
 		/// A worker is reclaimed from the pool
 		WorkerReclaimed { pid: u64, worker: WorkerPublicKey },
@@ -383,7 +362,7 @@ pub mod pallet {
 						withdraw_queue: VecDeque::new(),
 						value_subscribers: VecDeque::new(),
 						cid: collection_id,
-						pool_account_id: account_id,
+						pool_account_id: account_id.clone(),
 					},
 					payout_commission: None,
 					cap: None,
@@ -397,6 +376,7 @@ pub mod pallet {
 				owner,
 				pid,
 				cid: collection_id,
+				pool_account_id: account_id,
 			});
 			Ok(())
 		}
@@ -733,6 +713,7 @@ pub mod pallet {
 				user: who,
 				amount: a,
 				shares,
+				as_vault,
 			});
 			Ok(())
 		}
@@ -801,6 +782,8 @@ pub mod pallet {
 				nft,
 				who.clone(),
 				shares,
+				nft_id,
+				as_vault,
 			)?;
 			nft_guard.save()?;
 			let _nft_id =

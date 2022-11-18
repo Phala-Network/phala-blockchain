@@ -448,7 +448,7 @@ fn test_create_vault() {
 					cid: 0,
 					pool_account_id: 16637257129592320098,
 				},
-				last_share_price_checkpoint: 0,
+				last_share_price_checkpoint: 1 * DOLLARS,
 				commission: None,
 				owner_shares: 0,
 				invest_pools: VecDeque::new(),

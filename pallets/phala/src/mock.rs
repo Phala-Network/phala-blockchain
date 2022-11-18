@@ -348,8 +348,13 @@ impl stake_pool_v2::Config for Test {
 	type ComputingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
+parameter_types! {
+	pub const InitialCheckPoint: Balance = 1 * DOLLARS;
+}
+
 impl vault::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type InitialCheckPoint = InitialCheckPoint;
 }
 
 impl base_pool::Config for Test {

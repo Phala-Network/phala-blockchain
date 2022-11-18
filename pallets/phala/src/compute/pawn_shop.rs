@@ -113,6 +113,20 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
+		Pawned {
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		Redeemed {
+			user: T::AccountId,
+			amount: BalanceOf<T>,
+		},
+		Voted {
+			user: T::AccountId,
+			vote_id: ReferendumIndex,
+			aye_amount: BalanceOf<T>,
+			nay_amount: BalanceOf<T>,
+		}
 	}
 
 	#[pallet::error]
@@ -161,6 +175,10 @@ pub mod pallet {
 					locked: Zero::zero(),
 				},
 			);
+			Self::deposit_event(Event::<T>::Pawned {
+				user,
+				amount,
+			});
 			Ok(())
 		}
 
@@ -216,7 +234,10 @@ pub mod pallet {
 				AllowDeath,
 			)?;
 			Self::burn_from(&user, amount)?;
-
+			Self::deposit_event(Event::<T>::Redeemed {
+				user,
+				amount,
+			});
 			Ok(())
 		}
 
@@ -246,7 +267,13 @@ pub mod pallet {
 			AccountVoteMap::<T>::insert(&user, vote_id, ());
 			let account_vote = Self::accumulate_account_vote(vote_id);
 			pallet_democracy::Pallet::<T>::vote(origin, vote_id, account_vote)?;
-			Self::update_user_locked(user)?;
+			Self::update_user_locked(user.clone())?;
+			Self::deposit_event(Event::<T>::Voted {
+				user,
+				vote_id,
+				aye_amount,
+				nay_amount,
+			});
 			Ok(())
 		}
 

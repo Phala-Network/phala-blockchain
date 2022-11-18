@@ -23,7 +23,11 @@ pub mod pallet {
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
-	use sp_runtime::{traits::Zero, Permill, SaturatedConversion};
+	use sp_runtime::{
+		traits::Zero, 
+		Permill, 
+		SaturatedConversion,
+	};
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*};
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -42,6 +46,8 @@ pub mod pallet {
 		+ stake_pool_v2::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		#[pallet::constant]
+		type InitialCheckPoint: Get<BalanceOf<Self>>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -94,7 +100,11 @@ pub mod pallet {
 		/// Affected states:
 		/// - the shares related fields in [`Pools`]
 		/// - last_share_price_checkpoint in [`Pools`]
-		OwnerSharesGained { pid: u64, shares: BalanceOf<T> },
+		OwnerSharesGained { 
+			pid: u64, 
+			shares: BalanceOf<T>, 
+			checkout_price: BalanceOf<T>, 
+		},
 
 		/// Someone contributed to a vault
 		///
@@ -175,7 +185,7 @@ pub mod pallet {
 					},
 					commission: None,
 					owner_shares: Zero::zero(),
-					last_share_price_checkpoint: Zero::zero(),
+					last_share_price_checkpoint: T::InitialCheckPoint::get(),
 					invest_pools: VecDeque::new(),
 				}),
 			);
@@ -287,12 +297,13 @@ pub mod pallet {
 				- pool_info.basepool.total_shares;
 			pool_info.basepool.total_shares += adjust_shares;
 			pool_info.owner_shares += adjust_shares;
-			pool_info.last_share_price_checkpoint = current_price;
+			pool_info.last_share_price_checkpoint = new_price;
 
 			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 			Self::deposit_event(Event::<T>::OwnerSharesGained {
 				pid: vault_pid,
 				shares: adjust_shares,
+				checkout_price: new_price,
 			});
 
 			Ok(())
@@ -483,6 +494,8 @@ pub mod pallet {
 				nft,
 				who.clone(),
 				shares,
+				nft_id,
+				None,
 			)?;
 
 			nft_guard.save()?;

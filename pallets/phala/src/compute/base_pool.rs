@@ -123,6 +123,13 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// A Nft is created to contain pool shares
+		NftCreated {
+			cid: CollectionId,
+			nft_id: NftId,
+			owner: T::AccountId,
+			shares: BalanceOf<T>,
+		},
 		/// A withdrawal request is inserted to a queue
 		///
 		/// Affected states:
@@ -132,6 +139,8 @@ pub mod pallet {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
+			nft_id: NftId,
+			as_vault: Option<u64>,
 		},
 		/// Some stake was withdrawn from a pool
 		///
@@ -730,7 +739,7 @@ pub mod pallet {
 
 			pallet_rmrk_core::Pallet::<T>::mint_nft(
 				Origin::<T>::Signed(pallet_id()).into(),
-				Some(contributer),
+				Some(contributer.clone()),
 				nft_id,
 				cid,
 				None,
@@ -744,6 +753,12 @@ pub mod pallet {
 			//TODO(mingxuan): an external lock is needed to protect nft_attr from dirty write.
 			Self::set_nft_attr(cid, nft_id, &attr)?;
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
+			Self::deposit_event(Event::<T>::NftCreated {
+				cid,
+				nft_id,
+				owner: contributer,
+				shares,
+			});
 			Ok(nft_id)
 		}
 
@@ -831,12 +846,16 @@ pub mod pallet {
 			nft: &mut NftAttr<BalanceOf<T>>,
 			userid: T::AccountId,
 			shares: BalanceOf<T>,
+			nft_id: NftId,
+			as_vault: Option<u64>,
 		) -> DispatchResult {
 			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
 			Self::deposit_event(Event::<T>::WithdrawalQueued {
 				pid: pool_info.pid,
 				user: userid,
 				shares,
+				nft_id,
+				as_vault,
 			});
 			Self::try_process_withdraw_queue(pool_info);
 

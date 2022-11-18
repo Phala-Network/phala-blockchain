@@ -1323,8 +1323,14 @@ impl pallet_stakepool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
 }
+
+parameter_types! {
+	pub const InitialCheckPoint: Balance = 1 * DOLLARS;
+}
+
 impl pallet_vault::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+	type InitialCheckPoint = InitialCheckPoint;
 }
 parameter_types! {
     pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
