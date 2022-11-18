@@ -1,4 +1,5 @@
 //! Manages mining lifecycle, reward and slashes
+#![allow(clippy::all)]
 
 pub use self::pallet::*;
 

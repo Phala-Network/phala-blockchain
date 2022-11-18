@@ -1,4 +1,5 @@
 //! Pool for collaboratively mining staking
+#![allow(clippy::all)]
 
 pub use self::pallet::*;
 

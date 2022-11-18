@@ -103,8 +103,8 @@ fn mask_low_bits_works() {
         0x10_0fff_ffff_ffff
     );
     assert_eq!(
-        mask_low_bits64(0xffffffff_00000000, min_mask_bits),
-        0xffffffff_ffffffff
+        mask_low_bits64(0xffff_ffff_0000_0000, min_mask_bits),
+        0xffff_ffff_ffff_ffff
     );
 
     let price = 10;

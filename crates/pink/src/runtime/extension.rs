@@ -1,5 +1,4 @@
-use std::time::Duration;
-use std::{borrow::Cow, convert::TryFrom};
+use std::{borrow::Cow, time::Duration};
 
 use frame_support::log::error;
 use frame_support::traits::Currency;
@@ -15,7 +14,7 @@ use pink_extension::{
     },
     dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
-use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
+use pink_extension_runtime::{local_cache, DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_core::H256;
 use sp_runtime::{AccountId32, DispatchError};
@@ -24,8 +23,6 @@ use crate::{
     runtime::{get_call_elapsed, get_call_mode_info, CallMode},
     types::AccountId,
 };
-
-use crate::local_cache::GLOBAL_CACHE;
 
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
@@ -221,33 +218,20 @@ impl PinkExtBackend for CallInQuery {
         key: Cow<[u8]>,
         value: Cow<[u8]>,
     ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        let result = GLOBAL_CACHE
-            .write()
-            .unwrap()
-            .set(contract.into(), key, value);
-        Ok(result)
+        Ok(local_cache::set(self.address.as_ref(), &key, &value))
     }
 
-    fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        GLOBAL_CACHE
-            .write()
-            .unwrap()
-            .set_expire(contract.into(), key, expire);
+    fn cache_set_expiration(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
+        local_cache::set_expiration(self.address.as_ref(), &key, expire);
         Ok(())
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE.read().unwrap().get(contract, key.as_ref());
-        Ok(value)
+        Ok(local_cache::get(self.address.as_ref(), &key))
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE.write().unwrap().remove(contract, key.as_ref());
-        Ok(value)
+        Ok(local_cache::remove(self.address.as_ref(), &key))
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
@@ -369,7 +353,7 @@ impl PinkExtBackend for CallInCommand {
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, key: Cow<[u8]>, expiration: u64) -> Result<(), Self::Error> {
+    fn cache_set_expiration(&self, key: Cow<[u8]>, expiration: u64) -> Result<(), Self::Error> {
         deposit_pink_event(
             self.as_in_query.address.clone(),
             PinkEvent::CacheOp(CacheOp::SetExpiration {

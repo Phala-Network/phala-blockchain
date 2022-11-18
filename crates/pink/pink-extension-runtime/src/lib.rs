@@ -18,6 +18,7 @@ use reqwest::{
 use reqwest_env_proxy::EnvProxyBuilder;
 use sp_core::{ByteArray as _, Pair};
 
+pub mod local_cache;
 pub mod mock_ext;
 
 pub trait PinkRuntimeEnv {
@@ -79,11 +80,11 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
             Err(err) => {
                 // If there is somthing wrong with the network, we can not inspect the reason too
                 // much here. Let it return a non-standard 523 here.
-                log::info!("HTTP request error: {}", err);
+                log::info!("HTTP request error: {err}");
                 return Ok(HttpResponse {
                     status_code: 523,
                     reason_phrase: "Unreachable".into(),
-                    body: format!("{:?}", err).into_bytes(),
+                    body: format!("{err:?}").into_bytes(),
                     headers: vec![],
                 });
             }
@@ -99,11 +100,11 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
 
         if let Err(err) = response.copy_to(&mut writer) {
-            log::info!("Failed to read HTTP body: {}", err);
+            log::info!("Failed to read HTTP body: {err}");
             return Ok(HttpResponse {
                 status_code: 524,
                 reason_phrase: "IO Error".into(),
-                body: format!("{:?}", err).into_bytes(),
+                body: format!("{err:?}").into_bytes(),
                 headers: vec![],
             });
         };
@@ -197,7 +198,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
+    fn cache_set_expiration(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
         Ok(())
     }
 

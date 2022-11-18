@@ -464,7 +464,7 @@ mod tests {
             let mut args = tx_args(&mut storage);
             args.gas_free = false;
             args.gas_limit = gas_limit;
-            let result = flipper.bare_call(fn_flip.clone(), false, args).0;
+            let result = flipper.bare_call(fn_flip, false, args).0;
             assert_ok!(result.result);
             let cost = prev_free_balance - storage.free_balance(&ALICE);
             assert_eq!(cost, result.gas_consumed.ref_time() as u128 * gas_price);

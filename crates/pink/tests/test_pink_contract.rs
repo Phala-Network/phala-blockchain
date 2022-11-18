@@ -4,7 +4,7 @@ use frame_support::assert_ok;
 use hex_literal::hex;
 use pink::{
     types::{Balance, Weight},
-    Contract, Storage, TransactionArguments,
+    Contract, Storage, TransactionArguments,local_cache
 };
 use sp_runtime::AccountId32;
 
@@ -196,6 +196,8 @@ fn test_with_wasm(wasm: &[u8], constructor: [u8; 4], message: [u8; 4]) {
     let (contract, _) =
         Contract::new_with_selector(code_hash, constructor, (), vec![], tx_args(&mut storage))
             .unwrap();
+
+    local_cache::apply_quotas([(contract.address.as_ref(), 1024)]);
 
     let () = contract
         .call_with_selector(message, (), true, tx_args(&mut storage))

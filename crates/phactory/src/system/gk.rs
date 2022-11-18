@@ -2012,7 +2012,7 @@ pub mod tests {
 
         assert!(r.get_worker(0).unresponsive);
         {
-            let offline = [r.workers[0].clone()].to_vec();
+            let offline = [r.workers[0]].to_vec();
             let expected_message = WorkingInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
@@ -2178,7 +2178,7 @@ pub mod tests {
             "Worker should not be slashed or rewarded"
         );
         {
-            let recovered_to_online = [r.workers[0].clone()].to_vec();
+            let recovered_to_online = [r.workers[0]].to_vec();
             let expected_message = WorkingInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
@@ -2274,7 +2274,7 @@ pub mod tests {
         }
         assert!(r.get_worker(0).unresponsive);
         let report = r.gk.egress.drain_working_info_update_event();
-        assert_eq!(report[0].offline, vec![r.workers[0].clone()]);
+        assert_eq!(report[0].offline, vec![r.workers[0]]);
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check worker reconnection and V recovery
