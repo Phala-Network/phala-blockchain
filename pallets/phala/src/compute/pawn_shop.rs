@@ -126,7 +126,7 @@ pub mod pallet {
 			vote_id: ReferendumIndex,
 			aye_amount: BalanceOf<T>,
 			nay_amount: BalanceOf<T>,
-		}
+		},
 	}
 
 	#[pallet::error]
@@ -175,10 +175,7 @@ pub mod pallet {
 					locked: Zero::zero(),
 				},
 			);
-			Self::deposit_event(Event::<T>::Pawned {
-				user,
-				amount,
-			});
+			Self::deposit_event(Event::<T>::Pawned { user, amount });
 			Ok(())
 		}
 
@@ -234,10 +231,7 @@ pub mod pallet {
 				AllowDeath,
 			)?;
 			Self::burn_from(&user, amount)?;
-			Self::deposit_event(Event::<T>::Redeemed {
-				user,
-				amount,
-			});
+			Self::deposit_event(Event::<T>::Redeemed { user, amount });
 			Ok(())
 		}
 

@@ -23,11 +23,7 @@ pub mod pallet {
 	};
 	use frame_system::{pallet_prelude::*, Origin};
 
-	use sp_runtime::{
-		traits::Zero, 
-		Permill, 
-		SaturatedConversion,
-	};
+	use sp_runtime::{traits::Zero, Permill, SaturatedConversion};
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*};
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -100,10 +96,10 @@ pub mod pallet {
 		/// Affected states:
 		/// - the shares related fields in [`Pools`]
 		/// - last_share_price_checkpoint in [`Pools`]
-		OwnerSharesGained { 
-			pid: u64, 
-			shares: BalanceOf<T>, 
-			checkout_price: BalanceOf<T>, 
+		OwnerSharesGained {
+			pid: u64,
+			shares: BalanceOf<T>,
+			checkout_price: BalanceOf<T>,
 		},
 
 		/// Someone contributed to a vault

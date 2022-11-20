@@ -812,6 +812,7 @@ pub mod pallet {
 				None => stake_pool::pallet::StakePools::<T>::iter(),
 			};
 			let mut i = 0;
+			let mut last_pid = None;
 			for (pid, pool_info) in iter.by_ref() {
 				let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
 				let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
@@ -905,17 +906,19 @@ pub mod pallet {
 				);
 				base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(new_pool_info));
 				i += 1;
+				last_pid = Some(pid);
 				if i >= max_iterations {
 					break;
 				}
 			}
-			let iter = iter.next();
-			if let Some((pid, _)) = iter {
-				StakepoolIterateStartPos::<T>::put(Some(pid));
-			} else {
+			//let iter = iter.next();
+			if i < max_iterations {
 				StakepoolIterateStartPos::<T>::put(None::<u64>);
 				base_pool::PoolCount::<T>::put(stake_pool::PoolCount::<T>::get());
+			} else {
+				StakepoolIterateStartPos::<T>::put(last_pid);
 			}
+
 			Ok(())
 		}
 
@@ -946,11 +949,25 @@ pub mod pallet {
 						&pool_info.basepool.pool_account_id,
 						user_reward,
 					);
-					base_pool::Pallet::<T>::mint_nft(
+					let mut actual_shares = staker_info.shares;
+					for v in pool_info.basepool.withdraw_queue {
+						if v.user == user_id {
+							let nft_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
+								pool_info.basepool.cid,
+								v.nft_id,
+							)
+							.expect("withdraw nft should be set; qed.");
+							let nft = nft_guard.attr.clone();
+							actual_shares -= nft.shares;
+							break;
+						}
+					}
+					let nft_id = base_pool::Pallet::<T>::mint_nft(
 						pool_info.basepool.cid,
 						user_id.clone(),
-						staker_info.shares,
-					);
+						actual_shares,
+					)
+					.expect("test");
 					if !account_status
 						.invest_pools
 						.contains(&(pid, pool_info.basepool.cid))
