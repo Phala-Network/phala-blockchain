@@ -7353,7 +7353,7 @@ dependencies = [
  "phala-trie-storage",
  "phala-types",
  "primitive-types",
- "prost 0.9.0",
+ "prost 0.11.2",
  "prpc",
  "prpc-build",
  "reqwest",
@@ -8434,7 +8434,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "parity-scale-codec",
- "prost 0.9.0",
+ "prost 0.11.2",
 ]
 
 [[package]]
@@ -8448,9 +8448,10 @@ dependencies = [
  "log",
  "multimap",
  "proc-macro2 1.0.47",
- "prost 0.9.0",
+ "prost 0.11.2",
+ "prost-build 0.11.2",
  "prost-build 0.9.0",
- "prost-types 0.9.0",
+ "prost-types 0.11.2",
  "quote 1.0.20",
  "syn 1.0.98",
 ]
