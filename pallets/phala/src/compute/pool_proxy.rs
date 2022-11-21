@@ -1,5 +1,5 @@
 use crate::base_pool;
-use crate::pawn_shop;
+use crate::wrapped_balances;
 use crate::vault;
 use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
@@ -27,7 +27,7 @@ pub struct StakePool<AccountId, Balance> {
 	pub workers: VecDeque<WorkerPublicKey>,
 	/// The workers in cd in the pool
 	pub cd_workers: VecDeque<WorkerPublicKey>,
-	/// Generated account to store P-PHA locked in computing workers, controlled by the pallet
+	/// Generated account to store W-PHA locked in computing workers, controlled by the pallet
 	pub lock_account: AccountId,
 	/// Generated account to maintain owner rewards, controlled by the pallet
 	pub owner_reward_account: AccountId,
@@ -76,10 +76,10 @@ impl<AccountId, Balance> StakePool<AccountId, Balance> {
 	where
 		T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
 		T: base_pool::Config<AccountId = AccountId>,
-		T: base_pool::Config + pawn_shop::Config + vault::Config,
+		T: base_pool::Config + wrapped_balances::Config + vault::Config,
 	{
 		pallet_assets::Pallet::<T>::balance(
-			<T as pawn_shop::Config>::PPhaAssetId::get(),
+			<T as wrapped_balances::Config>::WPhaAssetId::get(),
 			&self.owner_reward_account,
 		)
 	}

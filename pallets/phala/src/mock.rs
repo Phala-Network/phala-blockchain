@@ -1,5 +1,5 @@
 use crate::{
-	base_pool, computation, mq, pawn_shop, registry, stake_pool, stake_pool_v2,
+	base_pool, computation, mq, wrapped_balances, registry, stake_pool, stake_pool_v2,
 	utils::attestation_legacy::{
 		Attestation, AttestationValidator, Error as AttestationError, IasFields,
 	},
@@ -51,7 +51,7 @@ frame_support::construct_runtime!(
 		PhalaComputation: computation::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePoolv2: stake_pool_v2::{Pallet, Event<T>},
 		PhalaVault: vault::{Pallet, Event<T>},
-		PhalaPawnshop: pawn_shop::{Pallet, Event<T>},
+		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
 		PhalaBasePool: base_pool::{Pallet, Event<T>},
 		PhalaStakePool: stake_pool::{Event<T>},
 	}
@@ -239,13 +239,13 @@ impl computation::Config for Test {
 }
 
 parameter_types! {
-	pub const PPhaAssetId: u32 = 1;
+	pub const WPhaAssetId: u32 = 1;
 }
 
-impl pawn_shop::Config for Test {
+impl wrapped_balances::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type PPhaAssetId = PPhaAssetId;
-	type PawnShopAccountId = ConstU64<1234>;
+	type WPhaAssetId = WPhaAssetId;
+	type WrappedBalancesAccountId = ConstU64<1234>;
 	type OnSlashed = ();
 }
 

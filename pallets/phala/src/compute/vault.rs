@@ -10,7 +10,7 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
-	use crate::pawn_shop;
+	use crate::wrapped_balances;
 	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, Vault};
 	use crate::registry;
 	use crate::stake_pool_v2;
@@ -38,7 +38,7 @@ pub mod pallet {
 		+ base_pool::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
-		+ pawn_shop::Config
+		+ wrapped_balances::Config
 		+ stake_pool_v2::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -106,7 +106,7 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
-		/// - the user P-PHA balance reduced
+		/// - the user W-PHA balance reduced
 		/// - the user recive ad share NFT once contribution succeeded
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
 		///   ([`Withdrawal`](#variant.Withdrawal) event)
@@ -414,7 +414,7 @@ pub mod pallet {
 				Error::<T>::InsufficientContribution
 			);
 			let free = pallet_assets::Pallet::<T>::maybe_balance(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&who,
 			)
 			.ok_or(Error::<T>::AssetAccountNotExist)?;
@@ -434,7 +434,7 @@ pub mod pallet {
 				who.clone(),
 			)?;
 
-			pawn_shop::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
+			wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
 
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,

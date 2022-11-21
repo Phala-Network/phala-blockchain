@@ -5,7 +5,7 @@ use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::computation;
-	use crate::pawn_shop;
+	use crate::wrapped_balances;
 	use crate::pool_proxy::*;
 	use crate::registry;
 	use crate::vault;
@@ -275,7 +275,7 @@ pub mod pallet {
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-			T: Config + pawn_shop::Config + vault::Config,
+			T: Config + wrapped_balances::Config + vault::Config,
 		{
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
@@ -318,10 +318,10 @@ pub mod pallet {
 		where
 			T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
 			T: Config<AccountId = AccountId>,
-			T: Config + pawn_shop::Config + vault::Config,
+			T: Config + wrapped_balances::Config + vault::Config,
 		{
 			pallet_assets::Pallet::<T>::balance(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&self.pool_account_id,
 			)
 		}
@@ -342,7 +342,7 @@ pub mod pallet {
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 			T: Config<AccountId = AccountId>,
-			T: Config + pawn_shop::Config + vault::Config,
+			T: Config + wrapped_balances::Config + vault::Config,
 		{
 			self.total_value += rewards;
 			for vault_staker in &self.value_subscribers {
@@ -508,7 +508,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pawn_shop::Config + vault::Config,
+		T: Config + wrapped_balances::Config + vault::Config,
 	{
 		/// Returns a [`NftGuard`] object that can read or write to the nft attributes
 		///
@@ -677,7 +677,7 @@ pub mod pallet {
 			pool.total_shares += shares;
 			pool.total_value += amount;
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&account_id,
 				&pool.pool_account_id,
 				amount,
@@ -708,7 +708,7 @@ pub mod pallet {
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool.pool_account_id,
 				userid,
 				amount,

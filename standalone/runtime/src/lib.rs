@@ -105,7 +105,7 @@ use sp_runtime::generic::Era;
 mod voter_bags;
 
 pub use phala_pallets::{
-    pallet_basepool, pallet_computation, pallet_fat, pallet_mq, pallet_pawnshop, pallet_registry,
+    pallet_basepool, pallet_computation, pallet_fat, pallet_mq, pallet_wrappedbalances, pallet_registry,
     pallet_stakepool, pallet_stakepoolv2, pallet_vault, puppets, pallet_fat_tokenomic,
 };
 
@@ -1387,21 +1387,21 @@ impl pallet_fat::Config for Runtime {
 }
 
 parameter_types! {
-    pub const PPhaAssetId: u32 = 1;
+    pub const WPhaAssetId: u32 = 1;
 }
 
-pub struct PawnShopGet;
+pub struct WrappedBalancesGet;
 
-impl Get<AccountId32> for PawnShopGet {
+impl Get<AccountId32> for WrappedBalancesGet {
     fn get() -> AccountId32 {
         AccountId32::new([1; 32])
     }
 }
 
-impl pallet_pawnshop::Config for Runtime {
+impl pallet_wrappedbalances::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type PPhaAssetId = PPhaAssetId;
-    type PawnShopAccountId = PawnShopGet;
+    type WPhaAssetId = WPhaAssetId;
+    type WrappedBalancesAccountId = WrappedBalancesGet;
     type OnSlashed = Treasury;
 }
 
@@ -1498,7 +1498,7 @@ construct_runtime!(
         PhalaStakePoolv2: pallet_stakepoolv2,
         PhalaStakePool: pallet_stakepool,
         PhalaVault: pallet_vault,
-        PhalaPawnshop: pallet_pawnshop,
+        PhalaWrappedBalances: pallet_wrappedbalances,
         PhalaBasePool: pallet_basepool,
 		PhalaFatContracts: pallet_fat,
 		PhalaFatTokenomic: pallet_fat_tokenomic,

@@ -23,7 +23,7 @@ pub mod puppets;
 pub mod registry;
 pub mod stake_pool;
 
-use compute::{base_pool, computation, pawn_shop, pool_proxy, stake_pool_v2, vault};
+use compute::{base_pool, computation, wrapped_balances, pool_proxy, stake_pool_v2, vault};
 
 use frame_support::traits::LockableCurrency;
 /// The unified config of the compute pallets
@@ -42,7 +42,7 @@ type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::tr
 // Alias
 pub use compute::base_pool as pallet_basepool;
 pub use compute::computation as pallet_computation;
-pub use compute::pawn_shop as pallet_pawnshop;
+pub use compute::wrapped_balances as pallet_wrappedbalances;
 pub use compute::stake_pool_v2 as pallet_stakepoolv2;
 pub use compute::vault as pallet_vault;
 pub use fat as pallet_fat;

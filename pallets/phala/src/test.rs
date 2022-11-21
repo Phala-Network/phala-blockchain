@@ -1,6 +1,6 @@
 use crate::base_pool;
 use crate::computation;
-use crate::pawn_shop;
+use crate::wrapped_balances;
 use crate::pool_proxy::*;
 use crate::stake_pool_v2;
 use crate::vault;
@@ -19,7 +19,7 @@ use crate::mock::{
 };
 // Pallets
 use crate::mock::{
-	Balances, PhalaBasePool, PhalaComputation, PhalaPawnshop, PhalaRegistry, PhalaStakePoolv2,
+	Balances, PhalaBasePool, PhalaComputation, PhalaWrappedBalances, PhalaRegistry, PhalaStakePoolv2,
 	PhalaVault,
 };
 use pallet_democracy::AccountVote;
@@ -39,57 +39,57 @@ fn test_pool_subaccount() {
 }
 
 #[test]
-fn test_pawn() {
+fn test_wrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
 		assert_eq!(free, 0);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
 		assert_eq!(free, 100 * DOLLARS);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
-		let ppha_free = get_balance(1);
-		assert_eq!(ppha_free, 100 * DOLLARS);
+		let wpha_free = get_balance(1);
+		assert_eq!(wpha_free, 100 * DOLLARS);
 	});
 }
 
 #[test]
-fn test_redeem() {
+fn test_unwrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::redeem(
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::unwrap(
 			RuntimeOrigin::signed(1),
 			50 * DOLLARS,
 		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
 		assert_eq!(free, 50 * DOLLARS);
-		let ppha_free = get_balance(1);
-		assert_eq!(ppha_free, 50 * DOLLARS);
-		pawn_shop::pallet::StakerAccounts::<Test>::insert(
+		let wpha_free = get_balance(1);
+		assert_eq!(wpha_free, 50 * DOLLARS);
+		wrapped_balances::pallet::StakerAccounts::<Test>::insert(
 			1,
-			pawn_shop::FinanceAccount::<u128> {
+			wrapped_balances::FinanceAccount::<u128> {
 				invest_pools: vec![],
 				locked: 20 * DOLLARS,
 			},
 		);
 		assert_noop!(
-			PhalaPawnshop::redeem(RuntimeOrigin::signed(1), 50 * DOLLARS),
-			pawn_shop::Error::<Test>::RedeemAmountExceedsAvaliableStake
+			PhalaWrappedBalances::unwrap(RuntimeOrigin::signed(1), 50 * DOLLARS),
+			wrapped_balances::Error::<Test>::RedeemAmountExceedsAvaliableStake
 		);
 	});
 }
 
 #[test]
-fn test_redeem_all() {
+fn test_unwrap_all() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
@@ -101,11 +101,11 @@ fn test_redeem_all() {
 		));
 		let free = Balances::free_balance(2);
 		assert_eq!(free, 2000 * DOLLARS);
-		assert_ok!(PhalaPawnshop::redeem_all(RuntimeOrigin::signed(1)));
+		assert_ok!(PhalaWrappedBalances::unwrap_all(RuntimeOrigin::signed(1)));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::redeem_all(RuntimeOrigin::signed(2)));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::unwrap_all(RuntimeOrigin::signed(2)));
 		let free = Balances::free_balance(2);
 		assert_eq!(free, 2000 * DOLLARS);
 	});
@@ -127,48 +127,48 @@ fn test_vote() {
 		);
 		assert_eq!(vote_id, 0);
 		assert_eq!(vote_id2, 1);
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 100 * DOLLARS));
 		assert_noop!(
-			PhalaPawnshop::vote(RuntimeOrigin::signed(1), 90 * DOLLARS, 90 * DOLLARS, 0),
-			pawn_shop::Error::<Test>::VoteAmountLargerThanTotalStakes,
+			PhalaWrappedBalances::vote(RuntimeOrigin::signed(1), 90 * DOLLARS, 90 * DOLLARS, 0),
+			wrapped_balances::Error::<Test>::VoteAmountLargerThanTotalStakes,
 		);
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(1),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			0
 		));
-		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 30 * DOLLARS);
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(1),
 			40 * DOLLARS,
 			20 * DOLLARS,
 			1
 		));
-		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 60 * DOLLARS);
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(2),
 			20 * DOLLARS,
 			30 * DOLLARS,
 			0
 		));
-		let vote = PhalaPawnshop::accumulate_account_vote(0);
+		let vote = PhalaWrappedBalances::accumulate_account_vote(0);
 		let (aye, nay) = match vote {
 			AccountVote::Split { aye, nay } => (aye, nay),
 			_ => panic!(),
 		};
 		assert_eq!(aye, 40 * DOLLARS);
 		assert_eq!(nay, 40 * DOLLARS);
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(1),
 			5 * DOLLARS,
 			10 * DOLLARS,
 			1
 		));
-		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 30 * DOLLARS);
 	});
 }
@@ -182,55 +182,55 @@ fn test_unlock() {
 			pallet_democracy::VoteThreshold::SimpleMajority,
 			1000,
 		);
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 100 * DOLLARS));
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(1),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			0
 		));
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(2),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			0
 		));
 		assert_noop!(
-			PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 0, 1),
-			pawn_shop::Error::<Test>::ReferendumOngoing,
+			PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 0, 1),
+			wrapped_balances::Error::<Test>::ReferendumOngoing,
 		);
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(0);
-		assert_ok!(PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 0, 1));
-		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_ok!(PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 0, 1));
+		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 0 * DOLLARS);
-		let account2_status = pawn_shop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		let account2_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 30 * DOLLARS);
-		assert_ok!(PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 0, 2));
-		let account2_status = pawn_shop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		assert_ok!(PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 0, 2));
+		let account2_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 0 * DOLLARS);
 		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
 			H256::zero(),
 			pallet_democracy::VoteThreshold::SimpleMajority,
 			1000,
 		);
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(1),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			vote_id
 		));
-		assert_ok!(PhalaPawnshop::vote(
+		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(2),
 			20 * DOLLARS,
 			10 * DOLLARS,
 			vote_id
 		));
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(1);
-		assert_ok!(PhalaPawnshop::unlock(RuntimeOrigin::signed(3), 1, 2));
-		let account1_status = pawn_shop::pallet::StakerAccounts::<Test>::get(1).unwrap();
+		assert_ok!(PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 1, 2));
+		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 0 * DOLLARS);
-		let account2_status = pawn_shop::pallet::StakerAccounts::<Test>::get(2).unwrap();
+		let account2_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 0 * DOLLARS);
 	});
 }
@@ -363,7 +363,7 @@ fn test_remove_stake_from_nft() {
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
 		let _pool_info = ensure_stake_pool::<Test>(0).unwrap();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
 			0,
@@ -471,8 +471,8 @@ fn test_contribute() {
 		);
 
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
 			0,
@@ -591,9 +591,9 @@ fn test_set_pool_description() {
 fn test_staker_whitelist() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]);
@@ -682,9 +682,9 @@ fn test_staker_whitelist() {
 fn test_pool_cap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
@@ -831,8 +831,8 @@ fn test_start_computing() {
 		mock_asset_id();
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(99),
 			50000 * DOLLARS
 		));
@@ -898,8 +898,8 @@ fn test_force_unbind() {
 		setup_workers_linked_operators(2);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
 		setup_stake_pool_with_workers(2, &[2]); // pid = 1
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
 			0,
@@ -973,8 +973,8 @@ fn test_force_unbind() {
 fn test_stop_computing() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Cannot start computing without a bound worker
@@ -1026,8 +1026,8 @@ fn test_stop_computing() {
 fn test_reclaim() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Basic setup
@@ -1071,8 +1071,8 @@ fn test_reclaim() {
 fn restart_computing_should_work() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid=0
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -1124,8 +1124,8 @@ fn restart_computing_should_work() {
 fn test_for_cdworkers() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Cannot start computing without a bound worker
@@ -1184,9 +1184,9 @@ fn test_on_reward_for_vault() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_vault(3); // pid = 0
@@ -1238,7 +1238,7 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		let free = Balances::free_balance(&<Test as pawn_shop::Config>::PawnShopAccountId::get());
+		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }
@@ -1248,8 +1248,8 @@ fn test_claim_owner_rewards() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
@@ -1294,9 +1294,9 @@ fn test_vault_owner_shares() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
 		set_block_1();
 		setup_workers(1);
 		setup_vault(3); // pid = 0
@@ -1393,10 +1393,10 @@ fn test_vault_owner_shares() {
 fn test_withdraw() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(99),
 			5000 * DOLLARS
 		));
@@ -1636,10 +1636,10 @@ fn test_withdraw() {
 fn test_check_and_maybe_force_withdraw() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(RuntimeOrigin::signed(3), 500 * DOLLARS));
-		assert_ok!(PhalaPawnshop::pawn(
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(99),
 			500 * DOLLARS
 		));
@@ -1828,7 +1828,7 @@ fn test_check_and_maybe_force_withdraw() {
 
 fn mock_asset_id() {
 	<pallet_assets::pallet::Pallet<Test> as Create<u64>>::create(
-		<Test as pawn_shop::Config>::PPhaAssetId::get(),
+		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
 		1,
 		true,
 		1,
@@ -1838,7 +1838,7 @@ fn mock_asset_id() {
 
 fn get_balance(account_id: u64) -> u128 {
 	<pallet_assets::pallet::Pallet<Test> as Inspect<u64>>::balance(
-		<Test as pawn_shop::Config>::PPhaAssetId::get(),
+		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
 		&account_id,
 	)
 }

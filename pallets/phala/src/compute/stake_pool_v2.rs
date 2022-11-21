@@ -12,7 +12,7 @@ pub mod pallet {
 	use crate::balance_convert::{mul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
-	use crate::pawn_shop;
+	use crate::wrapped_balances;
 	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool};
 	use crate::registry;
 	use crate::stake_pool;
@@ -52,7 +52,7 @@ pub mod pallet {
 		+ base_pool::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
-		+ pawn_shop::Config
+		+ wrapped_balances::Config
 		+ stake_pool::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -172,7 +172,7 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the stake related fields in [`Pools`]
-		/// - the user P-PHA balance reduced
+		/// - the user W-PHA balance reduced
 		/// - the user recive ad share NFT once contribution succeeded
 		/// - when there was any request in the withdraw queue, the action may trigger withdrawals
 		///   ([`Withdrawal`](#variant.Withdrawal) event)
@@ -571,7 +571,7 @@ pub mod pallet {
 			let rewards = pool_info.get_owner_stakes::<T>();
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.owner_reward_account,
 				&target,
 				rewards,
@@ -667,7 +667,7 @@ pub mod pallet {
 			let free = match &maybe_vault {
 				Some((_, vault_info)) => vault_info.basepool.get_free_stakes::<T>(),
 				_ => pallet_assets::Pallet::<T>::balance(
-					<T as pawn_shop::Config>::PPhaAssetId::get(),
+					<T as wrapped_balances::Config>::WPhaAssetId::get(),
 					&who,
 				),
 			};
@@ -705,7 +705,7 @@ pub mod pallet {
 				who.clone(),
 			)?;
 			if as_vault.is_none() {
-				pawn_shop::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
+				wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
 			}
 
 			Self::deposit_event(Event::<T>::Contribution {
@@ -803,7 +803,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			//ensure_root(origin)?;
-			let pawnshop_accountid = <T as pawn_shop::Config>::PawnShopAccountId::get();
+			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			let mut iter = match StakepoolIterateStartPos::<T>::get() {
 				Some(pid) => {
 					let key: Vec<u8> = stake_pool::pallet::StakePools::<T>::hashed_key_for(pid);
@@ -863,7 +863,7 @@ pub mod pallet {
 					}
 					let computing_stake =
 						computation::Stakes::<T>::get(&session).unwrap_or_default();
-					pawn_shop::Pallet::<T>::mint_into(
+					wrapped_balances::Pallet::<T>::mint_into(
 						&new_pool_info.owner_reward_account,
 						computing_stake,
 					)
@@ -889,18 +889,18 @@ pub mod pallet {
 							});
 					});
 				// If the balance is too low to mint, we can just drop it.
-				if !pawn_shop::Pallet::<T>::mint_into(
+				if !wrapped_balances::Pallet::<T>::mint_into(
 					&new_pool_info.owner_reward_account,
 					pool_info.owner_reward,
 				)
 				.is_err()
 				{
 					let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-						&pawnshop_accountid,
+						&wrappedbalances_accountid,
 						pool_info.owner_reward,
 					);
 				};
-				pawn_shop::Pallet::<T>::mint_into(
+				wrapped_balances::Pallet::<T>::mint_into(
 					&new_pool_info.basepool.pool_account_id,
 					pool_info.free_stake,
 				);
@@ -925,12 +925,12 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn migrate_pool_stakers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			//ensure_root(origin)?;
-			let pawnshop_accountid = <T as pawn_shop::Config>::PawnShopAccountId::get();
+			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			stake_pool::pallet::PoolStakers::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|((pid, user_id), staker_info)| {
 					let mut account_status =
-						pawn_shop::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
+						wrapped_balances::StakerAccounts::<T>::get(&user_id).unwrap_or_default();
 					let deprecated_pool = stake_pool::pallet::StakePools::<T>::get(pid)
 						.expect("get deprecated pool should success; qed.");
 					let pending_reward =
@@ -938,19 +938,20 @@ pub mod pallet {
 							- staker_info.reward_debt;
 					let user_reward = pending_reward + staker_info.available_rewards;
 					let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
-						&pawnshop_accountid,
+						&wrappedbalances_accountid,
 						user_reward,
 					);
-					let pool_info =
+					let mut pool_info =
 						ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
 					// If the balance is too low to mint, we can just drop it.
 					// Even if user_reward is a dust, we should still create user's shares
-					pawn_shop::Pallet::<T>::mint_into(
+					wrapped_balances::Pallet::<T>::mint_into(
 						&pool_info.basepool.pool_account_id,
 						user_reward,
 					);
+					pool_info.basepool.total_value += user_reward;
 					let mut actual_shares = staker_info.shares;
-					for v in pool_info.basepool.withdraw_queue {
+					for v in &pool_info.basepool.withdraw_queue {
 						if v.user == user_id {
 							let nft_guard = base_pool::Pallet::<T>::get_nft_attr_guard(
 								pool_info.basepool.cid,
@@ -967,7 +968,7 @@ pub mod pallet {
 						user_id.clone(),
 						actual_shares,
 					)
-					.expect("test");
+					.expect("mint shouldn't fail; qed.");
 					if !account_status
 						.invest_pools
 						.contains(&(pid, pool_info.basepool.cid))
@@ -976,7 +977,8 @@ pub mod pallet {
 							.invest_pools
 							.push((pid, pool_info.basepool.cid));
 					}
-					pawn_shop::StakerAccounts::<T>::insert(user_id, account_status);
+					base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
+					wrapped_balances::StakerAccounts::<T>::insert(user_id, account_status);
 				});
 			Ok(())
 		}
@@ -984,7 +986,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn migrate_stake_ledger(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			//ensure_root(origin)?;
-			let pawnshop_accountid = <T as pawn_shop::Config>::PawnShopAccountId::get();
+			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			stake_pool::pallet::StakeLedger::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(user_id, balance)| {
@@ -994,7 +996,7 @@ pub mod pallet {
 					<T as PhalaConfig>::Currency::remove_lock(PHRELECT_ID, &user_id);
 					if <T as PhalaConfig>::Currency::transfer(
 						&user_id,
-						&pawnshop_accountid,
+						&wrappedbalances_accountid,
 						balance,
 						KeepAlive,
 					)
@@ -1009,7 +1011,7 @@ pub mod pallet {
 						);
 						<T as PhalaConfig>::Currency::transfer(
 							&user_id,
-							&pawnshop_accountid,
+							&wrappedbalances_accountid,
 							balance,
 							KeepAlive,
 						)
@@ -1198,7 +1200,7 @@ pub mod pallet {
 			let session: T::AccountId = pool_sub_account(pid, &worker);
 			computation::pallet::Pallet::<T>::start_computing(session, stake)?;
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.basepool.pool_account_id,
 				&pool_info.lock_account,
 				stake,
@@ -1264,7 +1266,7 @@ pub mod pallet {
 		) {
 			if rewards > Zero::zero() {
 				computation::Pallet::<T>::withdraw_subsidy_pool(
-					&<T as pawn_shop::Config>::PawnShopAccountId::get(),
+					&<T as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
 					rewards,
 				)
 				.expect("this should not happen");
@@ -1277,10 +1279,10 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 
-				pawn_shop::Pallet::<T>::mint_into(&pool_info.owner_reward_account, commission)
+				wrapped_balances::Pallet::<T>::mint_into(&pool_info.owner_reward_account, commission)
 					.expect("mint into should be success");
 				let to_distribute = rewards - commission;
-				pawn_shop::Pallet::<T>::mint_into(
+				wrapped_balances::Pallet::<T>::mint_into(
 					&pool_info.basepool.pool_account_id,
 					to_distribute,
 				)
@@ -1320,7 +1322,7 @@ pub mod pallet {
 				// and creating a logical pending slash. The actual slash happens with the pending
 				// slash to individuals is settled.
 				pool_info.basepool.slash(slashed);
-				//TODO(mingxuan): Burn the PPHA and transfer the amount to treasury when slash is active
+				//TODO(mingxuan): Burn the WPHA and transfer the amount to treasury when slash is active
 				Self::deposit_event(Event::<T>::PoolSlashed {
 					pid,
 					amount: slashed,
@@ -1329,7 +1331,7 @@ pub mod pallet {
 
 			// With the worker being cleaned, those stake now are free
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as pawn_shop::Config>::PPhaAssetId::get(),
+				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.lock_account,
 				&pool_info.basepool.pool_account_id,
 				returned,

@@ -48,12 +48,12 @@ pub mod pallet {
 		+ pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		/// P-PHA's asset id
+		/// W-PHA's asset id
 		#[pallet::constant]
-		type PPhaAssetId: Get<u32>;
+		type WPhaAssetId: Get<u32>;
 		/// Pha's global fund pool
 		#[pallet::constant]
-		type PawnShopAccountId: Get<Self::AccountId>;
+		type WrappedBalancesAccountId: Get<Self::AccountId>;
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	}
@@ -63,7 +63,7 @@ pub mod pallet {
 	pub struct FinanceAccount<Balance> {
 		/// The pools and their pool collection id the user delegated
 		pub invest_pools: Vec<(u64, CollectionId)>,
-		/// The locked P-PHA amount used to vote
+		/// The locked W-PHA amount used to vote
 		pub locked: Balance,
 	}
 
@@ -77,7 +77,7 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Mapping from the vote ids and accounts to the amounts of P-PHA used to approve or oppose to the vote
+	/// Mapping from the vote ids and accounts to the amounts of W-PHA used to approve or oppose to the vote
 	#[pallet::storage]
 	pub type VoteAccountMap<T: Config> = StorageDoubleMap<
 		_,
@@ -88,7 +88,7 @@ pub mod pallet {
 		(BalanceOf<T>, BalanceOf<T>),
 	>;
 
-	/// Mapping from the accounts and vote ids to the amounts of P-PHA used to approve or oppose to the vote
+	/// Mapping from the accounts and vote ids to the amounts of W-PHA used to approve or oppose to the vote
 	#[pallet::storage]
 	pub type AccountVoteMap<T: Config> =
 		StorageDoubleMap<_, Blake2_128Concat, T::AccountId, Blake2_128Concat, ReferendumIndex, ()>;
@@ -133,13 +133,13 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// user's `FinanceAccount` does not exist in storage: `StakerAccounts`
 		StakerAccountNotFound,
-		/// Trying to redeem more than the available balance
+		/// Trying to unwrap more than the available balance
 		RedeemAmountExceedsAvaliableStake,
 		/// Trying to vote more than the available balance
 		VoteAmountLargerThanTotalStakes,
 		/// The vote is not currently on going
 		ReferendumInvalid,
-		/// The vote is now on going and the P-PHA used in voting can not be unlocked
+		/// The vote is now on going and the W-PHA used in voting can not be unlocked
 		ReferendumOngoing,
 		/// The Iteration exceed the max limitaion
 		IterationsIsNotVaild,
@@ -154,16 +154,16 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		/// Pawns some pha and gain equal amount of P-PHA
+		/// Pawns some pha and gain equal amount of W-PHA
 		///
-		/// The pawned pha is stored in `PawnShopAccountId`'s wallet and can not be taken away
+		/// The wrapped pha is stored in `WrappedBalancesAccountId`'s wallet and can not be taken away
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn pawn(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+		pub fn wrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			<T as PhalaConfig>::Currency::transfer(
 				&user,
-				&T::PawnShopAccountId::get(),
+				&T::WrappedBalancesAccountId::get(),
 				amount,
 				KeepAlive,
 			)?;
@@ -179,22 +179,22 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Burns the amount of all free P-PHA and redeems equal amount of pha
+		/// Burns the amount of all free W-PHA and unwraps equal amount of pha
 		///
-		/// The redeemed pha is transfered from `PawnShopAccountId` to the user's wallet
+		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn redeem_all(origin: OriginFor<T>) -> DispatchResult {
+		pub fn unwrap_all(origin: OriginFor<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			let active_stakes = Self::get_net_value(user.clone())?;
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
-			>>::balance(T::PPhaAssetId::get(), &user);
+			>>::balance(T::WPhaAssetId::get(), &user);
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
 			let withdraw_amount = (active_stakes - staker_status.locked).min(free_stakes);
 			<T as PhalaConfig>::Currency::transfer(
-				&T::PawnShopAccountId::get(),
+				&T::WrappedBalancesAccountId::get(),
 				&user,
 				withdraw_amount,
 				AllowDeath,
@@ -203,16 +203,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Redeems some pha by burning equal amount of P-PHA
+		/// Redeems some pha by burning equal amount of W-PHA
 		///
-		/// The redeemed pha is transfered from `PawnShopAccountId` to the user's wallet
+		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn redeem(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+		pub fn unwrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
-			>>::balance(T::PPhaAssetId::get(), &user);
+			>>::balance(T::WPhaAssetId::get(), &user);
 			ensure!(
 				amount <= free_stakes,
 				Error::<T>::RedeemAmountExceedsAvaliableStake
@@ -225,7 +225,7 @@ pub mod pallet {
 				Error::<T>::RedeemAmountExceedsAvaliableStake,
 			);
 			<T as PhalaConfig>::Currency::transfer(
-				&T::PawnShopAccountId::get(),
+				&T::WrappedBalancesAccountId::get(),
 				&user,
 				amount,
 				AllowDeath,
@@ -235,10 +235,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Uses some P-PHA to approve or oppose a vote
+		/// Uses some W-PHA to approve or oppose a vote
 		///
 		/// Can both approve and oppose a vote at the same time
-		/// The P-PHA used in vote will be locked until the vote is finished or canceled
+		/// The W-PHA used in vote will be locked until the vote is finished or canceled
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn vote(
@@ -271,7 +271,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Tries to unlock P-PHAs used in vote after the vote finished or canceled
+		/// Tries to unlock W-PHAs used in vote after the vote finished or canceled
 		///
 		/// Must assign the max iterations to avoid computing complexity overwhelm
 		#[pallet::weight(0)]
@@ -311,9 +311,9 @@ pub mod pallet {
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
 	{
-		/// Gets P-PHA's asset id
+		/// Gets W-PHA's asset id
 		pub fn get_asset_id() -> u32 {
-			T::PPhaAssetId::get()
+			T::WPhaAssetId::get()
 		}
 
 		/// Removes slash dust
@@ -321,7 +321,7 @@ pub mod pallet {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
 				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::PPhaAssetId::get(), who, dust)
+					pallet_assets::Pallet::<T>::slash(T::WPhaAssetId::get(), who, dust)
 						.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
@@ -335,15 +335,15 @@ pub mod pallet {
 			}
 		}
 
-		/// Mints some P-PHA
+		/// Mints some W-PHA
 		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::mint_into(T::PPhaAssetId::get(), target, amount)?;
+			pallet_assets::Pallet::<T>::mint_into(T::WPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
-		/// Burns some P-PHA
+		/// Burns some W-PHA
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(T::PPhaAssetId::get(), target, amount)?;
+			pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), target, amount)?;
 			Ok(())
 		}
 
@@ -363,16 +363,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Caculates the net P-PHA value of a user
+		/// Caculates the net W-PHA value of a user
 		///
-		/// The net P-PHA value includes:
+		/// The net W-PHA value includes:
 		/// 1. Free stakes in user's asset account
 		/// 2. The current value of shares owned by the user
 		/// Note: shares in withdraw queues are not included
 		fn get_net_value(who: T::AccountId) -> Result<BalanceOf<T>, DispatchError> {
 			let mut total_active_stakes: BalanceOf<T> =
 				<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
-					T::PPhaAssetId::get(),
+					T::WPhaAssetId::get(),
 					&who,
 				);
 			let account_status = match StakerAccounts::<T>::get(&who) {
@@ -398,7 +398,7 @@ pub mod pallet {
 			Ok(total_active_stakes)
 		}
 
-		/// Sums up all amounts of P-PHA approves or opposes to the vote
+		/// Sums up all amounts of W-PHA approves or opposes to the vote
 		// TODO(mingxuan): Optimize to O(1) in the future.
 		pub fn accumulate_account_vote(vote_id: ReferendumIndex) -> AccountVote<BalanceOf<T>> {
 			let mut total_aye_amount: BalanceOf<T> = Zero::zero();
@@ -414,7 +414,7 @@ pub mod pallet {
 			}
 		}
 
-		/// Tries to update locked P-PHA amount of the user
+		/// Tries to update locked W-PHA amount of the user
 		fn update_user_locked(user: T::AccountId) -> DispatchResult {
 			let mut max_lock: BalanceOf<T> = Zero::zero();
 			AccountVoteMap::<T>::iter_prefix(user.clone()).for_each(|(vote_id, ())| {

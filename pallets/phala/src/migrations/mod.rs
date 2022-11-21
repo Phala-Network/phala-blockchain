@@ -16,7 +16,7 @@ use log;
 
 use rmrk_traits::primitives::{CollectionId, NftId};
 
-use crate::compute::{base_pool, computation, pawn_shop, stake_pool_v2, vault};
+use crate::compute::{base_pool, computation, wrapped_balances, stake_pool_v2, vault};
 use crate::fat;
 use crate::mq;
 use crate::registry;
@@ -45,7 +45,7 @@ impl<T> PhalaPallets for T where
 		+ stake_pool_v2::Config
 		+ base_pool::Config
 		+ vault::Config
-		+ pawn_shop::Config
+		+ wrapped_balances::Config
 		+ crate::PhalaConfig
 {
 }
