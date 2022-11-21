@@ -422,6 +422,9 @@ impl Builder {
 
         config.service_generator(Box::new(ServiceGenerator::new(self)));
 
+        if std::env::var("PROTOC").is_err() {
+            std::env::set_var("PROTOC", protoc::protoc());
+        }
         config.compile_protos(protos, includes)?;
 
         let patch_file = out_dir.join("protos_codec_extensions.rs");
