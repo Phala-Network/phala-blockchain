@@ -217,6 +217,24 @@ pub struct Args {
     /// Attestation provider
     #[arg(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
     attestation_provider: RaOption,
+
+    /// What parts of data to be synced into the pRuntime. For debug.
+    #[arg(long, value_enum, default_value_t = SyncParts::Blocks)]
+    sync_parts: SyncParts,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
+enum SyncParts {
+    RelayHeaders = 1,
+    ParaHeaders = 2,
+    Blocks = 3,
+}
+
+impl SyncParts {
+    fn should_sync(self, what: SyncParts) -> bool {
+        self >= what
+    }
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -473,9 +491,8 @@ async fn batch_sync_block(
     cache: Option<&CacheClient>,
     pr: &PrClient,
     sync_state: &mut BlockSyncState,
-    batch_window: BlockNumber,
     info: &prpc::PhactoryInfo,
-    parachain: bool,
+    args: &Args,
 ) -> Result<BlockNumber> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
@@ -487,7 +504,7 @@ async fn batch_sync_block(
 
     let mut synced_blocks: BlockNumber = 0;
 
-    let hdr_synced_to = if parachain {
+    let hdr_synced_to = if args.parachain {
         next_para_headernum - 1
     } else {
         next_headernum - 1
@@ -495,14 +512,24 @@ async fn batch_sync_block(
     macro_rules! sync_blocks_to {
         ($to: expr) => {
             if next_blocknum <= $to {
-                batch_sync_storage_changes(pr, paraclient, cache, next_blocknum, $to, batch_window)
-                    .await?;
+                batch_sync_storage_changes(
+                    pr,
+                    paraclient,
+                    cache,
+                    next_blocknum,
+                    $to,
+                    args.sync_blocks,
+                )
+                .await?;
                 synced_blocks += $to - next_blocknum + 1;
                 next_blocknum = $to + 1;
             };
         };
     }
-    sync_blocks_to!(hdr_synced_to);
+
+    if args.sync_parts.should_sync(SyncParts::Blocks) {
+        sync_blocks_to!(hdr_synced_to);
+    }
 
     while !block_buf.is_empty() {
         // Current authority set id
@@ -597,11 +624,23 @@ async fn batch_sync_block(
 
         let mut header_batch = header_batch;
         header_batch.retain(|h| h.header.number >= next_headernum);
+        synced_blocks += header_batch.len() as u32;
         let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
-        next_headernum = r.synced_to + 1;
 
-        let hdr_synced_to = if parachain {
+        next_headernum = r.synced_to + 1;
+        sync_state.authory_set_state = Some(match set_id_change_at {
+            // set_id changed at next block
+            Some(change_at) => (change_at + 1, last_set.1 + 1),
+            // not changed
+            None => (last_number_in_buff, last_set.1),
+        });
+
+        if !args.sync_parts.should_sync(SyncParts::ParaHeaders) {
+            continue;
+        }
+
+        let hdr_synced_to = if args.parachain {
             let hdr_synced_to =
                 match get_finalized_header(api, paraclient, last_header_hash).await? {
                     Some((fin_header, proof)) => {
@@ -623,14 +662,9 @@ async fn batch_sync_block(
             r.synced_to
         };
 
-        sync_blocks_to!(hdr_synced_to);
-
-        sync_state.authory_set_state = Some(match set_id_change_at {
-            // set_id changed at next block
-            Some(change_at) => (change_at + 1, last_set.1 + 1),
-            // not changed
-            None => (last_number_in_buff, last_set.1),
-        });
+        if args.sync_parts.should_sync(SyncParts::Blocks) {
+            sync_blocks_to!(hdr_synced_to);
+        }
     }
     Ok(synced_blocks)
 }
@@ -1119,7 +1153,7 @@ async fn bridge(
         } else {
             info.headernum
         };
-        if info.blocknum < next_headernum {
+        if info.blocknum < next_headernum && args.sync_parts.should_sync(SyncParts::Blocks) {
             info!("blocks fall behind");
             batch_sync_storage_changes(
                 &pr,
@@ -1135,6 +1169,7 @@ async fn bridge(
             && !args.disable_sync_waiting_paraheaders
             // `round == 0` is for old pruntimes which don't return `waiting_for_paraheaders`
             && (info.waiting_for_paraheaders || round == 0)
+            && args.sync_parts.should_sync(SyncParts::ParaHeaders)
         {
             maybe_sync_waiting_parablocks(
                 &pr,
@@ -1168,7 +1203,7 @@ async fn bridge(
                     info.blocknum,
                     info.para_headernum,
                     cached_headers,
-                    args.sync_blocks,
+                    &args,
                 )
                 .await?;
                 continue;
@@ -1232,9 +1267,8 @@ async fn bridge(
             cache_client.as_ref(),
             &pr,
             &mut sync_state,
-            args.sync_blocks,
             &info,
-            args.parachain,
+            &args,
         )
         .await?;
 
@@ -1431,7 +1465,7 @@ async fn sync_with_cached_headers(
     next_blocknum: BlockNumber,
     next_para_headernum: BlockNumber,
     mut headers: Vec<headers_cache::BlockInfo>,
-    batch_window: BlockNumber,
+    args: &Args,
 ) -> Result<()> {
     let last_header = match headers.last_mut() {
         Some(header) => header,
@@ -1450,6 +1484,10 @@ async fn sync_with_cached_headers(
     let r = req_sync_header(pr, headers, authority_set_change).await?;
     info!("  ..sync_header: {:?}", r);
 
+    if !args.sync_parts.should_sync(SyncParts::ParaHeaders) {
+        return Ok(());
+    }
+
     if let Some(para_header) = para_header {
         let hdr_synced_to = sync_parachain_header(
             pr,
@@ -1460,6 +1498,9 @@ async fn sync_with_cached_headers(
             para_header.proof,
         )
         .await?;
+        if !args.sync_parts.should_sync(SyncParts::Blocks) {
+            return Ok(());
+        }
         if next_blocknum <= hdr_synced_to {
             batch_sync_storage_changes(
                 pr,
@@ -1467,7 +1508,7 @@ async fn sync_with_cached_headers(
                 cache,
                 next_blocknum,
                 hdr_synced_to,
-                batch_window,
+                args.sync_blocks,
             )
             .await?;
         }
