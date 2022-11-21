@@ -208,6 +208,10 @@ pub struct Args {
     #[arg(default_value_t = BlockNumber::MAX)]
     to_block: BlockNumber,
 
+    #[arg(long, help = "Stop when synced to given relaychain header number")]
+    #[arg(default_value_t = BlockNumber::MAX)]
+    sync_headers_to: BlockNumber,
+
     #[arg(
         long,
         help = "Disable syncing waiting parachain blocks in the beginning of each round"
@@ -1132,7 +1136,12 @@ async fn bridge(
         let info = pr.get_info(()).await?;
         info!("pRuntime get_info response: {:#?}", info);
         if info.blocknum >= args.to_block {
-            info!("Reached target block: {}", args.to_block);
+            info!("Reached target block: {}", info.blocknum);
+            return Ok(());
+        }
+
+        if info.headernum >= args.sync_headers_to {
+            info!("Reached target header number: {}", info.headernum);
             return Ok(());
         }
 
