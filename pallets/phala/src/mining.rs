@@ -518,7 +518,7 @@ pub mod pallet {
 		/// Can only be called by root.
 		#[pallet::weight(1)]
 		pub fn set_heartbeat_paused(origin: OriginFor<T>, paused: bool) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 			HeartbeatPaused::<T>::put(paused);
 			Ok(())
 		}
