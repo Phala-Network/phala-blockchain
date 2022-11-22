@@ -2105,30 +2105,9 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-    use crate::storage::{Storage, StorageExt};
-    use parity_scale_codec::Decode;
+    use crate::storage::Storage;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
-        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
-            .get(&key)
-            .map(|v| {
-                Vec::<WorkerPublicKey>::decode(&mut &v[..])
-                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
-            })
-            .unwrap_or_default();
-
-        gatekeepers.contains(pubkey)
-    }
-
-    /// Return `None` if given pruntime hash is not allowed on-chain
-    pub fn get_pruntime_added_at(
-        chain_storage: &Storage,
-        runtime_hash: &Vec<u8>,
-    ) -> Option<chain::BlockNumber> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
-        chain_storage.get_decoded(key)
+        chain_storage.gatekeepers().contains(pubkey)
     }
 }

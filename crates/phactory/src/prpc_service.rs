@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
 use crate::hex;
-use crate::system::{chain_state, System};
+use crate::system::System;
 
 use super::*;
 use crate::contracts::ContractClusterId;
@@ -1141,9 +1141,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .map_err(|_| from_display("Invalid RA report from client"))?;
             let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
-            let my_runtime_timestamp =
-                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &my_mrenclave)
-                    .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
+            let my_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&my_mrenclave)
+                .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
 
             let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
             let mrenclave = match attestation {
@@ -1157,9 +1158,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     ias_fields.extend_mrenclave()
                 }
             };
-            let req_runtime_timestamp =
-                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
-                    .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            let req_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&mrenclave)
+                .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
             // ATTENTION.shelven: relax this check for easy testing and restore it for release
             if my_runtime_timestamp >= req_runtime_timestamp {
                 return Err(from_display("No handover for old pRuntime"));
