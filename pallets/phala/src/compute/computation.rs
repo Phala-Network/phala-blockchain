@@ -239,7 +239,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ExpectedHeartbeatCount<T> = StorageValue<_, u32>;
 
-	/// The session state.
+	/// Won't sent heartbeat challenges to the the worker if enabled.
+	#[pallet::storage]
+	pub type HeartbeatPaused<T> = StorageValue<_, bool, ValueQuery>;
+
+	/// The miner state.
 	///
 	/// The session state is created when a worker is bounded with a session, but it will be kept even
 	/// if the worker is force unbound. A re-bind of a worker will reset the computing state.
@@ -626,6 +630,20 @@ pub mod pallet {
 			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), 1);
 			Ok(())
 		}
+		
+		/// Pause or resume the heartbeat challenges.
+		///
+		/// This API is introduced to pause the computing rewards for a period while we upgrading
+		/// StakePool v2. Worker's rewards would still be accumulated in GK in the pausing period
+		/// but never be paid out until the heartbeat is resumed.
+		///
+		/// Can only be called by root.
+		#[pallet::weight(1)]
+		pub fn set_heartbeat_paused(origin: OriginFor<T>, paused: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			HeartbeatPaused::<T>::put(paused);
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -685,6 +703,9 @@ pub mod pallet {
 		}
 
 		fn heartbeat_challenge() {
+			if HeartbeatPaused::<T>::get() {
+				return;
+			}
 			// Random seed for the heartbeat challenge
 			let seed_hash = T::Randomness::random(crate::constants::RANDOMNESS_SUBJECT).0;
 			let seed: U256 = AsRef::<[u8]>::as_ref(&seed_hash).into();
