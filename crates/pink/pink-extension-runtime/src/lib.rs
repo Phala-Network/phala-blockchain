@@ -1,11 +1,15 @@
 use std::borrow::Cow;
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{
+    fmt::Display,
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
 
 use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    EcdsaPublicKey, EcdsaSignature, Hash,
+    Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -14,6 +18,7 @@ use reqwest::{
 use reqwest_env_proxy::EnvProxyBuilder;
 use sp_core::{ByteArray as _, Pair};
 
+pub mod local_cache;
 pub mod mock_ext;
 
 pub trait PinkRuntimeEnv {
@@ -64,15 +69,26 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
             headers.insert(key, value);
         }
 
-        let mut response = client
+        let result = client
             .request(method, url)
             .headers(headers)
             .body(request.body)
-            .send()
-            .map_err(|err| {
-                log::info!("HTTP request error: {}", err);
-                "Failed to send request"
-            })?;
+            .send();
+
+        let mut response = match result {
+            Ok(response) => response,
+            Err(err) => {
+                // If there is somthing wrong with the network, we can not inspect the reason too
+                // much here. Let it return a non-standard 523 here.
+                log::info!("HTTP request error: {err}");
+                return Ok(HttpResponse {
+                    status_code: 523,
+                    reason_phrase: "Unreachable".into(),
+                    body: format!("{err:?}").into_bytes(),
+                    headers: vec![],
+                });
+            }
+        };
 
         let headers: Vec<_> = response
             .headers()
@@ -83,9 +99,15 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         let mut body = Vec::new();
         let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
 
-        response
-            .copy_to(&mut writer)
-            .or(Err("Failed to copy response body"))?;
+        if let Err(err) = response.copy_to(&mut writer) {
+            log::info!("Failed to read HTTP body: {err}");
+            return Ok(HttpResponse {
+                status_code: 524,
+                reason_phrase: "IO Error".into(),
+                body: format!("{err:?}").into_bytes(),
+                headers: vec![],
+            });
+        };
 
         let response = HttpResponse {
             status_code: response.status().as_u16(),
@@ -176,7 +198,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
+    fn cache_set_expiration(&self, _key: Cow<[u8]>, _expire: u64) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -239,6 +261,21 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         Err("No default system contract id".into())
+    }
+
+    fn balance_of(&self, _account: ext::AccountId) -> Result<(Balance, Balance), Self::Error> {
+        Ok((0, 0))
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        let duration = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .or(Err("The system time is earlier than UNIX_EPOCH"))?;
+        Ok(duration.as_millis() as u64)
+    }
+
+    fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
     }
 }
 

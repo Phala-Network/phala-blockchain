@@ -2974,8 +2974,8 @@ export namespace pruntime_rpc {
         /** WorkerState benchState */
         benchState?: (pruntime_rpc.IBenchState|null);
 
-        /** WorkerState miningState */
-        miningState?: (pruntime_rpc.IMiningState|null);
+        /** WorkerState workingState */
+        workingState?: (pruntime_rpc.IWorkingState|null);
 
         /** WorkerState waitingHeartbeats */
         waitingHeartbeats?: (number[]|null);
@@ -3005,8 +3005,8 @@ export namespace pruntime_rpc {
         /** WorkerState benchState. */
         public benchState?: (pruntime_rpc.IBenchState|null);
 
-        /** WorkerState miningState. */
-        public miningState?: (pruntime_rpc.IMiningState|null);
+        /** WorkerState workingState. */
+        public workingState?: (pruntime_rpc.IWorkingState|null);
 
         /** WorkerState waitingHeartbeats. */
         public waitingHeartbeats: number[];
@@ -3472,103 +3472,103 @@ export namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
-    /** Properties of a MiningState. */
-    interface IMiningState {
+    /** Properties of a WorkingState. */
+    interface IWorkingState {
 
-        /** MiningState sessionId */
+        /** WorkingState sessionId */
         sessionId?: (number|null);
 
-        /** MiningState paused */
+        /** WorkingState paused */
         paused?: (boolean|null);
 
-        /** MiningState startTime */
+        /** WorkingState startTime */
         startTime?: (number|Long|null);
     }
 
-    /** Represents a MiningState. */
-    class MiningState implements IMiningState {
+    /** Represents a WorkingState. */
+    class WorkingState implements IWorkingState {
 
         /**
-         * Constructs a new MiningState.
+         * Constructs a new WorkingState.
          * @param [properties] Properties to set
          */
-        constructor(properties?: pruntime_rpc.IMiningState);
+        constructor(properties?: pruntime_rpc.IWorkingState);
 
-        /** MiningState sessionId. */
+        /** WorkingState sessionId. */
         public sessionId: number;
 
-        /** MiningState paused. */
+        /** WorkingState paused. */
         public paused: boolean;
 
-        /** MiningState startTime. */
+        /** WorkingState startTime. */
         public startTime: (number|Long);
 
         /**
-         * Creates a new MiningState instance using the specified properties.
+         * Creates a new WorkingState instance using the specified properties.
          * @param [properties] Properties to set
-         * @returns MiningState instance
+         * @returns WorkingState instance
          */
-        public static create(properties?: pruntime_rpc.IMiningState): pruntime_rpc.MiningState;
+        public static create(properties?: pruntime_rpc.IWorkingState): pruntime_rpc.WorkingState;
 
         /**
-         * Encodes the specified MiningState message. Does not implicitly {@link pruntime_rpc.MiningState.verify|verify} messages.
-         * @param message MiningState message or plain object to encode
+         * Encodes the specified WorkingState message. Does not implicitly {@link pruntime_rpc.WorkingState.verify|verify} messages.
+         * @param message WorkingState message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encode(message: pruntime_rpc.IMiningState, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encode(message: pruntime_rpc.IWorkingState, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Encodes the specified MiningState message, length delimited. Does not implicitly {@link pruntime_rpc.MiningState.verify|verify} messages.
-         * @param message MiningState message or plain object to encode
+         * Encodes the specified WorkingState message, length delimited. Does not implicitly {@link pruntime_rpc.WorkingState.verify|verify} messages.
+         * @param message WorkingState message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encodeDelimited(message: pruntime_rpc.IMiningState, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encodeDelimited(message: pruntime_rpc.IWorkingState, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Decodes a MiningState message from the specified reader or buffer.
+         * Decodes a WorkingState message from the specified reader or buffer.
          * @param reader Reader or buffer to decode from
          * @param [length] Message length if known beforehand
-         * @returns MiningState
+         * @returns WorkingState
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.MiningState;
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.WorkingState;
 
         /**
-         * Decodes a MiningState message from the specified reader or buffer, length delimited.
+         * Decodes a WorkingState message from the specified reader or buffer, length delimited.
          * @param reader Reader or buffer to decode from
-         * @returns MiningState
+         * @returns WorkingState
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.MiningState;
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.WorkingState;
 
         /**
-         * Verifies a MiningState message.
+         * Verifies a WorkingState message.
          * @param message Plain object to verify
          * @returns `null` if valid, otherwise the reason why it is not
          */
         public static verify(message: { [k: string]: any }): (string|null);
 
         /**
-         * Creates a MiningState message from a plain object. Also converts values to their respective internal types.
+         * Creates a WorkingState message from a plain object. Also converts values to their respective internal types.
          * @param object Plain object
-         * @returns MiningState
+         * @returns WorkingState
          */
-        public static fromObject(object: { [k: string]: any }): pruntime_rpc.MiningState;
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.WorkingState;
 
         /**
-         * Creates a plain object from a MiningState message. Also converts values to other types if specified.
-         * @param message MiningState
+         * Creates a plain object from a WorkingState message. Also converts values to other types if specified.
+         * @param message WorkingState
          * @param [options] Conversion options
          * @returns Plain object
          */
-        public static toObject(message: pruntime_rpc.MiningState, options?: $protobuf.IConversionOptions): { [k: string]: any };
+        public static toObject(message: pruntime_rpc.WorkingState, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
         /**
-         * Converts this MiningState to JSON.
+         * Converts this WorkingState to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };

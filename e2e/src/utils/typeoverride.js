@@ -241,6 +241,8 @@ const types = {
     }
 };
 
-const typeAlias = null;
+const typeAlias = {};
 
-module.exports = { types, typeAlias };
+const typeOverrides = {};
+
+module.exports = { types, typeAlias, typeOverrides };

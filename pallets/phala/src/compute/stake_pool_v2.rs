@@ -333,7 +333,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let pid = base_pool::Pallet::<T>::consume_new_pid();
 			// TODO(mingxuan): create_collection should return cid
-			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
+			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 				format!("STAKEPOOL-{}", pid)
@@ -343,6 +343,7 @@ pub mod pallet {
 					.expect("create a bvec from string should never fail; qed.");
 			pallet_rmrk_core::Pallet::<T>::create_collection(
 				Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(),
+				collection_id,
 				Default::default(),
 				None,
 				symbol,
@@ -372,6 +373,7 @@ pub mod pallet {
 					owner_reward_account,
 				}),
 			);
+			base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
 			Self::deposit_event(Event::<T>::PoolCreated {
 				owner,
 				pid,
@@ -794,15 +796,9 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn migrate_computation(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
-			migration::move_pallet(b"PhalaMining", b"PhalaComputation");
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			let mut iter = match StakepoolIterateStartPos::<T>::get() {
 				Some(pid) => {
@@ -814,7 +810,7 @@ pub mod pallet {
 			let mut i = 0;
 			let mut last_pid = None;
 			for (pid, pool_info) in iter.by_ref() {
-				let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
+				let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 				let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 					format!("STAKEPOOL-{}", pid)
 						.as_bytes()
@@ -823,6 +819,7 @@ pub mod pallet {
 						.expect("create a bvec from string should never fail; qed.");
 				pallet_rmrk_core::Pallet::<T>::create_collection(
 					Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(),
+					collection_id,
 					Default::default(),
 					None,
 					symbol,
@@ -905,6 +902,7 @@ pub mod pallet {
 					pool_info.free_stake,
 				);
 				base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(new_pool_info));
+				base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
 				i += 1;
 				last_pid = Some(pid);
 				if i >= max_iterations {
@@ -924,7 +922,8 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_pool_stakers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			stake_pool::pallet::PoolStakers::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -985,7 +984,8 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_stake_ledger(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			stake_pool::pallet::StakeLedger::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1026,7 +1026,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::StakePools::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(_, _)| {});
@@ -1038,7 +1039,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::WorkerAssignments::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
@@ -1052,7 +1054,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::SubAccountPreimages::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
@@ -1066,7 +1069,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::PoolContributionWhitelists::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {
@@ -1080,7 +1084,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::PoolDescriptions::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(k, v)| {

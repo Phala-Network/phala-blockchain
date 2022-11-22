@@ -150,7 +150,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let pid = base_pool::Pallet::<T>::consume_new_pid();
 			// TODO(mingxuan): create_collection should return cid
-			let collection_id: CollectionId = pallet_rmrk_core::Pallet::<T>::collection_index();
+			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 				format!("VAULT-{}", pid)
@@ -160,6 +160,7 @@ pub mod pallet {
 					.expect("create a bvec from string should never fail; qed.");
 			pallet_rmrk_core::Pallet::<T>::create_collection(
 				Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(),
+				collection_id,
 				Default::default(),
 				None,
 				symbol,
@@ -185,6 +186,7 @@ pub mod pallet {
 					invest_pools: VecDeque::new(),
 				}),
 			);
+			base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
 			Self::deposit_event(Event::<T>::PoolCreated {
 				owner,
 				pid,

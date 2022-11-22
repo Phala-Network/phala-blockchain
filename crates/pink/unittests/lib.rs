@@ -50,4 +50,44 @@ mod tests {
         let pass = sig::ecdsa_verify_prehashed(signature, fake_message, pubkey);
         assert!(!pass);
     }
+
+    #[test]
+    fn local_cache_works_thread0() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        assert!(pink::ext().cache_set(b"foo", b"bar-0").is_ok());
+        let value = pink::ext().cache_get(b"foo");
+        assert_eq!(value, Some(b"bar-0".to_vec()));
+    }
+
+    #[test]
+    fn local_cache_works_thread1() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        assert!(pink::ext().cache_set(b"foo", b"bar-1").is_ok());
+        let value = pink::ext().cache_get(b"foo");
+        assert_eq!(value, Some(b"bar-1".to_vec()));
+    }
+
+    #[test]
+    fn local_cache_works_thread2() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        assert!(pink::ext().cache_set(b"foo", b"bar-2").is_ok());
+        let value = pink::ext().cache_get(b"foo");
+        assert_eq!(value, Some(b"bar-2".to_vec()));
+    }
+
+    #[test]
+    fn test_systime() {
+        use std::time::SystemTime;
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let ms = pink::ext().untrusted_millis_since_unix_epoch();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        assert!((now as i128 - ms as i128).abs() < 100);
+    }
 }

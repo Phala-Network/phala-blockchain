@@ -1,4 +1,5 @@
-//! Manages computing lifecycle, reward and slashes
+//! Manages mining lifecycle, reward and slashes
+#![allow(clippy::all)]
 
 pub use self::pallet::*;
 
@@ -6,6 +7,7 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
+	use crate::base_pool;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
 	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
@@ -206,6 +208,8 @@ pub mod pallet {
 
 		/// The origin to update tokenomic.
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+		type ComputationMigrationAccountId: Get<Self::AccountId>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -414,6 +418,8 @@ pub mod pallet {
 		BenchmarkTooLow,
 		/// Internal error. A worker should never start with existing stake in the storage.
 		InternalErrorCannotStartWithExistingStake,
+		/// Migration root not authorized
+		NotMigrationRoot,
 	}
 
 	#[pallet::call]
@@ -501,7 +507,11 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_miners(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			ensure!(
+				who == T::ComputationMigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
 			let mining_prefix = storage_prefix(b"PhalaMining", b"Miners");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"Sessions");
 
@@ -516,7 +526,11 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_miner_bindings(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			ensure!(
+				who == T::ComputationMigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
 			let mining_prefix = storage_prefix(b"PhalaMining", b"MinerBindings");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"SessionBindings");
 
@@ -534,7 +548,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			ensure!(
+				who == T::ComputationMigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
 			let mining_prefix = storage_prefix(b"PhalaMining", b"WorkerBindings");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"WorkerBindings");
 
@@ -549,7 +567,11 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_stakes(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			ensure!(
+				who == T::ComputationMigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
 			let mining_prefix = storage_prefix(b"PhalaMining", b"Stakes");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"Stakes");
 
@@ -564,7 +586,11 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn migrate_storage_values(origin: OriginFor<T>) -> DispatchResult {
-			//ensure_root(origin)?;
+			let mut who = ensure_signed(origin)?;
+			ensure!(
+				who == T::ComputationMigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
 			let mining_prefix = storage_prefix(b"PhalaMining", b"TokenomicParameters");
 			let computation_prefix = storage_prefix(b"PhalaComputation", b"TokenomicParameters");
 			Self::move_prefix(mining_prefix.as_slice(), computation_prefix.as_slice(), 1);

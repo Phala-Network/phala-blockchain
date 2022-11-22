@@ -145,6 +145,53 @@ pub mod pallet {
 		IterationsIsNotVaild,
 	}
 
+
+
+	impl<T: Config> rmrk_traits::CheckAllowTransferFn<T::AccountId, u32, u32> for Pallet<T>
+	where
+		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
+		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
+		T: Config + vault::Config,
+	{
+		fn check(_sender: &T::AccountId, _collection_id: &CollectionId, _nft_id: &NftId) -> bool 
+		{
+			match base_pool::pallet::PoolCollections::<T>::get(_collection_id) {
+				Some(pid) => {
+					if let Some(net_value) = Pallet::<T>::get_net_value((*_sender).clone()).ok() {
+						// TODO(mingxuan): must check nft is exist before call function `check` in rmrk-core.
+						let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(*_collection_id, *_nft_id)
+							.expect("get nft should not fail: qed.");
+						let property = &property_guard.attr;
+						let account_status = match StakerAccounts::<T>::get(_sender) {
+							Some(account_status) => account_status,
+							// Already get_net_value, in fact never get here.
+							None => return true,
+						};			
+						let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+								.expect("get pool should not fail: qed.");
+						let basepool = &match pool_proxy {
+							PoolProxy::Vault(p) => p.basepool,
+							PoolProxy::StakePool(p) => p.basepool,
+						};
+						if let Some(price) = basepool.share_price() {
+							let nft_value = bmul(property.shares, &price);
+							if account_status.locked + nft_value > net_value {
+								return false;
+							}
+						} else {
+							return true;
+						}		
+					}
+				},
+				None => return true,
+			};
+
+			true
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where

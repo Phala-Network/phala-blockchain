@@ -12,12 +12,12 @@ use crate::{AccountId, Balance, Hash};
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum Error {
-    BadOrigin,
+    PermisionDenied,
     DriverNotFound,
 }
 
 /// Result type for the system contract messages
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// The pink system contract interface.
 ///
@@ -67,6 +67,7 @@ pub trait System {
         hook: crate::HookPoint,
         contract_id: AccountId,
         selector: u32,
+        gas_limit: u64,
     ) -> Result<()>;
 
     /// Set weight of the contract for query requests and sidevm scheduling.
@@ -74,6 +75,29 @@ pub trait System {
     /// Higher weight would let the contract to get more resource.
     #[ink(message)]
     fn set_contract_weight(&self, contract_id: AccountId, weight: u32) -> Result<()>;
+
+    /// Return the total balance of given account
+    #[ink(message)]
+    fn total_balance_of(&self, account: AccountId) -> Balance;
+
+    /// Return the free balance of given account
+    #[ink(message)]
+    fn free_balance_of(&self, account: AccountId) -> Balance;
+}
+
+/// Errors that can occur upon calling a driver contract.
+#[derive(Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum DriverError {
+    Other(String),
+    SystemError(Error),
+    BadOrigin,
+}
+
+impl From<Error> for DriverError {
+    fn from(value: Error) -> Self {
+        Self::SystemError(value)
+    }
 }
 
 /// Driver to manage sidevm deployments.
@@ -82,7 +106,7 @@ pub trait System {
 pub trait SidevmOperation {
     /// Invoked by a contract to deploy a sidevm instance that attached to itself.
     #[ink(message)]
-    fn deploy(&self, code_hash: Hash) -> Result<()>;
+    fn deploy(&self, code_hash: Hash) -> Result<(), DriverError>;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.
@@ -92,5 +116,9 @@ pub trait ContractDeposit {
     /// Change deposit of a contract. A driver should set the contract weight according to the
     /// new deposit.
     #[ink(message, selector = 0xa24bcb44)]
-    fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()>;
+    fn change_deposit(
+        &mut self,
+        contract_id: AccountId,
+        deposit: Balance,
+    ) -> Result<(), DriverError>;
 }

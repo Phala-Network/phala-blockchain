@@ -190,7 +190,7 @@ impl FatContract {
         phala_mq::select! {
             next_cmd = self.cmd_rcv_mq => match next_cmd {
                 Ok((_, cmd, origin)) => {
-                    info!(target: "contract", "Contract {:?} handling command", self.id());
+                    info!("Contract {:?} handling command", self.id());
                     self.contract.handle_command(origin, cmd.0, &mut context)
                 }
                 Err(_e) => {
@@ -213,9 +213,9 @@ impl FatContract {
         self.contract.on_block_end(&mut context)
     }
 
-    pub(crate) fn set_on_block_end_selector(&mut self, selector: u32) {
+    pub(crate) fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
         let AnyContract::Pink(pink) = &mut self.contract;
-        pink.set_on_block_end_selector(selector)
+        pink.set_on_block_end_selector(selector, gas_limit)
     }
 
     pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
@@ -459,11 +459,11 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
     struct CacheOps;
     impl sidevm::CacheOps for CacheOps {
         fn get(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
-            Ok(cache::local_cache_get(contract, key))
+            Ok(cache::get(contract, key))
         }
 
         fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> OpResult<()> {
-            cache::local_cache_set(contract, key, value)
+            cache::set(contract, key, value)
                 .map_err(|_| sidevm::OcallError::ResourceLimited)
         }
 
@@ -473,12 +473,12 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
             key: &[u8],
             expire_after_secs: u64,
         ) -> OpResult<()> {
-            cache::local_cache_set_expiration(contract, key, expire_after_secs);
+            cache::set_expiration(contract, key, expire_after_secs);
             Ok(())
         }
 
         fn remove(&self, contract: &[u8], key: &[u8]) -> OpResult<Option<Vec<u8>>> {
-            Ok(cache::local_cache_remove(contract, key))
+            Ok(cache::remove(contract, key))
         }
     }
     &CacheOps

@@ -1,29 +1,28 @@
-use std::time::Duration;
-use std::{borrow::Cow, convert::TryFrom};
+use std::{borrow::Cow, time::Duration};
 
 use frame_support::log::error;
+use frame_support::traits::Currency;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal, SysConfig,
     UncheckedFrom,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
+use phala_types::contract::ConvertTo;
 use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    dispatch_ext_call, CacheOp, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
+    dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
-use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
+use pink_extension_runtime::{local_cache, DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_core::H256;
-use sp_runtime::DispatchError;
+use sp_runtime::{AccountId32, DispatchError};
 
 use crate::{
-    runtime::{get_call_elapsed, get_call_mode, CallMode},
+    runtime::{get_call_elapsed, get_call_mode_info, CallMode},
     types::AccountId,
 };
-
-use crate::local_cache::GLOBAL_CACHE;
 
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
@@ -111,10 +110,12 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             .as_ref()
             .try_into()
             .expect("Address should be valid");
+        let call_info = get_call_mode_info().expect("BUG: call ext out of runtime context");
         let call_in_query = CallInQuery {
             address: AccountId::new(address),
+            worker_pubkey: call_info.worker_pubkey,
         };
-        let result = if matches!(get_call_mode(), Some(CallMode::Command)) {
+        let result = if matches!(call_info.mode, CallMode::Command) {
             let call = CallInCommand {
                 as_in_query: call_in_query,
             };
@@ -145,6 +146,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
 
 struct CallInQuery {
     address: AccountId,
+    worker_pubkey: EcdhPublicKey,
 }
 
 impl PinkRuntimeEnv for CallInQuery {
@@ -156,6 +158,16 @@ impl PinkRuntimeEnv for CallInQuery {
 
     fn call_elapsed(&self) -> Option<Duration> {
         get_call_elapsed()
+    }
+}
+
+impl CallInQuery {
+    fn ensure_system(&self) -> Result<(), DispatchError> {
+        let contract: AccountId32 = self.address.convert_to();
+        if Some(contract) != crate::runtime::Pink::system_contract() {
+            return Err(DispatchError::BadOrigin);
+        }
+        Ok(())
     }
 }
 
@@ -206,33 +218,20 @@ impl PinkExtBackend for CallInQuery {
         key: Cow<[u8]>,
         value: Cow<[u8]>,
     ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        let result = GLOBAL_CACHE
-            .write()
-            .unwrap()
-            .set(contract.into(), key, value);
-        Ok(result)
+        Ok(local_cache::set(self.address.as_ref(), &key, &value))
     }
 
-    fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        GLOBAL_CACHE
-            .write()
-            .unwrap()
-            .set_expire(contract.into(), key, expire);
+    fn cache_set_expiration(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
+        local_cache::set_expiration(self.address.as_ref(), &key, expire);
         Ok(())
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE.read().unwrap().get(contract, key.as_ref());
-        Ok(value)
+        Ok(local_cache::get(self.address.as_ref(), &key))
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        let contract: &[u8] = self.address.as_ref();
-        let value = GLOBAL_CACHE.write().unwrap().remove(contract, key.as_ref());
-        Ok(value)
+        Ok(local_cache::remove(self.address.as_ref(), &key))
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
@@ -267,11 +266,27 @@ impl PinkExtBackend for CallInQuery {
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         crate::runtime::Pink::system_contract()
-            .map(|address| {
-                ext::AccountId::try_from(address.as_ref())
-                    .expect("Convert from AccountId32 to ink_env::AccountId should always success")
-            })
+            .map(|address| address.convert_to())
             .ok_or(DispatchError::Other("No system contract installed"))
+    }
+
+    fn balance_of(
+        &self,
+        account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        self.ensure_system()?;
+        let account: AccountId32 = account.convert_to();
+        let total = crate::runtime::Balances::total_balance(&account);
+        let free = crate::runtime::Balances::free_balance(&account);
+        Ok((total, free))
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
+    }
+
+    fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
+        Ok(self.worker_pubkey)
     }
 }
 
@@ -286,9 +301,12 @@ impl PinkExtBackend for CallInCommand {
     type Error = DispatchError;
 
     fn http_request(&self, _request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        Err(DispatchError::Other(
-            "http_request can only be called in query mode",
-        ))
+        Ok(HttpResponse {
+            status_code: 523,
+            reason_phrase: "API Unavailable".into(),
+            headers: vec![],
+            body: vec![],
+        })
     }
     fn sign(
         &self,
@@ -297,7 +315,7 @@ impl PinkExtBackend for CallInCommand {
         message: Cow<[u8]>,
     ) -> Result<Vec<u8>, Self::Error> {
         if matches!(sigtype, SigType::Sr25519) {
-            return Err("signing with sr25519 is not allowed in command".into());
+            return Ok(vec![]);
         }
         self.as_in_query.sign(sigtype, key, message)
     }
@@ -335,7 +353,7 @@ impl PinkExtBackend for CallInCommand {
         Ok(Ok(()))
     }
 
-    fn cache_set_expire(&self, key: Cow<[u8]>, expiration: u64) -> Result<(), Self::Error> {
+    fn cache_set_expiration(&self, key: Cow<[u8]>, expiration: u64) -> Result<(), Self::Error> {
         deposit_pink_event(
             self.as_in_query.address.clone(),
             PinkEvent::CacheOp(CacheOp::SetExpiration {
@@ -365,7 +383,7 @@ impl PinkExtBackend for CallInCommand {
     }
 
     fn getrandom(&self, _length: u8) -> Result<Vec<u8>, Self::Error> {
-        Err("getrandom is not allowed in command".into())
+        Ok(vec![])
     }
 
     fn is_in_transaction(&self) -> Result<bool, Self::Error> {
@@ -392,5 +410,20 @@ impl PinkExtBackend for CallInCommand {
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         self.as_in_query.system_contract_id()
+    }
+
+    fn balance_of(
+        &self,
+        account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        self.as_in_query.balance_of(account)
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        Ok(0)
+    }
+
+    fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
     }
 }

@@ -50,6 +50,8 @@ pub mod pallet {
 
 	const MAX_WHITELIST_LEN: u32 = 100;
 
+	const RESERVE_CID_BOUND: CollectionId = 10000;
+
 	type DescMaxLen = ConstU32<4400>;
 
 	pub type DescStr = BoundedVec<u8, DescMaxLen>;
@@ -75,6 +77,7 @@ pub mod pallet {
 		+ pallet_democracy::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type MigrationAccountId: Get<Self::AccountId>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -98,6 +101,15 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn pool_count)]
 	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
+
+	/// Mapping from collectionids to pids
+	#[pallet::storage]
+	pub type PoolCollections<T> = StorageMap<_, Twox64Concat, CollectionId, u64>;
+
+
+	/// The Next available collectionid to be created
+	#[pallet::storage]
+	pub type CollectionIndex<T> = StorageValue<_, CollectionId, ValueQuery>;
 
 	/// Mapping from pids to pools (including stake pools and vaults)
 	#[pallet::storage]
@@ -212,6 +224,8 @@ pub mod pallet {
 		NoWhitelistCreated,
 		/// Too long for pool description length
 		ExceedMaxDescriptionLen,
+		/// Migration root not authorized
+		NotMigrationRoot,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -530,6 +544,14 @@ pub mod pallet {
 			Ok(guard)
 		}
 
+		pub fn ensure_migration_root(user: T::AccountId) -> DispatchResult {
+			ensure!(
+				user == T::MigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
+			Ok(())
+		}
+
 		/// Contributes some stake to the pool
 		///
 		/// Before minting a new nft to the delegator, the function will try to merge all nfts in the pool-collection into the unified nft
@@ -628,6 +650,19 @@ pub mod pallet {
 			PoolCount::<T>::put(pid + 1);
 			pid
 		}
+
+		/// Returns the new pid that will assigned to the creating pool
+		pub fn consume_new_cid() -> CollectionId {
+			CollectionIndex::<T>::try_mutate(|n| -> Result<CollectionId, DispatchError> {
+				if *n <= RESERVE_CID_BOUND {
+					*n = RESERVE_CID_BOUND;
+				}
+				let id = *n;
+				*n += 1;
+				Ok(id)
+			}).expect("get next cid will success; qed.")
+		}
+		
 
 		/// Checks if there has expired withdraw request in the withdraw queue
 		///
@@ -766,7 +801,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn burn_nft(owner: &T::AccountId, cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
-			pallet_rmrk_core::Pallet::<T>::nft_burn(owner.clone(), cid, nft_id, MAX_RECURSIONS)?;
+			pallet_rmrk_core::Pallet::<T>::nft_burn(owner.clone(), cid, nft_id, &rmrk_traits::budget::Value::new(MAX_RECURSIONS))?;
 			Ok(())
 		}
 

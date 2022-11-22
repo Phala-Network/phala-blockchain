@@ -162,7 +162,7 @@ pub async fn get_set_id(api: &RelaychainApi, block: BlockNumber) -> Result<(u64,
     Ok((set_id, block.justifications.is_some()))
 }
 
-async fn grab_headers(
+pub async fn grab_headers(
     api: &RelaychainApi,
     para_api: &ParachainApi,
     start_at: BlockNumber,
@@ -179,7 +179,7 @@ async fn grab_headers(
 
     let header_hash = crate::get_header_hash(api, Some(start_at - 1)).await?;
     let mut last_set = api.current_set_id(Some(header_hash)).await?;
-    let mut skip_justitication = justification_interval;
+    let mut skip_justitication = 0_u32;
     let mut grabbed = 0;
 
     let para_id = para_api.get_paraid(None).await?;
@@ -392,10 +392,7 @@ impl Client {
         start_number: BlockNumber,
         count: BlockNumber,
     ) -> Result<Vec<Header>> {
-        let url = format!(
-            "{}/parachain-headers/{start_number}/{count}",
-            self.base_uri
-        );
+        let url = format!("{}/parachain-headers/{start_number}/{count}", self.base_uri);
         self.request(&url).await
     }
 
@@ -404,10 +401,7 @@ impl Client {
         start_number: BlockNumber,
         count: BlockNumber,
     ) -> Result<Vec<BlockHeaderWithChanges>> {
-        let url = format!(
-            "{}/storage-changes/{start_number}/{count}",
-            self.base_uri
-        );
+        let url = format!("{}/storage-changes/{start_number}/{count}", self.base_uri);
         self.request(&url).await
     }
 

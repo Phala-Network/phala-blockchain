@@ -1,7 +1,8 @@
 use crate::{
-    runtime::{BoxedEventCallbacks, ExecSideEffects},
-    types::{AccountId, Hash, Hashing},
+    runtime::{Balances, BoxedEventCallbacks, ExecSideEffects, Pink as PalletPink},
+    types::{AccountId, Balance, Hash, Hashing},
 };
+use frame_support::traits::Currency;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
@@ -117,23 +118,43 @@ where
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
         self.execute_with(false, None, || {
-            crate::runtime::Pink::set_cluster_id(cluster_id);
+            PalletPink::set_cluster_id(cluster_id);
+        });
+    }
+    pub fn setup(
+        &mut self,
+        gas_price: Balance,
+        deposit_per_item: Balance,
+        deposit_per_byte: Balance,
+        treasury_account: &AccountId,
+    ) {
+        self.execute_with(false, None, || {
+            PalletPink::set_gas_price(gas_price);
+            PalletPink::set_deposit_per_item(deposit_per_item);
+            PalletPink::set_deposit_per_byte(deposit_per_byte);
+            PalletPink::set_treasury_account(treasury_account);
+        });
+    }
+
+    pub fn deposit(&mut self, who: &AccountId, value: Balance) {
+        self.execute_with(false, None, || {
+            let _ = Balances::deposit_creating(who, value);
         });
     }
 
     pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
         self.execute_with(false, None, || {
-            crate::runtime::Pink::set_key_seed(seed);
+            PalletPink::set_key_seed(seed);
         });
     }
 
     pub fn upload_code(
         &mut self,
-        account: AccountId,
+        account: &AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
         self.execute_with(false, None, || {
-            crate::runtime::Contracts::bare_upload_code(account, code, None)
+            crate::runtime::Contracts::bare_upload_code(account.clone(), code, None)
         })
         .0
         .map(|v| v.code_hash)
@@ -141,32 +162,30 @@ where
 
     pub fn upload_sidevm_code(
         &mut self,
-        account: AccountId,
+        account: &AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        Ok(self
-            .execute_with(false, None, || {
-                crate::runtime::Pink::put_sidevm_code(account, code)
-            })
-            .0)
+        self.execute_with(false, None, || {
+            PalletPink::put_sidevm_code(account.clone(), code)
+        })
+        .0
     }
 
     pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
         self.execute_with(false, None, || {
-            crate::runtime::Pink::sidevm_codes(&hash).map(|v| v.code)
+            PalletPink::sidevm_codes(&hash).map(|v| v.code)
         })
         .0
     }
 
     pub fn set_system_contract(&mut self, address: AccountId) {
         self.execute_with(false, None, move || {
-            crate::runtime::Pink::set_system_contract(address);
+            PalletPink::set_system_contract(address);
         });
     }
 
     pub fn system_contract(&mut self) -> Option<AccountId> {
-        self.execute_with(true, None, crate::runtime::Pink::system_contract)
-            .0
+        self.execute_with(true, None, PalletPink::system_contract).0
     }
 
     pub fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -175,6 +194,16 @@ where
 
     pub fn root(&self) -> Hash {
         *self.backend.as_trie_backend().root()
+    }
+
+    pub fn free_balance(&mut self, account: &AccountId) -> Balance {
+        self.execute_with(true, None, || Balances::free_balance(account))
+            .0
+    }
+
+    pub fn total_balance(&mut self, account: &AccountId) -> Balance {
+        self.execute_with(true, None, || Balances::total_balance(account))
+            .0
     }
 }
 

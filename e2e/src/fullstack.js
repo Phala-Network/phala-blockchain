@@ -7,8 +7,9 @@ const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
+const { typeDefinitions } = require('@polkadot/types/bundle');
 
-const { types, typeAlias } = require('./utils/typeoverride');
+const { types, typeAlias, typeOverrides } = require('./utils/typeoverride');
 // TODO: fixit
 // const types = require('@phala/typedefs').phalaDev;
 
@@ -25,6 +26,7 @@ const pathPRuntime = path.resolve(`${pRuntimeDir}/${pRuntimeBin}`);
 const inSgx = process.env.E2E_IN_SGX == '1';
 const sgxLoader = "gramine-sgx";
 
+const CENTS = 10_000_000_000;
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -466,15 +468,18 @@ describe('A full stack', function () {
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function
+        const txConfig = { gasLimit: "10000000000000", storageDepositLimit: null };
 
         let certAlice;
         let ContractSystemChecker;
         let ContractSystem;
+        let certBob;
 
         let clusterId;
 
         before(async () => {
             certAlice = await Phala.signCertificate({ api, pair: alice });
+            certBob = await Phala.signCertificate({ api, pair: bob });
         });
 
         after(async () => {
@@ -503,7 +508,12 @@ describe('A full stack', function () {
             const runtime1 = await pruntime[1].getInfo();
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaFatContracts.addCluster(alice.address, perm, [hex(runtime0.system.publicKey), hex(runtime1.system.publicKey)])),
+                    api.tx.phalaFatContracts.addCluster(
+                        alice.address,
+                        perm,
+                        [hex(runtime0.system.publicKey), hex(runtime1.system.publicKey)],
+                        CENTS * 100, 1, 1, 1, alice.address
+                    )),
                 alice,
             );
 
@@ -518,11 +528,11 @@ describe('A full stack', function () {
                 return info.system.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
-            const contractInfo = await api.query.phalaFatContracts.clusters(clusterId);
-            const { systemContract } = contractInfo.unwrap();
+            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            const { systemContract } = clusterInfo.unwrap();
             assert.isTrue(await checkUntil(async () => {
-                const clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
-                return (clusterContracts.length == 1 && clusterContracts[0].eq(systemContract));
+                const contractInfo = await api.query.phalaFatContracts.contracts(systemContract.toHex());
+                return contractInfo.isSome;
             }, 4 * 6000), 'system contract instantiation failed');
             ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
         });
@@ -557,12 +567,8 @@ describe('A full stack', function () {
 
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
-            await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
-                bob,
-            );
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
                 alice,
             );
             assertEvents(events, [
@@ -590,8 +596,13 @@ describe('A full stack', function () {
         });
 
         it('can not set hook without admin permission', async function () {
+            // Give some money to the ContractSystemChecker to run the on_block_end
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook({}),
+                api.tx.phalaFatContracts.transferToCluster(CENTS * 1000, clusterId, ContractSystemChecker.address),
+                alice,
+            );
+            await assert.txAccepted(
+                ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
@@ -602,25 +613,31 @@ describe('A full stack', function () {
 
         it('can set hook with admin permission', async function () {
             await assert.txAccepted(
-                ContractSystem.tx['system::grantAdmin']({}, ContractSystemChecker.address),
+                ContractSystem.tx['system::grantAdmin'](txConfig, ContractSystemChecker.address),
                 alice,
             );
             await assert.txAccepted(
-                ContractSystemChecker.tx.setHook({}),
+                ContractSystemChecker.tx.setHook(txConfig, "1000000000000"),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certBob, {});
                 return output.valueOf();
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
 
         it('tokenomic driver works', async function () {
+            {
+                // Should be unable to use local cache before staking
+                const result = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                console.log('result', result);
+                const { output } = result;
+                assert.isFalse(output.valueOf());
+            }
             await assert.txAccepted(
-                ContractSystem.tx['system::setDriver']({}, "ContractDeposit", ContractSystemChecker.address),
+                ContractSystem.tx['system::setDriver'](txConfig, "ContractDeposit", ContractSystemChecker.address),
                 alice,
             );
-            const CENTS = 10_000_000_000;
             const weight = 10;
             await assert.txAccepted(
                 api.tx.phalaFatTokenomic.adjustStake(ContractSystemChecker.address, weight * CENTS),
@@ -630,6 +647,18 @@ describe('A full stack', function () {
                 const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
                 return info?.weight == weight;
             }, 4 * 6000), 'Failed to apply deposit to contract weight');
+            {
+                // Should be able to use local cache after staking
+                {
+                    const { output } = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                    assert.isTrue(output.valueOf());
+                }
+                {
+                    const { output } = await ContractSystemChecker.query.cacheGet(certAlice, {}, "0xdead");
+                    assert.isTrue(output.isSome);
+                    assert.equal(output.unwrap(), "0xbeef");
+                }
+            }
         });
 
         it('can set the sidevm as pending state without code uploaded', async function () {
@@ -650,7 +679,7 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
                 alice,
             );
         });
@@ -925,7 +954,7 @@ function versionFromNumber(n) {
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
-        const unsub = await txBuilder.signAndSend(signer, {nonce: -1}, (result) => {
+        const unsub = await txBuilder.signAndSend(signer, { nonce: -1 }, (result) => {
             if (result.status.isInBlock) {
                 let error;
                 for (const e of result.events) {
@@ -1156,7 +1185,7 @@ class Cluster {
     async _createApi() {
         this.api = await ApiPromise.create({
             provider: new WsProvider(`ws://localhost:${this.wsPort}`),
-            types: { ...types, ...Phala.types },
+            types: { ...types, ...typeDefinitions, ...Phala.types, ...typeOverrides },
             typeAlias
         });
         this.workers.forEach(w => {
@@ -1261,7 +1290,7 @@ function hex(b) {
 
 async function createContractApi(api, pruntimeURL, contractId, metadata) {
     const newApi = await api.clone().isReady;
-    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId });
+    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId, autoDeposit: true });
     return new ContractPromise(
         phala.api,
         metadata,

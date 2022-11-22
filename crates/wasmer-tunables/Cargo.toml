@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 loupe = "0.1.3"
-wasmer = "3.0.0-beta.2"
+wasmer = "3"
 

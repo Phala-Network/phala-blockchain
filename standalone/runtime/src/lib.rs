@@ -36,7 +36,7 @@ use frame_support::{
 	traits::{
 		AsEnsureOriginWithArg, Currency, EqualPrivilegeOnly, Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem,
 		LockIdentifier, OnUnbalanced, U128CurrencyToVote, EitherOfDiverse,
-		ConstU16, ConstU32, ConstU128, ConstU64,
+		ConstU16, ConstU32, ConstU128, ConstU64, WithdrawReasons,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -68,8 +68,8 @@ use sp_runtime::{
     curve::PiecewiseLinear,
     generic, impl_opaque_keys,
     traits::{
-        self, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys,
-        SaturatedConversion, StaticLookup,
+        self, Bounded, BlakeTwo256, Block as BlockT, ConvertInto, NumberFor, OpaqueKeys,
+        SaturatedConversion, StaticLookup, TrailingZeroInput,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
     AccountId32, ApplyExtrinsicResult, FixedPointNumber, FixedU128, Perbill, Percent, Permill,
@@ -180,8 +180,8 @@ const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-/// We allow for 2 seconds of compute with a 6 second average block time.
-const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_mul(2);
+/// We allow for 2 seconds of compute with a 6 second average block time, with maximum proof size.
+const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_mul(2).set_proof_size(u64::MAX);
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
@@ -367,11 +367,9 @@ impl pallet_proxy::Config for Runtime {
 }
 
 parameter_types! {
-    pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-        RuntimeBlockWeights::get().max_block;
-    pub const MaxScheduledPerBlock: u32 = 50;
-    // Retry a scheduled item every 10 blocks (1 minute) until the preimage exists.
-    pub const NoPreimagePostponement: Option<u32> = Some(10);
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		RuntimeBlockWeights::get().max_block;
+	pub const MaxScheduledPerBlock: u32 = 512;
 }
 
 impl pallet_scheduler::Config for Runtime {
@@ -384,8 +382,7 @@ impl pallet_scheduler::Config for Runtime {
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
 	type OriginPrivilegeCmp = EqualPrivilegeOnly;
-	type PreimageProvider = Preimage;
-	type NoPreimagePostponement = NoPreimagePostponement;
+	type Preimages = Preimage;
 }
 
 parameter_types! {
@@ -400,7 +397,6 @@ impl pallet_preimage::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type ManagerOrigin = EnsureRoot<AccountId>;
-	type MaxSize = PreimageMaxSize;
 	type BaseDeposit = PreimageBaseDeposit;
 	type ByteDeposit = PreimageByteDeposit;
 }
@@ -472,10 +468,11 @@ impl pallet_balances::Config for Runtime {
 }
 
 parameter_types! {
-    pub const OperationalFeeMultiplier: u8 = 5;
-    pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
-    pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(1, 100_000);
-    pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
+	pub const OperationalFeeMultiplier: u8 = 5;
+	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
+	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(1, 100_000);
+	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
+	pub MaximumMultiplier: Multiplier = Bounded::max_value();
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -484,8 +481,13 @@ impl pallet_transaction_payment::Config for Runtime {
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = IdentityFee<Balance>;
 	type LengthToFee = IdentityFee<Balance>;
-	type FeeMultiplierUpdate =
-		TargetedFeeAdjustment<Self, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<
+		Self,
+		TargetBlockFullness,
+		AdjustmentVariable,
+		MinimumMultiplier,
+		MaximumMultiplier,
+	>;
 }
 
 parameter_types! {
@@ -589,7 +591,7 @@ impl pallet_staking::Config for Runtime {
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type VoterList = VoterBagsList;
+	type VoterList = VoterList;
 	// This a placeholder, to be introduced in the next PR as an instance of bags-list
 	type TargetList = pallet_staking::UseValidatorsMap<Self>;
 	type MaxUnlockingChunks = ConstU32<32>;
@@ -819,7 +821,6 @@ parameter_types! {
 }
 
 impl pallet_democracy::Config for Runtime {
-	type Proposal = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EnactmentPeriod = EnactmentPeriod;
@@ -859,14 +860,15 @@ impl pallet_democracy::Config for Runtime {
 	// only do it once and it lasts only for the cool-off period.
 	type VetoOrigin = pallet_collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
-	type PreimageByteDeposit = PreimageByteDeposit;
-	type OperationalPreimageOrigin = pallet_collective::EnsureMember<AccountId, CouncilCollective>;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
 	type WeightInfo = pallet_democracy::weights::SubstrateWeight<Runtime>;
 	type MaxProposals = MaxProposals;
+	type Preimages = Preimage;
+	type MaxDeposits = ConstU32<100>;
+	type MaxBlacklisted = ConstU32<100>;
 }
 
 parameter_types! {
@@ -1239,7 +1241,9 @@ impl pallet_society::Config for Runtime {
 }
 
 parameter_types! {
-    pub const MinVestedTransfer: Balance = 1 * CENTS;
+	pub const MinVestedTransfer: Balance = 1 * CENTS;
+	pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+		WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 }
 
 impl pallet_vesting::Config for Runtime {
@@ -1248,6 +1252,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
+	type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
 	// `VestingInfo` encode length is 36bytes. 28 schedules gets encoded as 1009 bytes, which is the
 	// highest number of schedules that encodes less than 2^10.
 	const MAX_VESTING_SCHEDULES: u32 = 28;
@@ -1294,6 +1299,7 @@ impl pallet_registry::Config for Runtime {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
+	type RegistryMigrationAccountId = MigrationAccountGet;
 }
 impl pallet_mq::Config for Runtime {
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
@@ -1309,6 +1315,7 @@ impl pallet_computation::Config for Runtime {
     type OnStopped = PhalaStakePoolv2;
     type OnTreasurySettled = Treasury;
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
+	type ComputationMigrationAccountId = MigrationAccountGet;
 }
 impl pallet_stakepoolv2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1363,7 +1370,6 @@ impl pallet_uniques::Config for Runtime {
 parameter_types! {
     pub ClassBondAmount: Balance = 100;
     pub MaxMetadataLength: u32 = 256;
-    pub const MaxRecursions: u32 = 10;
     pub const ResourceSymbolLimit: u32 = 10;
     pub const PartsLimit: u32 = 10;
     pub const MaxPriorities: u32 = 3;
@@ -1373,17 +1379,20 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ProtocolOrigin = EnsureRoot<AccountId>;
-    type MaxRecursions = MaxRecursions;
+    type NestingBudget = ConstU32<{10}>;
     type ResourceSymbolLimit = ResourceSymbolLimit;
     type PartsLimit = PartsLimit;
     type MaxPriorities = MaxPriorities;
     type CollectionSymbolLimit = CollectionSymbolLimit;
     type MaxResourcesOnMint = MaxResourcesOnMint;
+	type CheckAllowTransfer = PhalaWrappedBalances;
+	type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Runtime>;
 }
 impl pallet_fat::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type InkCodeSizeLimit = ConstU32<{1024*1024*2}>;
 	type SidevmCodeSizeLimit = ConstU32<{1024*1024*8}>;
+	type Currency = Balances;
 }
 
 parameter_types! {
@@ -1394,7 +1403,19 @@ pub struct WrappedBalancesGet;
 
 impl Get<AccountId32> for WrappedBalancesGet {
     fn get() -> AccountId32 {
-        AccountId32::new([1; 32])
+		(b"wpha/")
+		.using_encoded(|b| AccountId32::decode(&mut TrailingZeroInput::new(b)))
+		.expect("Decoding zero-padded account id should always succeed; qed")
+
+    }
+}
+
+pub struct MigrationAccountGet;
+
+impl Get<AccountId32> for MigrationAccountGet {
+    fn get() -> AccountId32 {
+		let account: [u8; 32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
+		account.into()
     }
 }
 
@@ -1407,6 +1428,7 @@ impl pallet_wrappedbalances::Config for Runtime {
 
 impl pallet_basepool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+	type MigrationAccountId = MigrationAccountGet;
 }
 
 parameter_types! {
@@ -1463,7 +1485,7 @@ construct_runtime!(
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase,
 		Staking: pallet_staking,
 		FastUnstake: pallet_fast_unstake,
-		VoterBagsList: pallet_bags_list::<Instance1>,
+		VoterList: pallet_bags_list::<Instance1>,
 		NominationPools: pallet_nomination_pools,
 		Session: pallet_session,
 		Democracy: pallet_democracy,

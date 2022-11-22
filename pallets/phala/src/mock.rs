@@ -54,6 +54,7 @@ frame_support::construct_runtime!(
 		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
 		PhalaBasePool: base_pool::{Pallet, Event<T>},
 		PhalaStakePool: stake_pool::{Event<T>},
+		Preimage: pallet_preimage::{Event<T>},
 	}
 );
 
@@ -114,8 +115,7 @@ impl pallet_scheduler::Config for Test {
 	type MaxScheduledPerBlock = ();
 	type WeightInfo = ();
 	type OriginPrivilegeCmp = EqualPrivilegeOnly;
-	type PreimageProvider = ();
-	type NoPreimagePostponement = ();
+	type Preimages = Preimage;
 }
 
 impl pallet_balances::Config for Test {
@@ -175,6 +175,7 @@ impl registry::Config for Test {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type RegistryMigrationAccountId = ConstU64<1234>;
 }
 
 parameter_types! {
@@ -208,7 +209,6 @@ impl pallet_uniques::Config for Test {
 parameter_types! {
 	pub ClassBondAmount: Balance = 100;
 	pub MaxMetadataLength: u32 = 256;
-	pub const MaxRecursions: u32 = 10;
 	pub const ResourceSymbolLimit: u32 = 10;
 	pub const PartsLimit: u32 = 10;
 	pub const MaxPriorities: u32 = 3;
@@ -218,12 +218,14 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
-	type MaxRecursions = MaxRecursions;
+	type NestingBudget = ConstU32<{10}>;
 	type ResourceSymbolLimit = ResourceSymbolLimit;
 	type PartsLimit = PartsLimit;
 	type MaxPriorities = MaxPriorities;
 	type CollectionSymbolLimit = CollectionSymbolLimit;
 	type MaxResourcesOnMint = MaxResourcesOnMint;
+	type CheckAllowTransfer = PhalaWrappedBalances;
+	type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Test>;
 }
 
 impl computation::Config for Test {
@@ -236,6 +238,7 @@ impl computation::Config for Test {
 	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ComputationMigrationAccountId = ConstU64<1234>;
 }
 
 parameter_types! {
@@ -259,7 +262,6 @@ parameter_types! {
 	pub const CooloffPeriod: u64 = 7 * DAYS;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
-	pub const PreimageByteDeposit: Balance = 1;
 }
 
 ord_parameter_types! {
@@ -271,8 +273,23 @@ ord_parameter_types! {
 	pub const Six: u64 = 6;
 }
 
+parameter_types! {
+    pub const PreimageMaxSize: u32 = 4096 * 1024;
+    pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
+    // One cent: $10,000 / MB
+    pub const PreimageByteDeposit: Balance = 1 * CENTS;
+}
+
+impl pallet_preimage::Config for Test {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Test>;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<Self::AccountId>;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
+}
+
 impl pallet_democracy::Config for Test {
-	type Proposal = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EnactmentPeriod = EnactmentPeriod;
@@ -303,14 +320,15 @@ impl pallet_democracy::Config for Test {
 	// only do it once and it lasts only for the cooloff period.
 	type VetoOrigin = frame_system::EnsureSignedBy<OneToFive, u64>;
 	type CooloffPeriod = CooloffPeriod;
-	type PreimageByteDeposit = PreimageByteDeposit;
-	type OperationalPreimageOrigin = frame_system::EnsureSignedBy<Six, u64>;
 	type Slash = ();
 	type Scheduler = Scheduler;
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
 	type WeightInfo = ();
 	type MaxProposals = MaxProposals;
+	type Preimages = Preimage;
+	type MaxDeposits = ConstU32<100>;
+	type MaxBlacklisted = ConstU32<100>;
 }
 
 parameter_types! {
@@ -359,6 +377,7 @@ impl vault::Config for Test {
 
 impl base_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type MigrationAccountId = ConstU64<1234>;
 }
 
 impl stake_pool::Config for Test {

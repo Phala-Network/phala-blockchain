@@ -282,6 +282,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return Err(from_display("Runtime already initialized"));
         }
 
+        info!("Initializing runtime");
+        info!("is_parachain  : {is_parachain}");
+        info!("operator      : {operator:?}");
+        info!("ra_provider   : {attestation_provider:?}");
+        info!("debug_set_key : {debug_set_key:?}");
+
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
 
@@ -319,6 +325,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let ecdh_pubkey = phala_types::EcdhPublicKey(ecdh_key.public());
         let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
         info!("ECDH pubkey: {:?}", ecdh_hex_pk);
+
+        ::pink::runtime::set_worker_pubkey(ecdh_pubkey.0);
 
         // Measure machine score
         let cpu_core_num: u32 = self.platform.cpu_core_num();
@@ -524,7 +532,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        debug!(target: "query", "Verifying signature passed! origin={:?}", origin);
+        debug!("Verifying signature passed! origin={:?}", origin);
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
@@ -623,13 +631,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                         parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
                     match event {
                         Ok(event) => {
-                            debug!(target: "mq",
+                            debug!(target: "phala_mq",
                                 "mq dispatching message: sender={} dest={:?} payload={:?}",
                                 $msg.sender, $msg.destination, event
                             );
                         }
                         Err(_) => {
-                            debug!(target: "mq", "mq dispatching message (decode failed): {:?}", $msg);
+                            debug!(target: "phala_mq", "mq dispatching message (decode failed): {:?}", $msg);
                         }
                     }
                 }};
@@ -638,7 +646,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             if message.destination.path() == &SystemEvent::topic() {
                 log_message!(message, SystemEvent);
             } else {
-                debug!(target: "mq",
+                debug!(target: "phala_mq",
                     "mq dispatching message: sender={}, dest={:?}",
                     message.sender, message.destination
                 );

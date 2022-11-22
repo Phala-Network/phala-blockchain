@@ -60,8 +60,8 @@ impl MessageSendQueue {
         if !entry.dummy {
             let message = constructor(entry.sequence);
 
-            if log::log_enabled!(target: "mq", log::Level::Debug) {
-                log::debug!(target: "mq",
+            if log::log_enabled!(target: "phala_mq", log::Level::Debug) {
+                log::debug!(target: "phala_mq",
                     "Sending message, from={}, to={:?}, seq={}, payload_hash={}",
                     message.message.sender,
                     message.message.destination,
@@ -69,7 +69,7 @@ impl MessageSendQueue {
                     hex::encode(sp_core::blake2_256(&message.message.payload)),
                 );
             } else {
-                log::info!(target: "mq",
+                log::info!(target: "phala_mq",
                     "Sending message, from={}, to={:?}, seq={}",
                     message.message.sender,
                     message.message.destination,

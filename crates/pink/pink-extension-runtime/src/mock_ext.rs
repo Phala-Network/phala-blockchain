@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 
-use pink_extension::chain_extension::SigType;
 use pink_extension::chain_extension::mock::mock_all_with;
+use pink_extension::chain_extension::SigType;
 use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
+
+use crate::local_cache;
 
 pub struct MockExtension;
 
@@ -57,26 +59,23 @@ impl ext::PinkExtBackend for MockExtension {
 
     fn cache_set(
         &self,
-        _key: std::borrow::Cow<[u8]>,
-        _value: std::borrow::Cow<[u8]>,
+        key: Cow<[u8]>,
+        value: Cow<[u8]>,
     ) -> Result<Result<(), ext::StorageQuotaExceeded>, Self::Error> {
-        Ok(Ok(()))
+        Ok(local_cache::set(&[], &key, &value))
     }
 
-    fn cache_set_expire(
-        &self,
-        _key: std::borrow::Cow<[u8]>,
-        _expire: u64,
-    ) -> Result<(), Self::Error> {
+    fn cache_set_expiration(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
+        local_cache::set_expiration(&[], &key, expire);
         Ok(())
     }
 
-    fn cache_get(&self, _key: std::borrow::Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(None)
+    fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(local_cache::get(&[], &key))
     }
 
-    fn cache_remove(&self, _args: std::borrow::Cow<[u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(None)
+    fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(local_cache::remove(&[], &key))
     }
 
     fn log(&self, level: u8, message: std::borrow::Cow<str>) -> Result<(), Self::Error> {
@@ -115,6 +114,21 @@ impl ext::PinkExtBackend for MockExtension {
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
         Err("No default system contract id".into())
     }
+
+    fn balance_of(
+        &self,
+        _account: ext::AccountId,
+    ) -> Result<(pink_extension::Balance, pink_extension::Balance), Self::Error> {
+        Ok((0, 0))
+    }
+
+    fn untrusted_millis_since_unix_epoch(&self) -> Result<u64, Self::Error> {
+        super::DefaultPinkExtension::new(self).untrusted_millis_since_unix_epoch()
+    }
+
+    fn worker_pubkey(&self) -> Result<crate::EcdhPublicKey, Self::Error> {
+        Ok(Default::default())
+    }
 }
 
 thread_local! {
@@ -126,5 +140,8 @@ pub fn set_mode(is_command: bool) {
 }
 
 pub fn mock_all_ext() {
+    local_cache::enable_test_mode();
+    let default_caller: &[u8] = &[];
+    local_cache::apply_quotas([(default_caller, 1024 * 1024 * 20)]);
     mock_all_with(&MockExtension)
 }

@@ -1,11 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use pink_extension as pink;
 
 #[pink::contract(env = PinkEnvironment)]
 mod check_system {
     use super::pink;
-    use pink::system::{ContractDeposit, Result, SystemRef};
+    use alloc::vec::Vec;
+    use pink::system::{ContractDeposit, Result, SystemRef, DriverError};
     use pink::PinkEnvironment;
 
     #[ink(storage)]
@@ -29,14 +32,19 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn set_hook(&self) {
+        pub fn set_hook(&self, gas_limit: u64) {
             let mut system = pink::system::SystemRef::instance();
-            _ = system.set_hook(pink::HookPoint::OnBlockEnd, self.env().account_id(), 0x01);
+            _ = system.set_hook(
+                pink::HookPoint::OnBlockEnd,
+                self.env().account_id(),
+                0x01,
+                gas_limit,
+            );
         }
 
         #[ink(message, selector = 0x01)]
         pub fn on_block_end(&mut self) {
-            if !pink::predefined_accounts::is_runtime(&self.env().caller()) {
+            if self.env().caller() != self.env().account_id() {
                 return;
             }
             self.on_block_end_called = true
@@ -51,15 +59,26 @@ mod check_system {
                 .expect("Failed to deploy sidevm");
             true
         }
+
+        #[ink(message)]
+        pub fn cache_set(&self, key: Vec<u8>, value: Vec<u8>) -> bool {
+            pink::ext().cache_set(&key, &value).is_ok()
+        }
+
+        #[ink(message)]
+        pub fn cache_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
+            pink::ext().cache_get(&key)
+        }
     }
 
     impl ContractDeposit for CheckSystem {
         #[ink(message)]
-        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
+        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<(), DriverError> {
             const CENTS: Balance = 10_000_000_000;
             let system = SystemRef::instance();
             let weight = deposit / CENTS;
-            system.set_contract_weight(contract_id, weight as u32)
+            system.set_contract_weight(contract_id, weight as u32)?;
+            Ok(())
         }
     }
 }

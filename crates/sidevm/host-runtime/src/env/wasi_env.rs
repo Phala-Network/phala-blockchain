@@ -1,14 +1,14 @@
 use super::{Env as WasiEnv, Result};
-use libc::{
-    clock_getres, clock_gettime, timespec, CLOCK_MONOTONIC, CLOCK_PROCESS_CPUTIME_ID,
-    CLOCK_REALTIME, CLOCK_THREAD_CPUTIME_ID,
-};
+use libc::{clock_getres, clock_gettime, timespec, CLOCK_MONOTONIC, CLOCK_REALTIME};
 use sidevm_env::{OcallError, OcallFuncs};
 use thiserror::Error;
 use wasmer::{
     namespace, AsStoreMut, Exports, Function, FunctionEnv, FunctionEnvMut, Memory32, WasmPtr,
 };
-use wasmer_wasi_types::*;
+use wasmer_wasi_types::{
+    types::*,
+    wasi::{self, Errno},
+};
 
 /// This is returned in `RuntimeError`.
 /// Use `downcast` or `downcast_ref` to retrieve the `ExitCode`.
@@ -20,7 +20,7 @@ pub enum WasiError {
 
 macro_rules! wasi_try {
     ($expr:expr) => {{
-        let res: Result<_, __wasi_errno_t> = $expr;
+        let res: Result<_, Errno> = $expr;
         match res {
             Ok(val) => val,
             Err(err) => {
@@ -88,29 +88,26 @@ pub fn args_get(
     _env: FunctionEnvMut<WasiEnv>,
     _argv: WasmPtr<WasmPtr<u8>>,
     _argv_buf: WasmPtr<u8>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn args_sizes_get(
     _env: FunctionEnvMut<WasiEnv>,
     _argc: WasmPtr<u32>,
     _argv_buf_size: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn clock_res_get(
     env: FunctionEnvMut<WasiEnv>,
-    clock_id: __wasi_clockid_t,
-    resolution: WasmPtr<__wasi_timestamp_t>,
-) -> __wasi_errno_t {
+    clock_id: wasi::Clockid,
+    resolution: WasmPtr<wasi::Timestamp>,
+) -> Errno {
     let unix_clock_id = match clock_id {
-        __WASI_CLOCK_MONOTONIC => CLOCK_MONOTONIC,
-        __WASI_CLOCK_PROCESS_CPUTIME_ID => CLOCK_PROCESS_CPUTIME_ID,
-        __WASI_CLOCK_REALTIME => CLOCK_REALTIME,
-        __WASI_CLOCK_THREAD_CPUTIME_ID => CLOCK_THREAD_CPUTIME_ID,
-        _ => return __WASI_EINVAL,
+        wasi::Clockid::Realtime => CLOCK_REALTIME,
+        wasi::Clockid::Monotonic => CLOCK_MONOTONIC,
     };
 
     let (_output, timespec_out) = unsafe {
@@ -127,25 +124,22 @@ pub fn clock_res_get(
     let memory = guard.memory.unwrap_ref().view(&env);
     let resolution = resolution.deref(&memory);
     wasi_try!(
-        resolution.write(t_out as __wasi_timestamp_t).ok(),
-        __WASI_EACCES
+        resolution.write(t_out as wasi::Timestamp).ok(),
+        Errno::Fault
     );
 
-    __WASI_ESUCCESS
+    Errno::Success
 }
 
 pub fn clock_time_get(
     env: FunctionEnvMut<WasiEnv>,
-    clock_id: __wasi_clockid_t,
-    _precision: __wasi_timestamp_t,
-    time: WasmPtr<__wasi_timestamp_t>,
-) -> __wasi_errno_t {
+    clock_id: wasi::Clockid,
+    _precision: wasi::Timestamp,
+    time: WasmPtr<wasi::Timestamp>,
+) -> Errno {
     let unix_clock_id = match clock_id {
-        __WASI_CLOCK_MONOTONIC => CLOCK_MONOTONIC,
-        __WASI_CLOCK_PROCESS_CPUTIME_ID => CLOCK_PROCESS_CPUTIME_ID,
-        __WASI_CLOCK_REALTIME => CLOCK_REALTIME,
-        __WASI_CLOCK_THREAD_CPUTIME_ID => CLOCK_THREAD_CPUTIME_ID,
-        _ => return __WASI_EINVAL,
+        wasi::Clockid::Realtime => CLOCK_REALTIME,
+        wasi::Clockid::Monotonic => CLOCK_MONOTONIC,
     };
 
     let (_output, timespec_out) = unsafe {
@@ -164,351 +158,343 @@ pub fn clock_time_get(
     let guard = env.data().inner.lock().unwrap();
     let memory = guard.memory.unwrap_ref().view(&env);
     let time = time.deref(&memory);
-    wasi_try!(time.write(t_out as __wasi_timestamp_t).ok(), __WASI_EACCES);
+    wasi_try!(time.write(t_out as wasi::Timestamp).ok(), Errno::Fault);
 
-    __WASI_ESUCCESS
+    Errno::Success
 }
 
 pub fn environ_get(
     _env: FunctionEnvMut<WasiEnv>,
     _environ: WasmPtr<WasmPtr<u8>>,
     _environ_buf: WasmPtr<u8>,
-) -> __wasi_errno_t {
-    __WASI_ESUCCESS
+) -> Errno {
+    Errno::Success
 }
 
 pub fn environ_sizes_get(
     env: FunctionEnvMut<WasiEnv>,
     environ_count: WasmPtr<u32>,
     environ_buf_size: WasmPtr<u32>,
-) -> __wasi_errno_t {
+) -> Errno {
     let guard = env.data().inner.lock().unwrap();
     let memory = guard.memory.unwrap_ref().view(&env);
     let environ_count = environ_count.deref(&memory);
     let environ_buf_size = environ_buf_size.deref(&memory);
-    wasi_try!(environ_count.write(0).ok(), __WASI_EACCES);
-    wasi_try!(environ_buf_size.write(0).ok(), __WASI_EACCES);
-    __WASI_ESUCCESS
+    wasi_try!(environ_count.write(0).ok(), Errno::Fault);
+    wasi_try!(environ_buf_size.write(0).ok(), Errno::Fault);
+    Errno::Success
 }
 
 pub fn fd_advise(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _offset: __wasi_filesize_t,
-    _len: __wasi_filesize_t,
-    _advice: __wasi_advice_t,
-) -> __wasi_errno_t {
-    __WASI_ESUCCESS
+    _fd: wasi::Fd,
+    _offset: wasi::Filesize,
+    _len: wasi::Filesize,
+    _advice: wasi::Advice,
+) -> Errno {
+    Errno::Success
 }
 
 pub fn fd_allocate(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _offset: __wasi_filesize_t,
-    _len: __wasi_filesize_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _offset: wasi::Filesize,
+    _len: wasi::Filesize,
+) -> Errno {
+    Errno::Nosys
 }
 
-pub fn fd_close(_env: FunctionEnvMut<WasiEnv>, _fd: __wasi_fd_t) -> __wasi_errno_t {
-    __WASI_ENOSYS
+pub fn fd_close(_env: FunctionEnvMut<WasiEnv>, _fd: wasi::Fd) -> Errno {
+    Errno::Nosys
 }
 
-pub fn fd_datasync(_env: FunctionEnvMut<WasiEnv>, _fd: __wasi_fd_t) -> __wasi_errno_t {
-    __WASI_ENOSYS
+pub fn fd_datasync(_env: FunctionEnvMut<WasiEnv>, _fd: wasi::Fd) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_fdstat_get(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _buf_ptr: WasmPtr<__wasi_fdstat_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _buf_ptr: WasmPtr<wasi::Fdstat>,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_fdstat_set_flags(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _flags: __wasi_fdflags_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _flags: wasi::Fdflags,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_fdstat_set_rights(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _fs_rights_base: __wasi_rights_t,
-    _fs_rights_inheriting: __wasi_rights_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _fs_rights_base: wasi::Rights,
+    _fs_rights_inheriting: wasi::Rights,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_filestat_get(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _buf: WasmPtr<__wasi_filestat_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _buf: WasmPtr<wasi::Filestat>,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_filestat_set_size(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _st_size: __wasi_filesize_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _st_size: wasi::Filesize,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_filestat_set_times(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _st_atim: __wasi_timestamp_t,
-    _st_mtim: __wasi_timestamp_t,
-    _fst_flags: __wasi_fstflags_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _st_atim: wasi::Timestamp,
+    _st_mtim: wasi::Timestamp,
+    _fst_flags: wasi::Fstflags,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_pread(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _iovs: WasmPtr<__wasi_iovec_t<Memory32>>,
     _iovs_len: u32,
-    _offset: __wasi_filesize_t,
+    _offset: wasi::Filesize,
     _nread: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_prestat_get(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _buf: WasmPtr<__wasi_prestat_t>,
-) -> __wasi_errno_t {
-    __WASI_EBADF
+    _fd: wasi::Fd,
+    _buf: WasmPtr<wasi::Prestat>,
+) -> Errno {
+    Errno::Badf
 }
 
 pub fn fd_prestat_dir_name(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _path: WasmPtr<u8>,
     _path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_pwrite(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _iovs: WasmPtr<__wasi_ciovec_t<Memory32>>,
     _iovs_len: u32,
-    _offset: __wasi_filesize_t,
+    _offset: wasi::Filesize,
     _nwritten: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_read(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _iovs: WasmPtr<__wasi_iovec_t<Memory32>>,
     _iovs_len: u32,
     _nread: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_readdir(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _buf: WasmPtr<u8>,
     _buf_len: u32,
-    _cookie: __wasi_dircookie_t,
+    _cookie: wasi::Dircookie,
     _bufused: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
-pub fn fd_renumber(
-    _env: FunctionEnvMut<WasiEnv>,
-    _from: __wasi_fd_t,
-    _to: __wasi_fd_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+pub fn fd_renumber(_env: FunctionEnvMut<WasiEnv>, _from: wasi::Fd, _to: wasi::Fd) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_seek(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _offset: __wasi_filedelta_t,
-    _whence: __wasi_whence_t,
-    _newoffset: WasmPtr<__wasi_filesize_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _offset: wasi::FileDelta,
+    _whence: wasi::Whence,
+    _newoffset: WasmPtr<wasi::Filesize>,
+) -> Errno {
+    Errno::Nosys
 }
 
-pub fn fd_sync(_env: FunctionEnvMut<WasiEnv>, _fd: __wasi_fd_t) -> __wasi_errno_t {
-    __WASI_ENOSYS
+pub fn fd_sync(_env: FunctionEnvMut<WasiEnv>, _fd: wasi::Fd) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_tell(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _offset: WasmPtr<__wasi_filesize_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _fd: wasi::Fd,
+    _offset: WasmPtr<wasi::Filesize>,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn fd_write(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _iovs: WasmPtr<__wasi_ciovec_t<Memory32>>,
     _iovs_len: u32,
     _nwritten: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ESUCCESS
+) -> Errno {
+    Errno::Success
 }
 
 pub fn path_create_directory(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _path: WasmPtr<u8>,
     _path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn path_filestat_get(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _flags: __wasi_lookupflags_t,
+    _fd: wasi::Fd,
+    _flags: wasi::LookupFlags,
     _path: WasmPtr<u8>,
     _path_len: u32,
-    _buf: WasmPtr<__wasi_filestat_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _buf: WasmPtr<wasi::Filestat>,
+) -> Errno {
+    Errno::Nosys
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn path_filestat_set_times(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
-    _flags: __wasi_lookupflags_t,
+    _fd: wasi::Fd,
+    _flags: wasi::LookupFlags,
     _path: WasmPtr<u8>,
     _path_len: u32,
-    _st_atim: __wasi_timestamp_t,
-    _st_mtim: __wasi_timestamp_t,
-    _fst_flags: __wasi_fstflags_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _st_atim: wasi::Timestamp,
+    _st_mtim: wasi::Timestamp,
+    _fst_flags: wasi::Fstflags,
+) -> Errno {
+    Errno::Nosys
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn path_link(
     _env: FunctionEnvMut<WasiEnv>,
-    _old_fd: __wasi_fd_t,
-    _old_flags: __wasi_lookupflags_t,
+    _old_fd: wasi::Fd,
+    _old_flags: wasi::LookupFlags,
     _old_path: WasmPtr<u8>,
     _old_path_len: u32,
-    _new_fd: __wasi_fd_t,
+    _new_fd: wasi::Fd,
     _new_path: WasmPtr<u8>,
     _new_path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn path_open(
     _env: FunctionEnvMut<WasiEnv>,
-    _dirfd: __wasi_fd_t,
-    _dirflags: __wasi_lookupflags_t,
+    _dirfd: wasi::Fd,
+    _dirflags: wasi::LookupFlags,
     _path: WasmPtr<u8>,
     _path_len: u32,
-    _o_flags: __wasi_oflags_t,
-    _fs_rights_base: __wasi_rights_t,
-    _fs_rights_inheriting: __wasi_rights_t,
-    _fs_flags: __wasi_fdflags_t,
-    _fd: WasmPtr<__wasi_fd_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _o_flags: wasi::Oflags,
+    _fs_rights_base: wasi::Rights,
+    _fs_rights_inheriting: wasi::Rights,
+    _fs_flags: wasi::Fdflags,
+    _fd: WasmPtr<wasi::Fd>,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn path_readlink(
     _env: FunctionEnvMut<WasiEnv>,
-    _dir_fd: __wasi_fd_t,
+    _dir_fd: wasi::Fd,
     _path: WasmPtr<u8>,
     _path_len: u32,
     _buf: WasmPtr<u8>,
     _buf_len: u32,
     _buf_used: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn path_remove_directory(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _path: WasmPtr<u8>,
     _path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn path_rename(
     _env: FunctionEnvMut<WasiEnv>,
-    _old_fd: __wasi_fd_t,
+    _old_fd: wasi::Fd,
     _old_path: WasmPtr<u8>,
     _old_path_len: u32,
-    _new_fd: __wasi_fd_t,
+    _new_fd: wasi::Fd,
     _new_path: WasmPtr<u8>,
     _new_path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn path_symlink(
     _env: FunctionEnvMut<WasiEnv>,
     _old_path: WasmPtr<u8>,
     _old_path_len: u32,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _new_path: WasmPtr<u8>,
     _new_path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn path_unlink_file(
     _env: FunctionEnvMut<WasiEnv>,
-    _fd: __wasi_fd_t,
+    _fd: wasi::Fd,
     _path: WasmPtr<u8>,
     _path_len: u32,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn poll_oneoff(
     _env: FunctionEnvMut<WasiEnv>,
-    _in_: WasmPtr<__wasi_subscription_t>,
-    _out_: WasmPtr<__wasi_event_t>,
+    _in_: WasmPtr<wasi::Subscription>,
+    _out_: WasmPtr<wasi::Event>,
     _nsubscriptions: u32,
     _nevents: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn proc_exit(_env: FunctionEnvMut<WasiEnv>, code: __wasi_exitcode_t) -> Result<(), WasiError> {
     Err(WasiError::Exited(code))
 }
 
-pub fn proc_raise(_env: FunctionEnvMut<WasiEnv>, _sig: __wasi_signal_t) -> __wasi_errno_t {
-    __WASI_ENOSYS
+pub fn proc_raise(_env: FunctionEnvMut<WasiEnv>, _sig: wasi::Signal) -> Errno {
+    Errno::Nosys
 }
 
-pub fn random_get(
-    mut env: FunctionEnvMut<WasiEnv>,
-    buf: u32,
-    buf_len: u32,
-) -> Result<__wasi_errno_t> {
+pub fn random_get(mut env: FunctionEnvMut<WasiEnv>, buf: u32, buf_len: u32) -> Result<Errno> {
     let inner = env.data().inner.clone();
     let mut env_guard = inner.lock().unwrap();
 
@@ -521,40 +507,36 @@ pub fn random_get(
         .view(&env)
         .write(buf as _, &u8_buffer)
         .or(Err(OcallError::InvalidAddress))?;
-    Ok(__WASI_ESUCCESS)
+    Ok(Errno::Success)
 }
 
-pub fn sched_yield(_env: FunctionEnvMut<WasiEnv>) -> __wasi_errno_t {
-    __WASI_ESUCCESS
+pub fn sched_yield(_env: FunctionEnvMut<WasiEnv>) -> Errno {
+    Errno::Success
 }
 
 pub fn sock_recv(
     _env: FunctionEnvMut<WasiEnv>,
-    _sock: __wasi_fd_t,
+    _sock: wasi::Fd,
     _ri_data: WasmPtr<__wasi_iovec_t<Memory32>>,
     _ri_data_len: u32,
-    _ri_flags: __wasi_riflags_t,
+    _ri_flags: RiFlags,
     _ro_datalen: WasmPtr<u32>,
-    _ro_flags: WasmPtr<__wasi_roflags_t>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+    _ro_flags: WasmPtr<RoFlags>,
+) -> Errno {
+    Errno::Nosys
 }
 
 pub fn sock_send(
     _env: FunctionEnvMut<WasiEnv>,
-    _sock: __wasi_fd_t,
+    _sock: wasi::Fd,
     _si_data: WasmPtr<__wasi_ciovec_t<Memory32>>,
     _si_data_len: u32,
-    _si_flags: __wasi_siflags_t,
+    _si_flags: SiFlags,
     _so_datalen: WasmPtr<u32>,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+) -> Errno {
+    Errno::Nosys
 }
 
-pub fn sock_shutdown(
-    _env: FunctionEnvMut<WasiEnv>,
-    _sock: __wasi_fd_t,
-    _how: __wasi_sdflags_t,
-) -> __wasi_errno_t {
-    __WASI_ENOSYS
+pub fn sock_shutdown(_env: FunctionEnvMut<WasiEnv>, _sock: wasi::Fd, _how: SdFlags) -> Errno {
+    Errno::Nosys
 }

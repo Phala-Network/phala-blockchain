@@ -11,7 +11,7 @@ mod system {
     use super::pink;
     use alloc::string::String;
     use ink_storage::{traits::SpreadAllocate, Mapping};
-    use pink::system::{ContractDeposit, ContractDepositRef, Error, Result};
+    use pink::system::{ContractDeposit, ContractDepositRef, Error, Result, DriverError};
     use pink::{HookPoint, PinkEnvironment};
 
     /// Pink's system contract.
@@ -38,7 +38,7 @@ mod system {
             if caller == self.owner {
                 Ok(caller)
             } else {
-                Err(Error::BadOrigin)
+                Err(Error::PermisionDenied)
             }
         }
 
@@ -47,19 +47,19 @@ mod system {
             if self.administrators.contains(&caller) {
                 return Ok(caller);
             }
-            Err(Error::BadOrigin)
+            Err(Error::PermisionDenied)
         }
 
         fn ensure_owner_or_admin(&self) -> Result<AccountId> {
             self.ensure_owner().or_else(|_| self.ensure_admin())
         }
 
-        fn ensure_pallet(&self) -> Result<AccountId> {
+        fn ensure_self(&self) -> Result<AccountId> {
             let caller = self.env().caller();
-            if pink::predefined_accounts::is_pallet(&caller) {
+            if caller == self.env().account_id() {
                 Ok(caller)
             } else {
-                Err(Error::BadOrigin)
+                Err(Error::PermisionDenied)
             }
         }
     }
@@ -110,9 +110,15 @@ mod system {
         }
 
         #[ink(message)]
-        fn set_hook(&mut self, hook: HookPoint, contract: AccountId, selector: u32) -> Result<()> {
+        fn set_hook(
+            &mut self,
+            hook: HookPoint,
+            contract: AccountId,
+            selector: u32,
+            gas_limit: u64,
+        ) -> Result<()> {
             self.ensure_admin()?;
-            pink::set_hook(hook, contract, selector);
+            pink::set_hook(hook, contract, selector, gas_limit);
             Ok(())
         }
 
@@ -122,12 +128,22 @@ mod system {
             pink::set_contract_weight(contract_id, weight);
             Ok(())
         }
+
+        #[ink(message)]
+        fn total_balance_of(&self, account: AccountId) -> Balance {
+            pink::ext().balance_of(account).0
+        }
+
+        #[ink(message)]
+        fn free_balance_of(&self, account: AccountId) -> Balance {
+            pink::ext().balance_of(account).1
+        }
     }
 
     impl ContractDeposit for System {
         #[ink(message)]
-        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<()> {
-            self.ensure_pallet()?;
+        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<(), DriverError> {
+            self.ensure_self()?;
             let flags = ink_env::CallFlags::default().set_allow_reentry(true);
             match ContractDepositRef::instance_with_call_flags(flags) {
                 Some(mut driver) => driver.change_deposit(contract_id, deposit),

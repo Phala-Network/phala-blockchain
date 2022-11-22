@@ -1,9 +1,15 @@
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
+const { typeDefinitions } = require('@polkadot/types');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
 const fs = require('fs');
 const crypto = require('crypto');
 const { PRuntimeApi } = require('./utils/pruntime');
+const { assert } = require('console');
+
+const CENTS = 10_000_000_000;
+const SECONDS = 1_000_000_000_000;
+const defaultTxConfig = { gasLimit: "10000000000000" };
 
 function loadContractFile(contractFile) {
     const metadata = JSON.parse(fs.readFileSync(contractFile));
@@ -14,20 +20,69 @@ function loadContractFile(contractFile) {
 }
 
 async function deployDriverContract(api, txqueue, system, pair, cert, contract, clusterId, name, salt) {
-    console.log(`Contracts: uploading ${contract.name}`);
+    salt = salt ? salt : hex(crypto.randomBytes(4)),
+        console.log(`Contracts: uploading ${contract.name}`);
+
     // upload the contract 
+    await txqueue.submit(
+        api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', contract.wasm),
+        pair);
+
+    // Not sure how much time it would take to sync the code into pruntime
+    console.log("Waiting the code to be synced into pruntime to estmate the instantiation");
+    await sleep(10000);
+
+    // Estimate gas limit
+    /*
+        InkInstantiate {
+            code_hash: sp_core::H256,
+            salt: Vec<u8>,
+            instantiate_data: Vec<u8>,
+            /// Amount of tokens deposit to the caller.
+            deposit: u128,
+            /// Amount of tokens transfer from the caller to the target contract.
+            transfer: u128,
+        },
+     */
+    const instantiateReturn = await system.instantiate({
+        codeHash: contract.metadata.source.hash,
+        salt,
+        instantiateData: contract.constructor, // please concat with args if needed
+        deposit: 0,
+        transfer: 0,
+    }, cert);
+
+    console.log("instantiate result:", instantiateReturn);
+    const queryResponse = api.createType('InkResponse', instantiateReturn);
+    const queryResult = queryResponse.result.toHuman()
+    console.log("InkMessageReturn", queryResult.Ok.InkMessageReturn);
+    const instantiateResult = api.createType('ContractInstantiateResult', queryResult.Ok.InkMessageReturn);
+    console.assert(instantiateResult.result.isOk);
+    console.log("gasRequired", instantiateResult.gasRequired);
+
     const { events: deployEvents } = await txqueue.submit(
-        api.tx.utility.batchAll(
-            [
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', contract.wasm),
-                api.tx.phalaFatContracts.instantiateContract(
-                    { WasmCode: contract.metadata.source.hash },
-                    contract.constructor,
-                    salt ? salt : hex(crypto.randomBytes(4)),
-                    clusterId,
-                )
-            ]
-        ),
+        /*
+        pub fn instantiate_contract(
+            origin: OriginFor<T>,
+            code_index: CodeIndex<CodeHash<T>>,
+            data: Vec<u8>,
+            salt: Vec<u8>,
+            cluster_id: ContractClusterId,
+            transfer: u128,
+            gas_limit: u64,
+            storage_deposit_limit: Option<u128>,
+        ) -> DispatchResult {
+        */
+        api.tx.phalaFatContracts.instantiateContract(
+            { WasmCode: contract.metadata.source.hash },
+            contract.constructor,
+            salt,
+            clusterId,
+            0,
+            instantiateResult.gasRequired.refTime,
+            instantiateResult.storageDeposit.asCharge || 0,
+        )
+        ,
         pair
     );
     const contractIds = deployEvents
@@ -48,14 +103,39 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
         async () => (await api.query.phalaRegistry.contractKeys(contract.address)).isSome,
         4 * 6000
     );
+
+    // use query to estimate the required gas for system::setDriver
+    const { gasRequired, storageDeposit } = await system.query["system::setDriver"](cert, {}, name, contract.address);
+    console.log("gasRequired:", gasRequired);
+    console.log("storageDeposit:", storageDeposit.asCharge);
+
+    // Submit the tx with the estimated gas args
+    const options = {
+        value: 0,
+        gasLimit: gasRequired,
+        storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null
+    };
     await txqueue.submit(
-        system.tx["system::setDriver"]({}, name, contract.address),
+        system.tx["system::setDriver"](options, name, contract.address),
         pair
     );
+
+    {
+        const { output } = await system.query["system::freeBalanceOf"](cert, {}, pair.address);
+        console.log("freeBalance:", output);
+    }
+    {
+        const { output } = await system.query["system::totalBalanceOf"](cert, {}, pair.address);
+        console.log("totalBalance:", output);
+    }
+
+
+    // If leave empty, the SDK would fill the gasLimit with a default value which doesn't work sometimes.
     await txqueue.submit(
-        system.tx["system::grantAdmin"]({}, contract.address),
+        system.tx["system::grantAdmin"](defaultTxConfig, contract.address),
         pair
     );
+
     await checkUntil(
         async () => {
             const { output } = await system.query["system::getDriver"](cert, {}, name);
@@ -213,7 +293,7 @@ async function setupGatekeeper(api, txpool, pair, worker) {
     console.log('Gatekeeper: master key ready');
 }
 
-async function deployCluster(api, txqueue, sudoer, owner, worker, defaultCluster = '0x0000000000000000000000000000000000000000000000000000000000000000') {
+async function deployCluster(api, txqueue, sudoer, owner, worker, treasury, defaultCluster = '0x0000000000000000000000000000000000000000000000000000000000000000') {
     const clusterInfo = await api.query.phalaFatContracts.clusters(defaultCluster);
     if (clusterInfo.isSome) {
         return { clusterId: defaultCluster, systemContract: clusterInfo.unwrap().systemContract.toHex() };
@@ -223,8 +303,9 @@ async function deployCluster(api, txqueue, sudoer, owner, worker, defaultCluster
     const { events } = await txqueue.submit(
         api.tx.sudo.sudo(api.tx.phalaFatContracts.addCluster(
             owner,
-            'Public', // can be {'OnlyOwner': accountId}
-            [worker]
+            'Public',
+            [worker],
+            "100000000000000000", 1, 1, 1, treasury.address
         )),
         sudoer
     );
@@ -246,13 +327,14 @@ async function deployCluster(api, txqueue, sudoer, owner, worker, defaultCluster
 
 async function contractApi(api, pruntimeURL, contract) {
     const newApi = await api.clone().isReady;
-    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId: contract.address });
+    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId: contract.address, autoDeposit: true });
     const contractApi = new ContractPromise(
         phala.api,
         contract.metadata,
         contract.address,
     );
     contractApi.sidevmQuery = phala.sidevmQuery;
+    contractApi.instantiate = phala.instantiate;
     return contractApi;
 }
 
@@ -265,6 +347,7 @@ async function main() {
     const contractSystem = loadContractFile('./res/system.contract');
     const contractSidevmop = loadContractFile('./res/sidevm_deployer.contract');
     const contractLogServer = loadContractFile('./res/log_server.contract');
+    const contractTokenomic = loadContractFile('./res/tokenomic.contract');
     const logServerSidevmWasm = fs.readFileSync('./res/log_server.sidevm.wasm', 'hex');
     const nodeURL = 'ws://localhost:19944';
     const pruntimeURL = 'http://localhost:8000';
@@ -279,6 +362,7 @@ async function main() {
                 username: 'String',
                 accountId: 'AccountId',
             },
+            ...typeDefinitions.contracts.types,
         }
     });
     const txqueue = new TxQueue(api);
@@ -286,6 +370,7 @@ async function main() {
     // Prepare accounts
     const keyring = new Keyring({ type: 'sr25519' })
     const alice = keyring.addFromUri('//Alice')
+    const treasury = keyring.addFromUri('//Treasury')
     const certAlice = await Phala.signCertificate({ api, pair: alice });
 
     // Connect to pruntime
@@ -301,10 +386,46 @@ async function main() {
     // Upload the pink-system wasm to the chain. It is required to create a cluster.
     await uploadSystemCode(api, txqueue, alice, contractSystem.wasm);
 
-    const { clusterId, systemContract } = await deployCluster(api, txqueue, alice, alice.address, worker);
+    const { clusterId, systemContract } = await deployCluster(api, txqueue, alice, alice.address, worker, treasury);
     contractSystem.address = systemContract;
-
     const system = await contractApi(api, pruntimeURL, contractSystem);
+
+    // Transfer some tokens to the cluster for alice
+    await txqueue.submit(
+        api.tx.phalaFatContracts.transferToCluster(CENTS * 100, clusterId, alice.address),
+        alice,
+    );
+
+    // Deploy the tokenomic contract
+    await deployDriverContract(api, txqueue, system, alice, certAlice, contractTokenomic, clusterId, "ContractDeposit");
+
+    // Stake some tokens to the system contract
+    const stakedCents = 42;
+    await txqueue.submit(
+        api.tx.phalaFatTokenomic.adjustStake(systemContract, CENTS * stakedCents),
+        alice
+    );
+    // Contract weight should be affected
+    await checkUntilEq(
+        async () => {
+            const { weight } = (await prpc.getContractInfo(systemContract));
+            return weight;
+        },
+        stakedCents,
+        4 * 6000
+    );
+
+    // Total stakes to the contract should be changed
+    const total = await api.query.phalaFatTokenomic.contractTotalStakes(systemContract);
+    console.assert(total.eq(CENTS * stakedCents));
+
+    // Stakes of the user
+    const stakesOfAlice = await api.query.phalaFatTokenomic.contractUserStakes.entries(alice.address);
+    console.log('Stakes of alice:');
+    stakesOfAlice.forEach(([key, stake]) => {
+        console.log('contract:', key.args[1].toHex());
+        console.log('   stake:', stake.toHuman());
+    });
 
     // Deploy driver: Sidevm deployer
     await deployDriverContract(api, txqueue, system, alice, certAlice, contractSidevmop, clusterId, "SidevmOperation");
@@ -322,7 +443,7 @@ async function main() {
     console.log(`calculated loggerId = ${loggerId}`);
 
     await txqueue.submit(
-        sidevmDeployer.tx.allow({}, loggerId),
+        sidevmDeployer.tx.allow(defaultTxConfig, loggerId),
         alice
     );
 
@@ -353,10 +474,9 @@ async function main() {
     };
     const data = hex(toBytes(JSON.stringify(condition)));
     const hexlog = await logger.sidevmQuery(data, certAlice);
-    const bytes = api.createType("Vec<u8>", hexlog);
-    const decoder = new TextDecoder();
-    const jsonText = decoder.decode(bytes);
-    console.log('log:', jsonText);
+    const resp = api.createType('InkResponse', hexlog);
+    const result = resp.result.toHuman()
+    console.log(result.Ok.InkMessageReturn);
     // Sample query response:
     const _ = {
         "next": 3, // Sequence number for the next query. For pagination.

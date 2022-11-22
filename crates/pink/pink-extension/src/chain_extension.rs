@@ -7,7 +7,7 @@ pub use http_request::{HttpRequest, HttpResponse};
 pub use ink_env::AccountId;
 pub use signing::SigType;
 
-use crate::{EcdsaPublicKey, EcdsaSignature, Hash};
+use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
 
 mod http_request;
 pub mod signing;
@@ -54,7 +54,7 @@ pub trait PinkExt {
 
     /// Set a value in the local cache.
     ///
-    /// The default expiration time is 7 days. Use `cache_set_expire` to set a custom expiration
+    /// The default expiration time is 7 days. Use `cache_set_expiration` to set a custom expiration
     /// time.
     /// Values stored in cache can only be read in query functions.
     ///
@@ -68,7 +68,7 @@ pub trait PinkExt {
     /// - `key`: The key of the value to set the expiration time for.
     /// - `expire`: The expiration time from now in seconds.
     #[ink(extension = 7, handle_status = false, returns_result = false)]
-    fn cache_set_expire(key: &[u8], expire: u64);
+    fn cache_set_expiration(key: &[u8], expire: u64);
 
     /// Get a value from the local cache.
     ///
@@ -108,6 +108,18 @@ pub trait PinkExt {
     /// Get the contract id of the preinstalled pink-system
     #[ink(extension = 15, handle_status = false, returns_result = false)]
     fn system_contract_id() -> AccountId;
+
+    /// Get (total, free) balance of given contract
+    #[ink(extension = 16, handle_status = false, returns_result = false)]
+    fn balance_of(account: AccountId) -> (Balance, Balance);
+
+    /// Get worker public key. Query only.
+    #[ink(extension = 17, handle_status = false, returns_result = false)]
+    fn worker_pubkey() -> crate::EcdhPublicKey;
+
+    /// Get current millis since unix epoch from the OS. (Query only)
+    #[ink(extension = 18, handle_status = false, returns_result = false)]
+    fn untrusted_millis_since_unix_epoch() -> u64;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

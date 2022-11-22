@@ -25,7 +25,7 @@ impl Fairing for TimeMeter {
         let start_time = request.local_cache(|| StartTime(Instant::now()));
         let cost = start_time.0.elapsed().as_micros().to_string();
         log::info!(
-            target: "measuring",
+            target: "prpc_measuring",
             "{} {} cost {} microseconds, status: {}",
             request.method(),
             request.uri(),
