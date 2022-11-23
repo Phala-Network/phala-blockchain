@@ -1238,6 +1238,7 @@ dependencies = [
 [[package]]
 name = "finality-grandpa"
 version = "0.16.0"
+source = "git+https://github.com/Phala-Network/finality-grandpa.git?branch=scale2#430cc8c7c1f000452546975c0ed83cca9beddf90"
 dependencies = [
  "either",
  "futures",
