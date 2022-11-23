@@ -16,7 +16,7 @@ pub mod pallet {
 		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{
 			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
-			UnixTime,
+			UnixTime, ConstBool,
 		},
 		PalletId,
 	};
@@ -241,7 +241,7 @@ pub mod pallet {
 
 	/// Won't sent heartbeat challenges to the the worker if enabled.
 	#[pallet::storage]
-	pub type HeartbeatPaused<T> = StorageValue<_, bool, ValueQuery>;
+	pub type HeartbeatPaused<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
 	/// The miner state.
 	///
