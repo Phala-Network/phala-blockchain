@@ -57,3 +57,6 @@ members = [
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
+
+[patch.crates-io]
+finality-grandpa = { git = "https://github.com/Phala-Network/finality-grandpa.git", branch = "scale2" }
