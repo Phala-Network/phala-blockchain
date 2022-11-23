@@ -2872,19 +2872,6 @@ dependencies = [
 
 [[package]]
 name = "finality-grandpa"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9def033d8505edf199f6a5d07aa7e6d2d6185b164293b77f0efd108f4f3e11d"
-dependencies = [
- "either",
- "futures",
- "num-traits",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "finality-grandpa"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b22349c6a11563a202d95772a68e0fcf56119e74ea8a2a19cf2301460fcd0df5"
@@ -7278,7 +7265,7 @@ dependencies = [
  "chrono",
  "ciborium",
  "derive_more",
- "finality-grandpa 0.15.0",
+ "finality-grandpa",
  "fixed",
  "fixed-macro",
  "fixed-sqrt",
@@ -9765,7 +9752,7 @@ dependencies = [
  "array-bytes",
  "async-trait",
  "dyn-clone",
- "finality-grandpa 0.16.0",
+ "finality-grandpa",
  "fork-tree",
  "futures",
  "futures-timer",
@@ -9802,7 +9789,7 @@ name = "sc-finality-grandpa-rpc"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.32#5ea6d95309aaccfa399c5f72e5a14a4b7c6c4ca1"
 dependencies = [
- "finality-grandpa 0.16.0",
+ "finality-grandpa",
  "futures",
  "jsonrpsee",
  "log",
@@ -11492,7 +11479,7 @@ name = "sp-finality-grandpa"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.32#5ea6d95309aaccfa399c5f72e5a14a4b7c6c4ca1"
 dependencies = [
- "finality-grandpa 0.16.0",
+ "finality-grandpa",
  "log",
  "parity-scale-codec",
  "scale-info",
