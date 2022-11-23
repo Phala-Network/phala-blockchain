@@ -14,7 +14,7 @@ type Storage = phala_trie_storage::TrieStorage<RuntimeHasher>;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Display)]
+#[derive(Display, Debug)]
 pub enum Error {
     /// No header or block data in the request
     EmptyRequest,
@@ -95,7 +95,7 @@ pub trait StorageSynchronizer {
     ) -> Result<()>;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BlockSyncState<Validator> {
     validator: Validator,
     main_bridge: u64,

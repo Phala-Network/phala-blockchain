@@ -57,6 +57,7 @@ pub use prpc_service::RpcService;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
+pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
 
 pub mod benchmark;
 
