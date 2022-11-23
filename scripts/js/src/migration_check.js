@@ -19,8 +19,8 @@ async function main() {
   })
 
 
-  const since = parseInt(process.env.SINCE || '137');
-  const until = parseInt(process.env.UNTIL || '138');
+  const since = parseInt(process.env.SINCE || '500`');
+  const until = parseInt(process.env.UNTIL || '501');
 
   for (let height = since; height < until; height++) {
     const hash = await api.rpc.chain.getBlockHash(height);
@@ -55,11 +55,80 @@ async function main() {
       let cid = poolitems[i][1].toJSON()["stakePool"]["basepool"]["cid"];
       let sum_share = shares[cid];
       if (total_shares != sum_share && (total_shares != 0 && sum_share != undefined)) {
-        console.log(total_shares + " != " + sum_share + " at pid:" + poolitems[i][0]);
+        console.log(total_shares + " != " + sum_share + " at pid:" + poolitems[i][0] + " for total share");
       }
     }
+    let assets = await apiAt.query.assets.account.entries();
+    const assetsitems = assets.map(([k, v]) => [[k.args[0], k.args[1]], v.unwrap()]);
+    let assetsmap = new Map();
+    for (let i = 0; i < assetsitems.length; i++) {
+      if (assetsitems[i][0][0].toNumber() == 1) {
+          assetsmap[assetsitems[i][0][1]] = BigInt(assetsitems[i][1].toJSON()["balance"]);
+        }
+      }
+      
+    for (let i = 0; i < poolitems.length; i++) {
+      if (poolitems[i][1].toJSON()["stakePool"] == undefined) {
+        continue;
+      }
+      let pool_account_id = poolitems[i][1].toJSON()["stakePool"]["basepool"]["pool_account_id"];
+      let lock_account_id = poolitems[i][1].toJSON()["stakePool"]["lock_account"];
+      let free = 0;
+      if (assetsmap[pool_account_id] != undefined) {
+        free = assetsmap[pool_account_id];
+      }
+      let lock = 0;
+      if (assetsmap[lock_account_id] != undefined) {
+        lock = assetsmap[lock_account_id];
+      }
+      let pool_total = poolitems[i][1].toJSON()["stakePool"]["basepool"]["total_value"];
+      if (poolitems[i][1].toJSON()["stakePool"]["basepool"]["total_value"] == undefined) {
+        pool_total = "0";
+      }
+      let total = (lock + free).toString();
+      if (pool_total != total) {
+        console.log(pool_total + " != " + total + " at pid:" + poolitems[i][0] + " for total value");
+      }
+    }
+
+    const oldpooldata = await apiAt.query.phalaStakePool.stakePools.entries();
+    const oldpoolitems = oldpooldata.map(([k, v]) => [k.args[0], v.unwrap()]);
+    let oldpoolmap = new Map();
+    for (i = 0; i < oldpoolitems.length; i++) {
+      oldpoolmap[oldpoolitems[i][0]] = BigInt(oldpoolitems[i][1]["releasingStake"]);
+    }
+    const workerbinding = await apiAt.query.phalaComputation.workerBindings.entries();
+    const workerbinditems = workerbinding.map(([k, v]) => [k.args[0], v.unwrap()]);
+    let bindmap = new Map();
+    for (i = 0; i < workerbinditems.length; i++) {
+      bindmap[workerbinditems[i][0]] = workerbinditems[i][1].toJSON();
+    }
+    const stakes = await apiAt.query.phalaComputation.stakes.entries();
+    const stakeitems = stakes.map(([k, v]) => [k.args[0], v.unwrap()]);
+    let stakemap = new Map();
+    for (i = 0; i < stakeitems.length; i++) {
+      stakemap[stakeitems[i][0]] = BigInt(stakeitems[i][1]);
+    }
+    for (let i = 0; i < poolitems.length; i++) {
+      if (poolitems[i][1].toJSON()["stakePool"] == undefined) {
+        continue;
+      }
+      let cd_workers = poolitems[i][1].toJSON()["stakePool"]["cdWorkers"];
+      let sum_releasing = BigInt(0);
+      for (let j = 0; j < cd_workers.length; j++) {
+        let session_id = bindmap[cd_workers[j]];
+        let stake = stakemap[session_id];
+        sum_releasing += stake;
+      }
+      let pid = poolitems[i][0];
+      let releasing = oldpoolmap[pid];
+
+      if (releasing != sum_releasing) {
+        console.log(releasing + " != " + sum_releasing + " at pid:" + poolitems[i][0] + " for releasing stakes");
+      }
+    }
+
   }
-    
 }
 
 main().catch(console.error).finally(() => process.exit());

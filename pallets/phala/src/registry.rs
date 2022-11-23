@@ -793,6 +793,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_workers(
 			origin: OriginFor<T>, max_iterations: u32
 		) -> DispatchResult {

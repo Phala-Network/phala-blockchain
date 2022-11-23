@@ -796,6 +796,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
@@ -861,7 +862,7 @@ pub mod pallet {
 					let computing_stake =
 						computation::Stakes::<T>::get(&session).unwrap_or_default();
 					wrapped_balances::Pallet::<T>::mint_into(
-						&new_pool_info.owner_reward_account,
+						&new_pool_info.lock_account,
 						computing_stake,
 					)
 					.expect("mint into should be success");
@@ -909,18 +910,16 @@ pub mod pallet {
 					break;
 				}
 			}
-			//let iter = iter.next();
 			if i < max_iterations {
-				StakepoolIterateStartPos::<T>::put(None::<u64>);
 				base_pool::PoolCount::<T>::put(stake_pool::PoolCount::<T>::get());
-			} else {
-				StakepoolIterateStartPos::<T>::put(last_pid);
 			}
+			StakepoolIterateStartPos::<T>::put(last_pid);
 
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_pool_stakers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
@@ -983,6 +982,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_stake_ledger(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
@@ -1022,6 +1022,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn drain_stakepool_storages(
 			origin: OriginFor<T>,
 			max_iterations: u32,
@@ -1035,6 +1036,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_worker_assignments(
 			origin: OriginFor<T>,
 			max_iterations: u32,
@@ -1050,6 +1052,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_subaccount_preimage(
 			origin: OriginFor<T>,
 			max_iterations: u32,
@@ -1065,6 +1068,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_contribution_whitelist(
 			origin: OriginFor<T>,
 			max_iterations: u32,
@@ -1080,6 +1084,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_pool_description(
 			origin: OriginFor<T>,
 			max_iterations: u32,

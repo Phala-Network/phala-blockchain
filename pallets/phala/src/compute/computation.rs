@@ -510,6 +510,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_miners(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			ensure!(
@@ -529,6 +530,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_miner_bindings(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			ensure!(
@@ -548,6 +550,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_worker_bindings(
 			origin: OriginFor<T>,
 			max_iterations: u32,
@@ -570,6 +573,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_stakes(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			ensure!(
@@ -589,6 +593,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn migrate_storage_values(origin: OriginFor<T>) -> DispatchResult {
 			let mut who = ensure_signed(origin)?;
 			ensure!(
