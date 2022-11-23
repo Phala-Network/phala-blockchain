@@ -138,6 +138,11 @@ mod system {
         fn free_balance_of(&self, account: AccountId) -> Balance {
             pink::ext().balance_of(account).1
         }
+
+        #[ink(message)]
+        fn is_admin(&self, contract_id: AccountId) -> bool {
+            self.administrators.contains(&contract_id)
+        }
     }
 
     impl ContractDeposit for System {

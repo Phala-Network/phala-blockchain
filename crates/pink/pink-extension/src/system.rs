@@ -34,6 +34,10 @@ pub trait System {
     #[ink(message)]
     fn grant_admin(&mut self, contract_id: AccountId) -> Result<()>;
 
+    /// Check if an address is an administrator
+    #[ink(message)]
+    fn is_admin(&self, contract_id: AccountId) -> bool;
+
     /// Set a contract as a driver for `name`.
     ///
     /// The caller must be the owner of the cluster or an administrator.
@@ -107,6 +111,10 @@ pub trait SidevmOperation {
     /// Invoked by a contract to deploy a sidevm instance that attached to itself.
     #[ink(message)]
     fn deploy(&self, code_hash: Hash) -> Result<(), DriverError>;
+
+    /// Check if given address has the permission to deploy a sidevm.
+    #[ink(message)]
+    fn can_deploy(&self, contract_id: AccountId) -> bool;
 }
 
 /// Contracts receiving processing deposit events. Can be a driver and the system.
