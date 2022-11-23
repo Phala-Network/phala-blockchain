@@ -7,7 +7,6 @@ use crate::{
     pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
-    StorageExt,
 };
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
@@ -2105,9 +2104,9 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::storage::Storage;
+    use crate::storage::ChainStorage;
 
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &ChainStorage) -> bool {
         chain_storage.gatekeepers().contains(pubkey)
     }
 }

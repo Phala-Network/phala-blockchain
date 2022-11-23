@@ -52,7 +52,7 @@ use types::Error;
 pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::RpcService;
-pub use storage::{Storage, StorageExt};
+pub use storage::ChainStorage;
 pub use system::gk;
 pub use types::BlockInfo;
 
@@ -83,7 +83,7 @@ struct RuntimeState {
     storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
 
     // TODO.kevin: use a better serialization approach
-    chain_storage: Storage,
+    chain_storage: ChainStorage,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
@@ -230,9 +230,6 @@ pub struct Phactory<Platform> {
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
     #[serde(skip)]
-    #[serde(default)]
-    last_storage_purge_at: chain::BlockNumber,
-    #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
     query_scheduler: RequestScheduler<ContractId>,
 
@@ -263,7 +260,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             signed_endpoints: None,
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
-            last_storage_purge_at: 0,
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
         }

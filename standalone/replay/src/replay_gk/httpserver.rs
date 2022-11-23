@@ -13,6 +13,7 @@ async fn meminfo(data: web::Data<AppState>) -> HttpResponse {
     let factory = data.factory.lock().await;
     let size = factory
         .storage
+        .inner()
         .pairs(&[])
         .iter()
         .map(|(k, v)| k.len() + v.len())

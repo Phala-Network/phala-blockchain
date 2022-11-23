@@ -2,7 +2,7 @@ use crate::light_validation::{storage_proof::StorageProof, LightValidation};
 use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
 use std::string::ToString;
 
-pub use storage_ext::{Storage, StorageExt};
+pub use storage_ext::ChainStorage;
 
 impl BlockValidator for LightValidation<chain::Runtime> {
     fn submit_finalized_headers(
@@ -44,46 +44,63 @@ mod storage_ext {
     use phactory_api::blocks::ParaId;
     use phala_mq::Message;
     use phala_trie_storage::TrieStorage;
+    use serde::{Deserialize, Serialize};
 
-    pub type Storage = TrieStorage<crate::RuntimeHasher>;
+    #[derive(Serialize, Deserialize, Default)]
+    pub struct ChainStorage {
+        trie_storage: TrieStorage<crate::RuntimeHasher>,
+    }
 
-    // Hide the trait StorageGet behind this private mod sealed
-    mod sealed {
-        use super::*;
-        pub trait StorageGet {
-            fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;
-            fn get_decoded_result<T: Decode>(
-                &self,
-                key: impl AsRef<[u8]>,
-            ) -> Result<Option<T>, Error> {
-                self.get_raw(key)
-                    .map(|v| match Decode::decode(&mut &v[..]) {
-                        Ok(decoded) => Ok(decoded),
-                        Err(e) => {
-                            error!("Decode storage value failed: {}", e);
-                            Err(e)
-                        }
-                    })
-                    .transpose()
-            }
-            fn get_decoded<T: Decode>(&self, key: impl AsRef<[u8]>) -> Option<T> {
-                self.get_decoded_result(key).ok().flatten()
-            }
-        }
-
-        impl StorageGet for Storage {
-            fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-                self.get(key)
+    impl From<TrieStorage<crate::RuntimeHasher>> for ChainStorage {
+        fn from(value: TrieStorage<crate::RuntimeHasher>) -> Self {
+            Self {
+                trie_storage: value,
             }
         }
     }
 
-    pub trait StorageExt: sealed::StorageGet {
-        fn para_id(&self) -> Option<ParaId> {
+    impl ChainStorage {
+        fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
+            self.trie_storage.get(key)
+        }
+        fn get_decoded_result<T: Decode>(&self, key: impl AsRef<[u8]>) -> Result<Option<T>, Error> {
+            self.get_raw(key)
+                .map(|v| match Decode::decode(&mut &v[..]) {
+                    Ok(decoded) => Ok(decoded),
+                    Err(e) => {
+                        error!("Decode storage value failed: {}", e);
+                        Err(e)
+                    }
+                })
+                .transpose()
+        }
+        fn get_decoded<T: Decode>(&self, key: impl AsRef<[u8]>) -> Option<T> {
+            self.get_decoded_result(key).ok().flatten()
+        }
+    }
+
+    impl ChainStorage {
+        pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
+            self.trie_storage.load(pairs);
+        }
+
+        pub fn root(&self) -> &sp_core::H256 {
+            self.trie_storage.root()
+        }
+
+        pub fn inner(&self) -> &TrieStorage<crate::RuntimeHasher> {
+            &self.trie_storage
+        }
+
+        pub fn inner_mut(&mut self) -> &mut TrieStorage<crate::RuntimeHasher> {
+            &mut self.trie_storage
+        }
+
+        pub fn para_id(&self) -> Option<ParaId> {
             self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
         }
 
-        fn mq_messages(&self) -> Result<Vec<Message>, Error> {
+        pub fn mq_messages(&self) -> Result<Vec<Message>, Error> {
             for key in ["OutboundMessagesV2", "OutboundMessages"] {
                 let messages: Vec<Message> = self
                     .get_decoded_result(storage_prefix("PhalaMq", key))
@@ -96,16 +113,16 @@ mod storage_ext {
             Ok(vec![])
         }
 
-        fn timestamp_now(&self) -> Option<chain::Moment> {
+        pub fn timestamp_now(&self) -> Option<chain::Moment> {
             self.get_decoded(storage_prefix("Timestamp", "Now"))
         }
 
-        fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
+        pub fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
             self.get_decoded(storage_prefix("PhalaFatContracts", "PinkSystemCode"))
         }
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
-        fn mq_sequence(&self, sender: &impl Encode) -> u64 {
+        pub fn mq_sequence(&self, sender: &impl Encode) -> u64 {
             use phala_pallets::pallet_mq::StorageMapTrait as _;
             type OffchainIngress = phala_pallets::pallet_mq::OffchainIngress<chain::Runtime>;
 
@@ -116,7 +133,10 @@ mod storage_ext {
         }
 
         /// Return `None` if given pruntime hash is not allowed on-chain
-        fn get_pruntime_added_at(&self, runtime_hash: &[u8]) -> Option<chain::BlockNumber> {
+        pub(crate) fn get_pruntime_added_at(
+            &self,
+            runtime_hash: &[u8],
+        ) -> Option<chain::BlockNumber> {
             let key = storage_map_prefix_twox_64_concat(
                 b"PhalaRegistry",
                 b"PRuntimeAddedAt",
@@ -125,11 +145,9 @@ mod storage_ext {
             self.get_decoded(key)
         }
 
-        fn gatekeepers(&self) -> Vec<phala_types::WorkerPublicKey> {
+        pub(crate) fn gatekeepers(&self) -> Vec<phala_types::WorkerPublicKey> {
             let key = storage_prefix("PhalaRegistry", "Gatekeeper");
             self.get_decoded(key).unwrap_or_default()
         }
     }
-
-    impl StorageExt for Storage {}
 }

@@ -11,14 +11,13 @@ use std::{
 
 use anyhow::Error;
 use anyhow::Result;
-use phactory::{gk, BlockInfo, StorageExt};
+use phactory::{gk, BlockInfo, ChainStorage};
 use phactory_api::blocks::BlockHeaderWithChanges;
 use phala_mq::Path as MqPath;
 use phala_mq::{MessageDispatcher, Sr25519Signer};
-use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
-use pherry::types::{phaxt, subxt, BlockNumber, Hashing, NumberOrHex, ParachainApi, StorageKey};
+use pherry::types::{phaxt, subxt, BlockNumber, NumberOrHex, ParachainApi, StorageKey};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex};
 
@@ -40,7 +39,7 @@ struct EventRecord {
 pub struct ReplayFactory {
     next_event_seq: i64,
     current_block: BlockNumber,
-    storage: TrieStorage<Hashing>,
+    storage: ChainStorage,
     #[serde(skip)]
     #[serde(default)]
     recv_mq: MessageDispatcher,
@@ -50,7 +49,7 @@ pub struct ReplayFactory {
 impl ReplayFactory {
     fn new(genesis_state: Vec<(Vec<u8>, Vec<u8>)>) -> Self {
         let mut recv_mq = MessageDispatcher::new();
-        let mut storage = TrieStorage::default();
+        let mut storage = ChainStorage::default();
         storage.load(genesis_state.into_iter());
         let gk = gk::ComputingEconomics::new(&mut recv_mq, ReplayMsgChannel);
         Self {
@@ -67,7 +66,7 @@ impl ReplayFactory {
         block: BlockHeaderWithChanges,
         event_tx: &Option<RecordSender>,
     ) -> Result<(), &'static str> {
-        let (state_root, transaction) = self.storage.calc_root_if_changes(
+        let (state_root, transaction) = self.storage.inner().calc_root_if_changes(
             &block.storage_changes.main_storage_changes,
             &block.storage_changes.child_storage_changes,
         );
@@ -77,8 +76,9 @@ impl ReplayFactory {
             return Err("State root mismatch");
         }
 
-        self.storage.apply_changes(state_root, transaction);
-        self.storage.purge();
+        self.storage
+            .inner_mut()
+            .apply_changes(state_root, transaction);
         self.handle_inbound_messages(header.number, event_tx)
             .await?;
         self.current_block = header.number;
