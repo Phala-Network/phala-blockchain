@@ -16,6 +16,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo
+            target/
+          key: ${{ runner.os }}-phala
+
       - uses: ./.github/actions/build-core
         with:
           profile: release
@@ -27,6 +34,12 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo
+            standalone/pruntime/target/
+          key: ${{ runner.os }}-pruntime
       - uses: ./.github/actions/build-pruntime
 
   publish:
