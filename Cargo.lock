@@ -4670,6 +4670,7 @@ dependencies = [
  "phactory",
  "phactory-api",
  "pherry",
+ "tokio",
 ]
 
 [[package]]
