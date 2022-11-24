@@ -1849,7 +1849,7 @@ fn apply_instantiating_events(
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
         let id = pink.id();
-        let code_hash = pink.instance.code_hash(&cluster.storage);
+        let code_hash = pink.instance.code_hash(&mut cluster.storage);
         let result = install_contract(
             contracts,
             id,
