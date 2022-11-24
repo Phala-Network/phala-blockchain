@@ -747,6 +747,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     &self.egress,
                     &self.sidevm_spawner,
                     log_handler,
+                    block.storage,
                 );
             }
         }
@@ -788,6 +789,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.egress,
                 &self.sidevm_spawner,
                 log_handler,
+                block.storage,
             );
         }
         if self.contracts.weight_changed {
@@ -1386,6 +1388,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             &self.egress,
                             &self.sidevm_spawner,
                             log_handler,
+                            block.storage,
                         );
                     }
                 }
@@ -1634,36 +1637,16 @@ impl<Platform: pal::Platform> System<Platform> {
             };
             let (pink, effects) =
                 Pink::instantiate(event.cluster, code_hash, selector, vec![], false, args)?;
-            // Record the version
-            let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
-            let args = ::pink::TransactionArguments {
-                origin: owner,
-                now: block.now_ms,
-                block_number: block.block_number,
-                storage: &mut cluster.storage,
-                transfer: 0,
-                gas_limit: Weight::MAX,
-                gas_free: true,
-                storage_deposit_limit: None,
-                callbacks: None,
-            };
-            let (result, _) = pink.instance.bare_call(selector, true, args);
-            let output = result
-                .result
-                .or(Err(TransactionError::BadPinkSystemVersion))?;
-            cluster.config.version = Decode::decode(&mut &output.data[..])
-                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            cluster.set_system_contract(pink.address());
+            cluster
+                .sync_system_contract_version()
+                .expect("Failed to sync the system contract version. Please upgrade pRuntime!");
             info!(
                 "Cluster deployed, id={:?}, system={:?}, version={:?}",
                 event.cluster,
                 pink.id(),
                 cluster.config.version
             );
-            const SUPPORTED_API_VERSION: u16 = 0;
-            if cluster.config.version.0 > SUPPORTED_API_VERSION {
-                panic!("The pink-system version is not supported, please upgrade the pRuntime");
-            }
-            cluster.set_system_contract(pink.address());
             apply_pink_side_effects(
                 effects,
                 event.cluster,
@@ -1673,6 +1656,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.egress,
                 &self.sidevm_spawner,
                 None,
+                block.storage,
             );
 
             let message = WorkerClusterReport::ClusterDeployed {
@@ -1737,6 +1721,7 @@ impl<P: pal::Platform> System<P> {
         &mut self,
         cluster_id: phala_mq::ContractClusterId,
         effects: ExecSideEffects,
+        chain_storage: &crate::Storage,
     ) {
         let cluster = match self.contract_clusters.get_cluster_mut(&cluster_id) {
             Some(cluster) => cluster,
@@ -1754,6 +1739,7 @@ impl<P: pal::Platform> System<P> {
             &mut self.contracts,
             cluster,
             &self.sidevm_spawner,
+            chain_storage,
         );
     }
 
@@ -1780,6 +1766,7 @@ pub fn handle_contract_command_result(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
+    chain_storage: &crate::Storage,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1807,6 +1794,7 @@ pub fn handle_contract_command_result(
         egress,
         spawner,
         log_handler,
+        chain_storage,
     );
 }
 
@@ -1820,6 +1808,7 @@ pub fn apply_pink_side_effects(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
+    chain_storage: &crate::Storage,
 ) {
     apply_instantiating_events(
         effects.instantiated,
@@ -1829,7 +1818,14 @@ pub fn apply_pink_side_effects(
         block,
         egress,
     );
-    apply_pink_events(effects.pink_events, cluster_id, contracts, cluster, spawner);
+    apply_pink_events(
+        effects.pink_events,
+        cluster_id,
+        contracts,
+        cluster,
+        spawner,
+        chain_storage,
+    );
     apply_ink_side_effects(effects.ink_events, cluster_id, block, log_handler);
 }
 
@@ -1890,6 +1886,7 @@ pub(crate) fn apply_pink_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     spawner: &Spawner,
+    chain_storage: &crate::Storage,
 ) {
     for (origin, event) in pink_events {
         macro_rules! get_contract {
@@ -2001,6 +1998,30 @@ pub(crate) fn apply_pink_events(
                 let contract = get_contract!(&contract);
                 contract.set_weight(weight);
                 contracts.weight_changed = true;
+            }
+            PinkEvent::UpgradeSystemContract { owner } => {
+                ensure_system!();
+                let Some((_, system_code)) = chain_storage.pink_system_code() else {
+                    error!("No pink system code on chain");
+                    continue;
+                };
+                let owner = owner.convert_to();
+                let hash = match cluster.upload_resource(&owner, ResourceType::InkCode, system_code)
+                {
+                    Ok(hash) => hash,
+                    Err(err) => {
+                        error!("Failed to upload the system code to the cluster: {err:?}");
+                        continue;
+                    }
+                };
+                if let Err(err) = cluster.set_system_contract_code(hash) {
+                    error!("Failed to set the system contract code hash: {err:?}");
+                    continue;
+                }
+                info!(
+                    "The system contract has been upgraded to {:?}, hash={hash:?}",
+                    cluster.config.version
+                );
             }
         }
     }
