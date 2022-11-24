@@ -115,6 +115,14 @@ pub mod pallet {
 					Error::<T>::CondNotMet
 				);
 			}
+			// Apply updates
+			for (key, opt_value) in tx.updates {
+				if let Some(v) = opt_value {
+					States::<T>::insert(name, key, v);
+				} else {
+					States::<T>::remove(name, key);
+				}
+			}
 			// Exec actions
 			for raw_act in tx.actions {
 				let act: Action =
@@ -123,14 +131,6 @@ pub mod pallet {
 					Action::Response(data) => {
 						T::OnResponse::on_response(name, who.clone(), data.into())?
 					} // TODO: other actions
-				}
-			}
-			// Apply updates
-			for (key, opt_value) in tx.updates {
-				if let Some(v) = opt_value {
-					States::<T>::insert(name, key, v);
-				} else {
-					States::<T>::remove(name, key);
 				}
 			}
 			Self::deposit_event(Event::RollupExecuted {
