@@ -213,7 +213,7 @@ impl Contract {
             gas_free,
         } = args;
         let gas_limit = gas_limit.set_proof_size(u64::MAX);
-        storage.execute_with(in_query, callbacks, move || {
+        storage.execute_mut(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
                 block_number,
@@ -280,7 +280,7 @@ impl Contract {
         } = tx_args;
         let addr = self.address.clone();
         let gas_limit = gas_limit.set_proof_size(u64::MAX);
-        storage.execute_with(in_query, callbacks, move || {
+        storage.execute_mut(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
                 block_number,
@@ -365,7 +365,7 @@ impl Contract {
         self.hooks.on_block_end = Some((selector, Weight::from_ref_time(gas_limit)));
     }
 
-    pub fn code_hash(&self, storage: &mut Storage) -> Option<Hash> {
+    pub fn code_hash(&self, storage: &Storage) -> Option<Hash> {
         storage.code_hash(&self.address)
     }
 }
