@@ -463,6 +463,7 @@ describe('A full stack', function () {
 
     describe('Cluster & Contract', () => {
         const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
+        const system2Metadata = JSON.parse(fs.readFileSync('./res/system-v0xffff.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
         const sidevmCode = fs.readFileSync('./res/check_system/sideprog.wasm');
         const contract = checkerMetadata.source;
@@ -630,7 +631,7 @@ describe('A full stack', function () {
             {
                 // Should be unable to use local cache before staking
                 const result = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
-                console.log('result', result);
+                // console.log('result', result);
                 const { output } = result;
                 assert.isFalse(output.valueOf());
             }
@@ -683,6 +684,30 @@ describe('A full stack', function () {
                 alice,
             );
         });
+
+        it('can upload the second system contract', async function () {
+            const systemCode = system2Metadata.source.wasm;
+            await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                let code = await api.query.phalaFatContracts.pinkSystemCode();
+                return code[1] == systemCode;
+            }, 4 * 6000), 'upload system code failed');
+        });
+
+        it('can upgrade system contract', async function () {
+            await assert.txAccepted(
+                ContractSystem.tx['system::upgradeSystemContract'](txConfig),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output: [_apiLevel, version] } = await ContractSystem.query['system::version'](certAlice, {});
+                return version.eq(0xffff)
+            }, 4 * 6000), 'Upgrade system failed');
+        });
+
 
         it('can destory cluster', async function () {
             await assert.txAccepted(
