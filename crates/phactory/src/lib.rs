@@ -155,6 +155,7 @@ enum RuntimeDataSeal {
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
+    #[serde(skip)]
     args: InitArgs,
     skip_ra: bool,
     dev_mode: bool,
