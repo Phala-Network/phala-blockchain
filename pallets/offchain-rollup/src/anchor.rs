@@ -84,10 +84,10 @@ pub mod pallet {
 		pub fn claim_name(origin: OriginFor<T>, name: H256) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(
-				SubmitterByNames::<T>::get(&name).is_none(),
+				SubmitterByNames::<T>::get(name).is_none(),
 				Error::<T>::NameAlreadyClaimed
 			);
-			SubmitterByNames::<T>::insert(&name, &who);
+			SubmitterByNames::<T>::insert(name, &who);
 			Self::deposit_event(Event::NameClaimed {
 				submitter: who,
 				name,
@@ -156,7 +156,7 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			bvec, new_test_ext, set_block_1, take_events, Anchor, RuntimeEvent,
-			RuntimeOrigin as Origin, Test, DOLLARS,
+			RuntimeOrigin as Origin, Test,
 		};
 		// Pallets
 		use frame_support::{assert_noop, assert_ok};
@@ -237,7 +237,7 @@ pub mod pallet {
 					price: 5_000000000000,
 					timestamp_ms: 1000,
 				};
-				let act = Action::Response(bvec(&resposne.encode()));
+				let act = Action::Reply(bvec(&resposne.encode()));
 				let _ = take_events();
 				assert_ok!(Anchor::rollup(
 					Origin::signed(1),
