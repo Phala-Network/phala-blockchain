@@ -167,12 +167,12 @@ pub mod pallet {
 		fn rollup_works() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
-				assert_ok!(Anchor::claim_name(Origin::signed(1), NAME1.clone()));
+				assert_ok!(Anchor::claim_name(Origin::signed(1), NAME1));
 
 				// Can apply updates
 				assert_ok!(Anchor::rollup(
 					Origin::signed(1),
-					NAME1.clone(),
+					NAME1,
 					RollupTx {
 						conds: vec![],
 						actions: vec![],
@@ -180,15 +180,12 @@ pub mod pallet {
 					},
 					1u128
 				));
-				assert_eq!(
-					Anchor::states(NAME1.clone(), bvec(b"key")),
-					Some(bvec(b"value"))
-				);
+				assert_eq!(Anchor::states(NAME1, bvec(b"key")), Some(bvec(b"value")));
 
 				// Condition check can work
 				assert_ok!(Anchor::rollup(
 					Origin::signed(1),
-					NAME1.clone(),
+					NAME1,
 					RollupTx {
 						conds: vec![Cond::Eq(bvec(b"key"), Some(bvec(b"value")))],
 						actions: vec![],
@@ -197,7 +194,7 @@ pub mod pallet {
 					2u128
 				));
 				assert_eq!(
-					Anchor::states(NAME1.clone(), bvec(b"key")),
+					Anchor::states(NAME1, bvec(b"key")),
 					Some(bvec(b"new-value"))
 				);
 
@@ -205,7 +202,7 @@ pub mod pallet {
 				assert_noop!(
 					Anchor::rollup(
 						Origin::signed(1),
-						NAME1.clone(),
+						NAME1,
 						RollupTx {
 							conds: vec![Cond::Eq(bvec(b"key"), Some(bvec(b"value")))],
 							actions: vec![],
@@ -219,7 +216,7 @@ pub mod pallet {
 				// Delete update
 				assert_ok!(Anchor::rollup(
 					Origin::signed(1),
-					NAME1.clone(),
+					NAME1,
 					RollupTx {
 						conds: vec![],
 						actions: vec![],
@@ -227,12 +224,12 @@ pub mod pallet {
 					},
 					4u128
 				));
-				assert_eq!(Anchor::states(NAME1.clone(), bvec(b"key")), None);
+				assert_eq!(Anchor::states(NAME1, bvec(b"key")), None);
 
 				// Action received
 				let resposne = crate::oracle::ResponseRecord {
 					owner: sp_runtime::AccountId32::from([0u8; 32]),
-					contract_id: NAME1.clone(),
+					contract_id: NAME1,
 					pair: bvec(b"polkadot_usd"),
 					price: 5_000000000000,
 					timestamp_ms: 1000,
@@ -241,7 +238,7 @@ pub mod pallet {
 				let _ = take_events();
 				assert_ok!(Anchor::rollup(
 					Origin::signed(1),
-					NAME1.clone(),
+					NAME1,
 					RollupTx {
 						conds: vec![],
 						actions: vec![bvec(&act.encode())],
@@ -253,7 +250,7 @@ pub mod pallet {
 					take_events(),
 					vec![
 						RuntimeEvent::Oracle(crate::oracle::Event::<Test>::QuoteReceived {
-							contract: NAME1.clone(),
+							contract: NAME1,
 							submitter: 1,
 							owner: sp_runtime::AccountId32::from([0u8; 32]),
 							pair: bvec(b"polkadot_usd"),
@@ -261,7 +258,7 @@ pub mod pallet {
 						}),
 						RuntimeEvent::Anchor(crate::anchor::Event::<Test>::RollupExecuted {
 							submitter: 1,
-							name: NAME1.clone(),
+							name: NAME1,
 							nonce: 5,
 						}),
 					]
@@ -273,9 +270,9 @@ pub mod pallet {
 		fn name_cannot_claim_twice() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
-				assert_ok!(Anchor::claim_name(Origin::signed(1), NAME1.clone()));
+				assert_ok!(Anchor::claim_name(Origin::signed(1), NAME1));
 				assert_noop!(
-					Anchor::claim_name(Origin::signed(2), NAME1.clone()),
+					Anchor::claim_name(Origin::signed(2), NAME1),
 					Error::<Test>::NameAlreadyClaimed
 				);
 			});

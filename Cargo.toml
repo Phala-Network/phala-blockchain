@@ -76,7 +76,7 @@ members = [
 	"crates/phala-scheduler",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-    "pallets/offchain-rollup",
+	"pallets/offchain-rollup",
 	"scripts/debug-cli"
 ]
 
