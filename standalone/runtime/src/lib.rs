@@ -114,6 +114,7 @@ pub use phala_pallets::{
 	pallet_fat_tokenomic,
 	puppets,
 };
+use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -1335,6 +1336,14 @@ impl pallet_fat_tokenomic::Config for Runtime {
 	type Currency = Balances;
 }
 
+impl pallet_anchor::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type OnResponse = PhatOracle;
+}
+impl pallet_oracle::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+}
+
 impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
 
@@ -1390,6 +1399,10 @@ construct_runtime!(
 		PhalaStakePool: pallet_stakepool,
 		PhalaFatContracts: pallet_fat,
 		PhalaFatTokenomic: pallet_fat_tokenomic,
+
+		// Rollup and Oracles
+		PhatRollupAnchor: pallet_anchor = 100,
+		PhatOracle: pallet_oracle = 101,
 
 		// Put them here to make sure pherry could be compiled with phala's metadata.
 		ParachainInfo: puppets::parachain_info,

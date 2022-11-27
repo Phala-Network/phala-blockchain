@@ -8,25 +8,21 @@ pub type KeyBytes = BoundedVec<u8, ConstU32<128>>;
 pub type ValueBytes = BoundedVec<u8, ConstU32<256>>;
 
 // Almost copied from `phat-offchain-rollup/phat/src/lib.rs`.
-
-#[derive(Debug, Default, PartialEq, Eq, Encode, Decode, Clone)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, Default, PartialEq, Eq, Encode, Decode, Clone, scale_info::TypeInfo)]
 pub struct RollupTx {
 	pub conds: Vec<Cond>,
 	pub actions: Vec<ActionBytes>,
 	pub updates: Vec<(KeyBytes, Option<ValueBytes>)>,
 }
 
-#[derive(Debug, PartialEq, Eq, Encode, Decode, Clone)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, Clone, scale_info::TypeInfo)]
 pub enum Cond {
 	Eq(KeyBytes, Option<ValueBytes>),
 }
 
 // Defined for our own usage for now
 
-#[derive(Debug, PartialEq, Eq, Encode, Decode, Clone)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, Clone, scale_info::TypeInfo)]
 pub enum Action {
-	Response(ActionBytes),
+	Reply(ActionBytes),
 }

@@ -7592,6 +7592,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
+ "phat-offchain-rollup",
  "scale-info",
  "sp-api",
  "sp-authority-discovery",

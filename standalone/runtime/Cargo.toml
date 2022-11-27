@@ -93,6 +93,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "po
 
 phala-pallets = { path = "../../pallets/phala", default-features = false }
 pallet-mq-runtime-api = { path = "../../pallets/phala/mq-runtime-api", default-features = false }
+phat-offchain-rollup = { path = "../../pallets/offchain-rollup", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", optional = true }
@@ -175,6 +176,7 @@ std = [
 	"hex-literal",
 	"phala-pallets/std",
 	"pallet-mq-runtime-api/std",
+    "phat-offchain-rollup/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -257,6 +259,7 @@ try-runtime = [
 	"pallet-preimage/try-runtime",
 	"pallet-child-bounties/try-runtime",
 	"phala-pallets/try-runtime",
+    "phat-offchain-rollup/try-runtime",
 ]
 # Force `sp-sandbox` to call into the host resident executor. One still need to make sure
 # that `sc-executor` gets the `wasmer-sandbox` feature which happens automatically when

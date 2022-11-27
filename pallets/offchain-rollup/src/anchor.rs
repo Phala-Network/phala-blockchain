@@ -128,7 +128,7 @@ pub mod pallet {
 				let act: Action =
 					Decode::decode(&mut &raw_act[..]).or(Err(Error::<T>::FailedToDecodeAction))?;
 				match act {
-					Action::Response(data) => {
+					Action::Reply(data) => {
 						T::OnResponse::on_response(name, who.clone(), data.into())?
 					} // TODO: other actions
 				}
