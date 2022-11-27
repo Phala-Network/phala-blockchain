@@ -176,7 +176,7 @@ std = [
 	"hex-literal",
 	"phala-pallets/std",
 	"pallet-mq-runtime-api/std",
-    "phat-offchain-rollup/std",
+	"phat-offchain-rollup/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -259,7 +259,7 @@ try-runtime = [
 	"pallet-preimage/try-runtime",
 	"pallet-child-bounties/try-runtime",
 	"phala-pallets/try-runtime",
-    "phat-offchain-rollup/try-runtime",
+	"phat-offchain-rollup/try-runtime",
 ]
 # Force `sp-sandbox` to call into the host resident executor. One still need to make sure
 # that `sc-executor` gets the `wasmer-sandbox` feature which happens automatically when
