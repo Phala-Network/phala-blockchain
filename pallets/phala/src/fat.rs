@@ -17,7 +17,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{UniqueSaturatedInto, Zero},
-		AccountId32, SaturatedConversion,
+		AccountId32,
 	};
 	use sp_std::prelude::*;
 
@@ -376,13 +376,6 @@ pub mod pallet {
 				check_cluster_permission::<T>(&deployer, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
 			);
-
-			<T as Config>::Currency::transfer(
-				&deployer,
-				&cluster_account(&cluster_id),
-				BalanceOf::<T>::saturated_from(transfer),
-				ExistenceRequirement::KeepAlive,
-			)?;
 
 			let contract_info = ContractInfo {
 				deployer,
