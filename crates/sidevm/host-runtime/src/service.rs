@@ -140,22 +140,32 @@ impl Spawner {
         let spawner = self.runtime_handle.clone();
         let handle = self.spawn(async move {
             let vmid = ShortId(&id);
-            macro_rules! spawn_push_msg {
-                ($expr: expr, $level: ident, $msg: expr) => {
+            macro_rules! push_msg {
+                ($expr: expr, $level: ident, $msg: expr) => {{
                     $level!(target: "sidevm", "[{vmid}] Pushing {} to sidevm", $msg);
-                    let push = match $expr {
+                    match $expr {
                         None => {
                             $level!(target: "sidevm", "[{vmid}] Doesn't accept {}", $msg);
                             continue;
                         },
                         Some(v) => v,
-                    };
+                    }
+                }};
+                (@async: $expr: expr, $level: ident, $msg: expr) => {
+                    let push = push_msg!($expr, $level, $msg);
                     spawner.spawn(async move {
                         let vmid = ShortId(&id);
                         if let Err(e) = push.await {
                             error!(target: "sidevm", "[{vmid}] Failed to push {} to sidevm: {}", $msg, e);
                         }
                     });
+                };
+                (@sync: $expr: expr, $level: ident, $msg: expr) => {
+                    let push = push_msg!($expr, $level, $msg);
+                    let vmid = ShortId(&id);
+                    if let Err(e) = push {
+                        error!(target: "sidevm", "[{vmid}] Failed to push {} to sidevm: {}", $msg, e);
+                    }
                 };
             }
             loop {
@@ -171,13 +181,13 @@ impl Spawner {
                                 break ExitReason::Stopped;
                             }
                             Some(Command::PushMessage(msg)) => {
-                                spawn_push_msg!(env.push_message(msg), debug, "message");
+                                push_msg!(@sync: env.push_message(msg), debug, "message");
                             }
                             Some(Command::PushSystemMessage(msg)) => {
-                                spawn_push_msg!(env.push_system_message(msg), trace, "system message");
+                                push_msg!(@sync: env.push_system_message(msg), trace, "system message");
                             }
                             Some(Command::PushQuery{ origin, payload, reply_tx }) => {
-                                spawn_push_msg!(env.push_query(origin, payload, reply_tx), debug, "query");
+                                push_msg!(@async: env.push_query(origin, payload, reply_tx), debug, "query");
                             }
                             Some(Command::UpdateWeight(weight)) => {
                                 env.set_weight(weight);
