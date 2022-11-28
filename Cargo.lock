@@ -7316,6 +7316,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-runtime-interface",
+ "sp-state-machine",
  "sp-trie",
  "surf",
  "thiserror",

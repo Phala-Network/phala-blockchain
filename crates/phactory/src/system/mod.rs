@@ -1594,12 +1594,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &cluster_id);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-            let system_code = block
-                .storage
-                .pink_system_code()
-                .map(|it| it.1)
-                .filter(|code| !code.is_empty())
-                .ok_or(TransactionError::NoPinkSystemCode)?;
+            let system_code = block.storage.pink_system_code().1;
+            if system_code.is_empty() {
+                return Err(TransactionError::NoPinkSystemCode.into());
+            }
             info!(
                 "Worker: creating cluster {:?}, owner={:?}, code length={}",
                 cluster_id,

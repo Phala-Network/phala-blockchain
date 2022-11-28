@@ -35,16 +35,15 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 }
 
 mod storage_ext {
-    use crate::{
-        chain,
-        light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix},
-    };
+    use crate::{chain, light_validation::utils::storage_prefix};
+    use chain::{pallet_fat, pallet_mq, pallet_registry};
     use log::error;
-    use parity_scale_codec::{Decode, Encode, Error};
+    use parity_scale_codec::{Decode, Error};
     use phactory_api::blocks::ParaId;
-    use phala_mq::Message;
+    use phala_mq::{Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
     use serde::{Deserialize, Serialize};
+    use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
 
     #[derive(Serialize, Deserialize, Default)]
     pub struct ChainStorage {
@@ -96,6 +95,14 @@ mod storage_ext {
             &mut self.trie_storage
         }
 
+        pub fn execute_with<R>(&self, f: impl FnOnce() -> R) -> R {
+            let backend = self.trie_storage.as_trie_backend();
+            let mut overlay = OverlayedChanges::default();
+            let mut cache = StorageTransactionCache::default();
+            let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
+            sp_externalities::set_and_run_with_externalities(&mut ext, f)
+        }
+
         pub fn para_id(&self) -> Option<ParaId> {
             self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
         }
@@ -117,19 +124,14 @@ mod storage_ext {
             self.get_decoded(storage_prefix("Timestamp", "Now"))
         }
 
-        pub fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
-            self.get_decoded(storage_prefix("PhalaFatContracts", "PinkSystemCode"))
+        pub fn pink_system_code(&self) -> (u16, Vec<u8>) {
+            self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
         }
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
-        pub fn mq_sequence(&self, sender: &impl Encode) -> u64 {
-            use phala_pallets::pallet_mq::StorageMapTrait as _;
-            type OffchainIngress = phala_pallets::pallet_mq::OffchainIngress<chain::Runtime>;
-
-            let module_prefix = OffchainIngress::module_prefix();
-            let storage_prefix = OffchainIngress::storage_prefix();
-            let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            self.get_decoded(key).unwrap_or(0)
+        pub fn mq_sequence(&self, sender: &MessageOrigin) -> u64 {
+            self.execute_with(|| pallet_mq::OffchainIngress::<chain::Runtime>::get(sender))
+                .unwrap_or(0)
         }
 
         /// Return `None` if given pruntime hash is not allowed on-chain
@@ -137,17 +139,13 @@ mod storage_ext {
             &self,
             runtime_hash: &[u8],
         ) -> Option<chain::BlockNumber> {
-            let key = storage_map_prefix_twox_64_concat(
-                b"PhalaRegistry",
-                b"PRuntimeAddedAt",
-                runtime_hash,
-            );
-            self.get_decoded(key)
+            self.execute_with(|| {
+                pallet_registry::PRuntimeAddedAt::<chain::Runtime>::get(runtime_hash)
+            })
         }
 
         pub(crate) fn gatekeepers(&self) -> Vec<phala_types::WorkerPublicKey> {
-            let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-            self.get_decoded(key).unwrap_or_default()
+            self.execute_with(pallet_registry::Gatekeeper::<chain::Runtime>::get)
         }
     }
 }
