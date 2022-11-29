@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
 use sp_runtime::generic::Era;
@@ -217,6 +217,10 @@ pub struct Args {
     /// Attestation provider
     #[arg(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
     attestation_provider: RaOption,
+
+    /// Try to load chain state from the greatest block that the worker haven't registered at.
+    #[arg(long)]
+    fast_sync: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -1017,7 +1021,7 @@ async fn bridge(
     };
     if !args.no_init {
         if !info.initialized {
-            warn!("pRuntime not initialized. Requesting init...");
+            info!("pRuntime not initialized. Requesting init...");
             let start_header =
                 resolve_start_header(&para_api, args.parachain, args.start_header).await?;
             info!("Resolved start header at {}", start_header);
@@ -1063,6 +1067,28 @@ async fn bridge(
             })
             .await
             .ok();
+        }
+
+        if args.fast_sync {
+            'load_state: {
+                let info = pr.get_info(()).await?;
+                info!("info: {info:#?}");
+                if !info.can_load_chain_state {
+                    break 'load_state;
+                }
+                let Some(pubkey) = &info.public_key else {
+                    break 'load_state;
+                };
+                let Ok(pubkey) = hex::decode(pubkey) else {
+                    return Err(anyhow!("pRuntime returned an invalid pubkey"));
+                };
+                let (block_number, state) =
+                    chain_client::search_proper_genesis_for_worker(&para_api, &pubkey)
+                        .await
+                        .context("Failed to search proper genesis state")?;
+                pr.load_chain_state(prpc::ChainState::new(block_number, state))
+                    .await?;
+            }
         }
     }
 
@@ -1178,7 +1204,7 @@ async fn bridge(
         let latest_block = get_block_at(&api, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(b) = sync_state.blocks.first() {
-            if b.block.header.number >= info.blocknum {
+            if b.block.header.number >= info.headernum {
                 break;
             }
             sync_state.blocks.remove(0);
@@ -1197,13 +1223,7 @@ async fn bridge(
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.header.number + 1,
-            None => {
-                if args.parachain {
-                    info.headernum
-                } else {
-                    info.blocknum
-                }
-            }
+            None => info.headernum,
         };
 
         let (batch_end, more_blocks) = {

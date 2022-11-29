@@ -2,14 +2,14 @@ use crate::{
     types::{utils::raw_proof, Hash, ParachainApi, RelaychainApi, StorageKey},
     Error,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use codec::Decode;
 use codec::Encode;
 use phactory_api::blocks::StorageProof;
 use phala_node_rpc_ext::MakeInto as _;
 use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
-use phaxt::{rpc::ExtraRpcExt as _, subxt, RpcClient};
+use phaxt::{rpc::ExtraRpcExt as _, subxt, BlockNumber, RpcClient};
 use serde_json::to_value;
 use subxt::rpc::rpc_params;
 
@@ -68,6 +68,13 @@ pub async fn fetch_storage_changes(
 /// Fetch the genesis storage.
 pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let hash = Some(api.genesis_hash());
+    fetch_genesis_storage_at(api, hash).await
+}
+
+async fn fetch_genesis_storage_at(
+    api: &ParachainApi,
+    hash: Option<sp_core::H256>,
+) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let response = api
         .extra_rpc()
         .storage_pairs(StorageKey(vec![]), hash)
@@ -101,4 +108,58 @@ pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> R
     signer.set_nonce(nonce);
     log::info!("Fetch account {} nonce={}", account_id, nonce);
     Ok(())
+}
+
+pub async fn search_proper_genesis_for_worker(
+    api: &ParachainApi,
+    pubkey: &[u8],
+) -> Result<(BlockNumber, Vec<(Vec<u8>, Vec<u8>)>)> {
+    let node_state = api
+        .extra_rpc()
+        .system_sync_state()
+        .await
+        .context("Failed to get system state")?;
+    let block = binary_search_unreg_block(
+        api,
+        pubkey,
+        0,
+        node_state.current_block as BlockNumber,
+        node_state.current_block as BlockNumber,
+    )
+    .await
+    .context("Failed to search state for worker")?;
+    let block_hash = api
+        .rpc()
+        .block_hash(Some(block.into()))
+        .await
+        .context("Failed to resolve block number")?
+        .ok_or_else(|| anyhow::anyhow!("Block number {block} not found"))?;
+    let genesis = fetch_genesis_storage_at(api, Some(block_hash))
+        .await
+        .context("Failed to fetch genesis storage")?;
+    Ok((block, genesis))
+}
+
+async fn binary_search_unreg_block(
+    api: &ParachainApi,
+    worker: &[u8],
+    mut floor: u32,
+    mut cur: u32,
+    mut ceil: u32,
+) -> Result<u32> {
+    loop {
+        if ceil - floor < 2 {
+            log::info!("Choosing genesis state at {floor} ");
+            return Ok(floor);
+        }
+        let registered = api.worker_registered_at(cur, worker).await?;
+        log::info!("Block [{cur:>8}], worker registered={registered}");
+        if registered {
+            ceil = cur;
+            cur -= (cur - floor) / 2;
+        } else {
+            floor = cur;
+            cur += (ceil - cur) / 2;
+        }
+    }
 }
