@@ -1665,7 +1665,6 @@ $root.pruntime_rpc = (function() {
          * @property {pruntime_rpc.IGatekeeperStatus|null} [gatekeeper] SystemInfo gatekeeper
          * @property {number|Long|null} [numberOfClusters] SystemInfo numberOfClusters
          * @property {number|Long|null} [numberOfContracts] SystemInfo numberOfContracts
-         * @property {number|null} [consensusVersion] SystemInfo consensusVersion
          * @property {number|null} [maxSupportedConsensusVersion] SystemInfo maxSupportedConsensusVersion
          */
 
@@ -1733,14 +1732,6 @@ $root.pruntime_rpc = (function() {
         SystemInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
-         * SystemInfo consensusVersion.
-         * @member {number} consensusVersion
-         * @memberof pruntime_rpc.SystemInfo
-         * @instance
-         */
-        SystemInfo.prototype.consensusVersion = 0;
-
-        /**
          * SystemInfo maxSupportedConsensusVersion.
          * @member {number} maxSupportedConsensusVersion
          * @memberof pruntime_rpc.SystemInfo
@@ -1784,10 +1775,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.numberOfClusters);
             if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
                 writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.numberOfContracts);
-            if (message.consensusVersion != null && Object.hasOwnProperty.call(message, "consensusVersion"))
-                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.consensusVersion);
             if (message.maxSupportedConsensusVersion != null && Object.hasOwnProperty.call(message, "maxSupportedConsensusVersion"))
-                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.maxSupportedConsensusVersion);
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.maxSupportedConsensusVersion);
             return writer;
         };
 
@@ -1841,9 +1830,6 @@ $root.pruntime_rpc = (function() {
                     message.numberOfContracts = reader.uint64();
                     break;
                 case 7:
-                    message.consensusVersion = reader.uint32();
-                    break;
-                case 8:
                     message.maxSupportedConsensusVersion = reader.uint32();
                     break;
                 default:
@@ -1901,9 +1887,6 @@ $root.pruntime_rpc = (function() {
             if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
                 if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
                     return "numberOfContracts: integer|Long expected";
-            if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
-                if (!$util.isInteger(message.consensusVersion))
-                    return "consensusVersion: integer expected";
             if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
                 if (!$util.isInteger(message.maxSupportedConsensusVersion))
                     return "maxSupportedConsensusVersion: integer expected";
@@ -1951,8 +1934,6 @@ $root.pruntime_rpc = (function() {
                     message.numberOfContracts = object.numberOfContracts;
                 else if (typeof object.numberOfContracts === "object")
                     message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
-            if (object.consensusVersion != null)
-                message.consensusVersion = object.consensusVersion >>> 0;
             if (object.maxSupportedConsensusVersion != null)
                 message.maxSupportedConsensusVersion = object.maxSupportedConsensusVersion >>> 0;
             return message;
@@ -1986,7 +1967,6 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.numberOfContracts = options.longs === String ? "0" : 0;
-                object.consensusVersion = 0;
                 object.maxSupportedConsensusVersion = 0;
             }
             if (message.registered != null && message.hasOwnProperty("registered"))
@@ -2007,8 +1987,6 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
                 else
                     object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
-            if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
-                object.consensusVersion = message.consensusVersion;
             if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
                 object.maxSupportedConsensusVersion = message.maxSupportedConsensusVersion;
             return object;

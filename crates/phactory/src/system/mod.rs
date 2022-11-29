@@ -22,7 +22,7 @@ use crate::contracts;
 use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
-pub use master_key::{RotatedMasterKey, gk_master_key_exists};
+pub use master_key::{gk_master_key_exists, RotatedMasterKey};
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus, SystemInfo};
 use phala_crypto::{
@@ -47,8 +47,8 @@ use phala_types::{
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution,
-        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RetireCondition,
-        RotateMasterKeyEvent, SystemEvent, WorkerEvent, WorkingReportEvent,
+        NewGatekeeperEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+        WorkingReportEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
@@ -63,7 +63,7 @@ use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
-const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 1;
+pub(crate) const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 0;
 
 #[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
 #[error("TransactionError: {:?}", self)]
@@ -432,7 +432,6 @@ pub struct System<Platform> {
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
-    pruntime_management_events: TypedReceiver<PRuntimeManagementEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
@@ -458,10 +457,6 @@ pub struct System<Platform> {
     // Cached for query
     pub(crate) block_number: BlockNumber,
     pub(crate) now_ms: u64,
-    retired_versions: Vec<RetireCondition>,
-
-    // The version flag used to coordinate the pruntime's behavior.
-    pub(crate) consensus_version: u32,
 }
 
 thread_local! {
@@ -517,7 +512,6 @@ impl<Platform: pal::Platform> System<Platform> {
             storage_path,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
-            pruntime_management_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
@@ -534,8 +528,6 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             sidevm_spawner: create_sidevm_service(worker_threads),
-            retired_versions: vec![],
-            consensus_version: 0,
         }
     }
 
@@ -657,12 +649,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     anyhow::bail!("Invalid SystemEvent sender: {}", origin);
                 }
                 self.process_system_event(block, &event);
-            },
-            (event, origin) = self.pruntime_management_events => {
-                if !origin.is_pallet() {
-                    anyhow::bail!("Invalid pRuntime management event sender: {}", origin);
-                }
-                self.process_pruntime_management_event(event);
             },
             (event, origin) = self.gatekeeper_launch_events => {
                 self.process_gatekeeper_launch_event(block, origin, event);
@@ -812,44 +798,6 @@ impl<Platform: pal::Platform> System<Platform> {
             },
             true,
         );
-    }
-
-    fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
-        info!("PRuntime management event received: {:?}", event);
-        match event {
-            PRuntimeManagementEvent::RetirePRuntime(condition) => {
-                self.retired_versions.push(condition);
-                self.check_retirement();
-            }
-            PRuntimeManagementEvent::SetConsensusVersion(version) => {
-                if version > MAX_SUPPORTED_CONSENSUS_VERSION {
-                    panic!(
-                        "Unsupported system consensus version {}, please upgrade the pRuntime",
-                        version
-                    );
-                }
-                self.consensus_version = version;
-            }
-        }
-    }
-
-    fn check_retirement(&mut self) {
-        let cur_ver = Platform::app_version();
-        for condition in self.retired_versions.iter() {
-            let should_retire = match *condition {
-                RetireCondition::VersionLessThan(major, minor, patch) => {
-                    (cur_ver.major, cur_ver.minor, cur_ver.patch) < (major, minor, patch)
-                }
-                RetireCondition::VersionIs(major, minor, patch) => {
-                    (cur_ver.major, cur_ver.minor, cur_ver.patch) == (major, minor, patch)
-                }
-            };
-
-            if should_retire {
-                error!("This pRuntime is outdated. Please update to the latest version.");
-                std::process::abort();
-            }
-        }
     }
 
     /// Update local sealed master keys if the received history is longer than existing one.
@@ -1699,7 +1647,6 @@ impl<Platform: pal::Platform> System<Platform> {
             number_of_contracts: self.contracts.len() as _,
             public_key: hex::encode(self.identity_key.public()),
             ecdh_public_key: hex::encode(self.ecdh_key.public()),
-            consensus_version: self.consensus_version,
             max_supported_consensus_version: MAX_SUPPORTED_CONSENSUS_VERSION,
         }
     }
@@ -1710,7 +1657,6 @@ impl<P: pal::Platform> System<P> {
         ::pink::runtime::set_worker_pubkey(self.ecdh_key.public());
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
         self.contracts.apply_local_cache_quotas();
-        self.check_retirement();
         Ok(())
     }
 

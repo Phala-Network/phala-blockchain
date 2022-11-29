@@ -148,5 +148,13 @@ mod storage_ext {
             self.execute_with(|| pallet_registry::Workers::<chain::Runtime>::get(worker))
                 .is_some()
         }
+
+        pub(crate) fn minimum_pruntime_version(&self) -> (u32, u32, u32) {
+            self.execute_with(pallet_registry::MinimumPRuntimeVersion::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn pruntime_consensus_version(&self) -> u32 {
+            self.execute_with(pallet_registry::PRuntimeConsensusVersion::<chain::Runtime>::get)
+        }
     }
 }

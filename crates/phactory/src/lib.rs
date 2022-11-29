@@ -405,11 +405,30 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
+        self.check_requirements();
         self.reconfigure_network();
         if let Some(system) = &mut self.system {
             system.on_restored()?;
         }
         Ok(())
+    }
+
+    fn check_requirements(&self) {
+        let ver = P::app_version();
+        let chain_storage = &self
+            .runtime_state
+            .as_ref()
+            .expect("BUG: no runtime state")
+            .chain_storage;
+        let min_version = chain_storage.minimum_pruntime_version();
+        let consensus_version = chain_storage.pruntime_consensus_version();
+
+        if (ver.major, ver.minor, ver.patch) < min_version
+            || consensus_version > system::MAX_SUPPORTED_CONSENSUS_VERSION
+        {
+            error!("This pRuntime is outdated. Please update to the latest version.");
+            std::process::abort();
+        }
     }
 }
 

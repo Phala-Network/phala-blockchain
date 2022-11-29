@@ -23,18 +23,19 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
-			GatekeeperLaunch, MessageOrigin, PRuntimeManagementEvent, SignedMessage, SystemEvent,
-			WorkerEvent,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		wrap_content_to_sign, ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity,
-		WorkerPublicKey, WorkerRegistrationInfo, AttestationProvider,
+		wrap_content_to_sign, AttestationProvider, ClusterPublicKey, ContractPublicKey,
+		EcdhPublicKey, MasterPublicKey, SignedContentType, VersionedWorkerEndpoints,
+		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	pub use phala_types::AttestationReport;
 	// Re-export
 	// TODO: Legacy
-	pub use crate::attestation_legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
+	pub use crate::attestation_legacy::{
+		Attestation, AttestationValidator, IasFields, IasValidator,
+	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
@@ -172,6 +173,15 @@ pub mod pallet {
 	#[pallet::getter(fn temp_workers_iter_key)]
 	pub type TempWorkersIterKey<T: Config> = StorageValue<_, Option<Vec<u8>>, ValueQuery>;
 
+	/// PRuntimes whoes version less than MinimumPRuntimeVersion would be forced to quit.
+	#[pallet::storage]
+	pub type MinimumPRuntimeVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
+
+	/// The consensus version used by pruntime. PRuntimes would switch some code path according
+	/// the current consensus version.
+	#[pallet::storage]
+	pub type PRuntimeConsensusVersion<T: Config> = StorageValue<_, u32, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -204,7 +214,8 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 			init_score: u32,
 		},
-		PRuntimeManagement(PRuntimeManagementEvent),
+		MinimumPRuntimeVersionChangedTo(u32, u32, u32),
+		PRuntimeConsensusVersionChangedTo(u32),
 	}
 
 	#[pallet::error]
@@ -451,7 +462,7 @@ pub mod pallet {
 				T::VerifyPRuntime::get(),
 				PRuntimeAllowList::<T>::get(),
 			)
-				.map_err(Into::<Error<T>>::into)?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
@@ -754,18 +765,21 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Retire running pruntimes with given condition.
+		/// Set minimum pRuntime version. Versions less than MinimumPRuntimeVersion would be forced to quit.
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
-		pub fn retire_pruntime(
+		pub fn set_minimum_pruntime_version(
 			origin: OriginFor<T>,
-			condition: messaging::RetireCondition,
+			major: u32,
+			minor: u32,
+			patch: u32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			let event = PRuntimeManagementEvent::RetirePRuntime(condition);
-			Self::push_message(event.clone());
-			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			MinimumPRuntimeVersion::<T>::put((major, minor, patch));
+			Self::deposit_event(Event::<T>::MinimumPRuntimeVersionChangedTo(
+				major, minor, patch,
+			));
 			Ok(())
 		}
 
@@ -779,9 +793,8 @@ pub mod pallet {
 			version: u32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			let event = PRuntimeManagementEvent::SetConsensusVersion(version);
-			Self::push_message(event.clone());
-			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			PRuntimeConsensusVersion::<T>::put(version);
+			Self::deposit_event(Event::<T>::PRuntimeConsensusVersionChangedTo(version));
 			Ok(())
 		}
 

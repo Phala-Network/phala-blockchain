@@ -236,6 +236,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .map_err(from_display)?;
             info!("State synced");
             state.purge_mq();
+            self.check_requirements();
             self.handle_inbound_messages(block.block_header.number)?;
             last_block = block.block_header.number;
 

@@ -842,9 +842,6 @@ export namespace pruntime_rpc {
         /** SystemInfo numberOfContracts */
         numberOfContracts?: (number|Long|null);
 
-        /** SystemInfo consensusVersion */
-        consensusVersion?: (number|null);
-
         /** SystemInfo maxSupportedConsensusVersion */
         maxSupportedConsensusVersion?: (number|null);
     }
@@ -875,9 +872,6 @@ export namespace pruntime_rpc {
 
         /** SystemInfo numberOfContracts. */
         public numberOfContracts: (number|Long);
-
-        /** SystemInfo consensusVersion. */
-        public consensusVersion: number;
 
         /** SystemInfo maxSupportedConsensusVersion. */
         public maxSupportedConsensusVersion: number;
