@@ -15,6 +15,7 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
+use phactory_api::blocks::StorageState;
 use phactory_api::{blocks, crypto, endpoints::EndpointType, prpc as pb};
 use phala_crypto::{
     key_share,
@@ -128,6 +129,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 total_peak_used: m_usage.total_peak_used as _,
             }),
             system: system_info,
+            can_load_chain_state: self.can_load_chain_state,
         }
     }
 
@@ -141,6 +143,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             headers.first().map(|h| h.header.number),
             headers.last().map(|h| h.header.number)
         );
+        self.can_load_chain_state = false;
         let last_header = self
             .runtime_state()?
             .storage_synchronizer
@@ -256,6 +259,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.take_checkpoint(current_block)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn init_runtime(
         &mut self,
         is_parachain: bool,
@@ -801,6 +805,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.system()?
             .upload_sidevm_code(contract_id, code)
             .map_err(from_display)
+    }
+
+    pub fn load_chain_state(
+        &mut self,
+        block: chain::BlockNumber,
+        storage: StorageState,
+    ) -> RpcResult<()> {
+        if !self.can_load_chain_state {
+            return Err(from_display("Can not load chain state"));
+        }
+        let pubkey = self.system()?.identity_key.public();
+        let state = self.runtime_state()?;
+        state
+            .storage_synchronizer
+            .assume_at_block(block)
+            .map_err(from_display)?;
+        state.chain_storage.load(storage.into_iter());
+        if state.chain_storage.is_worker_registered(&pubkey) {
+            panic!("Failed to load state: the worker is already registered at the state");
+        }
+        self.can_load_chain_state = false;
+        Ok(())
     }
 }
 
@@ -1437,6 +1463,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             public_rpc_port: phactory.args.public_port.map(Into::into),
             config: phactory.netconfig.clone(),
         })
+    }
+    async fn load_chain_state(
+        &mut self,
+        request: pb::ChainState,
+    ) -> Result<(), prpc::server::Error> {
+        self.lock_phactory()
+            .load_chain_state(request.block_number, request.decode_state()?)
     }
 }
 

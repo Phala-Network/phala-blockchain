@@ -236,6 +236,9 @@ pub struct Phactory<Platform> {
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
+
+    #[serde(skip)]
+    can_load_chain_state: bool,
 }
 
 fn default_query_scheduler() -> RequestScheduler<ContractId> {
@@ -263,6 +266,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             last_checkpoint: Instant::now(),
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
+            can_load_chain_state: false,
         }
     }
 
@@ -279,6 +283,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             benchmark::resume();
         }
 
+        self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = args;
     }
 

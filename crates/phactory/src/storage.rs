@@ -143,5 +143,10 @@ mod storage_ext {
         pub(crate) fn gatekeepers(&self) -> Vec<phala_types::WorkerPublicKey> {
             self.execute_with(pallet_registry::Gatekeeper::<chain::Runtime>::get)
         }
+
+        pub(crate) fn is_worker_registered(&self, worker: &phala_types::WorkerPublicKey) -> bool {
+            self.execute_with(|| pallet_registry::Workers::<chain::Runtime>::get(worker))
+                .is_some()
+        }
     }
 }

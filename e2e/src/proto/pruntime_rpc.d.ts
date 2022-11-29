@@ -399,6 +399,20 @@ export namespace pruntime_rpc {
          * @returns Promise
          */
         public getNetworkConfig(request: google.protobuf.IEmpty): Promise<pruntime_rpc.NetworkConfigResponse>;
+
+        /**
+         * Calls LoadChainState.
+         * @param request ChainState message or plain object
+         * @param callback Node-style callback called with the error, if any, and Empty
+         */
+        public loadChainState(request: pruntime_rpc.IChainState, callback: pruntime_rpc.PhactoryAPI.LoadChainStateCallback): void;
+
+        /**
+         * Calls LoadChainState.
+         * @param request ChainState message or plain object
+         * @returns Promise
+         */
+        public loadChainState(request: pruntime_rpc.IChainState): Promise<google.protobuf.Empty>;
     }
 
     namespace PhactoryAPI {
@@ -591,6 +605,13 @@ export namespace pruntime_rpc {
          * @param [response] NetworkConfigResponse
          */
         type GetNetworkConfigCallback = (error: (Error|null), response?: pruntime_rpc.NetworkConfigResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#loadChainState}.
+         * @param error Error, if any
+         * @param [response] Empty
+         */
+        type LoadChainStateCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -649,6 +670,9 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo system */
         system?: (pruntime_rpc.ISystemInfo|null);
+
+        /** PhactoryInfo canLoadChainState */
+        canLoadChainState?: (boolean|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -713,6 +737,9 @@ export namespace pruntime_rpc {
 
         /** PhactoryInfo system. */
         public system?: (pruntime_rpc.ISystemInfo|null);
+
+        /** PhactoryInfo canLoadChainState. */
+        public canLoadChainState: boolean;
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";
@@ -5724,6 +5751,102 @@ export namespace pruntime_rpc {
 
         /**
          * Converts this ContractId to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ChainState. */
+    interface IChainState {
+
+        /** ChainState blockNumber */
+        blockNumber?: (number|null);
+
+        /** ChainState encodedState */
+        encodedState?: (Uint8Array|null);
+    }
+
+    /** Represents a ChainState. */
+    class ChainState implements IChainState {
+
+        /**
+         * Constructs a new ChainState.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IChainState);
+
+        /** ChainState blockNumber. */
+        public blockNumber: number;
+
+        /** ChainState encodedState. */
+        public encodedState: Uint8Array;
+
+        /**
+         * Creates a new ChainState instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ChainState instance
+         */
+        public static create(properties?: pruntime_rpc.IChainState): pruntime_rpc.ChainState;
+
+        /**
+         * Encodes the specified ChainState message. Does not implicitly {@link pruntime_rpc.ChainState.verify|verify} messages.
+         * @param message ChainState message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IChainState, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ChainState message, length delimited. Does not implicitly {@link pruntime_rpc.ChainState.verify|verify} messages.
+         * @param message ChainState message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IChainState, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ChainState message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ChainState
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ChainState;
+
+        /**
+         * Decodes a ChainState message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ChainState
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ChainState;
+
+        /**
+         * Verifies a ChainState message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ChainState message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ChainState
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ChainState;
+
+        /**
+         * Creates a plain object from a ChainState message. Also converts values to other types if specified.
+         * @param message ChainState
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ChainState, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ChainState to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };

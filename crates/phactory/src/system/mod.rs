@@ -22,7 +22,7 @@ use crate::contracts;
 use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
-pub use master_key::RotatedMasterKey;
+pub use master_key::{RotatedMasterKey, gk_master_key_exists};
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus, SystemInfo};
 use phala_crypto::{
