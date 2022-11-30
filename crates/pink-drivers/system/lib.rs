@@ -11,7 +11,7 @@ mod system {
     use super::pink;
     use alloc::string::String;
     use ink_storage::{traits::SpreadAllocate, Mapping};
-    use pink::system::{ContractDeposit, ContractDepositRef, Error, Result, DriverError};
+    use pink::system::{ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
     /// Pink's system contract.
@@ -143,11 +143,22 @@ mod system {
         fn is_admin(&self, contract_id: AccountId) -> bool {
             self.administrators.contains(&contract_id)
         }
+
+        #[ink(message)]
+        fn upgrade_system_contract(&self) -> Result<()> {
+            let owner = self.ensure_owner()?;
+            pink::upgrade_system_contract(owner);
+            Ok(())
+        }
     }
 
     impl ContractDeposit for System {
         #[ink(message)]
-        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<(), DriverError> {
+        fn change_deposit(
+            &mut self,
+            contract_id: AccountId,
+            deposit: Balance,
+        ) -> Result<(), DriverError> {
             self.ensure_self()?;
             let flags = ink_env::CallFlags::default().set_allow_reentry(true);
             match ContractDepositRef::instance_with_call_flags(flags) {

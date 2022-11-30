@@ -498,10 +498,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn apply_side_effects(&mut self, cluster_id: ContractClusterId, effects: ExecSideEffects) {
-        let _ = self
-            .system()
-            .as_mut()
-            .map(move |system| system.apply_side_effects(cluster_id, effects));
+        let Some(state) = self.runtime_state.as_ref() else {
+            error!("Failed to apply side effects: chain storage missing");
+            return;
+        };
+        let Some(system) = self.system.as_mut() else {
+            error!("Failed to apply side effects: system missing");
+            return;
+        };
+        system.apply_side_effects(cluster_id, effects, &state.chain_storage);
     }
 
     fn contract_query(

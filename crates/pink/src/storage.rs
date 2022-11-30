@@ -5,6 +5,7 @@ use crate::{
     types::{AccountId, Balance, Hash, Hashing},
 };
 use frame_support::traits::Currency;
+use frame_system::RawOrigin;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
@@ -221,6 +222,14 @@ where
     pub fn code_hash(&self, account: &AccountId) -> Option<Hash> {
         self.execute_with(true, None, || Contracts::code_hash(account))
             .0
+    }
+
+    pub fn set_system_contract_code(&mut self, code_hash: Hash) -> Result<(), DispatchError> {
+        let system_contract = self.system_contract().ok_or(DispatchError::CannotLookup)?;
+        self.execute_mut(false, None, || {
+            Contracts::set_code(RawOrigin::Root.into(), system_contract, code_hash)
+        })
+        .0
     }
 }
 

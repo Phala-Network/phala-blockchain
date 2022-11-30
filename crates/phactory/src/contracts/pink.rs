@@ -333,12 +333,16 @@ fn cluster_storage<'a>(
 }
 
 pub mod cluster {
-    use anyhow::Result;
+    use anyhow::{Context, Result};
+    use parity_scale_codec::Decode;
     use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use phala_types::contract::messaging::ResourceType;
-    use pink::types::{AccountId, Balance, Hash};
+    use pink::{
+        types::{AccountId, Balance, Hash},
+        weights::Weight,
+    };
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use sp_runtime::{AccountId32, DispatchError};
@@ -453,11 +457,7 @@ pub mod cluster {
             }
         }
 
-        pub fn get_resource(
-            &self,
-            resource_type: ResourceType,
-            hash: &Hash,
-        ) -> Option<Vec<u8>> {
+        pub fn get_resource(&self, resource_type: ResourceType, hash: &Hash) -> Option<Vec<u8>> {
             match resource_type {
                 ResourceType::InkCode => None,
                 ResourceType::SidevmCode => self.storage.get_sidevm_code(hash),
@@ -485,6 +485,46 @@ pub mod cluster {
 
         pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
             self.storage.deposit(who, amount)
+        }
+
+        pub fn set_system_contract_code(&mut self, code_hash: Hash) -> Result<(), DispatchError> {
+            self.storage.set_system_contract_code(code_hash)?;
+            self.sync_system_contract_version()
+                .expect("Failed to sync the system contract version. Please upgrade pRuntime!");
+            Ok(())
+        }
+
+        pub fn sync_system_contract_version(&mut self) -> Result<()> {
+            let Some(system_address) = self.system_contract() else {
+                anyhow::bail!("No system contract");
+            };
+            let system = pink::Contract::from_address(system_address.clone());
+            // System::version
+            let selector = 0x87c98a8d_u32.to_be_bytes().to_vec();
+            let args = ::pink::TransactionArguments {
+                origin: system_address,
+                now: 1,
+                block_number: 1,
+                storage: &mut self.storage,
+                transfer: 0,
+                gas_limit: Weight::MAX,
+                gas_free: true,
+                storage_deposit_limit: None,
+                callbacks: None,
+            };
+            let (result, _) = system.bare_call(selector, true, args);
+            let output = result.result.map_err(|err| {
+                anyhow::anyhow!("Failed to get the system contract version: {err:?}")
+            })?;
+            self.config.version = Decode::decode(&mut &output.data[..])
+                .context("Failed to decode the system contract version")?;
+            const SUPPORTED_API_VERSION: u16 = 0;
+            if self.config.version.0 > SUPPORTED_API_VERSION {
+                anyhow::bail!(
+                    "The pink-system version is not supported, please upgrade the pRuntime"
+                );
+            }
+            Ok(())
         }
     }
 }
