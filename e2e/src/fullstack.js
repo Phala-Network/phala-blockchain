@@ -569,7 +569,7 @@ describe('A full stack', function () {
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
                 alice,
             );
             assertEvents(events, [
@@ -680,7 +680,7 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
                 alice,
             );
         });
