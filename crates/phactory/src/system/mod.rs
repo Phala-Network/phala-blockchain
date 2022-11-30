@@ -1656,6 +1656,7 @@ impl<Platform: pal::Platform> System<Platform> {
             public_key: hex::encode(self.identity_key.public()),
             ecdh_public_key: hex::encode(self.ecdh_key.public()),
             max_supported_consensus_version: MAX_SUPPORTED_CONSENSUS_VERSION,
+            genesis_block: self.genesis_block,
         }
     }
 }
