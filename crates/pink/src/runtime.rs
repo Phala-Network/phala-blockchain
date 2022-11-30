@@ -362,7 +362,7 @@ mod tests {
 
         let total_issue = Balance::MAX.saturating_div(2);
 
-        storage.execute_with(false, None, || {
+        storage.execute_mut(false, None, || {
             _ = Balances::deposit_creating(&ALICE, total_issue);
         });
 

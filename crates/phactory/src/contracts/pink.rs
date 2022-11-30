@@ -425,7 +425,7 @@ pub mod cluster {
             &self.key
         }
 
-        pub fn system_contract(&mut self) -> Option<AccountId32> {
+        pub fn system_contract(&self) -> Option<AccountId32> {
             self.storage.system_contract()
         }
 
@@ -454,7 +454,7 @@ pub mod cluster {
         }
 
         pub fn get_resource(
-            &mut self,
+            &self,
             resource_type: ResourceType,
             hash: &Hash,
         ) -> Option<Vec<u8>> {
