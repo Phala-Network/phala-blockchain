@@ -1999,14 +1999,14 @@ pub(crate) fn apply_pink_events(
                 contract.set_weight(weight);
                 contracts.weight_changed = true;
             }
-            PinkEvent::UpgradeSystemContract { owner } => {
+            PinkEvent::UpgradeSystemContract { storage_payer } => {
                 ensure_system!();
                 let Some((_, system_code)) = chain_storage.pink_system_code() else {
                     error!("No pink system code on chain");
                     continue;
                 };
-                let owner = owner.convert_to();
-                let hash = match cluster.upload_resource(&owner, ResourceType::InkCode, system_code)
+                let storage_payer = storage_payer.convert_to();
+                let hash = match cluster.upload_resource(&storage_payer, ResourceType::InkCode, system_code)
                 {
                     Ok(hash) => hash,
                     Err(err) => {

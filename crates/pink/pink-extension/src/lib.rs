@@ -91,7 +91,7 @@ pub enum PinkEvent {
     /// Set the weight of contract used to schedule queries and sidevm vruntime
     SetContractWeight { contract: AccountId, weight: u32 },
     /// Upgrade the system contract to latest version.
-    UpgradeSystemContract { owner: AccountId },
+    UpgradeSystemContract { storage_payer: AccountId },
 }
 
 impl PinkEvent {
@@ -238,8 +238,8 @@ pub fn set_contract_weight(contract: AccountId, weight: u32) {
 }
 
 /// Upgrade the system contract to latest version
-pub fn upgrade_system_contract(owner: AccountId) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeSystemContract { owner });
+pub fn upgrade_system_contract(storage_payer: AccountId) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeSystemContract { storage_payer });
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.
