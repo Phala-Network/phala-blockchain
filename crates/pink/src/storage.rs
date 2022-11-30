@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Balances, BoxedEventCallbacks, ExecSideEffects, Pink as PalletPink},
+    runtime::{Balances, BoxedEventCallbacks, Contracts, ExecSideEffects, Pink as PalletPink},
     types::{AccountId, Balance, Hash, Hashing},
 };
 use frame_support::traits::Currency;
@@ -203,6 +203,11 @@ where
 
     pub fn total_balance(&mut self, account: &AccountId) -> Balance {
         self.execute_with(true, None, || Balances::total_balance(account))
+            .0
+    }
+
+    pub fn code_hash(&mut self, account: &AccountId) -> Option<Hash> {
+        self.execute_with(true, None, || Contracts::code_hash(account))
             .0
     }
 }
