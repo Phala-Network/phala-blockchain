@@ -68,9 +68,10 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
             data: Vec<u8>,
             salt: Vec<u8>,
             cluster_id: ContractClusterId,
-            transfer: u128,
+            transfer: BalanceOf<T>,
             gas_limit: u64,
-            storage_deposit_limit: Option<u128>,
+            storage_deposit_limit: Option<BalanceOf<T>>,
+            deposit: BalanceOf<T>,
         ) -> DispatchResult {
         */
         api.tx.phalaFatContracts.instantiateContract(
@@ -81,6 +82,7 @@ async function deployDriverContract(api, txqueue, system, pair, cert, contract, 
             0,
             instantiateResult.gasRequired.refTime,
             instantiateResult.storageDeposit.asCharge || 0,
+            0,
         )
         ,
         pair

@@ -366,16 +366,21 @@ pub mod pallet {
 			data: Vec<u8>,
 			salt: Vec<u8>,
 			cluster_id: ContractClusterId,
-			transfer: u128,
+			transfer: BalanceOf<T>,
 			gas_limit: u64,
-			storage_deposit_limit: Option<u128>,
+			storage_deposit_limit: Option<BalanceOf<T>>,
+			deposit: BalanceOf<T>,
 		) -> DispatchResult {
-			let deployer = ensure_signed(origin)?;
+			let deployer = ensure_signed(origin.clone())?;
 			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
 				check_cluster_permission::<T>(&deployer, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
 			);
+
+			if !deposit.is_zero() {
+				Self::transfer_to_cluster(origin.clone(), deposit, cluster_id, deployer.clone())?;
+			}
 
 			let contract_info = ContractInfo {
 				deployer,
@@ -399,9 +404,9 @@ pub mod pallet {
 
 			Self::push_message(ContractOperation::instantiate_code(
 				contract_info.clone(),
-				transfer,
+				transfer.unique_saturated_into(),
 				gas_limit,
-				storage_deposit_limit,
+				storage_deposit_limit.map(UniqueSaturatedInto::unique_saturated_into),
 			));
 			Self::deposit_event(Event::Instantiating {
 				contract: contract_id,
