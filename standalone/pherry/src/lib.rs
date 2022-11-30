@@ -199,7 +199,6 @@ pub struct Args {
     #[arg(long, help = "Restart if number of rpc errors reaches the threshold")]
     restart_on_rpc_error_threshold: Option<u64>,
 
-
     #[arg(long, help = "URI to fetch cached headers from")]
     #[arg(default_value = "")]
     headers_cache_uri: String,
@@ -1083,9 +1082,9 @@ async fn bridge(
                     return Err(anyhow!("pRuntime returned an invalid pubkey"));
                 };
                 let (block_number, state) =
-                    chain_client::search_proper_genesis_for_worker(&para_api, &pubkey)
+                    chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey)
                         .await
-                        .context("Failed to search proper genesis state")?;
+                        .context("Failed to search suitable genesis state for worker")?;
                 pr.load_chain_state(prpc::ChainState::new(block_number, state))
                     .await?;
             }

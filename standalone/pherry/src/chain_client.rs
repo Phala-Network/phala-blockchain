@@ -110,7 +110,7 @@ pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> R
     Ok(())
 }
 
-pub async fn search_proper_genesis_for_worker(
+pub async fn search_suitable_genesis_for_worker(
     api: &ParachainApi,
     pubkey: &[u8],
 ) -> Result<(BlockNumber, Vec<(Vec<u8>, Vec<u8>)>)> {
