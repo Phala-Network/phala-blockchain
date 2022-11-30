@@ -457,6 +457,9 @@ pub struct System<Platform> {
     // Cached for query
     pub(crate) block_number: BlockNumber,
     pub(crate) now_ms: u64,
+
+    // If non-zero indicates the block which this worker loaded the chain state from.
+    pub(crate) genesis_block: BlockNumber,
 }
 
 thread_local! {
@@ -528,6 +531,7 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             sidevm_spawner: create_sidevm_service(worker_threads),
+            genesis_block: 0,
         }
     }
 
@@ -843,6 +847,10 @@ impl<Platform: pal::Platform> System<Platform> {
             !master_key_history.is_empty(),
             "Init gatekeeper with no master key"
         );
+
+        if self.genesis_block != 0 {
+            panic!("Gatekeeper must be synced start from the first block");
+        }
 
         let master_key = sr25519::Pair::restore_from_secret_key(
             &master_key_history

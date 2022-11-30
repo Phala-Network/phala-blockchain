@@ -816,16 +816,27 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if !self.can_load_chain_state {
             return Err(from_display("Can not load chain state"));
         }
-        let pubkey = self.system()?.identity_key.public();
-        let state = self.runtime_state()?;
+        if block == 0 {
+            return Err(from_display("Can not load chain state from block 0"));
+        }
+        let Some(system) = &mut self.system else {
+            return Err(from_display("System is uninitialized"));
+        };
+        let Some(state) = &mut self.runtime_state else {
+            return Err(from_display("Runtime is uninitialized"));
+        };
         state
             .storage_synchronizer
             .assume_at_block(block)
             .map_err(from_display)?;
         state.chain_storage.load(storage.into_iter());
-        if state.chain_storage.is_worker_registered(&pubkey) {
+        if state
+            .chain_storage
+            .is_worker_registered(&system.identity_key.public())
+        {
             panic!("Failed to load state: the worker is already registered at the state");
         }
+        system.genesis_block = block;
         self.can_load_chain_state = false;
         Ok(())
     }
