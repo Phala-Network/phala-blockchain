@@ -168,10 +168,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let state = self.runtime_state()?;
 
-        let para_id = state.chain_storage.para_id();
-
         let storage_key = light_validation::utils::storage_map_prefix_twox_64_concat(
-            b"Paras", b"Heads", &para_id,
+            b"Paras",
+            b"Heads",
+            &state.para_id,
         );
 
         let last_header = state
@@ -282,14 +282,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
+        let chain_storage = ChainStorage::from_pairs(genesis_state.into_iter());
+        let para_id = chain_storage.para_id();
+        info!(
+            "Genesis state loaded: root={:?}, para_id={para_id}",
+            chain_storage.root()
+        );
 
         // load identity
         let rt_data = if let Some(raw_key) = debug_set_key {
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
-            self.init_runtime_data(genesis_block_hash, Some(priv_key))
+            self.init_runtime_data(genesis_block_hash, para_id, Some(priv_key))
                 .map_err(from_debug)?
         } else {
-            self.init_runtime_data(genesis_block_hash, None)
+            self.init_runtime_data(genesis_block_hash, para_id, None)
                 .map_err(from_debug)?
         };
         self.dev_mode = rt_data.dev_mode;
@@ -353,17 +359,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             send_mq,
             recv_mq,
             storage_synchronizer,
-            chain_storage: Default::default(),
+            chain_storage,
             genesis_block_hash,
+            para_id,
         };
-
-        // Initialize other states
-        runtime_state.chain_storage.load(genesis_state.into_iter());
-
-        info!(
-            "Genesis state loaded: {:?}",
-            runtime_state.chain_storage.root()
-        );
 
         // In parachain mode the state root is stored in parachain header which isn't passed in here.
         // The storage root would be checked at the time each block being synced in(where the storage
@@ -401,7 +400,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             genesis_block_hash,
             features: vec![cpu_core_num, cpu_feature_level],
             operator,
-            para_id: runtime_state.chain_storage.para_id(),
+            para_id,
         };
 
         let resp = pb::InitRuntimeResponse::new(
@@ -439,13 +438,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     ) -> RpcResult<pb::InitRuntimeResponse> {
         let validated_identity_key = self.system()?.validated_identity_key();
         let validated_state = self.runtime_state()?.storage_synchronizer.state_validated();
-
-        let reset_operator = operator.is_some();
-        if reset_operator {
-            self.update_runtime_info(move |info| {
-                info.operator = operator;
-            });
-        }
 
         let reset_operator = operator.is_some();
         if reset_operator {
@@ -854,23 +846,26 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let Some(state) = &mut self.runtime_state else {
             return Err(from_display("Runtime is uninitialized"));
         };
+        let chain_storage = ChainStorage::from_pairs(storage.into_iter());
+        let para_id = chain_storage.para_id();
+        if para_id != state.para_id {
+            return Err(from_display(format!(
+                "Loading different parachain state, loading={para_id}, init={}",
+                state.para_id
+            )));
+        }
+        if chain_storage.is_worker_registered(&system.identity_key.public()) {
+            return Err(from_display(format!(
+                "Failed to load state: the worker is already registered at block {block}",
+            )));
+        }
         state
             .storage_synchronizer
             .assume_at_block(block)
             .map_err(from_display)?;
-        state.chain_storage.load(storage.into_iter());
-        if state
-            .chain_storage
-            .is_worker_registered(&system.identity_key.public())
-        {
-            panic!("Failed to load state: the worker is already registered at the state");
-        }
+        state.chain_storage = chain_storage;
         system.genesis_block = block;
         self.can_load_chain_state = false;
-        let para_id = state.chain_storage.para_id();
-        self.update_runtime_info(|info| {
-            info.para_id = para_id;
-        });
         Ok(())
     }
 
@@ -1255,6 +1250,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let genesis_block_hash = runtime_state.genesis_block_hash;
         let encrypted_worker_key = EncryptedWorkerKey {
             genesis_block_hash,
+            para_id: runtime_state.para_id,
             dev_mode,
             encrypted_key,
         };
@@ -1380,6 +1376,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         phactory
             .save_runtime_data(
                 encrypted_worker_key.genesis_block_hash,
+                encrypted_worker_key.para_id,
                 sr25519::Pair::restore_from_secret_key(&secret),
                 false, // we are not sure whether this key is injected
                 dev_mode,

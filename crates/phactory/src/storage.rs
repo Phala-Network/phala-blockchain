@@ -75,6 +75,14 @@ mod storage_ext {
     }
 
     impl ChainStorage {
+        pub fn from_pairs(
+            pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
+        ) -> Self {
+            let mut me = Self::default();
+            me.load(pairs);
+            me
+        }
+
         pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
             self.trie_storage.load(pairs);
         }

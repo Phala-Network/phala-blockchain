@@ -88,6 +88,8 @@ struct RuntimeState {
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
+
+    para_id: u32,
 }
 
 impl RuntimeState {
@@ -172,19 +174,13 @@ fn remove_outdated_checkpoints(
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
     genesis_block_hash: H256,
-    sk: Sr25519SecretKey,
-    dev_mode: bool,
-}
-
-#[derive(Encode, Decode, Clone, Debug)]
-struct PersistentRuntimeDataV2 {
-    genesis_block_hash: H256,
+    para_id: u32,
     sk: Sr25519SecretKey,
     trusted_sk: bool,
     dev_mode: bool,
 }
 
-impl PersistentRuntimeDataV2 {
+impl PersistentRuntimeData {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
         let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
@@ -202,7 +198,6 @@ impl PersistentRuntimeDataV2 {
 #[derive(Encode, Decode, Clone, Debug)]
 enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
-    V2(PersistentRuntimeDataV2),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -298,17 +293,18 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn init_runtime_data(
         &self,
         genesis_block_hash: H256,
+        para_id: u32,
         predefined_identity_key: Option<sr25519::Pair>,
-    ) -> Result<PersistentRuntimeDataV2> {
+    ) -> Result<PersistentRuntimeData> {
         let data = if let Some(identity_sk) = predefined_identity_key {
-            self.save_runtime_data(genesis_block_hash, identity_sk, false, true)?
+            self.save_runtime_data(genesis_block_hash, para_id, identity_sk, false, true)?
         } else {
             match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
-                    self.save_runtime_data(genesis_block_hash, identity_sk, true, false)?
+                    self.save_runtime_data(genesis_block_hash, para_id, identity_sk, true, false)?
                 }
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
@@ -321,7 +317,12 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 data.genesis_block_hash
             );
         }
-        info!("Machine id: {:?}", hex::encode(&self.machine_id));
+        if para_id != data.para_id {
+            panic!(
+                "Parachain id mismatches, saved: {}, in state: {para_id}",
+                data.para_id
+            );
+        }
         info!("Init done.");
         Ok(data)
     }
@@ -329,21 +330,23 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn save_runtime_data(
         &self,
         genesis_block_hash: H256,
+        para_id: u32,
         sr25519_sk: sr25519::Pair,
         trusted_sk: bool,
         dev_mode: bool,
-    ) -> Result<PersistentRuntimeDataV2> {
+    ) -> Result<PersistentRuntimeData> {
         // Put in PresistentRuntimeData
         let sk = sr25519_sk.dump_secret_key();
 
-        let data = PersistentRuntimeDataV2 {
+        let data = PersistentRuntimeData {
             genesis_block_hash,
+            para_id,
             sk,
             trusted_sk,
             dev_mode,
         };
         {
-            let data = RuntimeDataSeal::V2(data.clone());
+            let data = RuntimeDataSeal::V1(data.clone());
             let encoded_vec = data.encode();
             info!("Length of encoded slice: {}", encoded_vec.len());
             let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
@@ -359,7 +362,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn load_runtime_data(
         platform: &Platform,
         sealing_path: &str,
-    ) -> Result<PersistentRuntimeDataV2, Error> {
+    ) -> Result<PersistentRuntimeData, Error> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
@@ -367,16 +370,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
-            RuntimeDataSeal::V1(data) => {
-                Ok(PersistentRuntimeDataV2 {
-                    genesis_block_hash: data.genesis_block_hash,
-                    sk: data.sk,
-                    // key injection is impossible for legacy persistent data
-                    trusted_sk: true,
-                    dev_mode: data.dev_mode,
-                })
-            }
-            RuntimeDataSeal::V2(data) => Ok(data),
+            RuntimeDataSeal::V1(data) => Ok(data),
         }
     }
 
