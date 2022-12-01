@@ -4452,6 +4452,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-runtime-interface",
+ "sp-state-machine",
  "sp-trie",
  "surf",
  "thiserror",
@@ -4600,6 +4601,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
+ "phat-offchain-rollup",
  "scale-info",
  "sp-api",
  "sp-authority-discovery",
@@ -4705,6 +4707,26 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core",
+]
+
+[[package]]
+name = "phat-offchain-rollup"
+version = "0.1.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "hex-literal",
+ "log",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]

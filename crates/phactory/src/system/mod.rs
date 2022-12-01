@@ -1718,7 +1718,7 @@ impl<P: pal::Platform> System<P> {
         &mut self,
         cluster_id: phala_mq::ContractClusterId,
         effects: ExecSideEffects,
-        chain_storage: &crate::Storage,
+        chain_storage: &crate::ChainStorage,
     ) {
         let cluster = match self.contract_clusters.get_cluster_mut(&cluster_id) {
             Some(cluster) => cluster,
@@ -1763,7 +1763,7 @@ pub fn handle_contract_command_result(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
-    chain_storage: &crate::Storage,
+    chain_storage: &crate::ChainStorage,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1805,7 +1805,7 @@ pub fn apply_pink_side_effects(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
-    chain_storage: &crate::Storage,
+    chain_storage: &crate::ChainStorage,
 ) {
     apply_instantiating_events(
         effects.instantiated,
@@ -1883,7 +1883,7 @@ pub(crate) fn apply_pink_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     spawner: &Spawner,
-    chain_storage: &crate::Storage,
+    chain_storage: &crate::ChainStorage,
 ) {
     for (origin, event) in pink_events {
         macro_rules! get_contract {
@@ -1998,13 +1998,17 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::UpgradeSystemContract { storage_payer } => {
                 ensure_system!();
-                let Some((_, system_code)) = chain_storage.pink_system_code() else {
+                let system_code = chain_storage.pink_system_code().1;
+                if system_code.is_empty() {
                     error!("No pink system code on chain");
                     continue;
                 };
                 let storage_payer = storage_payer.convert_to();
-                let hash = match cluster.upload_resource(&storage_payer, ResourceType::InkCode, system_code)
-                {
+                let hash = match cluster.upload_resource(
+                    &storage_payer,
+                    ResourceType::InkCode,
+                    system_code,
+                ) {
                     Ok(hash) => hash,
                     Err(err) => {
                         error!("Failed to upload the system code to the cluster: {err:?}");
