@@ -495,10 +495,11 @@ async fn batch_sync_block(
     let mut synced_blocks: BlockNumber = 0;
 
     let hdr_synced_to = if parachain {
-        next_para_headernum - 1
+        next_para_headernum
     } else {
-        next_headernum - 1
-    };
+        next_headernum
+    }
+    .saturating_sub(1);
     macro_rules! sync_blocks_to {
         ($to: expr) => {
             if next_blocknum <= $to {
