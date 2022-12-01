@@ -104,6 +104,7 @@ impl<T: Config> LightValidation<T>
 where
     NumberFor<T::Block>: AsPrimitive<usize>,
 {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         LightValidation {
             num_bridges: 0,

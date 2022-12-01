@@ -11,7 +11,7 @@ use log::{error, info, warn};
 
 pub use phactory_api::blocks::{AuthoritySetChange, BlockHeaderWithChanges, GenesisBlockInfo};
 
-#[derive(Decode, Encode, Debug)]
+#[derive(Decode, Encode, Debug, Clone)]
 pub struct BlockInfo {
     pub header: Header,
     pub justification: Option<Vec<u8>>,
@@ -19,7 +19,7 @@ pub struct BlockInfo {
     pub authority_set_change: Option<AuthoritySetChange>,
 }
 
-#[derive(Decode, Encode, Debug)]
+#[derive(Decode, Encode, Debug, Clone)]
 pub struct ParaHeader {
     /// Finalized parachain header number
     pub fin_header_num: BlockNumber,
