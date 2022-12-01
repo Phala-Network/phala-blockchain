@@ -429,9 +429,13 @@ pub mod pallet {
 			staker: T::AccountId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_info = ensure_stake_pool::<T>(pid)?;
+			let pool_proxy = Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
+			let pool_info = match pool_proxy {
+				PoolProxy::Vault(res) => res.basepool,
+				PoolProxy::StakePool(res) => res.basepool,
+			};
 			ensure!(
-				pool_info.basepool.owner == owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
@@ -465,9 +469,13 @@ pub mod pallet {
 			description: DescStr,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_info = ensure_stake_pool::<T>(pid)?;
+			let pool_proxy = Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
+			let pool_info = match pool_proxy {
+				PoolProxy::Vault(res) => res.basepool,
+				PoolProxy::StakePool(res) => res.basepool,
+			};
 			ensure!(
-				pool_info.basepool.owner == owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			PoolDescriptions::<T>::insert(&pid, description);
@@ -486,9 +494,13 @@ pub mod pallet {
 			staker: T::AccountId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_info = ensure_stake_pool::<T>(pid)?;
+			let pool_proxy = Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
+			let pool_info = match pool_proxy {
+				PoolProxy::Vault(res) => res.basepool,
+				PoolProxy::StakePool(res) => res.basepool,
+			};
 			ensure!(
-				pool_info.basepool.owner == owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			let mut whitelist =
