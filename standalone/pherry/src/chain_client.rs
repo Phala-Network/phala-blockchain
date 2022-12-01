@@ -113,21 +113,22 @@ pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> R
 pub async fn search_suitable_genesis_for_worker(
     api: &ParachainApi,
     pubkey: &[u8],
+    prefer: Option<BlockNumber>,
 ) -> Result<(BlockNumber, Vec<(Vec<u8>, Vec<u8>)>)> {
-    let node_state = api
-        .extra_rpc()
-        .system_sync_state()
+    let ceil = match prefer {
+        Some(ceil) => ceil,
+        None => {
+            let node_state = api
+                .extra_rpc()
+                .system_sync_state()
+                .await
+                .context("Failed to get system state")?;
+            node_state.current_block as _
+        }
+    };
+    let block = binary_search_unreg_block(api, pubkey, 0, ceil, ceil)
         .await
-        .context("Failed to get system state")?;
-    let block = binary_search_unreg_block(
-        api,
-        pubkey,
-        0,
-        node_state.current_block as BlockNumber,
-        node_state.current_block as BlockNumber,
-    )
-    .await
-    .context("Failed to search state for worker")?;
+        .context("Failed to search state for worker")?;
     let block_hash = api
         .rpc()
         .block_hash(Some(block.into()))

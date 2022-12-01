@@ -220,6 +220,10 @@ pub struct Args {
     /// Try to load chain state from the greatest block that the worker haven't registered at.
     #[arg(long)]
     fast_sync: bool,
+
+    /// The prefered block to load the genesis state from.
+    #[arg(long)]
+    prefer_genesis_at_block: Option<BlockNumber>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -1081,10 +1085,13 @@ async fn bridge(
                 let Ok(pubkey) = hex::decode(pubkey) else {
                     return Err(anyhow!("pRuntime returned an invalid pubkey"));
                 };
-                let (block_number, state) =
-                    chain_client::search_suitable_genesis_for_worker(&para_api, &pubkey)
-                        .await
-                        .context("Failed to search suitable genesis state for worker")?;
+                let (block_number, state) = chain_client::search_suitable_genesis_for_worker(
+                    &para_api,
+                    &pubkey,
+                    args.prefer_genesis_at_block,
+                )
+                .await
+                .context("Failed to search suitable genesis state for worker")?;
                 pr.load_chain_state(prpc::ChainState::new(block_number, state))
                     .await?;
             }
