@@ -1292,6 +1292,7 @@ parameter_types! {
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = false;
+	pub ParachainId: u32 = ParachainInfo::parachain_id().0;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1303,6 +1304,7 @@ impl pallet_registry::Config for Runtime {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
+	type ParachainId = ParachainId;
 }
 impl pallet_mq::Config for Runtime {
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;

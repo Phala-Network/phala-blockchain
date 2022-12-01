@@ -26,7 +26,7 @@ use phala_types::contract::contract_id_preimage;
 use phala_types::{
     contract, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport,
     ChallengeHandlerInfo, EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints,
-    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfo,
+    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
 use tokio::sync::oneshot::{channel, Sender};
 
@@ -327,17 +327,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let cpu_feature_level: u32 = self.platform.cpu_feature_level();
         info!("CPU feature level: {}", cpu_feature_level);
 
-        // Build WorkerRegistrationInfo
-        let runtime_info = WorkerRegistrationInfo::<chain::AccountId> {
-            version: VERSION,
-            machine_id: self.machine_id.clone(),
-            pubkey: ecdsa_pk,
-            ecdh_pubkey,
-            genesis_block_hash,
-            features: vec![cpu_core_num, cpu_feature_level],
-            operator,
-        };
-
         // Initialize bridge
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
@@ -403,6 +392,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.args.cores as _,
         );
 
+        // Build WorkerRegistrationInfoV2
+        let runtime_info = WorkerRegistrationInfoV2::<chain::AccountId> {
+            version: VERSION,
+            machine_id: self.machine_id.clone(),
+            pubkey: ecdsa_pk,
+            ecdh_pubkey,
+            genesis_block_hash,
+            features: vec![cpu_core_num, cpu_feature_level],
+            operator,
+            para_id: runtime_state.chain_storage.para_id(),
+        };
+
         let resp = pb::InitRuntimeResponse::new(
             runtime_info,
             genesis_block_hash,
@@ -416,6 +417,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(resp)
     }
 
+    fn update_runtime_info(
+        &mut self,
+        f: impl FnOnce(&mut WorkerRegistrationInfoV2<chain::AccountId>),
+    ) {
+        let Some(cached_resp) = self.runtime_info.as_mut() else {
+            return;
+        };
+        let mut runtime_info = cached_resp
+            .decode_runtime_info()
+            .expect("BUG: Decode runtime_info failed");
+        f(&mut runtime_info);
+        cached_resp.encoded_runtime_info = runtime_info.encode();
+        cached_resp.attestation = None;
+    }
+
     fn get_runtime_info(
         &mut self,
         refresh_ra: bool,
@@ -424,19 +440,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let validated_identity_key = self.system()?.validated_identity_key();
         let validated_state = self.runtime_state()?.storage_synchronizer.state_validated();
 
+        let reset_operator = operator.is_some();
+        if reset_operator {
+            self.update_runtime_info(move |info| {
+                info.operator = operator;
+            });
+        }
+
+        let reset_operator = operator.is_some();
+        if reset_operator {
+            self.update_runtime_info(move |info| {
+                info.operator = operator;
+            });
+        }
+
         let mut cached_resp = self
             .runtime_info
             .as_mut()
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
-
-        let reset_operator = operator.is_some();
-        if reset_operator {
-            let mut runtime_info = cached_resp
-                .decode_runtime_info()
-                .expect("Decode runtime_info failed");
-            runtime_info.operator = operator;
-            cached_resp.encoded_runtime_info = runtime_info.encode();
-        }
 
         if let Some(cached_attestation) = &cached_resp.attestation {
             const MAX_ATTESTATION_AGE: u64 = 60 * 60;
@@ -846,6 +867,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         system.genesis_block = block;
         self.can_load_chain_state = false;
+        let para_id = state.chain_storage.para_id();
+        self.update_runtime_info(|info| {
+            info.para_id = para_id;
+        });
         Ok(())
     }
 

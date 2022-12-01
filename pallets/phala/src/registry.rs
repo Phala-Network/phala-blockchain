@@ -28,6 +28,7 @@ pub mod pallet {
 		wrap_content_to_sign, AttestationProvider, ClusterPublicKey, ContractPublicKey,
 		EcdhPublicKey, MasterPublicKey, SignedContentType, VersionedWorkerEndpoints,
 		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo,
+		WorkerRegistrationInfoV2,
 	};
 
 	pub use phala_types::AttestationReport;
@@ -88,6 +89,9 @@ pub mod pallet {
 		/// SHOULD NOT SET TO FALSE ON PRODUCTION!!!
 		#[pallet::constant]
 		type VerifyRelaychainGenesisBlockHash: Get<bool>;
+
+		/// Callback to get parachain id
+		type ParachainId: Get<u32>;
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -262,6 +266,7 @@ pub mod pallet {
 		InvalidRotatedMasterPubkey,
 		// PRouter related
 		InvalidEndpointSigningTime,
+		ParachainIdMismatch,
 	}
 
 	#[pallet::call]
@@ -545,7 +550,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
-			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
+			pruntime_info: WorkerRegistrationInfoV2<T::AccountId>,
 			attestation: Option<AttestationReport>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -562,6 +567,10 @@ pub mod pallet {
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
+			ensure!(
+				pruntime_info.para_id == T::ParachainId::get(),
+				Error::<T>::ParachainIdMismatch
+			);
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
 				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
