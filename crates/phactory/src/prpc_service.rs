@@ -840,6 +840,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.can_load_chain_state = false;
         Ok(())
     }
+
+    pub fn stop(&self, remove_checkpoints: bool) -> RpcResult<()> {
+        info!("Requested to stop remove_checkpoints={remove_checkpoints}");
+        if remove_checkpoints {
+            crate::maybe_remove_checkpoints(&self.args.sealing_path);
+        }
+        std::process::abort()
+    }
 }
 
 #[derive(Clone)]
@@ -1482,6 +1490,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> Result<(), prpc::server::Error> {
         self.lock_phactory()
             .load_chain_state(request.block_number, request.decode_state()?)
+    }
+    async fn stop(&mut self, request: pb::StopOptions) -> Result<(), prpc::server::Error> {
+        self.lock_phactory().stop(request.remove_checkpoints)
     }
 }
 

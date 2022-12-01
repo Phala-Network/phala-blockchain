@@ -974,6 +974,39 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#stop}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef StopCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls Stop.
+         * @function stop
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IStopOptions} request StopOptions message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.StopCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.stop = function stop(request, callback) {
+            return this.rpcCall(stop, $root.pruntime_rpc.StopOptions, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "Stop" });
+
+        /**
+         * Calls Stop.
+         * @function stop
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IStopOptions} request StopOptions message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -13954,6 +13987,193 @@ $root.pruntime_rpc = (function() {
         };
 
         return ChainState;
+    })();
+
+    pruntime_rpc.StopOptions = (function() {
+
+        /**
+         * Properties of a StopOptions.
+         * @memberof pruntime_rpc
+         * @interface IStopOptions
+         * @property {boolean|null} [removeCheckpoints] StopOptions removeCheckpoints
+         */
+
+        /**
+         * Constructs a new StopOptions.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a StopOptions.
+         * @implements IStopOptions
+         * @constructor
+         * @param {pruntime_rpc.IStopOptions=} [properties] Properties to set
+         */
+        function StopOptions(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * StopOptions removeCheckpoints.
+         * @member {boolean} removeCheckpoints
+         * @memberof pruntime_rpc.StopOptions
+         * @instance
+         */
+        StopOptions.prototype.removeCheckpoints = false;
+
+        /**
+         * Creates a new StopOptions instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.IStopOptions=} [properties] Properties to set
+         * @returns {pruntime_rpc.StopOptions} StopOptions instance
+         */
+        StopOptions.create = function create(properties) {
+            return new StopOptions(properties);
+        };
+
+        /**
+         * Encodes the specified StopOptions message. Does not implicitly {@link pruntime_rpc.StopOptions.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.IStopOptions} message StopOptions message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        StopOptions.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.removeCheckpoints != null && Object.hasOwnProperty.call(message, "removeCheckpoints"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.removeCheckpoints);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified StopOptions message, length delimited. Does not implicitly {@link pruntime_rpc.StopOptions.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.IStopOptions} message StopOptions message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        StopOptions.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a StopOptions message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.StopOptions} StopOptions
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        StopOptions.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StopOptions();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.removeCheckpoints = reader.bool();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a StopOptions message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.StopOptions} StopOptions
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        StopOptions.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a StopOptions message.
+         * @function verify
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        StopOptions.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.removeCheckpoints != null && message.hasOwnProperty("removeCheckpoints"))
+                if (typeof message.removeCheckpoints !== "boolean")
+                    return "removeCheckpoints: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a StopOptions message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.StopOptions} StopOptions
+         */
+        StopOptions.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.StopOptions)
+                return object;
+            var message = new $root.pruntime_rpc.StopOptions();
+            if (object.removeCheckpoints != null)
+                message.removeCheckpoints = Boolean(object.removeCheckpoints);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a StopOptions message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.StopOptions} message StopOptions
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        StopOptions.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.removeCheckpoints = false;
+            if (message.removeCheckpoints != null && message.hasOwnProperty("removeCheckpoints"))
+                object.removeCheckpoints = message.removeCheckpoints;
+            return object;
+        };
+
+        /**
+         * Converts this StopOptions to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.StopOptions
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        StopOptions.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return StopOptions;
     })();
 
     return pruntime_rpc;

@@ -214,8 +214,8 @@ where
             if storage.root() != genesis_state_root {
                 return Err(Error::StateRootMismatch {
                     block: self.block_number_next - 1,
-                    expected: genesis_state_root.clone(),
-                    actual: storage.root().clone(),
+                    expected: *genesis_state_root,
+                    actual: *storage.root(),
                 });
             }
             _ = state_roots.pop_front();
