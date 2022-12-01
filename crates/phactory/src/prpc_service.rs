@@ -422,6 +422,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         let validated_identity_key = self.system()?.validated_identity_key();
+        let validated_state = self.runtime_state()?.storage_synchronizer.state_validated();
 
         let mut cached_resp = self
             .runtime_info
@@ -429,6 +430,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
 
         let reset_operator = operator.is_some();
+        info!("validated_identity_key :{validated_identity_key}");
+        info!("validated_state        :{validated_state}");
+        info!("refresh_ra             :{refresh_ra}");
+        info!("reset_operator         :{reset_operator}");
         if reset_operator {
             let mut runtime_info = cached_resp
                 .decode_runtime_info()
@@ -437,20 +442,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             cached_resp.encoded_runtime_info = runtime_info.encode();
         }
 
-        // never generate RA report for a potentially injected identity key
-        // else he is able to fake a Secure Worker
-        if validated_identity_key {
-            if let Some(cached_attestation) = &cached_resp.attestation {
-                const MAX_ATTESTATION_AGE: u64 = 60 * 60;
-                if refresh_ra
-                    || reset_operator
-                    || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
-                {
-                    cached_resp.attestation = None;
-                }
+        if let Some(cached_attestation) = &cached_resp.attestation {
+            const MAX_ATTESTATION_AGE: u64 = 60 * 60;
+            if refresh_ra
+                || reset_operator
+                || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
+            {
+                cached_resp.attestation = None;
             }
         }
-        if cached_resp.attestation.is_none() {
+
+        // Never generate RA report for a potentially injected identity key
+        // else he is able to fake a Secure Worker
+        if validated_identity_key && validated_state && cached_resp.attestation.is_none() {
             // We hash the encoded bytes directly
             let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
             info!("Encoded runtime info");

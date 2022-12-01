@@ -93,6 +93,7 @@ pub trait StorageSynchronizer {
 
     /// Assume synced to given block.
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()>;
+    fn state_validated(&self) -> bool;
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -323,6 +324,10 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
         self.sync_state.block_number_next = block_number + 1;
         Ok(())
     }
+
+    fn state_validated(&self) -> bool {
+        self.sync_state.genesis_state_validated
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -441,6 +446,10 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         self.para_header_number_next = block_number;
         Ok(())
     }
+
+    fn state_validated(&self) -> bool {
+        self.sync_state.genesis_state_validated
+    }
 }
 
 // We create this new type to help serialize the original dyn StorageSynchronizer.
@@ -512,5 +521,9 @@ impl<Validator: BlockValidator> StorageSynchronizer for Synchronizer<Validator> 
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
         self.as_dyn_mut().assume_at_block(block_number)
+    }
+
+    fn state_validated(&self) -> bool {
+        self.as_dyn().state_validated()
     }
 }
