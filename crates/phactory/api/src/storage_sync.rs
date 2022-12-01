@@ -123,7 +123,7 @@ where
             main_bridge,
             header_number_next,
             block_number_next,
-            genesis_state_validated: true,
+            genesis_state_validated: false,
         }
     }
 
@@ -270,7 +270,7 @@ pub struct SolochainSynchronizer<Validator> {
 impl<Validator: BlockValidator> SolochainSynchronizer<Validator> {
     pub fn new(validator: Validator, main_bridge: u64) -> Self {
         Self {
-            sync_state: BlockSyncState::new(validator, main_bridge, 1, 1),
+            sync_state: BlockSyncState::new(validator, main_bridge, 0, 1),
             state_roots: Default::default(),
         }
     }
@@ -315,12 +315,11 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
     }
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
-        if self.sync_state.block_number_next > 1 || self.sync_state.header_number_next > 1 {
+        if self.sync_state.block_number_next > 1 || self.sync_state.header_number_next > 0 {
             return Err(Error::CanNotLoadStateAfterSynced);
         }
 
         self.sync_state.block_number_next = block_number + 1;
-        self.sync_state.genesis_state_validated = false;
         Ok(())
     }
 }
@@ -338,7 +337,7 @@ impl<Validator: BlockValidator> ParachainSynchronizer<Validator> {
         Self {
             sync_state: BlockSyncState::new(validator, main_bridge, headernum_next, 1),
             last_relaychain_state_root: None,
-            para_header_number_next: 1,
+            para_header_number_next: 0,
             para_state_roots: Default::default(),
         }
     }
@@ -439,7 +438,6 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         }
         self.sync_state.block_number_next = block_number + 1;
         self.para_header_number_next = block_number;
-        self.sync_state.genesis_state_validated = false;
         Ok(())
     }
 }
