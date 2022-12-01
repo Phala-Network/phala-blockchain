@@ -518,7 +518,7 @@ async fn batch_sync_block(
             set
         } else {
             // Construct the authority set from the last block we have synced (the genesis)
-            let number = &block_buf.first().unwrap().block.header.number - 1;
+            let number = block_buf.first().unwrap().block.header.number.saturating_sub(1);
             let hash = api.rpc().block_hash(Some(number.into())).await?;
             let set_id = api.current_set_id(hash).await?;
             let set = (number, set_id);
@@ -932,7 +932,7 @@ async fn try_register_worker(
     signer: &mut SrSigner,
     operator: Option<AccountId32>,
     args: &Args,
-) -> Result<()> {
+) -> Result<bool> {
     let info = pr
         .get_runtime_info(prpc::GetRuntimeInfoRequest::new(false, operator))
         .await?;
@@ -946,8 +946,10 @@ async fn try_register_worker(
             args,
         )
         .await?;
+        Ok(true)
+    } else {
+        Ok(false)
     }
-    Ok(())
 }
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
@@ -1101,8 +1103,9 @@ async fn bridge(
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &para_api, &mut signer, operator, args).await?;
-            flags.worker_registered = true;
+            let registered =
+                try_register_worker(&pr, &para_api, &mut signer, operator, args).await?;
+            flags.worker_registered = registered;
         }
         // Try bind worker endpoint
         if !args.no_bind && info.public_key.is_some() {
@@ -1267,9 +1270,10 @@ async fn bridge(
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
-            if !initial_sync_finished && !args.no_register && !flags.worker_registered {
-                try_register_worker(&pr, &para_api, &mut signer, operator.clone(), args).await?;
-                flags.worker_registered = true;
+            if !args.no_register && !flags.worker_registered {
+                flags.worker_registered =
+                    try_register_worker(&pr, &para_api, &mut signer, operator.clone(), args)
+                        .await?;
             }
 
             if !args.no_bind && !flags.endpoint_registered && info.public_key.is_some() {

@@ -430,10 +430,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
 
         let reset_operator = operator.is_some();
-        info!("validated_identity_key :{validated_identity_key}");
-        info!("validated_state        :{validated_state}");
-        info!("refresh_ra             :{refresh_ra}");
-        info!("reset_operator         :{reset_operator}");
         if reset_operator {
             let mut runtime_info = cached_resp
                 .decode_runtime_info()
@@ -452,9 +448,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         }
 
+        let allow_attestation =
+            validated_state && (validated_identity_key || self.attestation_provider.is_none());
+        info!("validated_identity_key :{validated_identity_key}");
+        info!("validated_state        :{validated_state}");
+        info!("refresh_ra             :{refresh_ra}");
+        info!("reset_operator         :{reset_operator}");
+        info!("attestation_provider   :{:?}", self.attestation_provider);
+        info!("allow_attestation      :{allow_attestation}");
         // Never generate RA report for a potentially injected identity key
         // else he is able to fake a Secure Worker
-        if validated_identity_key && validated_state && cached_resp.attestation.is_none() {
+        if allow_attestation && cached_resp.attestation.is_none() {
             // We hash the encoded bytes directly
             let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
             info!("Encoded runtime info");
