@@ -210,14 +210,15 @@ where
         }
 
         if !self.genesis_state_validated {
-            let genesis_state_root = state_roots.pop_front().ok_or(Error::NoStateRoot)?;
-            if storage.root() != &genesis_state_root {
-                panic!(
-                    "Genesis state root mismatch, expacted: {:?}, actual: {:?}",
-                    genesis_state_root,
-                    storage.root()
-                );
+            let genesis_state_root = state_roots.get(0).ok_or(Error::NoStateRoot)?;
+            if storage.root() != genesis_state_root {
+                return Err(Error::StateRootMismatch {
+                    block: self.block_number_next - 1,
+                    expected: genesis_state_root.clone(),
+                    actual: storage.root().clone(),
+                });
             }
+            _ = state_roots.pop_front();
             self.genesis_state_validated = true;
         }
 
