@@ -165,10 +165,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let state = self.runtime_state()?;
 
-        let para_id = state
-            .chain_storage
-            .para_id()
-            .ok_or_else(|| from_display("No para_id"))?;
+        let para_id = state.chain_storage.para_id();
 
         let storage_key = light_validation::utils::storage_map_prefix_twox_64_concat(
             b"Paras", b"Heads", &para_id,

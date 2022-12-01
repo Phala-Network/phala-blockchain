@@ -36,10 +36,9 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_fat, pallet_mq, pallet_registry};
+    use chain::{pallet_fat, pallet_mq, pallet_registry, ParachainInfo};
     use log::error;
     use parity_scale_codec::{Decode, Error};
-    use phactory_api::blocks::ParaId;
     use phala_mq::{Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
     use serde::{Deserialize, Serialize};
@@ -103,8 +102,8 @@ mod storage_ext {
             sp_externalities::set_and_run_with_externalities(&mut ext, f)
         }
 
-        pub fn para_id(&self) -> Option<ParaId> {
-            self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
+        pub fn para_id(&self) -> u32 {
+            self.execute_with(ParachainInfo::parachain_id).0
         }
 
         pub fn mq_messages(&self) -> Result<Vec<Message>, Error> {
