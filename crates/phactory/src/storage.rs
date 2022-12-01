@@ -36,7 +36,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_fat, pallet_mq, pallet_registry, ParachainInfo};
+    use chain::{pallet_fat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::{Message, MessageOrigin};
@@ -72,9 +72,6 @@ mod storage_ext {
                 })
                 .transpose()
         }
-        fn get_decoded<T: Decode>(&self, key: impl AsRef<[u8]>) -> Option<T> {
-            self.get_decoded_result(key).ok().flatten()
-        }
     }
 
     impl ChainStorage {
@@ -103,7 +100,7 @@ mod storage_ext {
         }
 
         pub fn para_id(&self) -> u32 {
-            self.execute_with(ParachainInfo::parachain_id).0
+            self.execute_with(chain::ParachainInfo::parachain_id).0
         }
 
         pub fn mq_messages(&self) -> Result<Vec<Message>, Error> {
@@ -119,8 +116,8 @@ mod storage_ext {
             Ok(vec![])
         }
 
-        pub fn timestamp_now(&self) -> Option<chain::Moment> {
-            self.get_decoded(storage_prefix("Timestamp", "Now"))
+        pub fn timestamp_now(&self) -> chain::Moment {
+            self.execute_with(chain::Timestamp::now)
         }
 
         pub fn pink_system_code(&self) -> (u16, Vec<u8>) {

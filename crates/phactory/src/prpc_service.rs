@@ -602,8 +602,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let now_ms = state
             .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
+            .timestamp_now();
 
         let mut block = BlockInfo {
             block_number,

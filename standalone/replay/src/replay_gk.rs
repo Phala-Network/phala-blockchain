@@ -98,8 +98,7 @@ impl ReplayFactory {
 
         let now_ms = self
             .storage
-            .timestamp_now()
-            .ok_or("No timestamp found in block")?;
+            .timestamp_now();
 
         let block = BlockInfo {
             block_number,
