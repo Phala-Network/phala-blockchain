@@ -312,13 +312,13 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         // check genesis block hash
         if genesis_block_hash != data.genesis_block_hash {
-            panic!(
+            anyhow::bail!(
                 "Genesis block hash mismatches with saved keys, expected {}",
                 data.genesis_block_hash
             );
         }
         if para_id != data.para_id {
-            panic!(
+            anyhow::bail!(
                 "Parachain id mismatches, saved: {}, in state: {para_id}",
                 data.para_id
             );
