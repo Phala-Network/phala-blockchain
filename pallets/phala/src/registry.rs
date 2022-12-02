@@ -1304,12 +1304,13 @@ pub mod pallet {
 				assert_noop!(
 					PhalaRegistry::register_worker_v2(
 						Origin::signed(1),
-						WorkerRegistrationInfo::<u64> {
+						WorkerRegistrationInfoV2::<u64> {
 							version: 1,
 							machine_id: Default::default(),
 							pubkey: worker_pubkey(1),
 							ecdh_pubkey: ecdh_pubkey(1),
 							genesis_block_hash: Default::default(),
+							para_id: 0,
 							features: vec![4, 1],
 							operator: Some(1),
 						},
@@ -1318,15 +1319,35 @@ pub mod pallet {
 					Error::<Test>::GenesisBlockHashRejected
 				);
 
+				// New registration with wrong para_id
+				assert_noop!(
+					PhalaRegistry::register_worker_v2(
+						Origin::signed(1),
+						WorkerRegistrationInfoV2::<u64> {
+							version: 1,
+							machine_id: Default::default(),
+							pubkey: worker_pubkey(1),
+							ecdh_pubkey: ecdh_pubkey(1),
+							genesis_block_hash: H256::repeat_byte(1),
+							para_id: 1,
+							features: vec![4, 1],
+							operator: Some(1),
+						},
+						None
+					),
+					Error::<Test>::ParachainIdMismatch
+				);
+
 				// New registration
 				assert_ok!(PhalaRegistry::register_worker_v2(
 					Origin::signed(1),
-					WorkerRegistrationInfo::<u64> {
+					WorkerRegistrationInfoV2::<u64> {
 						version: 1,
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
 						genesis_block_hash: H256::repeat_byte(1),
+						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(1),
 					},
@@ -1338,12 +1359,13 @@ pub mod pallet {
 				elapse_seconds(100);
 				assert_ok!(PhalaRegistry::register_worker_v2(
 					Origin::signed(1),
-					WorkerRegistrationInfo::<u64> {
+					WorkerRegistrationInfoV2::<u64> {
 						version: 1,
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
 						genesis_block_hash: H256::repeat_byte(1),
+						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(2),
 					},
@@ -1394,10 +1416,7 @@ pub mod pallet {
 					sample
 				));
 				assert_noop!(
-					PhalaRegistry::add_relaychain_genesis_block_hash(
-						Origin::root(),
-						sample
-					),
+					PhalaRegistry::add_relaychain_genesis_block_hash(Origin::root(), sample),
 					Error::<Test>::GenesisBlockHashAlreadyExists
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 1);
@@ -1406,10 +1425,7 @@ pub mod pallet {
 					sample
 				));
 				assert_noop!(
-					PhalaRegistry::remove_relaychain_genesis_block_hash(
-						Origin::root(),
-						sample
-					),
+					PhalaRegistry::remove_relaychain_genesis_block_hash(Origin::root(), sample),
 					Error::<Test>::GenesisBlockHashNotFound
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 0);
