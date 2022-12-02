@@ -833,36 +833,36 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         block: chain::BlockNumber,
         storage: StorageState,
-    ) -> RpcResult<()> {
+    ) -> anyhow::Result<()> {
         if !self.can_load_chain_state {
-            return Err(from_display("Can not load chain state"));
+            anyhow::bail!("Can not load chain state");
         }
         if block == 0 {
-            return Err(from_display("Can not load chain state from block 0"));
+            anyhow::bail!("Can not load chain state from block 0");
         }
         let Some(system) = &mut self.system else {
-            return Err(from_display("System is uninitialized"));
+            anyhow::bail!("System is uninitialized");
         };
         let Some(state) = &mut self.runtime_state else {
-            return Err(from_display("Runtime is uninitialized"));
+            anyhow::bail!("Runtime is uninitialized");
         };
         let chain_storage = ChainStorage::from_pairs(storage.into_iter());
         let para_id = chain_storage.para_id();
         if para_id != state.para_id {
-            return Err(from_display(format!(
+            anyhow::bail!(
                 "Loading different parachain state, loading={para_id}, init={}",
                 state.para_id
-            )));
+            );
         }
         if chain_storage.is_worker_registered(&system.identity_key.public()) {
-            return Err(from_display(format!(
+            anyhow::bail!(
                 "Failed to load state: the worker is already registered at block {block}",
-            )));
+            );
         }
         state
             .storage_synchronizer
             .assume_at_block(block)
-            .map_err(from_display)?;
+            .context("Failed to set synchronizer state")?;
         state.chain_storage = chain_storage;
         system.genesis_block = block;
         self.can_load_chain_state = false;
@@ -1520,6 +1520,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> Result<(), prpc::server::Error> {
         self.lock_phactory()
             .load_chain_state(request.block_number, request.decode_state()?)
+            .map_err(from_display)
     }
     async fn stop(&mut self, request: pb::StopOptions) -> Result<(), prpc::server::Error> {
         self.lock_phactory().stop(request.remove_checkpoints)

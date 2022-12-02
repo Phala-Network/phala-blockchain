@@ -51,6 +51,8 @@ pub enum Error {
     CannotLoadStateAfterSyncing,
 }
 
+impl std::error::Error for Error {}
+
 pub trait BlockValidator {
     fn submit_finalized_headers(
         &mut self,
