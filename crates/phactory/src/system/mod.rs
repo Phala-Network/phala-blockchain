@@ -7,7 +7,6 @@ use crate::{
     pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
-    StorageExt,
 };
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
@@ -1595,12 +1594,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &cluster_id);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-            let system_code = block
-                .storage
-                .pink_system_code()
-                .map(|it| it.1)
-                .filter(|code| !code.is_empty())
-                .ok_or(TransactionError::NoPinkSystemCode)?;
+            let system_code = block.storage.pink_system_code().1;
+            if system_code.is_empty() {
+                return Err(TransactionError::NoPinkSystemCode.into());
+            }
             info!(
                 "Worker: creating cluster {:?}, owner={:?}, code length={}",
                 cluster_id,
@@ -1721,7 +1718,7 @@ impl<P: pal::Platform> System<P> {
         &mut self,
         cluster_id: phala_mq::ContractClusterId,
         effects: ExecSideEffects,
-        chain_storage: &crate::Storage,
+        chain_storage: &crate::ChainStorage,
     ) {
         let cluster = match self.contract_clusters.get_cluster_mut(&cluster_id) {
             Some(cluster) => cluster,
@@ -1766,7 +1763,7 @@ pub fn handle_contract_command_result(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
-    chain_storage: &crate::Storage,
+    chain_storage: &crate::ChainStorage,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1808,7 +1805,7 @@ pub fn apply_pink_side_effects(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
-    chain_storage: &crate::Storage,
+    chain_storage: &crate::ChainStorage,
 ) {
     apply_instantiating_events(
         effects.instantiated,
@@ -1886,7 +1883,7 @@ pub(crate) fn apply_pink_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     spawner: &Spawner,
-    chain_storage: &crate::Storage,
+    chain_storage: &crate::ChainStorage,
 ) {
     for (origin, event) in pink_events {
         macro_rules! get_contract {
@@ -2001,13 +1998,17 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::UpgradeSystemContract { storage_payer } => {
                 ensure_system!();
-                let Some((_, system_code)) = chain_storage.pink_system_code() else {
+                let system_code = chain_storage.pink_system_code().1;
+                if system_code.is_empty() {
                     error!("No pink system code on chain");
                     continue;
                 };
                 let storage_payer = storage_payer.convert_to();
-                let hash = match cluster.upload_resource(&storage_payer, ResourceType::InkCode, system_code)
-                {
+                let hash = match cluster.upload_resource(
+                    &storage_payer,
+                    ResourceType::InkCode,
+                    system_code,
+                ) {
                     Ok(hash) => hash,
                     Err(err) => {
                         error!("Failed to upload the system code to the cluster: {err:?}");
@@ -2105,30 +2106,9 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-    use crate::storage::{Storage, StorageExt};
-    use parity_scale_codec::Decode;
+    use crate::storage::ChainStorage;
 
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
-        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
-            .get(&key)
-            .map(|v| {
-                Vec::<WorkerPublicKey>::decode(&mut &v[..])
-                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
-            })
-            .unwrap_or_default();
-
-        gatekeepers.contains(pubkey)
-    }
-
-    /// Return `None` if given pruntime hash is not allowed on-chain
-    pub fn get_pruntime_added_at(
-        chain_storage: &Storage,
-        runtime_hash: &Vec<u8>,
-    ) -> Option<chain::BlockNumber> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
-        chain_storage.get_decoded(key)
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &ChainStorage) -> bool {
+        chain_storage.gatekeepers().contains(pubkey)
     }
 }

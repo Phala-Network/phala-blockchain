@@ -17,7 +17,8 @@ pub mod parachain_info {
 		impl<T: Config> Pallet<T> {}
 
 		#[pallet::storage]
-		pub(super) type ParachainId<T: Config> = StorageValue<_, ParaId, ValueQuery>;
+		#[pallet::getter(fn parachain_id)]
+		pub type ParachainId<T: Config> = StorageValue<_, ParaId, ValueQuery>;
 
 		#[derive(Encode, Decode, TypeInfo, Default)]
 		pub struct ParaId(pub u32);

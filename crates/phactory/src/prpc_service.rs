@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
 use crate::hex;
-use crate::system::{chain_state, System};
+use crate::system::System;
 
 use super::*;
 use crate::contracts::ContractClusterId;
@@ -165,10 +165,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let state = self.runtime_state()?;
 
-        let para_id = state
-            .chain_storage
-            .para_id()
-            .ok_or_else(|| from_display("No para_id"))?;
+        let para_id = state.chain_storage.para_id();
 
         let storage_key = light_validation::utils::storage_map_prefix_twox_64_concat(
             b"Paras", b"Heads", &para_id,
@@ -232,21 +229,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let state = self.runtime_state()?;
             state
                 .storage_synchronizer
-                .feed_block(&block, &mut state.chain_storage)
+                .feed_block(&block, state.chain_storage.inner_mut())
                 .map_err(from_display)?;
             info!("State synced");
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
-            if block
-                .block_header
-                .number
-                .saturating_sub(self.last_storage_purge_at)
-                >= self.args.gc_interval
-            {
-                self.last_storage_purge_at = block.block_header.number;
-                info!("Purging database");
-                self.runtime_state()?.chain_storage.purge();
-            }
             last_block = block.block_header.number;
 
             if let Err(e) = self.maybe_take_checkpoint(last_block) {
@@ -615,8 +602,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let now_ms = state
             .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
+            .timestamp_now();
 
         let mut block = BlockInfo {
             block_number,
@@ -1141,9 +1127,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .map_err(|_| from_display("Invalid RA report from client"))?;
             let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
-            let my_runtime_timestamp =
-                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &my_mrenclave)
-                    .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
+            let my_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&my_mrenclave)
+                .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
 
             let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
             let mrenclave = match attestation {
@@ -1157,9 +1144,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     ias_fields.extend_mrenclave()
                 }
             };
-            let req_runtime_timestamp =
-                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
-                    .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            let req_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&mrenclave)
+                .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
             // ATTENTION.shelven: relax this check for easy testing and restore it for release
             if my_runtime_timestamp >= req_runtime_timestamp {
                 return Err(from_display("No handover for old pRuntime"));

@@ -23,10 +23,10 @@ use std::{path::Path, str};
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
+use phala_types::AttestationProvider;
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
-use phala_types::AttestationProvider;
 
 // use pink::InkModule;
 
@@ -38,14 +38,12 @@ use phactory_api::{
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 
-use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
     aead,
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
 use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
-use phala_pallets::pallet_mq;
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -54,7 +52,7 @@ use types::Error;
 pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::RpcService;
-pub use storage::{Storage, StorageExt};
+pub use storage::ChainStorage;
 pub use system::gk;
 pub use types::BlockInfo;
 pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
@@ -86,7 +84,7 @@ struct RuntimeState {
     storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
 
     // TODO.kevin: use a better serialization approach
-    chain_storage: Storage,
+    chain_storage: ChainStorage,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
@@ -94,17 +92,8 @@ struct RuntimeState {
 
 impl RuntimeState {
     fn purge_mq(&mut self) {
-        self.send_mq.purge(|sender| {
-            use pallet_mq::StorageMapTrait as _;
-            type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
-
-            let module_prefix = OffchainIngress::module_prefix();
-            let storage_prefix = OffchainIngress::storage_prefix();
-            let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence: u64 = self.chain_storage.get_decoded(key).unwrap_or(0);
-            debug!("purging, sequence = {}", sequence);
-            sequence
-        })
+        self.send_mq
+            .purge(|sender| self.chain_storage.mq_sequence(sender))
     }
 }
 
@@ -242,9 +231,6 @@ pub struct Phactory<Platform> {
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
     #[serde(skip)]
-    #[serde(default)]
-    last_storage_purge_at: chain::BlockNumber,
-    #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
     query_scheduler: RequestScheduler<ContractId>,
 
@@ -275,7 +261,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             signed_endpoints: None,
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
-            last_storage_purge_at: 0,
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
         }

@@ -38,6 +38,7 @@ sp-io                = { git = "https://github.com/paritytech/substrate", branch
 sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", features = ["disable_target_static_assertions"] }
 sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-state-machine     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 parity-scale-codec   = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 

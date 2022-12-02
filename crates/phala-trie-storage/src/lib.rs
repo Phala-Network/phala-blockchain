@@ -186,6 +186,10 @@ where
             })
             .collect()
     }
+
+    pub fn as_trie_backend(&self) -> &InMemoryBackend<H> {
+        &self.0
+    }
 }
 
 #[cfg(feature = "serde")]
