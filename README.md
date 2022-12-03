@@ -4,9 +4,9 @@
 
 ![Rust](https://github.com/Phala-Network/phala-blockchain/workflows/Build/badge.svg)
 
-Phala Network is a blockchain-based confidential computing cloud. This repo includes:
+Phala Network is a decentralized offchain computing protocol aiming to build the Web3 Cloud. This repo includes:
 
-- `node/`: the main blockchain built on Substrate
+- `node/`: the main development blockchain built on Substrate
 - `standalone/pherry/`: the message relayer to connect the blockchain and pRuntime
 - `standalone/pruntime/`: the contract execution kernel running inside TEE enclave
 
@@ -26,6 +26,19 @@ The **blockchain** is the central component of the system. It records commands (
 
 <details><summary>Expand</summary>
 
+- System dependencies
+  - Ubuntu (tested with 22.04)
+  ```bash
+  apt install -y build-essential pkg-config libssl-dev protobuf-compiler
+  ```
+
+  - macOS
+  ```bash
+  brew install protobuf
+  ```
+
+  - See [here](https://grpc.io/docs/protoc-installation/) for more protobuf installation options
+
 - Rust
 
   ```bash
@@ -39,26 +52,13 @@ The **blockchain** is the central component of the system. It records commands (
    sh ./scripts/init.sh
    ```
 
-- LLVM 10
+- LLVM 14
 
   ```bash
   wget https://apt.llvm.org/llvm.sh
   chmod +x llvm.sh
-  ./llvm.sh 10
+  ./llvm.sh 14
   ```
-
-- Protobuf Compiler
-  - Ubuntu
-  ```bash
-  apt install -y protobuf-compiler
-  ```
-
-  - macOS
-  ```bash
-  brew install protobuf
-  ```
-
-  - See [here](https://grpc.io/docs/protoc-installation/) for more options
 
 </details>
 
@@ -80,45 +80,7 @@ the _current_ rustc.
 
 ## Run
 
-1. Launch a dev node:
-
-    ```bash
-    ./target/release/phala-node --dev
-    ```
-
-    - Can be purged by `./target/release/phala-node purge-chain <args like --dev>`
-    - The [Polkadot.js UI](https://polkadot.js.org/apps) can connect to the node at port 9944.
-
-2. Compile & launch pRuntime (Simulation mode)
-    ```bash
-    cd standalone/pruntime
-    mkdir -p data
-    cargo run
-    ```
-
-3. Compile & launch pRuntime (Hardware mode)
-
-    Apply for Remote Attestation API keys at
-    [Intel IAS service](https://api.portal.trustedservices.intel.com/EPID-attestation). The SPID must be linkable.
-
-    Follow gramine's [document](https://gramine.readthedocs.io/en/latest/quickstart.html) to install the gramine toolchain.
-
-    After installing the toolchain, you can graminify and run the pRuntime.
-    ```bash
-    export SGX_SIGNER_KEY=path/to/your/key.pem
-    export IAS_SPID=your_spid
-    export IAS_API_KEY=your_api_key_in_hex
-    cd standalone/pruntime/gramine-build
-    make run
-    ```
-
-4. Run pherry (node and pRuntime required):
-
-    ```bash
-    ./target/release/pherry --dev --no-wait
-    ```
-
-5. Web UI (TODO: still being refactored)
+Please refer to [the run scripts](./scripts/run)
 
 ## Sub-pages
 
