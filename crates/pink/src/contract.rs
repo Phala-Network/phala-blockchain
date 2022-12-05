@@ -1,5 +1,6 @@
 use frame_support::weights::Weight;
 use pallet_contracts_primitives::StorageDeposit;
+use pallet_contracts::Determinism;
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
@@ -296,6 +297,7 @@ impl Contract {
                         storage_deposit_limit,
                         input_data,
                         false,
+                        Determinism::Deterministic,
                     )
                 },
             );

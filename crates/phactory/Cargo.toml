@@ -34,11 +34,11 @@ phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
 pink = { path = "../pink" }
 
-sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", features = ["disable_target_static_assertions"] }
-sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-state-machine     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33", features = ["disable_target_static_assertions"] }
+sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-externalities     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-state-machine     = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
 parity-scale-codec   = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
@@ -54,11 +54,11 @@ derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.16.0", default-features = false, features = ["derive-codec"] }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
