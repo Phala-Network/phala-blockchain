@@ -299,6 +299,7 @@ pub mod pallet {
 			let size_limit = match resource_type {
 				ResourceType::InkCode => T::InkCodeSizeLimit::get(),
 				ResourceType::SidevmCode => T::SidevmCodeSizeLimit::get(),
+				ResourceType::IndeterministicInkCode => T::InkCodeSizeLimit::get(),
 			} as usize;
 			ensure!(
 				resource_data.len() <= size_limit,

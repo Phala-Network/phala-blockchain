@@ -355,7 +355,7 @@ mod tests {
 
         storage.setup(gas_price, deposit_per_item, deposit_per_byte, &TREASURY);
 
-        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec(), true);
         assert!(upload_result.is_err());
         let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
         assert!(upload_result.is_err());
@@ -369,7 +369,7 @@ mod tests {
         let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
         assert_ok!(upload_result);
 
-        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec(), true);
         assert_ok!(&upload_result);
         let code_hash = upload_result.unwrap();
 
