@@ -13,7 +13,7 @@ pub mod pallet {
 	use crate::base_pool;
 	use crate::computation;
 	use crate::wrapped_balances;
-	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool};
+	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool, PoolType};
 	use crate::registry;
 	use crate::stake_pool;
 	use crate::vault;
@@ -676,7 +676,7 @@ pub mod pallet {
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// a lot of weird edge cases when dealing with pending slash.
 			let shares =
-				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
+				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount, PoolType::StakePool)?;
 			if let Some((vault_pid, vault_info)) = &mut maybe_vault {
 				if !vault_info.invest_pools.contains(&pid) {
 					vault_info.invest_pools.push_back(pid);
@@ -705,6 +705,8 @@ pub mod pallet {
 			base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
+				pool_info.basepool.pid,
+				PoolType::StakePool,
 			)?;
 			if as_vault.is_none() {
 				wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
@@ -752,6 +754,8 @@ pub mod pallet {
 			let nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
+				pool_info.basepool.pid,
+				PoolType::StakePool,
 			)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
@@ -786,10 +790,11 @@ pub mod pallet {
 				shares,
 				nft_id,
 				as_vault,
+				PoolType::StakePool,
 			)?;
 			nft_guard.save()?;
 			let _nft_id =
-				base_pool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who)?;
+				base_pool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who, pool_info.basepool.pid, PoolType::StakePool)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 
 			Ok(())
@@ -875,6 +880,8 @@ pub mod pallet {
 							collection_id,
 							base_pool::pallet::pallet_id(),
 							withdraw_info.shares,
+							pid,
+							PoolType::StakePool,
 						)
 						.expect("mint nft should always success");
 						new_pool_info
@@ -965,6 +972,8 @@ pub mod pallet {
 						pool_info.basepool.cid,
 						user_id.clone(),
 						actual_shares,
+						pid,
+						PoolType::StakePool,
 					)
 					.expect("mint shouldn't fail; qed.");
 					if !account_status

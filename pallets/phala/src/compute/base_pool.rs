@@ -4,6 +4,10 @@ use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 
 #[frame_support::pallet]
 pub mod pallet {
+	#[cfg(not(feature = "std"))]
+	use alloc::format;
+	#[cfg(feature = "std")]
+	use std::format;
 	use crate::computation;
 	use crate::wrapped_balances;
 	use crate::pool_proxy::*;
@@ -137,6 +141,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A Nft is created to contain pool shares
 		NftCreated {
+			pid: u64,
 			cid: CollectionId,
 			nft_id: NftId,
 			owner: T::AccountId,
@@ -366,6 +371,8 @@ pub mod pallet {
 				let nft_id = Pallet::<T>::merge_or_init_nft_for_staker(
 					self.cid,
 					vault.basepool.pool_account_id.clone(),
+					self.pid,
+					PoolType::StakePool,
 				)
 				.expect("merge nft shoule always success: qed.");
 
@@ -575,6 +582,7 @@ pub mod pallet {
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			account_id: T::AccountId,
 			amount: BalanceOf<T>,
+			pool_type: PoolType,
 		) -> Result<BalanceOf<T>, DispatchError> {
 			ensure!(
 				// There's no share, meaning the pool is empty;
@@ -590,11 +598,11 @@ pub mod pallet {
 					Error::<T>::NotInContributeWhitelist
 				);
 			}
-			Self::merge_or_init_nft_for_staker(pool.cid, account_id.clone())?;
+			Self::merge_or_init_nft_for_staker(pool.cid, account_id.clone(), pool.pid, pool_type.clone())?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
-			let shares = Self::add_stake_to_new_nft(pool, account_id, amount);
+			let shares = Self::add_stake_to_new_nft(pool, account_id, amount, pool_type);
 			Ok(shares)
 		}
 
@@ -610,6 +618,7 @@ pub mod pallet {
 			nft: &mut NftAttr<BalanceOf<T>>,
 			account_id: T::AccountId,
 			shares: BalanceOf<T>,
+			pool_type: PoolType,
 		) -> DispatchResult {
 			if pool.share_price().is_none() {
 				nft.shares = nft
@@ -637,7 +646,7 @@ pub mod pallet {
 					.expect("burn nft attr should always success; qed.");
 			}
 
-			let split_nft_id = Self::mint_nft(pool.cid, pallet_id(), shares)
+			let split_nft_id = Self::mint_nft(pool.cid, pallet_id(), shares, pool.pid, pool_type)
 				.expect("mint nft should always success");
 			nft.shares = nft
 				.shares
@@ -714,12 +723,13 @@ pub mod pallet {
 			pool: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			account_id: T::AccountId,
 			amount: BalanceOf<T>,
+			pool_type: PoolType,
 		) -> BalanceOf<T> {
 			let shares = match pool.share_price() {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
 				_ => amount, // adding new stake (share price = 1)
 			};
-			Self::mint_nft(pool.cid, account_id.clone(), shares)
+			Self::mint_nft(pool.cid, account_id.clone(), shares, pool.pid, pool_type)
 				.expect("mint should always success; qed.");
 			pool.total_shares += shares;
 			pool.total_value += amount;
@@ -779,6 +789,8 @@ pub mod pallet {
 			cid: CollectionId,
 			contributer: T::AccountId,
 			shares: BalanceOf<T>,
+			pid: u64,
+			pool_type: PoolType,
 		) -> Result<NftId, DispatchError> {
 			pallet_rmrk_core::Collections::<T>::get(cid)
 				.ok_or(pallet_rmrk_core::Error::<T>::CollectionUnknown)?;
@@ -799,8 +811,10 @@ pub mod pallet {
 			let attr = NftAttr { shares };
 			//TODO(mingxuan): an external lock is needed to protect nft_attr from dirty write.
 			Self::set_nft_attr(cid, nft_id, &attr)?;
+			Self::set_nft_desc_attr(cid, pid, nft_id, pool_type);
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Self::deposit_event(Event::<T>::NftCreated {
+				pid,
 				cid,
 				nft_id,
 				owner: contributer,
@@ -821,6 +835,8 @@ pub mod pallet {
 		pub fn merge_or_init_nft_for_staker(
 			cid: CollectionId,
 			staker: T::AccountId,
+			pid: u64,
+			pool_type: PoolType,
 		) -> Result<NftId, DispatchError> {
 			let mut total_shares: BalanceOf<T> = Zero::zero();
 			pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).for_each(|nftid| {
@@ -831,7 +847,7 @@ pub mod pallet {
 				total_shares += property.shares;
 				Self::burn_nft(&staker, cid, nftid).expect("burn nft should not fail: qed.");
 			});
-			Self::mint_nft(cid, staker, total_shares)
+			Self::mint_nft(cid, staker, total_shares, pid, pool_type)
 		}
 
 		/// Gets nft attr, can only be called in the pallet
@@ -858,6 +874,84 @@ pub mod pallet {
 				Ok(current_id)
 			})
 		}
+
+		fn set_nft_desc_attr(
+			cid: CollectionId,
+			pid: u64,
+			nft_id: NftId,
+			pool_type: PoolType,
+		) -> DispatchResult {
+			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "name"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let pool_type_str = match pool_type {
+				PoolType::Vault => "vault",
+				PoolType::StakePool => "stakepool",
+			};
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+			format!("Khala - {} Delegation NFT - #{} - {}", &pool_type_str, pid, nft_id)
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("create a bvec from string should never fail; qed.");			
+			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
+
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "description"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let pool_type_str = match pool_type {
+				PoolType::Vault => "vault",
+				PoolType::StakePool => "stakepool",
+			};
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+			format!("Khala - {} - #{}", &pool_type_str, pid)
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("create a bvec from string should never fail; qed.");			
+			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
+
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "image"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let image_str = match pool_type {
+				PoolType::Vault => "ar://2K3Pq9XKTw4LjTyyIbsrC53bkOB7NiDxdIcH0aILM-Y",
+				PoolType::StakePool => "ar://C9yMARqdiPXu8IixnwU6J_jMEkN2lTPG4kNouSQ57uI",
+			};
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+			image_str
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("create a bvec from string should never fail; qed.");			
+			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
+
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "createtime"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
+			format!("{}", now)
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("create a bvec from string should never fail; qed.");			
+			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;			
+			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
+			Ok(())
+		}	
 
 		/// Sets nft attr, can only be called in the pallet
 		#[frame_support::transactional]
@@ -895,8 +989,9 @@ pub mod pallet {
 			shares: BalanceOf<T>,
 			nft_id: NftId,
 			as_vault: Option<u64>,
+			pool_type: PoolType,
 		) -> DispatchResult {
-			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares)?;
+			Self::push_withdraw_in_queue(pool_info, nft, userid.clone(), shares, pool_type)?;
 			Self::deposit_event(Event::<T>::WithdrawalQueued {
 				pid: pool_info.pid,
 				user: userid,

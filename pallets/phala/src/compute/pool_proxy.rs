@@ -92,6 +92,12 @@ pub enum PoolProxy<AccountId, Balance> {
 	Vault(Vault<AccountId, Balance>),
 }
 
+#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
+pub enum PoolType {
+	StakePool,
+	Vault,
+}
+
 /// Returns a stakepool object by pid directly
 ///
 /// Returns error when the mapping pool type of the pid mismatch a stake pool

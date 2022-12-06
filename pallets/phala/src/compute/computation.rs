@@ -1392,6 +1392,7 @@ pub mod pallet {
 
 				set_block_1();
 				OnlineWorkers::<Test>::put(20);
+				HeartbeatPaused::<Test>::put(false);
 				Pallet::<Test>::heartbeat_challenge();
 				// Extract messages
 				let msgs = take_messages();

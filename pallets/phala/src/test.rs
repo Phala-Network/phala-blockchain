@@ -247,11 +247,15 @@ fn test_mint_nft() {
 			pool_info.basepool.cid,
 			1,
 			1000 * DOLLARS,
+			pool_info.basepool.pid,
+			PoolType::StakePool,
 		));
 		assert_ok!(PhalaBasePool::mint_nft(
 			pool_info.basepool.cid,
 			2,
 			500 * DOLLARS,
+			pool_info.basepool.pid,
+			PoolType::StakePool,			
 		));
 		{
 			assert_ok!(PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0));
@@ -284,17 +288,23 @@ fn test_merge_or_init_nft() {
 			pool_info.basepool.cid,
 			1,
 			1000 * DOLLARS,
+			pool_info.basepool.pid,
+			PoolType::StakePool,
 		));
 		assert_ok!(PhalaBasePool::mint_nft(
 			pool_info.basepool.cid,
 			1,
 			2000 * DOLLARS,
+			pool_info.basepool.pid,
+			PoolType::StakePool,
 		));
 		let nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
 		assert_eq!(nftid_arr.len(), 2);
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 			pool_info.basepool.cid,
-			1
+			1,
+			pool_info.basepool.pid,
+			PoolType::StakePool,
 		));
 		let nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
 		assert_eq!(nftid_arr.len(), 1);
@@ -307,7 +317,9 @@ fn test_merge_or_init_nft() {
 		}
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 			pool_info.basepool.cid,
-			2
+			2,
+			pool_info.basepool.pid,
+			PoolType::StakePool,
 		));
 		let mut nftid_arr: Vec<NftId> =
 			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
@@ -337,6 +349,8 @@ fn test_set_nft_attr() {
 			pool_info.basepool.cid,
 			1,
 			1000 * DOLLARS,
+			pool_info.basepool.pid,
+			PoolType::StakePool,
 		));
 		{
 			let mut nft_attr_guard =
