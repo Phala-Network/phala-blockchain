@@ -110,9 +110,10 @@ where
         .into_par_iter()
         .map(|(id, mut header)| -> Result<_, Error> {
             let api = client.runtime_api();
+            let hash = client.expect_block_hash_from_id(&id).expect("Should get the block hash");
             if (*header.number()).into() == 0u64 {
                 let state = backend
-                    .state_at(&client.expect_block_hash_from_id(&id).expect("Should get the block hash"))
+                    .state_at(hash)
                     .map_err(|e| Error::invalid_block(id, e))?;
                 return Ok(StorageChanges {
                     main_storage_changes: state
@@ -125,7 +126,7 @@ where
             }
 
             let extrinsics = client
-                .block_body(&id)
+                .block_body(hash)
                 .map_err(|e| Error::invalid_block(id, e))?
                 .ok_or_else(|| Error::invalid_block(id, "block body not found"))?;
             let parent_hash = *header.parent_hash();
@@ -140,7 +141,7 @@ where
                 .map_err(|e| Error::invalid_block(id, e))?;
 
             let state = backend
-                .state_at(&client.expect_block_hash_from_id(&id).expect("Should get the block hash"))
+                .state_at(hash)
                 .map_err(|e| Error::invalid_block(parent_id, e))?;
 
             let storage_changes = api

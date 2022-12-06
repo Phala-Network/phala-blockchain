@@ -6,6 +6,7 @@ use crate::{
 };
 use frame_support::traits::Currency;
 use frame_system::RawOrigin;
+use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
@@ -167,7 +168,7 @@ where
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
         self.execute_mut(false, None, || {
-            crate::runtime::Contracts::bare_upload_code(account.clone(), code, None)
+            crate::runtime::Contracts::bare_upload_code(account.clone(), code, None, Determinism::Deterministic)
         })
         .0
         .map(|v| v.code_hash)
