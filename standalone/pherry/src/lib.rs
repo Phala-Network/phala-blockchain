@@ -217,7 +217,7 @@ pub struct Args {
     #[arg(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
     attestation_provider: RaOption,
 
-    /// Try to load chain state from the greatest block that the worker haven't registered at.
+    /// Try to load chain state from the latest block that the worker haven't registered at.
     #[arg(long)]
     fast_sync: bool,
 
