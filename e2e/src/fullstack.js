@@ -849,7 +849,7 @@ function testPruntimeManagement(workDir) {
             await cluster.kill();
         });
 
-        it("can retirement old pruntimes", async () => {
+        it("can retire old pruntimes", async () => {
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.setMinimumPruntimeVersion(
