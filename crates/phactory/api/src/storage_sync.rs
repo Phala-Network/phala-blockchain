@@ -48,7 +48,7 @@ pub enum Error {
     },
     /// Solo/Para mode mismatch
     ChainModeMismatch,
-    CanNotLoadStateAfterSynced,
+    CannotLoadStateAfterSyncing,
 }
 
 pub trait BlockValidator {
@@ -134,7 +134,7 @@ where
         mut headers: Vec<HeaderToSync>,
         authority_set_change: Option<AuthoritySetChange>,
         state_roots: &mut VecDeque<Hash>,
-        min_block: chain::BlockNumber,
+        skip_blocks_below: chain::BlockNumber,
     ) -> Result<chain::BlockNumber> {
         headers.retain(|header| header.header.number >= self.header_number_next);
 
@@ -188,7 +188,7 @@ where
 
         // Save the block hashes for future dispatch
         for header in headers.iter() {
-            if header.header.number < min_block {
+            if header.header.number < skip_blocks_below {
                 continue;
             }
             state_roots.push_back(header.header.state_root);
@@ -293,12 +293,12 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
         headers: Vec<HeaderToSync>,
         authority_set_change: Option<AuthoritySetChange>,
     ) -> Result<chain::BlockNumber> {
-        let min_block = self.sync_state.block_number_next.saturating_sub(1);
+        let skip_blocks_below = self.sync_state.block_number_next.checked_sub(1).unwrap();
         self.sync_state.sync_header(
             headers,
             authority_set_change,
             &mut self.state_roots,
-            min_block,
+            skip_blocks_below,
         )
     }
 
@@ -318,7 +318,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
         if self.sync_state.block_number_next > 1 || self.sync_state.header_number_next > 0 {
-            return Err(Error::CanNotLoadStateAfterSynced);
+            return Err(Error::CannotLoadStateAfterSyncing);
         }
 
         self.sync_state.block_number_next = block_number + 1;
@@ -440,7 +440,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
         if self.sync_state.block_number_next > 1 || self.para_header_number_next > 1 {
-            return Err(Error::CanNotLoadStateAfterSynced);
+            return Err(Error::CannotLoadStateAfterSyncing);
         }
         self.sync_state.block_number_next = block_number + 1;
         self.para_header_number_next = block_number;

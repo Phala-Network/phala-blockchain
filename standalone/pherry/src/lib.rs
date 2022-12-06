@@ -518,7 +518,13 @@ async fn batch_sync_block(
             set
         } else {
             // Construct the authority set from the last block we have synced (the genesis)
-            let number = block_buf.first().unwrap().block.header.number.saturating_sub(1);
+            let number = block_buf
+                .first()
+                .unwrap()
+                .block
+                .header
+                .number
+                .saturating_sub(1);
             let hash = api.rpc().block_hash(Some(number.into())).await?;
             let set_id = api.current_set_id(hash).await?;
             let set = (number, set_id);
@@ -952,6 +958,30 @@ async fn try_register_worker(
     }
 }
 
+async fn try_load_chain_state(pr: &PrClient, para_api: &ParachainApi, args: &Args) -> Result<()> {
+    let info = pr.get_info(()).await?;
+    info!("info: {info:#?}");
+    if !info.can_load_chain_state {
+        return Ok(());
+    }
+    let Some(pubkey) = &info.public_key else {
+        return Err(anyhow!("No public key found for worker"));
+    };
+    let Ok(pubkey) = hex::decode(pubkey) else {
+        return Err(anyhow!("pRuntime returned an invalid pubkey"));
+    };
+    let (block_number, state) = chain_client::search_suitable_genesis_for_worker(
+        &para_api,
+        &pubkey,
+        args.prefer_genesis_at_block,
+    )
+    .await
+    .context("Failed to search suitable genesis state for worker")?;
+    pr.load_chain_state(prpc::ChainState::new(block_number, state))
+        .await?;
+    Ok(())
+}
+
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Result<()> {
@@ -1076,28 +1106,7 @@ async fn bridge(
         }
 
         if args.fast_sync {
-            'load_state: {
-                let info = pr.get_info(()).await?;
-                info!("info: {info:#?}");
-                if !info.can_load_chain_state {
-                    break 'load_state;
-                }
-                let Some(pubkey) = &info.public_key else {
-                    break 'load_state;
-                };
-                let Ok(pubkey) = hex::decode(pubkey) else {
-                    return Err(anyhow!("pRuntime returned an invalid pubkey"));
-                };
-                let (block_number, state) = chain_client::search_suitable_genesis_for_worker(
-                    &para_api,
-                    &pubkey,
-                    args.prefer_genesis_at_block,
-                )
-                .await
-                .context("Failed to search suitable genesis state for worker")?;
-                pr.load_chain_state(prpc::ChainState::new(block_number, state))
-                    .await?;
-            }
+            try_load_chain_state(&pr, &para_api, &args).await?;
         }
     }
 

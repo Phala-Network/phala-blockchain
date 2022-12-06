@@ -5,6 +5,7 @@ use crate::{
 use anyhow::{Context, Result};
 use codec::Decode;
 use codec::Encode;
+use futures::Future;
 use phactory_api::blocks::StorageProof;
 use phala_node_rpc_ext::MakeInto as _;
 use phala_trie_storage::ser::StorageChanges;
@@ -126,7 +127,7 @@ pub async fn search_suitable_genesis_for_worker(
             node_state.current_block as _
         }
     };
-    let block = binary_search_unreg_block(api, pubkey, 0, ceil, ceil)
+    let block = binary_search_unreg_block(api, pubkey, ceil)
         .await
         .context("Failed to search state for worker")?;
     let block_hash = api
@@ -144,23 +145,32 @@ pub async fn search_suitable_genesis_for_worker(
 async fn binary_search_unreg_block(
     api: &ParachainApi,
     worker: &[u8],
-    mut floor: u32,
-    mut cur: u32,
-    mut ceil: u32,
+    latest_block: u32,
 ) -> Result<u32> {
-    loop {
-        if ceil - floor < 2 {
-            log::info!("Choosing genesis state at {floor} ");
-            return Ok(floor);
-        }
-        let registered = api.worker_registered_at(cur, worker).await?;
-        log::info!("Block [{cur:>8}], worker registered={registered}");
-        if registered {
-            ceil = cur;
-            cur -= (cur - floor) / 2;
+    let block = binary_search(0, latest_block as i64, |mid| async move {
+        let registered = api.worker_registered_at(mid as u32, worker).await?;
+        log::info!("Block [{mid:>8}], worker registered={registered}");
+        Ok(registered)
+    })
+    .await?
+    .max(0);
+    log::info!("Choosing genesis state at {block} ");
+    Ok(block as u32)
+}
+
+async fn binary_search<F, C>(mut l: i64, mut r: i64, condition: F) -> Result<i64>
+where
+    F: Fn(i64) -> C,
+    C: Future<Output = Result<bool>>,
+{
+    let mut mid = r;
+    while l <= r {
+        if condition(mid).await? {
+            r = mid - 1;
         } else {
-            floor = cur;
-            cur += (ceil - cur) / 2;
+            l = mid + 1;
         }
+        mid = (l + r) / 2;
     }
+    Ok(r)
 }
