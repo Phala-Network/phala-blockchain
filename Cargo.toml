@@ -20,6 +20,9 @@ overflow-checks = true
 
 [workspace]
 resolver = "2"
+metadata.dylint.libraries = [
+    { git = "https://github.com/Phala-Network/dylint-rules.git", pattern = "rules/*" },
+]
 
 exclude = [
 	"subxt",

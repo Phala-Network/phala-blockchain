@@ -15,3 +15,6 @@ test:
 clippy:
 	cargo clippy --tests
 	make clippy -C standalone/pruntime
+
+lint:
+	cargo dylint --all --workspace
