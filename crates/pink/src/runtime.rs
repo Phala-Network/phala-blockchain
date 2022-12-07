@@ -120,6 +120,7 @@ parameter_types! {
         // Each concurrent query would create a VM instance to serve it. We couldn't
         // allocate too much here.
         schedule.limits.memory_pages = 4 * MB;
+        schedule.instruction_weights.fallback = 8000;
         schedule
     };
 }
