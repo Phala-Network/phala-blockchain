@@ -849,7 +849,7 @@ pub mod pallet {
 				|key, mut value| {
 					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
 
-					match old_worker.clone() {
+					match old_worker {
 						Ok(w) => {
 							// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
 							// log::info!(
