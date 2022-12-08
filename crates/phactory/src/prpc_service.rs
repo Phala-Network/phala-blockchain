@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
 use crate::hex;
-use crate::system::System;
+use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
 
 use super::*;
 use crate::contracts::ContractClusterId;
@@ -39,8 +39,6 @@ fn from_display(e: impl core::fmt::Display) -> RpcError {
 fn from_debug(e: impl core::fmt::Debug) -> RpcError {
     RpcError::AppError(format!("{e:?}"))
 }
-
-pub const VERSION: u32 = 1;
 
 fn now() -> u64 {
     use std::time::SystemTime;
@@ -393,7 +391,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // Build WorkerRegistrationInfoV2
         let runtime_info = WorkerRegistrationInfoV2::<chain::AccountId> {
-            version: VERSION,
+            version: Self::compat_app_version(),
             machine_id: self.machine_id.clone(),
             pubkey: ecdsa_pk,
             ecdh_pubkey,
@@ -401,6 +399,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             features: vec![cpu_core_num, cpu_feature_level],
             operator,
             para_id,
+            max_consensus_versioin: MAX_SUPPORTED_CONSENSUS_VERSION,
         };
 
         let resp = pb::InitRuntimeResponse::new(
@@ -414,21 +413,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.runtime_state = Some(runtime_state);
         self.system = Some(system);
         Ok(resp)
-    }
-
-    fn update_runtime_info(
-        &mut self,
-        f: impl FnOnce(&mut WorkerRegistrationInfoV2<chain::AccountId>),
-    ) {
-        let Some(cached_resp) = self.runtime_info.as_mut() else {
-            return;
-        };
-        let mut runtime_info = cached_resp
-            .decode_runtime_info()
-            .expect("BUG: Decode runtime_info failed");
-        f(&mut runtime_info);
-        cached_resp.encoded_runtime_info = runtime_info.encode();
-        cached_resp.attestation = None;
     }
 
     fn get_runtime_info(
@@ -626,9 +610,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         state.recv_mq.reset_local_index();
 
-        let now_ms = state
-            .chain_storage
-            .timestamp_now();
+        let now_ms = state.chain_storage.timestamp_now();
 
         let mut block = BlockInfo {
             block_number,

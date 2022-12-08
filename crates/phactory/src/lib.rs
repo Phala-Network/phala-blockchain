@@ -401,6 +401,7 @@ impl<P: pal::Platform> Phactory<P> {
     pub fn on_restored(&mut self) -> Result<()> {
         self.check_requirements();
         self.reconfigure_network();
+        self.update_runtime_info(|_| {});
         if let Some(system) = &mut self.system {
             system.on_restored()?;
         }
@@ -433,6 +434,28 @@ impl<P: pal::Platform> Phactory<P> {
             );
             std::process::abort();
         }
+    }
+
+    fn update_runtime_info(
+        &mut self,
+        f: impl FnOnce(&mut phala_types::WorkerRegistrationInfoV2<chain::AccountId>),
+    ) {
+        let Some(cached_resp) = self.runtime_info.as_mut() else {
+            return;
+        };
+        let mut runtime_info = cached_resp
+            .decode_runtime_info()
+            .expect("BUG: Decode runtime_info failed");
+        runtime_info.version = Self::compat_app_version();
+        runtime_info.max_consensus_versioin = system::MAX_SUPPORTED_CONSENSUS_VERSION;
+        f(&mut runtime_info);
+        cached_resp.encoded_runtime_info = runtime_info.encode();
+        cached_resp.attestation = None;
+    }
+
+    fn compat_app_version() -> u32 {
+        let version = P::app_version();
+        (version.major << 16) + (version.minor << 8) + version.patch
     }
 }
 

@@ -63,6 +63,12 @@ pub mod pallet {
 		},
 	}
 
+	#[derive(Encode, Decode, TypeInfo, Clone, Debug, Default)]
+	pub struct KnownConsensusVersion {
+		version: u32,
+		count: u32,
+	}
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -186,6 +192,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type PRuntimeConsensusVersion<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	/// The max consensus version that pruntime has report via register_worker
+	#[pallet::storage]
+	pub type MaxKnownPRuntimeConsensusVersion<T: Config> =
+		StorageValue<_, KnownConsensusVersion, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -267,6 +278,7 @@ pub mod pallet {
 		// PRouter related
 		InvalidEndpointSigningTime,
 		ParachainIdMismatch,
+		InvalidConsensusVersion,
 	}
 
 	#[pallet::call]
@@ -579,6 +591,20 @@ pub mod pallet {
 					Error::<T>::GenesisBlockHashRejected
 				);
 			}
+
+			MaxKnownPRuntimeConsensusVersion::<T>::mutate(|info| {
+				use core::cmp::Ordering::*;
+				match info.version.cmp(&pruntime_info.max_consensus_versioin) {
+					Less => {
+						info.version = pruntime_info.max_consensus_versioin;
+						info.count = 1;
+					}
+					Equal => {
+						info.count += 1;
+					}
+					Greater => {}
+				}
+			});
 
 			// Update the registry
 			let pubkey = pruntime_info.pubkey;
@@ -1313,6 +1339,7 @@ pub mod pallet {
 							para_id: 0,
 							features: vec![4, 1],
 							operator: Some(1),
+							max_consensus_versioin: 0,
 						},
 						None
 					),
@@ -1332,6 +1359,7 @@ pub mod pallet {
 							para_id: 1,
 							features: vec![4, 1],
 							operator: Some(1),
+							max_consensus_versioin: 0,
 						},
 						None
 					),
@@ -1350,6 +1378,7 @@ pub mod pallet {
 						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(1),
+						max_consensus_versioin: 0,
 					},
 					None,
 				));
@@ -1368,6 +1397,7 @@ pub mod pallet {
 						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(2),
+						max_consensus_versioin: 0,
 					},
 					None,
 				));
