@@ -39,6 +39,7 @@ phactory-pal = { path = "../../crates/phactory/pal" }
 phala-allocator = { path = "../../crates/phala-allocator" }
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
 phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
+sgx-api-lite = { path = "../../crates/sgx-api-lite" }
 
 [patch.crates-io]
 rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocket" }

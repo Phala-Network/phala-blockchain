@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use parity_scale_codec::Encode;
+use subxt::dynamic::Value;
 use subxt::rpc::NumberOrHex;
 use subxt::{ext::scale_value::At, metadata::EncodeStaticType};
 
@@ -76,5 +77,26 @@ impl ChainApi {
             .as_u128()
             .ok_or_else(|| anyhow!("Invalid paraid"))?;
         Ok(id as _)
+    }
+
+    pub async fn worker_registered_at(
+        &self,
+        block_number: BlockNumber,
+        worker: &[u8],
+    ) -> Result<bool> {
+        let hash = self
+            .rpc()
+            .block_hash(Some(block_number.into()))
+            .await?
+            .ok_or_else(|| anyhow!("Block number not found"))?;
+        let worker = Value::from_bytes(worker);
+        let address = subxt::dynamic::storage("PhalaRegistry", "Workers", vec![worker]);
+        let registered = self
+            .storage()
+            .fetch(&address, Some(hash))
+            .await
+            .context("Failed to get worker info")?
+            .is_some();
+        Ok(registered)
     }
 }

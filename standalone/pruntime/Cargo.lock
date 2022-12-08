@@ -5167,6 +5167,7 @@ dependencies = [
  "rocket_cors",
  "serde",
  "serde_json",
+ "sgx-api-lite",
  "urlencoding",
  "version",
 ]

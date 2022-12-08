@@ -23,18 +23,20 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
-			GatekeeperLaunch, MessageOrigin, PRuntimeManagementEvent, SignedMessage, SystemEvent,
-			WorkerEvent,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		wrap_content_to_sign, ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey,
-		SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity,
-		WorkerPublicKey, WorkerRegistrationInfo, AttestationProvider,
+		wrap_content_to_sign, AttestationProvider, ClusterPublicKey, ContractPublicKey,
+		EcdhPublicKey, MasterPublicKey, SignedContentType, VersionedWorkerEndpoints,
+		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo,
+		WorkerRegistrationInfoV2,
 	};
 
 	pub use phala_types::AttestationReport;
 	// Re-export
 	// TODO: Legacy
-	pub use crate::attestation_legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
+	pub use crate::attestation_legacy::{
+		Attestation, AttestationValidator, IasFields, IasValidator,
+	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
@@ -59,6 +61,12 @@ pub mod pallet {
 			rotation_id: u64,
 			master_pubkey: MasterPublicKey,
 		},
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Clone, Debug, Default)]
+	pub struct KnownConsensusVersion {
+		version: u32,
+		count: u32,
 	}
 
 	#[pallet::config]
@@ -87,6 +95,9 @@ pub mod pallet {
 		/// SHOULD NOT SET TO FALSE ON PRODUCTION!!!
 		#[pallet::constant]
 		type VerifyRelaychainGenesisBlockHash: Get<bool>;
+
+		/// Callback to get parachain id
+		type ParachainId: Get<u32>;
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -172,6 +183,20 @@ pub mod pallet {
 	#[pallet::getter(fn temp_workers_iter_key)]
 	pub type TempWorkersIterKey<T: Config> = StorageValue<_, Option<Vec<u8>>, ValueQuery>;
 
+	/// PRuntimes whoes version less than MinimumPRuntimeVersion would be forced to quit.
+	#[pallet::storage]
+	pub type MinimumPRuntimeVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
+
+	/// The consensus version used by pruntime. PRuntimes would switch some code path according
+	/// the current consensus version.
+	#[pallet::storage]
+	pub type PRuntimeConsensusVersion<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	/// The max consensus version that pruntime has report via register_worker
+	#[pallet::storage]
+	pub type MaxKnownPRuntimeConsensusVersion<T: Config> =
+		StorageValue<_, KnownConsensusVersion, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -204,7 +229,8 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 			init_score: u32,
 		},
-		PRuntimeManagement(PRuntimeManagementEvent),
+		MinimumPRuntimeVersionChangedTo(u32, u32, u32),
+		PRuntimeConsensusVersionChangedTo(u32),
 	}
 
 	#[pallet::error]
@@ -251,6 +277,8 @@ pub mod pallet {
 		InvalidRotatedMasterPubkey,
 		// PRouter related
 		InvalidEndpointSigningTime,
+		ParachainIdMismatch,
+		InvalidConsensusVersion,
 	}
 
 	#[pallet::call]
@@ -451,7 +479,7 @@ pub mod pallet {
 				T::VerifyPRuntime::get(),
 				PRuntimeAllowList::<T>::get(),
 			)
-				.map_err(Into::<Error<T>>::into)?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
@@ -534,7 +562,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
-			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
+			pruntime_info: WorkerRegistrationInfoV2<T::AccountId>,
 			attestation: Option<AttestationReport>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -551,6 +579,10 @@ pub mod pallet {
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
+			ensure!(
+				pruntime_info.para_id == T::ParachainId::get(),
+				Error::<T>::ParachainIdMismatch
+			);
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
 				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
@@ -559,6 +591,20 @@ pub mod pallet {
 					Error::<T>::GenesisBlockHashRejected
 				);
 			}
+
+			MaxKnownPRuntimeConsensusVersion::<T>::mutate(|info| {
+				use core::cmp::Ordering::*;
+				match info.version.cmp(&pruntime_info.max_consensus_versioin) {
+					Less => {
+						info.version = pruntime_info.max_consensus_versioin;
+						info.count = 1;
+					}
+					Equal => {
+						info.count += 1;
+					}
+					Greater => {}
+				}
+			});
 
 			// Update the registry
 			let pubkey = pruntime_info.pubkey;
@@ -754,18 +800,21 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Retire running pruntimes with given condition.
+		/// Set minimum pRuntime version. Versions less than MinimumPRuntimeVersion would be forced to quit.
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
-		pub fn retire_pruntime(
+		pub fn set_minimum_pruntime_version(
 			origin: OriginFor<T>,
-			condition: messaging::RetireCondition,
+			major: u32,
+			minor: u32,
+			patch: u32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			let event = PRuntimeManagementEvent::RetirePRuntime(condition);
-			Self::push_message(event.clone());
-			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			MinimumPRuntimeVersion::<T>::put((major, minor, patch));
+			Self::deposit_event(Event::<T>::MinimumPRuntimeVersionChangedTo(
+				major, minor, patch,
+			));
 			Ok(())
 		}
 
@@ -779,9 +828,8 @@ pub mod pallet {
 			version: u32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			let event = PRuntimeManagementEvent::SetConsensusVersion(version);
-			Self::push_message(event.clone());
-			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			PRuntimeConsensusVersion::<T>::put(version);
+			Self::deposit_event(Event::<T>::PRuntimeConsensusVersionChangedTo(version));
 			Ok(())
 		}
 
@@ -801,7 +849,7 @@ pub mod pallet {
 				|key, mut value| {
 					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
 
-					match old_worker.clone() {
+					match old_worker {
 						Ok(w) => {
 							// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
 							// log::info!(
@@ -1283,31 +1331,55 @@ pub mod pallet {
 				assert_noop!(
 					PhalaRegistry::register_worker_v2(
 						Origin::signed(1),
-						WorkerRegistrationInfo::<u64> {
+						WorkerRegistrationInfoV2::<u64> {
 							version: 1,
 							machine_id: Default::default(),
 							pubkey: worker_pubkey(1),
 							ecdh_pubkey: ecdh_pubkey(1),
 							genesis_block_hash: Default::default(),
+							para_id: 0,
 							features: vec![4, 1],
 							operator: Some(1),
+							max_consensus_versioin: 0,
 						},
 						None
 					),
 					Error::<Test>::GenesisBlockHashRejected
 				);
 
+				// New registration with wrong para_id
+				assert_noop!(
+					PhalaRegistry::register_worker_v2(
+						Origin::signed(1),
+						WorkerRegistrationInfoV2::<u64> {
+							version: 1,
+							machine_id: Default::default(),
+							pubkey: worker_pubkey(1),
+							ecdh_pubkey: ecdh_pubkey(1),
+							genesis_block_hash: H256::repeat_byte(1),
+							para_id: 1,
+							features: vec![4, 1],
+							operator: Some(1),
+							max_consensus_versioin: 0,
+						},
+						None
+					),
+					Error::<Test>::ParachainIdMismatch
+				);
+
 				// New registration
 				assert_ok!(PhalaRegistry::register_worker_v2(
 					Origin::signed(1),
-					WorkerRegistrationInfo::<u64> {
+					WorkerRegistrationInfoV2::<u64> {
 						version: 1,
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
 						genesis_block_hash: H256::repeat_byte(1),
+						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(1),
+						max_consensus_versioin: 0,
 					},
 					None,
 				));
@@ -1317,14 +1389,16 @@ pub mod pallet {
 				elapse_seconds(100);
 				assert_ok!(PhalaRegistry::register_worker_v2(
 					Origin::signed(1),
-					WorkerRegistrationInfo::<u64> {
+					WorkerRegistrationInfoV2::<u64> {
 						version: 1,
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
 						genesis_block_hash: H256::repeat_byte(1),
+						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(2),
+						max_consensus_versioin: 0,
 					},
 					None,
 				));
@@ -1373,10 +1447,7 @@ pub mod pallet {
 					sample
 				));
 				assert_noop!(
-					PhalaRegistry::add_relaychain_genesis_block_hash(
-						Origin::root(),
-						sample
-					),
+					PhalaRegistry::add_relaychain_genesis_block_hash(Origin::root(), sample),
 					Error::<Test>::GenesisBlockHashAlreadyExists
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 1);
@@ -1385,10 +1456,7 @@ pub mod pallet {
 					sample
 				));
 				assert_noop!(
-					PhalaRegistry::remove_relaychain_genesis_block_hash(
-						Origin::root(),
-						sample
-					),
+					PhalaRegistry::remove_relaychain_genesis_block_hash(Origin::root(), sample),
 					Error::<Test>::GenesisBlockHashNotFound
 				);
 				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 0);

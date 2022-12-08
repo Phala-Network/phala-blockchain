@@ -141,7 +141,7 @@ fn do_validate(
     let to = headers.last().unwrap().header.number;
 
     let mut state_roots = VecDeque::new();
-    let result = client.sync_header(headers, auth_change, &mut state_roots);
+    let result = client.sync_header(headers, auth_change, &mut state_roots, 0);
     if let Err(err) = result {
         error!("Failed to sync header from={from:?} to={to:?}: {err:?}");
         std::process::exit(1);

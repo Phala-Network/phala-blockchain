@@ -941,6 +941,72 @@ $root.pruntime_rpc = (function() {
          * @variation 2
          */
 
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#loadChainState}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef LoadChainStateCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls LoadChainState.
+         * @function loadChainState
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IChainState} request ChainState message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.LoadChainStateCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.loadChainState = function loadChainState(request, callback) {
+            return this.rpcCall(loadChainState, $root.pruntime_rpc.ChainState, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "LoadChainState" });
+
+        /**
+         * Calls LoadChainState.
+         * @function loadChainState
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IChainState} request ChainState message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#stop}.
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @typedef StopCallback
+         * @type {function}
+         * @param {Error|null} error Error, if any
+         * @param {google.protobuf.Empty} [response] Empty
+         */
+
+        /**
+         * Calls Stop.
+         * @function stop
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IStopOptions} request StopOptions message or plain object
+         * @param {pruntime_rpc.PhactoryAPI.StopCallback} callback Node-style callback called with the error, if any, and Empty
+         * @returns {undefined}
+         * @variation 1
+         */
+        Object.defineProperty(PhactoryAPI.prototype.stop = function stop(request, callback) {
+            return this.rpcCall(stop, $root.pruntime_rpc.StopOptions, $root.google.protobuf.Empty, request, callback);
+        }, "name", { value: "Stop" });
+
+        /**
+         * Calls Stop.
+         * @function stop
+         * @memberof pruntime_rpc.PhactoryAPI
+         * @instance
+         * @param {pruntime_rpc.IStopOptions} request StopOptions message or plain object
+         * @returns {Promise<google.protobuf.Empty>} Promise
+         * @variation 2
+         */
+
         return PhactoryAPI;
     })();
 
@@ -968,6 +1034,7 @@ $root.pruntime_rpc = (function() {
          * @property {pruntime_rpc.IMemoryUsage|null} [memoryUsage] PhactoryInfo memoryUsage
          * @property {boolean|null} [waitingForParaheaders] PhactoryInfo waitingForParaheaders
          * @property {pruntime_rpc.ISystemInfo|null} [system] PhactoryInfo system
+         * @property {boolean|null} [canLoadChainState] PhactoryInfo canLoadChainState
          */
 
         /**
@@ -1129,6 +1196,14 @@ $root.pruntime_rpc = (function() {
          */
         PhactoryInfo.prototype.system = null;
 
+        /**
+         * PhactoryInfo canLoadChainState.
+         * @member {boolean} canLoadChainState
+         * @memberof pruntime_rpc.PhactoryInfo
+         * @instance
+         */
+        PhactoryInfo.prototype.canLoadChainState = false;
+
         // OneOf field names bound to virtual getters and setters
         var $oneOfFields;
 
@@ -1225,6 +1300,8 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 21, wireType 0 =*/168).bool(message.waitingForParaheaders);
             if (message.system != null && Object.hasOwnProperty.call(message, "system"))
                 $root.pruntime_rpc.SystemInfo.encode(message.system, writer.uint32(/* id 23, wireType 2 =*/186).fork()).ldelim();
+            if (message.canLoadChainState != null && Object.hasOwnProperty.call(message, "canLoadChainState"))
+                writer.uint32(/* id 24, wireType 0 =*/192).bool(message.canLoadChainState);
             return writer;
         };
 
@@ -1312,6 +1389,9 @@ $root.pruntime_rpc = (function() {
                     break;
                 case 23:
                     message.system = $root.pruntime_rpc.SystemInfo.decode(reader, reader.uint32());
+                    break;
+                case 24:
+                    message.canLoadChainState = reader.bool();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1415,6 +1495,9 @@ $root.pruntime_rpc = (function() {
                 if (error)
                     return "system." + error;
             }
+            if (message.canLoadChainState != null && message.hasOwnProperty("canLoadChainState"))
+                if (typeof message.canLoadChainState !== "boolean")
+                    return "canLoadChainState: boolean expected";
             return null;
         };
 
@@ -1489,6 +1572,8 @@ $root.pruntime_rpc = (function() {
                     throw TypeError(".pruntime_rpc.PhactoryInfo.system: object expected");
                 message.system = $root.pruntime_rpc.SystemInfo.fromObject(object.system);
             }
+            if (object.canLoadChainState != null)
+                message.canLoadChainState = Boolean(object.canLoadChainState);
             return message;
         };
 
@@ -1529,6 +1614,7 @@ $root.pruntime_rpc = (function() {
                 object.memoryUsage = null;
                 object.waitingForParaheaders = false;
                 object.system = null;
+                object.canLoadChainState = false;
             }
             if (message.initialized != null && message.hasOwnProperty("initialized"))
                 object.initialized = message.initialized;
@@ -1581,6 +1667,8 @@ $root.pruntime_rpc = (function() {
                 object.waitingForParaheaders = message.waitingForParaheaders;
             if (message.system != null && message.hasOwnProperty("system"))
                 object.system = $root.pruntime_rpc.SystemInfo.toObject(message.system, options);
+            if (message.canLoadChainState != null && message.hasOwnProperty("canLoadChainState"))
+                object.canLoadChainState = message.canLoadChainState;
             return object;
         };
 
@@ -1610,8 +1698,8 @@ $root.pruntime_rpc = (function() {
          * @property {pruntime_rpc.IGatekeeperStatus|null} [gatekeeper] SystemInfo gatekeeper
          * @property {number|Long|null} [numberOfClusters] SystemInfo numberOfClusters
          * @property {number|Long|null} [numberOfContracts] SystemInfo numberOfContracts
-         * @property {number|null} [consensusVersion] SystemInfo consensusVersion
          * @property {number|null} [maxSupportedConsensusVersion] SystemInfo maxSupportedConsensusVersion
+         * @property {number|null} [genesisBlock] SystemInfo genesisBlock
          */
 
         /**
@@ -1678,20 +1766,20 @@ $root.pruntime_rpc = (function() {
         SystemInfo.prototype.numberOfContracts = $util.Long ? $util.Long.fromBits(0,0,true) : 0;
 
         /**
-         * SystemInfo consensusVersion.
-         * @member {number} consensusVersion
-         * @memberof pruntime_rpc.SystemInfo
-         * @instance
-         */
-        SystemInfo.prototype.consensusVersion = 0;
-
-        /**
          * SystemInfo maxSupportedConsensusVersion.
          * @member {number} maxSupportedConsensusVersion
          * @memberof pruntime_rpc.SystemInfo
          * @instance
          */
         SystemInfo.prototype.maxSupportedConsensusVersion = 0;
+
+        /**
+         * SystemInfo genesisBlock.
+         * @member {number} genesisBlock
+         * @memberof pruntime_rpc.SystemInfo
+         * @instance
+         */
+        SystemInfo.prototype.genesisBlock = 0;
 
         /**
          * Creates a new SystemInfo instance using the specified properties.
@@ -1729,10 +1817,10 @@ $root.pruntime_rpc = (function() {
                 writer.uint32(/* id 5, wireType 0 =*/40).uint64(message.numberOfClusters);
             if (message.numberOfContracts != null && Object.hasOwnProperty.call(message, "numberOfContracts"))
                 writer.uint32(/* id 6, wireType 0 =*/48).uint64(message.numberOfContracts);
-            if (message.consensusVersion != null && Object.hasOwnProperty.call(message, "consensusVersion"))
-                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.consensusVersion);
             if (message.maxSupportedConsensusVersion != null && Object.hasOwnProperty.call(message, "maxSupportedConsensusVersion"))
-                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.maxSupportedConsensusVersion);
+                writer.uint32(/* id 7, wireType 0 =*/56).uint32(message.maxSupportedConsensusVersion);
+            if (message.genesisBlock != null && Object.hasOwnProperty.call(message, "genesisBlock"))
+                writer.uint32(/* id 8, wireType 0 =*/64).uint32(message.genesisBlock);
             return writer;
         };
 
@@ -1786,10 +1874,10 @@ $root.pruntime_rpc = (function() {
                     message.numberOfContracts = reader.uint64();
                     break;
                 case 7:
-                    message.consensusVersion = reader.uint32();
+                    message.maxSupportedConsensusVersion = reader.uint32();
                     break;
                 case 8:
-                    message.maxSupportedConsensusVersion = reader.uint32();
+                    message.genesisBlock = reader.uint32();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1846,12 +1934,12 @@ $root.pruntime_rpc = (function() {
             if (message.numberOfContracts != null && message.hasOwnProperty("numberOfContracts"))
                 if (!$util.isInteger(message.numberOfContracts) && !(message.numberOfContracts && $util.isInteger(message.numberOfContracts.low) && $util.isInteger(message.numberOfContracts.high)))
                     return "numberOfContracts: integer|Long expected";
-            if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
-                if (!$util.isInteger(message.consensusVersion))
-                    return "consensusVersion: integer expected";
             if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
                 if (!$util.isInteger(message.maxSupportedConsensusVersion))
                     return "maxSupportedConsensusVersion: integer expected";
+            if (message.genesisBlock != null && message.hasOwnProperty("genesisBlock"))
+                if (!$util.isInteger(message.genesisBlock))
+                    return "genesisBlock: integer expected";
             return null;
         };
 
@@ -1896,10 +1984,10 @@ $root.pruntime_rpc = (function() {
                     message.numberOfContracts = object.numberOfContracts;
                 else if (typeof object.numberOfContracts === "object")
                     message.numberOfContracts = new $util.LongBits(object.numberOfContracts.low >>> 0, object.numberOfContracts.high >>> 0).toNumber(true);
-            if (object.consensusVersion != null)
-                message.consensusVersion = object.consensusVersion >>> 0;
             if (object.maxSupportedConsensusVersion != null)
                 message.maxSupportedConsensusVersion = object.maxSupportedConsensusVersion >>> 0;
+            if (object.genesisBlock != null)
+                message.genesisBlock = object.genesisBlock >>> 0;
             return message;
         };
 
@@ -1931,8 +2019,8 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? long.toString() : options.longs === Number ? long.toNumber() : long;
                 } else
                     object.numberOfContracts = options.longs === String ? "0" : 0;
-                object.consensusVersion = 0;
                 object.maxSupportedConsensusVersion = 0;
+                object.genesisBlock = 0;
             }
             if (message.registered != null && message.hasOwnProperty("registered"))
                 object.registered = message.registered;
@@ -1952,10 +2040,10 @@ $root.pruntime_rpc = (function() {
                     object.numberOfContracts = options.longs === String ? String(message.numberOfContracts) : message.numberOfContracts;
                 else
                     object.numberOfContracts = options.longs === String ? $util.Long.prototype.toString.call(message.numberOfContracts) : options.longs === Number ? new $util.LongBits(message.numberOfContracts.low >>> 0, message.numberOfContracts.high >>> 0).toNumber(true) : message.numberOfContracts;
-            if (message.consensusVersion != null && message.hasOwnProperty("consensusVersion"))
-                object.consensusVersion = message.consensusVersion;
             if (message.maxSupportedConsensusVersion != null && message.hasOwnProperty("maxSupportedConsensusVersion"))
                 object.maxSupportedConsensusVersion = message.maxSupportedConsensusVersion;
+            if (message.genesisBlock != null && message.hasOwnProperty("genesisBlock"))
+                object.genesisBlock = message.genesisBlock;
             return object;
         };
 
@@ -13680,6 +13768,412 @@ $root.pruntime_rpc = (function() {
         };
 
         return ContractId;
+    })();
+
+    pruntime_rpc.ChainState = (function() {
+
+        /**
+         * Properties of a ChainState.
+         * @memberof pruntime_rpc
+         * @interface IChainState
+         * @property {number|null} [blockNumber] ChainState blockNumber
+         * @property {Uint8Array|null} [encodedState] ChainState encodedState
+         */
+
+        /**
+         * Constructs a new ChainState.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a ChainState.
+         * @implements IChainState
+         * @constructor
+         * @param {pruntime_rpc.IChainState=} [properties] Properties to set
+         */
+        function ChainState(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * ChainState blockNumber.
+         * @member {number} blockNumber
+         * @memberof pruntime_rpc.ChainState
+         * @instance
+         */
+        ChainState.prototype.blockNumber = 0;
+
+        /**
+         * ChainState encodedState.
+         * @member {Uint8Array} encodedState
+         * @memberof pruntime_rpc.ChainState
+         * @instance
+         */
+        ChainState.prototype.encodedState = $util.newBuffer([]);
+
+        /**
+         * Creates a new ChainState instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {pruntime_rpc.IChainState=} [properties] Properties to set
+         * @returns {pruntime_rpc.ChainState} ChainState instance
+         */
+        ChainState.create = function create(properties) {
+            return new ChainState(properties);
+        };
+
+        /**
+         * Encodes the specified ChainState message. Does not implicitly {@link pruntime_rpc.ChainState.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {pruntime_rpc.IChainState} message ChainState message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ChainState.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.blockNumber != null && Object.hasOwnProperty.call(message, "blockNumber"))
+                writer.uint32(/* id 1, wireType 0 =*/8).uint32(message.blockNumber);
+            if (message.encodedState != null && Object.hasOwnProperty.call(message, "encodedState"))
+                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.encodedState);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified ChainState message, length delimited. Does not implicitly {@link pruntime_rpc.ChainState.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {pruntime_rpc.IChainState} message ChainState message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        ChainState.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a ChainState message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.ChainState} ChainState
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ChainState.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.ChainState();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.blockNumber = reader.uint32();
+                    break;
+                case 2:
+                    message.encodedState = reader.bytes();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a ChainState message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.ChainState} ChainState
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        ChainState.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a ChainState message.
+         * @function verify
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        ChainState.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.blockNumber != null && message.hasOwnProperty("blockNumber"))
+                if (!$util.isInteger(message.blockNumber))
+                    return "blockNumber: integer expected";
+            if (message.encodedState != null && message.hasOwnProperty("encodedState"))
+                if (!(message.encodedState && typeof message.encodedState.length === "number" || $util.isString(message.encodedState)))
+                    return "encodedState: buffer expected";
+            return null;
+        };
+
+        /**
+         * Creates a ChainState message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.ChainState} ChainState
+         */
+        ChainState.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.ChainState)
+                return object;
+            var message = new $root.pruntime_rpc.ChainState();
+            if (object.blockNumber != null)
+                message.blockNumber = object.blockNumber >>> 0;
+            if (object.encodedState != null)
+                if (typeof object.encodedState === "string")
+                    $util.base64.decode(object.encodedState, message.encodedState = $util.newBuffer($util.base64.length(object.encodedState)), 0);
+                else if (object.encodedState.length)
+                    message.encodedState = object.encodedState;
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a ChainState message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.ChainState
+         * @static
+         * @param {pruntime_rpc.ChainState} message ChainState
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        ChainState.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults) {
+                object.blockNumber = 0;
+                if (options.bytes === String)
+                    object.encodedState = "";
+                else {
+                    object.encodedState = [];
+                    if (options.bytes !== Array)
+                        object.encodedState = $util.newBuffer(object.encodedState);
+                }
+            }
+            if (message.blockNumber != null && message.hasOwnProperty("blockNumber"))
+                object.blockNumber = message.blockNumber;
+            if (message.encodedState != null && message.hasOwnProperty("encodedState"))
+                object.encodedState = options.bytes === String ? $util.base64.encode(message.encodedState, 0, message.encodedState.length) : options.bytes === Array ? Array.prototype.slice.call(message.encodedState) : message.encodedState;
+            return object;
+        };
+
+        /**
+         * Converts this ChainState to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.ChainState
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        ChainState.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return ChainState;
+    })();
+
+    pruntime_rpc.StopOptions = (function() {
+
+        /**
+         * Properties of a StopOptions.
+         * @memberof pruntime_rpc
+         * @interface IStopOptions
+         * @property {boolean|null} [removeCheckpoints] StopOptions removeCheckpoints
+         */
+
+        /**
+         * Constructs a new StopOptions.
+         * @memberof pruntime_rpc
+         * @classdesc Represents a StopOptions.
+         * @implements IStopOptions
+         * @constructor
+         * @param {pruntime_rpc.IStopOptions=} [properties] Properties to set
+         */
+        function StopOptions(properties) {
+            if (properties)
+                for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+                    if (properties[keys[i]] != null)
+                        this[keys[i]] = properties[keys[i]];
+        }
+
+        /**
+         * StopOptions removeCheckpoints.
+         * @member {boolean} removeCheckpoints
+         * @memberof pruntime_rpc.StopOptions
+         * @instance
+         */
+        StopOptions.prototype.removeCheckpoints = false;
+
+        /**
+         * Creates a new StopOptions instance using the specified properties.
+         * @function create
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.IStopOptions=} [properties] Properties to set
+         * @returns {pruntime_rpc.StopOptions} StopOptions instance
+         */
+        StopOptions.create = function create(properties) {
+            return new StopOptions(properties);
+        };
+
+        /**
+         * Encodes the specified StopOptions message. Does not implicitly {@link pruntime_rpc.StopOptions.verify|verify} messages.
+         * @function encode
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.IStopOptions} message StopOptions message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        StopOptions.encode = function encode(message, writer) {
+            if (!writer)
+                writer = $Writer.create();
+            if (message.removeCheckpoints != null && Object.hasOwnProperty.call(message, "removeCheckpoints"))
+                writer.uint32(/* id 1, wireType 0 =*/8).bool(message.removeCheckpoints);
+            return writer;
+        };
+
+        /**
+         * Encodes the specified StopOptions message, length delimited. Does not implicitly {@link pruntime_rpc.StopOptions.verify|verify} messages.
+         * @function encodeDelimited
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.IStopOptions} message StopOptions message or plain object to encode
+         * @param {$protobuf.Writer} [writer] Writer to encode to
+         * @returns {$protobuf.Writer} Writer
+         */
+        StopOptions.encodeDelimited = function encodeDelimited(message, writer) {
+            return this.encode(message, writer).ldelim();
+        };
+
+        /**
+         * Decodes a StopOptions message from the specified reader or buffer.
+         * @function decode
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @param {number} [length] Message length if known beforehand
+         * @returns {pruntime_rpc.StopOptions} StopOptions
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        StopOptions.decode = function decode(reader, length) {
+            if (!(reader instanceof $Reader))
+                reader = $Reader.create(reader);
+            var end = length === undefined ? reader.len : reader.pos + length, message = new $root.pruntime_rpc.StopOptions();
+            while (reader.pos < end) {
+                var tag = reader.uint32();
+                switch (tag >>> 3) {
+                case 1:
+                    message.removeCheckpoints = reader.bool();
+                    break;
+                default:
+                    reader.skipType(tag & 7);
+                    break;
+                }
+            }
+            return message;
+        };
+
+        /**
+         * Decodes a StopOptions message from the specified reader or buffer, length delimited.
+         * @function decodeDelimited
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {$protobuf.Reader|Uint8Array} reader Reader or buffer to decode from
+         * @returns {pruntime_rpc.StopOptions} StopOptions
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        StopOptions.decodeDelimited = function decodeDelimited(reader) {
+            if (!(reader instanceof $Reader))
+                reader = new $Reader(reader);
+            return this.decode(reader, reader.uint32());
+        };
+
+        /**
+         * Verifies a StopOptions message.
+         * @function verify
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {Object.<string,*>} message Plain object to verify
+         * @returns {string|null} `null` if valid, otherwise the reason why it is not
+         */
+        StopOptions.verify = function verify(message) {
+            if (typeof message !== "object" || message === null)
+                return "object expected";
+            if (message.removeCheckpoints != null && message.hasOwnProperty("removeCheckpoints"))
+                if (typeof message.removeCheckpoints !== "boolean")
+                    return "removeCheckpoints: boolean expected";
+            return null;
+        };
+
+        /**
+         * Creates a StopOptions message from a plain object. Also converts values to their respective internal types.
+         * @function fromObject
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {Object.<string,*>} object Plain object
+         * @returns {pruntime_rpc.StopOptions} StopOptions
+         */
+        StopOptions.fromObject = function fromObject(object) {
+            if (object instanceof $root.pruntime_rpc.StopOptions)
+                return object;
+            var message = new $root.pruntime_rpc.StopOptions();
+            if (object.removeCheckpoints != null)
+                message.removeCheckpoints = Boolean(object.removeCheckpoints);
+            return message;
+        };
+
+        /**
+         * Creates a plain object from a StopOptions message. Also converts values to other types if specified.
+         * @function toObject
+         * @memberof pruntime_rpc.StopOptions
+         * @static
+         * @param {pruntime_rpc.StopOptions} message StopOptions
+         * @param {$protobuf.IConversionOptions} [options] Conversion options
+         * @returns {Object.<string,*>} Plain object
+         */
+        StopOptions.toObject = function toObject(message, options) {
+            if (!options)
+                options = {};
+            var object = {};
+            if (options.defaults)
+                object.removeCheckpoints = false;
+            if (message.removeCheckpoints != null && message.hasOwnProperty("removeCheckpoints"))
+                object.removeCheckpoints = message.removeCheckpoints;
+            return object;
+        };
+
+        /**
+         * Converts this StopOptions to JSON.
+         * @function toJSON
+         * @memberof pruntime_rpc.StopOptions
+         * @instance
+         * @returns {Object.<string,*>} JSON object
+         */
+        StopOptions.prototype.toJSON = function toJSON() {
+            return this.constructor.toObject(this, $protobuf.util.toJSONOptions);
+        };
+
+        return StopOptions;
     })();
 
     return pruntime_rpc;

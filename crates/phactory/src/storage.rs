@@ -75,6 +75,14 @@ mod storage_ext {
     }
 
     impl ChainStorage {
+        pub fn from_pairs(
+            pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
+        ) -> Self {
+            let mut me = Self::default();
+            me.load(pairs);
+            me
+        }
+
         pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
             self.trie_storage.load(pairs);
         }
@@ -142,6 +150,29 @@ mod storage_ext {
 
         pub(crate) fn gatekeepers(&self) -> Vec<phala_types::WorkerPublicKey> {
             self.execute_with(pallet_registry::Gatekeeper::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn is_worker_registered(&self, worker: &phala_types::WorkerPublicKey) -> bool {
+            self.execute_with(|| pallet_registry::Workers::<chain::Runtime>::get(worker))
+                .is_some()
+        }
+
+        pub(crate) fn minimum_pruntime_version(&self) -> (u32, u32, u32) {
+            self.execute_with(pallet_registry::MinimumPRuntimeVersion::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn pruntime_consensus_version(&self) -> u32 {
+            self.execute_with(pallet_registry::PRuntimeConsensusVersion::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn is_pruntime_in_whitelist(&self, measurement: &[u8]) -> bool {
+            let list = self.execute_with(pallet_registry::PRuntimeAllowList::<chain::Runtime>::get);
+            for hash in list.iter() {
+                if hash.starts_with(measurement) {
+                    return true;
+                }
+            }
+            false
         }
     }
 }

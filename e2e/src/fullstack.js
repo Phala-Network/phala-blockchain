@@ -803,9 +803,6 @@ function testPruntimeManagement(workDir) {
         let worker;
         let tmpPath;
         let test_case = 0;
-        let currentVersion;
-        let newerVersion;
-        let olderVersion;
 
         before(async () => {
             // Create polkadot api and keyring
@@ -844,9 +841,6 @@ function testPruntimeManagement(workDir) {
             }, 7000), 'stuck at block 0');
 
             info = await worker.api.getInfo();
-            currentVersion = versionToNumber(info.version);
-            newerVersion = currentVersion + 1;
-            olderVersion = currentVersion - 1;
         });
 
         afterEach(async () => {
@@ -855,69 +849,32 @@ function testPruntimeManagement(workDir) {
             await cluster.kill();
         });
 
-        it("can retirement pruntimes less than given version", async () => {
-            await checkRetireCondition('lessThan: olderVersion', {
-                lessThan: olderVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('lessThan: currentVersion', {
-                lessThan: currentVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('lessThan: newerVersion', {
-                lessThan: newerVersion,
-                causeExit: true
-            });
-        });
-
-        it("can retirement pruntimes matches given version", async () => {
-            await checkRetireCondition('equal: newerVersion', {
-                equal: newerVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('equal: olderVersion', {
-                equal: olderVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('equal: currentVersion', {
-                equal: currentVersion,
-                causeExit: true
-            });
-        });
-
-        it("can set consensus version", async () => {
-            const info = await worker.api.getInfo();
-            const { consensusVersion, maxSupportedConsensusVersion } = info.system;
-
-            assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+        it("can retire old pruntimes", async () => {
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.setPruntimeConsensusVersion(
-                        maxSupportedConsensusVersion
+                    api.tx.phalaRegistry.setMinimumPruntimeVersion(
+                        999,
+                        0,
+                        0,
                     )
                 ),
                 alice,
             );
-            assert.isTrue(
+
+            assert.equal(
+                true,
                 await checkUntil(
                     async () => {
-                        const info = await worker.api.getInfo();
-                        const { consensusVersion } = info.system;
-                        return maxSupportedConsensusVersion == consensusVersion;
+                        return worker.processPRuntime.stopped;
                     },
                     6000
                 ),
-                `Failed to set consensus version to ${maxSupportedConsensusVersion}`
+                "Failed to retire old version pruntime"
             );
         });
 
         it("can not set consensus version over max supported", async () => {
-            const { consensusVersion, maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
-            assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+            const { maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.setPruntimeConsensusVersion(
@@ -936,45 +893,7 @@ function testPruntimeManagement(workDir) {
                 'Failed to wait pruntime to exit'
             );
         });
-
-        async function checkRetireCondition(desc, { lessThan, equal, causeExit }) {
-            let condition;
-            if (lessThan)
-                condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionLessThan': versionFromNumber(lessThan) })
-            if (equal)
-                condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(equal) })
-
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.retirePruntime(
-                        condition
-                    )
-                ),
-                alice,
-            );
-
-            assert.equal(
-                causeExit,
-                await checkUntil(
-                    async () => {
-                        return worker.processPRuntime.stopped;
-                    },
-                    6000
-                ),
-                `Condition ${desc} failed`
-            );
-        }
     });
-}
-
-
-function versionToNumber(version) {
-    segs = version.split('.').map(n => parseInt(n));
-    return (segs[0] << 16) + (segs[1] << 8) + segs[2]
-}
-
-function versionFromNumber(n) {
-    return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
 }
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {

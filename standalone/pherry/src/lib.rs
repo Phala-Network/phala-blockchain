@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
 use sp_runtime::generic::Era;
@@ -199,7 +199,6 @@ pub struct Args {
     #[arg(long, help = "Restart if number of rpc errors reaches the threshold")]
     restart_on_rpc_error_threshold: Option<u64>,
 
-
     #[arg(long, help = "URI to fetch cached headers from")]
     #[arg(default_value = "")]
     headers_cache_uri: String,
@@ -217,6 +216,14 @@ pub struct Args {
     /// Attestation provider
     #[arg(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
     attestation_provider: RaOption,
+
+    /// Try to load chain state from the latest block that the worker haven't registered at.
+    #[arg(long)]
+    fast_sync: bool,
+
+    /// The prefered block to load the genesis state from.
+    #[arg(long)]
+    prefer_genesis_at_block: Option<BlockNumber>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -488,10 +495,11 @@ async fn batch_sync_block(
     let mut synced_blocks: BlockNumber = 0;
 
     let hdr_synced_to = if parachain {
-        next_para_headernum - 1
+        next_para_headernum
     } else {
-        next_headernum - 1
-    };
+        next_headernum
+    }
+    .saturating_sub(1);
     macro_rules! sync_blocks_to {
         ($to: expr) => {
             if next_blocknum <= $to {
@@ -510,7 +518,13 @@ async fn batch_sync_block(
             set
         } else {
             // Construct the authority set from the last block we have synced (the genesis)
-            let number = &block_buf.first().unwrap().block.header.number - 1;
+            let number = block_buf
+                .first()
+                .unwrap()
+                .block
+                .header
+                .number
+                .saturating_sub(1);
             let hash = api.rpc().block_hash(Some(number.into())).await?;
             let set_id = api.current_set_id(hash).await?;
             let set = (number, set_id);
@@ -924,7 +938,7 @@ async fn try_register_worker(
     signer: &mut SrSigner,
     operator: Option<AccountId32>,
     args: &Args,
-) -> Result<()> {
+) -> Result<bool> {
     let info = pr
         .get_runtime_info(prpc::GetRuntimeInfoRequest::new(false, operator))
         .await?;
@@ -938,7 +952,33 @@ async fn try_register_worker(
             args,
         )
         .await?;
+        Ok(true)
+    } else {
+        Ok(false)
     }
+}
+
+async fn try_load_chain_state(pr: &PrClient, para_api: &ParachainApi, args: &Args) -> Result<()> {
+    let info = pr.get_info(()).await?;
+    info!("info: {info:#?}");
+    if !info.can_load_chain_state {
+        return Ok(());
+    }
+    let Some(pubkey) = &info.public_key else {
+        return Err(anyhow!("No public key found for worker"));
+    };
+    let Ok(pubkey) = hex::decode(pubkey) else {
+        return Err(anyhow!("pRuntime returned an invalid pubkey"));
+    };
+    let (block_number, state) = chain_client::search_suitable_genesis_for_worker(
+        para_api,
+        &pubkey,
+        args.prefer_genesis_at_block,
+    )
+    .await
+    .context("Failed to search suitable genesis state for worker")?;
+    pr.load_chain_state(prpc::ChainState::new(block_number, state))
+        .await?;
     Ok(())
 }
 
@@ -1017,7 +1057,7 @@ async fn bridge(
     };
     if !args.no_init {
         if !info.initialized {
-            warn!("pRuntime not initialized. Requesting init...");
+            info!("pRuntime not initialized. Requesting init...");
             let start_header =
                 resolve_start_header(&para_api, args.parachain, args.start_header).await?;
             info!("Resolved start header at {}", start_header);
@@ -1064,12 +1104,17 @@ async fn bridge(
             .await
             .ok();
         }
+
+        if args.fast_sync {
+            try_load_chain_state(&pr, &para_api, args).await?;
+        }
     }
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &para_api, &mut signer, operator, args).await?;
-            flags.worker_registered = true;
+            let registered =
+                try_register_worker(&pr, &para_api, &mut signer, operator, args).await?;
+            flags.worker_registered = registered;
         }
         // Try bind worker endpoint
         if !args.no_bind && info.public_key.is_some() {
@@ -1178,7 +1223,7 @@ async fn bridge(
         let latest_block = get_block_at(&api, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(b) = sync_state.blocks.first() {
-            if b.block.header.number >= info.blocknum {
+            if b.block.header.number >= info.headernum {
                 break;
             }
             sync_state.blocks.remove(0);
@@ -1197,13 +1242,7 @@ async fn bridge(
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.header.number + 1,
-            None => {
-                if args.parachain {
-                    info.headernum
-                } else {
-                    info.blocknum
-                }
-            }
+            None => info.headernum,
         };
 
         let (batch_end, more_blocks) = {
@@ -1240,9 +1279,10 @@ async fn bridge(
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
-            if !initial_sync_finished && !args.no_register && !flags.worker_registered {
-                try_register_worker(&pr, &para_api, &mut signer, operator.clone(), args).await?;
-                flags.worker_registered = true;
+            if !args.no_register && !flags.worker_registered {
+                flags.worker_registered =
+                    try_register_worker(&pr, &para_api, &mut signer, operator.clone(), args)
+                        .await?;
             }
 
             if !args.no_bind && !flags.endpoint_registered && info.public_key.is_some() {
