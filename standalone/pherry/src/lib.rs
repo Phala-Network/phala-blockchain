@@ -971,7 +971,7 @@ async fn try_load_chain_state(pr: &PrClient, para_api: &ParachainApi, args: &Arg
         return Err(anyhow!("pRuntime returned an invalid pubkey"));
     };
     let (block_number, state) = chain_client::search_suitable_genesis_for_worker(
-        &para_api,
+        para_api,
         &pubkey,
         args.prefer_genesis_at_block,
     )
@@ -1106,7 +1106,7 @@ async fn bridge(
         }
 
         if args.fast_sync {
-            try_load_chain_state(&pr, &para_api, &args).await?;
+            try_load_chain_state(&pr, &para_api, args).await?;
         }
     }
 
