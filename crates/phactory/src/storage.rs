@@ -164,5 +164,15 @@ mod storage_ext {
         pub(crate) fn pruntime_consensus_version(&self) -> u32 {
             self.execute_with(pallet_registry::PRuntimeConsensusVersion::<chain::Runtime>::get)
         }
+
+        pub(crate) fn is_pruntime_in_whitelist(&self, measurement: &[u8]) -> bool {
+            let list = self.execute_with(pallet_registry::PRuntimeAllowList::<chain::Runtime>::get);
+            for hash in list.iter() {
+                if hash.starts_with(measurement) {
+                    return true;
+                }
+            }
+            false
+        }
     }
 }

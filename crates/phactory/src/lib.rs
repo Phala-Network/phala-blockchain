@@ -415,12 +415,22 @@ impl<P: pal::Platform> Phactory<P> {
             .expect("BUG: no runtime state")
             .chain_storage;
         let min_version = chain_storage.minimum_pruntime_version();
-        let consensus_version = chain_storage.pruntime_consensus_version();
 
-        if (ver.major, ver.minor, ver.patch) < min_version
-            || consensus_version > system::MAX_SUPPORTED_CONSENSUS_VERSION
-        {
+        let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
+        let in_whitelist = chain_storage.is_pruntime_in_whitelist(&measurement);
+
+        if (ver.major, ver.minor, ver.patch) < min_version && !in_whitelist {
             error!("This pRuntime is outdated. Please update to the latest version.");
+            std::process::abort();
+        }
+
+        let consensus_version = chain_storage.pruntime_consensus_version();
+        if consensus_version > system::MAX_SUPPORTED_CONSENSUS_VERSION {
+            error!(
+                "{} {}",
+                "This pRuntime is outdated and doesn't meet the consensus version requirement.",
+                "Please update to the latest version."
+            );
             std::process::abort();
         }
     }

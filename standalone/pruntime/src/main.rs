@@ -81,7 +81,7 @@ async fn main() -> Result<(), rocket::Error> {
         libc::mallopt(libc::M_ARENA_MAX, 1);
     }
 
-    let running_under_gramine = std::path::Path::new("/dev/attestation/user_report_data").exists();
+    let running_under_gramine = pal_gramine::is_gramine();
     let sealing_path;
     let storage_path;
     if running_under_gramine {
