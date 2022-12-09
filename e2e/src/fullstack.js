@@ -465,6 +465,7 @@ describe('A full stack', function () {
         const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
         const system2Metadata = JSON.parse(fs.readFileSync('./res/system-v0xffff.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
+        const indeterminMetadata = JSON.parse(fs.readFileSync('./res/indeterministic_functions/target/ink/indeterministic_functions.contract'));
         const sidevmCode = fs.readFileSync('./res/check_system/sideprog.wasm');
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
@@ -625,6 +626,19 @@ describe('A full stack', function () {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certBob, {});
                 return output.valueOf();
             }, 2 * 6000), 'Set hook should success after granted admin');
+        });
+
+        it('can parse json in contract delegate call', async function () {
+            const code = indeterminMetadata.source.wasm;
+            const codeHash = indeterminMetadata.source.hash;
+            await assert.txAccepted(
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query.parseUsd(certAlice, {}, codeHash, '{"usd":1.23}');
+                return output?.unwrap()?.usd.eq(123);
+            }, 4 * 6000), 'Failed to parse json in contract');
         });
 
         it('tokenomic driver works', async function () {

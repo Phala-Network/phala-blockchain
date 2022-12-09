@@ -166,9 +166,19 @@ where
         &mut self,
         account: &AccountId,
         code: Vec<u8>,
+        deterministic: bool,
     ) -> Result<Hash, DispatchError> {
         self.execute_mut(false, None, || {
-            crate::runtime::Contracts::bare_upload_code(account.clone(), code, None, Determinism::Deterministic)
+            crate::runtime::Contracts::bare_upload_code(
+                account.clone(),
+                code,
+                None,
+                if deterministic {
+                    Determinism::Deterministic
+                } else {
+                    Determinism::AllowIndeterminism
+                },
+            )
         })
         .0
         .map(|v| v.code_hash)

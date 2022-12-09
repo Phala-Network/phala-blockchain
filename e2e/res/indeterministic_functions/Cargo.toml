@@ -1,5 +1,5 @@
 [package]
-name = "check_system"
+name = "indeterministic_functions"
 version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
@@ -10,27 +10,17 @@ ink_metadata = { version = "3.4.0", default-features = false, features = ["deriv
 ink_env = { version = "3.4.0", default-features = false }
 ink_storage = { version = "3.4.0", default-features = false }
 ink_lang = { version = "3.4.0", default-features = false }
-
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
-
-pink-extension = { version = "0.2", default-features = false, path = "../../../crates/pink/pink-extension" }
-
-[dependencies.indeterministic_functions]
-version = "0.1"
-default-features = false
-path = "../indeterministic_functions"
-features = ["ink-as-dependency"]
-
-[build-dependencies]
-sp-core = "6.0"
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
 
 [lib]
-name = "check_system"
+name = "indeterministic_functions"
 path = "lib.rs"
 crate-type = [
-	# Used for normal contract Wasm blobs.
 	"cdylib",
+	"rlib",
 ]
 
 [features]
@@ -42,7 +32,7 @@ std = [
     "ink_primitives/std",
     "scale/std",
     "scale-info/std",
-    "pink-extension/std",
-    "indeterministic_functions/std",
+    "serde/std",
+    "serde_json/std",
 ]
 ink-as-dependency = []

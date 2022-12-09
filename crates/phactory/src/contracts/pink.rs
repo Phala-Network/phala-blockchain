@@ -452,8 +452,11 @@ pub mod cluster {
             resource_data: Vec<u8>,
         ) -> Result<Hash, DispatchError> {
             match resource_type {
-                ResourceType::InkCode => self.storage.upload_code(origin, resource_data),
+                ResourceType::InkCode => self.storage.upload_code(origin, resource_data, true),
                 ResourceType::SidevmCode => self.storage.upload_sidevm_code(origin, resource_data),
+                ResourceType::IndeterministicInkCode => {
+                    self.storage.upload_code(origin, resource_data, false)
+                }
             }
         }
 
@@ -461,6 +464,7 @@ pub mod cluster {
             match resource_type {
                 ResourceType::InkCode => None,
                 ResourceType::SidevmCode => self.storage.get_sidevm_code(hash),
+                ResourceType::IndeterministicInkCode => None,
             }
         }
 

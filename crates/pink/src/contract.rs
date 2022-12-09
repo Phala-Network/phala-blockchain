@@ -1,6 +1,6 @@
 use frame_support::weights::Weight;
-use pallet_contracts_primitives::StorageDeposit;
 use pallet_contracts::Determinism;
+use pallet_contracts_primitives::StorageDeposit;
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
@@ -281,6 +281,11 @@ impl Contract {
         } = tx_args;
         let addr = self.address.clone();
         let gas_limit = gas_limit.set_proof_size(u64::MAX);
+        let determinism = if in_query {
+            Determinism::AllowIndeterminism
+        } else {
+            Determinism::Deterministic
+        };
         storage.execute_mut(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
@@ -297,7 +302,7 @@ impl Contract {
                         storage_deposit_limit,
                         input_data,
                         false,
-                        Determinism::Deterministic,
+                        determinism,
                     )
                 },
             );
