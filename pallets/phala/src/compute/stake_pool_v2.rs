@@ -806,7 +806,8 @@ pub mod pallet {
 			let mut who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
-			let mut iter = match StakepoolIterateStartPos::<T>::get() {
+			let mut last_pid = StakepoolIterateStartPos::<T>::get();
+			let mut iter = match last_pid {
 				Some(pid) => {
 					let key: Vec<u8> = stake_pool::pallet::StakePools::<T>::hashed_key_for(pid);
 					stake_pool::pallet::StakePools::<T>::iter_from(key)
@@ -814,7 +815,6 @@ pub mod pallet {
 				None => stake_pool::pallet::StakePools::<T>::iter(),
 			};
 			let mut i = 0;
-			let mut last_pid = None;
 			for (pid, pool_info) in iter.by_ref() {
 				let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 				let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
