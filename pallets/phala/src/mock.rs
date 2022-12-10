@@ -219,7 +219,7 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
-	type NestingBudget = ConstU32<{10}>;
+	type NestingBudget = ConstU32<{200}>;
 	type ResourceSymbolLimit = ResourceSymbolLimit;
 	type PartsLimit = PartsLimit;
 	type MaxPriorities = MaxPriorities;
