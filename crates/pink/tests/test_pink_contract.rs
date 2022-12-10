@@ -34,6 +34,7 @@ fn test_ink_flip() {
         .upload_code(
             &ALICE,
             include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
+            true,
         )
         .unwrap();
     let contract = Contract::new_with_selector(
@@ -108,6 +109,7 @@ fn test_ink_cross_contract_instanciate() {
         .upload_code(
             &ALICE,
             include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
+            true,
         )
         .unwrap();
     let _flip = Contract::new_with_selector(
@@ -123,6 +125,7 @@ fn test_ink_cross_contract_instanciate() {
         .upload_code(
             &ALICE,
             include_bytes!("./fixtures/cross/cross.wasm").to_vec(),
+            true,
         )
         .unwrap();
     let mut args = tx_args(&mut storage);
@@ -153,6 +156,7 @@ fn test_mq_egress() {
         .upload_code(
             &ALICE,
             include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
+            true,
         )
         .unwrap();
     let (contract, effects) = Contract::new_with_selector(
@@ -191,7 +195,7 @@ fn test_with_wasm(wasm: &[u8], constructor: [u8; 4], message: [u8; 4]) {
     let mut storage = Storage::default();
     storage.set_key_seed([1u8; 64]);
     storage.deposit(&ALICE, ENOUGH);
-    let code_hash = storage.upload_code(&ALICE, wasm.to_vec()).unwrap();
+    let code_hash = storage.upload_code(&ALICE, wasm.to_vec(), true).unwrap();
 
     let (contract, _) =
         Contract::new_with_selector(code_hash, constructor, (), vec![], tx_args(&mut storage))

@@ -16,12 +16,7 @@ use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend, TrieBackendBuilder};
-use sp_trie::{
-    TrieMut,
-    trie_types::{
-        TrieDBMutBuilderV0 as TrieDBMutBuilder,
-    },
-};
+use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
 
@@ -104,9 +99,7 @@ where
     H::Out: Codec,
 {
     let root = trie.root();
-    let mdb = trie
-        .backend_storage()
-        .clone();
+    let mdb = trie.backend_storage().clone();
     TrieBackendBuilder::new(mdb, *root).build()
 }
 
@@ -153,10 +146,7 @@ where
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
         let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate(transaction);
-        let _ = core::mem::replace(
-            &mut self.0,
-            TrieBackendBuilder::new(storage, root).build()
-        );
+        let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }
 
     pub fn purge(&mut self) {}
@@ -185,6 +175,10 @@ where
                 (key, value)
             })
             .collect()
+    }
+
+    pub fn as_trie_backend(&self) -> &InMemoryBackend<H> {
+        &self.0
     }
 }
 

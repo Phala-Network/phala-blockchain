@@ -231,6 +231,8 @@ pub mod pallet {
 		ExceedMaxDescriptionLen,
 		/// Migration root not authorized
 		NotMigrationRoot,
+		/// Burn nft failed
+		BurnNftFailed,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -353,7 +355,6 @@ pub mod pallet {
 		// Will adjust total_values of all the value subscribers (i.e. vaults that contributed to the rewarded stakepool).
 		//
 		// Warning: `total_reward` mustn't be zero.
-		// TODO(mingxuan): must be checked carfully before final merge.
 		pub fn distribute_reward<T: Config>(&mut self, rewards: Balance)
 		where
 			T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
@@ -809,7 +810,6 @@ pub mod pallet {
 			)?;
 
 			let attr = NftAttr { shares };
-			//TODO(mingxuan): an external lock is needed to protect nft_attr from dirty write.
 			Self::set_nft_attr(cid, nft_id, &attr)?;
 			Self::set_nft_desc_attr(cid, pid, nft_id, pool_type);
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
@@ -827,7 +827,10 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn burn_nft(owner: &T::AccountId, cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
-			pallet_rmrk_core::Pallet::<T>::nft_burn(owner.clone(), cid, nft_id, &rmrk_traits::budget::Value::new(MAX_RECURSIONS))?;
+			ensure!(
+				pallet_rmrk_core::Pallet::<T>::nft_burn(owner.clone(), cid, nft_id, &rmrk_traits::budget::Value::new(MAX_RECURSIONS)).is_ok(),
+				Error::<T>::BurnNftFailed,
+			);
 			Ok(())
 		}
 

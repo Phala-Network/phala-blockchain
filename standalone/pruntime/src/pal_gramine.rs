@@ -1,7 +1,7 @@
-use std::alloc::System;
-use parity_scale_codec::Encode;
 use anyhow::anyhow;
 use log::info;
+use parity_scale_codec::Encode;
+use std::alloc::System;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
@@ -52,7 +52,8 @@ impl RA for GraminePlatform {
                 // TODO.kevin: move the key out of the binary?
                 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
-                let (attn_report, sig, cert) = ias::create_attestation_report(data, IAS_API_KEY_STR)?;
+                let (attn_report, sig, cert) =
+                    ias::create_attestation_report(data, IAS_API_KEY_STR)?;
                 let attestation_report = phala_types::AttestationReport::SgxIas {
                     ra_report: attn_report.as_bytes().to_vec(),
                     signature: sig.as_bytes().to_vec(),
@@ -60,27 +61,27 @@ impl RA for GraminePlatform {
                 };
 
                 Ok(Encode::encode(&attestation_report))
-            },
-            None => {
-                Ok(Encode::encode(&None::<AttestationProvider>))
-            },
-            _ => {
-                Err(anyhow!("Unknown attestation provider `{:?}`", provider))
             }
+            None => Ok(Encode::encode(&None::<AttestationProvider>)),
+            _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
         }
     }
 
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
         match provider {
-            Some(AttestationProvider::Ias) => {
-                ias::create_quote_vec(&[0u8; 64]).map(|_| ())
-            },
-            None => {
-                Ok(())
-            },
-            _ => {
-                Err(anyhow!("Unknown attestation provider `{:?}`", provider))
-            }
+            Some(AttestationProvider::Ias) => ias::create_quote_vec(&[0u8; 64]).map(|_| ()),
+            None => Ok(()),
+            _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
+        }
+    }
+
+    fn measurement(&self) -> Option<Vec<u8>> {
+        if is_gramine() {
+            sgx_api_lite::target_info()
+                .map(|info| info.mr_enclave.m.to_vec())
+                .ok()
+        } else {
+            None
         }
     }
 }
@@ -150,4 +151,12 @@ fn vm_peak() -> Option<usize> {
         }
     }
     None
+}
+
+pub(crate) fn is_gramine() -> bool {
+    lazy_static::lazy_static! {
+        static ref IS_GRAMINE: bool =
+            std::path::Path::new("/dev/attestation/user_report_data").exists();
+    }
+    *IS_GRAMINE
 }

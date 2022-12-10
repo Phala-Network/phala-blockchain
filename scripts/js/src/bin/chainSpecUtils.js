@@ -30,6 +30,7 @@ program
         'Delete System.LastRuntimeUpgrade to trigger a runtime upgrade.', false
     )
     .option('--set-alice-as-root', 'Set //Alice as the root account.', false)
+    .option('--clear-gk', 'Clear gatekeepers', false)
     .argument('<orig-spec>', 'The original chain spec to modify.')
     .action(main)
     .parse(process.argv);
@@ -79,6 +80,10 @@ function main(origSpecPath) {
     // Delete System.LastRuntimeUpgrade to ensure that the on_runtime_upgrade event is triggered
     if (opts.triggerUpgrade) {
         delete targetSpec.genesis.raw.top['0x26aa394eea5630e07c48ae0c9558cef7f9cce9c888469bb1a0dceaa129672ef8'];
+    }
+
+    if (opts.clearGk) {
+        delete targetSpec.genesis.raw.top['0x0d746931e7a6bfd47fbcccfd71984aef0edb71e0fd7a93f4398de44cdc838483'];
     }
 
     // Modify chain name and id

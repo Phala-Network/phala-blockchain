@@ -17,7 +17,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_runtime::{
 		traits::{UniqueSaturatedInto, Zero},
-		AccountId32, SaturatedConversion,
+		AccountId32,
 	};
 	use sp_std::prelude::*;
 
@@ -299,6 +299,7 @@ pub mod pallet {
 			let size_limit = match resource_type {
 				ResourceType::InkCode => T::InkCodeSizeLimit::get(),
 				ResourceType::SidevmCode => T::SidevmCodeSizeLimit::get(),
+				ResourceType::IndeterministicInkCode => T::InkCodeSizeLimit::get(),
 			} as usize;
 			ensure!(
 				resource_data.len() <= size_limit,
@@ -366,23 +367,21 @@ pub mod pallet {
 			data: Vec<u8>,
 			salt: Vec<u8>,
 			cluster_id: ContractClusterId,
-			transfer: u128,
+			transfer: BalanceOf<T>,
 			gas_limit: u64,
-			storage_deposit_limit: Option<u128>,
+			storage_deposit_limit: Option<BalanceOf<T>>,
+			deposit: BalanceOf<T>,
 		) -> DispatchResult {
-			let deployer = ensure_signed(origin)?;
+			let deployer = ensure_signed(origin.clone())?;
 			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
 				check_cluster_permission::<T>(&deployer, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
 			);
 
-			<T as Config>::Currency::transfer(
-				&deployer,
-				&cluster_account(&cluster_id),
-				BalanceOf::<T>::saturated_from(transfer),
-				ExistenceRequirement::KeepAlive,
-			)?;
+			if !deposit.is_zero() {
+				Self::transfer_to_cluster(origin.clone(), deposit, cluster_id, deployer.clone())?;
+			}
 
 			let contract_info = ContractInfo {
 				deployer,
@@ -406,9 +405,9 @@ pub mod pallet {
 
 			Self::push_message(ContractOperation::instantiate_code(
 				contract_info.clone(),
-				transfer,
+				transfer.unique_saturated_into(),
 				gas_limit,
-				storage_deposit_limit,
+				storage_deposit_limit.map(UniqueSaturatedInto::unique_saturated_into),
 			));
 			Self::deposit_event(Event::Instantiating {
 				contract: contract_id,

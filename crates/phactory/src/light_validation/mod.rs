@@ -104,6 +104,7 @@ impl<T: Config> LightValidation<T>
 where
     NumberFor<T::Block>: AsPrimitive<usize>,
 {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         LightValidation {
             num_bridges: 0,
@@ -398,7 +399,7 @@ pub mod utils {
     pub fn storage_map_prefix_twox_64_concat(
         module: &[u8],
         storage_item: &[u8],
-        key: &impl Encode,
+        key: &(impl Encode + ?Sized),
     ) -> Vec<u8> {
         let mut bytes = sp_core::twox_128(module).to_vec();
         bytes.extend(&sp_core::twox_128(storage_item)[..]);

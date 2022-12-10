@@ -463,7 +463,9 @@ describe('A full stack', function () {
 
     describe('Cluster & Contract', () => {
         const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
+        const system2Metadata = JSON.parse(fs.readFileSync('./res/system-v0xffff.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
+        const indeterminMetadata = JSON.parse(fs.readFileSync('./res/indeterministic_functions/target/ink/indeterministic_functions.contract'));
         const sidevmCode = fs.readFileSync('./res/check_system/sideprog.wasm');
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
@@ -568,7 +570,7 @@ describe('A full stack', function () {
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
                 alice,
             );
             assertEvents(events, [
@@ -626,11 +628,24 @@ describe('A full stack', function () {
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
 
+        it('can parse json in contract delegate call', async function () {
+            const code = indeterminMetadata.source.wasm;
+            const codeHash = indeterminMetadata.source.hash;
+            await assert.txAccepted(
+                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query.parseUsd(certAlice, {}, codeHash, '{"usd":1.23}');
+                return output?.unwrap()?.usd.eq(123);
+            }, 4 * 6000), 'Failed to parse json in contract');
+        });
+
         it('tokenomic driver works', async function () {
             {
                 // Should be unable to use local cache before staking
                 const result = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
-                console.log('result', result);
+                // console.log('result', result);
                 const { output } = result;
                 assert.isFalse(output.valueOf());
             }
@@ -679,10 +694,34 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
                 alice,
             );
         });
+
+        it('can upload the second system contract', async function () {
+            const systemCode = system2Metadata.source.wasm;
+            await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                let code = await api.query.phalaFatContracts.pinkSystemCode();
+                return code[1] == systemCode;
+            }, 4 * 6000), 'upload system code failed');
+        });
+
+        it('can upgrade system contract', async function () {
+            await assert.txAccepted(
+                ContractSystem.tx['system::upgradeSystemContract'](txConfig),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output: [_apiLevel, version] } = await ContractSystem.query['system::version'](certAlice, {});
+                return version.eq(0xffff)
+            }, 4 * 6000), 'Upgrade system failed');
+        });
+
 
         it('can destory cluster', async function () {
             await assert.txAccepted(
@@ -778,9 +817,6 @@ function testPruntimeManagement(workDir) {
         let worker;
         let tmpPath;
         let test_case = 0;
-        let currentVersion;
-        let newerVersion;
-        let olderVersion;
 
         before(async () => {
             // Create polkadot api and keyring
@@ -819,9 +855,6 @@ function testPruntimeManagement(workDir) {
             }, 7000), 'stuck at block 0');
 
             info = await worker.api.getInfo();
-            currentVersion = versionToNumber(info.version);
-            newerVersion = currentVersion + 1;
-            olderVersion = currentVersion - 1;
         });
 
         afterEach(async () => {
@@ -830,69 +863,32 @@ function testPruntimeManagement(workDir) {
             await cluster.kill();
         });
 
-        it("can retirement pruntimes less than given version", async () => {
-            await checkRetireCondition('lessThan: olderVersion', {
-                lessThan: olderVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('lessThan: currentVersion', {
-                lessThan: currentVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('lessThan: newerVersion', {
-                lessThan: newerVersion,
-                causeExit: true
-            });
-        });
-
-        it("can retirement pruntimes matches given version", async () => {
-            await checkRetireCondition('equal: newerVersion', {
-                equal: newerVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('equal: olderVersion', {
-                equal: olderVersion,
-                causeExit: false
-            });
-
-            await checkRetireCondition('equal: currentVersion', {
-                equal: currentVersion,
-                causeExit: true
-            });
-        });
-
-        it("can set consensus version", async () => {
-            const info = await worker.api.getInfo();
-            const { consensusVersion, maxSupportedConsensusVersion } = info.system;
-
-            assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+        it("can retire old pruntimes", async () => {
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.setPruntimeConsensusVersion(
-                        maxSupportedConsensusVersion
+                    api.tx.phalaRegistry.setMinimumPruntimeVersion(
+                        999,
+                        0,
+                        0,
                     )
                 ),
                 alice,
             );
-            assert.isTrue(
+
+            assert.equal(
+                true,
                 await checkUntil(
                     async () => {
-                        const info = await worker.api.getInfo();
-                        const { consensusVersion } = info.system;
-                        return maxSupportedConsensusVersion == consensusVersion;
+                        return worker.processPRuntime.stopped;
                     },
                     6000
                 ),
-                `Failed to set consensus version to ${maxSupportedConsensusVersion}`
+                "Failed to retire old version pruntime"
             );
         });
 
         it("can not set consensus version over max supported", async () => {
-            const { consensusVersion, maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
-            assert.isTrue(consensusVersion != maxSupportedConsensusVersion);
+            const { maxSupportedConsensusVersion } = (await worker.api.getInfo()).system;
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.setPruntimeConsensusVersion(
@@ -911,45 +907,7 @@ function testPruntimeManagement(workDir) {
                 'Failed to wait pruntime to exit'
             );
         });
-
-        async function checkRetireCondition(desc, { lessThan, equal, causeExit }) {
-            let condition;
-            if (lessThan)
-                condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionLessThan': versionFromNumber(lessThan) })
-            if (equal)
-                condition = api.createType('PhalaTypesMessagingRetireCondition', { 'VersionIs': versionFromNumber(equal) })
-
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.retirePruntime(
-                        condition
-                    )
-                ),
-                alice,
-            );
-
-            assert.equal(
-                causeExit,
-                await checkUntil(
-                    async () => {
-                        return worker.processPRuntime.stopped;
-                    },
-                    6000
-                ),
-                `Condition ${desc} failed`
-            );
-        }
     });
-}
-
-
-function versionToNumber(version) {
-    segs = version.split('.').map(n => parseInt(n));
-    return (segs[0] << 16) + (segs[1] << 8) + segs[2]
-}
-
-function versionFromNumber(n) {
-    return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
 }
 
 async function assertSubmission(txBuilder, signer, shouldSucceed = true) {

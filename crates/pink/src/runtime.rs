@@ -120,6 +120,7 @@ parameter_types! {
         // Each concurrent query would create a VM instance to serve it. We couldn't
         // allocate too much here.
         schedule.limits.memory_pages = 4 * MB;
+        schedule.instruction_weights.fallback = 8000;
         schedule
     };
 }
@@ -335,7 +336,7 @@ mod tests {
                 let mut params = vec![(n + 1) as u8];
                 params.extend_from_slice(input);
                 let result =
-                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
+                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false, pallet_contracts::Determinism::Deterministic)
                         .result
                         .unwrap();
                 assert!(!result.did_revert());
@@ -355,21 +356,21 @@ mod tests {
 
         storage.setup(gas_price, deposit_per_item, deposit_per_byte, &TREASURY);
 
-        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec(), true);
         assert!(upload_result.is_err());
         let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
         assert!(upload_result.is_err());
 
         let total_issue = Balance::MAX.saturating_div(2);
 
-        storage.execute_with(false, None, || {
+        storage.execute_mut(false, None, || {
             _ = Balances::deposit_creating(&ALICE, total_issue);
         });
 
         let upload_result = storage.upload_sidevm_code(&ALICE, FLIPPER.to_vec());
         assert_ok!(upload_result);
 
-        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec());
+        let upload_result = storage.upload_code(&ALICE, FLIPPER.to_vec(), true);
         assert_ok!(&upload_result);
         let code_hash = upload_result.unwrap();
 

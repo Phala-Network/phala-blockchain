@@ -332,7 +332,6 @@ pub mod pallet {
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let pid = base_pool::Pallet::<T>::consume_new_pid();
-			// TODO(mingxuan): create_collection should return cid
 			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
@@ -855,7 +854,6 @@ pub mod pallet {
 					lock_account,
 					owner_reward_account,
 				};
-				// TODO(mingxuan): Will include removed workers after we measure how to get their pool-belonging.
 				pool_info.workers.into_iter().for_each(|pubkey| {
 					new_pool_info.workers.push_back(pubkey);
 					let session: T::AccountId = pool_sub_account(pid, &pubkey);
@@ -1011,7 +1009,6 @@ pub mod pallet {
 					)
 					.is_err()
 					{
-						// TODO(mingxuan): switch the currency sending account to a identical account before final push.
 						<T as PhalaConfig>::Currency::transfer(
 							&computation::Pallet::<T>::account_id(),
 							&user_id,

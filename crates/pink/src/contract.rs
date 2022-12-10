@@ -1,4 +1,5 @@
 use frame_support::weights::Weight;
+use pallet_contracts::Determinism;
 use pallet_contracts_primitives::StorageDeposit;
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
@@ -213,7 +214,7 @@ impl Contract {
             gas_free,
         } = args;
         let gas_limit = gas_limit.set_proof_size(u64::MAX);
-        storage.execute_with(in_query, callbacks, move || {
+        storage.execute_mut(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
                 block_number,
@@ -280,7 +281,12 @@ impl Contract {
         } = tx_args;
         let addr = self.address.clone();
         let gas_limit = gas_limit.set_proof_size(u64::MAX);
-        storage.execute_with(in_query, callbacks, move || {
+        let determinism = if in_query {
+            Determinism::AllowIndeterminism
+        } else {
+            Determinism::Deterministic
+        };
+        storage.execute_mut(in_query, callbacks, move || {
             let result = contract_tx(
                 origin.clone(),
                 block_number,
@@ -296,6 +302,7 @@ impl Contract {
                         storage_deposit_limit,
                         input_data,
                         false,
+                        determinism,
                     )
                 },
             );
@@ -366,16 +373,7 @@ impl Contract {
     }
 
     pub fn code_hash(&self, storage: &Storage) -> Option<Hash> {
-        #[derive(Encode, Decode)]
-        struct ContractInfo {
-            trie_id: Vec<u8>,
-            code_hash: Hash,
-        }
-        // The pallet-contracts doesn't export an API the get the code hash. So we dig it out from the storage.
-        let key = storage_map_prefix_twox_64_concat(b"Contracts", b"ContractInfoOf", &self.address);
-        let value = storage.get(&key)?;
-        let info = ContractInfo::decode(&mut &value[..]).ok()?;
-        Some(info.code_hash)
+        storage.code_hash(&self.address)
     }
 }
 
@@ -406,20 +404,6 @@ fn contract_tx<T>(
         PalletPink::refund_gas(&origin, refund).expect("BUG: failed to refund gas");
     }
     result
-}
-
-/// Calculates the Substrate storage key prefix for a StorageMap
-pub fn storage_map_prefix_twox_64_concat(
-    module: &[u8],
-    storage_item: &[u8],
-    key: &impl Encode,
-) -> Vec<u8> {
-    let mut bytes = sp_core::twox_128(module).to_vec();
-    bytes.extend(&sp_core::twox_128(storage_item)[..]);
-    let encoded = key.encode();
-    bytes.extend(sp_core::twox_64(&encoded));
-    bytes.extend(&encoded);
-    bytes
 }
 
 pub fn transpose_contract_result(result: ContractExecResult) -> Result<Vec<u8>, DispatchError> {

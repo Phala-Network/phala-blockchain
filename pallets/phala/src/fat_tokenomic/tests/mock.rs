@@ -115,6 +115,7 @@ impl registry::Config for Test {
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type RegistryMigrationAccountId = MigrationAccountGet;
+	type ParachainId = ConstU32<0>;
 }
 
 pub struct MigrationAccountGet;

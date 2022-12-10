@@ -23,12 +23,12 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
-			GatekeeperLaunch, MessageOrigin, PRuntimeManagementEvent, SignedMessage, SystemEvent,
-			WorkerEvent,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		wrap_content_to_sign, AttestationProvider, ClusterPublicKey, ContractPublicKey,
 		EcdhPublicKey, MasterPublicKey, SignedContentType, VersionedWorkerEndpoints,
 		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo,
+		WorkerRegistrationInfoV2,
 	};
 
 	pub use phala_types::AttestationReport;
@@ -63,6 +63,12 @@ pub mod pallet {
 		},
 	}
 
+	#[derive(Encode, Decode, TypeInfo, Clone, Debug, Default)]
+	pub struct KnownConsensusVersion {
+		version: u32,
+		count: u32,
+	}
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -89,6 +95,9 @@ pub mod pallet {
 		/// SHOULD NOT SET TO FALSE ON PRODUCTION!!!
 		#[pallet::constant]
 		type VerifyRelaychainGenesisBlockHash: Get<bool>;
+
+		/// Callback to get parachain id
+		type ParachainId: Get<u32>;
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -177,6 +186,20 @@ pub mod pallet {
 	#[pallet::getter(fn temp_workers_iter_key)]
 	pub type TempWorkersIterKey<T: Config> = StorageValue<_, Option<Vec<u8>>, ValueQuery>;
 
+	/// PRuntimes whoes version less than MinimumPRuntimeVersion would be forced to quit.
+	#[pallet::storage]
+	pub type MinimumPRuntimeVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
+
+	/// The consensus version used by pruntime. PRuntimes would switch some code path according
+	/// the current consensus version.
+	#[pallet::storage]
+	pub type PRuntimeConsensusVersion<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	/// The max consensus version that pruntime has report via register_worker
+	#[pallet::storage]
+	pub type MaxKnownPRuntimeConsensusVersion<T: Config> =
+		StorageValue<_, KnownConsensusVersion, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -209,7 +232,8 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 			init_score: u32,
 		},
-		PRuntimeManagement(PRuntimeManagementEvent),
+		MinimumPRuntimeVersionChangedTo(u32, u32, u32),
+		PRuntimeConsensusVersionChangedTo(u32),
 	}
 
 	#[pallet::error]
@@ -258,6 +282,8 @@ pub mod pallet {
 		InvalidEndpointSigningTime,
 		/// Migration root not authorized
 		NotMigrationRoot,
+		ParachainIdMismatch,
+		InvalidConsensusVersion,
 	}
 
 	#[pallet::call]
@@ -541,7 +567,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
-			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
+			pruntime_info: WorkerRegistrationInfoV2<T::AccountId>,
 			attestation: Option<AttestationReport>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -558,6 +584,10 @@ pub mod pallet {
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
+			ensure!(
+				pruntime_info.para_id == T::ParachainId::get(),
+				Error::<T>::ParachainIdMismatch
+			);
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
 				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
@@ -566,6 +596,20 @@ pub mod pallet {
 					Error::<T>::GenesisBlockHashRejected
 				);
 			}
+
+			MaxKnownPRuntimeConsensusVersion::<T>::mutate(|info| {
+				use core::cmp::Ordering::*;
+				match info.version.cmp(&pruntime_info.max_consensus_versioin) {
+					Less => {
+						info.version = pruntime_info.max_consensus_versioin;
+						info.count = 1;
+					}
+					Equal => {
+						info.count += 1;
+					}
+					Greater => {}
+				}
+			});
 
 			// Update the registry
 			let pubkey = pruntime_info.pubkey;
@@ -761,18 +805,21 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Retire running pruntimes with given condition.
+		/// Set minimum pRuntime version. Versions less than MinimumPRuntimeVersion would be forced to quit.
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::weight(0)]
-		pub fn retire_pruntime(
+		pub fn set_minimum_pruntime_version(
 			origin: OriginFor<T>,
-			condition: messaging::RetireCondition,
+			major: u32,
+			minor: u32,
+			patch: u32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			let event = PRuntimeManagementEvent::RetirePRuntime(condition);
-			Self::push_message(event.clone());
-			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			MinimumPRuntimeVersion::<T>::put((major, minor, patch));
+			Self::deposit_event(Event::<T>::MinimumPRuntimeVersionChangedTo(
+				major, minor, patch,
+			));
 			Ok(())
 		}
 
@@ -786,9 +833,8 @@ pub mod pallet {
 			version: u32,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			let event = PRuntimeManagementEvent::SetConsensusVersion(version);
-			Self::push_message(event.clone());
-			Self::deposit_event(Event::<T>::PRuntimeManagement(event));
+			PRuntimeConsensusVersion::<T>::put(version);
+			Self::deposit_event(Event::<T>::PRuntimeConsensusVersionChangedTo(version));
 			Ok(())
 		}
 
@@ -812,69 +858,69 @@ pub mod pallet {
 				|key, mut value| {
 					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
 
-					if let Ok(w) = old_worker.clone() {
-						log::info!("Decoded old {}: {:?}", hex::encode(key), w);
-						log::info!(
-							"Old: pubkey {} ecdh_pubkey {}",
-							hex::encode(w.pubkey),
-							hex::encode(w.ecdh_pubkey)
-						);
-						if let Some(op) = w.operator {
-							log::info!("Old: operator {:?}", op);
-						}
-					} else {
-						log::info!("Can't decode old {}", hex::encode(key));
-					}
+					match old_worker {
+						Ok(w) => {
+							// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
+							// log::info!(
+							// 	"Old: pubkey {} ecdh_pubkey {}",
+							// 	hex::encode(w.pubkey),
+							// 	hex::encode(w.ecdh_pubkey)
+							// );
 
-					Ok((key.to_vec(), old_worker))
+							Ok((key.to_vec(), w))
+						},
+						Err(e) => {
+							// log::info!("Can't decode old {}", hex::encode(key));
+							Err(e)
+						}
+					}
 				}
 			);
 
 			let mut i = 0;
+			let mut full_key: Vec<u8> = vec![];
 			for (key, old) in iter {
-				log::info!("worker key: {}", hex::encode(&key) );
-				if let Ok(old) = old {
-					let new = WorkerInfoV2 {
-						pubkey: old.pubkey,
-						ecdh_pubkey: old.ecdh_pubkey,
-						runtime_version: old.runtime_version,
-						last_updated: old.last_updated,
-						operator: old.operator,
-						attestation_provider: Some(AttestationProvider::Ias),
-						confidence_level: old.confidence_level,
-						initial_score: old.initial_score,
-						features: old.features
-					};
+				// log::info!("worker key: {}", hex::encode(&key) );
+				let new = WorkerInfoV2 {
+					pubkey: old.pubkey,
+					ecdh_pubkey: old.ecdh_pubkey,
+					runtime_version: old.runtime_version,
+					last_updated: old.last_updated,
+					operator: old.operator,
+					attestation_provider: Some(AttestationProvider::Ias),
+					confidence_level: old.confidence_level,
+					initial_score: old.initial_score,
+					features: old.features
+				};
 
-					log::info!("new {}: {:?}", hex::encode(&key), new);
+				// log::info!("new {}: {:?}", hex::encode(&key), new);
 
-					let full_key = [prefix.as_slice(), &key].concat();
-					unhashed::put_raw(&full_key, &new.encode());
+				full_key = [prefix.as_slice(), &key].concat();
+				unhashed::put_raw(&full_key, &new.encode());
 
-					let new_worker =  unhashed::get::<WorkerInfoV2<T::AccountId>>(&full_key);
-					if let Some(w) = new_worker {
-						log::info!("Decoded new {}: {:?}", hex::encode(&key), w);
-						log::info!(
-							"New: pubkey {} ecdh_pubkey {}",
-							hex::encode(w.pubkey),
-							hex::encode(w.ecdh_pubkey)
-						);
-						if let Some(op) = w.operator {
-							log::info!("New: operator {:?}", op);
-						}
-					} else {
-						log::info!("Can't decode {}", hex::encode(&key))
-					}
+				// let new_worker =  unhashed::get::<WorkerInfoV2<T::AccountId>>(&full_key);
+				// if let Some(w) = new_worker {
+				// 	log::info!("Decoded new {}: {:?}", hex::encode(&key), w);
+				// 	log::info!(
+				// 			"New: pubkey {} ecdh_pubkey {}",
+				// 			hex::encode(w.pubkey),
+				// 			hex::encode(w.ecdh_pubkey)
+				// 		);
+				// } else {
+				// 	log::info!("Can't decode {}", hex::encode(&key))
+				// }
 
-					i += 1;
-					if i >= max_iterations {
-						TempWorkersIterKey::<T>::set(Some(full_key));
-						break;
-					}
-				} else {
-					continue;
+				i += 1;
+				if i >= max_iterations {
+					break;
 				}
 			}
+
+			if i > 0 {
+				TempWorkersIterKey::<T>::set(Some(full_key));
+			}
+
+			log::info!("Migrated {} records", i);
 
 			Ok(())
 		}
@@ -1292,31 +1338,55 @@ pub mod pallet {
 				assert_noop!(
 					PhalaRegistry::register_worker_v2(
 						Origin::signed(1),
-						WorkerRegistrationInfo::<u64> {
+						WorkerRegistrationInfoV2::<u64> {
 							version: 1,
 							machine_id: Default::default(),
 							pubkey: worker_pubkey(1),
 							ecdh_pubkey: ecdh_pubkey(1),
 							genesis_block_hash: Default::default(),
+							para_id: 0,
 							features: vec![4, 1],
 							operator: Some(1),
+							max_consensus_versioin: 0,
 						},
 						None
 					),
 					Error::<Test>::GenesisBlockHashRejected
 				);
 
+				// New registration with wrong para_id
+				assert_noop!(
+					PhalaRegistry::register_worker_v2(
+						Origin::signed(1),
+						WorkerRegistrationInfoV2::<u64> {
+							version: 1,
+							machine_id: Default::default(),
+							pubkey: worker_pubkey(1),
+							ecdh_pubkey: ecdh_pubkey(1),
+							genesis_block_hash: H256::repeat_byte(1),
+							para_id: 1,
+							features: vec![4, 1],
+							operator: Some(1),
+							max_consensus_versioin: 0,
+						},
+						None
+					),
+					Error::<Test>::ParachainIdMismatch
+				);
+
 				// New registration
 				assert_ok!(PhalaRegistry::register_worker_v2(
 					Origin::signed(1),
-					WorkerRegistrationInfo::<u64> {
+					WorkerRegistrationInfoV2::<u64> {
 						version: 1,
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
 						genesis_block_hash: H256::repeat_byte(1),
+						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(1),
+						max_consensus_versioin: 0,
 					},
 					None,
 				));
@@ -1326,14 +1396,16 @@ pub mod pallet {
 				elapse_seconds(100);
 				assert_ok!(PhalaRegistry::register_worker_v2(
 					Origin::signed(1),
-					WorkerRegistrationInfo::<u64> {
+					WorkerRegistrationInfoV2::<u64> {
 						version: 1,
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
 						genesis_block_hash: H256::repeat_byte(1),
+						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(2),
+						max_consensus_versioin: 0,
 					},
 					None,
 				));

@@ -14,7 +14,7 @@ pub struct BlockInfo<'a> {
     /// The timestamp of this block.
     pub now_ms: u64,
     /// The storage snapshot after this block executed.
-    pub storage: &'a crate::Storage,
+    pub storage: &'a crate::ChainStorage,
     /// The message queue
     pub send_mq: &'a phala_mq::MessageSendQueue,
     pub recv_mq: &'a mut phala_mq::MessageDispatcher,

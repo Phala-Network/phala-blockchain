@@ -20,6 +20,9 @@ overflow-checks = true
 
 [workspace]
 resolver = "2"
+metadata.dylint.libraries = [
+    { git = "https://github.com/Phala-Network/dylint-rules.git", pattern = "rules/*" },
+]
 
 exclude = [
 	"subxt",
@@ -31,6 +34,7 @@ exclude = [
 	"crates/pink-drivers/sidevm_deployer",
 	"crates/pink-drivers/tokenomic",
 	"e2e/res/check_system",
+	"e2e/res/indeterministic_functions",
 ]
 
 members = [
@@ -41,6 +45,7 @@ members = [
 	"standalone/pherry",
 	"standalone/replay",
 	"standalone/headers-cache",
+	"standalone/justification-validate",
 	"standalone/sfq-test",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
@@ -76,6 +81,7 @@ members = [
 	"crates/phala-scheduler",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
+	"pallets/offchain-rollup",
 	"scripts/debug-cli"
 ]
 
@@ -86,5 +92,5 @@ rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocke
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }

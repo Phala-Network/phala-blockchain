@@ -176,6 +176,7 @@ impl registry::Config for Test {
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type RegistryMigrationAccountId = ConstU64<1234>;
+	type ParachainId = ConstU32<0>;
 }
 
 parameter_types! {
@@ -218,13 +219,13 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
-	type NestingBudget = ConstU32<{10}>;
+	type NestingBudget = ConstU32<{10000}>;
 	type ResourceSymbolLimit = ResourceSymbolLimit;
 	type PartsLimit = PartsLimit;
 	type MaxPriorities = MaxPriorities;
 	type CollectionSymbolLimit = CollectionSymbolLimit;
 	type MaxResourcesOnMint = MaxResourcesOnMint;
-	type CheckAllowTransfer = PhalaWrappedBalances;
+	type TransferHooks = PhalaWrappedBalances;
 	type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Test>;
 }
 
@@ -354,6 +355,7 @@ impl pallet_assets::Config for Test {
 	type Freezer = ();
 	type Extra = ();
 	type WeightInfo = ();
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<Self::AccountId>>;
 }
 
 impl stake_pool_v2::Config for Test {

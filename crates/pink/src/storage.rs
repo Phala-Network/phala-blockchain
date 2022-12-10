@@ -1,8 +1,12 @@
 use crate::{
-    runtime::{Balances, BoxedEventCallbacks, ExecSideEffects, Pink as PalletPink},
+    runtime::{
+        Balances, BoxedEventCallbacks, CallMode, Contracts, ExecSideEffects, Pink as PalletPink,
+    },
     types::{AccountId, Balance, Hash, Hashing},
 };
 use frame_support::traits::Currency;
+use frame_system::RawOrigin;
+use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use serde::{Deserialize, Serialize};
@@ -66,23 +70,23 @@ where
     Backend: StorageBackend<Hashing> + CommitTransaction + AsTrieBackend<Hashing>,
 {
     pub fn execute_with<R>(
-        &mut self,
-        rollback: bool,
+        &self,
+        in_query: bool,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
-    ) -> (R, ExecSideEffects) {
+    ) -> (R, ExecSideEffects, OverlayedChanges) {
         let backend = self.backend.as_trie_backend();
 
         let mut overlay = OverlayedChanges::default();
         overlay.start_transaction();
         let mut cache = StorageTransactionCache::default();
         let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
-        let r = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
+        let (rv, effects) = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             crate::runtime::System::reset_events();
-            let mode = if rollback {
-                crate::runtime::CallMode::Query
+            let mode = if in_query {
+                CallMode::Query
             } else {
-                crate::runtime::CallMode::Command
+                CallMode::Command
             };
             let r = crate::runtime::using_mode(mode, callbacks, f);
             (r, crate::runtime::get_side_effects())
@@ -90,10 +94,20 @@ where
         overlay
             .commit_transaction()
             .expect("BUG: mis-paired transaction");
-        if !rollback {
+        (rv, effects, overlay)
+    }
+
+    pub fn execute_mut<R>(
+        &mut self,
+        in_query: bool,
+        callbacks: Option<BoxedEventCallbacks>,
+        f: impl FnOnce() -> R,
+    ) -> (R, ExecSideEffects) {
+        let (rv, effects, overlay) = self.execute_with(in_query, callbacks, f);
+        if !in_query {
             self.commit_changes(overlay);
         }
-        r
+        (rv, effects)
     }
 
     pub fn changes_transaction(&self, changes: OverlayedChanges) -> (Hash, Backend::Transaction) {
@@ -117,7 +131,7 @@ where
     }
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
-        self.execute_with(false, None, || {
+        self.execute_mut(false, None, || {
             PalletPink::set_cluster_id(cluster_id);
         });
     }
@@ -128,7 +142,7 @@ where
         deposit_per_byte: Balance,
         treasury_account: &AccountId,
     ) {
-        self.execute_with(false, None, || {
+        self.execute_mut(false, None, || {
             PalletPink::set_gas_price(gas_price);
             PalletPink::set_deposit_per_item(deposit_per_item);
             PalletPink::set_deposit_per_byte(deposit_per_byte);
@@ -137,13 +151,13 @@ where
     }
 
     pub fn deposit(&mut self, who: &AccountId, value: Balance) {
-        self.execute_with(false, None, || {
+        self.execute_mut(false, None, || {
             let _ = Balances::deposit_creating(who, value);
         });
     }
 
     pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
-        self.execute_with(false, None, || {
+        self.execute_mut(false, None, || {
             PalletPink::set_key_seed(seed);
         });
     }
@@ -152,9 +166,19 @@ where
         &mut self,
         account: &AccountId,
         code: Vec<u8>,
+        deterministic: bool,
     ) -> Result<Hash, DispatchError> {
-        self.execute_with(false, None, || {
-            crate::runtime::Contracts::bare_upload_code(account.clone(), code, None)
+        self.execute_mut(false, None, || {
+            crate::runtime::Contracts::bare_upload_code(
+                account.clone(),
+                code,
+                None,
+                if deterministic {
+                    Determinism::Deterministic
+                } else {
+                    Determinism::AllowIndeterminism
+                },
+            )
         })
         .0
         .map(|v| v.code_hash)
@@ -165,26 +189,26 @@ where
         account: &AccountId,
         code: Vec<u8>,
     ) -> Result<Hash, DispatchError> {
-        self.execute_with(false, None, || {
+        self.execute_mut(false, None, || {
             PalletPink::put_sidevm_code(account.clone(), code)
         })
         .0
     }
 
-    pub fn get_sidevm_code(&mut self, hash: &Hash) -> Option<Vec<u8>> {
-        self.execute_with(false, None, || {
+    pub fn get_sidevm_code(&self, hash: &Hash) -> Option<Vec<u8>> {
+        self.execute_with(true, None, || {
             PalletPink::sidevm_codes(&hash).map(|v| v.code)
         })
         .0
     }
 
     pub fn set_system_contract(&mut self, address: AccountId) {
-        self.execute_with(false, None, move || {
+        self.execute_mut(false, None, move || {
             PalletPink::set_system_contract(address);
         });
     }
 
-    pub fn system_contract(&mut self) -> Option<AccountId> {
+    pub fn system_contract(&self) -> Option<AccountId> {
         self.execute_with(true, None, PalletPink::system_contract).0
     }
 
@@ -196,14 +220,27 @@ where
         *self.backend.as_trie_backend().root()
     }
 
-    pub fn free_balance(&mut self, account: &AccountId) -> Balance {
+    pub fn free_balance(&self, account: &AccountId) -> Balance {
         self.execute_with(true, None, || Balances::free_balance(account))
             .0
     }
 
-    pub fn total_balance(&mut self, account: &AccountId) -> Balance {
+    pub fn total_balance(&self, account: &AccountId) -> Balance {
         self.execute_with(true, None, || Balances::total_balance(account))
             .0
+    }
+
+    pub fn code_hash(&self, account: &AccountId) -> Option<Hash> {
+        self.execute_with(true, None, || Contracts::code_hash(account))
+            .0
+    }
+
+    pub fn set_system_contract_code(&mut self, code_hash: Hash) -> Result<(), DispatchError> {
+        let system_contract = self.system_contract().ok_or(DispatchError::CannotLookup)?;
+        self.execute_mut(false, None, || {
+            Contracts::set_code(RawOrigin::Root.into(), system_contract, code_hash)
+        })
+        .0
     }
 }
 

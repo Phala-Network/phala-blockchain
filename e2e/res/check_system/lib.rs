@@ -8,8 +8,11 @@ use pink_extension as pink;
 mod check_system {
     use super::pink;
     use alloc::vec::Vec;
-    use pink::system::{ContractDeposit, Result, SystemRef, DriverError};
+    use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::PinkEnvironment;
+
+    use indeterministic_functions::Usd;
+    use alloc::string::String;
 
     #[ink(storage)]
     pub struct CheckSystem {
@@ -68,6 +71,23 @@ mod check_system {
         #[ink(message)]
         pub fn cache_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
             pink::ext().cache_get(&key)
+        }
+
+        #[ink(message)]
+        pub fn parse_usd(&self, delegate: Hash, json: String) -> Option<Usd> {
+            // The ink sdk currently does not generate typed API for delegate calls. So we have to
+            // use this low level approach to call `IndeterministicFunctions::parse_usd()`.
+            use ink_env::call;
+            let result = call::build_call::<PinkEnvironment>()
+                .call_type(call::DelegateCall::new().code_hash(delegate))
+                .exec_input(
+                    call::ExecutionInput::new(call::Selector::new(0xafead99e_u32.to_be_bytes()))
+                        .push_arg(json),
+                )
+                .returns::<Option<Usd>>()
+                .fire();
+            pink::info!("parse_usd result: {result:?}");
+            result.unwrap()
         }
     }
 

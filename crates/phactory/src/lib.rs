@@ -23,10 +23,10 @@ use std::{path::Path, str};
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
+use phala_types::AttestationProvider;
 use ring::rand::SecureRandom;
 use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
-use phala_types::AttestationProvider;
 
 // use pink::InkModule;
 
@@ -38,14 +38,12 @@ use phactory_api::{
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 
-use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
     aead,
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
 use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
-use phala_pallets::pallet_mq;
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -54,9 +52,10 @@ use types::Error;
 pub use chain::BlockNumber;
 pub use contracts::pink;
 pub use prpc_service::RpcService;
-pub use storage::{Storage, StorageExt};
+pub use storage::ChainStorage;
 pub use system::gk;
 pub use types::BlockInfo;
+pub type PRuntimeLightValidation = LightValidation<chain::Runtime>;
 
 pub mod benchmark;
 
@@ -85,25 +84,18 @@ struct RuntimeState {
     storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
 
     // TODO.kevin: use a better serialization approach
-    chain_storage: Storage,
+    chain_storage: ChainStorage,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
+
+    para_id: u32,
 }
 
 impl RuntimeState {
     fn purge_mq(&mut self) {
-        self.send_mq.purge(|sender| {
-            use pallet_mq::StorageMapTrait as _;
-            type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
-
-            let module_prefix = OffchainIngress::module_prefix();
-            let storage_prefix = OffchainIngress::storage_prefix();
-            let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence: u64 = self.chain_storage.get_decoded(key).unwrap_or(0);
-            debug!("purging, sequence = {}", sequence);
-            sequence
-        })
+        self.send_mq
+            .purge(|sender| self.chain_storage.mq_sequence(sender))
     }
 }
 
@@ -182,19 +174,13 @@ fn remove_outdated_checkpoints(
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
     genesis_block_hash: H256,
-    sk: Sr25519SecretKey,
-    dev_mode: bool,
-}
-
-#[derive(Encode, Decode, Clone, Debug)]
-struct PersistentRuntimeDataV2 {
-    genesis_block_hash: H256,
+    para_id: u32,
     sk: Sr25519SecretKey,
     trusted_sk: bool,
     dev_mode: bool,
 }
 
-impl PersistentRuntimeDataV2 {
+impl PersistentRuntimeData {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
         let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
@@ -212,13 +198,13 @@ impl PersistentRuntimeDataV2 {
 #[derive(Encode, Decode, Clone, Debug)]
 enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
-    V2(PersistentRuntimeDataV2),
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
+    #[serde(skip)]
     pub args: InitArgs,
     dev_mode: bool,
     attestation_provider: Option<AttestationProvider>,
@@ -240,14 +226,14 @@ pub struct Phactory<Platform> {
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
     #[serde(skip)]
-    #[serde(default)]
-    last_storage_purge_at: chain::BlockNumber,
-    #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
     query_scheduler: RequestScheduler<ContractId>,
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
+
+    #[serde(skip)]
+    can_load_chain_state: bool,
 }
 
 fn default_query_scheduler() -> RequestScheduler<ContractId> {
@@ -273,9 +259,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             signed_endpoints: None,
             handover_ecdh_key: None,
             last_checkpoint: Instant::now(),
-            last_storage_purge_at: 0,
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
+            can_load_chain_state: false,
         }
     }
 
@@ -292,6 +278,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             benchmark::resume();
         }
 
+        self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = args;
     }
 
@@ -306,17 +293,18 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn init_runtime_data(
         &self,
         genesis_block_hash: H256,
+        para_id: u32,
         predefined_identity_key: Option<sr25519::Pair>,
-    ) -> Result<PersistentRuntimeDataV2> {
+    ) -> Result<PersistentRuntimeData> {
         let data = if let Some(identity_sk) = predefined_identity_key {
-            self.save_runtime_data(genesis_block_hash, identity_sk, false, true)?
+            self.save_runtime_data(genesis_block_hash, para_id, identity_sk, false, true)?
         } else {
             match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
-                    self.save_runtime_data(genesis_block_hash, identity_sk, true, false)?
+                    self.save_runtime_data(genesis_block_hash, para_id, identity_sk, true, false)?
                 }
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
@@ -324,12 +312,17 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         // check genesis block hash
         if genesis_block_hash != data.genesis_block_hash {
-            panic!(
+            anyhow::bail!(
                 "Genesis block hash mismatches with saved keys, expected {}",
                 data.genesis_block_hash
             );
         }
-        info!("Machine id: {:?}", hex::encode(&self.machine_id));
+        if para_id != data.para_id {
+            anyhow::bail!(
+                "Parachain id mismatches, saved: {}, in state: {para_id}",
+                data.para_id
+            );
+        }
         info!("Init done.");
         Ok(data)
     }
@@ -337,21 +330,23 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn save_runtime_data(
         &self,
         genesis_block_hash: H256,
+        para_id: u32,
         sr25519_sk: sr25519::Pair,
         trusted_sk: bool,
         dev_mode: bool,
-    ) -> Result<PersistentRuntimeDataV2> {
+    ) -> Result<PersistentRuntimeData> {
         // Put in PresistentRuntimeData
         let sk = sr25519_sk.dump_secret_key();
 
-        let data = PersistentRuntimeDataV2 {
+        let data = PersistentRuntimeData {
             genesis_block_hash,
+            para_id,
             sk,
             trusted_sk,
             dev_mode,
         };
         {
-            let data = RuntimeDataSeal::V2(data.clone());
+            let data = RuntimeDataSeal::V1(data.clone());
             let encoded_vec = data.encode();
             info!("Length of encoded slice: {}", encoded_vec.len());
             let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
@@ -367,7 +362,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     fn load_runtime_data(
         platform: &Platform,
         sealing_path: &str,
-    ) -> Result<PersistentRuntimeDataV2, Error> {
+    ) -> Result<PersistentRuntimeData, Error> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
@@ -375,16 +370,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
-            RuntimeDataSeal::V1(data) => {
-                Ok(PersistentRuntimeDataV2 {
-                    genesis_block_hash: data.genesis_block_hash,
-                    sk: data.sk,
-                    // key injection is impossible for legacy persistent data
-                    trusted_sk: true,
-                    dev_mode: data.dev_mode,
-                })
-            }
-            RuntimeDataSeal::V2(data) => Ok(data),
+            RuntimeDataSeal::V1(data) => Ok(data),
         }
     }
 
@@ -413,11 +399,63 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
+        self.check_requirements();
         self.reconfigure_network();
+        self.update_runtime_info(|_| {});
         if let Some(system) = &mut self.system {
             system.on_restored()?;
         }
         Ok(())
+    }
+
+    fn check_requirements(&self) {
+        let ver = P::app_version();
+        let chain_storage = &self
+            .runtime_state
+            .as_ref()
+            .expect("BUG: no runtime state")
+            .chain_storage;
+        let min_version = chain_storage.minimum_pruntime_version();
+
+        let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
+        let in_whitelist = chain_storage.is_pruntime_in_whitelist(&measurement);
+
+        if (ver.major, ver.minor, ver.patch) < min_version && !in_whitelist {
+            error!("This pRuntime is outdated. Please update to the latest version.");
+            std::process::abort();
+        }
+
+        let consensus_version = chain_storage.pruntime_consensus_version();
+        if consensus_version > system::MAX_SUPPORTED_CONSENSUS_VERSION {
+            error!(
+                "{} {}",
+                "This pRuntime is outdated and doesn't meet the consensus version requirement.",
+                "Please update to the latest version."
+            );
+            std::process::abort();
+        }
+    }
+
+    fn update_runtime_info(
+        &mut self,
+        f: impl FnOnce(&mut phala_types::WorkerRegistrationInfoV2<chain::AccountId>),
+    ) {
+        let Some(cached_resp) = self.runtime_info.as_mut() else {
+            return;
+        };
+        let mut runtime_info = cached_resp
+            .decode_runtime_info()
+            .expect("BUG: Decode runtime_info failed");
+        runtime_info.version = Self::compat_app_version();
+        runtime_info.max_consensus_versioin = system::MAX_SUPPORTED_CONSENSUS_VERSION;
+        f(&mut runtime_info);
+        cached_resp.encoded_runtime_info = runtime_info.encode();
+        cached_resp.attestation = None;
+    }
+
+    fn compat_app_version() -> u32 {
+        let version = P::app_version();
+        (version.major << 16) + (version.minor << 8) + version.patch
     }
 }
 

@@ -13,7 +13,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpListener,
-    sync::mpsc::{error::SendError, Sender},
+    sync::mpsc::{error::TrySendError, Sender},
     sync::oneshot::Sender as OneshotSender,
 };
 use wasmer::{
@@ -256,21 +256,18 @@ impl Env {
     }
 
     /// Push a pink message into the Sidevm instance.
-    pub fn push_message(
-        &self,
-        message: Vec<u8>,
-    ) -> Option<impl Future<Output = Result<(), SendError<Vec<u8>>>>> {
+    pub fn push_message(&self, message: Vec<u8>) -> Option<Result<(), TrySendError<Vec<u8>>>> {
         let tx = self.inner.lock().unwrap().message_tx.clone()?;
-        Some(async move { tx.send(message).await })
+        Some(tx.try_send(message))
     }
 
     /// Push a pink system message into the Sidevm instance.
     pub fn push_system_message(
         &self,
         message: SystemMessage,
-    ) -> Option<impl Future<Output = Result<(), SendError<Vec<u8>>>>> {
+    ) -> Option<Result<(), TrySendError<Vec<u8>>>> {
         let tx = self.inner.lock().unwrap().sys_message_tx.clone()?;
-        Some(async move { tx.send(message.encode()).await })
+        Some(tx.try_send(message.encode()))
     }
 
     /// Push a contract query to the Sidevm instance.

@@ -108,6 +108,7 @@ pub use phala_pallets::{
     pallet_basepool, pallet_computation, pallet_fat, pallet_mq, pallet_wrappedbalances, pallet_registry,
     pallet_stakepool, pallet_stakepoolv2, pallet_vault, puppets, pallet_fat_tokenomic,
 };
+use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -590,7 +591,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	type VoterList = VoterList;
 	// This a placeholder, to be introduced in the next PR as an instance of bags-list
 	type TargetList = pallet_staking::UseValidatorsMap<Self>;
@@ -603,9 +604,11 @@ impl pallet_staking::Config for Runtime {
 
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type ControlOrigin = EnsureRoot<AccountId>;
+	type ControlOrigin = frame_system::EnsureRoot<AccountId>;
+	type BatchSize = ConstU32<128>;
 	type Deposit = ConstU128<{ DOLLARS }>;
-	type DepositCurrency = Balances;
+	type Currency = Balances;
+	type Staking = Staking;
 	type WeightInfo = ();
 }
 
@@ -645,8 +648,15 @@ frame_election_provider_support::generate_solution_type!(
 );
 
 parameter_types! {
-    pub MaxNominations: u32 = <NposSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
-    pub MaxElectingVoters: u32 = 10_000;
+	pub MaxNominations: u32 = <NposSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub MaxElectingVoters: u32 = 40_000;
+	pub MaxElectableTargets: u16 = 10_000;
+	// OnChain values are lower.
+	pub MaxOnChainElectingVoters: u32 = 5000;
+	pub MaxOnChainElectableTargets: u16 = 1250;
+	// The maximum winners that can be elected by the Election pallet which is equivalent to the
+	// maximum active validators the staking pallet can have.
+	pub MaxActiveValidators: u32 = 1000;
 }
 
 /// The numbers configured here could always be more than the the maximum limits of staking pallet
@@ -693,18 +703,16 @@ impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
 
 pub struct OnChainSeqPhragmen;
 impl onchain::Config for OnChainSeqPhragmen {
-    type System = Runtime;
-    type Solver = SequentialPhragmen<
-        AccountId,
-        pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
-    >;
-    type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
-    type WeightInfo = frame_election_provider_support::weights::SubstrateWeight<Runtime>;
-}
-
-impl onchain::BoundedConfig for OnChainSeqPhragmen {
-    type VotersBound = MaxElectingVoters;
-    type TargetsBound = ConstU32<2_000>;
+	type System = Runtime;
+	type Solver = SequentialPhragmen<
+		AccountId,
+		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
+	>;
+	type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
+	type WeightInfo = frame_election_provider_support::weights::SubstrateWeight<Runtime>;
+	type MaxWinners = <Runtime as pallet_election_provider_multi_phase::Config>::MaxWinners;
+	type VotersBound = MaxOnChainElectingVoters;
+	type TargetsBound = MaxOnChainElectableTargets;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -747,11 +755,12 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
-	type Fallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
-	type GovernanceFallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
+	type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, OffchainRandomBalancing>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;
-	type MaxElectableTargets = ConstU16<{ u16::MAX }>;
+	type MaxElectableTargets = MaxElectableTargets;
+	type MaxWinners = MaxActiveValidators;
 	type MaxElectingVoters = MaxElectingVoters;
 	type BenchmarkingConfig = ElectionProviderBenchmarkConfig;
 	type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Self>;
@@ -796,11 +805,10 @@ impl pallet_nomination_pools::Config for Runtime {
 	type WeightInfo = ();
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type CurrencyBalance = Balance;
 	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
-	type StakingInterface = pallet_staking::Pallet<Self>;
+	type Staking = Staking;
 	type PostUnbondingPoolsWindow = PostUnbondPoolsWindow;
 	type MaxMetadataLen = ConstU32<256>;
 	type MaxUnbonding = ConstU32<8>;
@@ -1288,6 +1296,7 @@ parameter_types! {
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = false;
+	pub ParachainId: u32 = ParachainInfo::parachain_id().0;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1300,6 +1309,7 @@ impl pallet_registry::Config for Runtime {
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 	type RegistryMigrationAccountId = MigrationAccountGet;
+	type ParachainId = ParachainId;
 }
 impl pallet_mq::Config for Runtime {
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
@@ -1379,13 +1389,13 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ProtocolOrigin = EnsureRoot<AccountId>;
-    type NestingBudget = ConstU32<{10}>;
+    type NestingBudget = ConstU32<{10000}>;
     type ResourceSymbolLimit = ResourceSymbolLimit;
     type PartsLimit = PartsLimit;
     type MaxPriorities = MaxPriorities;
     type CollectionSymbolLimit = CollectionSymbolLimit;
     type MaxResourcesOnMint = MaxResourcesOnMint;
-	type CheckAllowTransfer = PhalaWrappedBalances;
+	type TransferHooks = PhalaWrappedBalances;
 	type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Runtime>;
 }
 impl pallet_fat::Config for Runtime {
@@ -1396,7 +1406,7 @@ impl pallet_fat::Config for Runtime {
 }
 
 parameter_types! {
-    pub const WPhaAssetId: u32 = 1;
+    pub const WPhaAssetId: u32 = 15;
 }
 
 pub struct WrappedBalancesGet;
@@ -1414,7 +1424,7 @@ pub struct MigrationAccountGet;
 
 impl Get<AccountId32> for MigrationAccountGet {
     fn get() -> AccountId32 {
-		let account: [u8; 32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
+		let account: [u8; 32] = hex_literal::hex!("9e6399cd577e8ac536bdc017675f747b2d1893ad9cc8c69fd17eef73d4e6e51e");
 		account.into()
     }
 }
@@ -1454,6 +1464,7 @@ impl pallet_assets::Config for Runtime {
     type MetadataDepositPerByte = MetadataDepositPerByte;
     type ApprovalDeposit = ApprovalDeposit;
     type StringLimit = AssetsStringLimit;
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<AccountId>>;
     type Freezer = ();
     type Extra = ();
     type WeightInfo = ();
@@ -1462,6 +1473,14 @@ impl pallet_assets::Config for Runtime {
 impl pallet_fat_tokenomic::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+}
+
+impl pallet_anchor::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type OnResponse = PhatOracle;
+}
+impl pallet_oracle::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
 }
 
 impl puppets::parachain_info::Config for Runtime {}
@@ -1524,6 +1543,10 @@ construct_runtime!(
         PhalaBasePool: pallet_basepool,
 		PhalaFatContracts: pallet_fat,
 		PhalaFatTokenomic: pallet_fat_tokenomic,
+
+		// Rollup and Oracles
+		PhatRollupAnchor: pallet_anchor = 100,
+		PhatOracle: pallet_oracle = 101,
 
 		// Put them here to make sure pherry could be compiled with phala's metadata.
 		ParachainInfo: puppets::parachain_info,

@@ -4,7 +4,7 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::base_pool;
 	use crate::computation;
-	use crate::pool_proxy::PoolProxy;
+	use crate::pool_proxy::{PoolProxy, PoolType};
 	use crate::registry;
 	use crate::vault;
 
@@ -147,7 +147,7 @@ pub mod pallet {
 
 
 
-	impl<T: Config> rmrk_traits::CheckAllowTransferFn<T::AccountId, u32, u32> for Pallet<T>
+	impl<T: Config> rmrk_traits::TransferHooks<T::AccountId, u32, u32> for Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
@@ -155,12 +155,11 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		fn check(_sender: &T::AccountId, _collection_id: &CollectionId, _nft_id: &NftId) -> bool 
+		fn pre_check(_sender: &T::AccountId, _collection_id: &CollectionId, _nft_id: &NftId) -> bool 
 		{
 			match base_pool::pallet::PoolCollections::<T>::get(_collection_id) {
 				Some(pid) => {
 					if let Some(net_value) = Pallet::<T>::get_net_value((*_sender).clone()).ok() {
-						// TODO(mingxuan): must check nft is exist before call function `check` in rmrk-core.
 						let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(*_collection_id, *_nft_id)
 							.expect("get nft should not fail: qed.");
 						let property = &property_guard.attr;
@@ -189,6 +188,26 @@ pub mod pallet {
 			};
 
 			true
+		}
+		fn post_transfer(
+			sender: &T::AccountId,
+			recipient: &T::AccountId,
+			collection_id: &CollectionId,
+			nft_id: &NftId,
+		) -> bool {
+			match base_pool::pallet::PoolCollections::<T>::get(collection_id) {
+				Some(pid) => {
+					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+						.expect("already checked exist; qed.");
+					let pool_type = match pool_proxy {
+						PoolProxy::Vault(res) => PoolType::Vault,
+						PoolProxy::StakePool(res) => PoolType::StakePool,
+					};
+					base_pool::Pallet::<T>::merge_or_init_nft_for_staker(*collection_id, recipient.clone(), pid, pool_type);
+				},
+				None => return true,
+			}
+			return true;
 		}
 	}
 

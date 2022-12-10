@@ -436,6 +436,8 @@ pub fn extend_types(
     let mut buf = String::new();
     buf.push_str(
         r#"
+    #![allow(clippy::too_many_arguments)]
+
     use ::prpc::codec::scale::{Encode, Decode, Error as ScaleDecodeError};
     use ::alloc::vec::Vec;
     use ::alloc::string::String;

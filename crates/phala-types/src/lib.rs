@@ -113,22 +113,6 @@ pub mod messaging {
         }
     }
 
-    bind_topic!(PRuntimeManagementEvent, b"phala/pruntime/management");
-    #[derive(Encode, Decode, Debug, TypeInfo, Clone, PartialEq, Eq)]
-    pub enum PRuntimeManagementEvent {
-        RetirePRuntime(RetireCondition),
-        SetConsensusVersion(u32),
-    }
-
-    #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-    #[derive(Encode, Decode, Debug, TypeInfo, Clone, PartialEq, Eq)]
-    pub enum RetireCondition {
-        /// pRuntimes of version less than given version will be retired.
-        VersionLessThan(u32, u32, u32),
-        /// pRuntimes of version equal to given version will be retired.
-        VersionIs(u32, u32, u32),
-    }
-
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq, TypeInfo)]
     pub struct HeartbeatChallenge {
         pub seed: U256,
@@ -553,6 +537,7 @@ pub struct ChallengeHandlerInfo<BlockNumber> {
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct EncryptedWorkerKey {
     pub genesis_block_hash: H256,
+    pub para_id: u32,
     pub dev_mode: bool,
     pub encrypted_key: messaging::EncryptedKey,
 }
@@ -566,6 +551,19 @@ pub struct WorkerRegistrationInfo<AccountId> {
     pub genesis_block_hash: H256,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct WorkerRegistrationInfoV2<AccountId> {
+    pub version: u32,
+    pub machine_id: MachineId,
+    pub pubkey: WorkerPublicKey,
+    pub ecdh_pubkey: EcdhPublicKey,
+    pub genesis_block_hash: H256,
+    pub features: Vec<u32>,
+    pub operator: Option<AccountId>,
+    pub para_id: u32,
+    pub max_consensus_versioin: u32,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]

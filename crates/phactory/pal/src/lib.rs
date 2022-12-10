@@ -18,8 +18,13 @@ pub trait Sealing {
 
 pub trait RA {
     type Error: ErrorType;
-    fn create_attestation_report(&self, provider: Option<AttestationProvider>, data: &[u8]) -> Result<Vec<u8>, Self::Error>;
+    fn create_attestation_report(
+        &self,
+        provider: Option<AttestationProvider>,
+        data: &[u8],
+    ) -> Result<Vec<u8>, Self::Error>;
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
+    fn measurement(&self) -> Option<Vec<u8>>;
 }
 
 pub struct MemoryUsage {
@@ -48,5 +53,8 @@ pub trait AppInfo {
     fn app_version() -> AppVersion;
 }
 
-pub trait Platform: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static {}
+pub trait Platform:
+    Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static
+{
+}
 impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static> Platform for T {}

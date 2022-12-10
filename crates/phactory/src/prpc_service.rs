@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
 use crate::hex;
-use crate::system::{chain_state, System};
+use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
 
 use super::*;
 use crate::contracts::ContractClusterId;
@@ -15,6 +15,7 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
+use phactory_api::blocks::StorageState;
 use phactory_api::{blocks, crypto, endpoints::EndpointType, prpc as pb};
 use phala_crypto::{
     key_share,
@@ -25,7 +26,7 @@ use phala_types::contract::contract_id_preimage;
 use phala_types::{
     contract, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport,
     ChallengeHandlerInfo, EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints,
-    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfo,
+    WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
 use tokio::sync::oneshot::{channel, Sender};
 
@@ -38,8 +39,6 @@ fn from_display(e: impl core::fmt::Display) -> RpcError {
 fn from_debug(e: impl core::fmt::Debug) -> RpcError {
     RpcError::AppError(format!("{e:?}"))
 }
-
-pub const VERSION: u32 = 1;
 
 fn now() -> u64 {
     use std::time::SystemTime;
@@ -128,6 +127,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 total_peak_used: m_usage.total_peak_used as _,
             }),
             system: system_info,
+            can_load_chain_state: self.can_load_chain_state,
         }
     }
 
@@ -141,6 +141,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             headers.first().map(|h| h.header.number),
             headers.last().map(|h| h.header.number)
         );
+        self.can_load_chain_state = false;
         let last_header = self
             .runtime_state()?
             .storage_synchronizer
@@ -165,13 +166,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let state = self.runtime_state()?;
 
-        let para_id = state
-            .chain_storage
-            .para_id()
-            .ok_or_else(|| from_display("No para_id"))?;
-
         let storage_key = light_validation::utils::storage_map_prefix_twox_64_concat(
-            b"Paras", b"Heads", &para_id,
+            b"Paras",
+            b"Heads",
+            &state.para_id,
         );
 
         let last_header = state
@@ -232,21 +230,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let state = self.runtime_state()?;
             state
                 .storage_synchronizer
-                .feed_block(&block, &mut state.chain_storage)
+                .feed_block(&block, state.chain_storage.inner_mut())
                 .map_err(from_display)?;
             info!("State synced");
             state.purge_mq();
+            self.check_requirements();
             self.handle_inbound_messages(block.block_header.number)?;
-            if block
-                .block_header
-                .number
-                .saturating_sub(self.last_storage_purge_at)
-                >= self.args.gc_interval
-            {
-                self.last_storage_purge_at = block.block_header.number;
-                info!("Purging database");
-                self.runtime_state()?.chain_storage.purge();
-            }
             last_block = block.block_header.number;
 
             if let Err(e) = self.maybe_take_checkpoint(last_block) {
@@ -269,6 +258,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.take_checkpoint(current_block)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn init_runtime(
         &mut self,
         is_parachain: bool,
@@ -290,14 +280,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
+        let chain_storage = ChainStorage::from_pairs(genesis_state.into_iter());
+        let para_id = chain_storage.para_id();
+        info!(
+            "Genesis state loaded: root={:?}, para_id={para_id}",
+            chain_storage.root()
+        );
 
         // load identity
         let rt_data = if let Some(raw_key) = debug_set_key {
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
-            self.init_runtime_data(genesis_block_hash, Some(priv_key))
+            self.init_runtime_data(genesis_block_hash, para_id, Some(priv_key))
                 .map_err(from_debug)?
         } else {
-            self.init_runtime_data(genesis_block_hash, None)
+            self.init_runtime_data(genesis_block_hash, para_id, None)
                 .map_err(from_debug)?
         };
         self.dev_mode = rt_data.dev_mode;
@@ -335,17 +331,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let cpu_feature_level: u32 = self.platform.cpu_feature_level();
         info!("CPU feature level: {}", cpu_feature_level);
 
-        // Build WorkerRegistrationInfo
-        let runtime_info = WorkerRegistrationInfo::<chain::AccountId> {
-            version: VERSION,
-            machine_id: self.machine_id.clone(),
-            pubkey: ecdsa_pk,
-            ecdh_pubkey,
-            genesis_block_hash,
-            features: vec![cpu_core_num, cpu_feature_level],
-            operator,
-        };
-
         // Initialize bridge
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
@@ -372,17 +357,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             send_mq,
             recv_mq,
             storage_synchronizer,
-            chain_storage: Default::default(),
+            chain_storage,
             genesis_block_hash,
+            para_id,
         };
-
-        // Initialize other states
-        runtime_state.chain_storage.load(genesis_state.into_iter());
-
-        info!(
-            "Genesis state loaded: {:?}",
-            runtime_state.chain_storage.root()
-        );
 
         // In parachain mode the state root is stored in parachain header which isn't passed in here.
         // The storage root would be checked at the time each block being synced in(where the storage
@@ -411,6 +389,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.args.cores as _,
         );
 
+        // Build WorkerRegistrationInfoV2
+        let runtime_info = WorkerRegistrationInfoV2::<chain::AccountId> {
+            version: Self::compat_app_version(),
+            machine_id: self.machine_id.clone(),
+            pubkey: ecdsa_pk,
+            ecdh_pubkey,
+            genesis_block_hash,
+            features: vec![cpu_core_num, cpu_feature_level],
+            operator,
+            para_id,
+            max_consensus_versioin: MAX_SUPPORTED_CONSENSUS_VERSION,
+        };
+
         let resp = pb::InitRuntimeResponse::new(
             runtime_info,
             genesis_block_hash,
@@ -430,35 +421,41 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         operator: Option<chain::AccountId>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
         let validated_identity_key = self.system()?.validated_identity_key();
+        let validated_state = self.runtime_state()?.storage_synchronizer.state_validated();
+
+        let reset_operator = operator.is_some();
+        if reset_operator {
+            self.update_runtime_info(move |info| {
+                info.operator = operator;
+            });
+        }
 
         let mut cached_resp = self
             .runtime_info
             .as_mut()
             .ok_or_else(|| from_display("Uninitiated runtime info"))?;
 
-        let reset_operator = operator.is_some();
-        if reset_operator {
-            let mut runtime_info = cached_resp
-                .decode_runtime_info()
-                .expect("Decode runtime_info failed");
-            runtime_info.operator = operator;
-            cached_resp.encoded_runtime_info = runtime_info.encode();
-        }
-
-        // never generate RA report for a potentially injected identity key
-        // else he is able to fake a Secure Worker
-        if validated_identity_key {
-            if let Some(cached_attestation) = &cached_resp.attestation {
-                const MAX_ATTESTATION_AGE: u64 = 60 * 60;
-                if refresh_ra
-                    || reset_operator
-                    || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
-                {
-                    cached_resp.attestation = None;
-                }
+        if let Some(cached_attestation) = &cached_resp.attestation {
+            const MAX_ATTESTATION_AGE: u64 = 60 * 60;
+            if refresh_ra
+                || reset_operator
+                || now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE
+            {
+                cached_resp.attestation = None;
             }
         }
-        if cached_resp.attestation.is_none() {
+
+        let allow_attestation =
+            validated_state && (validated_identity_key || self.attestation_provider.is_none());
+        info!("validated_identity_key :{validated_identity_key}");
+        info!("validated_state        :{validated_state}");
+        info!("refresh_ra             :{refresh_ra}");
+        info!("reset_operator         :{reset_operator}");
+        info!("attestation_provider   :{:?}", self.attestation_provider);
+        info!("allow_attestation      :{allow_attestation}");
+        // Never generate RA report for a potentially injected identity key
+        // else he is able to fake a Secure Worker
+        if allow_attestation && cached_resp.attestation.is_none() {
             // We hash the encoded bytes directly
             let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
             info!("Encoded runtime info");
@@ -498,10 +495,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn apply_side_effects(&mut self, cluster_id: ContractClusterId, effects: ExecSideEffects) {
-        let _ = self
-            .system()
-            .as_mut()
-            .map(move |system| system.apply_side_effects(cluster_id, effects));
+        let Some(state) = self.runtime_state.as_ref() else {
+            error!("Failed to apply side effects: chain storage missing");
+            return;
+        };
+        let Some(system) = self.system.as_mut() else {
+            error!("Failed to apply side effects: system missing");
+            return;
+        };
+        system.apply_side_effects(cluster_id, effects, &state.chain_storage);
     }
 
     fn contract_query(
@@ -608,10 +610,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         state.recv_mq.reset_local_index();
 
-        let now_ms = state
-            .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
+        let now_ms = state.chain_storage.timestamp_now();
 
         let mut block = BlockInfo {
             block_number,
@@ -810,6 +809,54 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         self.system()?
             .upload_sidevm_code(contract_id, code)
             .map_err(from_display)
+    }
+
+    pub fn load_chain_state(
+        &mut self,
+        block: chain::BlockNumber,
+        storage: StorageState,
+    ) -> anyhow::Result<()> {
+        if !self.can_load_chain_state {
+            anyhow::bail!("Can not load chain state");
+        }
+        if block == 0 {
+            anyhow::bail!("Can not load chain state from block 0");
+        }
+        let Some(system) = &mut self.system else {
+            anyhow::bail!("System is uninitialized");
+        };
+        let Some(state) = &mut self.runtime_state else {
+            anyhow::bail!("Runtime is uninitialized");
+        };
+        let chain_storage = ChainStorage::from_pairs(storage.into_iter());
+        let para_id = chain_storage.para_id();
+        if para_id != state.para_id {
+            anyhow::bail!(
+                "Loading different parachain state, loading={para_id}, init={}",
+                state.para_id
+            );
+        }
+        if chain_storage.is_worker_registered(&system.identity_key.public()) {
+            anyhow::bail!(
+                "Failed to load state: the worker is already registered at block {block}",
+            );
+        }
+        state
+            .storage_synchronizer
+            .assume_at_block(block)
+            .context("Failed to set synchronizer state")?;
+        state.chain_storage = chain_storage;
+        system.genesis_block = block;
+        self.can_load_chain_state = false;
+        Ok(())
+    }
+
+    pub fn stop(&self, remove_checkpoints: bool) -> RpcResult<()> {
+        info!("Requested to stop remove_checkpoints={remove_checkpoints}");
+        if remove_checkpoints {
+            crate::maybe_remove_checkpoints(&self.args.sealing_path);
+        }
+        std::process::abort()
     }
 }
 
@@ -1136,9 +1183,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .map_err(|_| from_display("Invalid RA report from client"))?;
             let my_mrenclave = my_ias_fields.extend_mrenclave();
             let runtime_state = phactory.runtime_state()?;
-            let my_runtime_timestamp =
-                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &my_mrenclave)
-                    .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
+            let my_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&my_mrenclave)
+                .ok_or_else(|| from_display("Key handover not supported in this pRuntime"))?;
 
             let attestation = attestation.ok_or_else(|| from_display("Attestation not found"))?;
             let mrenclave = match attestation {
@@ -1152,9 +1200,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                     ias_fields.extend_mrenclave()
                 }
             };
-            let req_runtime_timestamp =
-                chain_state::get_pruntime_added_at(&runtime_state.chain_storage, &mrenclave)
-                    .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
+            let req_runtime_timestamp = runtime_state
+                .chain_storage
+                .get_pruntime_added_at(&mrenclave)
+                .ok_or_else(|| from_display("Unknown target pRuntime version"))?;
             // ATTENTION.shelven: relax this check for easy testing and restore it for release
             if my_runtime_timestamp >= req_runtime_timestamp {
                 return Err(from_display("No handover for old pRuntime"));
@@ -1183,6 +1232,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let genesis_block_hash = runtime_state.genesis_block_hash;
         let encrypted_worker_key = EncryptedWorkerKey {
             genesis_block_hash,
+            para_id: runtime_state.para_id,
             dev_mode,
             encrypted_key,
         };
@@ -1308,6 +1358,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         phactory
             .save_runtime_data(
                 encrypted_worker_key.genesis_block_hash,
+                encrypted_worker_key.para_id,
                 sr25519::Pair::restore_from_secret_key(&secret),
                 false, // we are not sure whether this key is injected
                 dev_mode,
@@ -1444,6 +1495,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             public_rpc_port: phactory.args.public_port.map(Into::into),
             config: phactory.netconfig.clone(),
         })
+    }
+    async fn load_chain_state(
+        &mut self,
+        request: pb::ChainState,
+    ) -> Result<(), prpc::server::Error> {
+        self.lock_phactory()
+            .load_chain_state(request.block_number, request.decode_state()?)
+            .map_err(from_display)
+    }
+    async fn stop(&mut self, request: pb::StopOptions) -> Result<(), prpc::server::Error> {
+        self.lock_phactory().stop(request.remove_checkpoints)
     }
 }
 

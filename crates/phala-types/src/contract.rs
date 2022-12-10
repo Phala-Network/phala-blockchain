@@ -108,6 +108,7 @@ pub mod messaging {
     pub enum ResourceType {
         InkCode,
         SidevmCode,
+        IndeterministicInkCode,
     }
 
     bind_topic!(WorkerClusterReport, b"phala/cluster/worker/report");

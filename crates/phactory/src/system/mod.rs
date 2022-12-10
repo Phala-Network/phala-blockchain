@@ -7,7 +7,6 @@ use crate::{
     pink::{cluster::ClusterKeeper, ContractEventCallback, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
-    StorageExt,
 };
 use anyhow::{anyhow, Context, Result};
 use core::fmt;
@@ -23,7 +22,7 @@ use crate::contracts;
 use crate::pal;
 use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
-pub use master_key::RotatedMasterKey;
+pub use master_key::{gk_master_key_exists, RotatedMasterKey};
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus, SystemInfo};
 use phala_crypto::{
@@ -48,8 +47,8 @@ use phala_types::{
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution,
-        NewGatekeeperEvent, PRuntimeManagementEvent, RemoveGatekeeperEvent, RetireCondition,
-        RotateMasterKeyEvent, SystemEvent, WorkerEvent, WorkingReportEvent,
+        NewGatekeeperEvent, RemoveGatekeeperEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+        WorkingReportEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, HandoverChallenge, SignedContentType, WorkerPublicKey,
 };
@@ -64,7 +63,7 @@ use std::future::Future;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
-const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 1;
+pub(crate) const MAX_SUPPORTED_CONSENSUS_VERSION: u32 = 0;
 
 #[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
 #[error("TransactionError: {:?}", self)]
@@ -433,7 +432,6 @@ pub struct System<Platform> {
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
-    pruntime_management_events: TypedReceiver<PRuntimeManagementEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution<chain::BlockNumber>>,
@@ -459,10 +457,9 @@ pub struct System<Platform> {
     // Cached for query
     pub(crate) block_number: BlockNumber,
     pub(crate) now_ms: u64,
-    retired_versions: Vec<RetireCondition>,
 
-    // The version flag used to coordinate the pruntime's behavior.
-    pub(crate) consensus_version: u32,
+    // If non-zero indicates the block which this worker loaded the chain state from.
+    pub(crate) genesis_block: BlockNumber,
 }
 
 thread_local! {
@@ -518,7 +515,6 @@ impl<Platform: pal::Platform> System<Platform> {
             storage_path,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
-            pruntime_management_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
@@ -535,8 +531,7 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             sidevm_spawner: create_sidevm_service(worker_threads),
-            retired_versions: vec![],
-            consensus_version: 0,
+            genesis_block: 0,
         }
     }
 
@@ -659,12 +654,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
                 self.process_system_event(block, &event);
             },
-            (event, origin) = self.pruntime_management_events => {
-                if !origin.is_pallet() {
-                    anyhow::bail!("Invalid pRuntime management event sender: {}", origin);
-                }
-                self.process_pruntime_management_event(event);
-            },
             (event, origin) = self.gatekeeper_launch_events => {
                 self.process_gatekeeper_launch_event(block, origin, event);
             },
@@ -747,6 +736,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     &self.egress,
                     &self.sidevm_spawner,
                     log_handler,
+                    block.storage,
                 );
             }
         }
@@ -788,6 +778,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.egress,
                 &self.sidevm_spawner,
                 log_handler,
+                block.storage,
             );
         }
         if self.contracts.weight_changed {
@@ -811,44 +802,6 @@ impl<Platform: pal::Platform> System<Platform> {
             },
             true,
         );
-    }
-
-    fn process_pruntime_management_event(&mut self, event: PRuntimeManagementEvent) {
-        info!("PRuntime management event received: {:?}", event);
-        match event {
-            PRuntimeManagementEvent::RetirePRuntime(condition) => {
-                self.retired_versions.push(condition);
-                self.check_retirement();
-            }
-            PRuntimeManagementEvent::SetConsensusVersion(version) => {
-                if version > MAX_SUPPORTED_CONSENSUS_VERSION {
-                    panic!(
-                        "Unsupported system consensus version {}, please upgrade the pRuntime",
-                        version
-                    );
-                }
-                self.consensus_version = version;
-            }
-        }
-    }
-
-    fn check_retirement(&mut self) {
-        let cur_ver = Platform::app_version();
-        for condition in self.retired_versions.iter() {
-            let should_retire = match *condition {
-                RetireCondition::VersionLessThan(major, minor, patch) => {
-                    (cur_ver.major, cur_ver.minor, cur_ver.patch) < (major, minor, patch)
-                }
-                RetireCondition::VersionIs(major, minor, patch) => {
-                    (cur_ver.major, cur_ver.minor, cur_ver.patch) == (major, minor, patch)
-                }
-            };
-
-            if should_retire {
-                error!("This pRuntime is outdated. Please update to the latest version.");
-                std::process::abort();
-            }
-        }
     }
 
     /// Update local sealed master keys if the received history is longer than existing one.
@@ -894,6 +847,10 @@ impl<Platform: pal::Platform> System<Platform> {
             !master_key_history.is_empty(),
             "Init gatekeeper with no master key"
         );
+
+        if self.genesis_block != 0 {
+            panic!("Gatekeeper must be synced start from the first block");
+        }
 
         let master_key = sr25519::Pair::restore_from_secret_key(
             &master_key_history
@@ -1386,6 +1343,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             &self.egress,
                             &self.sidevm_spawner,
                             log_handler,
+                            block.storage,
                         );
                     }
                 }
@@ -1592,12 +1550,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 error!("Cluster {:?} is already deployed", &cluster_id);
                 return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-            let system_code = block
-                .storage
-                .pink_system_code()
-                .map(|it| it.1)
-                .filter(|code| !code.is_empty())
-                .ok_or(TransactionError::NoPinkSystemCode)?;
+            let system_code = block.storage.pink_system_code().1;
+            if system_code.is_empty() {
+                return Err(TransactionError::NoPinkSystemCode.into());
+            }
             info!(
                 "Worker: creating cluster {:?}, owner={:?}, code length={}",
                 cluster_id,
@@ -1634,36 +1590,16 @@ impl<Platform: pal::Platform> System<Platform> {
             };
             let (pink, effects) =
                 Pink::instantiate(event.cluster, code_hash, selector, vec![], false, args)?;
-            // Record the version
-            let selector = vec![0x87, 0xc9, 0x8a, 0x8d]; // System::version
-            let args = ::pink::TransactionArguments {
-                origin: owner,
-                now: block.now_ms,
-                block_number: block.block_number,
-                storage: &mut cluster.storage,
-                transfer: 0,
-                gas_limit: Weight::MAX,
-                gas_free: true,
-                storage_deposit_limit: None,
-                callbacks: None,
-            };
-            let (result, _) = pink.instance.bare_call(selector, true, args);
-            let output = result
-                .result
-                .or(Err(TransactionError::BadPinkSystemVersion))?;
-            cluster.config.version = Decode::decode(&mut &output.data[..])
-                .or(Err(TransactionError::BadPinkSystemVersion))?;
+            cluster.set_system_contract(pink.address());
+            cluster
+                .sync_system_contract_version()
+                .expect("Failed to sync the system contract version. Please upgrade pRuntime!");
             info!(
                 "Cluster deployed, id={:?}, system={:?}, version={:?}",
                 event.cluster,
                 pink.id(),
                 cluster.config.version
             );
-            const SUPPORTED_API_VERSION: u16 = 0;
-            if cluster.config.version.0 > SUPPORTED_API_VERSION {
-                panic!("The pink-system version is not supported, please upgrade the pRuntime");
-            }
-            cluster.set_system_contract(pink.address());
             apply_pink_side_effects(
                 effects,
                 event.cluster,
@@ -1673,6 +1609,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.egress,
                 &self.sidevm_spawner,
                 None,
+                block.storage,
             );
 
             let message = WorkerClusterReport::ClusterDeployed {
@@ -1718,8 +1655,8 @@ impl<Platform: pal::Platform> System<Platform> {
             number_of_contracts: self.contracts.len() as _,
             public_key: hex::encode(self.identity_key.public()),
             ecdh_public_key: hex::encode(self.ecdh_key.public()),
-            consensus_version: self.consensus_version,
             max_supported_consensus_version: MAX_SUPPORTED_CONSENSUS_VERSION,
+            genesis_block: self.genesis_block,
         }
     }
 }
@@ -1729,7 +1666,6 @@ impl<P: pal::Platform> System<P> {
         ::pink::runtime::set_worker_pubkey(self.ecdh_key.public());
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);
         self.contracts.apply_local_cache_quotas();
-        self.check_retirement();
         Ok(())
     }
 
@@ -1737,6 +1673,7 @@ impl<P: pal::Platform> System<P> {
         &mut self,
         cluster_id: phala_mq::ContractClusterId,
         effects: ExecSideEffects,
+        chain_storage: &crate::ChainStorage,
     ) {
         let cluster = match self.contract_clusters.get_cluster_mut(&cluster_id) {
             Some(cluster) => cluster,
@@ -1754,6 +1691,7 @@ impl<P: pal::Platform> System<P> {
             &mut self.contracts,
             cluster,
             &self.sidevm_spawner,
+            chain_storage,
         );
     }
 
@@ -1780,6 +1718,7 @@ pub fn handle_contract_command_result(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
+    chain_storage: &crate::ChainStorage,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1807,6 +1746,7 @@ pub fn handle_contract_command_result(
         egress,
         spawner,
         log_handler,
+        chain_storage,
     );
 }
 
@@ -1820,6 +1760,7 @@ pub fn apply_pink_side_effects(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
+    chain_storage: &crate::ChainStorage,
 ) {
     apply_instantiating_events(
         effects.instantiated,
@@ -1829,7 +1770,14 @@ pub fn apply_pink_side_effects(
         block,
         egress,
     );
-    apply_pink_events(effects.pink_events, cluster_id, contracts, cluster, spawner);
+    apply_pink_events(
+        effects.pink_events,
+        cluster_id,
+        contracts,
+        cluster,
+        spawner,
+        chain_storage,
+    );
     apply_ink_side_effects(effects.ink_events, cluster_id, block, log_handler);
 }
 
@@ -1890,6 +1838,7 @@ pub(crate) fn apply_pink_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     spawner: &Spawner,
+    chain_storage: &crate::ChainStorage,
 ) {
     for (origin, event) in pink_events {
         macro_rules! get_contract {
@@ -2002,6 +1951,34 @@ pub(crate) fn apply_pink_events(
                 contract.set_weight(weight);
                 contracts.weight_changed = true;
             }
+            PinkEvent::UpgradeSystemContract { storage_payer } => {
+                ensure_system!();
+                let system_code = chain_storage.pink_system_code().1;
+                if system_code.is_empty() {
+                    error!("No pink system code on chain");
+                    continue;
+                };
+                let storage_payer = storage_payer.convert_to();
+                let hash = match cluster.upload_resource(
+                    &storage_payer,
+                    ResourceType::InkCode,
+                    system_code,
+                ) {
+                    Ok(hash) => hash,
+                    Err(err) => {
+                        error!("Failed to upload the system code to the cluster: {err:?}");
+                        continue;
+                    }
+                };
+                if let Err(err) = cluster.set_system_contract_code(hash) {
+                    error!("Failed to set the system contract code hash: {err:?}");
+                    continue;
+                }
+                info!(
+                    "The system contract has been upgraded to {:?}, hash={hash:?}",
+                    cluster.config.version
+                );
+            }
         }
     }
 }
@@ -2084,30 +2061,9 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-    use crate::storage::{Storage, StorageExt};
-    use parity_scale_codec::Decode;
+    use crate::storage::ChainStorage;
 
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
-        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
-            .get(&key)
-            .map(|v| {
-                Vec::<WorkerPublicKey>::decode(&mut &v[..])
-                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
-            })
-            .unwrap_or_default();
-
-        gatekeepers.contains(pubkey)
-    }
-
-    /// Return `None` if given pruntime hash is not allowed on-chain
-    pub fn get_pruntime_added_at(
-        chain_storage: &Storage,
-        runtime_hash: &Vec<u8>,
-    ) -> Option<chain::BlockNumber> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PRuntimeAddedAt", runtime_hash);
-        chain_storage.get_decoded(key)
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &ChainStorage) -> bool {
+        chain_storage.gatekeepers().contains(pubkey)
     }
 }

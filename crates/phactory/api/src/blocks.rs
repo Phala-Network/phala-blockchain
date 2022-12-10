@@ -83,15 +83,6 @@ pub struct SyncHeaderReq {
     pub authority_set_change: Option<AuthoritySetChange>,
 }
 
-#[derive(TypeInfo, Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ParaId(pub u32);
-
-impl ParaId {
-    pub fn new(n: u32) -> ParaId {
-        ParaId(n)
-    }
-}
-
 #[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct SyncParachainHeaderReq {
     pub headers: Headers,

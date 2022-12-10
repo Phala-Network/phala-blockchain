@@ -2,7 +2,7 @@ use crate::light_validation::{storage_proof::StorageProof, LightValidation};
 use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
 use std::string::ToString;
 
-pub use storage_ext::{Storage, StorageExt};
+pub use storage_ext::ChainStorage;
 
 impl BlockValidator for LightValidation<chain::Runtime> {
     fn submit_finalized_headers(
@@ -35,18 +35,32 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 }
 
 mod storage_ext {
-    use crate::chain;
-    use crate::light_validation::utils::storage_prefix;
-    use phactory_api::blocks::ParaId;
+    use crate::{chain, light_validation::utils::storage_prefix};
+    use chain::{pallet_fat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
-    use phala_mq::Message;
+    use phala_mq::{Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
+    use serde::{Deserialize, Serialize};
+    use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
 
-    pub type Storage = TrieStorage<crate::RuntimeHasher>;
+    #[derive(Serialize, Deserialize, Default)]
+    pub struct ChainStorage {
+        trie_storage: TrieStorage<crate::RuntimeHasher>,
+    }
 
-    pub trait StorageExt {
-        fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;
+    impl From<TrieStorage<crate::RuntimeHasher>> for ChainStorage {
+        fn from(value: TrieStorage<crate::RuntimeHasher>) -> Self {
+            Self {
+                trie_storage: value,
+            }
+        }
+    }
+
+    impl ChainStorage {
+        fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
+            self.trie_storage.get(key)
+        }
         fn get_decoded_result<T: Decode>(&self, key: impl AsRef<[u8]>) -> Result<Option<T>, Error> {
             self.get_raw(key)
                 .map(|v| match Decode::decode(&mut &v[..]) {
@@ -58,22 +72,50 @@ mod storage_ext {
                 })
                 .transpose()
         }
-        fn get_decoded<T: Decode>(&self, key: impl AsRef<[u8]>) -> Option<T> {
-            self.get_decoded_result(key).ok().flatten()
+    }
+
+    impl ChainStorage {
+        pub fn from_pairs(
+            pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
+        ) -> Self {
+            let mut me = Self::default();
+            me.load(pairs);
+            me
         }
-        fn get_decoded_or_default<T: Decode + Default>(
-            &self,
-            key: impl AsRef<[u8]>,
-        ) -> Result<T, Error> {
-            self.get_decoded_result(key).map(|v| v.unwrap_or_default())
+
+        pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
+            self.trie_storage.load(pairs);
         }
-        fn para_id(&self) -> Option<ParaId> {
-            self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
+
+        pub fn root(&self) -> &sp_core::H256 {
+            self.trie_storage.root()
         }
-        fn mq_messages(&self) -> Result<Vec<Message>, Error> {
+
+        pub fn inner(&self) -> &TrieStorage<crate::RuntimeHasher> {
+            &self.trie_storage
+        }
+
+        pub fn inner_mut(&mut self) -> &mut TrieStorage<crate::RuntimeHasher> {
+            &mut self.trie_storage
+        }
+
+        pub fn execute_with<R>(&self, f: impl FnOnce() -> R) -> R {
+            let backend = self.trie_storage.as_trie_backend();
+            let mut overlay = OverlayedChanges::default();
+            let mut cache = StorageTransactionCache::default();
+            let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
+            sp_externalities::set_and_run_with_externalities(&mut ext, f)
+        }
+
+        pub fn para_id(&self) -> u32 {
+            self.execute_with(chain::ParachainInfo::parachain_id).0
+        }
+
+        pub fn mq_messages(&self) -> Result<Vec<Message>, Error> {
             for key in ["OutboundMessagesV2", "OutboundMessages"] {
-                let messages: Vec<Message> =
-                    self.get_decoded_or_default(storage_prefix("PhalaMq", key))?;
+                let messages: Vec<Message> = self
+                    .get_decoded_result(storage_prefix("PhalaMq", key))
+                    .map(|v| v.unwrap_or_default())?;
                 if !messages.is_empty() {
                     info!("Got {} messages from {key}", messages.len());
                     return Ok(messages);
@@ -81,17 +123,56 @@ mod storage_ext {
             }
             Ok(vec![])
         }
-        fn timestamp_now(&self) -> Option<chain::Moment> {
-            self.get_decoded(storage_prefix("Timestamp", "Now"))
-        }
-        fn pink_system_code(&self) -> Option<(u16, Vec<u8>)> {
-            self.get_decoded(storage_prefix("PhalaFatContracts", "PinkSystemCode"))
-        }
-    }
 
-    impl StorageExt for Storage {
-        fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-            self.get(key)
+        pub fn timestamp_now(&self) -> chain::Moment {
+            self.execute_with(chain::Timestamp::now)
+        }
+
+        pub fn pink_system_code(&self) -> (u16, Vec<u8>) {
+            self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
+        }
+
+        /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
+        pub fn mq_sequence(&self, sender: &MessageOrigin) -> u64 {
+            self.execute_with(|| pallet_mq::OffchainIngress::<chain::Runtime>::get(sender))
+                .unwrap_or(0)
+        }
+
+        /// Return `None` if given pruntime hash is not allowed on-chain
+        pub(crate) fn get_pruntime_added_at(
+            &self,
+            runtime_hash: &[u8],
+        ) -> Option<chain::BlockNumber> {
+            self.execute_with(|| {
+                pallet_registry::PRuntimeAddedAt::<chain::Runtime>::get(runtime_hash)
+            })
+        }
+
+        pub(crate) fn gatekeepers(&self) -> Vec<phala_types::WorkerPublicKey> {
+            self.execute_with(pallet_registry::Gatekeeper::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn is_worker_registered(&self, worker: &phala_types::WorkerPublicKey) -> bool {
+            self.execute_with(|| pallet_registry::Workers::<chain::Runtime>::get(worker))
+                .is_some()
+        }
+
+        pub(crate) fn minimum_pruntime_version(&self) -> (u32, u32, u32) {
+            self.execute_with(pallet_registry::MinimumPRuntimeVersion::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn pruntime_consensus_version(&self) -> u32 {
+            self.execute_with(pallet_registry::PRuntimeConsensusVersion::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn is_pruntime_in_whitelist(&self, measurement: &[u8]) -> bool {
+            let list = self.execute_with(pallet_registry::PRuntimeAllowList::<chain::Runtime>::get);
+            for hash in list.iter() {
+                if hash.starts_with(measurement) {
+                    return true;
+                }
+            }
+            false
         }
     }
 }

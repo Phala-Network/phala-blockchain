@@ -6,7 +6,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
 (
     BlockWeights {
         base_block: Weight {
-            ref_time: 5346284000,
+            ref_time: 358523000,
             proof_size: 0,
         },
         max_block: Weight {
@@ -16,12 +16,12 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
         per_class: PerDispatchClass {
             normal: WeightsPerClass {
                 base_extrinsic: Weight {
-                    ref_time: 86298000,
+                    ref_time: 98974000,
                     proof_size: 0,
                 },
                 max_extrinsic: Some(
                     Weight {
-                        ref_time: 1299913702000,
+                        ref_time: 1299901026000,
                         proof_size: 11990383647911208550,
                     },
                 ),
@@ -40,12 +40,12 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             },
             operational: WeightsPerClass {
                 base_extrinsic: Weight {
-                    ref_time: 86298000,
+                    ref_time: 98974000,
                     proof_size: 0,
                 },
                 max_extrinsic: Some(
                     Weight {
-                        ref_time: 1799913702000,
+                        ref_time: 1799901026000,
                         proof_size: 16602069666338596454,
                     },
                 ),
@@ -64,7 +64,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             },
             mandatory: WeightsPerClass {
                 base_extrinsic: Weight {
-                    ref_time: 86298000,
+                    ref_time: 98974000,
                     proof_size: 0,
                 },
                 max_extrinsic: None,
@@ -88,6 +88,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
         },
         instruction_weights: InstructionWeights {
             version: "3 ps",
+            fallback: "8.0 ns",
             i64const: "4.7 ns",
             i64load: "20.4 ns",
             i64store: "17.5 ns",

@@ -14,7 +14,7 @@ type Storage = phala_trie_storage::TrieStorage<RuntimeHasher>;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[derive(Display)]
+#[derive(Display, Debug)]
 pub enum Error {
     /// No header or block data in the request
     EmptyRequest,
@@ -48,7 +48,10 @@ pub enum Error {
     },
     /// Solo/Para mode mismatch
     ChainModeMismatch,
+    CannotLoadStateAfterSyncing,
 }
+
+impl std::error::Error for Error {}
 
 pub trait BlockValidator {
     fn submit_finalized_headers(
@@ -88,14 +91,14 @@ pub trait StorageSynchronizer {
     ) -> Result<chain::BlockNumber>;
 
     /// Feed in a block of storage changes
-    fn feed_block(
-        &mut self,
-        block: &BlockHeaderWithChanges,
-        storage: &mut Storage,
-    ) -> Result<()>;
+    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()>;
+
+    /// Assume synced to given block.
+    fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()>;
+    fn state_validated(&self) -> bool;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BlockSyncState<Validator> {
     validator: Validator,
     main_bridge: u64,
@@ -105,6 +108,7 @@ pub struct BlockSyncState<Validator> {
     /// Note: in parachain mode the `block_number_next` is for the parachain and the
     /// header_number_next is for the relaychain.
     block_number_next: chain::BlockNumber,
+    genesis_state_validated: bool,
 }
 
 impl<Validator> BlockSyncState<Validator>
@@ -122,6 +126,7 @@ where
             main_bridge,
             header_number_next,
             block_number_next,
+            genesis_state_validated: false,
         }
     }
 
@@ -131,6 +136,7 @@ where
         mut headers: Vec<HeaderToSync>,
         authority_set_change: Option<AuthoritySetChange>,
         state_roots: &mut VecDeque<Hash>,
+        skip_blocks_below: chain::BlockNumber,
     ) -> Result<chain::BlockNumber> {
         headers.retain(|header| header.header.number >= self.header_number_next);
 
@@ -184,6 +190,9 @@ where
 
         // Save the block hashes for future dispatch
         for header in headers.iter() {
+            if header.header.number < skip_blocks_below {
+                continue;
+            }
             state_roots.push_back(header.header.state_root);
         }
 
@@ -201,6 +210,19 @@ where
     ) -> Result<()> {
         if block.block_header.number != self.block_number_next {
             return Err(Error::BlockNumberMismatch);
+        }
+
+        if !self.genesis_state_validated {
+            let genesis_state_root = state_roots.get(0).ok_or(Error::NoStateRoot)?;
+            if storage.root() != genesis_state_root {
+                return Err(Error::StateRootMismatch {
+                    block: self.block_number_next - 1,
+                    expected: *genesis_state_root,
+                    actual: *storage.root(),
+                });
+            }
+            _ = state_roots.pop_front();
+            self.genesis_state_validated = true;
         }
 
         let expected_root = state_roots.get(0).ok_or(Error::NoStateRoot)?;
@@ -243,7 +265,6 @@ pub struct Counters {
     pub waiting_for_paraheaders: bool,
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub struct SolochainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
@@ -253,7 +274,7 @@ pub struct SolochainSynchronizer<Validator> {
 impl<Validator: BlockValidator> SolochainSynchronizer<Validator> {
     pub fn new(validator: Validator, main_bridge: u64) -> Self {
         Self {
-            sync_state: BlockSyncState::new(validator, main_bridge, 1, 1),
+            sync_state: BlockSyncState::new(validator, main_bridge, 0, 1),
             state_roots: Default::default(),
         }
     }
@@ -274,15 +295,16 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
         headers: Vec<HeaderToSync>,
         authority_set_change: Option<AuthoritySetChange>,
     ) -> Result<chain::BlockNumber> {
-        self.sync_state
-            .sync_header(headers, authority_set_change, &mut self.state_roots)
+        let skip_blocks_below = self.sync_state.block_number_next.checked_sub(1).unwrap();
+        self.sync_state.sync_header(
+            headers,
+            authority_set_change,
+            &mut self.state_roots,
+            skip_blocks_below,
+        )
     }
 
-    fn feed_block(
-        &mut self,
-        block: &BlockHeaderWithChanges,
-        storage: &mut Storage,
-    ) -> Result<()> {
+    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()> {
         self.sync_state
             .feed_block(block, &mut self.state_roots, storage)
     }
@@ -295,8 +317,20 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
     ) -> Result<chain::BlockNumber> {
         Err(Error::ChainModeMismatch)
     }
-}
 
+    fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
+        if self.sync_state.block_number_next > 1 || self.sync_state.header_number_next > 0 {
+            return Err(Error::CannotLoadStateAfterSyncing);
+        }
+
+        self.sync_state.block_number_next = block_number + 1;
+        Ok(())
+    }
+
+    fn state_validated(&self) -> bool {
+        self.sync_state.genesis_state_validated
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct ParachainSynchronizer<Validator> {
@@ -307,15 +341,11 @@ pub struct ParachainSynchronizer<Validator> {
 }
 
 impl<Validator: BlockValidator> ParachainSynchronizer<Validator> {
-    pub fn new(
-        validator: Validator,
-        main_bridge: u64,
-        headernum_next: chain::BlockNumber,
-    ) -> Self {
+    pub fn new(validator: Validator, main_bridge: u64, headernum_next: chain::BlockNumber) -> Self {
         Self {
             sync_state: BlockSyncState::new(validator, main_bridge, headernum_next, 1),
             last_relaychain_state_root: None,
-            para_header_number_next: 1,
+            para_header_number_next: 0,
             para_state_roots: Default::default(),
         }
     }
@@ -340,7 +370,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         let mut state_roots = Default::default();
         let last_header =
             self.sync_state
-                .sync_header(headers, authority_set_change, &mut state_roots)?;
+                .sync_header(headers, authority_set_change, &mut state_roots, 0)?;
         // Don't overwrite the last state_root if given headers is empty
         if let Some(last_root) = state_roots.pop_back() {
             self.last_relaychain_state_root = Some(last_root);
@@ -359,7 +389,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
 
         let first_hdr = match headers.first() {
             Some(hdr) => hdr,
-            None => return Ok(self.para_header_number_next - 1)
+            None => return Ok(self.para_header_number_next - 1),
         };
         if self.para_header_number_next != first_hdr.number {
             return Err(Error::BlockNumberMismatch);
@@ -405,13 +435,22 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
     }
 
     /// Feed in a block of storage changes
-    fn feed_block(
-        &mut self,
-        block: &BlockHeaderWithChanges,
-        storage: &mut Storage,
-    ) -> Result<()> {
+    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()> {
         self.sync_state
             .feed_block(block, &mut self.para_state_roots, storage)
+    }
+
+    fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
+        if self.sync_state.block_number_next > 1 || self.para_header_number_next > 1 {
+            return Err(Error::CannotLoadStateAfterSyncing);
+        }
+        self.sync_state.block_number_next = block_number + 1;
+        self.para_header_number_next = block_number;
+        Ok(())
+    }
+
+    fn state_validated(&self) -> bool {
+        self.sync_state.genesis_state_validated
     }
 }
 
@@ -429,7 +468,11 @@ impl<Validator: BlockValidator> Synchronizer<Validator> {
         main_bridge: u64,
         headernum_next: chain::BlockNumber,
     ) -> Self {
-        Self::Para(ParachainSynchronizer::new(validator, main_bridge, headernum_next))
+        Self::Para(ParachainSynchronizer::new(
+            validator,
+            main_bridge,
+            headernum_next,
+        ))
     }
 
     pub fn new_solochain(validator: Validator, main_bridge: u64) -> Self {
@@ -470,14 +513,19 @@ impl<Validator: BlockValidator> StorageSynchronizer for Synchronizer<Validator> 
         proof: StorageProof,
         storage_key: &[u8],
     ) -> Result<chain::BlockNumber> {
-        self.as_dyn_mut().sync_parachain_header(headers, proof, storage_key)
+        self.as_dyn_mut()
+            .sync_parachain_header(headers, proof, storage_key)
     }
 
-    fn feed_block(
-        &mut self,
-        block: &BlockHeaderWithChanges,
-        storage: &mut Storage,
-    ) -> Result<()> {
+    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()> {
         self.as_dyn_mut().feed_block(block, storage)
+    }
+
+    fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
+        self.as_dyn_mut().assume_at_block(block_number)
+    }
+
+    fn state_validated(&self) -> bool {
+        self.as_dyn().state_validated()
     }
 }
