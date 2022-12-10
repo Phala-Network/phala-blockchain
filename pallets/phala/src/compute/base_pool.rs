@@ -50,7 +50,7 @@ pub mod pallet {
 
 	const NFT_PROPERTY_KEY: &str = "stake-info";
 
-	const MAX_RECURSIONS: u32 = 100;
+	const MAX_RECURSIONS: u32 = 1;
 
 	const MAX_WHITELIST_LEN: u32 = 100;
 
