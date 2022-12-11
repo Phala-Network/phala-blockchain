@@ -18,8 +18,8 @@ pub mod pallet {
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
 
-	use crate::attestation::Error as AttestationError;
 	use crate::mq::MessageOriginInfo;
+	use crate::utils::attestation::Error as AttestationError;
 	use phala_types::{
 		messaging::{
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
@@ -34,7 +34,7 @@ pub mod pallet {
 	pub use phala_types::AttestationReport;
 	// Re-export
 	// TODO: Legacy
-	pub use crate::attestation_legacy::{
+	pub use crate::utils::attestation_legacy::{
 		Attestation, AttestationValidator, IasFields, IasValidator,
 	};
 
@@ -101,9 +101,12 @@ pub mod pallet {
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+		/// Migration root account
+		type RegistryMigrationAccountId: Get<Self::AccountId>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -277,6 +280,8 @@ pub mod pallet {
 		InvalidRotatedMasterPubkey,
 		// PRouter related
 		InvalidEndpointSigningTime,
+		/// Migration root not authorized
+		NotMigrationRoot,
 		ParachainIdMismatch,
 		InvalidConsensusVersion,
 	}
@@ -627,7 +632,7 @@ pub mod pallet {
 								confidence_level: attestation_report.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerUpdated { 
+						Self::deposit_event(Event::<T>::WorkerUpdated {
 							pubkey,
 							attestation_provider: attestation_report.provider,
 							confidence_level: attestation_report.confidence_level,
@@ -653,7 +658,7 @@ pub mod pallet {
 								confidence_level: attestation_report.confidence_level,
 							}),
 						));
-						Self::deposit_event(Event::<T>::WorkerAdded { 
+						Self::deposit_event(Event::<T>::WorkerAdded {
 							pubkey,
 							attestation_provider: attestation_report.provider,
 							confidence_level: attestation_report.confidence_level,
@@ -835,38 +840,36 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn migrate_workers(
-			origin: OriginFor<T>, max_iterations: u32
-		) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+		pub fn migrate_workers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			ensure!(
+				who == T::RegistryMigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
 
 			let prefix = storage_prefix(b"PhalaRegistry", b"Workers");
 			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or_else(|| prefix.into());
 
-			let iter = PrefixIterator::<_>::new(
-				prefix.into(),
-				previous_key,
-				|key, mut value| {
-					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
+			let iter = PrefixIterator::<_>::new(prefix.into(), previous_key, |key, mut value| {
+				let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
 
-					match old_worker {
-						Ok(w) => {
-							// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
-							// log::info!(
-							// 	"Old: pubkey {} ecdh_pubkey {}",
-							// 	hex::encode(w.pubkey),
-							// 	hex::encode(w.ecdh_pubkey)
-							// );
+				match old_worker {
+					Ok(w) => {
+						// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
+						// log::info!(
+						// 	"Old: pubkey {} ecdh_pubkey {}",
+						// 	hex::encode(w.pubkey),
+						// 	hex::encode(w.ecdh_pubkey)
+						// );
 
-							Ok((key.to_vec(), w))
-						},
-						Err(e) => {
-							// log::info!("Can't decode old {}", hex::encode(key));
-							Err(e)
-						}
+						Ok((key.to_vec(), w))
+					}
+					Err(e) => {
+						// log::info!("Can't decode old {}", hex::encode(key));
+						Err(e)
 					}
 				}
-			);
+			});
 
 			let mut i = 0;
 			let mut full_key: Vec<u8> = vec![];
@@ -881,7 +884,7 @@ pub mod pallet {
 					attestation_provider: Some(AttestationProvider::Ias),
 					confidence_level: old.confidence_level,
 					initial_score: old.initial_score,
-					features: old.features
+					features: old.features,
 				};
 
 				// log::info!("new {}: {:?}", hex::encode(&key), new);
@@ -1233,8 +1236,6 @@ pub mod pallet {
 			}
 		}
 	}
-
-
 
 	#[cfg(test)]
 	mod test {

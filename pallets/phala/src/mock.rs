@@ -1,12 +1,18 @@
 use crate::{
-	attestation_legacy::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	mining, mq, ott, registry, stakepool,
+	base_pool, computation, mq, registry, stake_pool, stake_pool_v2,
+	utils::attestation_legacy::{
+		Attestation, AttestationValidator, Error as AttestationError, IasFields,
+	},
+	vault, wrapped_balances,
 };
 
 use frame_support::{
+	ord_parameter_types,
 	pallet_prelude::ConstU32,
 	parameter_types,
-	traits::{GenesisBuild, OnFinalize, OnInitialize},
+	traits::{
+		AsEnsureOriginWithArg, ConstU128, ConstU64, EqualPrivilegeOnly, GenesisBuild, SortedMembers,
+	},
 };
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -17,6 +23,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
+use frame_system::EnsureRoot;
 pub(crate) type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -33,26 +40,39 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
+		RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
+		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Assets: pallet_assets::{Pallet, Event<T>},
+		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
-		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
-		PhalaStakePool: stakepool::{Pallet, Event<T>},
-		PhalaOneshotTransfer: ott::{Pallet, Event<T>},
+		PhalaComputation: computation::{Pallet, Event<T>, Storage, Config},
+		PhalaStakePoolv2: stake_pool_v2::{Pallet, Event<T>},
+		PhalaVault: vault::{Pallet, Event<T>},
+		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
+		PhalaBasePool: base_pool::{Pallet, Event<T>},
+		PhalaStakePool: stake_pool::{Event<T>},
+		Preimage: pallet_preimage::{Event<T>},
 	}
 );
 
+impl crate::PhalaConfig for Test {
+	type Currency = Balances;
+}
+
 parameter_types! {
-	pub const ExistentialDeposit: u64 = 2;
+	pub const ExistentialDeposit: Balance = 2;
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
 	pub const ExpectedBlockTimeSec: u32 = 12;
-	pub const MinMiningStaking: Balance = DOLLARS;
-	pub const MinContribution: Balance = CENTS;
-	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
+	pub const MinWorkingStaking: Balance = 1 * DOLLARS;
+	pub const MinContribution: Balance = 1 * CENTS;
+	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
-	pub const MiningEnabledByDefault: bool = true;
+	pub const ComputingEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
@@ -85,6 +105,19 @@ impl system::Config for Test {
 	type MaxConsumers = ConstU32<2>;
 }
 
+impl pallet_scheduler::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = ();
+	type ScheduleOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type MaxScheduledPerBlock = ();
+	type WeightInfo = ();
+	type OriginPrivilegeCmp = EqualPrivilegeOnly;
+	type Preimages = Preimage;
+}
+
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -106,6 +139,17 @@ impl pallet_timestamp::Config for Test {
 
 pub const DOLLARS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = DOLLARS / 100;
+pub const DAYS: u64 = 24 * 3600;
+pub const HOURS: u64 = 3600;
+
+pub struct OneToFive;
+impl SortedMembers<u64> for OneToFive {
+	fn sorted_members() -> Vec<u64> {
+		vec![1, 2, 3, 4, 5]
+	}
+	#[cfg(feature = "runtime-benchmarks")]
+	fn add(_m: &u64) {}
+}
 
 impl mq::Config for Test {
 	type QueueNotifyConfig = ();
@@ -131,35 +175,213 @@ impl registry::Config for Test {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type RegistryMigrationAccountId = ConstU64<1234>;
 	type ParachainId = ConstU32<0>;
 }
 
-impl mining::Config for Test {
+parameter_types! {
+	pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection
+	pub const ItemDeposit: Balance = 0; // 1/100 UNIT deposit to create item
+	pub const StringLimit: u32 = 52100;
+	pub const KeyLimit: u32 = 32000; // Max 32 bytes per key
+	pub const ValueLimit: u32 = 512000; // Max 64 bytes per value
+	pub const UniquesMetadataDepositBase: Balance = 0;
+	pub const AttributeDepositBase: Balance = 0;
+	pub const DepositPerByte: Balance = 0;
+}
+impl pallet_uniques::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type CollectionId = u32;
+	type ItemId = u32;
+	type Currency = Balances;
+	type ForceOrigin = EnsureRoot<Self::AccountId>;
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<Self::AccountId>>;
+	type Locker = pallet_rmrk_core::Pallet<Test>;
+	type CollectionDeposit = CollectionDeposit;
+	type ItemDeposit = ItemDeposit;
+	type MetadataDepositBase = UniquesMetadataDepositBase;
+	type AttributeDepositBase = AttributeDepositBase;
+	type DepositPerByte = DepositPerByte;
+	type StringLimit = StringLimit;
+	type KeyLimit = KeyLimit;
+	type ValueLimit = ValueLimit;
+	type WeightInfo = ();
+}
+parameter_types! {
+	pub ClassBondAmount: Balance = 100;
+	pub MaxMetadataLength: u32 = 256;
+	pub const ResourceSymbolLimit: u32 = 10;
+	pub const PartsLimit: u32 = 10;
+	pub const MaxPriorities: u32 = 3;
+	pub const CollectionSymbolLimit: u32 = 100;
+	pub const MaxResourcesOnMint: u32 = 100;
+}
+impl pallet_rmrk_core::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
+	type NestingBudget = ConstU32<200>;
+	type ResourceSymbolLimit = ResourceSymbolLimit;
+	type PartsLimit = PartsLimit;
+	type MaxPriorities = MaxPriorities;
+	type CollectionSymbolLimit = CollectionSymbolLimit;
+	type MaxResourcesOnMint = MaxResourcesOnMint;
+	type TransferHooks = PhalaWrappedBalances;
+	type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Test>;
+}
+
+impl computation::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type MinInitP = MinInitP;
-	type Currency = Balances;
 	type Randomness = TestRandomness<Self>;
-	type OnReward = PhalaStakePool;
-	type OnUnbound = PhalaStakePool;
-	type OnStopped = PhalaStakePool;
+	type OnReward = PhalaStakePoolv2;
+	type OnUnbound = PhalaStakePoolv2;
+	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ComputationMigrationAccountId = ConstU64<1234>;
 }
 
-impl stakepool::Config for Test {
+parameter_types! {
+	pub const WPhaAssetId: u32 = 1;
+}
+
+impl wrapped_balances::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type WPhaAssetId = WPhaAssetId;
+	type WrappedBalancesAccountId = ConstU64<1234>;
+	type OnSlashed = ();
+}
+
+parameter_types! {
+	pub const LaunchPeriod: u64 = 7 * DAYS;
+	pub const VotingPeriod: u64 = 7 * DAYS;
+	pub const FastTrackVotingPeriod: u64 = 3 * HOURS;
+	pub const InstantAllowed: bool = true;
+	pub const MinimumDeposit: Balance = 10 * DOLLARS;
+	pub const EnactmentPeriod: u64 = 8 * DAYS;
+	pub const CooloffPeriod: u64 = 7 * DAYS;
+	pub const MaxVotes: u32 = 100;
+	pub const MaxProposals: u32 = 100;
+}
+
+ord_parameter_types! {
+	pub const One: u64 = 1;
+	pub const Two: u64 = 2;
+	pub const Three: u64 = 3;
+	pub const Four: u64 = 4;
+	pub const Five: u64 = 5;
+	pub const Six: u64 = 6;
+}
+
+parameter_types! {
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
+	// One cent: $10,000 / MB
+	pub const PreimageByteDeposit: Balance = 1 * CENTS;
+}
+
+impl pallet_preimage::Config for Test {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Test>;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type MinContribution = MinContribution;
-	type GracePeriod = MiningGracePeriod;
-	type MiningEnabledByDefault = MiningEnabledByDefault;
-	type MaxPoolWorkers = MaxPoolWorkers;
-	type OnSlashed = ();
-	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ManagerOrigin = EnsureRoot<Self::AccountId>;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
 }
 
-impl ott::Config for Test {
+impl pallet_democracy::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type EnactmentPeriod = EnactmentPeriod;
+	type LaunchPeriod = LaunchPeriod;
+	type VotingPeriod = VotingPeriod;
+	type VoteLockingPeriod = EnactmentPeriod; // Same as EnactmentPeriod
+	type MinimumDeposit = MinimumDeposit;
+	/// A straight majority of the council can decide what their next motion is.
+	type ExternalOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
+	type ExternalMajorityOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	/// A unanimous council can have the next scheduled referendum be a straight default-carries
+	/// (NTB) vote.
+	type ExternalDefaultOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
+	/// be tabled immediately and with a shorter voting/enactment period.
+	type FastTrackOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type InstantOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type InstantAllowed = InstantAllowed;
+	type FastTrackVotingPeriod = FastTrackVotingPeriod;
+	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
+	type CancellationOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
+	// Root must agree.
+	type CancelProposalOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type BlacklistOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	// Any single technical committee member may veto a coming council proposal, however they can
+	// only do it once and it lasts only for the cooloff period.
+	type VetoOrigin = frame_system::EnsureSignedBy<OneToFive, u64>;
+	type CooloffPeriod = CooloffPeriod;
+	type Slash = ();
+	type Scheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
+	type MaxVotes = MaxVotes;
+	type WeightInfo = ();
+	type MaxProposals = MaxProposals;
+	type Preimages = Preimage;
+	type MaxDeposits = ConstU32<100>;
+	type MaxBlacklisted = ConstU32<100>;
+}
+
+parameter_types! {
+	pub const AssetDeposit: Balance = 1; // 1 Unit deposit to create asset
+	pub const ApprovalDeposit: Balance = 1;
+	pub const AssetsStringLimit: u32 = 50;
+	pub const MetadataDepositBase: Balance = 1;
+	pub const MetadataDepositPerByte: Balance = 1;
+}
+
+impl pallet_assets::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Balance = Balance;
+	type AssetId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type AssetDeposit = AssetDeposit;
+	type AssetAccountDeposit = ConstU128<10>;
+	type MetadataDepositBase = MetadataDepositBase;
+	type MetadataDepositPerByte = MetadataDepositPerByte;
+	type ApprovalDeposit = ApprovalDeposit;
+	type StringLimit = AssetsStringLimit;
+	type Freezer = ();
+	type Extra = ();
+	type WeightInfo = ();
+	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<Self::AccountId>>;
+}
+
+impl stake_pool_v2::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type MinContribution = MinContribution;
+	type GracePeriod = WorkingGracePeriod;
+	type ComputingEnabledByDefault = ComputingEnabledByDefault;
+	type MaxPoolWorkers = MaxPoolWorkers;
+	type ComputingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
+}
+
+parameter_types! {
+	pub const InitialPriceCheckPoint: Balance = 1 * DOLLARS;
+}
+
+impl vault::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type InitialPriceCheckPoint = InitialPriceCheckPoint;
+}
+
+impl base_pool::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type MigrationAccountId = ConstU64<1234>;
+}
+
+impl stake_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
@@ -199,7 +421,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 			(2, 2000 * DOLLARS),
 			(3, 1000 * DOLLARS),
 			(99, 1_000_000 * DOLLARS),
-			(PhalaMining::account_id(), 690_000_000 * DOLLARS),
+			(PhalaComputation::account_id(), 690_000_000 * DOLLARS),
 		],
 	}
 	.assimilate_storage(&mut t)
@@ -211,7 +433,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
-	GenesisBuild::<Test>::assimilate_storage(&crate::mining::GenesisConfig::default(), &mut t)
+	GenesisBuild::<Test>::assimilate_storage(&crate::computation::GenesisConfig::default(), &mut t)
 		.unwrap();
 	sp_io::TestExternalities::new(t)
 }
@@ -299,20 +521,5 @@ pub fn elapse_seconds(sec: u64) {
 
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
-	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);
-}
-
-pub fn teleport_to_block(n: u64) {
-	let now = System::block_number();
-	PhalaStakePool::on_finalize(now);
-	PhalaMining::on_finalize(now);
-	PhalaRegistry::on_finalize(now);
-	PhalaMq::on_finalize(now);
-	System::on_finalize(now);
-	System::set_block_number(n);
-	System::on_initialize(System::block_number());
-	PhalaMq::on_initialize(System::block_number());
-	PhalaRegistry::on_initialize(System::block_number());
-	PhalaMining::on_initialize(System::block_number());
-	PhalaStakePool::on_initialize(System::block_number());
+	Timestamp::set_timestamp(now + PhalaComputation::cool_down_period() * 1000);
 }

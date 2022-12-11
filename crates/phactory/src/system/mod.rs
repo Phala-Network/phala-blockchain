@@ -128,12 +128,12 @@ struct BenchState {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum WorkingState {
-    Mining,
+    Computing,
     Paused,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MiningInfo {
+struct WorkingInfo {
     session_id: u32,
     state: WorkingState,
     start_time: u64,
@@ -148,7 +148,7 @@ struct WorkerState {
     hashed_id: U256,
     registered: bool,
     bench_state: Option<BenchState>,
-    working_state: Option<MiningInfo>,
+    working_state: Option<WorkingInfo>,
 }
 
 impl WorkerState {
@@ -202,9 +202,9 @@ impl WorkerState {
                         }
                     }
                     Started { session_id, .. } => {
-                        self.working_state = Some(MiningInfo {
+                        self.working_state = Some(WorkingInfo {
                             session_id,
-                            state: Mining,
+                            state: Computing,
                             start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
                         });
@@ -218,7 +218,7 @@ impl WorkerState {
                     }
                     EnterUnresponsive => {
                         if let Some(info) = &mut self.working_state {
-                            if let Mining = info.state {
+                            if let Computing = info.state {
                                 if log_on {
                                     info!("Enter paused");
                                 }
@@ -239,7 +239,7 @@ impl WorkerState {
                                 if log_on {
                                     info!("Exit paused");
                                 }
-                                info.state = Mining;
+                                info.state = Computing;
                                 return;
                             }
                         }

@@ -2,11 +2,7 @@ use crate::constants::*;
 
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::{
-	borrow::ToOwned,
-	convert::TryFrom,
-	vec::Vec,
-};
+use sp_std::{borrow::ToOwned, convert::TryFrom, vec::Vec};
 
 use phala_types::{AttestationProvider, AttestationReport};
 
@@ -124,30 +120,28 @@ pub fn validate(
 	now: u64,
 	verify_pruntime_hash: bool,
 	pruntime_allowlist: Vec<Vec<u8>>,
-	opt_out_enabled: bool
+	opt_out_enabled: bool,
 ) -> Result<ConfidentialReport, Error> {
 	match attestation {
 		Some(AttestationReport::SgxIas {
 			ra_report,
 			signature,
 			raw_signing_cert,
-		}) => {
-			validate_ias_report(
-				user_data_hash,
-				ra_report.as_slice(),
-				signature.as_slice(),
-				raw_signing_cert.as_slice(),
-				now,
-				verify_pruntime_hash,
-				pruntime_allowlist,
-			)
-		},
+		}) => validate_ias_report(
+			user_data_hash,
+			ra_report.as_slice(),
+			signature.as_slice(),
+			raw_signing_cert.as_slice(),
+			now,
+			verify_pruntime_hash,
+			pruntime_allowlist,
+		),
 		None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport {
 					provider: None,
 					runtime_hash: Vec::new(),
-					confidence_level: 128u8
+					confidence_level: 128u8,
 				})
 			} else {
 				Err(Error::NoneAttestationDisabled)
@@ -197,7 +191,7 @@ pub fn validate_ias_report(
 
 	let commit = &ias_fields.report_data[..32];
 	if commit != user_data_hash {
-		return Err(Error::InvalidUserDataHash)
+		return Err(Error::InvalidUserDataHash);
 	}
 
 	// Check the following fields
@@ -226,11 +220,8 @@ mod test {
 		let raw_signing_cert =
 			hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
 
-		let parsed_report: serde_json::Value =
-			serde_json::from_slice(report).unwrap();
-		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
-			.as_str()
-			.unwrap();
+		let parsed_report: serde_json::Value = serde_json::from_slice(report).unwrap();
+		let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
 		let quote_body = base64::decode(raw_quote_body).unwrap();
 		let report_data = &quote_body[368..432];
 		let commit = &report_data[..32];
@@ -274,16 +265,14 @@ mod test {
 			Err(Error::PRuntimeRejected)
 		);
 
-		assert_ok!(
-			validate_ias_report(
-				commit,
-				report,
-				&signature,
-				&raw_signing_cert,
-				ATTESTATION_TIMESTAMP,
-				true,
-				vec![hex::decode(PRUNTIME_HASH).unwrap()]
-			)
-		);
+		assert_ok!(validate_ias_report(
+			commit,
+			report,
+			&signature,
+			&raw_signing_cert,
+			ATTESTATION_TIMESTAMP,
+			true,
+			vec![hex::decode(PRUNTIME_HASH).unwrap()]
+		));
 	}
 }
