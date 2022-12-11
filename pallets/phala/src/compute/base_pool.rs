@@ -110,6 +110,8 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, u64, PoolProxy<T::AccountId, BalanceOf<T>>>;
 
 	/// Mapping from the NftId to its internal locking status
+	///
+	/// Used to ensure nft attributes can't be read and override when it has already be accessed and haven't updated yet.
 	#[pallet::storage]
 	pub(super) type NftLocks<T: Config> = StorageMap<_, Twox64Concat, (CollectionId, NftId), ()>;
 
