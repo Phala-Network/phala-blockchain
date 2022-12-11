@@ -237,12 +237,12 @@ fn test_unlock() {
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(0);
 		assert_ok!(PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 0, 1));
 		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
-		assert_eq!(account1_status.locked, 0 * DOLLARS);
+		assert_eq!(account1_status.locked, 0);
 		let account2_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(2).unwrap();
 		assert_eq!(account2_status.locked, 30 * DOLLARS);
 		assert_ok!(PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 0, 2));
 		let account2_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(2).unwrap();
-		assert_eq!(account2_status.locked, 0 * DOLLARS);
+		assert_eq!(account2_status.locked, 0);
 		let vote_id = pallet_democracy::pallet::Pallet::<Test>::internal_start_referendum(
 			set_balance_proposal(10000000000),
 			pallet_democracy::VoteThreshold::SimpleMajority,
@@ -263,9 +263,9 @@ fn test_unlock() {
 		pallet_democracy::pallet::Pallet::<Test>::internal_cancel_referendum(1);
 		assert_ok!(PhalaWrappedBalances::unlock(RuntimeOrigin::signed(3), 1, 2));
 		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
-		assert_eq!(account1_status.locked, 0 * DOLLARS);
+		assert_eq!(account1_status.locked, 0);
 		let account2_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(2).unwrap();
-		assert_eq!(account2_status.locked, 0 * DOLLARS);
+		assert_eq!(account2_status.locked, 0);
 	});
 }
 
@@ -368,7 +368,7 @@ fn test_merge_or_init_nft() {
 				.unwrap()
 				.attr
 				.clone();
-			assert_eq!(nft_attr.shares, 0 * DOLLARS);
+			assert_eq!(nft_attr.shares, 0);
 		}
 	});
 }
@@ -442,7 +442,7 @@ fn test_remove_stake_from_nft() {
 			&mut nft_attr,
 			&1,
 		) {
-			Some((_amount, _removed_shares)) => return,
+			Some((_amount, _removed_shares)) => (),
 			_ => panic!(),
 		}
 	});
@@ -501,7 +501,7 @@ fn test_create_vault() {
 					cid: 10000,
 					pool_account_id: 16637257129592320098,
 				},
-				last_share_price_checkpoint: 1 * DOLLARS,
+				last_share_price_checkpoint: DOLLARS,
 				commission: None,
 				owner_shares: 0,
 				invest_pools: vec![],
@@ -847,7 +847,7 @@ fn test_add_worker() {
 
 		assert_ok!(PhalaRegistry::force_register_worker(
 			RuntimeOrigin::root(),
-			worker1.clone(),
+			worker1,
 			ecdh_pubkey(1),
 			Some(1)
 		));
@@ -856,15 +856,15 @@ fn test_add_worker() {
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Bad inputs
 		assert_noop!(
-			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker2.clone()),
+			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker2),
 			stake_pool_v2::Error::<Test>::WorkerNotRegistered
 		);
 		assert_noop!(
-			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(2), 0, worker1.clone()),
+			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(2), 0, worker1),
 			stake_pool_v2::Error::<Test>::UnauthorizedOperator
 		);
 		assert_noop!(
-			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 0, worker1.clone()),
+			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 0, worker1),
 			stake_pool_v2::Error::<Test>::BenchmarkMissing
 		);
 		// Add benchmark and retry
@@ -872,7 +872,7 @@ fn test_add_worker() {
 		assert_ok!(PhalaStakePoolv2::add_worker(
 			RuntimeOrigin::signed(1),
 			0,
-			worker1.clone()
+			worker1
 		));
 		// Check binding
 		let subaccount = stake_pool_v2::pool_sub_account(0, &worker_pubkey(1));
@@ -886,18 +886,18 @@ fn test_add_worker() {
 		);
 		// Check assignments
 		assert_eq!(
-			stake_pool_v2::pallet::WorkerAssignments::<Test>::get(&worker_pubkey(1)),
+			stake_pool_v2::pallet::WorkerAssignments::<Test>::get(worker_pubkey(1)),
 			Some(0)
 		);
 		// Other bad cases
 		assert_noop!(
-			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 100, worker1.clone()),
+			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 100, worker1),
 			base_pool::Error::<Test>::PoolDoesNotExist
 		);
 		// Bind one worker to antoher pool (pid = 1)
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		assert_noop!(
-			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker1.clone()),
+			PhalaStakePoolv2::add_worker(RuntimeOrigin::signed(1), 1, worker1),
 			stake_pool_v2::Error::<Test>::FailedToBindSessionAndWorker
 		);
 	});
@@ -1011,7 +1011,7 @@ fn test_force_unbind() {
 			sub_account
 		));
 		// Check worker assignments cleared, and the worker removed from the pool
-		assert!(!stake_pool_v2::pallet::WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
+		assert!(!stake_pool_v2::pallet::WorkerAssignments::<Test>::contains_key(worker_pubkey(1)));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(1)), false);
 		// Check the computing is ready
@@ -1020,7 +1020,7 @@ fn test_force_unbind() {
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
-		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
+		assert_eq!((balance, lock), (100 * DOLLARS, 0));
 		// Pool1: Change the operator to account102 and force unbind (computing)
 		assert_ok!(PhalaStakePoolv2::start_computing(
 			RuntimeOrigin::signed(2),
@@ -1031,7 +1031,7 @@ fn test_force_unbind() {
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
-		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
+		assert_eq!((balance, lock), (0, 100 * DOLLARS));
 		assert_ok!(PhalaRegistry::force_register_worker(
 			RuntimeOrigin::root(),
 			worker_pubkey(2),
@@ -1045,7 +1045,7 @@ fn test_force_unbind() {
 		));
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stake_pool_v2::WorkerAssignments::<Test>::contains_key(
-			&worker_pubkey(2)
+			worker_pubkey(2)
 		));
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert_eq!(pool.workers.contains(&worker_pubkey(2)), false);
@@ -1090,7 +1090,7 @@ fn test_stop_computing() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
-		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
+		assert_eq!((balance, lock), (100 * DOLLARS, 0));
 		assert_ok!(PhalaStakePoolv2::start_computing(
 			RuntimeOrigin::signed(1),
 			0,
@@ -1100,7 +1100,7 @@ fn test_stop_computing() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
-		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
+		assert_eq!((balance, lock), (0, 100 * DOLLARS));
 		assert_ok!(PhalaStakePoolv2::stop_computing(
 			RuntimeOrigin::signed(1),
 			0,
@@ -1109,7 +1109,7 @@ fn test_stop_computing() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
-		assert_eq!((balance, lock), (0 * DOLLARS, 100 * DOLLARS));
+		assert_eq!((balance, lock), (0, 100 * DOLLARS));
 		assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
 	});
 }
@@ -1161,7 +1161,7 @@ fn test_reclaim() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
 		let lock = get_balance(pool.lock_account);
-		assert_eq!((balance, lock), (100 * DOLLARS, 0 * DOLLARS));
+		assert_eq!((balance, lock), (100 * DOLLARS, 0));
 	});
 }
 
@@ -1339,7 +1339,7 @@ fn test_on_reward_for_vault() {
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		PhalaStakePoolv2::on_reward(&vec![SettleInfo {
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
 			pubkey: worker_pubkey(1),
 			v: FixedPoint::from_num(1u32).to_bits(),
 			payout: FixedPoint::from_num(100u32).to_bits(),
@@ -1397,7 +1397,7 @@ fn test_claim_owner_rewards() {
 			400 * DOLLARS,
 			None
 		));
-		PhalaStakePoolv2::on_reward(&vec![SettleInfo {
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
 			pubkey: worker_pubkey(1),
 			v: FixedPoint::from_num(1u32).to_bits(),
 			payout: FixedPoint::from_num(1000u32).to_bits(),
@@ -1411,7 +1411,7 @@ fn test_claim_owner_rewards() {
 			1
 		));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(get_balance(pool.owner_reward_account), 0 * DOLLARS);
+		assert_eq!(get_balance(pool.owner_reward_account), 0);
 		assert_eq!(get_balance(1), 900 * DOLLARS);
 	});
 }
@@ -1473,7 +1473,7 @@ fn test_vault_owner_shares() {
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		PhalaStakePoolv2::on_reward(&vec![SettleInfo {
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
 			pubkey: worker_pubkey(1),
 			v: FixedPoint::from_num(1u32).to_bits(),
 			payout: FixedPoint::from_num(100u32).to_bits(),
@@ -1611,7 +1611,7 @@ fn test_withdraw() {
 				.unwrap()
 				.attr
 				.clone();
-			assert_eq!(user_nft_attr.shares, 0 * DOLLARS);
+			assert_eq!(user_nft_attr.shares, 0);
 		}
 		assert_eq!(get_balance(2), 400 * DOLLARS);
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -1635,7 +1635,7 @@ fn test_withdraw() {
 				.unwrap()
 				.attr
 				.clone();
-			assert_eq!(user_nft_attr.shares, 0 * DOLLARS);
+			assert_eq!(user_nft_attr.shares, 0);
 		}
 		assert_ok!(PhalaStakePoolv2::withdraw(
 			RuntimeOrigin::signed(1),
@@ -1831,7 +1831,7 @@ fn test_check_and_maybe_force_withdraw() {
 		));
 		elapse_seconds(864000);
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(get_balance(pool.basepool.pool_account_id), 0 * DOLLARS);
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 0);
 		assert_eq!(pool.cd_workers, [worker_pubkey(1)]);
 		assert_ok!(PhalaStakePoolv2::reclaim_pool_worker(
 			RuntimeOrigin::signed(3),
@@ -1839,7 +1839,7 @@ fn test_check_and_maybe_force_withdraw() {
 			worker_pubkey(1)
 		));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(get_balance(pool.basepool.pool_account_id), 0 * DOLLARS);
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 0);
 		assert_eq!(pool.cd_workers, []);
 		let item = pool
 			.basepool
@@ -1867,7 +1867,7 @@ fn test_check_and_maybe_force_withdraw() {
 				.unwrap()
 				.attr
 				.clone();
-			assert_eq!(user_nft_attr.shares, 0 * DOLLARS);
+			assert_eq!(user_nft_attr.shares, 0);
 		}
 		assert_eq!(get_balance(2), 400 * DOLLARS);
 		assert_ok!(PhalaStakePoolv2::check_and_maybe_force_withdraw(
@@ -1923,7 +1923,7 @@ fn test_check_and_maybe_force_withdraw() {
 			pid
 		));
 		let vault = ensure_vault::<Test>(1).unwrap();
-		assert_eq!(get_balance(vault.basepool.pool_account_id), 0 * DOLLARS);
+		assert_eq!(get_balance(vault.basepool.pool_account_id), 0);
 		let item = vault
 			.basepool
 			.withdraw_queue
