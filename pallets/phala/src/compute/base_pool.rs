@@ -247,7 +247,7 @@ pub mod pallet {
 		/// The queue of withdraw requests
 		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId>>,
 		/// The downstream pools that subscribe to this pool's value changes
-		pub value_subscribers: VecDeque<u64>,
+		pub value_subscribers: Vec<u64>,
 		/// The nft collection_id of the pool
 		pub cid: CollectionId,
 		/// The account generated for the pool and controlled by the pallet
@@ -907,10 +907,6 @@ pub mod pallet {
 				.to_vec()
 				.try_into()
 				.expect("str coverts to bvec should never fail; qed.");
-			let pool_type_str = match pool_type {
-				PoolType::Vault => "Vault",
-				PoolType::StakePool => "Stakepool",
-			};
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
 				format!("Khala - {} - #{}", &pool_type_str, pid)
 					.as_bytes()

@@ -219,7 +219,7 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
-	type NestingBudget = ConstU32<{ 200 }>;
+	type NestingBudget = ConstU32<200>;
 	type ResourceSymbolLimit = ResourceSymbolLimit;
 	type PartsLimit = PartsLimit;
 	type MaxPriorities = MaxPriorities;
@@ -368,7 +368,7 @@ impl stake_pool_v2::Config for Test {
 }
 
 parameter_types! {
-	pub const : Balance = 1 * DOLLARS;
+	pub const InitialPriceCheckPoint: Balance = 1 * DOLLARS;
 }
 
 impl vault::Config for Test {

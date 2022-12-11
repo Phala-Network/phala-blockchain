@@ -118,7 +118,7 @@ impl registry::Config for Test {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type RegistryMigrationAccountId = MigrationAccountGet;
+	type RegistryMigrationAccountId = MigrationAccount;
 	type ParachainId = ConstU32<0>;
 }
 

@@ -356,7 +356,7 @@ pub mod pallet {
 						total_shares: Zero::zero(),
 						total_value: Zero::zero(),
 						withdraw_queue: VecDeque::new(),
-						value_subscribers: VecDeque::new(),
+						value_subscribers: vec![],
 						cid: collection_id,
 						pool_account_id: account_id.clone(),
 					},
@@ -686,7 +686,7 @@ pub mod pallet {
 					PoolProxy::Vault(vault_info.clone()),
 				);
 				if !pool_info.basepool.value_subscribers.contains(vault_pid) {
-					pool_info.basepool.value_subscribers.push_back(*vault_pid);
+					pool_info.basepool.value_subscribers.push(*vault_pid);
 				}
 			}
 			// We have new free stake now, try to handle the waiting withdraw queue
@@ -853,7 +853,7 @@ pub mod pallet {
 						total_shares: pool_info.total_shares,
 						total_value: pool_info.total_stake,
 						withdraw_queue: VecDeque::new(),
-						value_subscribers: VecDeque::new(),
+						value_subscribers: vec![],
 						cid: collection_id,
 						pool_account_id: account_id,
 					},

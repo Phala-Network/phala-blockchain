@@ -177,7 +177,7 @@ pub mod pallet {
 						total_shares: Zero::zero(),
 						total_value: Zero::zero(),
 						withdraw_queue: VecDeque::new(),
-						value_subscribers: VecDeque::new(),
+						value_subscribers: vec![],
 						cid: collection_id,
 						pool_account_id: account_id.clone(),
 					},

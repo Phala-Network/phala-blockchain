@@ -14,7 +14,7 @@ use frame_support::{
 	},
 };
 use hex_literal::hex;
-use sp_runtime::{testing::H256, AccountId32};
+use sp_runtime::AccountId32;
 
 use crate::mock::{
 	ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1, setup_workers,
@@ -466,7 +466,7 @@ fn test_create_stakepool() {
 					total_shares: 0,
 					total_value: 0,
 					withdraw_queue: VecDeque::new(),
-					value_subscribers: VecDeque::new(),
+					value_subscribers: vec![],
 					cid: 10000,
 					pool_account_id: 16637257129592320098,
 				},
@@ -497,14 +497,14 @@ fn test_create_vault() {
 					total_shares: 0,
 					total_value: 0,
 					withdraw_queue: VecDeque::new(),
-					value_subscribers: VecDeque::new(),
+					value_subscribers: vec![],
 					cid: 10000,
 					pool_account_id: 16637257129592320098,
 				},
 				last_share_price_checkpoint: 1 * DOLLARS,
 				commission: None,
 				owner_shares: 0,
-				invest_pools: VecDeque::new(),
+				invest_pools: vec![],
 			})),
 		);
 		assert_eq!(base_pool::PoolCount::<Test>::get(), 2);
@@ -610,16 +610,16 @@ fn test_contribute() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.basepool.total_shares, 230 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 230 * DOLLARS);
-		let mut buf = VecDeque::new();
-		buf.push_back(1);
+		let mut buf = vec![];
+		buf.push(1);
 		assert_eq!(pool.basepool.value_subscribers, buf);
 		let pool = ensure_vault::<Test>(1).unwrap();
 		assert_eq!(pool.basepool.total_shares, 200 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
 		let free = get_balance(pool.basepool.pool_account_id);
 		assert_eq!(free, 100 * DOLLARS);
-		let mut buf = VecDeque::new();
-		buf.push_back(0);
+		let mut buf = vec![];
+		buf.push(0);
 		assert_eq!(pool.invest_pools, buf);
 	});
 }
