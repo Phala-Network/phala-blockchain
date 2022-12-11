@@ -587,6 +587,7 @@ pub mod pallet {
 		///
 		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
 		/// Note: This function doesn't guarantee no-op when there's error.
+		/// TODO(mingxuan): add more detail comment later.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
@@ -873,11 +874,13 @@ pub mod pallet {
 					}
 					let computing_stake =
 						computation::Stakes::<T>::get(&session).unwrap_or_default();
-					wrapped_balances::Pallet::<T>::mint_into(
-						&new_pool_info.lock_account,
-						computing_stake,
-					)
-					.expect("mint into should be success");
+					if computing_stake != Zero::zero() {
+						wrapped_balances::Pallet::<T>::mint_into(
+							&new_pool_info.lock_account,
+							computing_stake,
+						)
+						.expect("mint into should be success");
+					}
 				});
 				pool_info
 					.withdraw_queue
@@ -915,7 +918,7 @@ pub mod pallet {
 				wrapped_balances::Pallet::<T>::mint_into(
 					&new_pool_info.basepool.pool_account_id,
 					pool_info.free_stake,
-				);
+				).expect("mint should never fail");
 				base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(new_pool_info));
 				base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
 				i += 1;
@@ -961,7 +964,7 @@ pub mod pallet {
 					wrapped_balances::Pallet::<T>::mint_into(
 						&pool_info.basepool.pool_account_id,
 						user_reward,
-					);
+					).expect("mint should never fail");
 					pool_info.basepool.total_value += user_reward;
 					let mut actual_shares = staker_info.shares;
 					for v in &pool_info.basepool.withdraw_queue {
@@ -1025,7 +1028,7 @@ pub mod pallet {
 							&user_id,
 							<T as PhalaConfig>::Currency::minimum_balance(),
 							KeepAlive,
-						);
+						).expect("transfer should not fail; qed.");
 						<T as PhalaConfig>::Currency::transfer(
 							&user_id,
 							&wrappedbalances_accountid,
