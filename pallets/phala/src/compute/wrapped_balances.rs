@@ -59,7 +59,7 @@ pub mod pallet {
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
-	const MAX_ITERARTIONS: u32 = 100;
+	const MAX_ITERRATIONS: u32 = 100;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -336,7 +336,7 @@ pub mod pallet {
 				return Err(Error::<T>::ReferendumOngoing.into());
 			}
 			ensure!(
-				max_iterations > 0 && max_iterations <= MAX_ITERARTIONS,
+				max_iterations > 0 && max_iterations <= MAX_ITERRATIONS,
 				Error::<T>::IterationsIsNotVaild
 			);
 			let mut iter = VoteAccountMap::<T>::iter_prefix(vote_id).drain();
