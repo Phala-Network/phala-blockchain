@@ -55,6 +55,8 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	/// Mapping from the vault pid to its owner authority locking status
+	///
+	/// Using to forbid vault's owner to trigger an withdraw for the vault and override the withdraw request issued by `force shutdown`.
 	#[pallet::storage]
 	pub type VaultLocks<T: Config> = StorageMap<_, Twox64Concat, u64, ()>;
 
