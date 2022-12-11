@@ -331,9 +331,9 @@ fn test_merge_or_init_nft() {
 			pool_info.basepool.pid,
 			PoolType::StakePool,
 		));
-		let nftid_arr: Vec<NftId> =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
-		assert_eq!(nftid_arr.len(), 2);
+		let nftid_arr =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000);
+		assert_eq!(nftid_arr.count(), 2);
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 			pool_info.basepool.cid,
 			1,
@@ -610,16 +610,14 @@ fn test_contribute() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.basepool.total_shares, 230 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 230 * DOLLARS);
-		let mut buf = vec![];
-		buf.push(1);
+		let buf = vec![1u64];
 		assert_eq!(pool.basepool.value_subscribers, buf);
 		let pool = ensure_vault::<Test>(1).unwrap();
 		assert_eq!(pool.basepool.total_shares, 200 * DOLLARS);
 		assert_eq!(pool.basepool.total_value, 200 * DOLLARS);
 		let free = get_balance(pool.basepool.pool_account_id);
 		assert_eq!(free, 100 * DOLLARS);
-		let mut buf = vec![];
-		buf.push(0);
+		let buf = vec![0u64];
 		assert_eq!(pool.invest_pools, buf);
 	});
 }
@@ -1013,7 +1011,7 @@ fn test_force_unbind() {
 		// Check worker assignments cleared, and the worker removed from the pool
 		assert!(!stake_pool_v2::pallet::WorkerAssignments::<Test>::contains_key(worker_pubkey(1)));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_eq!(pool.workers.contains(&worker_pubkey(1)), false);
+		assert!(!pool.workers.contains(&worker_pubkey(1)));
 		// Check the computing is ready
 		let worker = PhalaComputation::sessions(&sub_account).unwrap();
 		assert_eq!(worker.state, computation::WorkerState::Ready);
@@ -1048,7 +1046,7 @@ fn test_force_unbind() {
 			worker_pubkey(2)
 		));
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
-		assert_eq!(pool.workers.contains(&worker_pubkey(2)), false);
+		assert!(!pool.workers.contains(&worker_pubkey(2)));
 		// Check the computing is stopped
 		let worker = PhalaComputation::sessions(&sub_account).unwrap();
 		assert_eq!(worker.state, computation::WorkerState::WorkerCoolingDown);
