@@ -893,8 +893,8 @@ pub mod pallet {
 				PoolType::StakePool => "Stakepool",
 			};
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> = format!(
-				"Khala - {} Delegation NFT - #{} - {}",
-				&pool_type_str, pid, nft_id
+				"Khala - {} Delegation NFT - #{pid} - {nft_id}",
+				&pool_type_str
 			)
 			.as_bytes()
 			.to_vec()
@@ -908,7 +908,7 @@ pub mod pallet {
 				.try_into()
 				.expect("str coverts to bvec should never fail; qed.");
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-				format!("Khala - {} - #{}", &pool_type_str, pid)
+				format!("Khala - {} - #{pid}", &pool_type_str)
 					.as_bytes()
 					.to_vec()
 					.try_into()
@@ -941,7 +941,7 @@ pub mod pallet {
 				.as_secs()
 				.saturated_into::<u64>();
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-				format!("{}", now)
+				format!("{now}")
 					.as_bytes()
 					.to_vec()
 					.try_into()

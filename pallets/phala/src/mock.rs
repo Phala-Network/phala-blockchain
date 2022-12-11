@@ -68,8 +68,8 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
 	pub const ExpectedBlockTimeSec: u32 = 12;
-	pub const MinWorkingStaking: Balance = 1 * DOLLARS;
-	pub const MinContribution: Balance = 1 * CENTS;
+	pub const MinWorkingStaking: Balance = DOLLARS;
+	pub const MinContribution: Balance = CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
 	pub const ComputingEnabledByDefault: bool = true;
@@ -276,9 +276,9 @@ ord_parameter_types! {
 
 parameter_types! {
 	pub const PreimageMaxSize: u32 = 4096 * 1024;
-	pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
+	pub const PreimageBaseDeposit: Balance = DOLLARS;
 	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = 1 * CENTS;
+	pub const PreimageByteDeposit: Balance = CENTS;
 }
 
 impl pallet_preimage::Config for Test {
@@ -368,7 +368,7 @@ impl stake_pool_v2::Config for Test {
 }
 
 parameter_types! {
-	pub const InitialPriceCheckPoint: Balance = 1 * DOLLARS;
+	pub const InitialPriceCheckPoint: Balance = DOLLARS;
 }
 
 impl vault::Config for Test {
