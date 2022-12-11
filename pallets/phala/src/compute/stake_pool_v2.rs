@@ -12,11 +12,11 @@ pub mod pallet {
 	use crate::balance_convert::{mul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
-	use crate::wrapped_balances;
-	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool, PoolType};
+	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, PoolType, StakePool};
 	use crate::registry;
 	use crate::stake_pool;
 	use crate::vault;
+	use crate::wrapped_balances;
 
 	use fixed::types::U64F64 as FixedPoint;
 
@@ -24,7 +24,6 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		storage::migration,
 		traits::{
 			tokens::fungibles::Transfer, Currency, ExistenceRequirement::KeepAlive, LockIdentifier,
 			LockableCurrency, StorageVersion, UnixTime,
@@ -74,9 +73,6 @@ pub mod pallet {
 
 		/// The origin that can turn on or off computing
 		type ComputingSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
-
-		/// The origin that can trigger backfill tasks.
-		type BackfillOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -366,8 +362,8 @@ pub mod pallet {
 					},
 					payout_commission: None,
 					cap: None,
-					workers: VecDeque::new(),
-					cd_workers: VecDeque::new(),
+					workers: vec![],
+					cd_workers: vec![],
 					lock_account,
 					owner_reward_account,
 				}),
@@ -441,7 +437,7 @@ pub mod pallet {
 			SubAccountPreimages::<T>::insert(session.clone(), (pid, pubkey));
 
 			// update worker vector
-			workers.push_back(pubkey);
+			workers.push(pubkey);
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 			WorkerAssignments::<T>::insert(&pubkey, pid);
 			Self::deposit_event(Event::<T>::PoolWorkerAdded {
@@ -674,11 +670,15 @@ pub mod pallet {
 			};
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// a lot of weird edge cases when dealing with pending slash.
-			let shares =
-				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount, PoolType::StakePool)?;
+			let shares = base_pool::Pallet::<T>::contribute(
+				&mut pool_info.basepool,
+				who.clone(),
+				amount,
+				PoolType::StakePool,
+			)?;
 			if let Some((vault_pid, vault_info)) = &mut maybe_vault {
 				if !vault_info.invest_pools.contains(&pid) {
-					vault_info.invest_pools.push_back(pid);
+					vault_info.invest_pools.push(pid);
 				}
 				base_pool::pallet::Pools::<T>::insert(
 					*vault_pid,
@@ -708,7 +708,11 @@ pub mod pallet {
 				PoolType::StakePool,
 			)?;
 			if as_vault.is_none() {
-				wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
+				wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(
+					&who,
+					pid,
+					pool_info.basepool.cid,
+				)?;
 			}
 
 			Self::deposit_event(Event::<T>::Contribution {
@@ -792,8 +796,12 @@ pub mod pallet {
 				PoolType::StakePool,
 			)?;
 			nft_guard.save()?;
-			let _nft_id =
-				base_pool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who, pool_info.basepool.pid, PoolType::StakePool)?;
+			let _nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+				pool_info.basepool.cid,
+				who,
+				pool_info.basepool.pid,
+				PoolType::StakePool,
+			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 
 			Ok(())
@@ -802,9 +810,10 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+			let wrappedbalances_accountid =
+				<T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			let mut last_pid = StakepoolIterateStartPos::<T>::get();
 			let mut iter = match last_pid {
 				Some(pid) => {
@@ -849,18 +858,18 @@ pub mod pallet {
 					},
 					payout_commission: pool_info.payout_commission,
 					cap: pool_info.cap,
-					workers: VecDeque::new(),
-					cd_workers: VecDeque::new(),
+					workers: vec![],
+					cd_workers: vec![],
 					lock_account,
 					owner_reward_account,
 				};
 				pool_info.workers.into_iter().for_each(|pubkey| {
-					new_pool_info.workers.push_back(pubkey);
+					new_pool_info.workers.push(pubkey);
 					let session: T::AccountId = pool_sub_account(pid, &pubkey);
 					let worker_info = computation::pallet::Sessions::<T>::get(&session)
 						.expect("session data should exist; qed.");
 					if worker_info.state == computation::pallet::WorkerState::WorkerCoolingDown {
-						new_pool_info.cd_workers.push_back(pubkey);
+						new_pool_info.cd_workers.push(pubkey);
 					}
 					let computing_stake =
 						computation::Stakes::<T>::get(&session).unwrap_or_default();
@@ -926,9 +935,10 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_pool_stakers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+			let wrappedbalances_accountid =
+				<T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			stake_pool::pallet::PoolStakers::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|((pid, user_id), staker_info)| {
@@ -966,7 +976,7 @@ pub mod pallet {
 							break;
 						}
 					}
-					let nft_id = base_pool::Pallet::<T>::mint_nft(
+					let _nft_id = base_pool::Pallet::<T>::mint_nft(
 						pool_info.basepool.cid,
 						user_id.clone(),
 						actual_shares,
@@ -991,9 +1001,10 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_stake_ledger(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-			let wrappedbalances_accountid = <T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+			let wrappedbalances_accountid =
+				<T as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 			stake_pool::pallet::StakeLedger::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
 				.for_each(|(user_id, balance)| {
@@ -1033,7 +1044,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::StakePools::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1047,7 +1058,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::WorkerAssignments::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1063,7 +1074,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::SubAccountPreimages::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1079,7 +1090,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::PoolContributionWhitelists::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1095,7 +1106,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			stake_pool::pallet::PoolDescriptions::<T>::drain()
 				.take(max_iterations.try_into().unwrap())
@@ -1255,7 +1266,7 @@ pub mod pallet {
 			let session: T::AccountId = pool_sub_account(pid, &worker);
 			// Computation::stop_computing will notify us how much it will release by `on_stopped`
 			<computation::pallet::Pallet<T>>::stop_computing(session)?;
-			pool_info.cd_workers.push_back(worker);
+			pool_info.cd_workers.push(worker);
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 			Ok(())
 		}
@@ -1295,8 +1306,11 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 
-				wrapped_balances::Pallet::<T>::mint_into(&pool_info.owner_reward_account, commission)
-					.expect("mint into should be success");
+				wrapped_balances::Pallet::<T>::mint_into(
+					&pool_info.owner_reward_account,
+					commission,
+				)
+				.expect("mint into should be success");
 				let to_distribute = rewards - commission;
 				wrapped_balances::Pallet::<T>::mint_into(
 					&pool_info.basepool.pool_account_id,
@@ -1373,11 +1387,6 @@ pub mod pallet {
 					});
 				}
 			});
-		}
-
-		pub(crate) fn migration_remove_assignments() -> Weight {
-			let writes = SubAccountAssignments::<T>::drain().count();
-			T::DbWeight::get().writes(writes as _)
 		}
 	}
 

@@ -6803,44 +6803,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-rmrk-equip"
-version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.33#df4e004e91d72eac1aa300859b37f177be59fb2b"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "pallet-rmrk-core",
- "pallet-uniques",
- "parity-scale-codec",
- "rmrk-traits",
- "scale-info",
- "serde",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-rmrk-market"
-version = "0.0.1"
-source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.33#df4e004e91d72eac1aa300859b37f177be59fb2b"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "pallet-rmrk-core",
- "pallet-uniques",
- "parity-scale-codec",
- "rmrk-traits",
- "scale-info",
- "serde",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.33#2dff067e9f7f6f3cc4dbfdaaa97753eccc407689"
@@ -7689,8 +7651,6 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-rmrk-core",
- "pallet-rmrk-equip",
- "pallet-rmrk-market",
  "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",
@@ -7756,8 +7716,6 @@ dependencies = [
  "pallet-preimage",
  "pallet-randomness-collective-flip",
  "pallet-rmrk-core",
- "pallet-rmrk-equip",
- "pallet-rmrk-market",
  "pallet-scheduler",
  "pallet-timestamp",
  "pallet-uniques",

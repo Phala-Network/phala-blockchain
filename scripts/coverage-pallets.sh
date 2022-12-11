@@ -15,7 +15,7 @@ export LLVM_PROFILE_FILE="$PWD/tmp/coveragedata/llvmcoveragedata-%p-%m.profraw"
 # build wasm without instrumentation
 export WASM_TARGET_DIRECTORY=/tmpwasm
 # required rust flags
-export RUSTFLAGS="-Cinstrument-coverage -Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+export RUSTFLAGS="-Zinstrument-coverage"
 
 # cleanup old coverage data
 rm -rf ./tmp/coveragedata

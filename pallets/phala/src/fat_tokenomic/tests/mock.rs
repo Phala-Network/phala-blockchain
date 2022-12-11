@@ -1,7 +1,11 @@
 use crate::{fat, fat_tokenomic, mq, registry};
 
 use crate::mock::{MockValidator, NoneAttestationEnabled};
-use frame_support::{pallet_prelude::{ConstU32, Get}, parameter_types, traits::GenesisBuild,};
+use frame_support::{
+	pallet_prelude::{ConstU32, Get},
+	parameter_types,
+	traits::GenesisBuild,
+};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -118,13 +122,14 @@ impl registry::Config for Test {
 	type ParachainId = ConstU32<0>;
 }
 
-pub struct MigrationAccountGet;
+pub struct MigrationAccount;
 
-impl Get<AccountId32> for MigrationAccountGet {
-    fn get() -> AccountId32 {
-		let account: [u8; 32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
+impl Get<AccountId32> for MigrationAccount {
+	fn get() -> AccountId32 {
+		let account: [u8; 32] =
+			hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
 		account.into()
-    }
+	}
 }
 impl fat::Config for Test {
 	type RuntimeEvent = RuntimeEvent;

@@ -1,10 +1,10 @@
 use crate::base_pool;
-use crate::wrapped_balances;
 use crate::vault;
+use crate::wrapped_balances;
 use phala_types::WorkerPublicKey;
 use scale_info::TypeInfo;
 use sp_runtime::Permill;
-use sp_std::collections::vec_deque::VecDeque;
+use sp_std::vec::Vec;
 
 use crate::BalanceOf;
 
@@ -24,9 +24,9 @@ pub struct StakePool<AccountId, Balance> {
 	/// When it's set, the totals stake a pool can receive will not exceed this capacity.
 	pub cap: Option<Balance>,
 	/// Bound workers
-	pub workers: VecDeque<WorkerPublicKey>,
+	pub workers: Vec<WorkerPublicKey>,
 	/// The workers in cd in the pool
-	pub cd_workers: VecDeque<WorkerPublicKey>,
+	pub cd_workers: Vec<WorkerPublicKey>,
 	/// Generated account to store W-PHA locked in computing workers, controlled by the pallet
 	pub lock_account: AccountId,
 	/// Generated account to maintain owner rewards, controlled by the pallet
@@ -57,7 +57,7 @@ pub struct Vault<AccountId, Balance> {
 	/// can claim their reward shares at any time.
 	pub owner_shares: Balance,
 	/// The upstream stake pools the vault has delegated to
-	pub invest_pools: VecDeque<u64>,
+	pub invest_pools: Vec<u64>,
 }
 
 impl<AccountId, Balance> StakePool<AccountId, Balance> {

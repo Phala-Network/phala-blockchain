@@ -1,14 +1,17 @@
 use crate::base_pool;
 use crate::computation;
-use crate::wrapped_balances;
 use crate::pool_proxy::*;
 use crate::stake_pool_v2;
 use crate::vault;
+use crate::wrapped_balances;
 use fixed::types::U64F64 as FixedPoint;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
-	traits::{tokens::fungibles::{Create, Inspect}, StorePreimage},
+	traits::{
+		tokens::fungibles::{Create, Inspect},
+		StorePreimage,
+	},
 };
 use hex_literal::hex;
 use sp_runtime::{testing::H256, AccountId32};
@@ -19,15 +22,15 @@ use crate::mock::{
 };
 // Pallets
 use crate::mock::{
-	Balances, PhalaBasePool, PhalaComputation, PhalaWrappedBalances, PhalaRegistry, PhalaStakePoolv2,
-	PhalaVault, Preimage, RuntimeCall,
+	Balances, PhalaBasePool, PhalaComputation, PhalaRegistry, PhalaStakePoolv2, PhalaVault,
+	PhalaWrappedBalances, Preimage, RuntimeCall,
 };
 use pallet_democracy::AccountVote;
+use pallet_democracy::BoundedCallOf;
 use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 use rmrk_traits::primitives::NftId;
 use sp_runtime::Permill;
-use sp_std::collections::vec_deque::VecDeque;
-use pallet_democracy::BoundedCallOf;
+use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
 
 #[test]
 fn test_pool_subaccount() {
@@ -43,12 +46,19 @@ fn test_pool_subaccount() {
 fn test_wrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
+		let free = Balances::free_balance(
+			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
+		);
 		assert_eq!(free, 0);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			100 * DOLLARS
+		));
+		let free = Balances::free_balance(
+			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
+		);
 		assert_eq!(free, 100 * DOLLARS);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
@@ -61,14 +71,19 @@ fn test_wrap() {
 fn test_unwrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaWrappedBalances::unwrap(
 			RuntimeOrigin::signed(1),
 			50 * DOLLARS,
 		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
+		let free = Balances::free_balance(
+			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
+		);
 		assert_eq!(free, 50 * DOLLARS);
 		let wpha_free = get_balance(1);
 		assert_eq!(wpha_free, 50 * DOLLARS);
@@ -81,7 +96,7 @@ fn test_unwrap() {
 		);
 		assert_noop!(
 			PhalaWrappedBalances::unwrap(RuntimeOrigin::signed(1), 50 * DOLLARS),
-			wrapped_balances::Error::<Test>::RedeemAmountExceedsAvaliableStake
+			wrapped_balances::Error::<Test>::UnwrapAmountExceedsAvaliableStake
 		);
 	});
 }
@@ -90,7 +105,10 @@ fn test_unwrap() {
 fn test_unwrap_all() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			100 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
@@ -105,7 +123,10 @@ fn test_unwrap_all() {
 		assert_ok!(PhalaWrappedBalances::unwrap_all(RuntimeOrigin::signed(1)));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaWrappedBalances::unwrap_all(RuntimeOrigin::signed(2)));
 		let free = Balances::free_balance(2);
 		assert_eq!(free, 2000 * DOLLARS);
@@ -128,8 +149,14 @@ fn test_vote() {
 		);
 		assert_eq!(vote_id, 0);
 		assert_eq!(vote_id2, 1);
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			100 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			100 * DOLLARS
+		));
 		assert_noop!(
 			PhalaWrappedBalances::vote(RuntimeOrigin::signed(1), 90 * DOLLARS, 90 * DOLLARS, 0),
 			wrapped_balances::Error::<Test>::VoteAmountLargerThanTotalStakes,
@@ -183,8 +210,14 @@ fn test_unlock() {
 			pallet_democracy::VoteThreshold::SimpleMajority,
 			1000,
 		);
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			100 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaWrappedBalances::vote(
 			RuntimeOrigin::signed(1),
 			20 * DOLLARS,
@@ -255,7 +288,7 @@ fn test_mint_nft() {
 			2,
 			500 * DOLLARS,
 			pool_info.basepool.pid,
-			PoolType::StakePool,			
+			PoolType::StakePool,
 		));
 		{
 			assert_ok!(PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, 0));
@@ -298,7 +331,8 @@ fn test_merge_or_init_nft() {
 			pool_info.basepool.pid,
 			PoolType::StakePool,
 		));
-		let nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
+		let nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
 		assert_eq!(nftid_arr.len(), 2);
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 			pool_info.basepool.cid,
@@ -306,7 +340,8 @@ fn test_merge_or_init_nft() {
 			pool_info.basepool.pid,
 			PoolType::StakePool,
 		));
-		let nftid_arr: Vec<NftId> = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
+		let nftid_arr: Vec<NftId> =
+			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000).collect();
 		assert_eq!(nftid_arr.len(), 1);
 		{
 			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, nftid_arr[0])
@@ -378,7 +413,10 @@ fn test_remove_stake_from_nft() {
 		setup_workers(2);
 		setup_stake_pool_with_workers(1, &[1, 2]); // pid = 0
 		let _pool_info = ensure_stake_pool::<Test>(0).unwrap();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 100 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			100 * DOLLARS
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
 			0,
@@ -435,8 +473,8 @@ fn test_create_stakepool() {
 				payout_commission: None,
 				lock_account: 16637257129592319091,
 				cap: None,
-				workers: VecDeque::new(),
-				cd_workers: VecDeque::new(),
+				workers: vec![],
+				cd_workers: vec![],
 				owner_reward_account: 16637257129592319859,
 			})),
 		);
@@ -486,8 +524,14 @@ fn test_contribute() {
 		);
 
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
 			0,
@@ -606,9 +650,18 @@ fn test_set_pool_description() {
 fn test_staker_whitelist() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]);
@@ -697,9 +750,18 @@ fn test_staker_whitelist() {
 fn test_pool_cap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
@@ -846,7 +908,10 @@ fn test_start_computing() {
 		mock_asset_id();
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
 		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(99),
 			50000 * DOLLARS
@@ -913,8 +978,14 @@ fn test_force_unbind() {
 		setup_workers_linked_operators(2);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
 		setup_stake_pool_with_workers(2, &[2]); // pid = 1
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(1),
 			0,
@@ -988,8 +1059,14 @@ fn test_force_unbind() {
 fn test_stop_computing() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Cannot start computing without a bound worker
@@ -1041,8 +1118,14 @@ fn test_stop_computing() {
 fn test_reclaim() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Basic setup
@@ -1086,8 +1169,14 @@ fn test_reclaim() {
 fn restart_computing_should_work() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid=0
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -1139,8 +1228,14 @@ fn restart_computing_should_work() {
 fn test_for_cdworkers() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		set_block_1();
 		assert_ok!(PhalaStakePoolv2::create(RuntimeOrigin::signed(1)));
 		// Cannot start computing without a bound worker
@@ -1199,9 +1294,18 @@ fn test_on_reward_for_vault() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(1);
 		setup_vault(3); // pid = 0
@@ -1253,7 +1357,9 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		let free = Balances::free_balance(&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get());
+		let free = Balances::free_balance(
+			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
+		);
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }
@@ -1263,8 +1369,14 @@ fn test_claim_owner_rewards() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid = 0
@@ -1309,9 +1421,18 @@ fn test_vault_owner_shares() {
 	use crate::computation::pallet::OnReward;
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
 		set_block_1();
 		setup_workers(1);
 		setup_vault(3); // pid = 0
@@ -1377,7 +1498,7 @@ fn test_vault_owner_shares() {
 		assert_eq!(vault_info.basepool.total_shares, 120 * DOLLARS);
 		assert_noop!(
 			PhalaVault::claim_owner_shares(RuntimeOrigin::signed(3), 0, 4, 50 * DOLLARS),
-			vault::Error::<Test>::InvaildWithdrawSharesAmount
+			vault::Error::<Test>::NoEnoughShareToClaim
 		);
 		assert_ok!(PhalaVault::claim_owner_shares(
 			RuntimeOrigin::signed(3),
@@ -1408,9 +1529,18 @@ fn test_vault_owner_shares() {
 fn test_withdraw() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
 		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(99),
 			5000 * DOLLARS
@@ -1651,9 +1781,18 @@ fn test_withdraw() {
 fn test_check_and_maybe_force_withdraw() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(1), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(2), 500 * DOLLARS));
-		assert_ok!(PhalaWrappedBalances::wrap(RuntimeOrigin::signed(3), 500 * DOLLARS));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			500 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(3),
+			500 * DOLLARS
+		));
 		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(99),
 			500 * DOLLARS
@@ -1878,7 +2017,11 @@ fn setup_vault(owner: u64) -> u64 {
 }
 
 fn set_balance_proposal(value: u128) -> BoundedCallOf<Test> {
-	let inner = pallet_balances::Call::set_balance { who: 42, new_free: value, new_reserved: 0 };
+	let inner = pallet_balances::Call::set_balance {
+		who: 42,
+		new_free: value,
+		new_reserved: 0,
+	};
 	let outer = RuntimeCall::Balances(inner);
 	Preimage::bound(outer).unwrap()
 }

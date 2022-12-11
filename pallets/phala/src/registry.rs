@@ -840,10 +840,8 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn migrate_workers(
-			origin: OriginFor<T>, max_iterations: u32
-		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+		pub fn migrate_workers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+			let who = ensure_signed(origin)?;
 			ensure!(
 				who == T::RegistryMigrationAccountId::get(),
 				Error::<T>::NotMigrationRoot
@@ -852,30 +850,26 @@ pub mod pallet {
 			let prefix = storage_prefix(b"PhalaRegistry", b"Workers");
 			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or_else(|| prefix.into());
 
-			let iter = PrefixIterator::<_>::new(
-				prefix.into(),
-				previous_key,
-				|key, mut value| {
-					let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
+			let iter = PrefixIterator::<_>::new(prefix.into(), previous_key, |key, mut value| {
+				let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
 
-					match old_worker {
-						Ok(w) => {
-							// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
-							// log::info!(
-							// 	"Old: pubkey {} ecdh_pubkey {}",
-							// 	hex::encode(w.pubkey),
-							// 	hex::encode(w.ecdh_pubkey)
-							// );
+				match old_worker {
+					Ok(w) => {
+						// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
+						// log::info!(
+						// 	"Old: pubkey {} ecdh_pubkey {}",
+						// 	hex::encode(w.pubkey),
+						// 	hex::encode(w.ecdh_pubkey)
+						// );
 
-							Ok((key.to_vec(), w))
-						},
-						Err(e) => {
-							// log::info!("Can't decode old {}", hex::encode(key));
-							Err(e)
-						}
+						Ok((key.to_vec(), w))
+					}
+					Err(e) => {
+						// log::info!("Can't decode old {}", hex::encode(key));
+						Err(e)
 					}
 				}
-			);
+			});
 
 			let mut i = 0;
 			let mut full_key: Vec<u8> = vec![];
@@ -890,7 +884,7 @@ pub mod pallet {
 					attestation_provider: Some(AttestationProvider::Ias),
 					confidence_level: old.confidence_level,
 					initial_score: old.initial_score,
-					features: old.features
+					features: old.features,
 				};
 
 				// log::info!("new {}: {:?}", hex::encode(&key), new);

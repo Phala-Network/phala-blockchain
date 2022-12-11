@@ -2,16 +2,13 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::balance_convert::{mul as bmul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
 	use crate::pool_proxy::{PoolProxy, PoolType};
 	use crate::registry;
 	use crate::vault;
-
-	pub use rmrk_traits::primitives::{CollectionId, NftId};
-
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
-
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
@@ -22,19 +19,12 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
-
-	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
-
-	use crate::balance_convert::{mul as bmul, FixedPointConvert};
-
-	use sp_std::{fmt::Display, prelude::*, result::Result};
-
-	use sp_runtime::traits::Zero;
-
 	use frame_system::pallet_prelude::*;
-
+	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
+	pub use rmrk_traits::primitives::{CollectionId, NftId};
 	use scale_info::TypeInfo;
-
+	use sp_runtime::traits::Zero;
+	use sp_std::{fmt::Display, prelude::*, result::Result};
 	#[pallet::config]
 	pub trait Config:
 		frame_system::Config
@@ -113,11 +103,11 @@ pub mod pallet {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
-		Pawned {
+		Wrapped {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
-		Redeemed {
+		Unwrapped {
 			user: T::AccountId,
 			amount: BalanceOf<T>,
 		},
@@ -134,7 +124,7 @@ pub mod pallet {
 		/// user's `FinanceAccount` does not exist in storage: `StakerAccounts`
 		StakerAccountNotFound,
 		/// Trying to unwrap more than the available balance
-		RedeemAmountExceedsAvaliableStake,
+		UnwrapAmountExceedsAvaliableStake,
 		/// Trying to vote more than the available balance
 		VoteAmountLargerThanTotalStakes,
 		/// The vote is not currently on going
@@ -145,8 +135,6 @@ pub mod pallet {
 		IterationsIsNotVaild,
 	}
 
-
-
 	impl<T: Config> rmrk_traits::TransferHooks<T::AccountId, u32, u32> for Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
@@ -155,21 +143,20 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		fn pre_check(_sender: &T::AccountId, _collection_id: &CollectionId, _nft_id: &NftId) -> bool 
-		{
-			match base_pool::pallet::PoolCollections::<T>::get(_collection_id) {
+		fn pre_check(sender: &T::AccountId, collection_id: &CollectionId, nft_id: &NftId) -> bool {
+			match base_pool::pallet::PoolCollections::<T>::get(collection_id) {
 				Some(pid) => {
-					if let Some(net_value) = Pallet::<T>::get_net_value((*_sender).clone()).ok() {
-						let property_guard = base_pool::Pallet::<T>::get_nft_attr_guard(*_collection_id, *_nft_id)
-							.expect("get nft should not fail: qed.");
+					if let Some(net_value) = Pallet::<T>::get_net_value((*sender).clone()).ok() {
+						let property_guard =
+							base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
+								.expect("get nft should not fail: qed.");
 						let property = &property_guard.attr;
-						let account_status = match StakerAccounts::<T>::get(_sender) {
+						let account_status = match StakerAccounts::<T>::get(sender) {
 							Some(account_status) => account_status,
-							// Already get_net_value, in fact never get here.
-							None => return true,
-						};			
+							None => unreachable!(),
+						};
 						let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
-								.expect("get pool should not fail: qed.");
+							.expect("get pool should not fail: qed.");
 						let basepool = &match pool_proxy {
 							PoolProxy::Vault(p) => p.basepool,
 							PoolProxy::StakePool(p) => p.basepool,
@@ -179,35 +166,39 @@ pub mod pallet {
 							if account_status.locked + nft_value > net_value {
 								return false;
 							}
-						} else {
-							return true;
-						}		
+						}
 					}
-				},
-				None => return true,
+				}
+				None => (),
 			};
 
 			true
 		}
 		fn post_transfer(
-			sender: &T::AccountId,
+			_sender: &T::AccountId,
 			recipient: &T::AccountId,
 			collection_id: &CollectionId,
-			nft_id: &NftId,
+			_nft_id: &NftId,
 		) -> bool {
 			match base_pool::pallet::PoolCollections::<T>::get(collection_id) {
 				Some(pid) => {
 					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
 						.expect("already checked exist; qed.");
 					let pool_type = match pool_proxy {
-						PoolProxy::Vault(res) => PoolType::Vault,
-						PoolProxy::StakePool(res) => PoolType::StakePool,
+						PoolProxy::Vault(_res) => PoolType::Vault,
+						PoolProxy::StakePool(_res) => PoolType::StakePool,
 					};
-					base_pool::Pallet::<T>::merge_or_init_nft_for_staker(*collection_id, recipient.clone(), pid, pool_type);
-				},
-				None => return true,
+					base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+						*collection_id,
+						recipient.clone(),
+						pid,
+						pool_type,
+					)
+					.expect("mrege or init should not fail");
+				}
+				None => (),
 			}
-			return true;
+			true
 		}
 	}
 
@@ -220,7 +211,7 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		/// Pawns some pha and gain equal amount of W-PHA
+		/// Wraps some pha and gain equal amount of W-PHA
 		///
 		/// The wrapped pha is stored in `WrappedBalancesAccountId`'s wallet and can not be taken away
 		#[pallet::weight(0)]
@@ -241,7 +232,7 @@ pub mod pallet {
 					locked: Zero::zero(),
 				},
 			);
-			Self::deposit_event(Event::<T>::Pawned { user, amount });
+			Self::deposit_event(Event::<T>::Wrapped { user, amount });
 			Ok(())
 		}
 
@@ -269,7 +260,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Redeems some pha by burning equal amount of W-PHA
+		/// Unwraps some pha by burning equal amount of W-PHA
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::weight(0)]
@@ -281,14 +272,14 @@ pub mod pallet {
 			>>::balance(T::WPhaAssetId::get(), &user);
 			ensure!(
 				amount <= free_stakes,
-				Error::<T>::RedeemAmountExceedsAvaliableStake
+				Error::<T>::UnwrapAmountExceedsAvaliableStake
 			);
 			let active_stakes = Self::get_net_value(user.clone())?;
 			let staker_status =
 				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
 			ensure!(
 				amount + staker_status.locked <= active_stakes,
-				Error::<T>::RedeemAmountExceedsAvaliableStake,
+				Error::<T>::UnwrapAmountExceedsAvaliableStake,
 			);
 			<T as PhalaConfig>::Currency::transfer(
 				&T::WrappedBalancesAccountId::get(),
@@ -297,7 +288,7 @@ pub mod pallet {
 				AllowDeath,
 			)?;
 			Self::burn_from(&user, amount)?;
-			Self::deposit_event(Event::<T>::Redeemed { user, amount });
+			Self::deposit_event(Event::<T>::Unwrapped { user, amount });
 			Ok(())
 		}
 

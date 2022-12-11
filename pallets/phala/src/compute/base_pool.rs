@@ -4,16 +4,16 @@ use sp_runtime::traits::{AtLeast32BitUnsigned, Zero};
 
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::computation;
+	use crate::pool_proxy::*;
+	use crate::registry;
+	use crate::vault;
+	use crate::wrapped_balances;
+	use crate::BalanceOf;
 	#[cfg(not(feature = "std"))]
 	use alloc::format;
 	#[cfg(feature = "std")]
 	use std::format;
-	use crate::computation;
-	use crate::wrapped_balances;
-	use crate::pool_proxy::*;
-	use crate::registry;
-	use crate::vault;
-	use crate::BalanceOf;
 
 	pub use rmrk_traits::{
 		primitives::{CollectionId, NftId},
@@ -30,34 +30,23 @@ pub mod pallet {
 		},
 	};
 
+	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
-
-	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
-
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, result::Result};
-
 	use sp_runtime::{
 		traits::{CheckedSub, Member, TrailingZeroInput, Zero},
 		SaturatedConversion,
 	};
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, result::Result};
 
 	use frame_system::{pallet_prelude::*, Origin};
-
 	use scale_info::TypeInfo;
-
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
-
 	const NFT_PROPERTY_KEY: &str = "stake-info";
-
 	const MAX_RECURSIONS: u32 = 1;
-
 	const MAX_WHITELIST_LEN: u32 = 100;
-
-	const RESERVE_CID_BOUND: CollectionId = 10000;
-
+	const RESERVE_CID_START: CollectionId = 10000;
 	type DescMaxLen = ConstU32<4400>;
-
 	pub type DescStr = BoundedVec<u8, DescMaxLen>;
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -109,7 +98,6 @@ pub mod pallet {
 	/// Mapping from collectionids to pids
 	#[pallet::storage]
 	pub type PoolCollections<T> = StorageMap<_, Twox64Concat, CollectionId, u64>;
-
 
 	/// The Next available collectionid to be created
 	#[pallet::storage]
@@ -437,16 +425,14 @@ pub mod pallet {
 			staker: T::AccountId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_proxy = Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
+			let pool_proxy =
+				Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
 			let pool_info = match pool_proxy {
 				PoolProxy::Vault(res) => res.basepool,
 				PoolProxy::StakePool(res) => res.basepool,
 			};
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
-			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(&pid) {
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			if let Some(mut whitelist) = PoolContributionWhitelists::<T>::get(pid) {
 				ensure!(
 					!whitelist.contains(&staker),
 					Error::<T>::AlreadyInContributeWhitelist
@@ -456,10 +442,10 @@ pub mod pallet {
 					Error::<T>::ExceedWhitelistMaxLen
 				);
 				whitelist.push(staker.clone());
-				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				PoolContributionWhitelists::<T>::insert(pid, &whitelist);
 			} else {
 				let new_list = vec![staker.clone()];
-				PoolContributionWhitelists::<T>::insert(&pid, &new_list);
+				PoolContributionWhitelists::<T>::insert(pid, &new_list);
 				Self::deposit_event(Event::<T>::PoolWhitelistCreated { pid });
 			}
 			Self::deposit_event(Event::<T>::PoolWhitelistStakerAdded { pid, staker });
@@ -477,16 +463,14 @@ pub mod pallet {
 			description: DescStr,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_proxy = Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
+			let pool_proxy =
+				Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
 			let pool_info = match pool_proxy {
 				PoolProxy::Vault(res) => res.basepool,
 				PoolProxy::StakePool(res) => res.basepool,
 			};
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
-			PoolDescriptions::<T>::insert(&pid, description);
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			PoolDescriptions::<T>::insert(pid, description);
 
 			Ok(())
 		}
@@ -502,31 +486,29 @@ pub mod pallet {
 			staker: T::AccountId,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_proxy = Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
+			let pool_proxy =
+				Pallet::<T>::pool_collection(pid).ok_or(Error::<T>::PoolDoesNotExist)?;
 			let pool_info = match pool_proxy {
 				PoolProxy::Vault(res) => res.basepool,
 				PoolProxy::StakePool(res) => res.basepool,
 			};
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			let mut whitelist =
-				PoolContributionWhitelists::<T>::get(&pid).ok_or(Error::<T>::NoWhitelistCreated)?;
+				PoolContributionWhitelists::<T>::get(pid).ok_or(Error::<T>::NoWhitelistCreated)?;
 			ensure!(
 				whitelist.contains(&staker),
 				Error::<T>::NotInContributeWhitelist
 			);
 			whitelist.retain(|accountid| accountid != &staker);
 			if whitelist.is_empty() {
-				PoolContributionWhitelists::<T>::remove(&pid);
+				PoolContributionWhitelists::<T>::remove(pid);
 				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
 					pid,
 					staker: staker.clone(),
 				});
 				Self::deposit_event(Event::<T>::PoolWhitelistDeleted { pid });
 			} else {
-				PoolContributionWhitelists::<T>::insert(&pid, &whitelist);
+				PoolContributionWhitelists::<T>::insert(pid, &whitelist);
 				Self::deposit_event(Event::<T>::PoolWhitelistStakerRemoved {
 					pid,
 					staker: staker.clone(),
@@ -593,13 +575,18 @@ pub mod pallet {
 				Error::<T>::PoolBankrupt
 			);
 
-			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(&pool.pid) {
+			if let Some(whitelist) = PoolContributionWhitelists::<T>::get(pool.pid) {
 				ensure!(
 					whitelist.contains(&account_id) || pool.owner == account_id,
 					Error::<T>::NotInContributeWhitelist
 				);
 			}
-			Self::merge_or_init_nft_for_staker(pool.cid, account_id.clone(), pool.pid, pool_type.clone())?;
+			Self::merge_or_init_nft_for_staker(
+				pool.cid,
+				account_id.clone(),
+				pool.pid,
+				pool_type.clone(),
+			)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
@@ -676,15 +663,15 @@ pub mod pallet {
 		/// Returns the new pid that will assigned to the creating pool
 		pub fn consume_new_cid() -> CollectionId {
 			CollectionIndex::<T>::try_mutate(|n| -> Result<CollectionId, DispatchError> {
-				if *n <= RESERVE_CID_BOUND {
-					*n = RESERVE_CID_BOUND;
+				if *n <= RESERVE_CID_START {
+					*n = RESERVE_CID_START;
 				}
 				let id = *n;
 				*n += 1;
 				Ok(id)
-			}).expect("get next cid will success; qed.")
+			})
+			.expect("get next cid will success; qed.")
 		}
-		
 
 		/// Checks if there has expired withdraw request in the withdraw queue
 		///
@@ -811,7 +798,7 @@ pub mod pallet {
 
 			let attr = NftAttr { shares };
 			Self::set_nft_attr(cid, nft_id, &attr)?;
-			Self::set_nft_desc_attr(cid, pid, nft_id, pool_type);
+			Self::set_nft_desc_attr(cid, pid, nft_id, pool_type)?;
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Self::deposit_event(Event::<T>::NftCreated {
 				pid,
@@ -828,7 +815,13 @@ pub mod pallet {
 		pub fn burn_nft(owner: &T::AccountId, cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
 			ensure!(
-				pallet_rmrk_core::Pallet::<T>::nft_burn(owner.clone(), cid, nft_id, &rmrk_traits::budget::Value::new(MAX_RECURSIONS)).is_ok(),
+				pallet_rmrk_core::Pallet::<T>::nft_burn(
+					owner.clone(),
+					cid,
+					nft_id,
+					&rmrk_traits::budget::Value::new(MAX_RECURSIONS)
+				)
+				.is_ok(),
 				Error::<T>::BurnNftFailed,
 			);
 			Ok(())
@@ -885,21 +878,24 @@ pub mod pallet {
 			pool_type: PoolType,
 		) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
+			// TODO(mingxuan): make a common function to simplify code.
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "name"
 				.as_bytes()
 				.to_vec()
 				.try_into()
 				.expect("str coverts to bvec should never fail; qed.");
 			let pool_type_str = match pool_type {
-				PoolType::Vault => "vault",
-				PoolType::StakePool => "stakepool",
+				PoolType::Vault => "Vault",
+				PoolType::StakePool => "Stakepool",
 			};
-			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-			format!("Khala - {} Delegation NFT - #{} - {}", &pool_type_str, pid, nft_id)
-				.as_bytes()
-				.to_vec()
-				.try_into()
-				.expect("create a bvec from string should never fail; qed.");			
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> = format!(
+				"Khala - {} Delegation NFT - #{} - {}",
+				&pool_type_str, pid, nft_id
+			)
+			.as_bytes()
+			.to_vec()
+			.try_into()
+			.expect("create a bvec from string should never fail; qed.");
 			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
 
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "description"
@@ -908,15 +904,15 @@ pub mod pallet {
 				.try_into()
 				.expect("str coverts to bvec should never fail; qed.");
 			let pool_type_str = match pool_type {
-				PoolType::Vault => "vault",
-				PoolType::StakePool => "stakepool",
+				PoolType::Vault => "Vault",
+				PoolType::StakePool => "Stakepool",
 			};
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-			format!("Khala - {} - #{}", &pool_type_str, pid)
-				.as_bytes()
-				.to_vec()
-				.try_into()
-				.expect("create a bvec from string should never fail; qed.");			
+				format!("Khala - {} - #{}", &pool_type_str, pid)
+					.as_bytes()
+					.to_vec()
+					.try_into()
+					.expect("create a bvec from string should never fail; qed.");
 			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
 
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "image"
@@ -928,12 +924,11 @@ pub mod pallet {
 				PoolType::Vault => "ar://2K3Pq9XKTw4LjTyyIbsrC53bkOB7NiDxdIcH0aILM-Y",
 				PoolType::StakePool => "ar://C9yMARqdiPXu8IixnwU6J_jMEkN2lTPG4kNouSQ57uI",
 			};
-			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-			image_str
+			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> = image_str
 				.as_bytes()
 				.to_vec()
 				.try_into()
-				.expect("create a bvec from string should never fail; qed.");			
+				.expect("create a bvec from string should never fail; qed.");
 			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
 
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "createtime"
@@ -946,15 +941,15 @@ pub mod pallet {
 				.as_secs()
 				.saturated_into::<u64>();
 			let value: BoundedVec<u8, <T as pallet_uniques::Config>::ValueLimit> =
-			format!("{}", now)
-				.as_bytes()
-				.to_vec()
-				.try_into()
-				.expect("create a bvec from string should never fail; qed.");			
-			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;			
+				format!("{}", now)
+					.as_bytes()
+					.to_vec()
+					.try_into()
+					.expect("create a bvec from string should never fail; qed.");
+			pallet_rmrk_core::Pallet::<T>::do_set_property(cid, Some(nft_id), key, value)?;
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), true);
 			Ok(())
-		}	
+		}
 
 		/// Sets nft attr, can only be called in the pallet
 		#[frame_support::transactional]

@@ -10,10 +10,10 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
-	use crate::wrapped_balances;
-	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, Vault, PoolType};
+	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, PoolType, Vault};
 	use crate::registry;
 	use crate::stake_pool_v2;
+	use crate::wrapped_balances;
 
 	use crate::BalanceOf;
 	use frame_support::{
@@ -24,7 +24,7 @@ pub mod pallet {
 	use frame_system::{pallet_prelude::*, Origin};
 
 	use sp_runtime::{traits::Zero, Permill, SaturatedConversion};
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*};
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec};
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
@@ -43,7 +43,7 @@ pub mod pallet {
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		#[pallet::constant]
-		type InitialCheckPoint: Get<BalanceOf<Self>>;
+		type InitialPriceCheckPoint: Get<BalanceOf<Self>>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -123,7 +123,7 @@ pub mod pallet {
 		/// The caller is not the owner of the pool
 		UnauthorizedPoolOwner,
 		/// The withdrawal amount is too small or too large
-		InvaildWithdrawSharesAmount,
+		NoEnoughShareToClaim,
 		/// The vault have no owner shares to claim
 		NoRewardToClaim,
 		/// The asset account hasn't been created. It indicates an internal error.
@@ -181,8 +181,8 @@ pub mod pallet {
 					},
 					commission: None,
 					owner_shares: Zero::zero(),
-					last_share_price_checkpoint: T::InitialCheckPoint::get(),
-					invest_pools: VecDeque::new(),
+					last_share_price_checkpoint: T::InitialPriceCheckPoint::get(),
+					invest_pools: vec![],
 				}),
 			);
 			base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
@@ -245,10 +245,16 @@ pub mod pallet {
 			);
 			ensure!(
 				pool_info.owner_shares >= shares,
-				Error::<T>::InvaildWithdrawSharesAmount
+				Error::<T>::NoEnoughShareToClaim
 			);
 			ensure!(shares > Zero::zero(), Error::<T>::NoRewardToClaim);
-			let _nft_id = base_pool::Pallet::<T>::mint_nft(pool_info.basepool.cid, target, shares, vault_pid, PoolType::Vault)?;
+			let _nft_id = base_pool::Pallet::<T>::mint_nft(
+				pool_info.basepool.cid,
+				target,
+				shares,
+				vault_pid,
+				PoolType::Vault,
+			)?;
 			pool_info.owner_shares -= shares;
 			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 			Self::deposit_event(Event::<T>::OwnerSharesClaimed {
@@ -310,6 +316,7 @@ pub mod pallet {
 		///
 		/// If the shutdown condition is met, all shares owned by the vault will be forced withdraw.
 		/// Note: This function doesn't guarantee no-op when there's error.
+		/// TODO(mingxuan): add more detail comment later.
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn check_and_maybe_force_withdraw(
@@ -421,8 +428,12 @@ pub mod pallet {
 			.ok_or(Error::<T>::AssetAccountNotExist)?;
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 
-			let shares =
-				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount, PoolType::Vault)?;
+			let shares = base_pool::Pallet::<T>::contribute(
+				&mut pool_info.basepool,
+				who.clone(),
+				amount,
+				PoolType::Vault,
+			)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
 
@@ -437,7 +448,11 @@ pub mod pallet {
 				PoolType::Vault,
 			)?;
 
-			wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(&who, pid, pool_info.basepool.cid)?;
+			wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(
+				&who,
+				pid,
+				pool_info.basepool.cid,
+			)?;
 
 			Self::deposit_event(Event::<T>::Contribution {
 				pid,
@@ -488,7 +503,7 @@ pub mod pallet {
 			};
 			ensure!(
 				base_pool::is_nondust_balance(shares) && (shares <= nft.shares + in_queue_shares),
-				Error::<T>::InvaildWithdrawSharesAmount
+				Error::<T>::NoEnoughShareToClaim
 			);
 			base_pool::Pallet::<T>::try_withdraw(
 				&mut pool_info.basepool,
@@ -501,8 +516,12 @@ pub mod pallet {
 			)?;
 
 			nft_guard.save()?;
-			let _nft_id =
-				base_pool::Pallet::<T>::merge_or_init_nft_for_staker(pool_info.basepool.cid, who, pool_info.basepool.pid, PoolType::Vault)?;
+			let _nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+				pool_info.basepool.cid,
+				who,
+				pool_info.basepool.pid,
+				PoolType::Vault,
+			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 
 			Ok(())

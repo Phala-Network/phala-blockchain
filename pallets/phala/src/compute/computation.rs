@@ -7,16 +7,15 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
-	use crate::base_pool;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
 	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		storage::{storage_prefix, unhashed, PrefixIterator, migration},
+		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{
-			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
-			UnixTime, ConstBool,
+			ConstBool, Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness,
+			StorageVersion, UnixTime,
 		},
 		PalletId,
 	};
@@ -512,7 +511,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_miners(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			ensure!(
 				who == T::ComputationMigrationAccountId::get(),
 				Error::<T>::NotMigrationRoot
@@ -532,7 +531,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_miner_bindings(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			ensure!(
 				who == T::ComputationMigrationAccountId::get(),
 				Error::<T>::NotMigrationRoot
@@ -555,7 +554,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			max_iterations: u32,
 		) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			ensure!(
 				who == T::ComputationMigrationAccountId::get(),
 				Error::<T>::NotMigrationRoot
@@ -575,7 +574,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_stakes(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			ensure!(
 				who == T::ComputationMigrationAccountId::get(),
 				Error::<T>::NotMigrationRoot
@@ -595,7 +594,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_storage_values(origin: OriginFor<T>) -> DispatchResult {
-			let mut who = ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 			ensure!(
 				who == T::ComputationMigrationAccountId::get(),
 				Error::<T>::NotMigrationRoot
@@ -635,7 +634,7 @@ pub mod pallet {
 			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
 			Ok(())
 		}
-		
+
 		/// Pause or resume the heartbeat challenges.
 		///
 		/// This API is introduced to pause the computing rewards for a period while we upgrading
@@ -688,10 +687,11 @@ pub mod pallet {
 			if from_prefix == to_prefix {
 				return;
 			}
-			let value = unhashed::get_raw(from_prefix).unwrap_or_default();
+			let value = match unhashed::get_raw(from_prefix) {
+				Some(v) => v,
+				None => return,
+			};
 			unhashed::put_raw(to_prefix, &value);
-
-			return;
 		}
 
 		pub fn move_prefix(from_prefix: &[u8], to_prefix: &[u8], max_iterations: u32) {

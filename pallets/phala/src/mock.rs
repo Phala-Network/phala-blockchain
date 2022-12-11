@@ -1,9 +1,9 @@
 use crate::{
-	base_pool, computation, mq, wrapped_balances, registry, stake_pool, stake_pool_v2,
+	base_pool, computation, mq, registry, stake_pool, stake_pool_v2,
 	utils::attestation_legacy::{
 		Attestation, AttestationValidator, Error as AttestationError, IasFields,
 	},
-	vault,
+	vault, wrapped_balances,
 };
 
 use frame_support::{
@@ -219,7 +219,7 @@ parameter_types! {
 impl pallet_rmrk_core::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
-	type NestingBudget = ConstU32<{200}>;
+	type NestingBudget = ConstU32<{ 200 }>;
 	type ResourceSymbolLimit = ResourceSymbolLimit;
 	type PartsLimit = PartsLimit;
 	type MaxPriorities = MaxPriorities;
@@ -275,10 +275,10 @@ ord_parameter_types! {
 }
 
 parameter_types! {
-    pub const PreimageMaxSize: u32 = 4096 * 1024;
-    pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
-    // One cent: $10,000 / MB
-    pub const PreimageByteDeposit: Balance = 1 * CENTS;
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
+	// One cent: $10,000 / MB
+	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 }
 
 impl pallet_preimage::Config for Test {
@@ -364,17 +364,16 @@ impl stake_pool_v2::Config for Test {
 	type GracePeriod = WorkingGracePeriod;
 	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type ComputingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {
-	pub const InitialCheckPoint: Balance = 1 * DOLLARS;
+	pub const : Balance = 1 * DOLLARS;
 }
 
 impl vault::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type InitialCheckPoint = InitialCheckPoint;
+	type InitialPriceCheckPoint = InitialPriceCheckPoint;
 }
 
 impl base_pool::Config for Test {
