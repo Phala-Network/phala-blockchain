@@ -154,7 +154,7 @@ pub mod pallet {
 			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
-				format!("VAULT-{}", pid)
+				format!("VAULT-{pid}")
 					.as_bytes()
 					.to_vec()
 					.try_into()

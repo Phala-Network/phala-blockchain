@@ -144,32 +144,29 @@ pub mod pallet {
 		T: Config + vault::Config,
 	{
 		fn pre_check(sender: &T::AccountId, collection_id: &CollectionId, nft_id: &NftId) -> bool {
-			match base_pool::pallet::PoolCollections::<T>::get(collection_id) {
-				Some(pid) => {
-					if let Some(net_value) = Pallet::<T>::get_net_value((*sender).clone()).ok() {
-						let property_guard =
-							base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
-								.expect("get nft should not fail: qed.");
-						let property = &property_guard.attr;
-						let account_status = match StakerAccounts::<T>::get(sender) {
-							Some(account_status) => account_status,
-							None => unreachable!(),
-						};
-						let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
-							.expect("get pool should not fail: qed.");
-						let basepool = &match pool_proxy {
-							PoolProxy::Vault(p) => p.basepool,
-							PoolProxy::StakePool(p) => p.basepool,
-						};
-						if let Some(price) = basepool.share_price() {
-							let nft_value = bmul(property.shares, &price);
-							if account_status.locked + nft_value > net_value {
-								return false;
-							}
+			if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
+				if let Ok(net_value) = Pallet::<T>::get_net_value((*sender).clone()) {
+					let property_guard =
+						base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
+							.expect("get nft should not fail: qed.");
+					let property = &property_guard.attr;
+					let account_status = match StakerAccounts::<T>::get(sender) {
+						Some(account_status) => account_status,
+						None => unreachable!(),
+					};
+					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+						.expect("get pool should not fail: qed.");
+					let basepool = &match pool_proxy {
+						PoolProxy::Vault(p) => p.basepool,
+						PoolProxy::StakePool(p) => p.basepool,
+					};
+					if let Some(price) = basepool.share_price() {
+						let nft_value = bmul(property.shares, &price);
+						if account_status.locked + nft_value > net_value {
+							return false;
 						}
 					}
 				}
-				None => (),
 			};
 
 			true
@@ -180,23 +177,19 @@ pub mod pallet {
 			collection_id: &CollectionId,
 			_nft_id: &NftId,
 		) -> bool {
-			match base_pool::pallet::PoolCollections::<T>::get(collection_id) {
-				Some(pid) => {
-					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
-						.expect("already checked exist; qed.");
-					let pool_type = match pool_proxy {
-						PoolProxy::Vault(_res) => PoolType::Vault,
-						PoolProxy::StakePool(_res) => PoolType::StakePool,
-					};
-					base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
-						*collection_id,
-						recipient.clone(),
-						pid,
-						pool_type,
-					)
-					.expect("mrege or init should not fail");
-				}
-				None => (),
+			if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
+				let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+					.expect("already checked exist; qed.");
+				let pool_type = match pool_proxy {
+					PoolProxy::Vault(_res) => PoolType::Vault,
+					PoolProxy::StakePool(_res) => PoolType::StakePool,
+				};
+				base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+					*collection_id,
+					recipient.clone(),
+					pid,
+					pool_type,
+				).expect("mrege or init should not fail");
 			}
 			true
 		}
@@ -411,7 +404,7 @@ pub mod pallet {
 			cid: CollectionId,
 		) -> DispatchResult {
 			let mut account_status =
-				StakerAccounts::<T>::get(&who).ok_or(Error::<T>::StakerAccountNotFound)?;
+				StakerAccounts::<T>::get(who).ok_or(Error::<T>::StakerAccountNotFound)?;
 
 			if !account_status.invest_pools.contains(&(pid, cid)) {
 				account_status.invest_pools.push((pid, cid));
