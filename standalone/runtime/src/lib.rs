@@ -1442,7 +1442,7 @@ impl Get<AccountId32> for MigrationAccount {
 
 impl pallet_wrapped_balances::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type WPhaAssetId = ConstU32<15>;
+    type WPhaAssetId = ConstU32<10000>;
     type WrappedBalancesAccountId = WrappedBalancesPalletAccount;
     type OnSlashed = Treasury;
 }
