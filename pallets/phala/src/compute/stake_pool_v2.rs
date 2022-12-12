@@ -918,7 +918,7 @@ pub mod pallet {
 				wrapped_balances::Pallet::<T>::mint_into(
 					&new_pool_info.basepool.pool_account_id,
 					pool_info.free_stake,
-				).expect("mint should never fail");
+				);
 				base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(new_pool_info));
 				base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
 				i += 1;
@@ -964,7 +964,7 @@ pub mod pallet {
 					wrapped_balances::Pallet::<T>::mint_into(
 						&pool_info.basepool.pool_account_id,
 						user_reward,
-					).expect("mint should never fail");
+					);
 					pool_info.basepool.total_value += user_reward;
 					let mut actual_shares = staker_info.shares;
 					for v in &pool_info.basepool.withdraw_queue {
