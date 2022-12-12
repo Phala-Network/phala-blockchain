@@ -875,11 +875,10 @@ pub mod pallet {
 					let computing_stake =
 						computation::Stakes::<T>::get(&session).unwrap_or_default();
 					if computing_stake != Zero::zero() {
-						wrapped_balances::Pallet::<T>::mint_into(
+						let _ = wrapped_balances::Pallet::<T>::mint_into(
 							&new_pool_info.lock_account,
 							computing_stake,
-						)
-						.expect("mint into should be success");
+						);
 					}
 				});
 				pool_info
@@ -914,10 +913,10 @@ pub mod pallet {
 						pool_info.owner_reward,
 					);
 				};
-				wrapped_balances::Pallet::<T>::mint_into(
+				let _ = wrapped_balances::Pallet::<T>::mint_into(
 					&new_pool_info.basepool.pool_account_id,
 					pool_info.free_stake,
-				).expect("mint should never fail");
+				);
 				base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(new_pool_info));
 				base_pool::pallet::PoolCollections::<T>::insert(collection_id, pid);
 				i += 1;
@@ -960,10 +959,10 @@ pub mod pallet {
 						ensure_stake_pool::<T>(pid).expect("stakepool should exist; qed.");
 					// If the balance is too low to mint, we can just drop it.
 					// Even if user_reward is a dust, we should still create user's shares
-					wrapped_balances::Pallet::<T>::mint_into(
+					let _ = wrapped_balances::Pallet::<T>::mint_into(
 						&pool_info.basepool.pool_account_id,
 						user_reward,
-					).expect("mint should never fail");
+					);
 					pool_info.basepool.total_value += user_reward;
 					let mut actual_shares = staker_info.shares;
 					for v in &pool_info.basepool.withdraw_queue {
