@@ -331,7 +331,7 @@ pub mod pallet {
 			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
 			let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
-				format!("STAKEPOOL-{}", pid)
+				format!("STAKEPOOL-{pid}")
 					.as_bytes()
 					.to_vec()
 					.try_into()
@@ -395,7 +395,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let worker_info =
-				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+				registry::Workers::<T>::get(pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
 
 			// check wheather the owner was bound as operator
 			ensure!(
@@ -404,7 +404,7 @@ pub mod pallet {
 			);
 			// check the worker has finished the benchmark
 			ensure!(
-				worker_info.initial_score != None,
+				worker_info.initial_score.is_some(),
 				Error::<T>::BenchmarkMissing
 			);
 
@@ -439,7 +439,7 @@ pub mod pallet {
 			// update worker vector
 			workers.push(pubkey);
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
-			WorkerAssignments::<T>::insert(&pubkey, pid);
+			WorkerAssignments::<T>::insert(pubkey, pid);
 			Self::deposit_event(Event::<T>::PoolWorkerAdded {
 				pid,
 				worker: pubkey,
@@ -827,7 +827,7 @@ pub mod pallet {
 			for (pid, pool_info) in iter.by_ref() {
 				let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 				let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
-					format!("STAKEPOOL-{}", pid)
+					format!("STAKEPOOL-{pid}")
 						.as_bytes()
 						.to_vec()
 						.try_into()
@@ -903,11 +903,10 @@ pub mod pallet {
 							});
 					});
 				// If the balance is too low to mint, we can just drop it.
-				if !wrapped_balances::Pallet::<T>::mint_into(
+				if wrapped_balances::Pallet::<T>::mint_into(
 					&new_pool_info.owner_reward_account,
 					pool_info.owner_reward,
-				)
-				.is_err()
+				).is_ok()
 				{
 					let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
 						&wrappedbalances_accountid,
@@ -1407,7 +1406,7 @@ pub mod pallet {
 				let payout_fixed = FixedPoint::from_bits(info.payout);
 				let reward = BalanceOf::<T>::from_fixed(&payout_fixed);
 
-				let pid = match WorkerAssignments::<T>::get(&info.pubkey) {
+				let pid = match WorkerAssignments::<T>::get(info.pubkey) {
 					Some(pid) => pid,
 					None => {
 						Self::deposit_event(Event::<T>::RewardDismissedNotInPool {

@@ -106,8 +106,8 @@ use sp_runtime::generic::Era;
 mod voter_bags;
 
 pub use phala_pallets::{
-    pallet_basepool, pallet_computation, pallet_fat, pallet_fat_tokenomic, pallet_mq,
-    pallet_registry, pallet_stakepool, pallet_stakepoolv2, pallet_vault, pallet_wrappedbalances,
+    pallet_base_pool, pallet_computation, pallet_fat, pallet_fat_tokenomic, pallet_mq,
+    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
     puppets,
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
@@ -332,21 +332,21 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::StakePoolManager => matches!(
                 c,
                 RuntimeCall::Utility { .. }
-                    | RuntimeCall::PhalaStakePoolv2(pallet_stakepoolv2::Call::add_worker { .. })
-                    | RuntimeCall::PhalaStakePoolv2(pallet_stakepoolv2::Call::remove_worker { .. })
+                    | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::add_worker { .. })
+                    | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::remove_worker { .. })
                     | RuntimeCall::PhalaStakePoolv2(
-                        pallet_stakepoolv2::Call::start_computing { .. }
+                        pallet_stake_pool_v2::Call::start_computing { .. }
                     )
                     | RuntimeCall::PhalaStakePoolv2(
-                        pallet_stakepoolv2::Call::stop_computing { .. }
+                        pallet_stake_pool_v2::Call::stop_computing { .. }
                     )
                     | RuntimeCall::PhalaStakePoolv2(
-                        pallet_stakepoolv2::Call::restart_computing { .. }
+                        pallet_stake_pool_v2::Call::restart_computing { .. }
                     )
                     | RuntimeCall::PhalaStakePoolv2(
-                        pallet_stakepoolv2::Call::reclaim_pool_worker { .. }
+                        pallet_stake_pool_v2::Call::reclaim_pool_worker { .. }
                     )
-                    | RuntimeCall::PhalaStakePoolv2(pallet_stakepoolv2::Call::create { .. })
+                    | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::create { .. })
                     | RuntimeCall::PhalaRegistry(pallet_registry::Call::register_worker { .. })
                     | RuntimeCall::PhalaRegistry(pallet_registry::Call::register_worker_v2 { .. })
                     | RuntimeCall::PhalaMq(pallet_mq::Call::sync_offchain_message { .. })
@@ -1343,7 +1343,7 @@ impl pallet_computation::Config for Runtime {
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
     type ComputationMigrationAccountId = MigrationAccount;
 }
-impl pallet_stakepoolv2::Config for Runtime {
+impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MinContribution = MinContribution;
     type GracePeriod = WorkingGracePeriod;
@@ -1351,7 +1351,7 @@ impl pallet_stakepoolv2::Config for Runtime {
     type MaxPoolWorkers = MaxPoolWorkers;
     type ComputingSwitchOrigin = EnsureRootOrHalfCouncil;
 }
-impl pallet_stakepool::Config for Runtime {
+impl pallet_stake_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
 }
@@ -1440,14 +1440,14 @@ impl Get<AccountId32> for MigrationAccount {
     }
 }
 
-impl pallet_wrappedbalances::Config for Runtime {
+impl pallet_wrapped_balances::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WPhaAssetId = ConstU32<15>;
     type WrappedBalancesAccountId = WrappedBalancesPalletAccount;
     type OnSlashed = Treasury;
 }
 
-impl pallet_basepool::Config for Runtime {
+impl pallet_base_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MigrationAccountId = MigrationAccount;
 }
@@ -1547,11 +1547,11 @@ construct_runtime!(
         PhalaMq: pallet_mq,
         PhalaRegistry: pallet_registry,
         PhalaComputation: pallet_computation,
-        PhalaStakePoolv2: pallet_stakepoolv2,
-        PhalaStakePool: pallet_stakepool,
+        PhalaStakePoolv2: pallet_stake_pool_v2,
+        PhalaStakePool: pallet_stake_pool,
         PhalaVault: pallet_vault,
-        PhalaWrappedBalances: pallet_wrappedbalances,
-        PhalaBasePool: pallet_basepool,
+        PhalaWrappedBalances: pallet_wrapped_balances,
+        PhalaBasePool: pallet_base_pool,
         PhalaFatContracts: pallet_fat,
         PhalaFatTokenomic: pallet_fat_tokenomic,
 
