@@ -1,4 +1,59 @@
 //! # Off-chain Rollup Anchor
+//!
+//! Off-chain rollup anchor is a pallet that handles the off-chain rollup logic. It maintains a
+//! kv-store for Phat Contract to read and write, and allows the Phat Contract to send arbitrary
+//! messages to the blockchain to trigger custom actions.
+//!
+//! Off-chain Rollup enables ACID operations on the blockchain for Phat Contracts. The kv-stroe
+//! access and the customzed actions are wrapped as Rollup Transactions. It guarantees that the
+//! transactions are isolated and atomic. No conflicting transactions will be accepted.
+//!
+//! The anchor pallet is designed to implement such ACID machanism. It accepts the Rollup
+//! Transaction submitted by the rollup client running in Phat Contract, validates it, and aplly
+//! the changes.
+//!
+//! On the other hand, the pallet provides two features to the other pallets:
+//!
+//! 1. Push messages to the Phat Contract via the `push_message(name, content)`
+//! 2. Receive messages from Phat Contract by handling `Config::OnResponse` callback trait
+//!
+//! ## Register a contract
+//!
+//! The anchor pallet allows arbitrary Phat Contract to connect to it. Before using, the Phat
+//! Contract must register itself in the pallet to claim a name (in `H256`) by calling extrinsic
+//! `claim_name(name)` by the _submitter account_.
+//!
+//! The _submitter account_ should be an account solely controlled by the Phat Contract. After
+//! the name is claimed, the submitter account will be saved on the blockchain for access control.
+//! The future rollup transactions must be submitted by that account. The mechanism ensures that
+//! the transaction submission are genuine.
+//!
+//! The name can be arbitrary. However, usually it's suggested to use the contract id as the name
+//! since it's unique. The name will be used to identify the connected contract and the associated
+//! resources (kv-store and the queue).
+//!
+//! ## Outbound message queue
+//!
+//! The anchor pallet provides a message queue to help pass messages to the Phat Contracts:
+//!
+//! - `push_message(name, message)`: Push a message (arbitrary bytes) to the contract and return
+//!    the id of the message. The id starts from 0.
+//! - `queue_head(name)`: Return the id of the first unprocessed message
+//! - `queue_tail(name)`: Return the id of the last unprocessed message
+//!
+//! ## Receive a message
+//!
+//! The anchor pallet allows Phat Contracts to send message back to the blockchain. To subscribe
+//! the messages, the receiver pallet should implement the [`OnResponse`] trait.
+//!
+//! ```ignore
+//! impl<T: Config> OnResponse for Pallet<T> {
+//! 	fn on_response(name: H256, submitter: AccountId, data: Vec<u8>) -> DispatchResult {
+//! 		// Check `name` and handle the message data
+//! 	}
+//! }
+//! ```
+//!
 
 pub use self::pallet::*;
 
@@ -130,7 +185,8 @@ pub mod pallet {
 				match act {
 					Action::Reply(data) => {
 						T::OnResponse::on_response(name, who.clone(), data.into())?
-					} // TODO: other actions
+					}
+					// TODO: handle Action::ProcessedTo(idx)?
 				}
 			}
 			Self::deposit_event(Event::RollupExecuted {
@@ -148,6 +204,34 @@ pub mod pallet {
 			let owner = SubmitterByNames::<T>::get(name).ok_or(Error::<T>::NameNotExist)?;
 			ensure!(&owner == caller, Error::<T>::NotOwner);
 			Ok(())
+		}
+
+		/// Pushes a message to the target rollup instance by `name`
+		///
+		/// Returns the index of the message if succeeded
+		pub fn push_message(name: &H256, data: Vec<u8>) -> Result<u32, Error<T>> {
+			ensure!(SubmitterByNames::<T>::contains_key(name), Error::<T>::NameNotExist);
+			// TODO:
+			// let end = Self::queue_tail();
+			// let key = Self::key(end);
+			// Self::queue_set(end, data);
+			// Self::queue_end_set(end + 1);
+			// (maybe increase the version?)
+			// Ok(end)
+		}
+
+		/// Returns the position of the message queue head element
+		///
+		/// When `queue_head() == queue_tail()`, the queue is empty.
+		pub fn queue_head() -> u32 {
+			unimplemented!("0 if not exist, otherwise the idx of the head msg")
+		}
+
+		/// Returns the position of the message queue tail element
+		///
+		/// When `queue_head() == queue_tail()`, the queue is empty.
+		pub fn queue_tail() -> u32 {
+			unimplemented!("0 if not exist, otherwise the idx of the tail msg")
 		}
 	}
 
