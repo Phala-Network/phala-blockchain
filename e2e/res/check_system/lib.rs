@@ -11,8 +11,8 @@ mod check_system {
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::PinkEnvironment;
 
-    use indeterministic_functions::Usd;
     use alloc::string::String;
+    use indeterministic_functions::Usd;
 
     #[ink(storage)]
     pub struct CheckSystem {
@@ -22,8 +22,6 @@ mod check_system {
     impl CheckSystem {
         #[ink(constructor)]
         pub fn default() -> Self {
-            let system = pink::system::SystemRef::instance();
-            _ = system.get_driver("NotExists".into());
             Self {
                 on_block_end_called: false,
             }
@@ -89,6 +87,12 @@ mod check_system {
             pink::info!("parse_usd result: {result:?}");
             result.unwrap()
         }
+
+        #[ink(message)]
+        pub fn eval_js(&self, script: String) -> Result<String, String> {
+            use crate::js;
+            js::eval(&script)
+        }
     }
 
     impl ContractDeposit for CheckSystem {
@@ -100,5 +104,32 @@ mod check_system {
             system.set_contract_weight(contract_id, weight as u32)?;
             Ok(())
         }
+    }
+}
+
+// Haven't much thought on the API shape so far. So it isn't turned into a crate yet.
+mod js {
+    use alloc::string::String;
+    use super::*;
+
+    pub fn eval(script: &str) -> Result<String, String> {
+        use ink_env::call;
+        use pink::ConvertTo as _;
+
+        let system = pink::system::SystemRef::instance();
+        let delegate = system
+            .get_driver("JsDelegate".into())
+            .ok_or("No JS driver found")?;
+
+        let result = call::build_call::<pink::PinkEnvironment>()
+            .call_type(call::DelegateCall::new().code_hash(delegate.convert_to()))
+            .exec_input(
+                call::ExecutionInput::new(call::Selector::new(0x49bfcd24_u32.to_be_bytes()))
+                    .push_arg(script),
+            )
+            .returns::<Result<String, String>>()
+            .fire();
+        pink::info!("eval result: {result:?}");
+        result.unwrap()
     }
 }
