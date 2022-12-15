@@ -637,7 +637,7 @@ describe('A full stack', function () {
                 alice,
             );
             await assert.txAccepted(
-                ContractSystem.tx['system::setDriver'](txConfig, "JSDelegate", codeHash),
+                ContractSystem.tx['system::setDriver'](txConfig, "JsDelegate", codeHash),
                 alice,
             );
 

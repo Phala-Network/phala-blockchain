@@ -118,7 +118,7 @@ mod js {
 
         let system = pink::system::SystemRef::instance();
         let delegate = system
-            .get_driver("JSDelegate".into())
+            .get_driver("JsDelegate".into())
             .ok_or("No JS driver found")?;
 
         let result = call::build_call::<pink::PinkEnvironment>()
