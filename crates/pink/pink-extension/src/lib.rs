@@ -27,6 +27,20 @@ pub type AccountId = <PinkEnvironment as Environment>::AccountId;
 pub type Balance = <PinkEnvironment as Environment>::Balance;
 pub type BlockNumber = <PinkEnvironment as Environment>::BlockNumber;
 
+pub trait ConvertTo<To> {
+    fn convert_to(&self) -> To;
+}
+
+impl<F, T> ConvertTo<T> for F
+where
+    F: AsRef<[u8; 32]>,
+    T: From<[u8; 32]>,
+{
+    fn convert_to(&self) -> T {
+        (*self.as_ref()).into()
+    }
+}
+
 /// A phala-mq message
 #[derive(Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
