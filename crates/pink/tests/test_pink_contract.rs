@@ -247,9 +247,10 @@ fn test_qjs() {
     let mut storage = Storage::default();
     storage.set_key_seed([1u8; 64]);
     storage.deposit(&ALICE, ENOUGH);
-    let checker = include_bytes!("../../../e2e/res/check_system/target/ink/check_system.wasm");
-
-    let qjs = include_bytes!("../../../e2e/res/qjs.contract");
+    // let checker = include_bytes!("../../../e2e/res/check_system/target/ink/check_system.wasm");
+    // let qjs = include_bytes!("../../../e2e/res/qjs.wasm");
+    let checker = [];
+    let qjs = [];
 
     let checker_hash = storage.upload_code(&ALICE, checker.to_vec(), true).unwrap();
     let qjs_hash = storage.upload_code(&ALICE, qjs.to_vec(), false).unwrap();
