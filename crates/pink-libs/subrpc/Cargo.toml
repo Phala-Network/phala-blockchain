@@ -1,0 +1,44 @@
+[package]
+name = "pink-subrpc"
+version = "0.1.0"
+authors = ["Phala Network"]
+edition = "2021"
+license = "Apache 2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/index-contract"
+
+[lib]
+name = "pink_subrpc"
+path = "src/lib.rs"
+
+[dependencies]
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
+primitive-types = { version = "0.11", default-features = false, features = ["codec", "scale-info"] }
+
+hex-literal = "0.3"
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+
+pink-extension = { version = "0.2", default-features = false, features = ["ink-as-dependency"] }
+sp-core-hashing = { version = "4.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
+
+serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
+pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false }
+
+ss58-registry = { version = "1.33.0", default-features = false }
+base58 = { version = "0.2.0", default-features = false }
+
+[dev-dependencies]
+pink-extension-runtime = "0.2"
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+    "scale/std",
+    "scale-info/std",
+    "pink-extension/std",
+    "xcm/std",
+    "pink-json/std",
+    "sp-core-hashing/std",
+]
