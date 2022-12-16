@@ -809,6 +809,15 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]	
+		pub fn reset_iter_pos(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			StakepoolIterateStartPos::<T>::put(None::<u64>);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
