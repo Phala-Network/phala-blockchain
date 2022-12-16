@@ -473,7 +473,7 @@ mod tests {
             Some(some_block),
         )
         .map(|b| b.map(|data| hex::encode(&data)));
-        dbg!(r);
+        _ = dbg!(r);
 
         let r = get_storage(
             "https://rhala-api.phala.network/api",
@@ -481,6 +481,6 @@ mod tests {
             None,
         )
         .map(|b| b.map(|data| hex::encode(&data)));
-        dbg!(r);
+        _ = dbg!(r);
     }
 }
