@@ -825,6 +825,24 @@ pub mod pallet {
 			};
 			let mut i = 0;
 			for (pid, pool_info) in iter.by_ref() {
+				if base_pool::pallet::Pools::<T>::contains_key(pid) {
+					let new_pool_info = ensure_stake_pool::<T>(pid).expect("created stakepool should exist; qed.");
+					if wrapped_balances::Pallet::<T>::mint_into(
+						&new_pool_info.owner_reward_account,
+						pool_info.owner_reward,
+					).is_ok()
+					{
+						let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
+							&wrappedbalances_accountid,
+							pool_info.owner_reward,
+						);
+					};
+					let _ = wrapped_balances::Pallet::<T>::mint_into(
+						&new_pool_info.basepool.pool_account_id,
+						pool_info.free_stake,
+					);
+					continue;
+				}
 				let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 				let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 					format!("STAKEPOOL-{pid}")
