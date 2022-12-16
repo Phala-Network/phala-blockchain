@@ -91,9 +91,15 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
+parameter_types! {
+	pub const QueuePrefix: &'static [u8] = b"_q/";
+}
+
 impl anchor::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type OnResponse = Oracle;
+	type QueuePrefix = QueuePrefix;
+	type QueueCapacity = ConstU32<3>;
 }
 
 impl oracle::Config for Test {
