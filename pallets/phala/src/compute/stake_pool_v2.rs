@@ -850,6 +850,11 @@ pub mod pallet {
 						&new_pool_info.basepool.pool_account_id,
 						pool_info.free_stake,
 					);
+					i += 1;
+					last_pid = Some(pid);
+					if i >= max_iterations {
+						break;
+					}
 					continue;
 				}
 				let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
