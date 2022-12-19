@@ -809,6 +809,15 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]	
+		pub fn reset_iter_pos(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			StakepoolIterateStartPos::<T>::put(None::<u64>);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		#[frame_support::transactional]
 		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -825,6 +834,29 @@ pub mod pallet {
 			};
 			let mut i = 0;
 			for (pid, pool_info) in iter.by_ref() {
+				if base_pool::pallet::Pools::<T>::contains_key(pid) {
+					let new_pool_info = ensure_stake_pool::<T>(pid).expect("created stakepool should exist; qed.");
+					if wrapped_balances::Pallet::<T>::mint_into(
+						&new_pool_info.owner_reward_account,
+						pool_info.owner_reward,
+					).is_ok()
+					{
+						let _ = computation::Pallet::<T>::withdraw_subsidy_pool(
+							&wrappedbalances_accountid,
+							pool_info.owner_reward,
+						);
+					};
+					let _ = wrapped_balances::Pallet::<T>::mint_into(
+						&new_pool_info.basepool.pool_account_id,
+						pool_info.free_stake,
+					);
+					i += 1;
+					last_pid = Some(pid);
+					if i >= max_iterations {
+						break;
+					}
+					continue;
+				}
 				let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 				let symbol: BoundedVec<u8, <T as pallet_rmrk_core::Config>::CollectionSymbolLimit> =
 					format!("STAKEPOOL-{pid}")
