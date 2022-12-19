@@ -1,10 +1,67 @@
 //! # Off-chain Rollup Anchor
+//!
+//! Off-chain rollup anchor is a pallet that handles the off-chain rollup logic. It maintains a
+//! kv-store for Phat Contract to read and write, and allows the Phat Contract to send arbitrary
+//! messages to the blockchain to trigger custom actions.
+//!
+//! Off-chain Rollup enables ACID operations on the blockchain for Phat Contracts. The kv-stroe
+//! access and the customzed actions are wrapped as Rollup Transactions. It guarantees that the
+//! transactions are isolated and atomic. No conflicting transactions will be accepted.
+//!
+//! The anchor pallet is designed to implement such ACID machanism. It accepts the Rollup
+//! Transaction submitted by the rollup client running in Phat Contract, validates it, and aplly
+//! the changes.
+//!
+//! On the other hand, the pallet provides two features to the other pallets:
+//!
+//! 1. Push messages to the Phat Contract via the `push_message(name, content)`
+//! 2. Receive messages from Phat Contract by handling `Config::OnResponse` callback trait
+//!
+//! ## Register a contract
+//!
+//! The anchor pallet allows arbitrary Phat Contract to connect to it. Before using, the Phat
+//! Contract must register itself in the pallet to claim a name (in `H256`) by calling extrinsic
+//! `claim_name(name)` by the _submitter account_.
+//!
+//! The _submitter account_ should be an account solely controlled by the Phat Contract. After
+//! the name is claimed, the submitter account will be saved on the blockchain for access control.
+//! The future rollup transactions must be submitted by that account. The mechanism ensures that
+//! the transaction submission are genuine.
+//!
+//! The name can be arbitrary. However, usually it's suggested to use the contract id as the name
+//! since it's unique. The name will be used to identify the connected contract and the associated
+//! resources (kv-store and the queue).
+//!
+//! ## Outbound message queue
+//!
+//! The anchor pallet provides a message queue to help pass messages to the Phat Contracts:
+//!
+//! - `push_message(name, message)`: Push a message (arbitrary bytes) to the contract and return
+//!    the id of the message. The id starts from 0.
+//! - `queue_head(name)`: Return the id of the first unprocessed message
+//! - `queue_tail(name)`: Return the id of the last unprocessed message
+//!
+//! ## Receive a message
+//!
+//! The anchor pallet allows Phat Contracts to send message back to the blockchain. To subscribe
+//! the messages, the receiver pallet should implement the [`OnResponse`] trait.
+//!
+//! ```ignore
+//! impl<T: Config> OnResponse for Pallet<T> {
+//! 	fn on_response(name: H256, submitter: AccountId, data: Vec<u8>) -> DispatchResult {
+//! 		// Check `name` and handle the message data
+//! 	}
+//! }
+//! ```
+//!
+#![allow(clippy::tabs_in_doc_comments)]
 
 pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::types::*;
+	use core::fmt::Debug;
 	use frame_support::{
 		dispatch::DispatchResult, pallet_prelude::*, traits::StorageVersion, transactional,
 	};
@@ -17,6 +74,8 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type OnResponse: OnResponse<Self::AccountId>;
+		type QueuePrefix: Get<&'static [u8]>;
+		type QueueCapacity: Get<u32>;
 	}
 
 	/// Anchor response handler trait
@@ -61,6 +120,7 @@ pub mod pallet {
 	}
 
 	#[pallet::error]
+	#[derive(Eq, PartialEq)]
 	pub enum Error<T> {
 		/// A name was already claimed. You must switch to another name.
 		NameAlreadyClaimed,
@@ -72,6 +132,10 @@ pub mod pallet {
 		CondNotMet,
 		/// Cannot decode the action
 		FailedToDecodeAction,
+		/// The queue is full.
+		QueueIsFull,
+		/// Trying to set an invalid queue head
+		InvalidQueueHead,
 	}
 
 	#[pallet::call]
@@ -130,7 +194,10 @@ pub mod pallet {
 				match act {
 					Action::Reply(data) => {
 						T::OnResponse::on_response(name, who.clone(), data.into())?
-					} // TODO: other actions
+					}
+					Action::SetQueueHead(head) => {
+						Self::queue_head_set(&name, head)?;
+					}
 				}
 			}
 			Self::deposit_event(Event::RollupExecuted {
@@ -148,6 +215,95 @@ pub mod pallet {
 			let owner = SubmitterByNames::<T>::get(name).ok_or(Error::<T>::NameNotExist)?;
 			ensure!(&owner == caller, Error::<T>::NotOwner);
 			Ok(())
+		}
+
+		/// Pushes a message to the target rollup instance by `name`
+		///
+		/// Returns the index of the message if succeeded
+		pub fn push_message(name: &H256, data: ValueBytes) -> Result<u32, Error<T>> {
+			ensure!(
+				SubmitterByNames::<T>::contains_key(name),
+				Error::<T>::NameNotExist
+			);
+			ensure!(
+				Self::queue_len(name) < T::QueueCapacity::get(),
+				Error::<T>::QueueIsFull
+			);
+			let end = Self::queue_tail(name);
+			Self::queue_set(name, &end, data);
+			Self::queue_tail_set(name, end + 1);
+			Ok(end)
+		}
+
+		/// Returns the position of the message queue head element
+		///
+		/// When `queue_head() == queue_tail()`, the queue is empty.
+		pub fn queue_head(name: &H256) -> u32 {
+			Self::queue_get_u32(name, b"_head").expect("BUG: Failed to decode queue head")
+		}
+
+		/// Returns the position of the message queue tail element
+		///
+		/// When `queue_head() == queue_tail()`, the queue is empty.
+		pub fn queue_tail(name: &H256) -> u32 {
+			Self::queue_get_u32(name, b"_tail").expect("BUG: Failed to decode queue tail")
+		}
+
+		/// Returns number of elements in the queue
+		pub fn queue_len(name: &H256) -> u32 {
+			Self::queue_tail(name).saturating_sub(Self::queue_head(name))
+		}
+	}
+
+	/// Private helper methods
+	impl<T: Config> Pallet<T> {
+		fn queue_get_u32(name: &H256, index: &[u8; 5]) -> Result<u32, impl Debug> {
+			let Some(bytes) = Self::queue_get(name, index) else {
+				return Ok(0);
+			};
+			u32::decode(&mut &bytes[..])
+		}
+
+		fn queue_set_u32(name: &H256, index: &[u8; 5], value: u32) {
+			let value = value
+				.encode()
+				.try_into()
+				.expect("BUG: Failed to encode u32");
+			Self::queue_set(name, index, value);
+		}
+
+		fn queue_head_set(name: &H256, index: u32) -> DispatchResult {
+			let head = Self::queue_head(name);
+			let tail = Self::queue_tail(name);
+			ensure!(head <= index && index <= tail, Error::<T>::InvalidQueueHead);
+			for i in head..index {
+				Self::queue_remove(name, &i);
+			}
+			Self::queue_set_u32(name, b"_head", index);
+			Ok(())
+		}
+
+		fn queue_tail_set(name: &H256, index: u32) {
+			Self::queue_set_u32(name, b"_tail", index)
+		}
+
+		fn queue_key(index: &impl Encode) -> KeyBytes {
+			let mut key = T::QueuePrefix::get().to_vec();
+			index.encode_to(&mut key);
+			key.try_into()
+				.expect("BUG: Failed to make the queue key, the prefix might be too long")
+		}
+
+		fn queue_set(name: &H256, index: &impl Encode, data: ValueBytes) {
+			States::<T>::insert(name, Self::queue_key(index), data);
+		}
+
+		fn queue_get(name: &H256, index: &impl Encode) -> Option<ValueBytes> {
+			States::<T>::get(name, Self::queue_key(index))
+		}
+
+		fn queue_remove(name: &H256, index: &impl Encode) {
+			States::<T>::remove(name, Self::queue_key(index))
 		}
 	}
 
@@ -274,6 +430,100 @@ pub mod pallet {
 				assert_noop!(
 					Anchor::claim_name(Origin::signed(2), NAME1),
 					Error::<Test>::NameAlreadyClaimed
+				);
+			});
+		}
+
+		#[test]
+		fn queue_key_is_correct() {
+			assert_eq!(&Anchor::queue_key(&1)[..], b"_q/\x01\x00\x00\x00");
+			assert_eq!(
+				&Anchor::queue_key(b"_head")[..],
+				[95, 113, 47, 95, 104, 101, 97, 100]
+			);
+		}
+
+		#[test]
+		fn queue_works() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(Anchor::claim_name(Origin::signed(1), NAME1));
+
+				assert_eq!(Anchor::queue_head(&NAME1), 0);
+				assert_eq!(Anchor::queue_tail(&NAME1), 0);
+				assert_eq!(Anchor::queue_len(&NAME1), 0);
+
+				assert_eq!(Anchor::push_message(&NAME1, bvec(b"foo")), Ok(0));
+				assert_eq!(Anchor::queue_head(&NAME1), 0);
+				assert_eq!(Anchor::queue_tail(&NAME1), 1);
+				assert_eq!(Anchor::queue_len(&NAME1), 1);
+
+				let cap = <<Test as Config>::QueueCapacity as Get<_>>::get();
+				for i in 1..cap {
+					assert_eq!(Anchor::push_message(&NAME1, bvec(b"foo")), Ok(i));
+				}
+				assert_eq!(Anchor::queue_head(&NAME1), 0);
+				assert_eq!(Anchor::queue_tail(&NAME1), cap);
+				assert_eq!(Anchor::queue_len(&NAME1), cap);
+				assert_eq!(
+					Anchor::push_message(&NAME1, bvec(b"foo")),
+					Err(Error::<Test>::QueueIsFull)
+				);
+				assert_eq!(Anchor::queue_head(&NAME1), 0);
+				assert_eq!(Anchor::queue_tail(&NAME1), cap);
+				assert_eq!(Anchor::queue_len(&NAME1), cap);
+
+				for i in 0..cap {
+					assert!(Anchor::queue_get(&NAME1, &i).is_some());
+				}
+
+				// Pop all elements except the last one
+				assert_ok!(Anchor::rollup(
+					Origin::signed(1),
+					NAME1,
+					RollupTx {
+						conds: vec![],
+						actions: vec![bvec(&Action::SetQueueHead(cap - 1).encode())],
+						updates: vec![],
+					},
+					1u128
+				));
+
+				assert_eq!(Anchor::queue_head(&NAME1), cap - 1);
+				assert_eq!(Anchor::queue_tail(&NAME1), cap);
+				assert_eq!(Anchor::queue_len(&NAME1), 1);
+				for i in 0..cap - 1 {
+					assert!(Anchor::queue_get(&NAME1, &i).is_none());
+				}
+				let last = cap - 1;
+				assert!(Anchor::queue_get(&NAME1, &last).is_some());
+
+				// Pop the last one
+				assert_ok!(Anchor::rollup(
+					Origin::signed(1),
+					NAME1,
+					RollupTx {
+						conds: vec![],
+						actions: vec![bvec(&Action::SetQueueHead(cap).encode())],
+						updates: vec![],
+					},
+					1u128
+				));
+				assert_eq!(Anchor::queue_len(&NAME1), 0);
+
+				// Pop more should fail
+				assert_noop!(
+					Anchor::rollup(
+						Origin::signed(1),
+						NAME1,
+						RollupTx {
+							conds: vec![],
+							actions: vec![bvec(&Action::SetQueueHead(cap + 1).encode())],
+							updates: vec![],
+						},
+						1u128
+					),
+					Error::<Test>::InvalidQueueHead
 				);
 			});
 		}

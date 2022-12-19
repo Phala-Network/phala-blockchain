@@ -1486,9 +1486,16 @@ impl pallet_fat_tokenomic::Config for Runtime {
     type Currency = Balances;
 }
 
+parameter_types! {
+    pub const QueuePrefix: &'static [u8] = b"_queue/";
+    pub const QueueCapacity: u32 = 128;
+}
+
 impl pallet_anchor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type OnResponse = PhatOracle;
+    type QueuePrefix = QueuePrefix;
+    type QueueCapacity = QueueCapacity;
 }
 impl pallet_oracle::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
