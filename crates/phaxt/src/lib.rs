@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -48,8 +48,14 @@ pub type Header = <Config as subxt::Config>::Header;
 pub type Signature = <Config as subxt::Config>::Signature;
 pub type Extrinsic = <Config as subxt::Config>::Extrinsic;
 
+use jsonrpsee::{
+    async_client::ClientBuilder,
+    client_transport::ws::{Uri, WsTransportClientBuilder},
+};
+
 pub async fn connect(uri: &str) -> Result<ChainApi> {
-    let client = Client::from_url(uri)
+    let rpc_client = ws_client(uri).await?;
+    let client = Client::from_rpc_client(Arc::new(rpc_client))
         .await
         .context("Failed to connect to substrate")?;
     let update_client = client.subscribe_to_updates();
@@ -58,4 +64,14 @@ pub async fn connect(uri: &str) -> Result<ChainApi> {
         eprintln!("Runtime update failed with result={result:?}");
     });
     Ok(ChainApi(client))
+}
+
+async fn ws_client(url: &str) -> Result<jsonrpsee::async_client::Client> {
+    let url: Uri = url.parse().context("Invalid websocket url")?;
+    let (sender, receiver) = WsTransportClientBuilder::default()
+        .max_request_body_size(u32::MAX)
+        .build(url)
+        .await
+        .context("Failed to build ws transport")?;
+    Ok(ClientBuilder::default().build_with_tokio(sender, receiver))
 }
