@@ -59,7 +59,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// Gets the storage from the give RPC node
 pub fn get_storage(rpc_node: &str, key: &[u8], at: Option<H256>) -> Result<Option<Vec<u8>>> {
     let hex_key = format!("0x{}", hex::encode(key));
-    let maybe_hex_at = at.map_or("null".to_string(), |h| format!("\"0x{:x}\"", h));
+    let maybe_hex_at = at.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
     let data = format!(
         r#"{{"id":1,"jsonrpc":"2.0","method":"state_getStorage","params":["{hex_key}", {maybe_hex_at}]}}"#
     )
@@ -472,7 +472,7 @@ mod tests {
             &hex_literal::hex!("f0c365c3cf59d671eb72da0e7a4113c49f1f0515f462cdcf84e0f1d6045dfcbb"),
             Some(some_block),
         )
-        .map(|b| b.map(|data| hex::encode(&data)));
+        .map(|b| b.map(hex::encode));
         _ = dbg!(r);
 
         let r = get_storage(
@@ -480,7 +480,7 @@ mod tests {
             &hex_literal::hex!("f0c365c3cf59d671eb72da0e7a4113c49f1f0515f462cdcf84e0f1d6045dfcbc"),
             None,
         )
-        .map(|b| b.map(|data| hex::encode(&data)));
+        .map(|b| b.map(hex::encode));
         _ = dbg!(r);
     }
 }

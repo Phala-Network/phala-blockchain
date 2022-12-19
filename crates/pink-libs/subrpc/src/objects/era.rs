@@ -27,8 +27,8 @@ impl Encode for Era {
         match self {
             Self::Immortal => output.push_byte(0),
             Self::Mortal(period, phase) => {
-                let quantize_factor = (*period as u64 >> 12).max(1);
-                let encoded = (period.trailing_zeros() - 1).max(1).min(15) as u16
+                let quantize_factor = (*period >> 12).max(1);
+                let encoded = (period.trailing_zeros() - 1).clamp(1, 15) as u16
                     | ((phase / quantize_factor) << 4) as u16;
                 encoded.encode_to(output);
             }
