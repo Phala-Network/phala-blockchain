@@ -7840,6 +7840,7 @@ name = "phaxt"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "jsonrpsee",
  "parity-scale-codec",
  "phala-node-rpc-ext-types",
  "phala-pallets",
