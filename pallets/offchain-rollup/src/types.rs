@@ -25,5 +25,5 @@ pub enum Cond {
 #[derive(Debug, PartialEq, Eq, Encode, Decode, Clone, scale_info::TypeInfo)]
 pub enum Action {
 	Reply(ActionBytes),
-	QueueHeadSet(u32),
+	SetQueueHead(u32),
 }

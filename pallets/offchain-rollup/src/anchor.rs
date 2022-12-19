@@ -195,7 +195,7 @@ pub mod pallet {
 					Action::Reply(data) => {
 						T::OnResponse::on_response(name, who.clone(), data.into())?
 					}
-					Action::QueueHeadSet(head) => {
+					Action::SetQueueHead(head) => {
 						Self::queue_head_set(&name, head)?;
 					}
 				}
@@ -483,7 +483,7 @@ pub mod pallet {
 					NAME1,
 					RollupTx {
 						conds: vec![],
-						actions: vec![bvec(&Action::QueueHeadSet(cap - 1).encode())],
+						actions: vec![bvec(&Action::SetQueueHead(cap - 1).encode())],
 						updates: vec![],
 					},
 					1u128
@@ -504,7 +504,7 @@ pub mod pallet {
 					NAME1,
 					RollupTx {
 						conds: vec![],
-						actions: vec![bvec(&Action::QueueHeadSet(cap).encode())],
+						actions: vec![bvec(&Action::SetQueueHead(cap).encode())],
 						updates: vec![],
 					},
 					1u128
@@ -518,7 +518,7 @@ pub mod pallet {
 						NAME1,
 						RollupTx {
 							conds: vec![],
-							actions: vec![bvec(&Action::QueueHeadSet(cap + 1).encode())],
+							actions: vec![bvec(&Action::SetQueueHead(cap + 1).encode())],
 							updates: vec![],
 						},
 						1u128
