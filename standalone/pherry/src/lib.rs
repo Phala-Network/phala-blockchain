@@ -1346,6 +1346,9 @@ async fn bridge(
 }
 
 fn preprocess_args(args: &mut Args) {
+    if args.use_ias {
+        args.attestation_provider = RaOption::Ias;
+    }
     if args.dev {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
@@ -1358,9 +1361,6 @@ fn preprocess_args(args: &mut Args) {
             1,
             "Option --longevity must be power of two."
         );
-    }
-    if args.use_ias {
-        args.attestation_provider = RaOption::Ias;
     }
 }
 
