@@ -175,7 +175,6 @@ impl registry::Config for Test {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type RegistryMigrationAccountId = ConstU64<1234>;
 	type ParachainId = ConstU32<0>;
 }
 
@@ -239,7 +238,6 @@ impl computation::Config for Test {
 	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type ComputationMigrationAccountId = ConstU64<1234>;
 }
 
 parameter_types! {
@@ -378,7 +376,6 @@ impl vault::Config for Test {
 
 impl base_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type MigrationAccountId = ConstU64<1234>;
 }
 
 impl stake_pool::Config for Test {

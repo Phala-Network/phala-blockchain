@@ -8,7 +8,6 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{Currency, StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
@@ -101,9 +100,6 @@ pub mod pallet {
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
-
-		/// Migration root account
-		type RegistryMigrationAccountId: Get<Self::AccountId>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -835,87 +831,6 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			PRuntimeConsensusVersion::<T>::put(version);
 			Self::deposit_event(Event::<T>::PRuntimeConsensusVersionChangedTo(version));
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		#[frame_support::transactional]
-		pub fn migrate_workers(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(
-				who == T::RegistryMigrationAccountId::get(),
-				Error::<T>::NotMigrationRoot
-			);
-
-			let prefix = storage_prefix(b"PhalaRegistry", b"Workers");
-			let previous_key = TempWorkersIterKey::<T>::get().unwrap_or_else(|| prefix.into());
-
-			let iter = PrefixIterator::<_>::new(prefix.into(), previous_key, |key, mut value| {
-				let old_worker = OldWorkerInfo::<T::AccountId>::decode(&mut value);
-
-				match old_worker {
-					Ok(w) => {
-						// log::info!("Decoded old {}: {:?}", hex::encode(key), w);
-						// log::info!(
-						// 	"Old: pubkey {} ecdh_pubkey {}",
-						// 	hex::encode(w.pubkey),
-						// 	hex::encode(w.ecdh_pubkey)
-						// );
-
-						Ok((key.to_vec(), w))
-					}
-					Err(e) => {
-						// log::info!("Can't decode old {}", hex::encode(key));
-						Err(e)
-					}
-				}
-			});
-
-			let mut i = 0;
-			let mut full_key: Vec<u8> = vec![];
-			for (key, old) in iter {
-				// log::info!("worker key: {}", hex::encode(&key) );
-				let new = WorkerInfoV2 {
-					pubkey: old.pubkey,
-					ecdh_pubkey: old.ecdh_pubkey,
-					runtime_version: old.runtime_version,
-					last_updated: old.last_updated,
-					operator: old.operator,
-					attestation_provider: Some(AttestationProvider::Ias),
-					confidence_level: old.confidence_level,
-					initial_score: old.initial_score,
-					features: old.features,
-				};
-
-				// log::info!("new {}: {:?}", hex::encode(&key), new);
-
-				full_key = [prefix.as_slice(), &key].concat();
-				unhashed::put_raw(&full_key, &new.encode());
-
-				// let new_worker =  unhashed::get::<WorkerInfoV2<T::AccountId>>(&full_key);
-				// if let Some(w) = new_worker {
-				// 	log::info!("Decoded new {}: {:?}", hex::encode(&key), w);
-				// 	log::info!(
-				// 			"New: pubkey {} ecdh_pubkey {}",
-				// 			hex::encode(w.pubkey),
-				// 			hex::encode(w.ecdh_pubkey)
-				// 		);
-				// } else {
-				// 	log::info!("Can't decode {}", hex::encode(&key))
-				// }
-
-				i += 1;
-				if i >= max_iterations {
-					break;
-				}
-			}
-
-			if i > 0 {
-				TempWorkersIterKey::<T>::set(Some(full_key));
-			}
-
-			log::info!("Migrated {} records", i);
-
 			Ok(())
 		}
 	}

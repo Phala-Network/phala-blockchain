@@ -12,7 +12,6 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		storage::{storage_prefix, unhashed, PrefixIterator},
 		traits::{
 			ConstBool, Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness,
 			StorageVersion, UnixTime,
@@ -207,8 +206,6 @@ pub mod pallet {
 
 		/// The origin to update tokenomic.
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
-
-		type ComputationMigrationAccountId: Get<Self::AccountId>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -508,133 +505,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(0)]
-		#[frame_support::transactional]
-		pub fn migrate_miners(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(
-				who == T::ComputationMigrationAccountId::get(),
-				Error::<T>::NotMigrationRoot
-			);
-			let mining_prefix = storage_prefix(b"PhalaMining", b"Miners");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"Sessions");
-
-			Self::move_prefix(
-				mining_prefix.as_slice(),
-				computation_prefix.as_slice(),
-				max_iterations,
-			);
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		#[frame_support::transactional]
-		pub fn migrate_miner_bindings(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(
-				who == T::ComputationMigrationAccountId::get(),
-				Error::<T>::NotMigrationRoot
-			);
-			let mining_prefix = storage_prefix(b"PhalaMining", b"MinerBindings");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"SessionBindings");
-
-			Self::move_prefix(
-				mining_prefix.as_slice(),
-				computation_prefix.as_slice(),
-				max_iterations,
-			);
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		#[frame_support::transactional]
-		pub fn migrate_worker_bindings(
-			origin: OriginFor<T>,
-			max_iterations: u32,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(
-				who == T::ComputationMigrationAccountId::get(),
-				Error::<T>::NotMigrationRoot
-			);
-			let mining_prefix = storage_prefix(b"PhalaMining", b"WorkerBindings");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"WorkerBindings");
-
-			Self::move_prefix(
-				mining_prefix.as_slice(),
-				computation_prefix.as_slice(),
-				max_iterations,
-			);
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		#[frame_support::transactional]
-		pub fn migrate_stakes(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(
-				who == T::ComputationMigrationAccountId::get(),
-				Error::<T>::NotMigrationRoot
-			);
-			let mining_prefix = storage_prefix(b"PhalaMining", b"Stakes");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"Stakes");
-
-			Self::move_prefix(
-				mining_prefix.as_slice(),
-				computation_prefix.as_slice(),
-				max_iterations,
-			);
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		#[frame_support::transactional]
-		pub fn migrate_storage_values(origin: OriginFor<T>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(
-				who == T::ComputationMigrationAccountId::get(),
-				Error::<T>::NotMigrationRoot
-			);
-			let mining_prefix = storage_prefix(b"PhalaMining", b"TokenomicParameters");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"TokenomicParameters");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"ScheduledTokenomicUpdate");
-			let computation_prefix =
-				storage_prefix(b"PhalaComputation", b"ScheduledTokenomicUpdate");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"OnlineMiners");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"OnlineWorkers");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"ExpectedHeartbeatCount");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"ExpectedHeartbeatCount");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"CoolDownPeriod");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"CoolDownPeriod");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"NextSessionId");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"NextSessionId");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"MiningStartBlock");
-			let computation_prefix = storage_prefix(b"PhalaComputation", b"ComputingStartBlock");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-
-			let mining_prefix = storage_prefix(b"PhalaMining", b"MiningHalvingInterval");
-			let computation_prefix =
-				storage_prefix(b"PhalaComputation", b"ComputingHalvingInterval");
-			Self::move_value(mining_prefix.as_slice(), computation_prefix.as_slice());
-			Ok(())
-		}
-
 		/// Pause or resume the heartbeat challenges.
 		///
 		/// This API is introduced to pause the computing rewards for a period while we upgrading
@@ -681,40 +551,6 @@ pub mod pallet {
 	{
 		pub fn account_id() -> T::AccountId {
 			COMPUTING_PALLETID.into_account_truncating()
-		}
-
-		pub fn move_value(from_prefix: &[u8], to_prefix: &[u8]) {
-			if from_prefix == to_prefix {
-				return;
-			}
-			let value = match unhashed::get_raw(from_prefix) {
-				Some(v) => v,
-				None => return,
-			};
-			unhashed::put_raw(to_prefix, &value);
-		}
-
-		pub fn move_prefix(from_prefix: &[u8], to_prefix: &[u8], max_iterations: u32) {
-			if from_prefix == to_prefix {
-				return;
-			}
-
-			let mut iter = PrefixIterator::<_>::new(
-				from_prefix.clone().into(),
-				from_prefix.into(),
-				|key, value| Ok((key.to_vec(), value.to_vec())),
-			);
-			iter = iter.drain();
-			let mut i = 0;
-
-			for (key, value) in iter {
-				let full_key = [to_prefix, &key].concat();
-				unhashed::put_raw(&full_key, &value);
-				i += 1;
-				if i >= max_iterations {
-					return;
-				}
-			}
 		}
 
 		fn heartbeat_challenge() {
