@@ -2,7 +2,7 @@ use crate::{fat, fat_tokenomic, mq, registry};
 
 use crate::mock::{MockValidator, NoneAttestationEnabled};
 use frame_support::{
-	pallet_prelude::{ConstU32, Get},
+	pallet_prelude::ConstU32,
 	parameter_types,
 	traits::GenesisBuild,
 };
@@ -11,7 +11,6 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
-	AccountId32,
 };
 
 pub(crate) type Balance = u128;
