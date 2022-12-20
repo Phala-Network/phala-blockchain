@@ -3,8 +3,9 @@
 use frame_support::assert_ok;
 use hex_literal::hex;
 use pink::{
+    local_cache,
     types::{Balance, Weight},
-    Contract, Storage, TransactionArguments,local_cache
+    Contract, Storage, TransactionArguments,
 };
 use sp_runtime::AccountId32;
 
@@ -235,4 +236,50 @@ fn test_use_cache() {
         hex!("ed4b9d1b"),
         hex!("928b2036"),
     );
+}
+
+
+#[test]
+#[ignore = "for dev"]
+fn test_qjs() {
+    env_logger::init();
+
+    let mut storage = Storage::default();
+    storage.set_key_seed([1u8; 64]);
+    storage.deposit(&ALICE, ENOUGH);
+    // let checker = include_bytes!("../../../e2e/res/check_system/target/ink/check_system.wasm");
+    // let qjs = include_bytes!("../../../e2e/res/qjs.wasm");
+    let checker = [];
+    let qjs = [];
+
+    let checker_hash = storage.upload_code(&ALICE, checker.to_vec(), true).unwrap();
+    let qjs_hash = storage.upload_code(&ALICE, qjs.to_vec(), false).unwrap();
+
+    let (contract, _) = Contract::new_with_selector(
+        checker_hash,
+        0xed4b9d1b_u32.to_be_bytes(),
+        (),
+        vec![],
+        tx_args(&mut storage),
+    )
+    .unwrap();
+
+    local_cache::apply_quotas([(contract.address.as_ref(), 1024)]);
+
+    let js = r#"
+    (function(){
+        console.log("Hello, World!");
+        return "Powered by QuickJS in ink!";
+    })()
+    "#;
+    let result: Result<String, String> = contract
+        .call_with_selector(
+            0xf32e54c5_u32.to_be_bytes(),
+            (qjs_hash, js),
+            true,
+            tx_args(&mut storage),
+        )
+        .0
+        .unwrap();
+    println!("evaluate result={result:?}");
 }
