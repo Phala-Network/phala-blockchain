@@ -1324,7 +1324,6 @@ impl pallet_registry::Config for Runtime {
     type VerifyPRuntime = VerifyPRuntime;
     type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
     type GovernanceOrigin = EnsureRootOrHalfCouncil;
-    type RegistryMigrationAccountId = MigrationAccount;
     type ParachainId = ParachainId;
 }
 impl pallet_mq::Config for Runtime {
@@ -1341,7 +1340,6 @@ impl pallet_computation::Config for Runtime {
     type OnStopped = PhalaStakePoolv2;
     type OnTreasurySettled = Treasury;
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
-    type ComputationMigrationAccountId = MigrationAccount;
 }
 impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1430,16 +1428,6 @@ impl Get<AccountId32> for WrappedBalancesPalletAccount {
     }
 }
 
-pub struct MigrationAccount;
-
-impl Get<AccountId32> for MigrationAccount {
-    fn get() -> AccountId32 {
-        let account: [u8; 32] =
-            hex_literal::hex!("9e6399cd577e8ac536bdc017675f747b2d1893ad9cc8c69fd17eef73d4e6e51e");
-        account.into()
-    }
-}
-
 impl pallet_wrapped_balances::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WPhaAssetId = ConstU32<10000>;
@@ -1449,7 +1437,6 @@ impl pallet_wrapped_balances::Config for Runtime {
 
 impl pallet_base_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type MigrationAccountId = MigrationAccount;
 }
 
 parameter_types! {

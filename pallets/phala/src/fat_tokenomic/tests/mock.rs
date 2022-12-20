@@ -2,7 +2,7 @@ use crate::{fat, fat_tokenomic, mq, registry};
 
 use crate::mock::{MockValidator, NoneAttestationEnabled};
 use frame_support::{
-	pallet_prelude::{ConstU32, Get},
+	pallet_prelude::ConstU32,
 	parameter_types,
 	traits::GenesisBuild,
 };
@@ -11,7 +11,6 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
-	AccountId32,
 };
 
 pub(crate) type Balance = u128;
@@ -118,19 +117,9 @@ impl registry::Config for Test {
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type RegistryMigrationAccountId = MigrationAccount;
 	type ParachainId = ConstU32<0>;
 }
 
-pub struct MigrationAccount;
-
-impl Get<AccountId32> for MigrationAccount {
-	fn get() -> AccountId32 {
-		let account: [u8; 32] =
-			hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
-		account.into()
-	}
-}
 impl fat::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
