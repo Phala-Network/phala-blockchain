@@ -214,8 +214,12 @@ pub struct Args {
     disable_sync_waiting_paraheaders: bool,
 
     /// Attestation provider
-    #[arg(long, short = 'r', value_enum, default_value_t = RaOption::Ias)]
+    #[arg(long, value_enum, default_value_t = RaOption::Ias)]
     attestation_provider: RaOption,
+
+    /// Use IAS RA method, this is compatible with Pherry 1.x
+    #[arg(short = 'r', help = "Use IAS as RA method, enable this will override attestation-provider")]
+    use_ias: bool,
 
     /// Try to load chain state from the latest block that the worker haven't registered at.
     #[arg(long)]
@@ -1342,6 +1346,9 @@ async fn bridge(
 }
 
 fn preprocess_args(args: &mut Args) {
+    if args.use_ias {
+        args.attestation_provider = RaOption::Ias;
+    }
     if args.dev {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
