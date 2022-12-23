@@ -399,7 +399,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             features: vec![cpu_core_num, cpu_feature_level],
             operator,
             para_id,
-            max_consensus_versioin: MAX_SUPPORTED_CONSENSUS_VERSION,
+            max_consensus_version: MAX_SUPPORTED_CONSENSUS_VERSION,
         };
 
         let resp = pb::InitRuntimeResponse::new(

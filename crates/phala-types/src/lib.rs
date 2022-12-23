@@ -563,7 +563,7 @@ pub struct WorkerRegistrationInfoV2<AccountId> {
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
     pub para_id: u32,
-    pub max_consensus_versioin: u32,
+    pub max_consensus_version: u32,
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]

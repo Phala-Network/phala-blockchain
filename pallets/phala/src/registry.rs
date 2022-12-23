@@ -595,9 +595,9 @@ pub mod pallet {
 
 			MaxKnownPRuntimeConsensusVersion::<T>::mutate(|info| {
 				use core::cmp::Ordering::*;
-				match info.version.cmp(&pruntime_info.max_consensus_versioin) {
+				match info.version.cmp(&pruntime_info.max_consensus_version) {
 					Less => {
-						info.version = pruntime_info.max_consensus_versioin;
+						info.version = pruntime_info.max_consensus_version;
 						info.count = 1;
 					}
 					Equal => {
@@ -1256,7 +1256,7 @@ pub mod pallet {
 							para_id: 0,
 							features: vec![4, 1],
 							operator: Some(1),
-							max_consensus_versioin: 0,
+							max_consensus_version: 0,
 						},
 						None
 					),
@@ -1276,7 +1276,7 @@ pub mod pallet {
 							para_id: 1,
 							features: vec![4, 1],
 							operator: Some(1),
-							max_consensus_versioin: 0,
+							max_consensus_version: 0,
 						},
 						None
 					),
@@ -1295,7 +1295,7 @@ pub mod pallet {
 						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(1),
-						max_consensus_versioin: 0,
+						max_consensus_version: 0,
 					},
 					None,
 				));
@@ -1314,7 +1314,7 @@ pub mod pallet {
 						para_id: 0,
 						features: vec![4, 1],
 						operator: Some(2),
-						max_consensus_versioin: 0,
+						max_consensus_version: 0,
 					},
 					None,
 				));

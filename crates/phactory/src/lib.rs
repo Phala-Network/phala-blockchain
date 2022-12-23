@@ -447,7 +447,7 @@ impl<P: pal::Platform> Phactory<P> {
             .decode_runtime_info()
             .expect("BUG: Decode runtime_info failed");
         runtime_info.version = Self::compat_app_version();
-        runtime_info.max_consensus_versioin = system::MAX_SUPPORTED_CONSENSUS_VERSION;
+        runtime_info.max_consensus_version = system::MAX_SUPPORTED_CONSENSUS_VERSION;
         f(&mut runtime_info);
         cached_resp.encoded_runtime_info = runtime_info.encode();
         cached_resp.attestation = None;
