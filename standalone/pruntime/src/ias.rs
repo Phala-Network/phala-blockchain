@@ -93,8 +93,12 @@ pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
     Ok(fs::read("/dev/attestation/quote")?)
 }
 
-pub fn create_attestation_report(data: &[u8], ias_key: &str) -> Result<(String, String, String)> {
+pub fn create_attestation_report(data: &[u8], ias_key: &str) -> Result<(String, Vec<u8>, Vec<u8>)> {
     let quote_vec = create_quote_vec(data)?;
     let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key)?;
+
+    let sig = base64::decode(sig).expect("Sig should be a valid base64");
+    let cert = base64::decode(cert).expect("SigCert should be a valid base64");
+
     Ok((attn_report, sig, cert))
 }

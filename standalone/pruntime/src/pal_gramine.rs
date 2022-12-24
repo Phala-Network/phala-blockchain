@@ -57,8 +57,8 @@ impl RA for GraminePlatform {
                 let attestation_report = Some(
                     phala_types::AttestationReport::SgxIas {
                         ra_report: attn_report.as_bytes().to_vec(),
-                        signature: sig.as_bytes().to_vec(),
-                        raw_signing_cert: cert.as_bytes().to_vec(),
+                        signature: sig,
+                        raw_signing_cert: cert,
                     }
                 );
 
