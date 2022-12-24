@@ -54,11 +54,13 @@ impl RA for GraminePlatform {
 
                 let (attn_report, sig, cert) =
                     ias::create_attestation_report(data, IAS_API_KEY_STR)?;
-                let attestation_report = phala_types::AttestationReport::SgxIas {
-                    ra_report: attn_report.as_bytes().to_vec(),
-                    signature: sig.as_bytes().to_vec(),
-                    raw_signing_cert: cert.as_bytes().to_vec(),
-                };
+                let attestation_report = Some(
+                    phala_types::AttestationReport::SgxIas {
+                        ra_report: attn_report.as_bytes().to_vec(),
+                        signature: sig.as_bytes().to_vec(),
+                        raw_signing_cert: cert.as_bytes().to_vec(),
+                    }
+                );
 
                 Ok(Encode::encode(&attestation_report))
             }
