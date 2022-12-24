@@ -25,7 +25,7 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, StorageVersion, UnixTime,
+			tokens::fungibles::{Transfer, Inspect}, StorageVersion, UnixTime,
 		},
 	};
 	use frame_system::{pallet_prelude::*, Origin};
@@ -798,6 +798,67 @@ pub mod pallet {
 				PoolType::StakePool,
 			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		#[frame_support::transactional]	
+		pub fn reset_iter_pos(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			StakepoolIterateStartPos::<T>::put(None::<u64>);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			let mut last_pid = StakepoolIterateStartPos::<T>::get();
+			let mut iter = match last_pid {
+				Some(pid) => {
+					let key: Vec<u8> = base_pool::pallet::Pools::<T>::hashed_key_for(pid);
+					base_pool::pallet::Pools::<T>::iter_from(key)
+				}
+				None => base_pool::pallet::Pools::<T>::iter(),
+			};
+			let asset_account = <T as wrapped_balances::Config>::WPhaAssetId::get();
+			let mut i = 0;
+			for (pid, pool_proxy) in iter.by_ref() {
+				match pool_proxy {
+					PoolProxy::Vault(_) => continue,
+					PoolProxy::StakePool(pool_info) => {
+						let mut total_lock = Zero::zero();
+						pool_info.workers.into_iter().for_each(|pubkey| {
+							let session: T::AccountId = pool_sub_account(pid, &pubkey);
+							total_lock += computation::Stakes::<T>::get(&session).unwrap_or_default();
+						});
+						pool_info.cd_workers.into_iter().for_each(|pubkey| {
+							let session: T::AccountId = pool_sub_account(pid, &pubkey);
+							total_lock += computation::Stakes::<T>::get(&session).unwrap_or_default();
+						});
+						let curr_lock: BalanceOf<T> =
+						<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
+							asset_account,
+							&pool_info.lock_account,
+						);
+						if curr_lock < total_lock {
+							let _ = wrapped_balances::Pallet::<T>::mint_into(
+								&pool_info.lock_account,
+								total_lock - curr_lock,
+							);
+						}
+					},
+				}
+				i += 1;
+				last_pid = Some(pid);
+				if i >= max_iterations {
+					break;
+				}
+			}
+			StakepoolIterateStartPos::<T>::put(last_pid);
 
 			Ok(())
 		}

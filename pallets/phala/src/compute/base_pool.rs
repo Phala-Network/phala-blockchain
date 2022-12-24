@@ -70,6 +70,7 @@ pub mod pallet {
 		+ pallet_democracy::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type MigrationAccountId: Get<Self::AccountId>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -664,6 +665,14 @@ pub mod pallet {
 				Ok(id)
 			})
 			.expect("get next cid will success; qed.")
+		}
+
+		pub fn ensure_migration_root(user: T::AccountId) -> DispatchResult {
+			ensure!(
+				user == T::MigrationAccountId::get(),
+				Error::<T>::NotMigrationRoot
+			);
+			Ok(())
 		}
 
 		/// Checks if there has expired withdraw request in the withdraw queue

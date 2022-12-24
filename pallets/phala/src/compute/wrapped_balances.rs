@@ -240,9 +240,10 @@ pub mod pallet {
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
 			>>::balance(T::WPhaAssetId::get(), &user);
-			let staker_status =
-				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
-			let withdraw_amount = (active_stakes - staker_status.locked).min(free_stakes);
+			let mut withdraw_amount = free_stakes;
+			if let Some(staker_status) = StakerAccounts::<T>::get(&user) {
+				withdraw_amount = (active_stakes - staker_status.locked).min(free_stakes);
+			} 
 			<T as PhalaConfig>::Currency::transfer(
 				&T::WrappedBalancesAccountId::get(),
 				&user,
@@ -268,12 +269,17 @@ pub mod pallet {
 				Error::<T>::UnwrapAmountExceedsAvaliableStake
 			);
 			let active_stakes = Self::get_net_value(user.clone())?;
-			let staker_status =
-				StakerAccounts::<T>::get(&user).ok_or(Error::<T>::StakerAccountNotFound)?;
-			ensure!(
-				amount + staker_status.locked <= active_stakes,
-				Error::<T>::UnwrapAmountExceedsAvaliableStake,
-			);
+			if let Some(staker_status) = StakerAccounts::<T>::get(&user) {
+				ensure!(
+					amount + staker_status.locked <= active_stakes,
+					Error::<T>::UnwrapAmountExceedsAvaliableStake,
+				);
+			} else {
+				ensure!(
+					amount <= active_stakes,
+					Error::<T>::UnwrapAmountExceedsAvaliableStake,
+				);
+			}
 			<T as PhalaConfig>::Currency::transfer(
 				&T::WrappedBalancesAccountId::get(),
 				&user,
