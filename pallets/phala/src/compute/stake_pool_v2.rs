@@ -306,6 +306,8 @@ pub mod pallet {
 		SessionDoesNotExist,
 		/// The target worker is not reclaimed and can not be removed from a pool.
 		WorkerIsNotReady,
+
+		LockAccountStakeError,
 	}
 
 	#[pallet::call]
@@ -813,7 +815,7 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn migrate_stakepools(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+		pub fn fix_missing_worker_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			let mut last_pid = StakepoolIterateStartPos::<T>::get();
@@ -824,7 +826,7 @@ pub mod pallet {
 				}
 				None => base_pool::pallet::Pools::<T>::iter(),
 			};
-			let asset_account = <T as wrapped_balances::Config>::WPhaAssetId::get();
+			let asset_id = <T as wrapped_balances::Config>::WPhaAssetId::get();
 			let mut i = 0;
 			for (pid, pool_proxy) in iter.by_ref() {
 				match pool_proxy {
@@ -841,15 +843,14 @@ pub mod pallet {
 						});
 						let curr_lock: BalanceOf<T> =
 						<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
-							asset_account,
+							asset_id,
 							&pool_info.lock_account,
 						);
-						if curr_lock < total_lock {
-							let _ = wrapped_balances::Pallet::<T>::mint_into(
-								&pool_info.lock_account,
-								total_lock - curr_lock,
-							);
-						}
+						ensure!(curr_lock < total_lock, Error::<T>::LockAccountStakeError);
+						let _ = wrapped_balances::Pallet::<T>::mint_into(
+							&pool_info.lock_account,
+							total_lock - curr_lock,
+						);
 					},
 				}
 				i += 1;
