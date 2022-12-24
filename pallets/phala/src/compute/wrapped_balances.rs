@@ -189,7 +189,8 @@ pub mod pallet {
 					recipient.clone(),
 					pid,
 					pool_type,
-				).expect("mrege or init should not fail");
+				)
+				.expect("mrege or init should not fail");
 			}
 			true
 		}
@@ -240,7 +241,8 @@ pub mod pallet {
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
 			>>::balance(T::WPhaAssetId::get(), &user);
-			let locked = StakerAccounts::<T>::get(&user).map_or(Zero::zero(), |status| status.locked);
+			let locked =
+				StakerAccounts::<T>::get(&user).map_or(Zero::zero(), |status| status.locked);
 			let withdraw_amount = (active_stakes - locked).min(free_stakes);
 			<T as PhalaConfig>::Currency::transfer(
 				&T::WrappedBalancesAccountId::get(),
@@ -267,7 +269,8 @@ pub mod pallet {
 				Error::<T>::UnwrapAmountExceedsAvaliableStake
 			);
 			let active_stakes = Self::get_net_value(user.clone())?;
-			let locked = StakerAccounts::<T>::get(&user).map_or(Zero::zero(), |status| status.locked);
+			let locked =
+				StakerAccounts::<T>::get(&user).map_or(Zero::zero(), |status| status.locked);
 			ensure!(
 				amount + locked <= active_stakes,
 				Error::<T>::UnwrapAmountExceedsAvaliableStake,
