@@ -847,7 +847,7 @@ pub mod pallet {
 						);
 						ensure!(curr_lock <= total_lock, Error::<T>::LockAccountStakeError);
 							if curr_lock < total_lock {
-							let _ = wrapped_balances::Pallet::<T>::mint_into(
+							wrapped_balances::Pallet::<T>::mint_into(
 								&pool_info.lock_account,
 								total_lock - curr_lock,
 							)?;
