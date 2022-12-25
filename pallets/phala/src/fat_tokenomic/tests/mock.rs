@@ -1,11 +1,7 @@
 use crate::{fat, fat_tokenomic, mq, registry};
 
 use crate::mock::{MockValidator, NoneAttestationEnabled};
-use frame_support::{
-	pallet_prelude::ConstU32,
-	parameter_types,
-	traits::GenesisBuild,
-};
+use frame_support::{pallet_prelude::ConstU32, parameter_types, traits::GenesisBuild};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{

@@ -376,6 +376,7 @@ impl vault::Config for Test {
 
 impl base_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type MigrationAccountId = ConstU64<1234>;
 }
 
 impl stake_pool::Config for Test {

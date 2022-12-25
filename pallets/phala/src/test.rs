@@ -331,8 +331,7 @@ fn test_merge_or_init_nft() {
 			pool_info.basepool.pid,
 			PoolType::StakePool,
 		));
-		let nftid_arr =
-			pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000);
+		let nftid_arr = pallet_rmrk_core::Nfts::<Test>::iter_key_prefix(10000);
 		assert_eq!(nftid_arr.count(), 2);
 		assert_ok!(PhalaBasePool::merge_or_init_nft_for_staker(
 			pool_info.basepool.cid,
