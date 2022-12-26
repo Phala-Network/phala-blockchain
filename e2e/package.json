@@ -16,10 +16,11 @@
     "test": "mocha src/fullstack.js -j 1",
     "test-dbg": "mocha --inspect-brk src/fullstack.js -j 1",
     "setup:drivers": "node src/setup-drivers.js",
-    "build:proto": "scripts/build_proto.sh"
+    "build:proto": "scripts/build_proto.sh",
+    "build:sdk": "scripts/build_sdk.sh"
   },
   "dependencies": {
-    "@phala/sdk": "^0.3.5-beta.9",
+    "@phala/sdk": "file:../sdk",
     "@phala/typedefs": "^0.2.32",
     "@polkadot/api": "^9.8.1",
     "@polkadot/api-contract": "^9.8.1",

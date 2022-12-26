@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "lib": ["es2021", "dom"],
+    "target": "es2021",
+    "declaration": true
+  },
+  "include": ["src", "@types/polkadot-js.d.ts"],
+  "exclude": ["**/*.test.ts", "src/proto"]
+}
