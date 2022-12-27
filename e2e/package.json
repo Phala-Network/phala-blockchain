@@ -16,7 +16,8 @@
     "test": "mocha src/fullstack.js -j 1",
     "test-dbg": "mocha --inspect-brk src/fullstack.js -j 1",
     "setup:drivers": "node src/setup-drivers.js",
-    "build:proto": "scripts/build_proto.sh"
+    "build:proto": "scripts/build_proto.sh",
+    "build:sdk": "scripts/build_sdk.sh"
   },
   "dependencies": {
     "@phala/sdk": "file:../sdk",
