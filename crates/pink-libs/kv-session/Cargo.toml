@@ -1,0 +1,13 @@
+[package]
+name = "kv-session"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "kv_session"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+scale = { package = "parity-scale-codec", version = "3" }
