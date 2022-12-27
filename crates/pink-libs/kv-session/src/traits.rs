@@ -47,6 +47,11 @@ pub trait QueueSession {
     fn pop(&mut self) -> Result<Option<Value>>;
 }
 
+pub trait QueueIndexCodec {
+    fn encode(number: QueueIndex) -> Vec<u8>;
+    fn decode(raw: impl AsRef<[u8]>) -> Result<QueueIndex>;
+}
+
 pub trait AccessTracking {
     fn read(&mut self, key: &[u8]);
     fn write(&mut self, key: &[u8]);

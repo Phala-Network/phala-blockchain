@@ -23,6 +23,7 @@ pub struct RollUpTransaction {
 }
 
 impl RollUpTransaction {
+    /// Returns true if there are some updates in this transaction.
     pub fn has_updates(&self) -> bool {
         self.queue_head.is_some() || !self.updates.is_empty()
     }

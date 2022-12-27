@@ -310,12 +310,16 @@ pub mod pallet {
 	#[cfg(test)]
 	mod test {
 		use super::*;
-		use crate::mock::{
-			bvec, new_test_ext, set_block_1, take_events, Anchor, RuntimeEvent,
-			RuntimeOrigin as Origin, Test,
+		use crate::{
+			mock::{
+				bvec, new_test_ext, set_block_1, take_events, Anchor, RuntimeEvent,
+				RuntimeOrigin as Origin, Test,
+			},
+			types::RollupTx,
 		};
 		// Pallets
 		use frame_support::{assert_noop, assert_ok};
+		use kv_session::ReadTracker;
 
 		const NAME1: H256 = H256([1u8; 32]);
 
@@ -436,10 +440,10 @@ pub mod pallet {
 
 		#[test]
 		fn queue_key_is_correct() {
-			assert_eq!(&Anchor::queue_key(&1)[..], b"_q/\x01\x00\x00\x00");
+			assert_eq!(&Anchor::queue_key(&1)[..], b"_queue/\x01\x00\x00\x00");
 			assert_eq!(
 				&Anchor::queue_key(b"_head")[..],
-				[95, 113, 47, 95, 104, 101, 97, 100]
+				[95, 113, 117, 101, 117, 101, 47, 95, 104, 101, 97, 100]
 			);
 		}
 
@@ -524,6 +528,157 @@ pub mod pallet {
 						1u128
 					),
 					Error::<Test>::InvalidQueueHead
+				);
+			});
+		}
+
+		#[test]
+		fn queue_e2e() {
+			use kv_session::traits::KvSession;
+			use kv_session::traits::KvSnapshot;
+			use kv_session::traits::QueueSession;
+			use kv_session::{Error, Result};
+
+			struct ChainStorage {
+				name: H256,
+			}
+
+			impl KvSnapshot for ChainStorage {
+				/// Should be the block hash for a blockchain backend
+				fn snapshot_id(&self) -> Result<Vec<u8>> {
+					Ok(Vec::new())
+				}
+
+				/// Get a storage value from the snapshot
+				fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+					let key: KeyBytes = key.to_vec().try_into().unwrap();
+					Ok(States::<Test>::get(&self.name, &key).map(|x| x.to_vec()))
+				}
+			}
+
+			impl kv_session::traits::BumpVersion for ChainStorage {
+				fn bump_version(&self, version: Option<Vec<u8>>) -> Result<Vec<u8>> {
+					match version {
+						Some(v) => {
+							let ov = u32::decode(&mut &v[..]).or(Err(Error::FailedToDecode))?;
+							Ok((ov + 1).encode())
+						}
+						None => Ok(1_u32.encode()),
+					}
+				}
+			}
+
+			struct ScaleCodec;
+			impl kv_session::traits::QueueIndexCodec for ScaleCodec {
+				fn encode(number: u32) -> Vec<u8> {
+					number.encode()
+				}
+
+				fn decode(raw: impl AsRef<[u8]>) -> Result<u32> {
+					Decode::decode(&mut raw.as_ref()).or(Err(Error::FailedToDecode))
+				}
+			}
+
+			fn test_client() -> kv_session::Session<ChainStorage, ReadTracker, ScaleCodec> {
+				kv_session::Session::new(
+					ChainStorage { name: NAME1 },
+					ReadTracker::new(),
+					b"_queue/",
+				)
+				.unwrap()
+			}
+
+			fn rollup_tx(
+				tx: kv_session::traits::KvTransaction,
+				kvdb: ChainStorage,
+			) -> Option<RollupTx> {
+				let tx = kv_session::rollup::rollup(
+					kvdb,
+					tx,
+					kv_session::rollup::VersionLayout::Standalone {
+						key_postfix: "_ver".into(),
+					},
+				)
+				.ok()?;
+				if !tx.has_updates() {
+					// We don't have to submit it if there are no updates
+					return None;
+				}
+				let conds = tx
+					.conditions
+					.into_iter()
+					.map(|(k, v)| Cond::Eq(k.try_into().unwrap(), v.map(|v| v.try_into().unwrap())))
+					.collect();
+				let updates = tx
+					.updates
+					.into_iter()
+					.map(|(k, v)| (k.try_into().unwrap(), v.map(|v| v.try_into().unwrap())))
+					.collect();
+				let mut actions = vec![];
+				if let Some(head) = tx.queue_head {
+					actions.push(bvec(&Action::SetQueueHead(head).encode()));
+				}
+				Some(RollupTx {
+					conds,
+					actions,
+					updates,
+				})
+			}
+
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(Anchor::claim_name(Origin::signed(1), NAME1));
+
+				assert_eq!(Anchor::queue_head(&NAME1), 0);
+				assert_eq!(Anchor::queue_tail(&NAME1), 0);
+				assert_eq!(Anchor::queue_len(&NAME1), 0);
+
+				// Put some data in the queue on-chain.
+				assert_eq!(Anchor::push_message(&NAME1, bvec(b"Tom")), Ok(0));
+				assert_eq!(Anchor::push_message(&NAME1, bvec(b"Kitty")), Ok(1));
+				assert_eq!(Anchor::queue_head(&NAME1), 0);
+				assert_eq!(Anchor::queue_tail(&NAME1), 2);
+				assert_eq!(Anchor::queue_len(&NAME1), 2);
+
+				let rollup = {
+					// Create an client to consume the elements.
+					let mut client = test_client();
+
+					assert_eq!(client.pop().unwrap(), Some(b"Tom".to_vec()));
+					assert_eq!(client.pop().unwrap(), Some(b"Kitty".to_vec()));
+					assert_eq!(client.pop().unwrap(), None);
+
+					// Set kv should also works.
+					assert_eq!(client.get(b"foo").unwrap(), None);
+					client.put(b"foo", b"bar".to_vec());
+
+					let (tx, db) = client.commit();
+					rollup_tx(tx, db).unwrap()
+				};
+
+				let dup_rollup = {
+					let mut client = test_client();
+					assert_eq!(client.get(b"foo").unwrap(), None);
+					client.put(b"foo", b"baz".to_vec());
+					let (tx, db) = client.commit();
+					rollup_tx(tx, db).unwrap()
+				};
+
+				// Apply the session updates
+				assert_ok!(Anchor::rollup(Origin::signed(1), NAME1, rollup, 1u128));
+				assert_eq!(Anchor::queue_head(&NAME1), 2);
+				assert_eq!(Anchor::queue_tail(&NAME1), 2);
+				assert_eq!(Anchor::queue_len(&NAME1), 0);
+
+				// The kv set should be applied
+				let mut client = test_client();
+				assert_eq!(client.pop().unwrap(), None);
+				assert_eq!(client.get(b"foo").unwrap(), Some(b"bar".to_vec()));
+
+				// Could not apply the duplicated updates
+				assert_noop!(
+					Anchor::rollup(Origin::signed(1), NAME1, dup_rollup, 1u128),
+					super::Error::<Test>::CondNotMet
 				);
 			});
 		}

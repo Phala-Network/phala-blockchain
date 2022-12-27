@@ -92,7 +92,7 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-	pub const QueuePrefix: &'static [u8] = b"_q/";
+	pub const QueuePrefix: &'static [u8] = b"_queue/";
 }
 
 impl anchor::Config for Test {

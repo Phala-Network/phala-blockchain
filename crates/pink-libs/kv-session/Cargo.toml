@@ -1,11 +1,11 @@
 [package]
-name = "kv-session"
+name = "pink-kv-session"
 version = "0.1.0"
 edition = "2021"
-
-[lib]
-name = "kv_session"
-path = "src/lib.rs"
+license = "Apache-2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/phala-blockchain"
+description = "KV session primitives for phat off-chain rollup"
 
 [dependencies]
 

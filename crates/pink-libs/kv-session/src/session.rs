@@ -3,16 +3,11 @@ use core::marker::PhantomData;
 use alloc::vec::Vec;
 use alloc::{borrow::ToOwned, collections::BTreeMap};
 
-use crate::traits::{QueueIndex, QueueSession};
+use crate::traits::{QueueIndex, QueueSession, QueueIndexCodec};
 use crate::{
     traits::{AccessTracking, KvSession, KvSnapshot, KvTransaction},
     Result,
 };
-
-pub trait QueueIndexCodec {
-    fn encode(number: QueueIndex) -> Vec<u8>;
-    fn decode(raw: impl AsRef<[u8]>) -> Result<QueueIndex>;
-}
 
 pub struct QueueInfo<Codec> {
     prefix: Vec<u8>,
