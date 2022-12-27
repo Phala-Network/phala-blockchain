@@ -105,8 +105,7 @@ mod tests {
     use scale::{Decode, Encode};
 
     use crate::{
-        session::QueueIndexCodec,
-        traits::{KvSession, QueueSession, Value},
+        traits::{KvSession, QueueIndexCodec, QueueSession, Value},
         Error, ReadTracker, Session,
     };
 

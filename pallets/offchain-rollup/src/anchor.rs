@@ -552,7 +552,7 @@ pub mod pallet {
 				/// Get a storage value from the snapshot
 				fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
 					let key: KeyBytes = key.to_vec().try_into().unwrap();
-					Ok(States::<Test>::get(&self.name, &key).map(|x| x.to_vec()))
+					Ok(States::<Test>::get(self.name, key).map(|x| x.to_vec()))
 				}
 			}
 
