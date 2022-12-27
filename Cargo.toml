@@ -69,6 +69,7 @@ members = [
 	"crates/pink-libs/s3",
 	"crates/pink-libs/utils",
 	"crates/pink-libs/subrpc",
+	"crates/pink-libs/kv-session",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
 	"crates/sidevm/host-runtime",

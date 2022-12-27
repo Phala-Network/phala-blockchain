@@ -1,35 +1,33 @@
 use alloc::vec;
 use alloc::{collections::BTreeSet, vec::Vec};
 
-use crate::traits::AccessTracking;
+use crate::traits::{AccessTracking, Key};
 
-pub type ReadTracker<K> = AccessTracker<K, false>;
-pub type RwTracker<K> = AccessTracker<K, true>;
+pub type ReadTracker = AccessTracker<false>;
+pub type RwTracker = AccessTracker<true>;
 
 /// Tracker that always emits the given one access history
-pub struct OneLock<Key> {
+pub struct OneLock {
     lock_key: Key,
     write_lock: bool,
 }
 
-impl<Key> OneLock<Key> {
-    pub fn new(lock_key: Key, write_lock: bool) -> Self {
+impl OneLock {
+    pub fn new(lock_key: &[u8], write_lock: bool) -> Self {
         Self {
-            lock_key,
+            lock_key: lock_key.to_vec(),
             write_lock,
         }
     }
 }
 
-impl<Key: Clone> AccessTracking for OneLock<Key> {
-    type Key = Key;
-
+impl AccessTracking for OneLock {
     // One key tracker tracks nothing
-    fn read(&mut self, _key: &Self::Key) {}
+    fn read(&mut self, _key: &[u8]) {}
 
-    fn write(&mut self, _key: &Self::Key) {}
+    fn write(&mut self, _key: &[u8]) {}
 
-    fn collect_into(self) -> (Vec<Self::Key>, Vec<Self::Key>) {
+    fn collect_into(self) -> (Vec<Key>, Vec<Key>) {
         (
             vec![self.lock_key.clone()],
             if self.write_lock {
@@ -42,12 +40,12 @@ impl<Key: Clone> AccessTracking for OneLock<Key> {
 }
 
 /// Tracker that emit read and(optional) write access history
-pub struct AccessTracker<Key, const TRACK_WRITE: bool> {
+pub struct AccessTracker<const TRACK_WRITE: bool> {
     track: BTreeSet<Key>,
     writes: BTreeSet<Key>,
 }
 
-impl<Key, const TRACK_WRITE: bool> AccessTracker<Key, TRACK_WRITE> {
+impl<const TRACK_WRITE: bool> AccessTracker<TRACK_WRITE> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -57,24 +55,19 @@ impl<Key, const TRACK_WRITE: bool> AccessTracker<Key, TRACK_WRITE> {
     }
 }
 
-impl<Key, const TRACK_WRITE: bool> AccessTracking for AccessTracker<Key, TRACK_WRITE>
-where
-    Key: Ord + Clone,
-{
-    type Key = Key;
-
-    fn read(&mut self, key: &Self::Key) {
-        self.track.insert(key.clone());
+impl<const TRACK_WRITE: bool> AccessTracking for AccessTracker<TRACK_WRITE> {
+    fn read(&mut self, key: &[u8]) {
+        self.track.insert(key.to_vec());
     }
 
-    fn write(&mut self, key: &Self::Key) {
-        self.writes.insert(key.clone());
+    fn write(&mut self, key: &[u8]) {
+        self.writes.insert(key.to_vec());
         if TRACK_WRITE {
-            self.track.insert(key.clone());
+            self.track.insert(key.to_vec());
         }
     }
 
-    fn collect_into(self) -> (Vec<Self::Key>, Vec<Self::Key>) {
+    fn collect_into(self) -> (Vec<Key>, Vec<Key>) {
         (
             self.track.into_iter().collect(),
             self.writes.into_iter().collect(),

@@ -4749,6 +4749,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kv-session"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "kvdb"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

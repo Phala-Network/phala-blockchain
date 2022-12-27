@@ -5,7 +5,6 @@ mod error;
 mod session;
 mod trackers;
 
-pub mod queue;
 pub mod rollup;
 pub mod traits;
 
