@@ -7826,6 +7826,7 @@ dependencies = [
  "pallet-balances",
  "pallet-timestamp",
  "parity-scale-codec",
+ "pink-kv-session",
  "primitive-types 0.12.1",
  "scale-info",
  "sp-application-crypto",
@@ -8115,6 +8116,13 @@ checksum = "c146010528d0b4f6a3d3255ef2a179e8ef25a1114dfb75542becf89def7c5232"
 dependencies = [
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "pink-kv-session"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
 ]
 
 [[package]]
