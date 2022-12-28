@@ -83,7 +83,7 @@ struct Args {
 
     /// Checkpoint interval in seconds, default to 5 minutes
     #[structopt(long)]
-    #[structopt(default_value = "300")]
+    #[structopt(default_value = "1800")]
     checkpoint_interval: u64,
 
     /// Remove corrupted checkpoint.
