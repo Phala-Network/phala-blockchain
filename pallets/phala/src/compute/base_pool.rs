@@ -92,14 +92,9 @@ pub mod pallet {
 
 	type PropertyKey<S> = (CollectionId, Option<NftId>, BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>);
 
-	#[pallet::type_value]
-	pub fn PropertyIterateStartPosByDefault<T: Config>() -> Option<PropertyKey<T>> {
-		None
-	}
-
 	#[pallet::storage]
 	pub type PropertyIterateStartPos<T> =
-		StorageValue<_, Option<PropertyKey<T>>, ValueQuery, PropertyIterateStartPosByDefault<T>>;
+		StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
 
 
 	/// The number of total pools
