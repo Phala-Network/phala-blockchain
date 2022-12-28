@@ -477,6 +477,33 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::weight(0)]
+		pub fn remove_unused_property(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::ensure_migration_root(who)?;
+			let mut iter = pallet_rmrk_core::pallet::Properties::<T>::iter();
+			let mut record_vec = vec![];
+			let mut i = 0;
+			for ((cid, maybe_nft_id, key), _) in iter.by_ref() {
+				if cid >= RESERVE_CID_START {
+					if let Some(nft_id) = maybe_nft_id {
+						if !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id) {
+							record_vec.push((cid, nft_id, key));
+						}
+					}
+				}
+				i += 1;
+				if i > max_iterations {
+					break;
+				}
+			}
+			for (cid, nft_id, key) in record_vec.iter() {
+				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(*cid, Some(*nft_id), key.clone());
+			}
+
+			Ok(())
+		}
+
 		/// Removes a staker accountid to contribution whitelist.
 		///
 		/// The caller must be the owner of the pool.
