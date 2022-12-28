@@ -826,7 +826,41 @@ pub mod pallet {
 				.is_ok(),
 				Error::<T>::BurnNftFailed,
 			);
+			Self::remove_properties(cid, nft_id);
 			Ok(())
+		}
+
+		fn remove_properties(cid: CollectionId, nft_id: NftId) {
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "name"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(cid, Some(nft_id), key);
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = NFT_PROPERTY_KEY
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(cid, Some(nft_id), key);
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "description"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(cid, Some(nft_id), key);
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "image"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(cid, Some(nft_id), key);
+			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "createtime"
+				.as_bytes()
+				.to_vec()
+				.try_into()
+				.expect("str coverts to bvec should never fail; qed.");
+			let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(cid, Some(nft_id), key);
 		}
 
 		/// Merges multiple nfts belong to one user in the pool.
