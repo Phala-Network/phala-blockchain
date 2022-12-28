@@ -30,6 +30,7 @@
   "dependencies": {
     "@phala/typedefs": "^0.2.32",
     "@polkadot/api": "^9.8.1",
+    "@polkadot/extension-dapp": "^0.44.7",
     "@polkadot/keyring": "^10.1.12",
     "@polkadot/util": "^10.1.12",
     "@polkadot/util-crypto": "^10.1.12",
