@@ -90,6 +90,13 @@ pub mod pallet {
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
 
+	type PropertyKey<S> = (CollectionId, Option<NftId>, BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>);
+
+	#[pallet::storage]
+	pub type PropertyIterateStartPos<T> =
+		StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
+
+
 	/// The number of total pools
 	#[pallet::storage]
 	#[pallet::getter(fn pool_count)]
@@ -478,10 +485,26 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn reset_iter_pos(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::ensure_migration_root(who)?;
+			PropertyIterateStartPos::<T>::put(None::<PropertyKey<T>>);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		pub fn remove_unused_property(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
-			let mut iter = pallet_rmrk_core::pallet::Properties::<T>::iter();
+			let last_pos = PropertyIterateStartPos::<T>::get();
+			let mut iter = match last_pos {
+				Some(pos) => {
+					let key: Vec<u8> = pallet_rmrk_core::pallet::Properties::<T>::hashed_key_for(pos);
+					pallet_rmrk_core::pallet::Properties::<T>::iter_from(key)
+				}
+				None => pallet_rmrk_core::pallet::Properties::<T>::iter(),
+			};
 			let mut record_vec = vec![];
 			let mut i = 0;
 			for ((cid, maybe_nft_id, key), _) in iter.by_ref() {
@@ -497,6 +520,12 @@ pub mod pallet {
 					break;
 				}
 			}
+			if let Some(((cid, maybe_nft_id, key), _)) = iter.next() {
+				PropertyIterateStartPos::<T>::put(Some((cid, maybe_nft_id, key)));
+			} else {
+				PropertyIterateStartPos::<T>::put(None::<PropertyKey<T>>);
+			}
+			
 			for (cid, nft_id, key) in record_vec.iter() {
 				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(*cid, Some(*nft_id), key.clone());
 			}
