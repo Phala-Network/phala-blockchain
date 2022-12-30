@@ -11,6 +11,7 @@ mod check_system {
     use pink::system::{ContractDeposit, DriverError, Result, SystemRef};
     use pink::PinkEnvironment;
 
+    use crate::js;
     use alloc::string::String;
     use indeterministic_functions::Usd;
 
@@ -89,15 +90,33 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn eval_js(&self, script: String) -> Result<String, String> {
-            use crate::js;
-            js::eval(&script)
+        pub fn eval_js(
+            &self,
+            delegate: ink_env::Hash,
+            script: String,
+            args: Vec<String>,
+        ) -> Result<js::Output, String> {
+            js::eval(delegate, &script, args)
+        }
+
+        #[ink(message)]
+        pub fn eval_js_bytecode(
+            &self,
+            delegate: ink_env::Hash,
+            script: Vec<u8>,
+            args: Vec<String>,
+        ) -> Result<js::Output, String> {
+            js::eval_bytecode(delegate, script, args)
         }
     }
 
     impl ContractDeposit for CheckSystem {
         #[ink(message)]
-        fn change_deposit(&mut self, contract_id: AccountId, deposit: Balance) -> Result<(), DriverError> {
+        fn change_deposit(
+            &mut self,
+            contract_id: AccountId,
+            deposit: Balance,
+        ) -> Result<(), DriverError> {
             const CENTS: Balance = 10_000_000_000;
             let system = SystemRef::instance();
             let weight = deposit / CENTS;
@@ -109,25 +128,54 @@ mod check_system {
 
 // Haven't much thought on the API shape so far. So it isn't turned into a crate yet.
 mod js {
-    use alloc::string::String;
     use super::*;
+    use alloc::string::String;
+    use alloc::vec::Vec;
+    use scale::{Decode, Encode};
 
-    pub fn eval(script: &str) -> Result<String, String> {
+    #[derive(Debug, Encode, Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub enum Output {
+        String(String),
+        Bytes(Vec<u8>),
+        Undefined,
+    }
+
+    pub fn eval(
+        delegate: ink_env::Hash,
+        script: &str,
+        args: Vec<String>,
+    ) -> Result<Output, String> {
         use ink_env::call;
-        use pink::ConvertTo as _;
-
-        let system = pink::system::SystemRef::instance();
-        let delegate = system
-            .get_driver("JsDelegate".into())
-            .ok_or("No JS driver found")?;
 
         let result = call::build_call::<pink::PinkEnvironment>()
-            .call_type(call::DelegateCall::new().code_hash(delegate.convert_to()))
+            .call_type(call::DelegateCall::new().code_hash(delegate))
             .exec_input(
                 call::ExecutionInput::new(call::Selector::new(0x49bfcd24_u32.to_be_bytes()))
-                    .push_arg(script),
+                    .push_arg(script)
+                    .push_arg(args),
             )
-            .returns::<Result<String, String>>()
+            .returns::<Result<Output, String>>()
+            .fire();
+        pink::info!("eval result: {result:?}");
+        result.unwrap()
+    }
+
+    pub fn eval_bytecode(
+        delegate: ink_env::Hash,
+        script: alloc::vec::Vec<u8>,
+        args: Vec<String>,
+    ) -> Result<Output, String> {
+        use ink_env::call;
+
+        let result = call::build_call::<pink::PinkEnvironment>()
+            .call_type(call::DelegateCall::new().code_hash(delegate))
+            .exec_input(
+                call::ExecutionInput::new(call::Selector::new(0xbf0ec203_u32.to_be_bytes()))
+                    .push_arg(script)
+                    .push_arg(args),
+            )
+            .returns::<Result<Output, String>>()
             .fire();
         pink::info!("eval result: {result:?}");
         result.unwrap()

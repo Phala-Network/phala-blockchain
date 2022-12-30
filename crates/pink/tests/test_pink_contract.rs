@@ -238,19 +238,27 @@ fn test_use_cache() {
     );
 }
 
-
 #[test]
 #[ignore = "for dev"]
 fn test_qjs() {
+    use scale::{Encode, Decode};
+
     env_logger::init();
 
     let mut storage = Storage::default();
     storage.set_key_seed([1u8; 64]);
     storage.deposit(&ALICE, ENOUGH);
-    // let checker = include_bytes!("../../../e2e/res/check_system/target/ink/check_system.wasm");
-    // let qjs = include_bytes!("../../../e2e/res/qjs.wasm");
     let checker = [];
     let qjs = [];
+    // let checker = include_bytes!("../../../e2e/res/check_system/target/ink/check_system.wasm");
+    // let qjs = include_bytes!("qjs.wasm");
+
+    #[derive(Debug, Encode, Decode)]
+    pub enum Output {
+        String(String),
+        Bytes(Vec<u8>),
+        Undefined,
+    }
 
     let checker_hash = storage.upload_code(&ALICE, checker.to_vec(), true).unwrap();
     let qjs_hash = storage.upload_code(&ALICE, qjs.to_vec(), false).unwrap();
@@ -269,17 +277,20 @@ fn test_qjs() {
     let js = r#"
     (function(){
         console.log("Hello, World!");
-        return "Powered by QuickJS in ink!";
+        // return scriptArgs[1];
+        return new Uint8Array([21, 31]);
     })()
     "#;
-    let result: Result<String, String> = contract
+    let t0 = std::time::Instant::now();
+    let args: Vec<String> = vec!["Hello".to_string(), "World".to_string()];
+    let result: Result<Output, String> = contract
         .call_with_selector(
             0xf32e54c5_u32.to_be_bytes(),
-            (qjs_hash, js),
+            (qjs_hash, js, args),
             true,
             tx_args(&mut storage),
         )
         .0
         .unwrap();
-    println!("evaluate result={result:?}");
+    println!("evaluate result={result:?}, dt={:?}", t0.elapsed());
 }

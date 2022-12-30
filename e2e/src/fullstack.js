@@ -636,22 +636,31 @@ describe('A full stack', function () {
                 api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
                 alice,
             );
-            await assert.txAccepted(
-                ContractSystem.tx['system::setDriver'](txConfig, "JsDelegate", codeHash),
-                alice,
-            );
+            {
+                // args works
+                const jsCode = `
+                (function(){
+                    console.log("Hello, World!");
+                    return scriptArgs[0];
+                })()
+                `;
+                assert.isTrue(await checkUntil(async () => {
+                    const arg0 = "Powered by QuickJS in ink!";
+                    const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, [arg0]);
+                    return output?.eq({ Ok: { String: arg0 } });
+                }, 4 * 6000), 'Failed to evaluate js in contract');
+            }
 
-            const rv = "Powered by QuickJS in ink!";
-            const jsCode = `
-            (function(){
-                console.log("Hello, World!");
-                return "${rv}";
-            })()
-            `;
-            assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, jsCode);
-                return output?.eq({Ok: rv});
-            }, 4 * 6000), 'Failed to evaluate js in contract');
+            {
+                // Can return bytes
+                const jsCode = `
+                (function(){
+                    return new Uint8Array([1, 2, 3]);
+                })()
+                `;
+                const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, []);
+                assert.isTrue(output?.eq({ Ok: { Bytes: "0x010203" } }), "Failed to return bytes");
+            }
         });
         it('can parse json in contract delegate call', async function () {
             const code = indeterminMetadata.source.wasm;
