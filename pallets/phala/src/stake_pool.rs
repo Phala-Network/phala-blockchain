@@ -8,7 +8,6 @@ use crate::BalanceOf;
 pub mod pallet {
 	use crate::compute::{base_pool, computation};
 	use crate::registry;
-	use crate::utils::fixed_point::CodecFixedPoint;
 
 	use super::BalanceOf;
 	use frame_support::{
@@ -150,7 +149,7 @@ pub mod pallet {
 		///
 		/// An individual user's reward is tracked by [`reward_acc`](PoolInfo::reward_acc), their
 		/// [`shares`](UserStakeInfo::shares) and the [`reward_debt`](UserStakeInfo::reward_debt).
-		pub reward_acc: CodecFixedPoint,
+		pub reward_acc: u128,
 		/// Total shares
 		///
 		/// It tracks the total number of shared of all the contributors. Guaranteed to be
