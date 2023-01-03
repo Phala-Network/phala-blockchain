@@ -35,7 +35,7 @@ pub mod pallet {
 	};
 	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*, vec};
 
-	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
+	use phala_types::WorkerPublicKey;
 
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 
@@ -1160,10 +1160,9 @@ pub mod pallet {
 		/// Called when gk send new payout information.
 		/// Append specific worker's reward balance of current round,
 		/// would be clear once pool was updated
-		fn on_reward(settle: &[SettleInfo]) {
+		fn on_reward(settle: &[computation::ParsedSettleInfo]) {
 			for info in settle {
-				let reward = computation::balance_from_bits(info.payout);
-
+				let reward = info.payout;
 				let pid = match WorkerAssignments::<T>::get(info.pubkey) {
 					Some(pid) => pid,
 					None => {

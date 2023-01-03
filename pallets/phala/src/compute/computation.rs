@@ -159,7 +159,7 @@ pub mod pallet {
 	}
 
 	pub trait OnReward {
-		fn on_reward(_settle: &[SettleInfo]) {}
+		fn on_reward(_settle: &[ParsedSettleInfo]) {}
 	}
 
 	pub trait OnUnbound {
@@ -188,6 +188,12 @@ pub mod pallet {
 			let payout: u128 = balance_from_bits(payout_bits);
 			self.total_reward += payout;
 		}
+	}
+
+	pub struct ParsedSettleInfo {
+		pub pubkey: WorkerPublicKey,
+		pub payout: u128,
+		pub treasury: u128,
 	}
 
 	#[pallet::config]
@@ -699,7 +705,16 @@ pub mod pallet {
 					}
 				}
 
-				T::OnReward::on_reward(&event.settle);
+				let parsed_settles: Vec<_> = event
+					.settle
+					.iter()
+					.map(|s| ParsedSettleInfo {
+						pubkey: s.pubkey,
+						payout: balance_from_bits(s.payout),
+						treasury: balance_from_bits(s.treasury),
+					})
+					.collect();
+				T::OnReward::on_reward(&parsed_settles);
 			}
 
 			Ok(())

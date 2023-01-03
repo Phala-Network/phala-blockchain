@@ -1,10 +1,9 @@
 use crate::base_pool;
-use crate::computation;
+use crate::computation::{self, ParsedSettleInfo};
 use crate::pool_proxy::*;
 use crate::stake_pool_v2;
 use crate::vault;
 use crate::wrapped_balances;
-use fixed::types::U64F64;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
@@ -27,7 +26,7 @@ use crate::mock::{
 };
 use pallet_democracy::AccountVote;
 use pallet_democracy::BoundedCallOf;
-use phala_types::{messaging::SettleInfo, WorkerPublicKey};
+use phala_types::WorkerPublicKey;
 use rmrk_traits::primitives::NftId;
 use sp_runtime::Permill;
 use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
@@ -1336,10 +1335,9 @@ fn test_on_reward_for_vault() {
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		PhalaStakePoolv2::on_reward(&[SettleInfo {
+		PhalaStakePoolv2::on_reward(&[ParsedSettleInfo {
 			pubkey: worker_pubkey(1),
-			v: U64F64::from_num(1u32).to_bits(),
-			payout: U64F64::from_num(100u32).to_bits(),
+			payout: 100 * DOLLARS,
 			treasury: 0,
 		}]);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
@@ -1394,10 +1392,9 @@ fn test_claim_owner_rewards() {
 			400 * DOLLARS,
 			None
 		));
-		PhalaStakePoolv2::on_reward(&[SettleInfo {
+		PhalaStakePoolv2::on_reward(&[ParsedSettleInfo {
 			pubkey: worker_pubkey(1),
-			v: U64F64::from_num(1u32).to_bits(),
-			payout: U64F64::from_num(1000u32).to_bits(),
+			payout: 1000 * DOLLARS,
 			treasury: 0,
 		}]);
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
@@ -1470,10 +1467,9 @@ fn test_vault_owner_shares() {
 			worker_pubkey(1),
 			100 * DOLLARS
 		));
-		PhalaStakePoolv2::on_reward(&[SettleInfo {
+		PhalaStakePoolv2::on_reward(&[ParsedSettleInfo {
 			pubkey: worker_pubkey(1),
-			v: U64F64::from_num(1u32).to_bits(),
-			payout: U64F64::from_num(100u32).to_bits(),
+			payout: 100 * DOLLARS,
 			treasury: 0,
 		}]);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
