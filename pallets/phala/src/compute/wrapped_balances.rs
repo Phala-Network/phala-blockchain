@@ -138,6 +138,8 @@ pub mod pallet {
 	impl<T: Config> rmrk_traits::TransferHooks<T::AccountId, u32, u32> for Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
@@ -200,6 +202,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
@@ -358,6 +362,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
@@ -369,8 +375,8 @@ pub mod pallet {
 
 		/// Removes slash dust
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
-			debug_assert!(dust != Zero::zero());
-			if dust != Zero::zero() {
+			debug_assert!(dust != 0);
+			if dust != 0 {
 				let actual_removed =
 					pallet_assets::Pallet::<T>::slash(T::WPhaAssetId::get(), who, dust)
 						.expect("slash should success with correct amount: qed.");

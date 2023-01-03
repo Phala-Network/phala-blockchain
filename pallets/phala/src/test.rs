@@ -4,7 +4,7 @@ use crate::pool_proxy::*;
 use crate::stake_pool_v2;
 use crate::vault;
 use crate::wrapped_balances;
-use fixed::types::U64F64 as FixedPoint;
+use fixed::types::U64F64;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
@@ -1338,8 +1338,8 @@ fn test_on_reward_for_vault() {
 		));
 		PhalaStakePoolv2::on_reward(&[SettleInfo {
 			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(100u32).to_bits(),
+			v: U64F64::from_num(1u32).to_bits(),
+			payout: U64F64::from_num(100u32).to_bits(),
 			treasury: 0,
 		}]);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
@@ -1396,8 +1396,8 @@ fn test_claim_owner_rewards() {
 		));
 		PhalaStakePoolv2::on_reward(&[SettleInfo {
 			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(1000u32).to_bits(),
+			v: U64F64::from_num(1u32).to_bits(),
+			payout: U64F64::from_num(1000u32).to_bits(),
 			treasury: 0,
 		}]);
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
@@ -1472,8 +1472,8 @@ fn test_vault_owner_shares() {
 		));
 		PhalaStakePoolv2::on_reward(&[SettleInfo {
 			pubkey: worker_pubkey(1),
-			v: FixedPoint::from_num(1u32).to_bits(),
-			payout: FixedPoint::from_num(100u32).to_bits(),
+			v: U64F64::from_num(1u32).to_bits(),
+			payout: U64F64::from_num(100u32).to_bits(),
 			treasury: 0,
 		}]);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();

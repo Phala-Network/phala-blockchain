@@ -18,8 +18,6 @@ pub mod pallet {
 	use crate::vault;
 	use crate::wrapped_balances;
 
-	use fixed::types::U64F64 as FixedPoint;
-
 	use crate::BalanceOf;
 	use frame_support::{
 		dispatch::DispatchResult,
@@ -315,6 +313,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
@@ -563,7 +563,7 @@ pub mod pallet {
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			let rewards = pool_info.get_owner_stakes::<T>();
-			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
+			ensure!(rewards > 0, Error::<T>::NoRewardToClaim);
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.owner_reward_account,
@@ -835,7 +835,7 @@ pub mod pallet {
 			for (pid, pool_proxy) in iter.by_ref() {
 				match pool_proxy {
 					PoolProxy::StakePool(pool_info) => {
-						let mut total_lock = Zero::zero();
+						let mut total_lock: u128 = Zero::zero();
 						pool_info.workers.into_iter().for_each(|pubkey| {
 							let session: T::AccountId = pool_sub_account(pid, &pubkey);
 							total_lock +=
@@ -954,6 +954,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
@@ -1047,7 +1049,7 @@ pub mod pallet {
 			pool_info: &mut StakePool<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
 		) {
-			if rewards > Zero::zero() {
+			if rewards > 0 {
 				computation::Pallet::<T>::withdraw_subsidy_pool(
 					&<T as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
 					rewards,
@@ -1076,7 +1078,7 @@ pub mod pallet {
 				let distributed = if base_pool::is_nondust_balance(to_distribute) {
 					pool_info.basepool.distribute_reward::<T>(to_distribute);
 					true
-				} else if to_distribute > Zero::zero() {
+				} else if to_distribute > 0 {
 					Self::deposit_event(Event::<T>::RewardDismissedDust {
 						pid: pool_info.basepool.pid,
 						amount: to_distribute,
@@ -1085,7 +1087,7 @@ pub mod pallet {
 				} else {
 					false
 				};
-				if distributed || commission > Zero::zero() {
+				if distributed || commission > 0 {
 					Self::deposit_event(Event::<T>::RewardReceived {
 						pid: pool_info.basepool.pid,
 						to_owner: commission,
@@ -1103,7 +1105,7 @@ pub mod pallet {
 			let mut pool_info = ensure_stake_pool::<T>(pid).expect("Stake pool must exist; qed.");
 
 			let returned = orig_stake - slashed;
-			if slashed != Zero::zero() {
+			if slashed != 0 {
 				// Remove some slashed value from `total_value`, causing the share price to reduce
 				// and creating a logical pending slash. The actual slash happens with the pending
 				// slash to individuals is settled.
@@ -1149,6 +1151,8 @@ pub mod pallet {
 	impl<T: Config> computation::OnReward for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,
@@ -1158,8 +1162,7 @@ pub mod pallet {
 		/// would be clear once pool was updated
 		fn on_reward(settle: &[SettleInfo]) {
 			for info in settle {
-				let payout_fixed = FixedPoint::from_bits(info.payout);
-				let reward = BalanceOf::<T>::from_fixed(&payout_fixed);
+				let reward = computation::balance_from_bits(info.payout);
 
 				let pid = match WorkerAssignments::<T>::get(info.pubkey) {
 					Some(pid) => pid,
@@ -1182,6 +1185,8 @@ pub mod pallet {
 	impl<T: Config> computation::OnUnbound for Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: Config + vault::Config,

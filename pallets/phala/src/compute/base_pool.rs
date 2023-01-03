@@ -31,8 +31,8 @@ pub mod pallet {
 	};
 
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
-	use fixed::types::U64F64 as FixedPoint;
-	use fixed_macro::types::U64F64 as fp;
+	use fixed::types::U80F48 as FixedPoint;
+	use fixed_macro::types::U80F48 as fp;
 	use sp_runtime::{
 		traits::{CheckedSub, Member, TrailingZeroInput, Zero},
 		SaturatedConversion,
@@ -90,12 +90,14 @@ pub mod pallet {
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
 
-	type PropertyKey<S> = (CollectionId, Option<NftId>, BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>);
+	type PropertyKey<S> = (
+		CollectionId,
+		Option<NftId>,
+		BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>,
+	);
 
 	#[pallet::storage]
-	pub type PropertyIterateStartPos<T> =
-		StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
-
+	pub type PropertyIterateStartPos<T> = StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
 
 	/// The number of total pools
 	#[pallet::storage]
@@ -500,7 +502,8 @@ pub mod pallet {
 			let last_pos = PropertyIterateStartPos::<T>::get();
 			let mut iter = match last_pos {
 				Some(pos) => {
-					let key: Vec<u8> = pallet_rmrk_core::pallet::Properties::<T>::hashed_key_for(pos);
+					let key: Vec<u8> =
+						pallet_rmrk_core::pallet::Properties::<T>::hashed_key_for(pos);
 					pallet_rmrk_core::pallet::Properties::<T>::iter_from(key)
 				}
 				None => pallet_rmrk_core::pallet::Properties::<T>::iter(),
@@ -525,9 +528,13 @@ pub mod pallet {
 			} else {
 				PropertyIterateStartPos::<T>::put(None::<PropertyKey<T>>);
 			}
-			
+
 			for (cid, nft_id, key) in record_vec.iter() {
-				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(*cid, Some(*nft_id), key.clone());
+				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(
+					*cid,
+					Some(*nft_id),
+					key.clone(),
+				);
 			}
 
 			Ok(())

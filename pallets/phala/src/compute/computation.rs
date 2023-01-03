@@ -35,7 +35,6 @@ pub mod pallet {
 	};
 	use sp_std::cmp;
 
-	use crate::balance_convert::FixedPointConvert;
 	use codec::{Decode, Encode};
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
@@ -151,7 +150,7 @@ pub mod pallet {
 		/// Calculates the final final returned and slashed stake
 		fn calc_final_stake<Balance>(&self, orig_stake: Balance) -> (Balance, Balance)
 		where
-			Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
+			Balance: sp_runtime::traits::AtLeast32BitUnsigned,
 		{
 			// TODO(hangyin): deal with slash later
 			// For simplicity the slash is disabled until StakePool v2 is implemented.
@@ -180,13 +179,13 @@ pub mod pallet {
 	/// The stats of a computing session
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct SessionStats {
-		/// The total received reward in this computing session, in `U32F32` bits
+		/// The total received reward in this computing session, in `U64F64` bits
 		total_reward: u128,
 	}
 
 	impl SessionStats {
 		fn on_reward(&mut self, payout_bits: u128) {
-			let payout: u128 = FixedPointConvert::from_bits(payout_bits);
+			let payout: u128 = balance_from_bits(payout_bits);
 			self.total_reward += payout;
 		}
 	}
@@ -425,7 +424,8 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
-		BalanceOf<T>: FixedPointConvert,
+		<T as PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 	{
 		/// Sets the cool down expiration time in seconds.
 		///
@@ -523,7 +523,8 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
 	where
-		BalanceOf<T>: FixedPointConvert,
+		<T as PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 	{
 		fn on_finalize(n: T::BlockNumber) {
 			Self::heartbeat_challenge();
@@ -547,7 +548,8 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T>
 	where
-		BalanceOf<T>: FixedPointConvert,
+		<T as PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 	{
 		pub fn account_id() -> T::AccountId {
 			COMPUTING_PALLETID.into_account_truncating()
@@ -729,7 +731,7 @@ pub mod pallet {
 				session_info.stats.on_reward(info.payout);
 				Sessions::<T>::insert(&account, &session_info);
 				// Handle treasury deposit
-				let treasury_deposit = FixedPointConvert::from_bits(info.treasury);
+				let treasury_deposit = balance_from_bits(info.treasury);
 				let imbalance = Self::withdraw_imbalance_from_subsidy_pool(treasury_deposit)?;
 				T::OnTreasurySettled::on_unbalanced(imbalance);
 				Self::deposit_event(Event::<T>::SessionSettled {
@@ -1023,7 +1025,8 @@ pub mod pallet {
 	impl<T> Tokenomic<T>
 	where
 		T: Config,
-		BalanceOf<T>: FixedPointConvert,
+		<T as PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 	{
 		fn new(params: TokenomicParams) -> Self {
 			Tokenomic {
@@ -1037,7 +1040,7 @@ pub mod pallet {
 			let p = FixedPoint::from_num(p);
 			let k = FixedPoint::from_bits(self.params.k);
 			let min_stake = k * p.sqrt();
-			FixedPointConvert::from_fixed(&min_stake)
+			balance_from_fixed(min_stake)
 		}
 
 		/// Calculate the initial Ve
@@ -1046,7 +1049,7 @@ pub mod pallet {
 			let score = Self::confidence_score(confidence_level);
 			let re = FixedPoint::from_bits(self.params.re);
 			let tweaked_re = (re - f1) * score + f1;
-			let s = s.to_fixed();
+			let s = balance_to_fixed(s);
 			let c = self.rig_cost(p);
 			tweaked_re * (s + c)
 		}
@@ -1088,6 +1091,19 @@ pub mod pallet {
 		fn _kappa(&self) -> FixedPoint {
 			FixedPoint::from_bits(self.params.kappa)
 		}
+	}
+
+	const FIXED_1E12: FixedPoint = fixed_macro::fixed!(1_000_000_000_000: U64F64);
+	pub fn balance_to_fixed(b: u128) -> FixedPoint {
+		let v = FixedPoint::from_num(b);
+		v.saturating_div(FIXED_1E12)
+	}
+	pub fn balance_from_fixed(v: FixedPoint) -> u128 {
+		v.saturating_mul(FIXED_1E12).to_num()
+	}
+	pub fn balance_from_bits(bits: u128) -> u128 {
+		let v = FixedPoint::from_bits(bits);
+		balance_from_fixed(v)
 	}
 
 	#[pallet::genesis_config]

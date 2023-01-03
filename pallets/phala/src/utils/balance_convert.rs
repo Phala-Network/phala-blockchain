@@ -1,6 +1,6 @@
-use fixed::types::U64F64;
+use fixed::types::U80F48;
 use fixed_macro::fixed;
-use U64F64 as FixedPoint;
+use U80F48 as FixedPoint;
 
 pub trait FixedPointConvert {
 	fn from_bits(bits: u128) -> Self;
@@ -8,7 +8,7 @@ pub trait FixedPointConvert {
 	fn to_fixed(&self) -> FixedPoint;
 }
 
-const FIXED_1E12: FixedPoint = fixed!(1_000_000_000_000: U64F64);
+const FIXED_1E12: FixedPoint = fixed!(1_000_000_000_000: U80F48);
 
 // 12 decimals u128 conversion
 impl FixedPointConvert for u128 {

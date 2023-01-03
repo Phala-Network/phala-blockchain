@@ -142,6 +142,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
+		<T as crate::PhalaConfig>::Currency:
+			frame_support::traits::Currency<<T as frame_system::Config>::AccountId, Balance = u128>,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 	{
@@ -249,7 +251,7 @@ pub mod pallet {
 				pool_info.owner_shares >= shares,
 				Error::<T>::NoEnoughShareToClaim
 			);
-			ensure!(shares > Zero::zero(), Error::<T>::NoRewardToClaim);
+			ensure!(shares > 0, Error::<T>::NoRewardToClaim);
 			let _nft_id = base_pool::Pallet::<T>::mint_nft(
 				pool_info.basepool.cid,
 				target,
@@ -287,7 +289,7 @@ pub mod pallet {
 				Some(price) => BalanceOf::<T>::from_fixed(&price),
 				None => return Ok(()),
 			};
-			if pool_info.last_share_price_checkpoint == Zero::zero() {
+			if pool_info.last_share_price_checkpoint == 0 {
 				pool_info.last_share_price_checkpoint = current_price;
 				base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 				return Ok(());
