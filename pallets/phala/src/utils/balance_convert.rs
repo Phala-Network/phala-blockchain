@@ -16,10 +16,12 @@ impl FixedPointConvert for u128 {
 		Self::from_fixed(&FixedPoint::from_bits(bits))
 	}
 	fn from_fixed(v: &FixedPoint) -> Self {
-		v.saturating_mul(FIXED_1E12).to_num()
+		v.checked_mul(FIXED_1E12)
+			.expect("U80F48 mul overflow")
+			.to_num()
 	}
 	fn to_fixed(&self) -> FixedPoint {
-		let v = FixedPoint::from_num(*self);
+		let v = FixedPoint::checked_from_num(*self).expect("U80F48 convert overflow");
 		v.saturating_div(FIXED_1E12)
 	}
 }
@@ -28,12 +30,25 @@ pub fn mul<B>(x: B, y: &FixedPoint) -> B
 where
 	B: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
 {
-	FixedPointConvert::from_fixed(&(x.to_fixed() * y))
+	let f = x.to_fixed().checked_mul(*y).expect("U80F48 mul overflow");
+	FixedPointConvert::from_fixed(&f)
 }
 
 pub fn div<B>(x: B, y: &FixedPoint) -> B
 where
 	B: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
 {
-	FixedPointConvert::from_fixed(&(x.to_fixed() / y))
+	let f = x.to_fixed().checked_div(*y).expect("U80F48 div failed");
+	FixedPointConvert::from_fixed(&f)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn max_supply_not_overflow() {
+		let f = 1_000_000_000_000000000000.to_fixed();
+		assert_eq!(f.to_string(), "1000000000");
+	}
 }

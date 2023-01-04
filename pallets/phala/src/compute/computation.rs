@@ -1110,11 +1110,13 @@ pub mod pallet {
 
 	const FIXED_1E12: FixedPoint = fixed_macro::fixed!(1_000_000_000_000: U64F64);
 	pub fn balance_to_fixed(b: u128) -> FixedPoint {
-		let v = FixedPoint::from_num(b);
+		let v = FixedPoint::checked_from_num(b).expect("U64F64 convert overflow");
 		v.saturating_div(FIXED_1E12)
 	}
 	pub fn balance_from_fixed(v: FixedPoint) -> u128 {
-		v.saturating_mul(FIXED_1E12).to_num()
+		v.checked_mul(FIXED_1E12)
+			.expect("U64F64 mul overflow")
+			.to_num()
 	}
 	pub fn balance_from_bits(bits: u128) -> u128 {
 		let v = FixedPoint::from_bits(bits);
