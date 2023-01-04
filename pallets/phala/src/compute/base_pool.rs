@@ -631,7 +631,7 @@ pub mod pallet {
 				let dest_shares = dest_nft_guard.attr.shares + *shares;
 				from_nft_guard.unlock();
 				dest_nft_guard.unlock();
-				Self::burn_nft(&from, base_pool_info.cid, from_nft_id)?;
+				Self::burn_nft(from, base_pool_info.cid, from_nft_id)?;
 				let _ = Self::mint_nft(
 					base_pool_info.cid,
 					from.clone(),
@@ -640,7 +640,7 @@ pub mod pallet {
 					pool_type.clone(),
 				)
 				.expect("mint nft should success; qed.");
-				Self::burn_nft(&dest, base_pool_info.cid, dest_nft_id)?;
+				Self::burn_nft(dest, base_pool_info.cid, dest_nft_id)?;
 				let _ = Self::mint_nft(
 					base_pool_info.cid,
 					dest.clone(),
