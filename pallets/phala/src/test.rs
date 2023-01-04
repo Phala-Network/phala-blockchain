@@ -102,6 +102,15 @@ fn test_unwrap() {
 }
 
 #[test]
+fn test_f64() {
+	new_test_ext().execute_with(|| {
+		let a = 636_802_725_023_292_433;
+
+		assert_eq!(a.into(), fp!(1));
+	});
+}
+
+#[test]
 fn test_unwrap_all() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();

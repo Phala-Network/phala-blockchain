@@ -230,6 +230,8 @@ pub mod pallet {
 		NotMigrationRoot,
 		/// Burn nft failed
 		BurnNftFailed,
+
+		TransferSharesAmountInvalid,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -573,6 +575,59 @@ pub mod pallet {
 				});
 			}
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn transfer_shares_arbitrary(
+			origin: OriginFor<T>,
+			input: Vec<(T::AccountId, T::AccountId, u64, BalanceOf<T>, PoolType)>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::ensure_migration_root(who)?;
+
+			for item in input.iter() {
+				let (from, dest, pid, shares, pool_type) = item;
+				let base_pool_info = match &pool_type {
+					PoolType::StakePool => {
+						let stake_pool = ensure_stake_pool::<T>(*pid)?;
+						stake_pool.basepool
+					},
+					PoolType::Vault => {
+						let vault = ensure_vault::<T>(*pid)?;
+						vault.basepool
+					},
+				};
+				let from_nft_id = Self::merge_or_init_nft_for_staker(
+					base_pool_info.cid,
+					from.clone(),
+					base_pool_info.pid,
+					pool_type.clone(),
+				)?;
+				let mut from_nft_guard = Self::get_nft_attr_guard(
+					base_pool_info.cid,
+					from_nft_id,
+				)
+				.expect("get nftattr should always success; qed.");
+				let dest_nft_id = Self::merge_or_init_nft_for_staker(
+					base_pool_info.cid,
+					dest.clone(),
+					base_pool_info.pid,
+					pool_type.clone(),
+				)?;
+				let mut dest_nft_guard = Self::get_nft_attr_guard(
+					base_pool_info.cid,
+					dest_nft_id,
+				)
+				.expect("get nftattr should always success; qed.");
+				
+				ensure!(from_nft_guard.attr.shares >= *shares, Error::<T>::TransferSharesAmountInvalid);
+				from_nft_guard.attr.shares -= *shares;
+				dest_nft_guard.attr.shares += *shares;
+				from_nft_guard.save()?;
+				dest_nft_guard.save()?;
+			}
 			Ok(())
 		}
 	}
