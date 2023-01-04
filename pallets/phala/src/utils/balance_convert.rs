@@ -35,3 +35,16 @@ where
 {
 	FixedPointConvert::from_fixed(&(x.to_fixed() / y))
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn max_supply_not_overflow() {
+		let balance = 1_000_000_000__000_000_000_000_u128;
+		let f = balance.to_fixed();
+		assert_eq!(f.to_string(), "1000000000");
+		assert_eq!(u128::from_fixed(&f), balance);
+	}
+}
