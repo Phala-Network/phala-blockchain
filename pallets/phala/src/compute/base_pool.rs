@@ -90,12 +90,22 @@ pub mod pallet {
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
 
-	type PropertyKey<S> = (CollectionId, Option<NftId>, BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>);
+	type PropertyKey<S> = (
+		CollectionId,
+		Option<NftId>,
+		BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>,
+	);
+
+	type ShareTransferProxy<T> = (
+		<T as frame_system::Config>::AccountId,
+		<T as frame_system::Config>::AccountId,
+		u64,
+		BalanceOf<T>,
+		PoolType,
+	);
 
 	#[pallet::storage]
-	pub type PropertyIterateStartPos<T> =
-		StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
-
+	pub type PropertyIterateStartPos<T> = StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
 
 	/// The number of total pools
 	#[pallet::storage]
@@ -230,6 +240,8 @@ pub mod pallet {
 		NotMigrationRoot,
 		/// Burn nft failed
 		BurnNftFailed,
+
+		TransferSharesAmountInvalid,
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -500,7 +512,8 @@ pub mod pallet {
 			let last_pos = PropertyIterateStartPos::<T>::get();
 			let mut iter = match last_pos {
 				Some(pos) => {
-					let key: Vec<u8> = pallet_rmrk_core::pallet::Properties::<T>::hashed_key_for(pos);
+					let key: Vec<u8> =
+						pallet_rmrk_core::pallet::Properties::<T>::hashed_key_for(pos);
 					pallet_rmrk_core::pallet::Properties::<T>::iter_from(key)
 				}
 				None => pallet_rmrk_core::pallet::Properties::<T>::iter(),
@@ -525,9 +538,13 @@ pub mod pallet {
 			} else {
 				PropertyIterateStartPos::<T>::put(None::<PropertyKey<T>>);
 			}
-			
+
 			for (cid, nft_id, key) in record_vec.iter() {
-				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(*cid, Some(*nft_id), key.clone());
+				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(
+					*cid,
+					Some(*nft_id),
+					key.clone(),
+				);
 			}
 
 			Ok(())
@@ -573,6 +590,74 @@ pub mod pallet {
 				});
 			}
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn backfill_transfer_shares(
+			origin: OriginFor<T>,
+			input: Vec<ShareTransferProxy<T>>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::ensure_migration_root(who)?;
+
+			for item in input.iter() {
+				let (from, dest, pid, shares, pool_type) = item;
+				let base_pool_info = match &pool_type {
+					PoolType::StakePool => {
+						let stake_pool = ensure_stake_pool::<T>(*pid)?;
+						stake_pool.basepool
+					}
+					PoolType::Vault => {
+						let vault = ensure_vault::<T>(*pid)?;
+						vault.basepool
+					}
+				};
+				let from_nft_id = Self::merge_or_init_nft_for_staker(
+					base_pool_info.cid,
+					from.clone(),
+					base_pool_info.pid,
+					pool_type.clone(),
+				)?;
+				let from_nft_guard = Self::get_nft_attr_guard(base_pool_info.cid, from_nft_id)
+					.expect("get nftattr should always success; qed.");
+				let dest_nft_id = Self::merge_or_init_nft_for_staker(
+					base_pool_info.cid,
+					dest.clone(),
+					base_pool_info.pid,
+					pool_type.clone(),
+				)?;
+				let dest_nft_guard = Self::get_nft_attr_guard(base_pool_info.cid, dest_nft_id)
+					.expect("get nftattr should always success; qed.");
+
+				ensure!(
+					from_nft_guard.attr.shares >= *shares,
+					Error::<T>::TransferSharesAmountInvalid
+				);
+				let from_shares = from_nft_guard.attr.shares - *shares;
+				let dest_shares = dest_nft_guard.attr.shares + *shares;
+				from_nft_guard.unlock();
+				dest_nft_guard.unlock();
+				Self::burn_nft(from, base_pool_info.cid, from_nft_id)?;
+				let _ = Self::mint_nft(
+					base_pool_info.cid,
+					from.clone(),
+					from_shares,
+					*pid,
+					pool_type.clone(),
+				)
+				.expect("mint nft should success; qed.");
+				Self::burn_nft(dest, base_pool_info.cid, dest_nft_id)?;
+				let _ = Self::mint_nft(
+					base_pool_info.cid,
+					dest.clone(),
+					dest_shares,
+					*pid,
+					pool_type.clone(),
+				)
+				.expect("mint nft should success; qed.");
+			}
 			Ok(())
 		}
 	}
