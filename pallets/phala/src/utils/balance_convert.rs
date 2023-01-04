@@ -42,6 +42,7 @@ mod tests {
 
 	#[test]
 	fn max_supply_not_overflow() {
+		#[allow(clippy::inconsistent_digit_grouping)]
 		let balance = 1_000_000_000__000_000_000_000_u128;
 		let f = balance.to_fixed();
 		assert_eq!(f.to_string(), "1000000000");
