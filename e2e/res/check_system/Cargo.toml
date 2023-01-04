@@ -23,7 +23,7 @@ path = "../indeterministic_functions"
 features = ["ink-as-dependency"]
 
 [build-dependencies]
-sp-core = "6.0"
+sp-core = "7"
 
 [lib]
 name = "check_system"

@@ -16,7 +16,7 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.2", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
-pink-system = { version = "0.1", default-features = false, path = "../system", features = ["ink-as-dependency"] }
+pink-system = { version = "0.2", default-features = false, path = "../system", features = ["ink-as-dependency"] }
 
 [lib]
 name = "sidevm_deployer"

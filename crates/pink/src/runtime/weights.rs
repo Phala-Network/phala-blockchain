@@ -796,6 +796,49 @@ impl<T: frame_system::Config> WeightInfo for PinkWeights<T> {
             .saturating_add(T::DbWeight::get().reads((158 as u64).saturating_mul(r as u64)))
             .saturating_add(T::DbWeight::get().writes((158 as u64).saturating_mul(r as u64)))
     }
+    // Storage: System Account (r:1 w:0)
+    // Storage: Contracts ContractInfoOf (r:1 w:1)
+    // Storage: Contracts CodeStorage (r:1 w:0)
+    // Storage: Timestamp Now (r:1 w:0)
+    // Storage: System EventTopics (r:2 w:2)
+    /// The range of component `r` is `[0, 20]`.
+    fn seal_reentrance_count(r: u32, ) -> Weight {
+        // Minimum execution time: 382_722 nanoseconds.
+        Weight::from_ref_time(387_231_409)
+            // Standard Error: 28_817
+            .saturating_add(Weight::from_ref_time(11_349_809).saturating_mul(r.into()))
+            .saturating_add(T::DbWeight::get().reads(6))
+            .saturating_add(T::DbWeight::get().writes(3))
+    }
+    // Storage: System Account (r:1 w:0)
+    // Storage: Contracts ContractInfoOf (r:1 w:1)
+    // Storage: Contracts CodeStorage (r:1 w:0)
+    // Storage: Timestamp Now (r:1 w:0)
+    // Storage: System EventTopics (r:2 w:2)
+    /// The range of component `r` is `[0, 20]`.
+    fn seal_account_reentrance_count(r: u32, ) -> Weight {
+        // Minimum execution time: 383_568 nanoseconds.
+        Weight::from_ref_time(419_835_108)
+            // Standard Error: 125_982
+            .saturating_add(Weight::from_ref_time(25_241_800).saturating_mul(r.into()))
+            .saturating_add(T::DbWeight::get().reads(6))
+            .saturating_add(T::DbWeight::get().writes(3))
+    }
+    // Storage: System Account (r:1 w:0)
+    // Storage: Contracts ContractInfoOf (r:1 w:1)
+    // Storage: Contracts CodeStorage (r:1 w:0)
+    // Storage: Timestamp Now (r:1 w:0)
+    // Storage: System EventTopics (r:2 w:2)
+    // Storage: Contracts Nonce (r:1 w:1)
+    /// The range of component `r` is `[0, 20]`.
+    fn seal_instantiation_nonce(r: u32, ) -> Weight {
+        // Minimum execution time: 382_084 nanoseconds.
+        Weight::from_ref_time(388_155_568)
+            // Standard Error: 29_161
+            .saturating_add(Weight::from_ref_time(9_015_217).saturating_mul(r.into()))
+            .saturating_add(T::DbWeight::get().reads(7))
+            .saturating_add(T::DbWeight::get().writes(4))
+    }
     /// The range of component `r` is `[0, 50]`.
     fn instr_i64const(r: u32) -> Weight {
         Weight::from_ref_time(70_276_000 as u64)
@@ -867,6 +910,13 @@ impl<T: frame_system::Config> WeightInfo for PinkWeights<T> {
         Weight::from_ref_time(93_600_000 as u64)
             // Standard Error: 1_000
             .saturating_add(Weight::from_ref_time(546_000 as u64).saturating_mul(p as u64))
+    }
+    /// The range of component `l` is `[0, 1024]`.
+    fn instr_call_per_local(l: u32, ) -> Weight {
+        // Minimum execution time: 2_830 nanoseconds.
+        Weight::from_ref_time(3_601_633)
+            // Standard Error: 31
+            .saturating_add(Weight::from_ref_time(92_499).saturating_mul(l.into()))
     }
     /// The range of component `r` is `[0, 50]`.
     fn instr_local_get(r: u32) -> Weight {

@@ -1,6 +1,6 @@
 ---
 source: crates/pink/src/runtime.rs
-assertion_line: 151
+assertion_line: 153
 expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <PinkRuntime as Config>::Schedule::get(),\n    <PinkRuntime as Config>::DeletionQueueDepth::get(),\n    <PinkRuntime as Config>::DeletionWeightLimit::get(),\n    <PinkRuntime as Config>::MaxCodeLen::get(),\n    <PinkRuntime as Config>::MaxStorageKeyLen::get())"
 ---
 (
@@ -78,6 +78,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             event_topics: 4,
             stack_height: None,
             globals: 256,
+            locals: 1024,
             parameters: 128,
             memory_pages: 64,
             table_size: 4096,
@@ -87,7 +88,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             payload_len: 16384,
         },
         instruction_weights: InstructionWeights {
-            version: "3 ps",
+            version: "4 ps",
             fallback: "8.0 ns",
             i64const: "4.7 ns",
             i64load: "20.4 ns",
@@ -101,6 +102,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             call: "64.0 ns",
             call_indirect: "78.1 ns",
             call_indirect_per_param: "795 ps",
+            call_per_local: "0 ps",
             local_get: "5.9 ns",
             local_set: "5.3 ns",
             local_tee: "5.3 ns",
@@ -196,6 +198,9 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             hash_blake2_128_per_byte: "1.2 ns",
             ecdsa_recover: "37.1 µs",
             ecdsa_to_eth_address: "25.8 µs",
+            reentrance_count: "141.9 ns",
+            account_reentrance_count: "315.5 ns",
+            instantiation_nonce: "112.7 ns",
         },
     },
     1024,

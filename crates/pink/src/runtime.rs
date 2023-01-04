@@ -10,6 +10,7 @@ use std::{
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
+    traits::ConstBool,
     weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use pallet_contracts::{Config, Frame, Schedule};
@@ -144,6 +145,7 @@ impl Config for PinkRuntime {
     type AddressGenerator = Pink;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
+    type UnsafeUnstableInterface = ConstBool<false>;
 }
 
 #[test]

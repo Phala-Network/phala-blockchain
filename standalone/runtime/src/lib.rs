@@ -994,6 +994,7 @@ parameter_types! {
     pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
     pub const MaximumReasonLength: u32 = 300;
     pub const MaxApprovals: u32 = 100;
+    pub const MaxBalance: Balance = Balance::max_value();
 }
 
 impl pallet_treasury::Config for Runtime {
@@ -1018,7 +1019,7 @@ impl pallet_treasury::Config for Runtime {
     type SpendFunds = Bounties;
     type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
     type MaxApprovals = MaxApprovals;
-    type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
+    type SpendOrigin = frame_system::EnsureWithSuccess<EnsureRoot<AccountId>, AccountId, MaxBalance>;
 }
 
 parameter_types! {
@@ -1465,8 +1466,9 @@ impl pallet_assets::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Balance = Balance;
     type AssetId = u32;
+    type AssetIdParameter = codec::Compact<u32>;
     type Currency = Balances;
-    type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
     type AssetDeposit = AssetDeposit;
     type AssetAccountDeposit = ConstU128<10>;
     type MetadataDepositBase = MetadataDepositBase;
@@ -1476,7 +1478,10 @@ impl pallet_assets::Config for Runtime {
     type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<AccountId>>;
     type Freezer = ();
     type Extra = ();
-    type WeightInfo = ();
+    type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
+    type RemoveItemsLimit = ConstU32<1000>;
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = ();
 }
 
 impl pallet_fat_tokenomic::Config for Runtime {
