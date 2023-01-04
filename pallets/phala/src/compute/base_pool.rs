@@ -96,6 +96,8 @@ pub mod pallet {
 		BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>,
 	);
 
+	type ShareTransferProxy<T> = (<T as frame_system::Config>::AccountId, <T as frame_system::Config>::AccountId, u64, BalanceOf<T>, PoolType);
+
 	#[pallet::storage]
 	pub type PropertyIterateStartPos<T> = StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
 
@@ -589,7 +591,7 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn backfill_transfer_shares(
 			origin: OriginFor<T>,
-			input: Vec<(T::AccountId, T::AccountId, u64, BalanceOf<T>, PoolType)>,
+			input: Vec<ShareTransferProxy<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
