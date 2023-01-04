@@ -96,7 +96,13 @@ pub mod pallet {
 		BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>,
 	);
 
-	type ShareTransferProxy<T> = (<T as frame_system::Config>::AccountId, <T as frame_system::Config>::AccountId, u64, BalanceOf<T>, PoolType);
+	type ShareTransferProxy<T> = (
+		<T as frame_system::Config>::AccountId,
+		<T as frame_system::Config>::AccountId,
+		u64,
+		BalanceOf<T>,
+		PoolType,
+	);
 
 	#[pallet::storage]
 	pub type PropertyIterateStartPos<T> = StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
