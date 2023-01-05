@@ -12,6 +12,7 @@ pub mod pallet {
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
+	use phala_types::messaging::ContractClusterId;
 	use phala_types::messaging::ContractId;
 	use sp_runtime::traits::{AccountIdConversion, Zero};
 
@@ -58,10 +59,12 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		ContractDepositChanged {
+			cluster: Option<ContractClusterId>,
 			contract: ContractId,
 			deposit: BalanceOf<T>,
 		},
 		UserStakeChanged {
+			cluster: Option<ContractClusterId>,
 			account: T::AccountId,
 			contract: ContractId,
 			stake: BalanceOf<T>,
@@ -117,12 +120,16 @@ pub mod pallet {
 			ContractUserStakes::<T>::insert(&user, contract, amount);
 			ContractTotalStakes::<T>::insert(contract, total);
 
+			let cluster = crate::fat::Pallet::<T>::get_contract_info(&contract).map(|x| x.cluster);
+
 			Self::deposit_event(Event::ContractDepositChanged {
+				cluster,
 				contract,
 				deposit: total,
 			});
 
 			Self::deposit_event(Event::UserStakeChanged {
+				cluster,
 				account: user,
 				contract,
 				stake: amount,

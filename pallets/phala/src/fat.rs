@@ -42,8 +42,8 @@ pub mod pallet {
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 	#[derive(Encode, Decode, Clone, Debug, TypeInfo)]
 	pub struct BasicContractInfo {
-		deployer: AccountId32,
-		cluster: ContractClusterId,
+		pub deployer: AccountId32,
+		pub cluster: ContractClusterId,
 	}
 
 	bind_topic!(ClusterRegistryEvent, b"^phala/registry/cluster");
@@ -530,6 +530,10 @@ pub mod pallet {
 			let contract_info = Contracts::<T>::get(contract)?;
 			let cluster_info = Clusters::<T>::get(contract_info.cluster)?;
 			Some(cluster_info.system_contract)
+		}
+
+		pub fn get_contract_info(contract: &ContractId) -> Option<BasicContractInfo> {
+			Contracts::<T>::get(contract)
 		}
 	}
 
