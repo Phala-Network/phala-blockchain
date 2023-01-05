@@ -252,9 +252,15 @@ pub mod pallet {
 			ensure!(shares > Zero::zero(), Error::<T>::NoRewardToClaim);
 			let _nft_id = base_pool::Pallet::<T>::mint_nft(
 				pool_info.basepool.cid,
-				target,
+				target.clone(),
 				shares,
 				vault_pid,
+				PoolType::Vault,
+			)?;
+			let _ = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+				pool_info.basepool.cid,
+				target,
+				pool_info.basepool.pid,
 				PoolType::Vault,
 			)?;
 			pool_info.owner_shares -= shares;
