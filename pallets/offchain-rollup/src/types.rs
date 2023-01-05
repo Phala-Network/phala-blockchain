@@ -5,7 +5,7 @@ use sp_std::vec::Vec;
 
 pub type ActionBytes = BoundedVec<u8, ConstU32<256>>;
 pub type KeyBytes = BoundedVec<u8, ConstU32<128>>;
-pub type ValueBytes = BoundedVec<u8, ConstU32<256>>;
+pub type ValueBytes = BoundedVec<u8, ConstU32<2048>>;
 
 // Almost copied from `phat-offchain-rollup/phat/src/lib.rs`.
 #[derive(Debug, Default, PartialEq, Eq, Encode, Decode, Clone, scale_info::TypeInfo)]
