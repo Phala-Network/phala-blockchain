@@ -15,7 +15,7 @@ use pink_json as json;
 
 mod objects;
 mod rpc;
-mod ss58;
+pub mod ss58;
 pub mod storage;
 mod transaction;
 
