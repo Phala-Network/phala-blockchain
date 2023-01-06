@@ -19,6 +19,7 @@ pub mod ss58;
 pub mod storage;
 mod transaction;
 
+pub use objects::{Era, ExtraParam};
 use objects::*;
 use rpc::call_rpc;
 use ss58::{get_ss58addr_version, Ss58Codec};
@@ -220,19 +221,23 @@ pub fn create_transaction<T: Encode>(
     pallet_id: u8,
     call_id: u8,
     data: T,
+    extra: ExtraParam,
 ) -> core::result::Result<Vec<u8>, Error> {
     let version = get_ss58addr_version(chain)?;
     let public_key: [u8; 32] = signing::get_public_key(signer, SigType::Sr25519)
         .try_into()
         .unwrap();
     let addr = public_key.to_ss58check_with_version(version.prefix());
-    let nonce = get_next_nonce(rpc_node, &addr)?.next_nonce;
     let runtime_version = get_runtime_version(rpc_node)?;
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = Era::Immortal;
-    let tip: u128 = 0;
+    let era = extra.era.unwrap_or(Era::default());
+    let tip = extra.tip.unwrap_or(0);
+    let nonce = match extra.nonce {
+        Some(n) => n,
+        _ => get_next_nonce(rpc_node, &addr)?.next_nonce,
+    };
     let call_data = UnsignedExtrinsic {
         pallet_id,
         call_id,
@@ -362,7 +367,19 @@ mod tests {
         let signer: [u8; 32] =
             hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
         let remark = "Greetings from unit tests!".to_string();
-        let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
+        let signed_tx = create_transaction(
+            &signer,
+            "khala",
+            rpc_node,
+            0u8,
+            1u8,
+            remark,
+            ExtraParam {
+                era: None,
+                tip: None,
+                nonce: None,
+            },
+        );
         if signed_tx.is_err() {
             println!("failed to signed tx");
             return;
@@ -426,6 +443,11 @@ mod tests {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
+            ExtraParam {
+                era: None,
+                tip: None,
+                nonce: None,
+            },
         );
         if signed_tx.is_err() {
             println!("failed to signed tx");

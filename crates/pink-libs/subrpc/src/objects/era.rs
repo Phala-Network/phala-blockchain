@@ -22,6 +22,11 @@ pub enum Era {
     /// of `system` module.
     Mortal(Period, Phase),
 }
+impl Default for Era {
+    fn default() -> Self {
+        Era::Immortal
+    }
+}
 impl Encode for Era {
     fn encode_to<T: Output + ?Sized>(&self, output: &mut T) {
         match self {

@@ -82,9 +82,11 @@ pub struct TransactionResponse<'a> {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ExtraParam {
     // 0 if Immortal, or Vec<u64, u64> for period and the phase.
-    era: Era,
+    pub era: Option<Era>,
     // Tip for the block producer.
-    tip: u128,
+    pub tip: Option<u128>,
+    // Account nonce along with extrinsic
+    pub nonce: Option<u64>,
 }
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
