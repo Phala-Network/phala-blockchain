@@ -31,19 +31,6 @@ pub mod traits {
         #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
         #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
         pub enum Error {
-            BadAbi,
-            BadOrigin,
-            AssetAlreadyRegistered,
-            AssetNotFound,
-            ChainAlreadyRegistered,
-            ChainNotFound,
-            ExtractLocationFailed,
-            InvalidAddress,
-            ConstructContractFailed,
-            FetchDataFailed,
-            Unimplemented,
-            InvalidMultilocation,
-            InvalidAmount,
             SubRPCRequestFailed,
             InvalidBody,
             InvalidSignature,
