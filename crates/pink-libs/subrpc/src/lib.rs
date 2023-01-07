@@ -19,8 +19,8 @@ pub mod ss58;
 pub mod storage;
 mod transaction;
 
-pub use objects::{Era, ExtraParam};
 use objects::*;
+pub use objects::{Era, ExtraParam};
 use rpc::call_rpc;
 use ss58::{get_ss58addr_version, Ss58Codec};
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
@@ -232,8 +232,8 @@ pub fn create_transaction<T: Encode>(
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = extra.era.unwrap_or(Era::default());
-    let tip = extra.tip.unwrap_or(0);
+    let era = extra.era;
+    let tip = extra.tip;
     let nonce = match extra.nonce {
         Some(n) => n,
         _ => get_next_nonce(rpc_node, &addr)?.next_nonce,
@@ -374,11 +374,7 @@ mod tests {
             0u8,
             1u8,
             remark,
-            ExtraParam {
-                era: None,
-                tip: None,
-                nonce: None,
-            },
+            ExtraParam::default(),
         );
         if signed_tx.is_err() {
             println!("failed to signed tx");
@@ -443,11 +439,7 @@ mod tests {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
-            ExtraParam {
-                era: None,
-                tip: None,
-                nonce: None,
-            },
+            ExtraParam::default(),
         );
         if signed_tx.is_err() {
             println!("failed to signed tx");
