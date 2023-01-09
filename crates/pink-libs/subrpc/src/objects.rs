@@ -5,7 +5,7 @@ use scale::{Decode, Encode};
 use serde::Deserialize;
 
 mod era;
-pub use era::Era;
+pub use era::{Era, Period, Phase};
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
 pub struct NextNonce<'a> {

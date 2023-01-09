@@ -20,7 +20,7 @@ pub mod storage;
 mod transaction;
 
 use objects::*;
-pub use objects::{Era, ExtraParam};
+pub use objects::{Era, ExtraParam, Period, Phase};
 use rpc::call_rpc;
 use ss58::{get_ss58addr_version, Ss58Codec};
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
