@@ -108,15 +108,6 @@ pub struct TransactionResponse<'a> {
     pub(crate) id: u32,
 }
 
-#[derive(Encode, Decode, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct ExtraParam {
-    // 0 if Immortal, or Vec<u64, u64> for period and the phase.
-    era: Era,
-    // Tip for the block producer.
-    tip: u128,
-}
-
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
 pub struct GetStorageResponse<'a> {
     pub(crate) jsonrpc: &'a str,

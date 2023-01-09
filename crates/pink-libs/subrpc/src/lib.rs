@@ -9,7 +9,6 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
-use scale::{Compact, Encode};
 
 use pink_json as json;
 use scale::{Compact, Decode, Encode};
@@ -290,13 +289,13 @@ pub fn create_transaction<T: Encode>(
     pallet_id: u8,
     call_id: u8,
     data: T,
+    extra: ExtraParam,
 ) -> core::result::Result<Vec<u8>, Error> {
     let version = get_ss58addr_version(chain)?;
     let public_key: [u8; 32] = signing::get_public_key(signer, SigType::Sr25519)
         .try_into()
         .unwrap();
     let addr = public_key.to_ss58check_with_version(version.prefix());
-    let nonce = get_next_nonce(rpc_node, &addr)?.next_nonce;
     let runtime_version = get_runtime_version(rpc_node)?;
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
 
@@ -435,14 +434,22 @@ mod tests {
 
     /// Sends a remark extrinsic to khala
     #[test]
-    // #[ignore = "only for demostration purposes"]
+    #[ignore = "only for demostration purposes"]
     fn can_send_remark() {
         pink_extension_runtime::mock_ext::mock_all_ext();
         let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
         let signer: [u8; 32] =
             hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
         let remark = "Greetings from unit tests!".to_string();
-        let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
+        let signed_tx = create_transaction(
+            &signer,
+            "khala",
+            rpc_node,
+            0u8,
+            1u8,
+            remark,
+            ExtraParam::default(),
+        );
         if signed_tx.is_err() {
             println!("failed to sign tx");
             return;
@@ -507,6 +514,7 @@ mod tests {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
+            ExtraParam::default(),
         );
         if signed_tx.is_err() {
             println!("failed to sign tx");
