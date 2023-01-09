@@ -15,7 +15,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-
 log = "0.4.14"
 anyhow = "1.0.43"
 clap = { version = "4.0.19", features = ["derive"] }
-tokio = { version = "1.9.0", features = ["full"] }
+tokio = { version = "1.20.3", features = ["full"] }
 sqlx = { version = "0.5.13", features = ["postgres", "decimal", "chrono", "runtime-tokio-rustls"] }
 chrono = { version = "0.4.22" }
 actix-web = "4"

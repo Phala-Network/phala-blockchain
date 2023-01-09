@@ -128,7 +128,7 @@ platforms = "2.0"
 async-std = { version = "1.10.0", features = ["attributes"] }
 soketto = "0.4.2"
 criterion = { version = "0.3.5", features = ["async_tokio"] }
-tokio = { version = "1.15", features = ["macros", "time", "parking_lot"] }
+tokio = { version = "1.20", features = ["macros", "time", "parking_lot"] }
 wait-timeout = "0.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
