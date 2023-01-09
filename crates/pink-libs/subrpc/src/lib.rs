@@ -12,14 +12,17 @@ use pink_extension::chain_extension::{signing, SigType};
 use scale::{Compact, Encode};
 
 use pink_json as json;
+use scale::{Compact, Decode, Encode};
 
 mod objects;
+mod primitives;
 mod rpc;
 mod ss58;
 pub mod storage;
 mod transaction;
 
 use objects::*;
+use primitives::era::Era;
 use rpc::call_rpc;
 use ss58::{get_ss58addr_version, Ss58Codec};
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
@@ -100,7 +103,6 @@ pub fn get_runtime_version(rpc_node: &str) -> core::result::Result<RuntimeVersio
         .to_string()
         .into_bytes();
     let resp_body = call_rpc(rpc_node, data)?;
-
     let runtime_version: RuntimeVersion =
         json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
 
@@ -154,6 +156,61 @@ pub fn get_block_hash(
     let decoded_hash = hex::decode(genesis_hash_result).or(Err(Error::InvalidBody))?;
     let hash: [u8; 32] = decoded_hash.try_into().or(Err(Error::InvalidBody))?;
     Ok(H256(hash))
+}
+
+/// Gets revalant block header by given block hash
+/// Only work with chains define generic patterns like `Header<u32, BlakeTwo256>`
+pub fn get_header(
+    rpc_node: &str,
+    block_hash: Option<H256>,
+) -> core::result::Result<BlockHeaderOk, Error> {
+    let param = block_hash.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
+
+    let data =
+        format!(r#"{{"id":1, "jsonrpc":"2.0", "method": "chain_getHeader","params":[{param}]}}"#)
+            .into_bytes();
+    let resp_body = call_rpc(rpc_node, data)?;
+    let header: BlockHeader = json::from_slice(&resp_body)
+        .or(Err(Error::InvalidBody))
+        .unwrap();
+
+    let header_result = header.result;
+    let decoded_parent_hash =
+        hex::decode(&header_result.parent_hash[2..]).or(Err(Error::InvalidBody))?;
+    let decoded_state_root =
+        hex::decode(&header_result.state_root[2..]).or(Err(Error::InvalidBody))?;
+    let decoded_extrinsics_root =
+        hex::decode(&header_result.extrinsics_root[2..]).or(Err(Error::InvalidBody))?;
+    Ok(BlockHeaderOk {
+        parent_hash: decoded_parent_hash.try_into().or(Err(Error::InvalidBody))?,
+        number: u32::from_str_radix(&header_result.number[2..], 16).expect("block number overflow"),
+        state_root: decoded_state_root.try_into().or(Err(Error::InvalidBody))?,
+        extrinsics_root: decoded_extrinsics_root
+            .try_into()
+            .or(Err(Error::InvalidBody))?,
+        digest: header_result.digest,
+    })
+}
+
+#[derive(Default, Encode, Decode, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct ExtraParam {
+    // Tip for the block producer.
+    pub tip: u128,
+    // Account nonce along with extrinsic
+    pub nonce: Option<u64>,
+    // Longevity of a transaction
+    pub era: Option<Era>,
+}
+
+fn compute_era(rpc_node: &str) -> core::result::Result<Era, Error> {
+    // The transaction longevity, should be a power of two between 4 and 65536. unit: bloc
+    let longevity = 4;
+    let header = get_header(rpc_node, <Option<H256>>::None)?;
+    let number = header.number as u64;
+    let period = longevity;
+    let phase = number % period;
+    Ok(Era::Mortal(period, phase))
 }
 
 /// Creates an extrinsic
@@ -242,10 +299,20 @@ pub fn create_transaction<T: Encode>(
     let nonce = get_next_nonce(rpc_node, &addr)?.next_nonce;
     let runtime_version = get_runtime_version(rpc_node)?;
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
+
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = Era::Immortal;
-    let tip: u128 = 0;
+    let era = match extra.era {
+        Some(e) => e,
+        _ => compute_era(rpc_node)?,
+    };
+    let tip = extra.tip;
+    let nonce = match extra.nonce {
+        Some(n) => n,
+        _ => get_next_nonce(rpc_node, &addr)?.next_nonce,
+    };
+    println!("=============> nonce: {:?}", &nonce);
+
     let call_data = UnsignedExtrinsic {
         pallet_id,
         call_id,
@@ -368,7 +435,7 @@ mod tests {
 
     /// Sends a remark extrinsic to khala
     #[test]
-    #[ignore = "only for demostration purposes"]
+    // #[ignore = "only for demostration purposes"]
     fn can_send_remark() {
         pink_extension_runtime::mock_ext::mock_all_ext();
         let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
@@ -377,9 +444,10 @@ mod tests {
         let remark = "Greetings from unit tests!".to_string();
         let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
         if signed_tx.is_err() {
-            println!("failed to signed tx");
+            println!("failed to sign tx");
             return;
         };
+        assert_eq!(signed_tx.is_err(), false);
         let signed_tx = signed_tx.unwrap();
         let tx_id = send_transaction(rpc_node, &signed_tx);
         if tx_id.is_err() {
@@ -441,7 +509,7 @@ mod tests {
             (multi_asset, dest, dest_weight),
         );
         if signed_tx.is_err() {
-            println!("failed to signed tx");
+            println!("failed to sign tx");
             return;
         };
         let signed_tx = signed_tx.unwrap();

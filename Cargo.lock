@@ -8146,6 +8146,7 @@ dependencies = [
  "base58",
  "hex",
  "hex-literal",
+ "impl-serde 0.4.0",
  "parity-scale-codec",
  "pink-extension 0.2.0",
  "pink-extension-runtime 0.2.0",

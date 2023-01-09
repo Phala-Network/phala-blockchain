@@ -1,11 +1,41 @@
+use crate::primitives::digest::Digest;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use serde::Deserialize;
 
-mod era;
-pub use era::Era;
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+pub struct BlockHeader<'a> {
+    pub(crate) jsonrpc: &'a str,
+    #[serde(borrow)]
+    pub(crate) result: BlockHeaderResult<'a>,
+    pub(crate) id: u32,
+}
+
+#[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
+// #[serde(bound(deserialize = "Digest: Deserialize<'de>"))]
+pub struct BlockHeaderResult<'a> {
+    #[serde(alias = "parentHash")]
+    pub(crate) parent_hash: &'a str,
+    pub(crate) number: &'a str,
+    #[serde(alias = "stateRoot")]
+    pub(crate) state_root: &'a str,
+    #[serde(alias = "extrinsicsRoot")]
+    pub(crate) extrinsics_root: &'a str,
+    pub(crate) digest: Digest,
+}
+
+#[derive(Encode, Decode, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct BlockHeaderOk {
+    pub(crate) parent_hash: [u8; 32],
+    pub(crate) number: u32,
+    pub(crate) state_root: [u8; 32],
+    pub(crate) extrinsics_root: [u8; 32],
+    pub(crate) digest: Digest,
+}
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
 pub struct NextNonce<'a> {
