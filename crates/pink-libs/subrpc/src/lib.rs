@@ -174,6 +174,8 @@ pub struct ExtraParam {
     pub tip: u128,
     // Account nonce along with extrinsic
     pub nonce: Option<u64>,
+    // Longevity of a transaction
+    pub era: Option<Era>,
 }
 
 fn compute_era(rpc_node: &str) -> core::result::Result<Era, Error> {
@@ -274,7 +276,10 @@ pub fn create_transaction<T: Encode>(
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = compute_era(rpc_node)?;
+    let era = match extra.era {
+        Some(e) => e,
+        _ => compute_era(rpc_node)?,
+    };
     let tip = extra.tip;
     let nonce = match extra.nonce {
         Some(n) => n,
