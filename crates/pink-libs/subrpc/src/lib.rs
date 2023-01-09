@@ -9,9 +9,9 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
-use scale::{Compact, Encode};
-
 use pink_json as json;
+use scale::{Compact, Decode, Encode};
+use sp_runtime::generic::Era;
 
 mod objects;
 mod rpc;
@@ -20,7 +20,6 @@ pub mod storage;
 mod transaction;
 
 use objects::*;
-pub use objects::{Era, ExtraParam, Period, Phase};
 use rpc::call_rpc;
 use ss58::{get_ss58addr_version, Ss58Codec};
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
@@ -144,6 +143,49 @@ pub fn get_block_hash(
     Ok(H256(hash))
 }
 
+/// Gets revalant block header by given block hash
+/// Only work with chains define generic patterns like `Header<u32, BlakeTwo256>`
+pub fn get_header(
+    rpc_node: &str,
+    block_hash: Option<H256>,
+) -> core::result::Result<BlockHeaderOk, Error> {
+    let param = block_hash.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
+
+    let data =
+        format!(r#"{{"id":1, "jsonrpc":"2.0", "method": "chain_getHeader","params":[{param}]}}"#)
+            .into_bytes();
+    let resp_body = call_rpc(rpc_node, data)?;
+    let header: BlockHeader = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+    let header_result = header.result;
+
+    Ok(BlockHeaderOk {
+        parent_hash: header_result.parent_hash,
+        number: header_result.number,
+        state_root: header_result.state_root,
+        extrinsics_root: header_result.extrinsics_root,
+        digest: header_result.digest,
+    })
+}
+
+#[derive(Default, Encode, Decode, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct ExtraParam {
+    // Tip for the block producer.
+    pub tip: u128,
+    // Account nonce along with extrinsic
+    pub nonce: Option<u64>,
+}
+
+fn compute_era(rpc_node: &str) -> core::result::Result<Era, Error> {
+    // The transaction longevity, should be a power of two between 4 and 65536. unit: bloc
+    let longevity = 4;
+    let header = get_header(rpc_node, <Option<H256>>::None)?;
+    let number = header.number as u64;
+    let period = longevity;
+    let phase = number % period;
+    Ok(Era::Mortal(period, phase))
+}
+
 /// Creates an extrinsic
 ///
 /// An extended version of `create_transaction`, fine-grain
@@ -232,7 +274,7 @@ pub fn create_transaction<T: Encode>(
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = extra.era;
+    let era = compute_era(rpc_node)?;
     let tip = extra.tip;
     let nonce = match extra.nonce {
         Some(n) => n,

@@ -3,9 +3,37 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use serde::Deserialize;
+use sp_runtime::generic::Digest;
 
-mod era;
-pub use era::{Era, Period, Phase};
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+pub struct BlockHeader<'a> {
+    pub(crate) jsonrpc: &'a str,
+    pub(crate) result: BlockHeaderResult,
+    pub(crate) id: u32,
+}
+
+#[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
+pub struct BlockHeaderResult {
+    #[serde(alias = "parentHash")]
+    pub(crate) parent_hash: [u8; 32],
+    pub(crate) number: u32,
+    #[serde(alias = "stateRoot")]
+    pub(crate) state_root: [u8; 32],
+    #[serde(alias = "extrinsicsRoot")]
+    pub(crate) extrinsics_root: [u8; 32],
+    pub(crate) digest: Digest,
+}
+
+#[derive(Encode, Decode, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct BlockHeaderOk {
+    pub(crate) parent_hash: [u8; 32],
+    pub(crate) number: u32,
+    pub(crate) state_root: [u8; 32],
+    pub(crate) extrinsics_root: [u8; 32],
+    pub(crate) digest: Digest,
+}
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
 pub struct NextNonce<'a> {
@@ -76,17 +104,6 @@ pub struct TransactionResponse<'a> {
     pub(crate) jsonrpc: &'a str,
     pub(crate) result: &'a str,
     pub(crate) id: u32,
-}
-
-#[derive(Default, Encode, Decode, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct ExtraParam {
-    // 0 if Immortal, or Vec<u64, u64> for period and the phase.
-    pub era: Era,
-    // Tip for the block producer.
-    pub tip: u128,
-    // Account nonce along with extrinsic
-    pub nonce: Option<u64>,
 }
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
