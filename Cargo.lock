@@ -8154,7 +8154,6 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core-hashing 6.0.0",
- "sp-runtime",
  "ss58-registry",
  "xcm",
 ]

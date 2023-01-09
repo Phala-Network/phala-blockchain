@@ -9,13 +9,13 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
+use scale::{Compact, Encode};
+
 use pink_json as json;
-use scale::{Compact, Decode, Encode};
-use sp_runtime::generic::Era;
 
 mod objects;
 mod rpc;
-pub mod ss58;
+mod ss58;
 pub mod storage;
 mod transaction;
 
@@ -31,6 +31,19 @@ pub mod traits {
         #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
         #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
         pub enum Error {
+            BadAbi,
+            BadOrigin,
+            AssetAlreadyRegistered,
+            AssetNotFound,
+            ChainAlreadyRegistered,
+            ChainNotFound,
+            ExtractLocationFailed,
+            InvalidAddress,
+            ConstructContractFailed,
+            FetchDataFailed,
+            Unimplemented,
+            InvalidMultilocation,
+            InvalidAmount,
             SubRPCRequestFailed,
             InvalidBody,
             InvalidSignature,
@@ -143,51 +156,6 @@ pub fn get_block_hash(
     Ok(H256(hash))
 }
 
-/// Gets revalant block header by given block hash
-/// Only work with chains define generic patterns like `Header<u32, BlakeTwo256>`
-pub fn get_header(
-    rpc_node: &str,
-    block_hash: Option<H256>,
-) -> core::result::Result<BlockHeaderOk, Error> {
-    let param = block_hash.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
-
-    let data =
-        format!(r#"{{"id":1, "jsonrpc":"2.0", "method": "chain_getHeader","params":[{param}]}}"#)
-            .into_bytes();
-    let resp_body = call_rpc(rpc_node, data)?;
-    let header: BlockHeader = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
-    let header_result = header.result;
-
-    Ok(BlockHeaderOk {
-        parent_hash: header_result.parent_hash,
-        number: header_result.number,
-        state_root: header_result.state_root,
-        extrinsics_root: header_result.extrinsics_root,
-        digest: header_result.digest,
-    })
-}
-
-#[derive(Default, Encode, Decode, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct ExtraParam {
-    // Tip for the block producer.
-    pub tip: u128,
-    // Account nonce along with extrinsic
-    pub nonce: Option<u64>,
-    // Longevity of a transaction
-    pub era: Option<Era>,
-}
-
-fn compute_era(rpc_node: &str) -> core::result::Result<Era, Error> {
-    // The transaction longevity, should be a power of two between 4 and 65536. unit: bloc
-    let longevity = 4;
-    let header = get_header(rpc_node, <Option<H256>>::None)?;
-    let number = header.number as u64;
-    let period = longevity;
-    let phase = number % period;
-    Ok(Era::Mortal(period, phase))
-}
-
 /// Creates an extrinsic
 ///
 /// An extended version of `create_transaction`, fine-grain
@@ -265,26 +233,19 @@ pub fn create_transaction<T: Encode>(
     pallet_id: u8,
     call_id: u8,
     data: T,
-    extra: ExtraParam,
 ) -> core::result::Result<Vec<u8>, Error> {
     let version = get_ss58addr_version(chain)?;
     let public_key: [u8; 32] = signing::get_public_key(signer, SigType::Sr25519)
         .try_into()
         .unwrap();
     let addr = public_key.to_ss58check_with_version(version.prefix());
+    let nonce = get_next_nonce(rpc_node, &addr)?.next_nonce;
     let runtime_version = get_runtime_version(rpc_node)?;
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = match extra.era {
-        Some(e) => e,
-        _ => compute_era(rpc_node)?,
-    };
-    let tip = extra.tip;
-    let nonce = match extra.nonce {
-        Some(n) => n,
-        _ => get_next_nonce(rpc_node, &addr)?.next_nonce,
-    };
+    let era = Era::Immortal;
+    let tip: u128 = 0;
     let call_data = UnsignedExtrinsic {
         pallet_id,
         call_id,
@@ -414,15 +375,7 @@ mod tests {
         let signer: [u8; 32] =
             hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
         let remark = "Greetings from unit tests!".to_string();
-        let signed_tx = create_transaction(
-            &signer,
-            "khala",
-            rpc_node,
-            0u8,
-            1u8,
-            remark,
-            ExtraParam::default(),
-        );
+        let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
         if signed_tx.is_err() {
             println!("failed to signed tx");
             return;
@@ -486,7 +439,6 @@ mod tests {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
-            ExtraParam::default(),
         );
         if signed_tx.is_err() {
             println!("failed to signed tx");

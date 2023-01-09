@@ -28,7 +28,6 @@ pink-json = { version = "0.4", default-features = false }
 
 ss58-registry = { version = "1.33.0", default-features = false }
 base58 = { version = "0.2.0", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33", default-features = false }
 
 [dev-dependencies]
 pink-extension-runtime = { version = "0.2", path = "../../pink/pink-extension-runtime" }
@@ -43,5 +42,4 @@ std = [
     "pink-json/std",
     "sp-core-hashing/std",
     "primitive-types/std",
-    "sp-runtime/std",
 ]
