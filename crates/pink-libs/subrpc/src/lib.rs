@@ -202,13 +202,11 @@ pub struct ExtraParam {
     pub era: Option<Era>,
 }
 
-fn compute_era(rpc_node: &str) -> core::result::Result<Era, Error> {
+fn compute_era(block_number: u64) -> core::result::Result<Era, Error> {
     // The transaction longevity, should be a power of two between 4 and 65536. unit: bloc
     let longevity = 4;
-    let header = get_header(rpc_node, <Option<H256>>::None)?;
-    let number = header.number as u64;
     let period = longevity;
-    let phase = number % period;
+    let phase = block_number % period;
     Ok(Era::Mortal(period, phase))
 }
 
@@ -222,6 +220,7 @@ pub fn create_transaction_ext<T: Encode>(
     nonce: u64,
     spec_version: u32,
     transaction_version: u32,
+    era_checkpoint: &[u8; 32],
     genesis_hash: &[u8; 32],
     call_data: UnsignedExtrinsic<T>,
     era: Era,
@@ -231,7 +230,7 @@ pub fn create_transaction_ext<T: Encode>(
         spec_version,
         transaction_version,
         genesis_hash,
-        genesis_hash,
+        era_checkpoint,
     );
     let extra = (era, Compact(nonce), Compact(tip));
 
@@ -301,16 +300,18 @@ pub fn create_transaction<T: Encode>(
 
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = match extra.era {
-        Some(e) => e,
-        _ => compute_era(rpc_node)?,
+    let (era_checkpoint, era) = match extra.era {
+        Some(e) => (genesis_hash, e),
+        _ => {
+            let header = get_header(rpc_node, <Option<H256>>::None)?;
+            (header.hash(), compute_era(header.number as u64)?)
+        }
     };
     let tip = extra.tip;
     let nonce = match extra.nonce {
         Some(n) => n,
         _ => get_next_nonce(rpc_node, &addr)?.next_nonce,
     };
-    println!("=============> nonce: {:?}", &nonce);
 
     let call_data = UnsignedExtrinsic {
         pallet_id,
@@ -323,6 +324,7 @@ pub fn create_transaction<T: Encode>(
         nonce,
         spec_version,
         transaction_version,
+        &era_checkpoint,
         &genesis_hash,
         call_data,
         era,
@@ -337,8 +339,16 @@ pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Resul
         tx_hex
     )
     .into_bytes();
-    let resp_body = call_rpc(rpc_node, data)?;
-    let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+    // let resp_body = call_rpc(rpc_node, data)?;
+    let resp_body = call_rpc(rpc_node, data).unwrap();
+    print!(
+        "=========> send transaction response body: {:?}",
+        &resp_body
+    );
+    // let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+    let resp: TransactionResponse = json::from_slice(&resp_body).unwrap();
+    print!("=========> transaction response: {:?}", &resp);
+
     hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))
 }
 
@@ -462,7 +472,7 @@ mod tests {
             return;
         }
         let tx_id = tx_id.unwrap();
-        // https://khala.subscan.io/extrinsic/2676952-2
+        // https://khala.subscan.io/extrinsic/3083306-2
         dbg!(hex::encode(tx_id));
     }
 
