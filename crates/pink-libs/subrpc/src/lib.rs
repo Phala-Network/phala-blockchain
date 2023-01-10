@@ -294,10 +294,11 @@ pub fn create_transaction<T: Encode>(
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
     let (era_checkpoint, era) = match extra.era {
-        Some(e) => (genesis_hash, e),
+        Some(Era::Immortal) => (genesis_hash, Era::Immortal),
         _ => {
             let header = get_header(rpc_node, <Option<H256>>::None)?;
-            (header.hash(), compute_era(header.number as u64)?)
+            let era = extra.era.unwrap_or(compute_era(header.number as u64)?);
+            (header.hash(), era)
         }
     };
     let tip = extra.tip;
