@@ -21,9 +21,9 @@ pub mod storage;
 mod transaction;
 
 use objects::*;
-use primitives::era::Era;
+pub use primitives::era::Era;
 use rpc::call_rpc;
-use ss58::{get_ss58addr_version, Ss58Codec};
+pub use ss58::{get_ss58addr_version, Ss58Codec};
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
 
 pub mod traits {
@@ -33,23 +33,11 @@ pub mod traits {
         #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
         #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
         pub enum Error {
-            BadAbi,
-            BadOrigin,
-            AssetAlreadyRegistered,
-            AssetNotFound,
-            ChainAlreadyRegistered,
-            ChainNotFound,
-            ExtractLocationFailed,
-            InvalidAddress,
-            ConstructContractFailed,
-            FetchDataFailed,
-            Unimplemented,
-            InvalidMultilocation,
-            InvalidAmount,
             SubRPCRequestFailed,
             InvalidBody,
             InvalidSignature,
             Ss58,
+            ParseFailed,
         }
     }
 }
@@ -108,21 +96,26 @@ pub fn get_runtime_version(rpc_node: &str) -> core::result::Result<RuntimeVersio
     let runtime_version_result = runtime_version.result;
     let mut api_vec: Vec<(String, u32)> = Vec::new();
     for (api_str, api_u32) in runtime_version_result.apis {
-        api_vec.push((api_str.to_string().parse().unwrap(), api_u32));
+        api_vec.push((
+            api_str
+                .to_string()
+                .parse()
+                .map_err(|_| Error::ParseFailed)?,
+            api_u32,
+        ));
     }
 
     let runtime_version_ok = RuntimeVersionOk {
-        // TODO: replace the upwraps
         spec_name: runtime_version_result
             .spec_name
             .to_string()
             .parse()
-            .unwrap(),
+            .map_err(|_| Error::ParseFailed)?,
         impl_name: runtime_version_result
             .impl_name
             .to_string()
             .parse()
-            .unwrap(),
+            .map_err(|_| Error::ParseFailed)?,
         authoring_version: runtime_version_result.authoring_version,
         spec_version: runtime_version_result.spec_version,
         impl_version: runtime_version_result.impl_version,
@@ -293,7 +286,7 @@ pub fn create_transaction<T: Encode>(
     let version = get_ss58addr_version(chain)?;
     let public_key: [u8; 32] = signing::get_public_key(signer, SigType::Sr25519)
         .try_into()
-        .unwrap();
+        .expect("Public key conversion failed");
     let addr = public_key.to_ss58check_with_version(version.prefix());
     let runtime_version = get_runtime_version(rpc_node)?;
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
@@ -339,15 +332,8 @@ pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Resul
         tx_hex
     )
     .into_bytes();
-    // let resp_body = call_rpc(rpc_node, data)?;
-    let resp_body = call_rpc(rpc_node, data).unwrap();
-    print!(
-        "=========> send transaction response body: {:?}",
-        &resp_body
-    );
-    // let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
-    let resp: TransactionResponse = json::from_slice(&resp_body).unwrap();
-    print!("=========> transaction response: {:?}", &resp);
+    let resp_body = call_rpc(rpc_node, data)?;
+    let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
 
     hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))
 }
@@ -464,7 +450,6 @@ mod tests {
             println!("failed to sign tx");
             return;
         };
-        assert_eq!(signed_tx.is_err(), false);
         let signed_tx = signed_tx.unwrap();
         let tx_id = send_transaction(rpc_node, &signed_tx);
         if tx_id.is_err() {
