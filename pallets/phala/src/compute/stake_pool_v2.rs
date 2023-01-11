@@ -562,7 +562,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn backfill_transfer_shares(
+		pub fn push_legacy_rewards_data(
 			origin: OriginFor<T>,
 			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
 		) -> DispatchResult {
