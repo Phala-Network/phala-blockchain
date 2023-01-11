@@ -66,7 +66,7 @@ pub fn get_storage(rpc_node: &str, key: &[u8], at: Option<H256>) -> Result<Optio
 ///
 /// Nonce represents how many transactions the account has successfully issued
 /// TODO: simplify
-pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<NextNonceOk, Error> {
+pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<u64, Error> {
     // TODO: can we contruct the json object using serde_json_core?
     let data = format!(
         r#"{{"id":1,"jsonrpc":"2.0","method":"system_accountNextIndex","params":["{}"]}}"#,
@@ -81,7 +81,7 @@ pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<N
         next_nonce: next_nonce.result,
     };
 
-    Ok(next_nonce_ok)
+    Ok(next_nonce_ok.next_nonce)
 }
 
 // TODO: simplify
@@ -304,7 +304,7 @@ pub fn create_transaction<T: Encode>(
     let tip = extra.tip;
     let nonce = match extra.nonce {
         Some(n) => n,
-        _ => get_next_nonce(rpc_node, &addr)?.next_nonce,
+        _ => get_next_nonce(rpc_node, &addr)?,
     };
 
     let call_data = UnsignedExtrinsic {
