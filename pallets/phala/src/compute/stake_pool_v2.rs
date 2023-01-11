@@ -549,6 +549,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		#[frame_support::transactional]
 		pub fn claim_legacy_rewards(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -562,7 +563,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn push_legacy_rewards_data(
+		pub fn backfill_add_missing_reward(
 			origin: OriginFor<T>,
 			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
 		) -> DispatchResult {
