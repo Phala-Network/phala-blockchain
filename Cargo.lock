@@ -8141,7 +8141,7 @@ dependencies = [
 
 [[package]]
 name = "pink-subrpc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base58",
  "hex",
