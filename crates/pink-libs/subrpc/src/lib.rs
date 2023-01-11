@@ -9,19 +9,21 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
-use scale::{Compact, Encode};
 
 use pink_json as json;
+use scale::{Compact, Decode, Encode};
 
 mod objects;
+mod primitives;
 mod rpc;
 mod ss58;
 pub mod storage;
 mod transaction;
 
 use objects::*;
+pub use primitives::era::Era;
 use rpc::call_rpc;
-use ss58::{get_ss58addr_version, Ss58Codec};
+pub use ss58::{get_ss58addr_version, Ss58Codec};
 use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
 
 pub mod traits {
@@ -31,23 +33,11 @@ pub mod traits {
         #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
         #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
         pub enum Error {
-            BadAbi,
-            BadOrigin,
-            AssetAlreadyRegistered,
-            AssetNotFound,
-            ChainAlreadyRegistered,
-            ChainNotFound,
-            ExtractLocationFailed,
-            InvalidAddress,
-            ConstructContractFailed,
-            FetchDataFailed,
-            Unimplemented,
-            InvalidMultilocation,
-            InvalidAmount,
             SubRPCRequestFailed,
             InvalidBody,
             InvalidSignature,
             Ss58,
+            ParseFailed,
         }
     }
 }
@@ -76,7 +66,7 @@ pub fn get_storage(rpc_node: &str, key: &[u8], at: Option<H256>) -> Result<Optio
 ///
 /// Nonce represents how many transactions the account has successfully issued
 /// TODO: simplify
-pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<NextNonceOk, Error> {
+pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<u64, Error> {
     // TODO: can we contruct the json object using serde_json_core?
     let data = format!(
         r#"{{"id":1,"jsonrpc":"2.0","method":"system_accountNextIndex","params":["{}"]}}"#,
@@ -91,7 +81,7 @@ pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<N
         next_nonce: next_nonce.result,
     };
 
-    Ok(next_nonce_ok)
+    Ok(next_nonce_ok.next_nonce)
 }
 
 // TODO: simplify
@@ -100,28 +90,32 @@ pub fn get_runtime_version(rpc_node: &str) -> core::result::Result<RuntimeVersio
         .to_string()
         .into_bytes();
     let resp_body = call_rpc(rpc_node, data)?;
-
     let runtime_version: RuntimeVersion =
         json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
 
     let runtime_version_result = runtime_version.result;
     let mut api_vec: Vec<(String, u32)> = Vec::new();
     for (api_str, api_u32) in runtime_version_result.apis {
-        api_vec.push((api_str.to_string().parse().unwrap(), api_u32));
+        api_vec.push((
+            api_str
+                .to_string()
+                .parse()
+                .map_err(|_| Error::ParseFailed)?,
+            api_u32,
+        ));
     }
 
     let runtime_version_ok = RuntimeVersionOk {
-        // TODO: replace the upwraps
         spec_name: runtime_version_result
             .spec_name
             .to_string()
             .parse()
-            .unwrap(),
+            .map_err(|_| Error::ParseFailed)?,
         impl_name: runtime_version_result
             .impl_name
             .to_string()
             .parse()
-            .unwrap(),
+            .map_err(|_| Error::ParseFailed)?,
         authoring_version: runtime_version_result.authoring_version,
         spec_version: runtime_version_result.spec_version,
         impl_version: runtime_version_result.impl_version,
@@ -156,6 +150,59 @@ pub fn get_block_hash(
     Ok(H256(hash))
 }
 
+/// Gets revalant block header by given block hash
+/// Only work with chains define generic patterns like `Header<u32, BlakeTwo256>`
+pub fn get_header(
+    rpc_node: &str,
+    block_hash: Option<H256>,
+) -> core::result::Result<BlockHeaderOk, Error> {
+    let param = block_hash.map_or("null".to_string(), |h| format!("\"0x{h:x}\""));
+
+    let data =
+        format!(r#"{{"id":1, "jsonrpc":"2.0", "method": "chain_getHeader","params":[{param}]}}"#)
+            .into_bytes();
+    let resp_body = call_rpc(rpc_node, data)?;
+    let header: BlockHeader = json::from_slice(&resp_body)
+        .or(Err(Error::InvalidBody))
+        .unwrap();
+
+    let header_result = header.result;
+    let decoded_parent_hash =
+        hex::decode(&header_result.parent_hash[2..]).or(Err(Error::InvalidBody))?;
+    let decoded_state_root =
+        hex::decode(&header_result.state_root[2..]).or(Err(Error::InvalidBody))?;
+    let decoded_extrinsics_root =
+        hex::decode(&header_result.extrinsics_root[2..]).or(Err(Error::InvalidBody))?;
+    Ok(BlockHeaderOk {
+        parent_hash: decoded_parent_hash.try_into().or(Err(Error::InvalidBody))?,
+        number: u32::from_str_radix(&header_result.number[2..], 16).expect("block number overflow"),
+        state_root: decoded_state_root.try_into().or(Err(Error::InvalidBody))?,
+        extrinsics_root: decoded_extrinsics_root
+            .try_into()
+            .or(Err(Error::InvalidBody))?,
+        digest: header_result.digest,
+    })
+}
+
+#[derive(Default, Encode, Decode, Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct ExtraParam {
+    // Tip for the block producer.
+    pub tip: u128,
+    // Account nonce along with extrinsic
+    pub nonce: Option<u64>,
+    // Longevity of a transaction
+    pub era: Option<Era>,
+}
+
+fn compute_era(block_number: u64) -> core::result::Result<Era, Error> {
+    // The transaction longevity, should be a power of two between 4 and 65536. unit: bloc
+    let longevity = 4;
+    let period = longevity;
+    let phase = block_number % period;
+    Ok(Era::Mortal(period, phase))
+}
+
 /// Creates an extrinsic
 ///
 /// An extended version of `create_transaction`, fine-grain
@@ -166,6 +213,7 @@ pub fn create_transaction_ext<T: Encode>(
     nonce: u64,
     spec_version: u32,
     transaction_version: u32,
+    era_checkpoint: &[u8; 32],
     genesis_hash: &[u8; 32],
     call_data: UnsignedExtrinsic<T>,
     era: Era,
@@ -175,7 +223,7 @@ pub fn create_transaction_ext<T: Encode>(
         spec_version,
         transaction_version,
         genesis_hash,
-        genesis_hash,
+        era_checkpoint,
     );
     let extra = (era, Compact(nonce), Compact(tip));
 
@@ -233,19 +281,32 @@ pub fn create_transaction<T: Encode>(
     pallet_id: u8,
     call_id: u8,
     data: T,
+    extra: ExtraParam,
 ) -> core::result::Result<Vec<u8>, Error> {
     let version = get_ss58addr_version(chain)?;
     let public_key: [u8; 32] = signing::get_public_key(signer, SigType::Sr25519)
         .try_into()
-        .unwrap();
+        .expect("Public key conversion failed");
     let addr = public_key.to_ss58check_with_version(version.prefix());
-    let nonce = get_next_nonce(rpc_node, &addr)?.next_nonce;
     let runtime_version = get_runtime_version(rpc_node)?;
     let genesis_hash: [u8; 32] = get_genesis_hash(rpc_node)?.0;
+
     let spec_version = runtime_version.spec_version;
     let transaction_version = runtime_version.transaction_version;
-    let era = Era::Immortal;
-    let tip: u128 = 0;
+    let (era_checkpoint, era) = match extra.era {
+        Some(Era::Immortal) => (genesis_hash, Era::Immortal),
+        _ => {
+            let header = get_header(rpc_node, <Option<H256>>::None)?;
+            let era = extra.era.unwrap_or(compute_era(header.number as u64)?);
+            (header.hash(), era)
+        }
+    };
+    let tip = extra.tip;
+    let nonce = match extra.nonce {
+        Some(n) => n,
+        _ => get_next_nonce(rpc_node, &addr)?,
+    };
+
     let call_data = UnsignedExtrinsic {
         pallet_id,
         call_id,
@@ -257,6 +318,7 @@ pub fn create_transaction<T: Encode>(
         nonce,
         spec_version,
         transaction_version,
+        &era_checkpoint,
         &genesis_hash,
         call_data,
         era,
@@ -273,6 +335,7 @@ pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Resul
     .into_bytes();
     let resp_body = call_rpc(rpc_node, data)?;
     let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+
     hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))
 }
 
@@ -375,9 +438,17 @@ mod tests {
         let signer: [u8; 32] =
             hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
         let remark = "Greetings from unit tests!".to_string();
-        let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
+        let signed_tx = create_transaction(
+            &signer,
+            "khala",
+            rpc_node,
+            0u8,
+            1u8,
+            remark,
+            ExtraParam::default(),
+        );
         if signed_tx.is_err() {
-            println!("failed to signed tx");
+            println!("failed to sign tx");
             return;
         };
         let signed_tx = signed_tx.unwrap();
@@ -387,7 +458,7 @@ mod tests {
             return;
         }
         let tx_id = tx_id.unwrap();
-        // https://khala.subscan.io/extrinsic/2676952-2
+        // https://khala.subscan.io/extrinsic/3083306-2
         dbg!(hex::encode(tx_id));
     }
 
@@ -439,9 +510,10 @@ mod tests {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
+            ExtraParam::default(),
         );
         if signed_tx.is_err() {
-            println!("failed to signed tx");
+            println!("failed to sign tx");
             return;
         };
         let signed_tx = signed_tx.unwrap();
