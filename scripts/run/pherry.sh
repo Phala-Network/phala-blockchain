@@ -5,4 +5,6 @@
     --pruntime-endpoint http://127.0.0.1:18000 \
     --no-wait \
     --use-dev-key \
-    --mnemonic=//Ferdie
+    --mnemonic=//Ferdie \
+    --attestation-provider none
+
