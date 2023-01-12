@@ -83,6 +83,9 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
+
+	#[pallet::storage]
+	pub type LegacyRewards<T: Config> = StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
 	/// Mapping from workers to the pool they belong to
 	///
 	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
@@ -309,6 +312,8 @@ pub mod pallet {
 		WorkerIsNotReady,
 
 		LockAccountStakeError,
+
+		NoLegacyRewardToClaim,
 	}
 
 	#[pallet::call]
@@ -540,6 +545,34 @@ pub mod pallet {
 			}
 			Self::deposit_event(Event::<T>::PoolCommissionSet { pid, commission });
 
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn claim_legacy_rewards(
+			origin: OriginFor<T>,
+			pid: u64,
+			target: T::AccountId,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let rewards = LegacyRewards::<T>::take((who, pid)).ok_or(Error::<T>::NoLegacyRewardToClaim)?;
+			computation::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn backfill_add_missing_reward(
+			origin: OriginFor<T>,
+			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+
+			for (account_id, pid, balance) in input.iter() {
+				LegacyRewards::<T>::insert((account_id.clone(), *pid), *balance);
+			}
 			Ok(())
 		}
 

@@ -90,10 +90,9 @@ pub mod pallet {
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
 
-	type PropertyKey<S> = (
+	type LockKey = (
 		CollectionId,
-		Option<NftId>,
-		BoundedVec<u8, <S as pallet_uniques::Config>::KeyLimit>,
+		NftId,
 	);
 
 	type ShareTransferProxy<T> = (
@@ -105,7 +104,7 @@ pub mod pallet {
 	);
 
 	#[pallet::storage]
-	pub type PropertyIterateStartPos<T> = StorageValue<_, Option<PropertyKey<T>>, ValueQuery>;
+	pub type LockIterateStartPos<T> = StorageValue<_, Option<LockKey>, ValueQuery>;
 
 	/// The number of total pools
 	#[pallet::storage]
@@ -498,53 +497,45 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn reset_iter_pos(origin: OriginFor<T>) -> DispatchResult {
+		pub fn reset_lock_iter_pos(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
-			PropertyIterateStartPos::<T>::put(None::<PropertyKey<T>>);
+			LockIterateStartPos::<T>::put(None::<LockKey>);
 			Ok(())
 		}
 
 		#[pallet::weight(0)]
-		pub fn remove_unused_property(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
+		pub fn remove_unused_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
-			let last_pos = PropertyIterateStartPos::<T>::get();
+			let last_pos = LockIterateStartPos::<T>::get();
 			let mut iter = match last_pos {
 				Some(pos) => {
 					let key: Vec<u8> =
-						pallet_rmrk_core::pallet::Properties::<T>::hashed_key_for(pos);
-					pallet_rmrk_core::pallet::Properties::<T>::iter_from(key)
+						pallet_rmrk_core::pallet::Lock::<T>::hashed_key_for(pos);
+					pallet_rmrk_core::pallet::Lock::<T>::iter_from(key)
 				}
-				None => pallet_rmrk_core::pallet::Properties::<T>::iter(),
+				None => pallet_rmrk_core::pallet::Lock::<T>::iter(),
 			};
 			let mut record_vec = vec![];
 			let mut i = 0;
-			for ((cid, maybe_nft_id, key), _) in iter.by_ref() {
-				if cid >= RESERVE_CID_START {
-					if let Some(nft_id) = maybe_nft_id {
-						if !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id) {
-							record_vec.push((cid, nft_id, key));
-						}
-					}
+			for ((cid, nft_id), _) in iter.by_ref() {
+				if cid >= RESERVE_CID_START && !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id) {
+						record_vec.push((cid, nft_id));
 				}
 				i += 1;
 				if i > max_iterations {
 					break;
 				}
 			}
-			if let Some(((cid, maybe_nft_id, key), _)) = iter.next() {
-				PropertyIterateStartPos::<T>::put(Some((cid, maybe_nft_id, key)));
+			if let Some(((cid, nft_id), _)) = iter.next() {
+				LockIterateStartPos::<T>::put(Some((cid, nft_id)));
 			} else {
-				PropertyIterateStartPos::<T>::put(None::<PropertyKey<T>>);
+				LockIterateStartPos::<T>::put(None::<LockKey>);
 			}
 
-			for (cid, nft_id, key) in record_vec.iter() {
-				let _ = pallet_rmrk_core::Pallet::<T>::do_remove_property(
-					*cid,
-					Some(*nft_id),
-					key.clone(),
-				);
+			for (cid, nft_id) in record_vec.iter() {
+				pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
 			}
 
 			Ok(())
@@ -968,6 +959,7 @@ pub mod pallet {
 				Error::<T>::BurnNftFailed,
 			);
 			Self::remove_properties(cid, nft_id);
+			pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
 			Ok(())
 		}
 
