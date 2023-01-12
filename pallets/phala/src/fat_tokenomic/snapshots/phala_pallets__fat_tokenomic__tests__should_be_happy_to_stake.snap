@@ -60,12 +60,14 @@ expression: events
     ),
     RuntimeEvent::FatTokenomic(
         Event::ContractDepositChanged {
+            cluster: None,
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             deposit: 1000000000000,
         },
     ),
     RuntimeEvent::FatTokenomic(
         Event::UserStakeChanged {
+            cluster: None,
             account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             stake: 1000000000000,
@@ -80,12 +82,14 @@ expression: events
     ),
     RuntimeEvent::FatTokenomic(
         Event::ContractDepositChanged {
+            cluster: None,
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             deposit: 3000000000000,
         },
     ),
     RuntimeEvent::FatTokenomic(
         Event::UserStakeChanged {
+            cluster: None,
             account: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             stake: 2000000000000,
@@ -100,12 +104,14 @@ expression: events
     ),
     RuntimeEvent::FatTokenomic(
         Event::ContractDepositChanged {
+            cluster: None,
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             deposit: 1000000000000,
         },
     ),
     RuntimeEvent::FatTokenomic(
         Event::UserStakeChanged {
+            cluster: None,
             account: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             stake: 0,
@@ -125,12 +131,14 @@ expression: events
     ),
     RuntimeEvent::FatTokenomic(
         Event::ContractDepositChanged {
+            cluster: None,
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             deposit: 0,
         },
     ),
     RuntimeEvent::FatTokenomic(
         Event::UserStakeChanged {
+            cluster: None,
             account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             stake: 0,
