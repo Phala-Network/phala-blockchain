@@ -27,32 +27,20 @@ Now you have full node at `ws://localhost:19944`, and pruntime at `http://localh
 
 ## Setup Phat Contract environment
 
-In addition to a fresh local testnet setup, you will also want to set up the Phat Contract runtime. This can be done with our js script:
+In addition to a fresh local testnet setup, you will also want to set up the Phat Contract runtime. This can be done with our [phala-blockchain-setup repo](https://github.com/shelvenzhou/phala-blockchain-setup):
 
 ```bash
-cd scripts/js
+git clone https://github.com/shelvenzhou/phala-blockchain-setup.git
+cd phala-blockchain-setup
 yarn
-node src/bin/setupTestnet.js
+
+ENDPOINT=ws://localhost:19944 \
+WORKERS=http://localhost:18000 \
+GKS=http://localhost:18000 \
+yarn setup:drivers
 ```
 
-Note that the script connect to the default ports of the node and pruntime. If you want to set it up differently, you may want to check the arguments of the script:
-
-```bash
-node src/bin/setupTestnet.js --help
-
-# Usage: setupTestnet [options]
-#
-# Set up a bare testnet with a single worker to run Phat Contract. The worker will be the only Gatekeeper and the worker to run contracts.
-#
-# Options:
-#   --substrate <endpoint>    substrate ws rpc endpoint (default: "ws://localhost:19944")
-#   --root-key <key>          root key SURI (default: "//Alice")
-#   --root-type <key-type>    root key type (default: "sr25519")
-#   --pruntime <pr-endpoint>  pruntime rpc endpoint (default: "http://localhost:18000")
-#   -h, --help                display help for command
-```
-
-> WIP: SideVM and logger are not currently set up by the script yet.
+This script will also setup SideVM and the log server. To learn more, please refer to the README of the [phala-blockchain-setup repo](https://github.com/shelvenzhou/phala-blockchain-setup).
 
 ## Scripts
 
