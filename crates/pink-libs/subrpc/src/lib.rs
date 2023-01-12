@@ -13,6 +13,7 @@ use pink_extension::chain_extension::{signing, SigType};
 use pink_json as json;
 use scale::{Compact, Decode, Encode};
 
+mod hasher;
 mod objects;
 mod primitives;
 mod rpc;
