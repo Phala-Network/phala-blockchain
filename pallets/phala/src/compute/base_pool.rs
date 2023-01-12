@@ -520,10 +520,8 @@ pub mod pallet {
 			let mut record_vec = vec![];
 			let mut i = 0;
 			for ((cid, nft_id), _) in iter.by_ref() {
-				if cid >= RESERVE_CID_START {
-					if !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id) {
+				if cid >= RESERVE_CID_START && !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id) {
 						record_vec.push((cid, nft_id));
-					}
 				}
 				i += 1;
 				if i > max_iterations {
@@ -537,7 +535,7 @@ pub mod pallet {
 			}
 
 			for (cid, nft_id) in record_vec.iter() {
-				let _ = pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
+				pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
 			}
 
 			Ok(())
@@ -961,7 +959,7 @@ pub mod pallet {
 				Error::<T>::BurnNftFailed,
 			);
 			Self::remove_properties(cid, nft_id);
-			let _ = pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
+			pallet_rmrk_core::pallet::Lock::<T>::remove((cid, nft_id));
 			Ok(())
 		}
 
