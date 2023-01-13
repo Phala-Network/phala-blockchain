@@ -3,7 +3,6 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use serde::Deserialize;
-use sp_core_hashing::blake2_256;
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
@@ -33,12 +32,6 @@ pub struct BlockHeaderOk {
     pub(crate) number: u32,
     pub(crate) state_root: [u8; 32],
     pub(crate) extrinsics_root: [u8; 32],
-}
-
-impl BlockHeaderOk {
-    pub fn hash(&self) -> [u8; 32] {
-        blake2_256(&self.encode())
-    }
 }
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
