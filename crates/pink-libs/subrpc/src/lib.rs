@@ -165,7 +165,6 @@ pub fn get_header(
     let header: BlockHeader = json::from_slice(&resp_body)
         .or(Err(Error::InvalidBody))
         .unwrap();
-
     let header_result = header.result;
     let decoded_parent_hash =
         hex::decode(&header_result.parent_hash[2..]).or(Err(Error::InvalidBody))?;
@@ -180,7 +179,6 @@ pub fn get_header(
         extrinsics_root: decoded_extrinsics_root
             .try_into()
             .or(Err(Error::InvalidBody))?,
-        digest: header_result.digest,
     })
 }
 
@@ -296,9 +294,10 @@ pub fn create_transaction<T: Encode>(
     let (era_checkpoint, era) = match extra.era {
         Some(Era::Immortal) => (genesis_hash, Era::Immortal),
         _ => {
-            let header = get_header(rpc_node, <Option<H256>>::None)?;
+            let latest_block_hash = get_block_hash(rpc_node, None)?;
+            let header = get_header(rpc_node, Some(latest_block_hash))?;
             let era = extra.era.unwrap_or(compute_era(header.number as u64)?);
-            (header.hash(), era)
+            (latest_block_hash.into(), era)
         }
     };
     let tip = extra.tip;
@@ -458,7 +457,7 @@ mod tests {
             return;
         }
         let tx_id = tx_id.unwrap();
-        // https://khala.subscan.io/extrinsic/3083306-2
+        // https://khala.subscan.io/extrinsic/3102211-2
         dbg!(hex::encode(tx_id));
     }
 
