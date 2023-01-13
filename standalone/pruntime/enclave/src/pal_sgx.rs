@@ -46,18 +46,6 @@ fn pfs_key(key: &[u8]) -> sgx_key_128bit_t {
     fs_key
 }
 
-impl SgxPlatform {
-    pub fn async_executor_run() {
-        info!("Async executor started");
-        phala_async_executor::run_executor();
-    }
-
-    pub fn async_reactor_run() {
-        info!("Async reactor started");
-        async_io::io_main_loop();
-    }
-}
-
 impl Sealing for SgxPlatform {
     type SealError = anyhow::Error;
     type UnsealError = anyhow::Error;

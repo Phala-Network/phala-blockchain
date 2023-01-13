@@ -44,14 +44,11 @@ use phala_crypto::{
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
-use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
 use std::time::Instant;
 use types::Error;
 
-pub use contracts::pink;
-pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
@@ -59,13 +56,10 @@ pub use types::BlockInfo;
 pub mod benchmark;
 
 mod bin_api_service;
-mod contracts;
 mod cryptography;
 mod light_validation;
 mod prpc_service;
 mod rpc_types;
-mod secret_channel;
-mod side_task;
 mod storage;
 mod system;
 mod types;
@@ -94,12 +88,7 @@ struct RuntimeState {
 impl RuntimeState {
     fn purge_mq(&mut self) {
         self.send_mq.purge(|sender| {
-            use pallet_mq::StorageMapTrait as _;
-            type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
-
-            let module_prefix = OffchainIngress::module_prefix();
-            let storage_prefix = OffchainIngress::storage_prefix();
-            let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
+            let key = storage_map_prefix_twox_64_concat(b"PhalaMq", b"OffchainIngress", sender);
             let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
             debug!("purging, sequence = {}", sequence);
             sequence
@@ -162,7 +151,6 @@ pub struct Phactory<Platform> {
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    side_task_man: SideTaskManager,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
@@ -187,7 +175,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
-            side_task_man: Default::default(),
             last_checkpoint: Instant::now(),
             last_storage_purge_at: 0,
         }
@@ -384,13 +371,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
         Ok(Some(loader.0))
-    }
-
-    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
-        if let Some(system) = self.system.as_mut() {
-            system.commit_changes()?;
-        }
-        Ok(())
     }
 }
 

@@ -1,5 +1,4 @@
 use super::{TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_registry::ContractRegistryEvent;
 use parity_scale_codec::Encode;
 use phala_crypto::{
     aead, ecdh,
@@ -8,11 +7,9 @@ use phala_crypto::{
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
-    contract::messaging::ContractEvent,
     messaging::{
-        ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
-        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
-        SystemEvent, WorkerEvent, WorkerEventWithKey,
+        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -20,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use sp_application_crypto::Pair;
 use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
-use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
+use crate::types::BlockInfo;
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -55,19 +52,6 @@ fn next_random_number(
     buf.extend(derived_random_key.dump_secret_key().iter().copied());
 
     hashing::blake2_256(buf.as_ref())
-}
-
-fn get_contract_key(
-    master_key: &sr25519::Pair,
-    contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
-) -> sr25519::Pair {
-    // TODO(shelven): use persistent info for contract key derivation
-    master_key
-        .derive_sr25519_pair(&[
-            b"contract_key",
-            Encode::encode(contract_info).as_bytes_ref(),
-        ])
-        .expect("should not fail with valid info")
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -115,7 +99,6 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    contract_events: TypedReceiver<ContractEvent<chain::Hash, chain::AccountId>>,
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
@@ -139,7 +122,6 @@ where
             registered_on_chain: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
-            contract_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
             mining_economics: MiningEconomics::new(recv_mq, egress),
@@ -230,9 +212,6 @@ where
                 (event, origin) = self.gatekeeper_events => {
                     self.process_gatekeeper_event(origin, event);
                 },
-                (event, origin) = self.contract_events => {
-                    self.process_contract_event(origin, event);
-                },
             };
             if ok.is_none() {
                 // All messages processed
@@ -264,55 +243,6 @@ where
                 // Handled by MiningEconomics
             }
         }
-    }
-
-    fn process_contract_event(
-        &mut self,
-        origin: MessageOrigin,
-        event: ContractEvent<chain::Hash, chain::AccountId>,
-    ) -> Result<(), TransactionError> {
-        info!("Incoming contract event: {:?}", event);
-        match event {
-            ContractEvent::InstantiateCode {
-                contract_info,
-                deploy_worker,
-            } => {
-                if !origin.is_pallet() {
-                    error!("Attempt to instantiate pink from bad origin");
-                    return Err(TransactionError::BadOrigin);
-                }
-
-                // first, update the on-chain ContractPubkey
-                let (worker_pubkey, ecdh_pubkey) = deploy_worker;
-                let contract_key = get_contract_key(&self.master_key, &contract_info);
-                self.egress
-                    .push_message(&ContractRegistryEvent::PubkeyAvailable {
-                        pubkey: contract_key.public(),
-                        info: contract_info.clone(),
-                    });
-                // then distribute contract key to the worker
-                // and update the on-chain deployment state
-                let ecdh_key = self
-                    .master_key
-                    .derive_ecdh_key()
-                    .expect("should never fail with valid master key; qed.");
-                let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
-                secret_mq
-                    .bind_remote_key(Some(&ecdh_pubkey.0))
-                    .push_message(&ContractKeyDistribution::contract_key_distribution(
-                        contract_key.dump_secret_key(),
-                        contract_info.clone(),
-                        0,
-                    ));
-                self.egress.push_message(
-                    &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
-                        contract_pubkey: contract_key.public(),
-                        worker_pubkey: worker_pubkey,
-                    },
-                );
-            }
-        }
-        Ok(())
     }
 
     /// Verify on-chain random number

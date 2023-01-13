@@ -17,8 +17,8 @@ jsonrpc-core-client = "18.0.0"
 impl-serde = "0.3"
 log = { version = "0.4.14", default-features = false }
 hex = { version = "0.4.3", default-features = false }
-codec = { package = "parity-scale-codec", version = "2.2" }
-scale-info = { version = "1.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "3" }
+scale-info = { version = "2", default-features = false }
 
 # primitives
 sp-runtime = { path = "../../substrate/primitives/runtime" }

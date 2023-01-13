@@ -1,24 +1,14 @@
 pub mod gk;
 mod master_key;
-mod side_tasks;
 
-use crate::{
-    benchmark,
-    contracts::{pink::cluster::Cluster, ContractsKeeper, ExecuteEnv, NativeContract},
-    pink::{cluster::ClusterKeeper, Pink},
-    secret_channel::{ecdh_serde, SecretReceiver},
-    types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
-};
+use crate::{benchmark, types::BlockInfo};
 use anyhow::{Context, Result};
 use core::fmt;
 use log::info;
-use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
 use std::collections::BTreeMap;
 
-use crate::contracts;
 use crate::pal;
-use chain::pallet_registry::RegistryEvent;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
@@ -32,19 +22,22 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, CodeIndex, ContractInfo},
     messaging::{
-        ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
-        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerEvent, WorkerPinkReport,
+        DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
+        WorkerPinkReport,
     },
     ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
-pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
+phala_mq::bind_topic!(RegistryEvent, b"^phala/registry/event");
+#[derive(Encode, Decode, Clone, Debug)]
+pub enum RegistryEvent {
+    BenchReport { start_time: u64, iterations: u64 },
+    MasterPubkey { master_pubkey: MasterPublicKey },
+}
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum TransactionError {
@@ -387,7 +380,6 @@ pub struct System<Platform> {
     platform: Platform,
     // Configuration
     pub(crate) sealing_path: String,
-    enable_geoprobing: bool,
     pub(crate) geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
@@ -395,8 +387,6 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    contract_key_distribution_events:
-        SecretReceiver<ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
@@ -407,10 +397,6 @@ pub struct System<Platform> {
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
-    pub(crate) contracts: ContractsKeeper,
-    contract_clusters: ClusterKeeper,
-    contract_keys: BTreeMap<ContractPublicKey, ContractKey>,
-
     // Cached for query
     block_number: BlockNumber,
     now_ms: u64,
@@ -420,13 +406,11 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
         platform: Platform,
         sealing_path: String,
-        enable_geoprobing: bool,
         geoip_city_db: String,
         identity_key: sr25519::Pair,
         ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        contracts: ContractsKeeper,
     ) -> Self {
         let identity_key = WorkerIdentityKey(identity_key);
         let pubkey = identity_key.public();
@@ -436,67 +420,26 @@ impl<Platform: pal::Platform> System<Platform> {
         System {
             platform,
             sealing_path,
-            enable_geoprobing,
             geoip_city_db,
             egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
-            contract_key_distribution_events: SecretReceiver::new_secret(
-                recv_mq
-                    .subscribe(ContractKeyDistribution::<
-                        chain::Hash,
-                        chain::BlockNumber,
-                        chain::AccountId,
-                    >::topic())
-                    .into(),
-                ecdh_key.clone(),
-            ),
             identity_key,
             ecdh_key,
             worker_state: WorkerState::new(pubkey),
             master_key,
             gatekeeper: None,
-            contracts,
-            contract_clusters: Default::default(),
-            contract_keys: Default::default(),
             block_number: 0,
             now_ms: 0,
         }
-    }
-
-    pub fn handle_query(
-        &mut self,
-        origin: Option<&chain::AccountId>,
-        contract_id: &ContractId,
-        req: OpaqueQuery,
-    ) -> Result<OpaqueReply, OpaqueError> {
-        let contract = self
-            .contracts
-            .get_mut(contract_id)
-            .ok_or(OpaqueError::ContractNotFound)?;
-        let mut context = contracts::QueryContext {
-            block_number: self.block_number,
-            now_ms: self.now_ms,
-            contract_clusters: &mut self.contract_clusters,
-        };
-        contract.handle_query(origin, req, &mut context)
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
-        if self.enable_geoprobing {
-            geo_probe::process_block(
-                block.block_number,
-                &self.egress,
-                block.side_task_man,
-                &self.identity_key,
-                self.geoip_city_db.clone(),
-            );
-        }
         loop {
             let ok = phala_mq::select_ignore_errors! {
                 (event, origin) = self.system_events => {
@@ -515,9 +458,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 (event, origin) = self.key_distribution_events => {
                     self.process_key_distribution_event(block, origin, event);
                 },
-                (event, origin) = self.contract_key_distribution_events => {
-                    self.process_contract_key_distribution_event(block, origin, event);
-                },
             };
             if ok.is_none() {
                 // All messages processed
@@ -531,59 +471,6 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.process_messages(block);
             gatekeeper.emit_random_number(block.block_number);
         }
-
-        // Iterate over all contracts to handle their incoming commands.
-        //
-        // Since the wasm contracts can instantiate new contracts, it means that it will mutate the `self.contracts`.
-        // So we can not directly iterate over the self.contracts.values_mut() which would keep borrowing on `self.contracts`
-        // in the scope of entire `for loop` body.
-        let contract_ids: Vec<_> = self.contracts.keys().cloned().collect();
-        'outer: for key in contract_ids {
-            // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
-            // availabe for next command.
-            loop {
-                let contract = match self.contracts.get_mut(&key) {
-                    None => continue 'outer,
-                    Some(v) => v,
-                };
-                let cluster_id = contract.cluster_id();
-                let mut env = ExecuteEnv {
-                    block: block,
-                    contract_clusters: &mut self.contract_clusters,
-                };
-                let result = match contract.process_next_message(&mut env) {
-                    Some(result) => result,
-                    None => break,
-                };
-                handle_contract_command_result(
-                    result,
-                    cluster_id,
-                    &mut self.contracts,
-                    &mut self.contract_clusters,
-                    block,
-                    &self.egress,
-                );
-            }
-            let mut env = ExecuteEnv {
-                block: block,
-                contract_clusters: &mut self.contract_clusters,
-            };
-            let contract = match self.contracts.get_mut(&key) {
-                None => continue 'outer,
-                Some(v) => v,
-            };
-            let result = contract.on_block_end(&mut env);
-            let cluster_id = contract.cluster_id();
-            handle_contract_command_result(
-                result,
-                cluster_id,
-                &mut self.contracts,
-                &mut self.contract_clusters,
-                block,
-                &self.egress,
-            );
-        }
-
         Ok(())
     }
 
@@ -777,19 +664,6 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_contract_key_distribution_event(
-        &mut self,
-        block: &mut BlockInfo,
-        origin: MessageOrigin,
-        event: ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>,
-    ) {
-        match event {
-            ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
-                self.process_contract_key_distribution(block, origin, dispatch_contract_key_event);
-            }
-        }
-    }
-
     /// Process encrypted master key from mq
     fn process_master_key_distribution(
         &mut self,
@@ -822,80 +696,6 @@ impl<Platform: pal::Platform> System<Platform> {
         Ok(())
     }
 
-    fn process_contract_key_distribution(
-        &mut self,
-        block: &mut BlockInfo,
-        origin: MessageOrigin,
-        event: DispatchContractKeyEvent<chain::Hash, chain::BlockNumber, chain::AccountId>,
-    ) -> Result<(), TransactionError> {
-        if !origin.is_gatekeeper() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin);
-        }
-
-        // TODO(shelven): forget contract key after expiration time
-        let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
-        let contract_key = ContractKey(keypair);
-        let contract_pubkey = contract_key.public();
-        let contract_info = event.contract_info;
-        match contract_info.code_index {
-            CodeIndex::NativeCode(_contract_id) => {
-                // TODO(shelven): launch native code instance
-                Ok(())
-            }
-            CodeIndex::WasmCode(code_hash) => {
-                let code = chain_state::read_contract_code(block.storage, code_hash);
-                if code.is_none() {
-                    error!(
-                        "Code 0x{} not found for contract 0x{}",
-                        hex::encode(code_hash),
-                        hex::encode(contract_key.public())
-                    );
-                    return Err(TransactionError::CodeNotFound);
-                }
-
-                if self.contract_keys.contains_key(&contract_pubkey) {
-                    info!("Deployed contract 0x{}", hex::encode(&contract_pubkey));
-                    return Ok(());
-                }
-
-                self.contract_keys
-                    .insert(contract_pubkey, contract_key.clone());
-                let cluster_id = chain::Hash::from_low_u64_be(contract_info.cluster_id);
-                let code = code.expect("checked; qed.");
-                let deployer = contract_info.deployer;
-                let effects = self
-                    .contract_clusters
-                    .instantiate_contract(
-                        cluster_id,
-                        deployer.clone(),
-                        code,
-                        contract_info.instantiate_data,
-                        contract_info.salt,
-                        &contract_key,
-                        block.block_number,
-                        block.now_ms,
-                    )
-                    .with_context(|| format!("Contract deployer: {:?}", deployer))
-                    .map_err(|_| TransactionError::FailedToExecute)?;
-
-                let cluster = self
-                    .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .expect("Cluster must exist after instantiate");
-                apply_pink_side_effects(
-                    effects,
-                    &cluster_id,
-                    &mut self.contracts,
-                    cluster,
-                    block,
-                    &self.egress,
-                );
-                Ok(())
-            }
-        }
-    }
-
     pub fn is_registered(&self) -> bool {
         self.worker_state.registered
     }
@@ -921,135 +721,6 @@ impl<Platform: pal::Platform> System<Platform> {
             master_public_key,
         }
     }
-
-    pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-        self.contract_clusters.commit_changes()
-    }
-}
-
-pub fn handle_contract_command_result(
-    result: TransactionResult,
-    cluster_id: Option<phala_mq::ContractClusterId>,
-    contracts: &mut ContractsKeeper,
-    clusters: &mut ClusterKeeper,
-    block: &mut BlockInfo,
-    egress: &SignedMessageChannel,
-) {
-    let effects = match result {
-        Err(err) => {
-            error!("Run contract command failed: {:?}", err);
-            return;
-        }
-        Ok(effects) => effects,
-    };
-    if let Some(cluster_id) = cluster_id {
-        let cluster = match clusters.get_cluster_mut(&cluster_id) {
-            None => {
-                error!(
-                    "BUG: pink cluster not found, it should always exsists, cluster_id={:?}",
-                    cluster_id
-                );
-                return;
-            }
-            Some(cluster) => cluster,
-        };
-        apply_pink_side_effects(effects, &cluster_id, contracts, cluster, block, egress);
-    }
-}
-
-pub fn apply_pink_side_effects(
-    effects: ExecSideEffects,
-    cluster_id: &phala_mq::ContractClusterId,
-    contracts: &mut ContractsKeeper,
-    cluster: &mut Cluster,
-    block: &mut BlockInfo,
-    egress: &SignedMessageChannel,
-) {
-    let contract_key = cluster.key().clone();
-    let ecdh_key = contract_key
-        .derive_ecdh_key()
-        .expect("Derive ecdh_key should not fail");
-
-    for (deployer, address) in effects.instantiated {
-        let pink = Pink::from_address(address, cluster_id.clone());
-        let id = pink.id();
-
-        install_contract(
-            contracts,
-            pink,
-            contract_key.clone(),
-            ecdh_key.clone(),
-            block,
-        );
-
-        cluster.add_contract(id.clone());
-        let message = WorkerPinkReport::PinkInstantiated {
-            id,
-            cluster_id: *cluster_id,
-            owner: phala_types::messaging::AccountId(deployer.into()),
-            pubkey: EcdhPublicKey(ecdh_key.public()),
-        };
-
-        info!("pink instantiate status: {:?}", message);
-        egress.push_message(&message);
-    }
-
-    for (address, event) in effects.pink_events {
-        let id = Pink::address_to_id(&address);
-        let contract = match contracts.get_mut(&id) {
-            Some(contract) => contract,
-            None => {
-                panic!(
-                    "BUG: Unknown contract sending pink event, address={:?}",
-                    address
-                );
-            }
-        };
-        use pink::runtime::PinkEvent;
-        match event {
-            PinkEvent::Message(message) => {
-                contract.push_message(
-                    message.payload,
-                    message.topic,
-                );
-            }
-            PinkEvent::OspMessage(message) => {
-                contract.push_osp_message(
-                    message.message.payload,
-                    message.message.topic,
-                    message.remote_pubkey.as_ref(),
-                );
-            }
-            PinkEvent::OnBlockEndSelector(selector) => {
-                contract.set_on_block_end_selector(selector);
-            }
-        }
-    }
-}
-
-pub fn install_contract<Contract>(
-    contracts: &mut ContractsKeeper,
-    contract: Contract,
-    contract_key: sr25519::Pair,
-    ecdh_key: EcdhKey,
-    block: &mut BlockInfo,
-) where
-    Contract: NativeContract + Send + 'static,
-    <Contract as NativeContract>::Cmd: Send,
-    contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>,
-{
-    let contract_id = contract.id();
-    let sender = MessageOrigin::Contract(contract_id);
-    let mq = block.send_mq.channel(sender, contract_key.into());
-    let cmd_mq = SecretReceiver::new_secret(
-        block
-            .recv_mq
-            .subscribe(contract::command_topic(contract_id))
-            .into(),
-        ecdh_key.clone(),
-    );
-    let wrapped = contracts::NativeCompatContract::new(contract, mq, cmd_mq, ecdh_key.clone());
-    contracts.insert(wrapped);
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -1113,69 +784,5 @@ pub mod chain_state {
         let key =
             storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"Contracts", &contract_pubkey);
         chain_storage.get_decoded(&key).unwrap_or(None)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_on_block_end() {
-        let contract_key = sp_core::Pair::from_seed(&Default::default());
-        let mut contracts = ContractsKeeper::default();
-        let mut keeper = ClusterKeeper::default();
-        let wasm_bin = pink::load_test_wasm("hooks_test");
-        let cluster_id = phala_mq::ContractClusterId(Default::default());
-        let effects = keeper
-            .instantiate_contract(
-                cluster_id,
-                Default::default(),
-                wasm_bin,
-                vec![0xed, 0x4b, 0x9d, 0x1b],
-                Default::default(),
-                &contract_key,
-                1,
-                1,
-            )
-            .unwrap();
-        insta::assert_debug_snapshot!(effects);
-
-        let cluster = keeper.get_cluster_mut(&cluster_id).unwrap();
-        let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
-        let signer = sr25519::Pair::from_seed(&Default::default());
-        let egress = builder
-            .send_mq
-            .channel(MessageOrigin::Worker(Default::default()), signer.into());
-        let mut block_info = builder.build();
-
-        apply_pink_side_effects(
-            effects,
-            &cluster_id,
-            &mut contracts,
-            cluster,
-            &mut block_info,
-            &egress,
-        );
-
-        insta::assert_display_snapshot!(contracts.len());
-
-        let mut env = ExecuteEnv {
-            block: &mut block_info,
-            contract_clusters: &mut &mut keeper,
-        };
-
-        for contract in contracts.values_mut() {
-            let effects = contract.on_block_end(&mut env).unwrap();
-            insta::assert_debug_snapshot!(effects);
-        }
-
-        let messages: Vec<_> = builder
-            .send_mq
-            .all_messages()
-            .into_iter()
-            .map(|msg| (msg.sequence, msg.message))
-            .collect();
-        insta::assert_debug_snapshot!(messages);
     }
 }

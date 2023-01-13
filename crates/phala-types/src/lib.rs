@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
-pub mod contract;
-
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
@@ -12,7 +10,6 @@ use sp_core::H256;
 // Messages: Phase Wallet
 
 pub mod messaging {
-    use alloc::string::String;
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
     use core::fmt::Debug;
@@ -23,243 +20,8 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract::{self, ContractInfo};
     pub use phala_mq::types::*;
-    pub use phala_mq::{bind_contract32, bind_topic};
-
-    // TODO.kevin: reuse the Payload in secret_channel.rs.
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum CommandPayload<T> {
-        Plain(T),
-    }
-
-    // TODO.kevin:
-    //    We should create a crate for each contract just like developing apps.
-    //    Then the following types should be put in their own crates.
-    // Messages: Lottery
-
-    bind_topic!(Lottery, b"^phala/BridgeTransfer");
-    #[derive(Encode, Decode, Clone, Debug, TypeInfo)]
-    pub enum Lottery {
-        SignedTx {
-            round_id: u32,
-            token_id: Vec<u8>,
-            tx: Vec<u8>,
-        },
-        BtcAddresses {
-            address_set: Vec<Vec<u8>>,
-        },
-    }
-
-    #[derive(Encode, Decode, Debug, Clone, TypeInfo)]
-    pub enum LotteryPalletCommand {
-        NewRound {
-            round_id: u32,
-            total_count: u32,
-            winner_count: u32,
-        },
-        OpenBox {
-            round_id: u32,
-            token_id: u32,
-            btc_address: Vec<u8>,
-        },
-    }
-
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum LotteryUserCommand {
-        SubmitUtxo {
-            round_id: u32,
-            address: String,
-            utxo: (Txid, u32, u64),
-        },
-        SetAdmin {
-            new_admin: String,
-        },
-    }
-
-    bind_contract32!(LotteryCommand, contract::BTC_LOTTERY);
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum LotteryCommand {
-        UserCommand(LotteryUserCommand),
-        PalletCommand(LotteryPalletCommand),
-    }
-
-    impl LotteryCommand {
-        pub fn open_box(round_id: u32, token_id: u32, btc_address: Vec<u8>) -> Self {
-            Self::PalletCommand(LotteryPalletCommand::OpenBox {
-                round_id,
-                token_id,
-                btc_address,
-            })
-        }
-
-        pub fn new_round(round_id: u32, total_count: u32, winner_count: u32) -> Self {
-            Self::PalletCommand(LotteryPalletCommand::NewRound {
-                round_id,
-                total_count,
-                winner_count,
-            })
-        }
-    }
-
-    pub type Txid = [u8; 32];
-
-    // Messages for Balances
-
-    bind_contract32!(BalancesCommand<AccountId, Balance>, contract::BALANCES);
-    #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-    pub enum BalancesCommand<AccountId, Balance> {
-        Transfer { dest: AccountId, value: Balance },
-        TransferToChain { dest: AccountId, value: Balance },
-        TransferToTee { who: AccountId, amount: Balance },
-    }
-
-    impl<AccountId, Balance> BalancesCommand<AccountId, Balance> {
-        pub fn transfer(dest: AccountId, value: Balance) -> Self {
-            Self::Transfer { dest, value }
-        }
-
-        pub fn transfer_to_chain(dest: AccountId, value: Balance) -> Self {
-            Self::TransferToChain { dest, value }
-        }
-    }
-
-    bind_topic!(BalancesTransfer<AccountId, Balance>, b"^phala/balances/transfer");
-    #[derive(Encode, Decode, TypeInfo)]
-    pub struct BalancesTransfer<AccountId, Balance> {
-        pub dest: AccountId,
-        pub amount: Balance,
-    }
-
-    // Messages for Assets
-
-    bind_contract32!(AssetCommand<AccountId, Balance>, contract::ASSETS);
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum AssetCommand<AccountId, Balance> {
-        Issue {
-            symbol: String,
-            total: Balance,
-        },
-        Destroy {
-            id: AssetId,
-        },
-        Transfer {
-            id: AssetId,
-            dest: AccountId,
-            value: Balance,
-            index: u64,
-        },
-    }
-
-    pub type AssetId = u32;
-
-    // Messages for Web3Analytics
-
-    bind_contract32!(Web3AnalyticsCommand, contract::WEB3_ANALYTICS);
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum Web3AnalyticsCommand {
-        SetConfiguration { skip_stat: bool },
-    }
-
-    // Messages for diem
-
-    bind_contract32!(DiemCommand, contract::DIEM);
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum DiemCommand {
-        /// Sets the whitelisted accounts, in bcs encoded base64
-        AccountInfo {
-            account_info_b64: String,
-        },
-        /// Verifies a transactions
-        VerifyTransaction {
-            account_address: String,
-            transaction_with_proof_b64: String,
-        },
-        /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
-        /// once.
-        SetTrustedState {
-            trusted_state_b64: String,
-            chain_id: u8,
-        },
-        VerifyEpochProof {
-            ledger_info_with_signatures_b64: String,
-            epoch_change_proof_b64: String,
-        },
-
-        NewAccount {
-            seq_number: u64,
-        },
-        TransferXUS {
-            to: String,
-            amount: u64,
-        },
-    }
-
-    // Messages for Kitties
-
-    bind_contract32!(KittiesCommand<AccountId, Hash>, contract::SUBSTRATE_KITTIES);
-    #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum KittiesCommand<AccountId, Hash> {
-        /// Pack the kitties into the corresponding blind boxes
-        Pack {},
-        /// Transfer the box to another account, need to judge if the sender is the owner
-        Transfer { dest: String, blind_box_id: String },
-        /// Open the specific blind box to get the kitty
-        Open { blind_box_id: String },
-        /// Created a new blind box
-        Created(AccountId, Hash),
-    }
-
-    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/transfer");
-    #[derive(Debug, Clone, Encode, Decode, PartialEq, TypeInfo)]
-    pub struct KittyTransfer<AccountId> {
-        pub dest: AccountId,
-        pub kitty_id: Vec<u8>,
-    }
-
-    // Messages for Geo Location
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub struct Geocoding {
-        pub latitude: i32,
-        pub longitude: i32,
-        pub region_name: String,
-    }
-
-    bind_contract32!(GeolocationCommand, contract::GEOLOCATION);
-    #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-    pub enum GeolocationCommand {
-        UpdateGeolocation { geocoding: Option<Geocoding> },
-    }
-
-    impl GeolocationCommand {
-        pub fn update_geolocation(geocoding: Option<Geocoding>) -> Self {
-            Self::UpdateGeolocation { geocoding }
-        }
-    }
-
-    // Bind on-chain GuessNumberCommand message to the GUESS_NUMBER contract
-    bind_contract32!(GuessNumberCommand, contract::GUESS_NUMBER);
-    #[derive(Debug, Clone, Encode, Decode)]
-    pub enum GuessNumberCommand {
-        /// Refresh the random number
-        NextRandom,
-        /// Set the contract owner
-        SetOwner { owner: AccountId },
-    }
-
-    bind_contract32!(BtcPriceBotCommand, contract::BTC_PRICE_BOT);
-    #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BtcPriceBotCommand {
-        /// Set the contract owner
-        SetOwner { owner: AccountId },
-        /// Set the authentication token of telegram bot (https://core.telegram.org/bots/api#authorizing-your-bot) and
-        /// the identifier to target chat (https://core.telegram.org/bots/api#sendmessage)
-        SetupBot { token: String, chat_id: String },
-        /// Let the Tg bot to report the current BTC price
-        ReportBtcPrice,
-        /// Update the price stored inside the contract.
-        UpdateBtcPrice { price: String },
-    }
+    pub use phala_mq::bind_topic;
 
     /// A fixed point number with 64 integer bits and 64 fractional bits.
     pub type U64F64Bits = u128;
@@ -473,28 +235,7 @@ pub mod messaging {
         }
     }
 
-    bind_topic!(ContractKeyDistribution<CodeHash, BlockNumber, AccountId>, b"phala/contract/key");
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId>),
-    }
-
-    impl<CodeHash, BlockNumber, AccountId> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-        pub fn contract_key_distribution(
-            secret_key: Sr25519SecretKey,
-            contract_info: ContractInfo<CodeHash, AccountId>,
-            expiration: BlockNumber,
-        ) -> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-            ContractKeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
-                secret_key,
-                contract_info,
-                expiration,
-            })
-        }
-    }
-
     type AeadIV = [u8; 12];
-    type Sr25519SecretKey = [u8; 64];
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
@@ -506,13 +247,6 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
-    }
-
-    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId> {
-        pub secret_key: Sr25519SecretKey,
-        pub contract_info: ContractInfo<CodeHash, AccountId>,
-        pub expiration: BlockNumber,
     }
 
     // Messages: Gatekeeper

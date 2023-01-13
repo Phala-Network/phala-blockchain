@@ -17,10 +17,6 @@ use crate::MessageSigner;
 use serde::{Serialize, Deserialize};
 use phala_serde_more as more;
 
-pub fn contract_id256(id: u32) -> ContractId {
-    ContractId::from_low_u64_be(id as u64)
-}
-
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
@@ -49,10 +45,6 @@ pub enum MessageOrigin {
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,
-    /// A contract cluster
-    #[display(fmt = "Cluster({})", "hex::encode(_0)")]
-    #[serde(with = "more::scale_bytes")]
-    Cluster(ContractClusterId),
 }
 
 impl Hash for MessageOrigin {
@@ -73,11 +65,6 @@ impl PartialEq for MessageOrigin {
 }
 
 impl MessageOrigin {
-    /// Builds a new native confidential contract `MessageOrigin`
-    pub fn native_contract(id: u32) -> Self {
-        Self::Contract(contract_id256(id))
-    }
-
     /// Returns if the origin is located off-chain
     pub fn is_offchain(&self) -> bool {
         matches!(self, Self::Contract(_) | Self::Worker(_) | Self::Gatekeeper)
@@ -209,24 +196,6 @@ macro_rules! bind_topic {
         impl<$($gt),+> $crate::types::BindTopic for $t<$($gt),+> {
             fn topic() -> Vec<u8> {
                 $path.to_vec()
-            }
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! bind_contract32 {
-    ($t: ident, $id: expr) => {
-        impl $crate::types::ContractCommand for $t {
-            fn contract_id() -> $crate::types::ContractId {
-                $crate::types::contract_id256($id)
-            }
-        }
-    };
-    ($t: ident<$($gt: ident),+>, $id: expr) => {
-        impl<$($gt),+> $crate::types::ContractCommand for $t<$($gt),+> {
-            fn contract_id() -> $crate::types::ContractId  {
-                $crate::types::contract_id256($id)
             }
         }
     }

@@ -7,7 +7,6 @@ use crate::side_task::SideTaskManager;
 use std::str::FromStr;
 use std::{error, fmt};
 
-use phala_types::contract;
 use phala_types::messaging::{Geocoding, GeolocationCommand};
 
 use maxminddb::geoip2;

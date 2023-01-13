@@ -1,13 +1,12 @@
 use crate::system::System;
 
 use super::*;
-use crate::secret_channel::SecretReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
-use phala_types::{contract, WorkerPublicKey};
+use phala_types::WorkerPublicKey;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -109,7 +108,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             score,
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
-            running_side_tasks: self.side_task_man.tasks_count() as _,
+            running_side_tasks: 0,
             memory_usage: Some(pb::MemoryUsage {
                 rust_used: m_usage.rust_used as _,
                 rust_peak_used: m_usage.rust_peak_used as _,
@@ -224,7 +223,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             info!("State synced");
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
-            self.poll_side_tasks(block.block_header.number)?;
             if block
                 .block_header
                 .number
@@ -254,7 +252,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
-        self.commit_storage_changes()?;
         self.take_checkpoint()
     }
 
@@ -346,65 +343,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let send_mq = MessageSendQueue::default();
         let mut recv_mq = MessageDispatcher::default();
 
-        let mut contracts = contracts::ContractsKeeper::default();
-
-        if self.dev_mode {
-            // Install contracts when running in dev_mode.
-            info!("Install contracts in dev mode");
-
-            macro_rules! install_contract {
-                ($id: expr, $inner: expr) => {{
-                    let contract_id = contract::id256($id);
-                    let sender = phala_mq::MessageOrigin::native_contract($id);
-                    let mq = send_mq.channel(sender, identity_key.clone().into());
-                    // TODO.kevin: use real contract key
-                    let contract_key = ecdh_key.clone();
-                    let cmd_mq = SecretReceiver::new_secret(
-                        recv_mq
-                            .subscribe(contract::command_topic(contract_id))
-                            .into(),
-                        contract_key,
-                    );
-                    let wrapped =
-                        contracts::NativeCompatContract::new($inner, mq, cmd_mq, ecdh_key.clone());
-                    contracts.insert(wrapped);
-                }};
-            }
-
-            install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-            install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-            // TODO.kevin:
-            // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
-            // install_contract!(
-            //     contracts::SUBSTRATE_KITTIES,
-            //     contracts::substrate_kitties::SubstrateKitties::new()
-            // );
-            install_contract!(
-                contracts::BTC_LOTTERY,
-                contracts::btc_lottery::BtcLottery::new(Some(identity_key.to_raw_vec()))
-            );
-            install_contract!(
-                contracts::WEB3_ANALYTICS,
-                contracts::web3analytics::Web3Analytics::new()
-            );
-            install_contract!(
-                contracts::DATA_PLAZA,
-                contracts::data_plaza::DataPlaza::new()
-            );
-            install_contract!(
-                contracts::GEOLOCATION,
-                contracts::geolocation::Geolocation::new()
-            );
-            install_contract!(
-                contracts::GUESS_NUMBER,
-                contracts::guess_number::GuessNumber::new()
-            );
-            install_contract!(
-                contracts::BTC_PRICE_BOT,
-                contracts::btc_price_bot::BtcPriceBot::new()
-            );
-        }
-
         let mut runtime_state = RuntimeState {
             send_mq,
             recv_mq,
@@ -424,13 +362,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let system = system::System::new(
             self.platform.clone(),
             self.args.sealing_path.clone(),
-            false,
             self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
-            contracts,
         );
 
         let resp = pb::InitRuntimeResponse::new(
@@ -525,77 +461,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        // Validate signature
-        let origin = if let Some(sig) = &request.signature {
-            let current_block = self.get_info().blocknum - 1;
-            // At most two level cert chain supported
-            match sig.verify(&request.encoded_encrypted_data, current_block, 2) {
-                Ok(key_chain) => match &key_chain[..] {
-                    [root_pubkey, ..] => Some(root_pubkey.clone()),
-                    _ => {
-                        return Err(from_display("BUG: verify ok but no key?"));
-                    }
-                },
-                Err(err) => {
-                    return Err(from_display(format!(
-                        "Verifying signature failed: {:?}",
-                        err
-                    )));
-                }
-            }
-        } else {
-            info!("No query signature");
-            None
-        };
-
-        info!("Verifying signature passed! origin={:?}", origin);
-
-        let ecdh_key = self.system()?.ecdh_key.clone();
-
-        // Decrypt data
-        let encrypted_req = request.decode_encrypted_data()?;
-        let data = encrypted_req.decrypt(&ecdh_key).map_err(from_debug)?;
-
-        // Decode head
-        let mut data_cursor = &data[..];
-        let head = contract::ContractQueryHead::decode(&mut data_cursor)?;
-        let data_cursor = data_cursor;
-
-        // Origin
-        let accid_origin = match origin {
-            Some(origin) => {
-                use core::convert::TryFrom;
-                let accid = chain::AccountId::try_from(origin.as_slice())
-                    .map_err(|_| from_display("Bad account id"))?;
-                Some(accid)
-            }
-            None => None,
-        };
-
-        // Dispatch
-        let ref_origin = accid_origin.as_ref();
-
-        let res = self
-            .system()?
-            .handle_query(ref_origin, &head.id, data_cursor)?;
-
-        // Encode response
-        let response = contract::ContractQueryResponse {
-            nonce: head.nonce,
-            result: contract::Data(res),
-        };
-        let response_data = response.encode();
-
-        // Encrypt
-        let encrypted_resp = crypto::EncryptedData::encrypt(
-            &ecdh_key,
-            &encrypted_req.pubkey,
-            crate::generate_random_iv(),
-            &response_data,
-        )
-        .map_err(from_debug)?;
-
-        Ok(pb::ContractQueryResponse::new(encrypted_resp))
+        return Err(from_display("Contract is unavailable"));
     }
 
     #[allow(unused_unsafe)]
@@ -710,11 +576,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // When delta time reaches 3600s, there are about 3600 / 12 = 300 blocks rest.
         // It need about 30 more seconds to sync up to date.
         let ready = block_time + 3600 > sys_time;
-        debug!("block_time={}, sys_time={}, ready={}", block_time, sys_time, ready);
+        debug!(
+            "block_time={}, sys_time={}, ready={}",
+            block_time, sys_time, ready
+        );
         benchmark::set_ready(ready);
 
         let storage = &state.chain_storage;
-        let side_task_man = &mut self.side_task_man;
         let recv_mq = &mut *guard;
         let mut block = BlockInfo {
             block_number,
@@ -722,27 +590,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             storage,
             send_mq: &state.send_mq,
             recv_mq,
-            side_task_man,
         };
 
         if let Err(e) = system.process_messages(&mut block) {
             error!("System process events failed: {:?}", e);
             return Err(from_display("System process events failed"));
         }
-        Ok(())
-    }
-
-    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
-        let state = self
-            .runtime_state
-            .as_ref()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let context = side_task::PollContext {
-            block_number,
-            send_mq: &state.send_mq,
-            storage: &state.chain_storage,
-        };
-        self.side_task_man.poll(&context);
         Ok(())
     }
 }
