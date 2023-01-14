@@ -1,10 +1,8 @@
-use crate::primitives::digest::Digest;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 use serde::Deserialize;
-use sp_core_hashing::blake2_256;
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
@@ -24,7 +22,6 @@ pub struct BlockHeaderResult<'a> {
     pub(crate) state_root: &'a str,
     #[serde(alias = "extrinsicsRoot")]
     pub(crate) extrinsics_root: &'a str,
-    pub(crate) digest: Digest,
 }
 
 #[derive(Encode, Decode, Clone, Debug, PartialEq)]
@@ -35,13 +32,6 @@ pub struct BlockHeaderOk {
     pub(crate) number: u32,
     pub(crate) state_root: [u8; 32],
     pub(crate) extrinsics_root: [u8; 32],
-    pub(crate) digest: Digest,
-}
-
-impl BlockHeaderOk {
-    pub fn hash(&self) -> [u8; 32] {
-        blake2_256(&self.encode())
-    }
 }
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
