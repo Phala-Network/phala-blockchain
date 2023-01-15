@@ -1399,6 +1399,7 @@ parameter_types! {
     pub const MaxPriorities: u32 = 3;
     pub const CollectionSymbolLimit: u32 = 100;
     pub const MaxResourcesOnMint: u32 = 100;
+    pub const WPhaMinBalance: Balance = CENTS;
 }
 impl pallet_rmrk_core::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1449,6 +1450,7 @@ impl Get<AccountId32> for MigrationAccount {
 impl pallet_base_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MigrationAccountId = MigrationAccount;
+    type WPhaMinBalance = WPhaMinBalance;
 }
 
 parameter_types! {
