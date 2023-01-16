@@ -71,6 +71,7 @@ pub mod pallet {
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type MigrationAccountId: Get<Self::AccountId>;
+		type WPhaMinBalance: Get<BalanceOf<Self>>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -886,14 +887,16 @@ pub mod pallet {
 
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
-				<T as wrapped_balances::Config>::WPhaAssetId::get(),
-				&pool.pool_account_id,
-				userid,
-				amount,
-				false,
-			)
-			.expect("transfer should not fail");
+			if amount >= T::WPhaMinBalance::get() {
+				<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+					<T as wrapped_balances::Config>::WPhaAssetId::get(),
+					&pool.pool_account_id,
+					userid,
+					amount,
+					false,
+				)
+				.expect("transfer should not fail");
+			}
 			if total_stake > Zero::zero() {
 				pool.total_value -= amount;
 			} else {
@@ -1208,7 +1211,7 @@ pub mod pallet {
 				None => return,
 			};
 
-			while is_nondust_balance(pool_info.get_free_stakes::<T>()) {
+			while pool_info.get_free_stakes::<T>() >= T::WPhaMinBalance::get() {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let mut withdraw_nft_guard =
