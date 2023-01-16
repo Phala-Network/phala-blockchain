@@ -5,7 +5,7 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use phactory_api::{blocks, crypto, prpc as pb};
+use phactory_api::{blocks, prpc as pb};
 use phala_types::WorkerPublicKey;
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -341,7 +341,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         let send_mq = MessageSendQueue::default();
-        let mut recv_mq = MessageDispatcher::default();
+        let recv_mq = MessageDispatcher::default();
 
         let mut runtime_state = RuntimeState {
             send_mq,
@@ -459,7 +459,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     fn contract_query(
         &mut self,
-        request: pb::ContractQueryRequest,
+        _request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
         return Err(from_display("Contract is unavailable"));
     }

@@ -85,7 +85,7 @@ where
     H::Out: Codec + Deserialize<'de>,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, Vec<(_, (Vec<u8>, i32))>) = Deserialize::deserialize(deserializer)?;
+    let (root, kvs): (H::Out, Vec<_>) = Deserialize::deserialize(deserializer)?;
     let mdb = MemoryDB::from_inner(kvs.into_iter().collect());
     let backend = TrieBackendBuilder::new(mdb, root).build();
     Ok(backend)

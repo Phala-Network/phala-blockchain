@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use anyhow::Result;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use thiserror::Error;
 
@@ -72,10 +71,6 @@ pub struct TxRef {
     pub blocknum: chain::BlockNumber,
     pub index: u64,
 }
-
-// for contracts
-pub type OpaqueQuery<'a> = &'a [u8];
-pub type OpaqueReply = Vec<u8>;
 
 #[derive(Debug, Error)]
 #[error("{:?}", self)]

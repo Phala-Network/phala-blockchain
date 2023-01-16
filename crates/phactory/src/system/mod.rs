@@ -2,11 +2,10 @@ pub mod gk;
 mod master_key;
 
 use crate::{benchmark, types::BlockInfo};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use core::fmt;
 use log::info;
 use runtime::BlockNumber;
-use std::collections::BTreeMap;
 
 use crate::pal;
 use parity_scale_codec::{Decode, Encode};
@@ -14,20 +13,19 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
     ecdh::{self, EcdhKey},
-    sr25519::{Persistence, KDF},
+    sr25519::KDF,
 };
 use phala_mq::{
-    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
-    MessageSendQueue, SignedMessageChannel, TypedReceiver,
+    traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue,
+    SignedMessageChannel, TypedReceiver,
 };
 use phala_serde_more as more;
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
-        WorkerPinkReport,
     },
-    ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+    MasterPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
@@ -659,7 +657,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
-                self.process_master_key_distribution(origin, dispatch_master_key_event);
+                let _ = self.process_master_key_distribution(origin, dispatch_master_key_event);
             }
         }
     }
@@ -742,8 +740,8 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-    use crate::storage::{Storage, StorageExt};
+    use crate::light_validation::utils::storage_prefix;
+    use crate::storage::Storage;
     use parity_scale_codec::Decode;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
@@ -767,22 +765,25 @@ pub mod chain_state {
                 .expect("Decode value of MasterPubkey Failed. (This should not happen)")
         })
     }
+}
 
-    pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"ContractCode", &code_hash);
-        chain_storage.get(&key).map(|v| {
-            Vec::<u8>::decode(&mut &v[..])
-                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
-        })
+mod ecdh_serde {
+    use crate::EcdhKey;
+    use phala_serde_more as more;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(ecdh: &EcdhKey, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        more::scale_bytes::serialize(&ecdh.secret(), serializer)
     }
 
-    #[allow(dead_code)]
-    pub fn read_contract_info(
-        chain_storage: &Storage,
-        contract_pubkey: ContractPublicKey,
-    ) -> Option<ContractInfo<chain::Hash, chain::AccountId>> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"Contracts", &contract_pubkey);
-        chain_storage.get_decoded(&key).unwrap_or(None)
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<EcdhKey, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secret = more::scale_bytes::deserialize(deserializer)?;
+        Ok(EcdhKey::from_secret(&secret).or(Err(serde::de::Error::custom("invalid ECDH key")))?)
     }
 }

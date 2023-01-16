@@ -18,7 +18,10 @@
 
 use anyhow::Result;
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
-use trie::{trie_types::TrieDB, MemoryDB, Trie};
+use trie::{
+    trie_types::{TrieDB, TrieDBBuilder},
+    MemoryDB, Trie,
+};
 
 use super::Error;
 
@@ -63,8 +66,7 @@ where
     }
 
     fn trie(&self) -> Result<TrieDB<H>> {
-        TrieDB::new(&self.db, &self.root)
-            .map_err(|_| anyhow::Error::msg(Error::StorageRootMismatch))
+        Ok(TrieDBBuilder::new(&self.db, &self.root).build())
     }
 }
 

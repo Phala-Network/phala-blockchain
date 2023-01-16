@@ -221,7 +221,7 @@ where
 #[derive(Debug)]
 pub enum Error {
     // InvalidStorageProof,
-    StorageRootMismatch,
+    // StorageRootMismatch,
     StorageValueUnavailable,
     // InvalidValidatorSetProof,
     ValidatorSetMismatch,
@@ -237,7 +237,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::StorageRootMismatch => write!(f, "storage root mismatch"),
+            // Error::StorageRootMismatch => write!(f, "storage root mismatch"),
             Error::StorageValueUnavailable => write!(f, "storage value unavailable"),
             Error::ValidatorSetMismatch => write!(f, "validator set mismatch"),
             Error::InvalidAncestryProof => write!(f, "invalid ancestry proof"),

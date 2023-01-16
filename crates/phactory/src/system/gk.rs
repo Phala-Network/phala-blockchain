@@ -1,5 +1,4 @@
-use super::{TransactionError, TypedReceiver, WorkerState};
-use parity_scale_codec::Encode;
+use super::{TypedReceiver, WorkerState};
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
@@ -14,8 +13,7 @@ use phala_types::{
     EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use sp_application_crypto::Pair;
-use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
+use sp_core::{hashing, sr25519};
 
 use crate::types::BlockInfo;
 

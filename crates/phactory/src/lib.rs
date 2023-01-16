@@ -6,8 +6,6 @@
 
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
@@ -39,7 +37,6 @@ use phactory_api::storage_sync::{StorageSynchronizer, Synchronizer};
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
-    aead,
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
@@ -457,14 +454,6 @@ fn new_sr25519_key() -> sr25519::Pair {
     let mut seed = [0_u8; SEED_BYTES];
     rng.fill_bytes(&mut seed);
     sr25519::Pair::from_seed(&seed)
-}
-
-// TODO.kevin: Move to phactory-api when the std ready.
-fn generate_random_iv() -> aead::IV {
-    let mut nonce_vec = [0u8; aead::IV_BYTES];
-    let rand = ring::rand::SystemRandom::new();
-    rand.fill(&mut nonce_vec).unwrap();
-    nonce_vec
 }
 
 fn generate_random_info() -> [u8; 32] {
