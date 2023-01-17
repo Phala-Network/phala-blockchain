@@ -467,6 +467,11 @@ unsafe extern "C" fn fcntl(fd: c_int, cmd: c_int, mut args: ...) -> c_int {
     }
 }
 
+#[no_mangle]
+unsafe extern "C" fn gnu_get_libc_version() -> *const c_char {
+    b"2.1\0".as_ptr() as _
+}
+
 #[cfg(feature = "net")]
 mod net {
     use super::*;

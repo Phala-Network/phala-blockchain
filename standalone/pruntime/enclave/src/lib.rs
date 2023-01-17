@@ -111,16 +111,6 @@ pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
 }
 
 #[no_mangle]
-pub extern "C" fn ecall_async_reactor_run() {
-    SgxPlatform::async_reactor_run();
-}
-
-#[no_mangle]
-pub extern "C" fn ecall_async_executor_run() {
-    SgxPlatform::async_executor_run();
-}
-
-#[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_prpc_request(
     path: *const u8,

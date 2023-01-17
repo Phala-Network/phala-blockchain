@@ -63,7 +63,7 @@ trie = { package = "sp-trie", path = "../../substrate/primitives/trie" }
 frame-system = { package = "frame-system", path = "../../substrate/frame/system" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto" }
-sp-core = { package = "sp-core", path = "../../substrate/primitives/core"}
+sp-core = { package = "sp-core", path = "../../substrate/primitives/core", features = ["std"] }
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
@@ -75,13 +75,6 @@ fixed-macro = { version = "1.1", default-features = false, git = "https://github
 # diem-crypto = { path = "../../../diem/crypto/crypto", version = "0.1.0" }
 # move-core-types = { path = "../../../diem/language/move-core/types", version = "0.1.0" }
 # transaction-builder = { path = "../../../diem/language/transaction-builder", version = "0.1.0"}
-
-# for network service
-surf = { version = "2.3.1", default-features = false, features = ["h1-client-rustls"] }
-futures = { version = "0.3.17", default-features = false }
-async-io = { version = "1.6.0" }
-async-executor = { version = "1.4.1" }
-async-std = { version = "1.10.0" }
 
 # for geo probing
 maxminddb = "0.17"

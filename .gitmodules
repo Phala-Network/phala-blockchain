@@ -13,3 +13,15 @@
 [submodule "subxt"]
 	path = subxt
 	url = https://github.com/Phala-Network/substrate-subxt.git
+[submodule "standalone/pruntime/enclave/patches/ring"]
+	path = standalone/pruntime/enclave/patches/ring
+	url = https://github.com/Phala-Network/ring-sgx.git
+[submodule "standalone/pruntime/enclave/patches/cryptocorrosion"]
+	path = standalone/pruntime/enclave/patches/cryptocorrosion
+	url = https://github.com/Phala-Network/cryptocorrosion-sgx.git
+[submodule "standalone/pruntime/enclave/patches/httparse"]
+	path = standalone/pruntime/enclave/patches/httparse
+	url = https://github.com/Phala-Network/httparse-sgx.git
+[submodule "standalone/pruntime/enclave/patches/parking_lot"]
+	path = standalone/pruntime/enclave/patches/parking_lot
+	url = https://github.com/Phala-Network/parking_lot-sgx

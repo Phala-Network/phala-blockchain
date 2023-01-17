@@ -46,8 +46,6 @@ enclave {
         );
 
         public sgx_status_t ecall_bench_run(uint32_t index);
-        public void ecall_async_reactor_run(void);
-        public void ecall_async_executor_run(void);
     };
 
     untrusted {

@@ -35,15 +35,12 @@ http_req    = { version = "0.8.1", default-features = false, features = ["rust-t
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 # to patch them to work in sgx
+parking_lot_core = { version = "0.9.6", default-features = false, features = ["phala-sgx"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["phala-sgx"] }
 aho-corasick = { version = "0.7.18", default-features = false, features = ["phala-sgx"] }
-parking_lot_core = { version = "0.8.5", default-features = false, features = ["phala-sgx"] }
 cpufeatures = { version = "0.2", default-features = false, features = ["phala-sgx"] }
-async-io = { version = "1.6", default-features = false, features = ["phala-sgx"] }
-parking = { version = "2.0", default-features = false, features = ["phala-sgx"] }
+# parking = { version = "2.0", default-features = false, features = ["phala-sgx"] }
 httparse = { version = "1.5.1", default-features = false, features = ["phala-sgx"] }
-futures-executor = { version = "0.3.17", default-features = false, features = ["phala-sgx"] }
-event-listener = { version = "2.5.1", default-features = false, features = ["phala-sgx"] }
 
 once_cell = { version = "1.8.0", default-features = false, features = ["parking_lot"] }
 
@@ -59,17 +56,13 @@ sgx_unwind      = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sg
 sgx_tstd        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", default-features = false, features = ["stdio"] }
 
 [patch.crates-io]
-ppv-lite86 = { git = "https://github.com/Phala-Network/cryptocorrosion-sgx.git", branch = "phala" }
-ring = { git = "https://github.com/Phala-Network/ring-sgx.git", branch = "phala" }
-async-io = { git = "https://github.com/Phala-Network/async-io-sgx.git", branch = "phala" }
-parking = { git = "https://github.com/Phala-Network/parking-sgx.git", branch = "phala" }
-httparse = { git = "https://github.com/Phala-Network/httparse-sgx.git", branch = "phala" }
-aho-corasick = { git = "https://github.com/Phala-Network/aho-corasick-sgx.git", branch = "phala" }
-futures-executor = { git = "https://github.com/Phala-Network/futures-rs-sgx.git", branch = "phala-0.3.17" }
-event-listener = { git = "https://github.com/Phala-Network/event-listener-sgx.git", branch = "phala" }
-parking_lot_core = { git = "https://github.com/Phala-Network/parking_lot-sgx.git", branch = "phala" }
-cpufeatures = { git = "https://github.com/Phala-Network/cpufeatures-sgx.git", branch = "phala" }
-finality-grandpa = { git = "https://github.com/Phala-Network/finality-grandpa.git", branch = "scale2" }
+ring = { path = "patches/ring" }
+ppv-lite86 = { path = "patches/cryptocorrosion/utils-simd/ppv-lite86" }
+httparse = { path = "patches/httparse" }
+aho-corasick = { path = "patches/aho-corasick" }
+cpufeatures = { path = "patches/cpufeatures/cpufeatures" }
+parking_lot_core = { path = "patches/parking_lot/core" }
+# parking = { path = "patches/parking" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 # sgx_alloc = { path = "../../../teaclave-sgx-sdk/sgx_alloc" }
