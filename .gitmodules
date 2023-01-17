@@ -25,3 +25,9 @@
 [submodule "standalone/pruntime/enclave/patches/parking_lot"]
 	path = standalone/pruntime/enclave/patches/parking_lot
 	url = https://github.com/Phala-Network/parking_lot-sgx
+[submodule "standalone/pruntime/enclave/patches/aho-corasick"]
+	path = standalone/pruntime/enclave/patches/aho-corasick
+	url = https://github.com/Phala-Network/aho-corasick-sgx.git
+[submodule "standalone/pruntime/enclave/patches/cpufeatures"]
+	path = standalone/pruntime/enclave/patches/cpufeatures
+	url = https://github.com/Phala-Network/cpufeatures-sgx.git
