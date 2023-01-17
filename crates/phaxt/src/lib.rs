@@ -46,7 +46,7 @@ pub type AccountId = <Config as subxt::Config>::AccountId;
 pub type Address = <Config as subxt::Config>::Address;
 pub type Header = <Config as subxt::Config>::Header;
 pub type Signature = <Config as subxt::Config>::Signature;
-pub type Extrinsic = <Config as subxt::Config>::Extrinsic;
+pub type Extrinsic = <Config as subxt::Config>::ExtrinsicParams;
 
 use jsonrpsee::{
     async_client::ClientBuilder,

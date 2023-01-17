@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 use parity_scale_codec::{Encode, Decode};
 use scale_info::TypeInfo;

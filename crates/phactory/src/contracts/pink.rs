@@ -8,7 +8,7 @@ use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use phala_types::contract::ConvertTo;
 use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
 use pink::types::Weight;
-use pink::weights::constants::WEIGHT_PER_SECOND;
+use pink::weights::constants::WEIGHT_REF_TIME_PER_SECOND;
 use runtime::{AccountId, BlockNumber, Hash};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 
@@ -131,7 +131,7 @@ impl Pink {
                     block_number: context.block_number,
                     storage,
                     transfer,
-                    gas_limit: WEIGHT_PER_SECOND * 10,
+                    gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                     gas_free: true,
                     storage_deposit_limit: None,
                     callbacks: ContractEventCallback::from_log_sender(

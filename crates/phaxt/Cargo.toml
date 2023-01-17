@@ -11,8 +11,8 @@ scale-info = '2.0'
 anyhow = "1"
 tokio = "1"
 
-subxt = { path = "../../subxt/subxt" }
+subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }
 phala-types = { path = "../phala-types" }
 phala-node-rpc-ext-types = { path = "../phala-node-rpc-ext/types" }
 phala-pallets = { path = "../../pallets/phala" }
-jsonrpsee = "0.15"
+jsonrpsee = "0.16.2"

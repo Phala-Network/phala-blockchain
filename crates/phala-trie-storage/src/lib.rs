@@ -1,5 +1,3 @@
-extern crate alloc;
-
 #[cfg(feature = "serde")]
 pub mod ser;
 
@@ -9,8 +7,6 @@ mod memdb;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use core::iter::FromIterator;
-
-use alloc::vec::Vec;
 
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;

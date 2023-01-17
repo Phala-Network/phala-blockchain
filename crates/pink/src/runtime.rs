@@ -11,7 +11,7 @@ use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
     traits::ConstBool,
-    weights::{constants::WEIGHT_PER_SECOND, Weight},
+    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
@@ -43,7 +43,7 @@ parameter_types! {
     pub const BlockHashCount: u32 = 250;
     pub RuntimeBlockWeights: frame_system::limits::BlockWeights =
         frame_system::limits::BlockWeights::with_sensible_defaults(
-            (2u64 * WEIGHT_PER_SECOND).set_proof_size(u64::MAX),
+            Weight::from_parts(2u64 * WEIGHT_REF_TIME_PER_SECOND, u64::MAX),
             NORMAL_DISPATCH_RATIO,
         );
     pub const ExistentialDeposit: Balance = 1;
@@ -114,6 +114,7 @@ parameter_types! {
     pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
     pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
     pub const MaxStorageKeyLen: u32 = 128;
+    pub const MaxDebugBufferLen: u32 = 128 * 1024;
 
     pub DefaultSchedule: Schedule<PinkRuntime> = {
         let mut schedule = Schedule::<PinkRuntime>::default();
@@ -146,6 +147,7 @@ impl Config for PinkRuntime {
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
     type UnsafeUnstableInterface = ConstBool<false>;
+    type MaxDebugBufferLen = MaxDebugBufferLen;
 }
 
 #[test]

@@ -62,6 +62,7 @@ pub mod pallet {
 		T::AccountId: IntoH256,
 	{
 		/// Syncs an unverified offchain message to the message queue
+		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn sync_offchain_message(
 			origin: OriginFor<T>,
@@ -96,6 +97,7 @@ pub mod pallet {
 
 		// Messaging API for end user.
 		// TODO.kevin: confirm the weight
+		#[pallet::call_index(1)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn push_message(
 			origin: OriginFor<T>,
@@ -110,6 +112,7 @@ pub mod pallet {
 		}
 
 		// Force push a from-pallet message.
+		#[pallet::call_index(2)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_push_pallet_message(
 			origin: OriginFor<T>,
