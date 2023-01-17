@@ -32,8 +32,8 @@ where
         use serde::ser::SerializeSeq;
 
         let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
-        for e in self.0.iter() {
-            seq.serialize_element(&e)?;
+        for (_k, v) in self.0.iter() {
+            seq.serialize_element(&v)?;
         }
         seq.end()
     }

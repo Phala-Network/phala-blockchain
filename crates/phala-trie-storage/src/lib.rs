@@ -16,7 +16,7 @@ use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMut, HashDBT, TrieMut};
+use sp_trie::{trie_types::TrieDBMut, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
 
@@ -92,8 +92,12 @@ where
     H::Out: Codec + Deserialize<'de>,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, Vec<_>) = Deserialize::deserialize(deserializer)?;
-    let mdb = MemoryDB::from_inner(kvs.into_iter().collect());
+    let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
+    let mdb = MemoryDB::from_inner(
+        kvs.into_iter()
+            .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
+            .collect(),
+    );
     let backend = TrieBackend::new(mdb, root);
     Ok(backend)
 }
