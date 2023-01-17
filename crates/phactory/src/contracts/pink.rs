@@ -211,7 +211,7 @@ pub mod cluster {
                 .clusters
                 .entry(cluster_id.clone())
                 .or_insert_with(|| Cluster {
-                    storage: Default::default(),
+                    storage: pink::Storage::new_empty(),
                     contracts: Default::default(),
                     key: contract_key.clone(),
                 });

@@ -9,8 +9,15 @@ use crate::{
 };
 
 use pallet_contracts_primitives::ContractExecResult;
+use phala_trie_storage::new_backend;
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
+
+impl Storage {
+    pub fn new_empty() -> Self {
+        Self::new(new_backend())
+    }
+}
 
 #[derive(Debug)]
 pub struct ExecError {
@@ -31,7 +38,7 @@ pub struct Contract {
 
 impl Contract {
     pub fn new_storage() -> Storage {
-        Storage::new(Default::default())
+        Storage::new(new_backend())
     }
 
     pub fn from_address(address: AccountId) -> Self {
