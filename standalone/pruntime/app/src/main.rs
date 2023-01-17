@@ -379,7 +379,7 @@ macro_rules! do_ecall_handle {
                 output_ptr, output_len_ptr, crate::ENCLAVE_OUTPUT_BUF_MAX_LEN
             )
         };
-
+        exit_if_crashed(result);
         match result {
             crate::sgx_status_t::SGX_SUCCESS => {
                 let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
@@ -516,7 +516,7 @@ async fn prpc_proxy(method: String, data: Data<'_>) -> Custom<Vec<u8>> {
             output_len_ptr,
         )
     };
-
+    exit_if_crashed(result);
     match result {
         crate::sgx_status_t::SGX_SUCCESS => {
             let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
@@ -723,5 +723,15 @@ fn set_thread_idle_policy() {
         if rv != 0 {
             error!("Failed to set thread schedule prolicy to IDLE");
         }
+    }
+}
+
+fn exit_if_crashed(result: sgx_status_t) {
+    match result {
+        sgx_status_t::SGX_ERROR_ENCLAVE_CRASHED => {
+            error!("Error: {:?}", result);
+            std::process::exit(1);
+        }
+        _ => {}
     }
 }
