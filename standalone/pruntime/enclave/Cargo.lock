@@ -1772,6 +1772,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "hashbrown_tstd"
 version = "0.11.2"
 
@@ -1994,7 +2003,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -2427,7 +2436,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de006e09d04fc301a5f7e817b75aa49801c4479a8af753764416b085337ddcc5"
 dependencies = [
  "hash-db",
- "hashbrown",
+ "hashbrown 0.11.2",
  "parity-util-mem",
 ]
 
@@ -3123,7 +3132,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
- "sp-trie",
+ "sp-trie 4.0.0-dev",
 ]
 
 [[package]]
@@ -3316,7 +3325,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f4cb4e169446179cbc6b8b6320cc9fca49bd2e94e8db25f25f200a8ea774770"
 dependencies = [
  "cfg-if",
- "hashbrown",
+ "hashbrown 0.11.2",
  "impl-trait-for-tuples",
  "parity-util-mem-derive",
  "parking_lot",
@@ -3541,7 +3550,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-runtime-interface",
- "sp-trie",
+ "sp-trie 4.0.0",
  "surf",
  "thiserror",
  "webpki 0.21.4",
@@ -3750,7 +3759,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-state-machine",
- "sp-trie",
+ "sp-trie 4.0.0-dev",
 ]
 
 [[package]]
@@ -5241,7 +5250,7 @@ dependencies = [
  "sp-state-machine",
  "sp-std",
  "sp-tracing",
- "sp-trie",
+ "sp-trie 4.0.0-dev",
  "sp-wasm-interface",
  "tracing",
  "tracing-core",
@@ -5420,11 +5429,11 @@ dependencies = [
  "sp-externalities",
  "sp-panic-handler",
  "sp-std",
- "sp-trie",
+ "sp-trie 4.0.0-dev",
  "thiserror",
  "tracing",
- "trie-db",
- "trie-root",
+ "trie-db 0.22.6",
+ "trie-root 0.16.0",
 ]
 
 [[package]]
@@ -5487,8 +5496,22 @@ dependencies = [
  "scale-info",
  "sp-core",
  "sp-std",
- "trie-db",
- "trie-root",
+ "trie-db 0.22.6",
+ "trie-root 0.16.0",
+]
+
+[[package]]
+name = "sp-trie"
+version = "4.0.0"
+dependencies = [
+ "hash-db",
+ "memory-db",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-std",
+ "trie-db 0.23.1",
+ "trie-root 0.17.0",
 ]
 
 [[package]]
@@ -6040,7 +6063,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9eac131e334e81b6b3be07399482042838adcd7957aa0010231d0813e39e02fa"
 dependencies = [
  "hash-db",
- "hashbrown",
+ "hashbrown 0.11.2",
+ "log",
+ "rustc-hex",
+ "smallvec",
+]
+
+[[package]]
+name = "trie-db"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32d034c0d3db64b43c31de38e945f15b40cd4ca6d2dcfc26d4798ce8de4ab83"
+dependencies = [
+ "hash-db",
+ "hashbrown 0.12.3",
  "log",
  "rustc-hex",
  "smallvec",
@@ -6051,6 +6087,15 @@ name = "trie-root"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "652931506d2c1244d7217a70b99f56718a7b4161b37f04e7cd868072a99f68cd"
+dependencies = [
+ "hash-db",
+]
+
+[[package]]
+name = "trie-root"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a36c5ca3911ed3c9a5416ee6c679042064b93fc637ded67e25f92e68d783891"
 dependencies = [
  "hash-db",
 ]
