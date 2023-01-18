@@ -53,7 +53,7 @@ phactory-pal = { path = "./pal", default-features = false }
 derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
-finality-grandpa = { version = "0.16.0", default-features = false, features = ["derive-codec"] }
+finality-grandpa = { version = "0.16.1", default-features = false, features = ["derive-codec"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
