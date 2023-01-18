@@ -11,6 +11,7 @@
   ],
   "parser": "@typescript-eslint/parser",
   "rules": {
-    "no-console": "error"
+    "no-console": "error",
+    "@typescript-eslint/no-explicit-any": 0
   }
 }

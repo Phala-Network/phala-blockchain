@@ -1,4 +1,4 @@
-import {randomBytes} from 'crypto-browserify'
+import { randomBytes } from "crypto-browserify";
 
 export const randomHex = (size = 12): string =>
-  randomBytes(size).toString('hex')
+  randomBytes(size).toString("hex");

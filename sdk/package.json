@@ -8,19 +8,29 @@
     "url": "https://github.com/Phala-Network/js-sdk.git",
     "directory": "packages/sdk"
   },
-  "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/node/index",
+  "browser": "dist/browser/index",
   "exports": {
     ".": {
-      "require": "./dist/index.cjs",
-      "import": "./dist/index.js"
+      "import": {
+        "node": "./dist/node/index.mjs",
+        "default": "./dist/browser/index.mjs"
+      },
+      "require": {
+        "node": "./dist/node/index.js",
+        "default": "./dist/browser/index.js"
+      }
     }
   },
   "files": [
     "dist/*"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "npm run build:node && npm run build:browser",
+    "build:node": "tsup --config tsup.node.ts",
+    "build:browser": "tsup --config tsup.browser.ts",
+    "generate:defs": "ts-node --skip-project ../../node_modules/.bin/polkadot-types-from-defs --package @phala/sdk --input ./src/interfaces --endpoint ./edgeware.json",
+    "generate:meta": "ts-node --skip-project ../../node_modules/.bin/polkadot-types-from-chain --package @phala/sdk --endpoint ./edgeware.json --output ./src/interfaces",
     "build:proto": "scripts/build_proto.sh",
     "dev": "tsup --watch",
     "lint": "eslint --cache .",
@@ -28,9 +38,9 @@
     "publish": "npm publish --access public"
   },
   "dependencies": {
+    "@esbuild-plugins/node-modules-polyfill": "^0.1.4",
     "@phala/typedefs": "^0.2.32",
     "@polkadot/api": "^9.8.1",
-    "@polkadot/extension-dapp": "^0.44.7",
     "@polkadot/keyring": "^10.1.12",
     "@polkadot/util": "^10.1.12",
     "@polkadot/util-crypto": "^10.1.12",
@@ -41,12 +51,15 @@
     "rxjs": "^7.5.7"
   },
   "devDependencies": {
+    "@esbuild-plugins/node-globals-polyfill": "^0.1.1",
+    "@polkadot/typegen": "^9.11.1",
     "@types/node": "^16.11.59",
     "@typescript-eslint/eslint-plugin": "^5.42.1",
     "@typescript-eslint/parser": "^5.42.1",
     "eslint": "^8.23.1",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.2.1",
+    "ts-node": "^10.9.1",
     "tsup": "^6.4.0",
     "typescript": "^4.8.4"
   },

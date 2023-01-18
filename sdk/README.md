@@ -106,7 +106,7 @@ With `Keyring`, you can create it with a keypair:
 const certificateData = await signCertificate({
   api,
   pair: keypair,
-})
+});
 ```
 
 Send a query with the certificate.
