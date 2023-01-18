@@ -34,7 +34,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 urlencoding = "2.1.0"
 
 phactory = { path = "../../crates/phactory" }
-phactory-api = { path = "../../crates/phactory/api" }
+phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phactory-pal = { path = "../../crates/phactory/pal" }
 phala-allocator = { path = "../../crates/phala-allocator" }
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }

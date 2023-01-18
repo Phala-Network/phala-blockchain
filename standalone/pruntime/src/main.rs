@@ -11,6 +11,7 @@ use log::{error, info};
 use phactory::BlockNumber;
 use phactory_api::ecall_args::{git_revision, InitArgs};
 
+mod handover;
 mod logger;
 
 #[derive(Parser, Debug, Clone)]
@@ -70,6 +71,10 @@ struct Args {
     #[arg(long)]
     #[arg(default_value_t = 100)]
     gc_interval: BlockNumber,
+
+    /// Handover key from another running pruntime instance
+    #[arg(long)]
+    request_handover_from: Option<String>,
 }
 
 #[rocket::main]
@@ -136,6 +141,13 @@ async fn main() -> Result<(), rocket::Error> {
         }
     };
     info!("init_args: {:#?}", init_args);
+    if let Some(handover_from) = args.request_handover_from {
+        handover::handover_from(&handover_from, init_args)
+            .await
+            .expect("Handover failed");
+        info!("Handover done");
+        return Ok(());
+    }
     if let Err(err) = runtime::ecall_init(init_args) {
         panic!("Initialize Failed: {err:?}");
     }
