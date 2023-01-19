@@ -2,10 +2,11 @@ use phala_node_rpc_ext_types::GetStorageChangesResponse;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
-    ext::sp_core::storage::{StorageData, StorageKey},
     rpc::{rpc_params, RpcClient},
     Config, Error, OnlineClient,
 };
+
+pub use sp_core::storage::{StorageData, StorageKey};
 
 pub trait ExtraRpcExt {
     type Config: Config;

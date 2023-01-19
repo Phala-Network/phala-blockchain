@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use parity_scale_codec::Encode;
 use subxt::dynamic::Value;
-use subxt::rpc::NumberOrHex;
+use subxt::rpc::types::{BlockNumber as SubxtBlockNumber, NumberOrHex};
 use subxt::{ext::scale_value::At, metadata::EncodeStaticType};
 
 use crate::{BlockNumber, ChainApi, Hash};
@@ -29,7 +29,7 @@ impl ChainApi {
     pub async fn relay_parent_number(&self) -> Result<BlockNumber> {
         let hash = self
             .rpc()
-            .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(1))))
+            .block_hash(Some(SubxtBlockNumber::from(NumberOrHex::Number(1))))
             .await
             .context("Failed get the HASH of block 1")?;
         let addr = subxt::dynamic::storage_root("ParachainSystem", "ValidationData");
