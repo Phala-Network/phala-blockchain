@@ -16,7 +16,7 @@ use structopt::StructOpt;
 use tokio::time::{sleep, Duration};
 use tokio::{select, signal};
 
-use phaxt::{subxt, ParachainApi};
+use phaxt::ParachainApi;
 
 use chrono::{DateTime, Utc};
 
@@ -307,7 +307,7 @@ pub async fn daemon_run(mut i2pd: I2pd, args: &Args) -> Result<()> {
     Ok(())
 }
 
-async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Result<()> {
+async fn wait_until_synced(client: &phaxt::RpcClient) -> Result<()> {
     loop {
         let state = client.extra_rpc().system_sync_state().await?;
         info!(
