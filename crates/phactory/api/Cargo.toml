@@ -14,7 +14,7 @@ prost = { version = "0.11.2", default-features = false }
 
 phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
 phala-types = { path = "../../../crates/phala-types", default-features = false, features = ["enable_serde", "sgx"] }
-prpc = { path = "../../../crates/prpc" }
+prpc = { path = "../../../crates/prpc", default-features = false }
 phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
@@ -52,6 +52,7 @@ std = [
     "sp-application-crypto/std",
     "frame-system/std",
     "chain/std",
+    "prpc/std",
 ]
 
 sgx = []

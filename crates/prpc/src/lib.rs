@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
 use alloc::boxed::Box;
@@ -35,6 +35,10 @@ pub mod server {
         }
     }
 
+    #[cfg(feature = "std")]
+    impl std::error::Error for Error {}
+
+    #[cfg(not(feature = "std"))]
     impl From<Error> for anyhow::Error {
         fn from(error: Error) -> Self {
             Self::msg(error)
@@ -84,6 +88,10 @@ pub mod client {
         }
     }
 
+    #[cfg(feature = "std")]
+    impl std::error::Error for Error {}
+
+    #[cfg(not(feature = "std"))]
     impl From<Error> for anyhow::Error {
         fn from(error: Error) -> Self {
             Self::msg(error)
