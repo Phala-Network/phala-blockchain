@@ -142,6 +142,7 @@ async fn main() -> Result<(), rocket::Error> {
     };
     info!("init_args: {:#?}", init_args);
     if let Some(handover_from) = args.request_handover_from {
+        info!("Starting handover from {handover_from}");
         handover::handover_from(&handover_from, init_args)
             .await
             .expect("Handover failed");
