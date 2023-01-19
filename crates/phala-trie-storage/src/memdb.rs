@@ -308,6 +308,9 @@ impl<H, KF, T> MemoryDB<H, KF, T>
                     }
 
                     entry.get_mut().1 += rc;
+                    if entry.get().1 == 0 {
+                        _ = entry.remove();
+                    }
                 },
                 Entry::Vacant(entry) => {
                     entry.insert((value, rc));
@@ -354,6 +357,9 @@ impl<H, KF, T> PlainDB<H::Out, T> for MemoryDB<H, KF, T>
                     *old_value = value;
                 }
                 *rc += 1;
+                if *rc == 0 {
+                    _ = entry.remove();
+                }
             },
             Entry::Vacant(entry) => {
                 entry.insert((value, 1));
@@ -366,6 +372,9 @@ impl<H, KF, T> PlainDB<H::Out, T> for MemoryDB<H, KF, T>
             Entry::Occupied(mut entry) => {
                 let &mut (_, ref mut rc) = entry.get_mut();
                 *rc -= 1;
+                if *rc == 0 {
+                    _ = entry.remove();
+                }
             },
             Entry::Vacant(entry) => {
                 let value = T::default();
@@ -433,6 +442,9 @@ impl<H, KF, T> HashDB<H, T> for MemoryDB<H, KF, T>
                     *old_value = value;
                 }
                 *rc += 1;
+                if *rc == 0 {
+                    _ = entry.remove();
+                }
             },
             Entry::Vacant(entry) => {
                 entry.insert((value, 1));
@@ -460,6 +472,9 @@ impl<H, KF, T> HashDB<H, T> for MemoryDB<H, KF, T>
             Entry::Occupied(mut entry) => {
                 let &mut (_, ref mut rc) = entry.get_mut();
                 *rc -= 1;
+                if *rc == 0 {
+                    _ = entry.remove();
+                }
             },
             Entry::Vacant(entry) => {
                 let value = T::default();
