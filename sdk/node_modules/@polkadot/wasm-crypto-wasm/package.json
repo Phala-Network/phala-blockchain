@@ -1,0 +1,75 @@
+{
+  "author": "Jaco Greeff <jacogr@gmail.com>",
+  "bugs": "https://github.com/polkadot-js/wasm/issues",
+  "contributors": [],
+  "description": "Wasm content for wasm-crypto",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "homepage": "https://github.com/polkadot-js/wasm/tree/master/packages/wasm-crypto-wasm#readme",
+  "license": "Apache-2.0",
+  "maintainers": [],
+  "name": "@polkadot/wasm-crypto-wasm",
+  "repository": {
+    "directory": "packages/wasm-crypto-wasm",
+    "type": "git",
+    "url": "https://github.com/polkadot-js/wasm.git"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "version": "6.3.1",
+  "main": "./cjs/index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    "./cjs/package.json": "./cjs/package.json",
+    "./cjs/*": "./cjs/*.js",
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./cjs/index.js",
+      "default": "./index.js"
+    },
+    "./bundle": {
+      "types": "./bundle.d.ts",
+      "require": "./cjs/bundle.js",
+      "default": "./bundle.js"
+    },
+    "./cjs/bytes": {
+      "types": "./cjs/bytes.d.ts",
+      "default": "./cjs/bytes.js"
+    },
+    "./cjs/cjs/bytes": "./cjs/cjs/bytes.js",
+    "./deno/bytes": {
+      "types": "./deno/bytes.d.ts",
+      "default": "./deno/bytes.js"
+    },
+    "./detectOther": {
+      "types": "./detectOther.d.ts",
+      "require": "./cjs/detectOther.js",
+      "default": "./detectOther.js"
+    },
+    "./detectPackage": {
+      "types": "./detectPackage.d.ts",
+      "require": "./cjs/detectPackage.js",
+      "default": "./detectPackage.js"
+    },
+    "./package.json": "./package.json",
+    "./packageInfo.js": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    },
+    "./packageInfo": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    }
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.9",
+    "@polkadot/wasm-util": "6.3.1"
+  },
+  "peerDependencies": {
+    "@polkadot/util": "*"
+  }
+}

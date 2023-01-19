@@ -1,0 +1,107 @@
+{
+  "author": "Jaco Greeff <jacogr@gmail.com>",
+  "bugs": "https://github.com/polkadot-js/wasm/issues",
+  "contributors": [],
+  "description": "A wasm interface layer for use by @polkadot/util-crypto",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "homepage": "https://github.com/polkadot-js/wasm/tree/master/packages/wasm-crypto#readme",
+  "license": "Apache-2.0",
+  "maintainers": [],
+  "name": "@polkadot/wasm-crypto",
+  "repository": {
+    "directory": "packages/wasm-crypto",
+    "type": "git",
+    "url": "https://github.com/polkadot-js/wasm.git"
+  },
+  "sideEffects": [
+    "./detectPackage.js",
+    "./cjs/detectPackage.js",
+    "./initNone.js",
+    "./cjs/initNone.js",
+    "./initOnlyAsm.js",
+    "./cjs/initOnlyAsm.js",
+    "./initOnlyWasm.js",
+    "./cjs/initOnlyWasm.js",
+    "./initWasmAsm.js",
+    "./cjs/initWasmAsm.js"
+  ],
+  "type": "module",
+  "version": "6.3.1",
+  "main": "./cjs/index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    "./cjs/package.json": "./cjs/package.json",
+    "./cjs/*": "./cjs/*.js",
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./cjs/index.js",
+      "default": "./index.js"
+    },
+    "./bundle": {
+      "types": "./bundle.d.ts",
+      "require": "./cjs/bundle.js",
+      "default": "./bundle.js"
+    },
+    "./detectOther": {
+      "types": "./detectOther.d.ts",
+      "require": "./cjs/detectOther.js",
+      "default": "./detectOther.js"
+    },
+    "./detectPackage": {
+      "types": "./detectPackage.d.ts",
+      "require": "./cjs/detectPackage.js",
+      "default": "./detectPackage.js"
+    },
+    "./init": {
+      "types": "./init.d.ts",
+      "require": "./cjs/init.js",
+      "default": "./init.js"
+    },
+    "./initNone": {
+      "types": "./initNone.d.ts",
+      "require": "./cjs/initNone.js",
+      "default": "./initNone.js"
+    },
+    "./initOnlyAsm": {
+      "types": "./initOnlyAsm.d.ts",
+      "require": "./cjs/initOnlyAsm.js",
+      "default": "./initOnlyAsm.js"
+    },
+    "./initOnlyWasm": {
+      "types": "./initOnlyWasm.d.ts",
+      "require": "./cjs/initOnlyWasm.js",
+      "default": "./initOnlyWasm.js"
+    },
+    "./initWasmAsm": {
+      "types": "./initWasmAsm.d.ts",
+      "require": "./cjs/initWasmAsm.js",
+      "default": "./initWasmAsm.js"
+    },
+    "./package.json": "./package.json",
+    "./packageInfo.js": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    },
+    "./packageInfo": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    }
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.9",
+    "@polkadot/wasm-bridge": "6.3.1",
+    "@polkadot/wasm-crypto-asmjs": "6.3.1",
+    "@polkadot/wasm-crypto-init": "6.3.1",
+    "@polkadot/wasm-crypto-wasm": "6.3.1",
+    "@polkadot/wasm-util": "6.3.1"
+  },
+  "peerDependencies": {
+    "@polkadot/util": "*",
+    "@polkadot/x-randomvalues": "*"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "author": "Jaco Greeff <jacogr@gmail.com>",
+  "bugs": "https://github.com/polkadot-js/wasm/issues",
+  "contributors": [],
+  "description": "Utilities used exclusively inside Wasm decoding",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "homepage": "https://github.com/polkadot-js/wasm/tree/master/packages/wasm-util#readme",
+  "license": "Apache-2.0",
+  "maintainers": [],
+  "name": "@polkadot/wasm-util",
+  "repository": {
+    "directory": "packages/wasm-util",
+    "type": "git",
+    "url": "https://github.com/polkadot-js/wasm.git"
+  },
+  "sideEffects": [
+    "./detectPackage.js",
+    "./cjs/detectPackage.js"
+  ],
+  "type": "module",
+  "version": "6.3.1",
+  "main": "./cjs/index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    "./cjs/package.json": "./cjs/package.json",
+    "./cjs/*": "./cjs/*.js",
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./cjs/index.js",
+      "default": "./index.js"
+    },
+    "./base64": {
+      "types": "./base64.d.ts",
+      "require": "./cjs/base64.js",
+      "default": "./base64.js"
+    },
+    "./bundle": {
+      "types": "./bundle.d.ts",
+      "require": "./cjs/bundle.js",
+      "default": "./bundle.js"
+    },
+    "./detectOther": {
+      "types": "./detectOther.d.ts",
+      "require": "./cjs/detectOther.js",
+      "default": "./detectOther.js"
+    },
+    "./detectPackage": {
+      "types": "./detectPackage.d.ts",
+      "require": "./cjs/detectPackage.js",
+      "default": "./detectPackage.js"
+    },
+    "./fflate": {
+      "types": "./fflate.d.ts",
+      "require": "./cjs/fflate.js",
+      "default": "./fflate.js"
+    },
+    "./package.json": "./package.json",
+    "./packageInfo.js": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    },
+    "./packageInfo": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    }
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.9"
+  },
+  "peerDependencies": {
+    "@polkadot/util": "*"
+  }
+}

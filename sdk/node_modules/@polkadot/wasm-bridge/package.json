@@ -1,0 +1,89 @@
+{
+  "author": "Jaco Greeff <jacogr@gmail.com>",
+  "bugs": "https://github.com/polkadot-js/wasm/issues",
+  "contributors": [],
+  "description": "A bridge layer between JS and Wasm",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "homepage": "https://github.com/polkadot-js/wasm/tree/master/packages/wasm-bridge#readme",
+  "license": "Apache-2.0",
+  "maintainers": [],
+  "name": "@polkadot/wasm-bridge",
+  "repository": {
+    "directory": "packages/wasm-bridge",
+    "type": "git",
+    "url": "https://github.com/polkadot-js/wasm.git"
+  },
+  "sideEffects": [
+    "./detectPackage.js",
+    "./cjs/detectPackage.js"
+  ],
+  "type": "module",
+  "version": "6.3.1",
+  "main": "./cjs/index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    "./cjs/package.json": "./cjs/package.json",
+    "./cjs/*": "./cjs/*.js",
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./cjs/index.js",
+      "default": "./index.js"
+    },
+    "./bridge": {
+      "types": "./bridge.d.ts",
+      "require": "./cjs/bridge.js",
+      "default": "./bridge.js"
+    },
+    "./bundle": {
+      "types": "./bundle.d.ts",
+      "require": "./cjs/bundle.js",
+      "default": "./bundle.js"
+    },
+    "./detectOther": {
+      "types": "./detectOther.d.ts",
+      "require": "./cjs/detectOther.js",
+      "default": "./detectOther.js"
+    },
+    "./detectPackage": {
+      "types": "./detectPackage.d.ts",
+      "require": "./cjs/detectPackage.js",
+      "default": "./detectPackage.js"
+    },
+    "./init": {
+      "types": "./init.d.ts",
+      "require": "./cjs/init.js",
+      "default": "./init.js"
+    },
+    "./package.json": "./package.json",
+    "./packageInfo.js": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    },
+    "./packageInfo": {
+      "types": "./packageInfo.d.ts",
+      "require": "./cjs/packageInfo.js",
+      "default": "./packageInfo.js"
+    },
+    "./types": {
+      "types": "./types.d.ts",
+      "require": "./cjs/types.js",
+      "default": "./types.js"
+    },
+    "./wbg": {
+      "types": "./wbg.d.ts",
+      "require": "./cjs/wbg.js",
+      "default": "./wbg.js"
+    }
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.9"
+  },
+  "peerDependencies": {
+    "@polkadot/util": "*",
+    "@polkadot/x-randomvalues": "*"
+  }
+}

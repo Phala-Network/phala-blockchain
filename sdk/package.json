@@ -1,7 +1,7 @@
 {
   "name": "@phala/sdk",
-  "version": "0.3.5-beta.10",
-  "description": "Phala JS SDK",
+  "version": "0.3.5",
+  "description": "Phala Phat Contract JS SDK",
   "homepage": "https://github.com/Phala-Network/js-sdk/tree/main/packages/sdk#readme",
   "repository": {
     "type": "git",
@@ -35,12 +35,13 @@
     "dev": "tsup --watch",
     "lint": "eslint --cache .",
     "lint:fix": "eslint --cache --fix .",
-    "publish": "npm publish --access public"
+    "auto-publish": "npm publish --access public"
   },
   "dependencies": {
     "@esbuild-plugins/node-modules-polyfill": "^0.1.4",
     "@phala/typedefs": "^0.2.32",
     "@polkadot/api": "^9.8.1",
+    "@polkadot/api-contract": "^9.8.1",
     "@polkadot/keyring": "^10.1.12",
     "@polkadot/util": "^10.1.12",
     "@polkadot/util-crypto": "^10.1.12",
