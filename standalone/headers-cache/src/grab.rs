@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use anyhow::Context as _;
 use log::{info, warn};
 use scale::Encode;
@@ -18,20 +20,42 @@ pub async fn run(
     let highest = metadata.recent_imported.header.unwrap_or(genesis_block);
     let mut next_block = highest + 1;
 
+    GENESIS.store(genesis_block, Ordering::Relaxed);
+
     loop {
         info!("Connecting to {node_uri}...");
-        let Ok(api) = pherry::subxt_connect(node_uri).await else {
-            warn!("Failed to connect to {node_uri}, try again later");
-            sleep(check_interval).await;
-            continue;
+        let api = match pherry::subxt_connect(node_uri).await {
+            Ok(api) => api,
+            Err(err) => {
+                warn!("Failed to connect to {node_uri}: {err:?}");
+                sleep(check_interval).await;
+                continue;
+            }
         };
-
         info!("Connecting to {para_node_uri}...");
-        let Ok(para_api) = pherry::subxt_connect(para_node_uri).await else {
-            warn!("Failed to connect to {para_node_uri}, try again later");
-            sleep(check_interval).await;
-            continue;
+        let para_api = match pherry::subxt_connect(para_node_uri).await {
+            Ok(api) => api,
+            Err(err) => {
+                warn!("Failed to connect to {para_node_uri}: {err:?}");
+                sleep(check_interval).await;
+                continue;
+            }
         };
+        if !metadata.genesis.contains(&genesis_block) {
+            info!("Fetching genesis at {}", genesis_block);
+            let genesis = match cache::fetch_genesis_info(&api, genesis_block).await {
+                Ok(genesis) => genesis,
+                Err(err) => {
+                    warn!("Failed to fetch genesis info: {err}");
+                    sleep(check_interval).await;
+                    continue;
+                }
+            };
+            db.put_genesis(genesis_block, &genesis.encode())?;
+            metadata.put_genesis(genesis_block);
+            db.put_metadata(&metadata)?;
+            info!("Got genesis at {}", genesis_block);
+        }
 
         loop {
             info!("Trying to grab next={next_block}, just_interval={justification_interval}");
@@ -50,7 +74,7 @@ pub async fn run(
                 continue;
             }
 
-            info!("Grabbing...");
+            info!("Grabbing headers...");
             let result = cache::grab_headers(
                 &api,
                 &para_api,
@@ -60,6 +84,7 @@ pub async fn run(
                 |info| {
                     if info.justification.is_some() {
                         info!("Got justification at {}", info.header.number);
+                        LATEST_JUSTFICATION.store(info.header.number as _, Ordering::Relaxed);
                     }
                     db.put_header(info.header.number, &info.encode())
                         .context("Failed to put record to DB")?;
@@ -79,6 +104,21 @@ pub async fn run(
             sleep(check_interval).await;
         }
     }
+}
+
+static GENESIS: AtomicU32 = AtomicU32::new(u32::MAX);
+static LATEST_JUSTFICATION: AtomicU32 = AtomicU32::new(u32::MAX);
+
+pub(crate) fn genesis_block() -> BlockNumber {
+    GENESIS.load(Ordering::Relaxed)
+}
+
+pub(crate) fn latest_justification() -> BlockNumber {
+    LATEST_JUSTFICATION.load(Ordering::Relaxed)
+}
+
+pub(crate) fn update_404_block(block: BlockNumber) {
+    LATEST_JUSTFICATION.fetch_min(block.saturating_sub(1), Ordering::Relaxed);
 }
 
 async fn sleep(secs: u64) {
