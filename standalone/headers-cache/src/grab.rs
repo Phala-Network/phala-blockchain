@@ -12,14 +12,10 @@ pub async fn run(
     para_node_uri: &str,
     check_interval: u64,
     justification_interval: BlockNumber,
+    genesis_block: BlockNumber,
 ) -> anyhow::Result<()> {
-    let Some(mut metadata) = db.get_metadata()? else {
-        anyhow::bail!("No metadata in the DB, can not grab");
-    };
-    let Some(highest) = metadata.recent_imported.header else {
-        anyhow::bail!("There aren't any headers in the DB, can not grab");
-    };
-
+    let mut metadata = db.get_metadata()?.unwrap_or_default();
+    let highest = metadata.recent_imported.header.unwrap_or(genesis_block);
     let mut next_block = highest + 1;
 
     loop {
