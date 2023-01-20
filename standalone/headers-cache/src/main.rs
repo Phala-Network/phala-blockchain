@@ -370,6 +370,7 @@ async fn main() -> anyhow::Result<()> {
                         &para_node_uri,
                         interval,
                         justification_interval,
+                        genesis_block,
                     )
                     .await;
                     if let Err(err) = result {
