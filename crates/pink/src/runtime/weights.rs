@@ -1,5 +1,6 @@
 #![allow(clippy::unnecessary_cast)]
 use core::marker::PhantomData;
+use frame_support::weights::constants::RocksDbWeight;
 
 use frame_support::weights::Weight;
 use pallet_contracts::weights::WeightInfo;
@@ -63,15 +64,19 @@ impl<T: frame_system::Config> WeightInfo for PinkWeights<T> {
     // Storage: Contracts PristineCode (r:0 w:1)
     // Storage: Contracts OwnerInfoOf (r:0 w:1)
     /// The range of component `c` is `[0, 64226]`.
+    /// The range of component `i` is `[0, 1048576]`.
     /// The range of component `s` is `[0, 1048576]`.
-    fn instantiate_with_code(c: u32, s: u32) -> Weight {
-        Weight::from_ref_time(294_077_000 as u64)
-            // Standard Error: 0
-            .saturating_add(Weight::from_ref_time(110_000 as u64).saturating_mul(c as u64))
-            // Standard Error: 0
-            .saturating_add(Weight::from_ref_time(2_000 as u64).saturating_mul(s as u64))
-            .saturating_add(T::DbWeight::get().reads(8 as u64))
-            .saturating_add(T::DbWeight::get().writes(9 as u64))
+    fn instantiate_with_code(c: u32, i: u32, s: u32, ) -> Weight {
+        // Minimum execution time: 3_785_934 nanoseconds.
+        Weight::from_ref_time(683_143_843)
+            // Standard Error: 272
+            .saturating_add(Weight::from_ref_time(87_620).saturating_mul(c.into()))
+            // Standard Error: 16
+            .saturating_add(Weight::from_ref_time(1_363).saturating_mul(i.into()))
+            // Standard Error: 16
+            .saturating_add(Weight::from_ref_time(1_778).saturating_mul(s.into()))
+            .saturating_add(RocksDbWeight::get().reads(8))
+            .saturating_add(RocksDbWeight::get().writes(9))
     }
     // Storage: Contracts CodeStorage (r:1 w:1)
     // Storage: Contracts Nonce (r:1 w:1)
@@ -80,13 +85,17 @@ impl<T: frame_system::Config> WeightInfo for PinkWeights<T> {
     // Storage: System Account (r:1 w:1)
     // Storage: Contracts OwnerInfoOf (r:1 w:1)
     // Storage: System EventTopics (r:2 w:2)
+    /// The range of component `i` is `[0, 1048576]`.
     /// The range of component `s` is `[0, 1048576]`.
-    fn instantiate(s: u32) -> Weight {
-        Weight::from_ref_time(199_028_000 as u64)
-            // Standard Error: 0
-            .saturating_add(Weight::from_ref_time(2_000 as u64).saturating_mul(s as u64))
-            .saturating_add(T::DbWeight::get().reads(8 as u64))
-            .saturating_add(T::DbWeight::get().writes(7 as u64))
+    fn instantiate(i: u32, s: u32, ) -> Weight {
+        // Minimum execution time: 1_935_310 nanoseconds.
+        Weight::from_ref_time(203_531_122)
+            // Standard Error: 8
+            .saturating_add(Weight::from_ref_time(1_674).saturating_mul(i.into()))
+            // Standard Error: 8
+            .saturating_add(Weight::from_ref_time(1_789).saturating_mul(s.into()))
+            .saturating_add(T::DbWeight::get().reads(8))
+            .saturating_add(T::DbWeight::get().writes(7))
     }
     // Storage: Contracts ContractInfoOf (r:1 w:1)
     // Storage: Contracts CodeStorage (r:1 w:0)
@@ -642,15 +651,19 @@ impl<T: frame_system::Config> WeightInfo for PinkWeights<T> {
     // Storage: Contracts OwnerInfoOf (r:1 w:1)
     // Storage: System EventTopics (r:82 w:82)
     /// The range of component `t` is `[0, 1]`.
+    /// The range of component `i` is `[0, 960]`.
     /// The range of component `s` is `[0, 960]`.
-    fn seal_instantiate_per_transfer_salt_kb(t: u32, s: u32) -> Weight {
-        Weight::from_ref_time(13_739_440_000 as u64)
-            // Standard Error: 79_000
-            .saturating_add(Weight::from_ref_time(126_148_000 as u64).saturating_mul(s as u64))
-            .saturating_add(T::DbWeight::get().reads(249 as u64))
-            .saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(t as u64)))
-            .saturating_add(T::DbWeight::get().writes(247 as u64))
-            .saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(t as u64)))
+    fn seal_instantiate_per_transfer_input_salt_kb(t: u32, i: u32, s: u32, ) -> Weight {
+        // Minimum execution time: 129_699_480 nanoseconds.
+        Weight::from_ref_time(10_187_699_005)
+            // Standard Error: 155_040
+            .saturating_add(Weight::from_ref_time(125_284_310).saturating_mul(i.into()))
+            // Standard Error: 155_040
+            .saturating_add(Weight::from_ref_time(125_850_564).saturating_mul(s.into()))
+            .saturating_add(T::DbWeight::get().reads(249))
+            .saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(t.into())))
+            .saturating_add(T::DbWeight::get().writes(247))
+            .saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(t.into())))
     }
     // Storage: System Account (r:1 w:0)
     // Storage: Contracts ContractInfoOf (r:1 w:1)

@@ -73,13 +73,14 @@ pub mod pallet {
     #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
 
-    impl<T: Config> AddressGenerator<T> for Pallet<T>
+    impl<T: Config + pallet_contracts::Config> AddressGenerator<T> for Pallet<T>
     where
         T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
     {
         fn generate_address(
             deploying_address: &T::AccountId,
             code_hash: &CodeHash<T>,
+            _input_data: &[u8],
             salt: &[u8],
         ) -> T::AccountId {
             let cluster_id = <ClusterId<T>>::get();

@@ -67,16 +67,16 @@ where
 {
     fn header<Client: HeaderBackend<Block>, Block: BlockT>(
         client: &Client,
-        id: BlockId<Block>,
+        hash: Block::Hash,
     ) -> Result<Block::Header, Error> {
         client
-            .header(id)
-            .map_err(|e| Error::invalid_block(id, e))?
-            .ok_or_else(|| Error::invalid_block(id, "header not found"))
+            .header(hash)
+            .map_err(|e| Error::invalid_block(BlockId::<Block>::Hash(hash), e))?
+            .ok_or_else(|| Error::invalid_block(BlockId::<Block>::Hash(hash), "header not found"))
     }
 
-    let n_from: u64 = (*header(client, BlockId::Hash(from))?.number()).into();
-    let n_to: u64 = (*header(client, BlockId::Hash(to))?.number()).into();
+    let n_from: u64 = (*header(client, from)?.number()).into();
+    let n_to: u64 = (*header(client, to)?.number()).into();
 
     if n_from > n_to {
         return Err(Error::InvalidBlockRange {
@@ -97,7 +97,7 @@ where
 
     loop {
         let id = BlockId::Hash(this_block);
-        let header = header(client, id)?;
+        let header = header(client, this_block)?;
         let parent = *header.parent_hash();
         headers.push_front((id, header));
         if this_block == from {
