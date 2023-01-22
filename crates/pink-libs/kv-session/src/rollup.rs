@@ -30,7 +30,7 @@ impl RollUpTransaction {
 }
 
 /// Rollup version conditions and updates with given R/W tracking data and user updates
-pub fn rollup<DB>(kvdb: DB, tx: KvTransaction, layout: VersionLayout) -> Result<RollUpTransaction>
+pub fn rollup<DB>(kvdb: &DB, tx: KvTransaction, layout: VersionLayout) -> Result<RollUpTransaction>
 where
     DB: KvSnapshot + BumpVersion,
 {
@@ -189,7 +189,7 @@ mod tests {
         };
 
         let rollup = rollup(
-            kvdb,
+            &kvdb,
             tx,
             VersionLayout::Standalone {
                 key_postfix: "_ver".into(),
@@ -224,7 +224,7 @@ mod tests {
         let (tx, kvdb) = queue.commit();
 
         let tx = rollup(
-            kvdb,
+            &kvdb,
             tx,
             VersionLayout::Standalone {
                 key_postfix: "_ver".into(),
@@ -256,7 +256,7 @@ mod tests {
         let final_head = queue.queue_head();
         let (tx, kvdb) = queue.commit();
         let tx = rollup(
-            kvdb,
+            &kvdb,
             tx,
             VersionLayout::Standalone {
                 key_postfix: "_ver".into(),
