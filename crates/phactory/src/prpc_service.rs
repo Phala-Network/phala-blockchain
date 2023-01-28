@@ -93,7 +93,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let score = benchmark::score();
         let m_usage = self.platform.memory_usage();
 
-        pb::PhactoryInfo {
+        let info = pb::PhactoryInfo {
             initialized,
             registered,
             gatekeeper: Some(gatekeeper_status),
@@ -115,7 +115,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
             }),
-        }
+        };
+        info!("Got info: {:?}", info);
+        info
     }
 
     pub(crate) fn sync_header(
