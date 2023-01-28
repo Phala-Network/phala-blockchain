@@ -35,7 +35,9 @@ impl ChainApi {
         let addr = subxt::dynamic::storage_root("ParachainSystem", "ValidationData");
         let validation_data = self
             .storage()
-            .fetch(&addr, hash)
+            .at(hash)
+            .await?
+            .fetch(&addr)
             .await
             .context("Failed to fetch validation data")?
             .ok_or_else(|| anyhow!("ValidationData not found"))?
@@ -52,7 +54,9 @@ impl ChainApi {
         let address = subxt::dynamic::storage_root("Grandpa", "CurrentSetId");
         let set_id = self
             .storage()
-            .fetch(&address, block_hash)
+            .at(block_hash)
+            .await?
+            .fetch(&address)
             .await
             .context("Failed to get current set_id")?
             .ok_or_else(|| anyhow!("No set id"))?;
@@ -66,7 +70,9 @@ impl ChainApi {
         let address = subxt::dynamic::storage_root("ParachainInfo", "ParachainId");
         let id = self
             .storage()
-            .fetch(&address, hash)
+            .at(hash)
+            .await?
+            .fetch(&address)
             .await
             .context("Failed to get current set_id")?
             .ok_or_else(|| anyhow!("No paraid found"))?
@@ -93,7 +99,9 @@ impl ChainApi {
         let address = subxt::dynamic::storage("PhalaRegistry", "Workers", vec![worker]);
         let registered = self
             .storage()
-            .fetch(&address, Some(hash))
+            .at(Some(hash))
+            .await?
+            .fetch(&address)
             .await
             .context("Failed to get worker info")?
             .is_some();
