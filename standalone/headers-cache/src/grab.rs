@@ -17,8 +17,10 @@ pub async fn run(
     genesis_block: BlockNumber,
 ) -> anyhow::Result<()> {
     let mut metadata = db.get_metadata()?.unwrap_or_default();
-    let highest = metadata.recent_imported.header.unwrap_or(genesis_block);
-    let mut next_block = highest + 1;
+    let mut next_block = match metadata.recent_imported.header {
+        Some(highest) => highest + 1,
+        None => genesis_block,
+    };
 
     GENESIS.store(genesis_block, Ordering::Relaxed);
 
@@ -74,7 +76,7 @@ pub async fn run(
                 continue;
             }
 
-            info!("Grabbing headers...");
+            info!("Grabbing headers start from {next_block}...");
             let result = cache::grab_headers(
                 &api,
                 &para_api,

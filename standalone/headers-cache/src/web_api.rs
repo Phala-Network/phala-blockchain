@@ -54,7 +54,7 @@ fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound
                 }
             }
             None => {
-                if start > crate::grab::genesis_block() {
+                if start >= crate::grab::genesis_block() {
                     crate::grab::update_404_block(start);
                 }
                 if block == start {
