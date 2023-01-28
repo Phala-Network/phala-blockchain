@@ -33,13 +33,20 @@ fn get_header(app: &State<App>, block_number: BlockNumber) -> Result<Vec<u8>, No
 }
 
 #[get("/headers/<start>")]
-fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound<String>> {
+fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound<()>> {
+    let latest_just = crate::grab::latest_justification();
+    if start > latest_just {
+        log::debug!("No more justification yet");
+        return Err(NotFound(()));
+    }
     let mut headers = vec![];
     for block in start..start + 10000 {
         match app.db.get_header(block) {
             Some(data) => {
-                let info = crate::cache::BlockInfo::decode(&mut &data[..])
-                    .map_err(|_| NotFound("Codec error".into()))?;
+                let info = crate::cache::BlockInfo::decode(&mut &data[..]).map_err(|_| {
+                    log::error!("Failed to decode block fetched from db");
+                    NotFound(())
+                })?;
                 let end = info.justification.is_some();
                 headers.push(info);
                 if end {
@@ -47,8 +54,16 @@ fn get_headers(app: &State<App>, start: BlockNumber) -> Result<Vec<u8>, NotFound
                 }
             }
             None => {
-                log::warn!("{} not found", block);
-                return Err(NotFound("header not found".into()));
+                if start >= crate::grab::genesis_block() {
+                    crate::grab::update_404_block(start);
+                }
+                if block == start {
+                    log::debug!("{start} not found");
+                    return Err(NotFound(()));
+                } else {
+                    log::debug!("Justification not found till block {block}");
+                    return Err(NotFound(()));
+                }
             }
         }
     }
@@ -72,7 +87,7 @@ fn get_parachain_headers(
                 headers.push(header);
             }
             None => {
-                log::warn!("header at {} not found", block);
+                log::warn!("Header at {} not found", block);
                 return Err(NotFound("header not found".into()));
             }
         }
@@ -96,7 +111,7 @@ fn get_storage_changes(
                 changes.push(header);
             }
             None => {
-                log::warn!("changes at {} not found", block);
+                log::warn!("Changes at {} not found", block);
                 return Err(NotFound("header not found".into()));
             }
         }
