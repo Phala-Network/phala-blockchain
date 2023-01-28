@@ -544,7 +544,7 @@ mod tests {
         m.purge();
         assert_eq!(m.raw(&hello_key, EMPTY_PREFIX).unwrap().1, -1);
         m.insert(EMPTY_PREFIX, hello_bytes);
-        assert_eq!(m.raw(&hello_key, EMPTY_PREFIX).unwrap().1, 0);
+        assert_eq!(m.raw(&hello_key, EMPTY_PREFIX), None);
         m.purge();
         assert_eq!(m.raw(&hello_key, EMPTY_PREFIX), None);
 
@@ -576,11 +576,11 @@ mod tests {
 
         main.consolidate(other);
 
-        assert_eq!(main.raw(&remove_key, EMPTY_PREFIX).unwrap(), (&"doggo".as_bytes().to_vec(), 0));
+        assert_eq!(main.raw(&remove_key, EMPTY_PREFIX), None);
         assert_eq!(main.raw(&insert_key, EMPTY_PREFIX).unwrap(), (&"arf".as_bytes().to_vec(), 2));
         assert_eq!(
             main.raw(&negative_remove_key, EMPTY_PREFIX).unwrap(),
-            (&"negative".as_bytes().to_vec(), -2),
+            (&"".as_bytes().to_vec(), -2),
         );
     }
 
