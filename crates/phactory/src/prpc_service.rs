@@ -104,7 +104,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        pb::PhactoryInfo {
+        let info = pb::PhactoryInfo {
             initialized,
             registered,
             public_key,
@@ -128,7 +128,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }),
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,
-        }
+        };
+        info!("Got info: {:?}", info);
+        info
     }
 
     pub(crate) fn sync_header(
