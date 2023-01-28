@@ -654,6 +654,7 @@ mod tests {
 			|service, &mut (ref mut block_import, ref babe_link)| {
 				let parent_hash = service.client().chain_info().best_hash;
 				let parent_header = service.client().header(parent_hash).unwrap().unwrap();
+				let parent_number = *parent_header.number();
 
 				futures::executor::block_on(service.transaction_pool().maintain(
 					ChainEvent::NewBestBlock { hash: parent_header.hash(), tree_route: None },
