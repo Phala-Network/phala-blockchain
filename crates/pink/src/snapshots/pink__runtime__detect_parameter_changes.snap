@@ -1,6 +1,6 @@
 ---
 source: crates/pink/src/runtime.rs
-assertion_line: 153
+assertion_line: 155
 expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <PinkRuntime as Config>::Schedule::get(),\n    <PinkRuntime as Config>::DeletionQueueDepth::get(),\n    <PinkRuntime as Config>::DeletionWeightLimit::get(),\n    <PinkRuntime as Config>::MaxCodeLen::get(),\n    <PinkRuntime as Config>::MaxStorageKeyLen::get())"
 ---
 (
@@ -76,7 +76,6 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
     Schedule {
         limits: Limits {
             event_topics: 4,
-            stack_height: None,
             globals: 256,
             locals: 1024,
             parameters: 128,
@@ -187,6 +186,7 @@ expression: "(<PinkRuntime as frame_system::Config>::BlockWeights::get(),\n    <
             call_per_cloned_byte: "121.6 ns",
             instantiate: "285.4 µs",
             instantiate_transfer_surcharge: "0 ps",
+            instantiate_per_input_byte: "1.5 ns",
             instantiate_per_salt_byte: "1.5 ns",
             hash_sha2_256: "688.3 ns",
             hash_sha2_256_per_byte: "3.9 ns",
