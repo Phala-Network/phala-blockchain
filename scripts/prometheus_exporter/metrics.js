@@ -3,7 +3,7 @@ import { urlJoin } from 'https://deno.land/x/url_join@1.0.0/mod.ts'
 
 const PRUNTIME_URL_BASE = Deno.env.get('PRUNTIME_URL_BASE') ?? 'http://127.0.0.1:8000'
 const PRUNTIME_GET_INFO_URL = urlJoin(PRUNTIME_URL_BASE, '/get_info')
-const PRUNTIME_GET_INFO_POLLING_INTERVAL = parseInt(Deno.env.get('PRUNTIME_GET_INFO_POLLING_INTERVAL'), 200)
+const PRUNTIME_GET_INFO_POLLING_INTERVAL = parseInt(Deno.env.get('PRUNTIME_GET_INFO_POLLING_INTERVAL') ?? '200')
 
 const sleep = (t) => new Promise(r => setTimeout(r, t))
 
