@@ -3,7 +3,8 @@ import { urlJoin } from 'https://deno.land/x/url_join@1.0.0/mod.ts'
 
 const PRUNTIME_URL_BASE = Deno.env.get('PRUNTIME_URL_BASE') ?? 'http://127.0.0.1:8000'
 const PRUNTIME_GET_INFO_URL = urlJoin(PRUNTIME_URL_BASE, '/get_info')
-const PRUNTIME_GET_INFO_POLLING_INTERVAL = parseInt(Deno.env.get('PRUNTIME_GET_INFO_POLLING_INTERVAL') ?? '200')
+const PRUNTIME_GET_INFO_POLLING_INTERVAL = parseInt(Deno.env.get('PRUNTIME_GET_INFO_POLLING_INTERVAL') ?? '300')
+const PRUNTIME_GET_INFO_POLLING_TIMEOUT = parseInt(Deno.env.get('PRUNTIME_GET_INFO_POLLING_TIMEOUT') ?? '200')
 
 const sleep = (t) => new Promise(r => setTimeout(r, t))
 
@@ -33,11 +34,12 @@ const getInfoLoop = async () => {
   console.info('Started polling pRuntime.', {
     PRUNTIME_URL_BASE,
     PRUNTIME_GET_INFO_URL,
-    PRUNTIME_GET_INFO_POLLING_INTERVAL
+    PRUNTIME_GET_INFO_POLLING_INTERVAL,
+    PRUNTIME_GET_INFO_POLLING_TIMEOUT
   })
   while (true) {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), PRUNTIME_GET_INFO_POLLING_INTERVAL)
+    const id = setTimeout(() => controller.abort(), PRUNTIME_GET_INFO_POLLING_TIMEOUT)
     try {
       const res = await fetch(PRUNTIME_GET_INFO_URL, {
         signal: controller.timeout
@@ -55,7 +57,7 @@ const getInfoLoop = async () => {
     } finally {
       clearTimeout(id)
     }
-    await sleep(300)
+    await sleep(PRUNTIME_GET_INFO_POLLING_INTERVAL)
   }
 }
 
