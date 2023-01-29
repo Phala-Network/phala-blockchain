@@ -6,7 +6,6 @@ use crate::{
     chain_client::{mq_next_sequence, update_signer_nonce},
     types::{ParachainApi, PrClient, SrSigner},
 };
-use phaxt::subxt::tx::Signer as _;
 
 pub use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -64,7 +63,9 @@ pub async fn maybe_sync_mq_egress(
 
             let params = crate::mk_params(api, longevity, tip).await?;
             let tx = phaxt::dynamic::tx::sync_offchain_message(message);
-            let extrinsic = api.tx().create_signed(&tx, signer, params).await;
+            let extrinsic =
+                api.tx()
+                    .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), params);
             signer.increment_nonce();
             match extrinsic {
                 Ok(extrinsic) => {
@@ -84,8 +85,8 @@ pub async fn maybe_sync_mq_egress(
                                 error!("Error submitting message {}: {:?}", msg_info, err);
                                 use phaxt::subxt::{error::RpcError, Error as SubxtError};
                                 let report = match err {
-                                    SubxtError::Rpc(RpcError(err)) => {
-                                        if err.contains("bad signature") {
+                                    SubxtError::Rpc(RpcError::ClientError(err)) => {
+                                        if err.to_string().contains("bad signature") {
                                             Error::BadSignature
                                         } else {
                                             Error::OtherRpcError

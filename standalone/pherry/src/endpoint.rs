@@ -18,7 +18,8 @@ async fn update_worker_endpoint(
     let tx = phaxt::dynamic::tx::update_worker_endpoint(encoded_endpoint_payload, signature);
     let ret = para_api
         .tx()
-        .sign_and_submit_then_watch(&tx, signer, params)
+        .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), params)?
+        .submit_and_watch()
         .await;
     if ret.is_err() {
         error!("FailedToCallBindWorkerEndpoint: {:?}", ret);

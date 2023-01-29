@@ -430,6 +430,7 @@ pub mod pallet {
 		/// Sets the cool down expiration time in seconds.
 		///
 		/// Can only be called by root.
+		#[pallet::call_index(0)]
 		#[pallet::weight(0)]
 		pub fn set_cool_down_expiration(origin: OriginFor<T>, period: u64) -> DispatchResult {
 			ensure_root(origin)?;
@@ -443,6 +444,7 @@ pub mod pallet {
 		///
 		/// It will trigger a force stop of computing if the worker is still in computing state. Anyone
 		/// can call it.
+		#[pallet::call_index(1)]
 		#[pallet::weight(0)]
 		pub fn unbind(origin: OriginFor<T>, session: T::AccountId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -458,6 +460,7 @@ pub mod pallet {
 		/// Triggers a force heartbeat request to all workers by sending a MAX pow target
 		///
 		/// Only for integration test.
+		#[pallet::call_index(2)]
 		#[pallet::weight(1)]
 		pub fn force_heartbeat(origin: OriginFor<T>) -> DispatchResult {
 			ensure_root(origin)?;
@@ -471,6 +474,7 @@ pub mod pallet {
 		/// Start computing
 		///
 		/// Only for integration test.
+		#[pallet::call_index(3)]
 		#[pallet::weight(1)]
 		pub fn force_start_computing(
 			origin: OriginFor<T>,
@@ -485,6 +489,7 @@ pub mod pallet {
 		/// Stop computing
 		///
 		/// Only for integration test.
+		#[pallet::call_index(4)]
 		#[pallet::weight(1)]
 		pub fn force_stop_computing(origin: OriginFor<T>, session: T::AccountId) -> DispatchResult {
 			ensure_root(origin)?;
@@ -495,6 +500,7 @@ pub mod pallet {
 		/// Updates the tokenomic parameters at the end of this block.
 		///
 		/// Can only be called by the tokenomic admin.
+		#[pallet::call_index(5)]
 		#[pallet::weight(1)]
 		pub fn update_tokenomic(
 			origin: OriginFor<T>,
@@ -512,6 +518,7 @@ pub mod pallet {
 		/// but never be paid out until the heartbeat is resumed.
 		///
 		/// Can only be called by root.
+		#[pallet::call_index(6)]
 		#[pallet::weight(1)]
 		pub fn set_heartbeat_paused(origin: OriginFor<T>, paused: bool) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;

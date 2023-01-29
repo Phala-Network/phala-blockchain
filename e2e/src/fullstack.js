@@ -1206,6 +1206,7 @@ function newNode(wsPort, tmpPath, name = 'node') {
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
             `--ws-port=${wsPort}`,
             '--rpc-methods=Unsafe',
+            '--pruning=archive',
         ]
     ];
     const cmd = cli.flat().join(' ');

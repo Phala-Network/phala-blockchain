@@ -3,8 +3,7 @@ use std::{borrow::Cow, time::Duration};
 use frame_support::log::error;
 use frame_support::traits::Currency;
 use pallet_contracts::chain_extension::{
-    ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal, SysConfig,
-    UncheckedFrom,
+    ChainExtension, Environment, Ext, InitState, Result as ExtResult, RetVal,
 };
 use phala_crypto::sr25519::{Persistence, KDF};
 use phala_types::contract::ConvertTo;
@@ -91,11 +90,10 @@ pub fn get_side_effects() -> ExecSideEffects {
 pub struct PinkExtension;
 
 impl ChainExtension<super::PinkRuntime> for PinkExtension {
-    fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> ExtResult<RetVal>
-    where
-        <E::T as SysConfig>::AccountId:
-            UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]> + Clone,
-    {
+    fn call<E: Ext<T = super::PinkRuntime>>(
+        &mut self,
+        env: Environment<E, InitState>,
+    ) -> ExtResult<RetVal> {
         let mut env = env.buf_in_buf_out();
         if env.ext_id() != 0 {
             error!(target: "pink", "Unknown extension id: {:}", env.ext_id());
@@ -104,15 +102,10 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             ));
         }
 
-        let address = env
-            .ext()
-            .address()
-            .as_ref()
-            .try_into()
-            .expect("Address should be valid");
+        let address = env.ext().address().clone();
         let call_info = get_call_mode_info().expect("BUG: call ext out of runtime context");
         let call_in_query = CallInQuery {
-            address: AccountId::new(address),
+            address,
             worker_pubkey: call_info.worker_pubkey,
         };
         let result = if matches!(call_info.mode, CallMode::Command) {

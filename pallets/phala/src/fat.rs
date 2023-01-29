@@ -201,6 +201,7 @@ pub mod pallet {
 		/// - `deposit_per_item` - Price for contract storage per item.
 		/// - `deposit_per_byte` - Price for contract storage per byte.
 		/// - `treasury_account` - The treasury account used to collect the gas and storage fee.
+		#[pallet::call_index(0)]
 		#[pallet::weight(0)]
 		pub fn add_cluster(
 			origin: OriginFor<T>,
@@ -282,6 +283,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[pallet::weight(0)]
 		pub fn cluster_upload_resource(
 			origin: OriginFor<T>,
@@ -316,6 +318,7 @@ pub mod pallet {
 		}
 
 		/// Transfer `amount` of on-chain token to the `dest_account` in the cluster of id `cluster_id`.
+		#[pallet::call_index(2)]
 		#[pallet::weight(0)]
 		pub fn transfer_to_cluster(
 			origin: OriginFor<T>,
@@ -344,6 +347,7 @@ pub mod pallet {
 		}
 
 		// Push message to contract with some deposit into the cluster to pay the gas fee
+		#[pallet::call_index(3)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64))]
 		pub fn push_contract_message(
 			origin: OriginFor<T>,
@@ -360,6 +364,7 @@ pub mod pallet {
 			PalletMq::<T>::push_message(origin, command_topic(contract_id), payload)
 		}
 
+		#[pallet::call_index(4)]
 		#[pallet::weight(0)]
 		pub fn instantiate_contract(
 			origin: OriginFor<T>,
@@ -418,6 +423,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(5)]
 		#[pallet::weight(0)]
 		pub fn cluster_destroy(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
 			ensure_root(origin)?;
@@ -428,6 +434,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(6)]
 		#[pallet::weight(0)]
 		pub fn set_pink_system_code(
 			origin: OriginFor<T>,

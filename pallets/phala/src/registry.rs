@@ -290,6 +290,7 @@ pub mod pallet {
 		/// Sets [`BenchmarkDuration`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_set_benchmark_duration(origin: OriginFor<T>, value: u32) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -300,6 +301,7 @@ pub mod pallet {
 		/// Force register a worker with the given pubkey with sudo permission
 		///
 		/// For test only.
+		#[pallet::call_index(1)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
@@ -339,6 +341,7 @@ pub mod pallet {
 		/// Force register a topic pubkey
 		///
 		/// For test only.
+		#[pallet::call_index(2)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn force_register_topic_pubkey(
 			origin: OriginFor<T>,
@@ -353,6 +356,7 @@ pub mod pallet {
 		/// Register a gatekeeper.
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(3)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn register_gatekeeper(
 			origin: OriginFor<T>,
@@ -398,6 +402,7 @@ pub mod pallet {
 		/// Unregister a gatekeeper
 		///
 		/// At least one gatekeeper should be available
+		#[pallet::call_index(4)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
@@ -426,6 +431,7 @@ pub mod pallet {
 		}
 
 		/// Rotate the master key
+		#[pallet::call_index(5)]
 		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
 		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -463,6 +469,7 @@ pub mod pallet {
 		///
 		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
 		/// anyone on behalf of a worker.
+		#[pallet::call_index(6)]
 		#[pallet::weight(0)]
 		pub fn register_worker(
 			origin: OriginFor<T>,
@@ -560,6 +567,7 @@ pub mod pallet {
 		///
 		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
 		/// anyone on behalf of a worker.
+		#[pallet::call_index(7)]
 		#[pallet::weight(0)]
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
@@ -671,6 +679,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(8)]
 		#[pallet::weight(0)]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
@@ -717,6 +726,7 @@ pub mod pallet {
 		/// Registers a pruntime binary to [`PRuntimeAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(9)]
 		#[pallet::weight(0)]
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -739,6 +749,7 @@ pub mod pallet {
 		/// Removes a pruntime binary from [`PRuntimeAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(10)]
 		#[pallet::weight(0)]
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -760,6 +771,7 @@ pub mod pallet {
 		/// Adds an entry in [`RelaychainGenesisBlockHashAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(11)]
 		#[pallet::weight(0)]
 		pub fn add_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
@@ -782,6 +794,7 @@ pub mod pallet {
 		/// Deletes an entry in [`RelaychainGenesisBlockHashAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(12)]
 		#[pallet::weight(0)]
 		pub fn remove_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
@@ -804,6 +817,7 @@ pub mod pallet {
 		/// Set minimum pRuntime version. Versions less than MinimumPRuntimeVersion would be forced to quit.
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(13)]
 		#[pallet::weight(0)]
 		pub fn set_minimum_pruntime_version(
 			origin: OriginFor<T>,
@@ -823,6 +837,7 @@ pub mod pallet {
 		/// the current consensus version.
 		///
 		/// Can only be called by `GovernanceOrigin`.
+		#[pallet::call_index(14)]
 		#[pallet::weight(0)]
 		pub fn set_pruntime_consensus_version(
 			origin: OriginFor<T>,

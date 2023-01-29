@@ -143,6 +143,7 @@ pub mod pallet {
 		/// Claims a name and assign the caller as the owner of the name
 		///
 		/// Once the name is claimed, we don't allow to change the owner or deregister any more.
+		#[pallet::call_index(0)]
 		#[pallet::weight(0)]
 		#[transactional]
 		pub fn claim_name(origin: OriginFor<T>, name: H256) -> DispatchResult {
@@ -160,6 +161,7 @@ pub mod pallet {
 		}
 
 		/// Triggers a rollup with an optional nonce
+		#[pallet::call_index(1)]
 		#[pallet::weight(0)]
 		#[transactional]
 		pub fn rollup(

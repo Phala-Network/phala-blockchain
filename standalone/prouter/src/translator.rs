@@ -1,6 +1,6 @@
 use codec::Decode;
 use phala_types::VersionedWorkerEndpoints;
-use phaxt::subxt::ext::sp_core::sr25519::Public;
+use phaxt::sp_core::sr25519::Public;
 use phaxt::ParachainApi;
 
 use phactory_api::endpoints::EndpointType;

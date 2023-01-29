@@ -189,7 +189,7 @@ pub async fn fetch_genesis_storage(
     api: &ParachainApi,
     pos: BlockNumber,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
-    let pos = subxt::rpc::BlockNumber::from(NumberOrHex::Number(pos.into()));
+    let pos = subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(pos.into()));
     let hash = api.rpc().block_hash(Some(pos)).await?;
     let response = api
         .extra_rpc()

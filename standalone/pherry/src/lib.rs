@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
 use sp_core::crypto::AccountId32;
-use sp_runtime::generic::Era;
 use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
@@ -9,10 +8,13 @@ use tokio::time::sleep;
 
 use codec::{Decode, Encode};
 use phala_pallets::pallet_registry::Attestation;
-use phaxt::rpc::ExtraRpcExt as _;
-use phaxt::{subxt, RpcClient};
-use sp_core::{crypto::Pair, sr25519};
+use phaxt::{
+    rpc::ExtraRpcExt as _,
+    sp_core::{crypto::Pair, sr25519},
+    subxt, RpcClient,
+};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use subxt::config::{substrate::Era, Header as _};
 
 mod endpoint;
 mod error;
@@ -26,8 +28,8 @@ pub mod types;
 
 use crate::error::Error;
 use crate::types::{
-    Block, BlockNumber, Hash, Header, NotifyReq, NumberOrHex, ParachainApi, PrClient,
-    RelaychainApi, SignedBlock, SrSigner,
+    Block, BlockNumber, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, ParachainApi, PrClient,
+    RelaychainApi, SrSigner,
 };
 use phactory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
@@ -218,7 +220,10 @@ pub struct Args {
     attestation_provider: RaOption,
 
     /// Use IAS RA method, this is compatible with Pherry 1.x
-    #[arg(short = 'r', help = "Use IAS as RA method, enable this will override attestation-provider")]
+    #[arg(
+        short = 'r',
+        help = "Use IAS as RA method, enable this will override attestation-provider"
+    )]
     use_ias: bool,
 
     /// Try to load chain state from the latest block that the worker haven't registered at.
@@ -257,11 +262,8 @@ struct BlockSyncState {
     authory_set_state: Option<(BlockNumber, SetId)>,
 }
 
-async fn get_header_hash<T: subxt::Config>(
-    client: &phaxt::Client<T>,
-    h: Option<u32>,
-) -> Result<T::Hash> {
-    let pos = h.map(|h| subxt::rpc::BlockNumber::from(NumberOrHex::Number(h.into())));
+async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Hash> {
+    let pos = h.map(|h| subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client
             .rpc()
@@ -273,10 +275,7 @@ async fn get_header_hash<T: subxt::Config>(
     Ok(hash)
 }
 
-async fn get_block_at<T: subxt::Config>(
-    client: &phaxt::Client<T>,
-    h: Option<u32>,
-) -> Result<(SignedBlock<T::Header, T::Extrinsic>, T::Hash)> {
+async fn get_block_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<(Block, Hash)> {
     let hash = get_header_hash(client, h).await?;
     let block = client
         .rpc()
@@ -284,13 +283,10 @@ async fn get_block_at<T: subxt::Config>(
         .await?
         .ok_or(Error::BlockNotFound)?;
 
-    Ok((block, hash))
+    Ok((block.convert_to(), hash))
 }
 
-pub async fn get_header_at<T: subxt::Config>(
-    client: &phaxt::Client<T>,
-    h: Option<u32>,
-) -> Result<(T::Header, T::Hash)> {
+pub async fn get_header_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<(Header, Hash)> {
     let hash = get_header_hash(client, h).await?;
     let header = client
         .rpc()
@@ -298,7 +294,7 @@ pub async fn get_header_at<T: subxt::Config>(
         .await?
         .ok_or(Error::BlockNotFound)?;
 
-    Ok((header, hash))
+    Ok((header.convert_to(), hash))
 }
 
 async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) -> Result<Block> {
@@ -795,7 +791,7 @@ async fn sync_parachain_header(
         info!("parachain headers not found in cache");
         for b in next_headernum..=para_fin_block_number {
             info!("fetching parachain header {}", b);
-            let num = subxt::rpc::BlockNumber::from(NumberOrHex::Number(b.into()));
+            let num = subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(b.into()));
             let hash = para_api.rpc().block_hash(Some(num)).await?;
             let hash = match hash {
                 Some(hash) => hash,
@@ -809,7 +805,7 @@ async fn sync_parachain_header(
                 .header(Some(hash))
                 .await?
                 .ok_or(Error::BlockNotFound)?;
-            para_headers.push(header);
+            para_headers.push(header.convert_to());
         }
     } else {
         info!("Got {} parachain headers from cache", para_headers.len());
@@ -863,14 +859,14 @@ async fn init_runtime(
             let genesis_block = get_block_at(api, Some(start_header)).await?.0.block;
             let hash = api
                 .rpc()
-                .block_hash(Some(subxt::rpc::BlockNumber::from(NumberOrHex::Number(
-                    start_header as _,
-                ))))
+                .block_hash(Some(subxt::rpc::types::BlockNumber::from(
+                    NumberOrHex::Number(start_header as _),
+                )))
                 .await?
                 .expect("No genesis block?");
             let set_proof = get_authority_with_proof_at(api, hash).await?;
             blocks::GenesisBlockInfo {
-                block_header: genesis_block.header,
+                block_header: genesis_block.header.clone(),
                 authority_set: set_proof.authority_set,
                 proof: set_proof.authority_proof,
             }
@@ -926,7 +922,8 @@ async fn register_worker(
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
     let ret = para_api
         .tx()
-        .sign_and_submit_then_watch(&tx, signer, params)
+        .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), params)?
+        .submit_and_watch()
         .await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
@@ -988,7 +985,7 @@ async fn try_load_chain_state(pr: &PrClient, para_api: &ParachainApi, args: &Arg
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
-async fn wait_until_synced<T: subxt::Config>(client: &phaxt::Client<T>) -> Result<()> {
+async fn wait_until_synced(client: &phaxt::RpcClient) -> Result<()> {
     loop {
         let state = client.extra_rpc().system_sync_state().await?;
         info!(
@@ -1265,7 +1262,7 @@ async fn bridge(
             if block.justifications.is_some() {
                 debug!("block with justification at: {}", block.block.header.number);
             }
-            sync_state.blocks.push(block.clone());
+            sync_state.blocks.push(block);
         }
 
         // send the blocks to pRuntime in batch
@@ -1410,12 +1407,8 @@ async fn mk_params(
         let phase = number % period;
         let era = Era::Mortal(period, phase);
         info!(
-            "update era: block={}, period={}, phase={}, birth={}, death={}",
-            number,
-            period,
-            phase,
-            era.birth(number),
-            era.death(number)
+            "update era: block={}, period={}, phase={}",
+            number, period, phase
         );
         Some((era, header.hash()))
     } else {

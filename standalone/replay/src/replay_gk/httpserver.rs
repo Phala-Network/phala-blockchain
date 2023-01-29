@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use super::*;
 use actix_web::{get, web, App, HttpResponse, HttpServer};
-use subxt::ext::sp_runtime::AccountId32;
+use sp_runtime::AccountId32;
 
 struct AppState {
     factory: Arc<Mutex<ReplayFactory>>,
