@@ -2,8 +2,8 @@
 use hash_db::{
     AsHashDB, AsPlainDB, HashDB, HashDBRef, Hasher as KeyHasher, PlainDB, PlainDBRef, Prefix,
 };
-use im::{hashmap::Entry, HashMap};
 use parity_util_mem::{malloc_size, MallocSizeOf, MallocSizeOfOps};
+pub(crate) use std::collections::hash_map::{Entry, HashMap};
 use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData, mem};
 
 use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
@@ -285,6 +285,28 @@ where
                 }
             })
             .collect()
+    }
+}
+
+impl<H, KF, T, M> MemoryDB<H, KF, T, M>
+where
+    H: KeyHasher,
+    T: for<'a> From<&'a [u8]> + Clone,
+    KF: KeyFunction<H>,
+    M: MemTracker<T> + Default,
+    T: serde::Serialize,
+{
+    pub fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+
+        let mut seq = serializer.serialize_seq(Some(self.data.len()))?;
+        for (_k, v) in self.data.iter() {
+            seq.serialize_element(&v)?;
+        }
+        seq.end()
     }
 }
 

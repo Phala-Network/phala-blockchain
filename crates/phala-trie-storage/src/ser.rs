@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use hash_db::Hasher;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use serde::{Deserialize, Serialize};
@@ -18,23 +19,13 @@ pub struct StorageData {
     pub inner: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
-pub struct SerAsSeq<K, V>(pub im::HashMap<K, V>);
+pub struct SerAsSeq<'a, H: Hasher>(pub &'a crate::MemoryDB<H>);
 
-impl<K, V> Serialize for SerAsSeq<K, V>
-where
-    K: Serialize,
-    V: Serialize,
-{
+impl<H: Hasher> Serialize for SerAsSeq<'_, H> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        use serde::ser::SerializeSeq;
-
-        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
-        for (_k, v) in self.0.iter() {
-            seq.serialize_element(&v)?;
-        }
-        seq.end()
+        self.0.serialize(serializer)
     }
 }

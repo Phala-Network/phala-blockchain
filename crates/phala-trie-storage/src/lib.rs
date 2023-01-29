@@ -80,7 +80,7 @@ where
     S: Serializer,
 {
     let root = trie.root();
-    let kvs = trie.backend_storage().clone().drain();
+    let kvs = trie.backend_storage();
     (root, ser::SerAsSeq(kvs)).serialize(serializer)
 }
 
