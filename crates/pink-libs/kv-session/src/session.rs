@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use alloc::vec::Vec;
 use alloc::{borrow::ToOwned, collections::BTreeMap};
 
-use crate::traits::{QueueIndex, QueueSession, QueueIndexCodec};
+use crate::traits::{QueueIndex, QueueIndexCodec, QueueSession};
 use crate::{
     traits::{AccessTracking, KvSession, KvSnapshot, KvTransaction},
     Result,
