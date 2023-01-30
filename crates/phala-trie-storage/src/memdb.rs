@@ -3,7 +3,7 @@ use hash_db::{
     AsHashDB, AsPlainDB, HashDB, HashDBRef, Hasher as KeyHasher, PlainDB, PlainDBRef, Prefix,
 };
 use parity_util_mem::{malloc_size, MallocSizeOf, MallocSizeOfOps};
-pub(crate) use std::collections::hash_map::{Entry, HashMap};
+pub(crate) use std::collections::btree_map::{BTreeMap as HashMap, Entry};
 use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData, mem};
 
 use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
@@ -119,6 +119,7 @@ where
     T: for<'a> From<&'a [u8]> + Clone,
     KF: KeyFunction<H>,
     M: MemTracker<T> + Default,
+    KF::Key: Ord,
 {
     fn default() -> Self {
         Self::from_null_node(&[0u8][..], [0u8][..].into())
@@ -132,6 +133,7 @@ where
     T: Default + Clone,
     KF: KeyFunction<H>,
     M: MemTracker<T>,
+    KF::Key: Ord,
 {
     /// Remove an element and delete it from storage if reference count reaches zero.
     /// If the value was purged, return the old value.
@@ -173,6 +175,7 @@ where
     T: for<'a> From<&'a [u8]> + Clone,
     KF: KeyFunction<H>,
     M: MemTracker<T> + Default,
+    KF::Key: Ord,
 {
     /// Create a new `MemoryDB` from a given null key/data
     pub fn from_null_node(null_key: &[u8], null_node_data: T) -> Self {
@@ -333,6 +336,7 @@ where
     T: Default + PartialEq<T> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
     KF: Send + Sync + KeyFunction<H>,
     KF::Key: Borrow<[u8]> + for<'a> From<&'a [u8]>,
+    KF::Key: Ord,
     M: MemTracker<T> + Send + Sync,
 {
     fn get(&self, key: &H::Out) -> Option<T> {
@@ -389,6 +393,7 @@ where
     T: Default + PartialEq<T> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
     KF: Send + Sync + KeyFunction<H>,
     KF::Key: Borrow<[u8]> + for<'a> From<&'a [u8]>,
+    KF::Key: Ord,
     M: MemTracker<T> + Send + Sync,
 {
     fn get(&self, key: &H::Out) -> Option<T> {
@@ -404,6 +409,7 @@ where
     H: KeyHasher,
     T: Default + PartialEq<T> + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
     KF: KeyFunction<H> + Send + Sync,
+    KF::Key: Ord,
     M: MemTracker<T> + Send + Sync,
 {
     fn get(&self, key: &H::Out, prefix: Prefix) -> Option<T> {
@@ -489,6 +495,7 @@ where
     H: KeyHasher,
     T: Default + PartialEq<T> + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
     KF: KeyFunction<H> + Send + Sync,
+    KF::Key: Ord,
     M: MemTracker<T> + Send + Sync,
 {
     fn get(&self, key: &H::Out, prefix: Prefix) -> Option<T> {
@@ -505,6 +512,7 @@ where
     T: Default + PartialEq<T> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
     KF: KeyFunction<H> + Send + Sync,
     KF::Key: Borrow<[u8]> + for<'a> From<&'a [u8]>,
+    KF::Key: Ord,
     M: MemTracker<T> + Send + Sync,
 {
     fn as_plain_db(&self) -> &dyn PlainDB<H::Out, T> {
@@ -520,6 +528,7 @@ where
     H: KeyHasher,
     T: Default + PartialEq<T> + AsRef<[u8]> + for<'a> From<&'a [u8]> + Clone + Send + Sync,
     KF: KeyFunction<H> + Send + Sync,
+    KF::Key: Ord,
     M: MemTracker<T> + Send + Sync,
 {
     fn as_hash_db(&self) -> &dyn HashDB<H, T> {
@@ -615,7 +624,7 @@ impl<T> Copy for NoopTracker<T> {}
 
 impl<T> MemTracker<T> for NoopTracker<T> {}
 
-fn shallow_size_of_hashmap<K, V, S>(map: &HashMap<K, V, S>, ops: &mut MallocSizeOfOps) -> usize {
+fn shallow_size_of_hashmap<K, V>(map: &HashMap<K, V>, ops: &mut MallocSizeOfOps) -> usize {
     // See the implementation for std::collections::HashSet for details.
     if ops.has_malloc_enclosing_size_of() {
         map.values()
@@ -627,7 +636,7 @@ fn shallow_size_of_hashmap<K, V, S>(map: &HashMap<K, V, S>, ops: &mut MallocSize
 }
 
 #[cfg(test)]
-fn size_of_hash_map<K, V, S>(map: &HashMap<K, V, S>) -> usize
+fn size_of_hash_map<K, V>(map: &HashMap<K, V>) -> usize
 where
     K: MallocSizeOf,
     V: MallocSizeOf,
@@ -646,13 +655,19 @@ where
 
 pub type GenericMemoryDB<H> = MemoryDB<H, HashKey<H>, DBValue, NoopTracker<DBValue>>;
 
-impl<H: KeyHasher> Consolidate for GenericMemoryDB<H> {
+impl<H: KeyHasher> Consolidate for GenericMemoryDB<H>
+where
+    H::Out: Ord,
+{
     fn consolidate(&mut self, other: Self) {
         MemoryDB::consolidate(self, other)
     }
 }
 
-impl<H: KeyHasher> TrieBackendStorage<H> for GenericMemoryDB<H> {
+impl<H: KeyHasher> TrieBackendStorage<H> for GenericMemoryDB<H>
+where
+    H::Out: Ord,
+{
     type Overlay = Self;
 
     fn get(

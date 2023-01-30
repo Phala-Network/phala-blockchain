@@ -33,18 +33,20 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
-pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>);
+pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>)
+where
+    H::Out: Ord;
 
 pub fn new_backend<H: Hasher>() -> InMemoryBackend<H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     TrieBackend::new(Default::default(), Default::default())
 }
 
 impl<H: Hasher> Default for TrieStorage<H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     fn default() -> Self {
         Self(new_backend())
@@ -55,7 +57,7 @@ pub fn load_trie_backend<H: Hasher>(
     pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let mut root = Default::default();
     let mut mdb = Default::default();
@@ -76,7 +78,7 @@ pub fn serialize_trie_backend<H: Hasher, S>(
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
-    H::Out: Codec + Serialize,
+    H::Out: Codec + Serialize + Ord,
     S: Serializer,
 {
     let root = trie.root();
@@ -89,7 +91,7 @@ pub fn deserialize_trie_backend<'de, H: Hasher, De>(
     deserializer: De,
 ) -> Result<TrieBackend<MemoryDB<H>, H>, De::Error>
 where
-    H::Out: Codec + Deserialize<'de>,
+    H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
     let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
@@ -106,7 +108,7 @@ pub fn clone_trie_backend<H: Hasher>(
     trie: &TrieBackend<MemoryDB<H>, H>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let root = trie.root();
     let mdb = trie.backend_storage().clone();
