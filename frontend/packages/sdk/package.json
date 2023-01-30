@@ -40,6 +40,7 @@
   "dependencies": {
     "@esbuild-plugins/node-modules-polyfill": "^0.1.4",
     "@phala/typedefs": "^0.2.32",
+    "@polkadot/types": "^9.8.1",
     "@polkadot/api": "^9.8.1",
     "@polkadot/api-contract": "^9.8.1",
     "@polkadot/keyring": "^10.1.12",

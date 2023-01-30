@@ -7,6 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  YARN_ENABLE_IMMUTABLE_INSTALLS: false
 
 jobs:
   build-core:
@@ -59,10 +60,12 @@ jobs:
         with:
           name: pruntime-binaries
           path: ./standalone/pruntime/bin
+      - name: Build JS-SDK
+        run: cd ./frontend/packages/sdk && yarn && yarn build
       - name: Change permission
         run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/pruntime
       - name: Run E2E tests
-        run: yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && yarn test
+        run: yarn set version berry && cd ./e2e/ && yarn && yarn build:sdk && yarn test
       - name: Pack logs if failed
         if: failure()
         run: tar czvf e2e-logs.tar.gz e2e
