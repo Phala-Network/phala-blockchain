@@ -11,7 +11,7 @@ downloadProto "pruntime_rpc"
 
 echo "Generating static code from proto files"
 rm -rf src/proto/*
-pbjs -w es6 -t static-module -o src/proto/index.js proto/*.proto
-pbts -o src/proto/index.d.ts src/proto/index.js
+npx pbjs -w es6 -t static-module -o src/proto/index.js proto/*.proto
+npx pbts -o src/proto/index.d.ts src/proto/index.js
 
 echo "Done"

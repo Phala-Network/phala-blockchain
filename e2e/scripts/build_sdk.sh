@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cd ../sdk
+cd ../frontend/packages/sdk
 yarn && yarn build

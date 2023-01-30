@@ -20,7 +20,7 @@
     "build:sdk": "scripts/build_sdk.sh"
   },
   "dependencies": {
-    "@phala/sdk": "file:../sdk",
+    "@phala/sdk": "file:../frontend/packages/sdk",
     "@phala/typedefs": "^0.2.32",
     "@polkadot/api": "^9.8.1",
     "@polkadot/api-contract": "^9.8.1",

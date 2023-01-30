@@ -88,5 +88,3 @@ coverage/
 scripts/js/node_modules
 scripts/js/.env
 yarn-error.log
-
-sdk/node_modules

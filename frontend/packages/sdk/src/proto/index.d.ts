@@ -1,17 +1,100 @@
-import { RegistryTypes, Signer, ISubmittableResult } from '@polkadot/types/types';
-import { ApiPromise } from '@polkadot/api';
-import { SubmittableExtrinsic } from '@polkadot/api/types';
-import { Bytes } from '@polkadot/types-codec';
-import { InjectedAccountWithMeta } from '@polkadot/extension-inject/types';
-import { KeyringPair } from '@polkadot/keyring/types';
-import * as $protobuf from 'protobufjs';
+import * as $protobuf from "protobufjs";
+/** Namespace prpc. */
+export namespace prpc {
 
-declare const types: RegistryTypes;
+    /** Properties of a PrpcError. */
+    interface IPrpcError {
 
-declare const randomHex: (size?: number) => string;
+        /** The error description */
+        message?: (string|null);
+    }
+
+    /** The final Error type of RPCs to be serialized to protobuf. */
+    class PrpcError implements IPrpcError {
+
+        /**
+         * Constructs a new PrpcError.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: prpc.IPrpcError);
+
+        /** The error description */
+        public message: string;
+
+        /**
+         * Creates a new PrpcError instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns PrpcError instance
+         */
+        public static create(properties?: prpc.IPrpcError): prpc.PrpcError;
+
+        /**
+         * Encodes the specified PrpcError message. Does not implicitly {@link prpc.PrpcError.verify|verify} messages.
+         * @param message PrpcError message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: prpc.IPrpcError, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified PrpcError message, length delimited. Does not implicitly {@link prpc.PrpcError.verify|verify} messages.
+         * @param message PrpcError message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: prpc.IPrpcError, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a PrpcError message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns PrpcError
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): prpc.PrpcError;
+
+        /**
+         * Decodes a PrpcError message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns PrpcError
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): prpc.PrpcError;
+
+        /**
+         * Verifies a PrpcError message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a PrpcError message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns PrpcError
+         */
+        public static fromObject(object: { [k: string]: any }): prpc.PrpcError;
+
+        /**
+         * Creates a plain object from a PrpcError message. Also converts values to other types if specified.
+         * @param message PrpcError
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: prpc.PrpcError, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this PrpcError to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+}
 
 /** Namespace pruntime_rpc. */
-declare namespace pruntime_rpc {
+export namespace pruntime_rpc {
 
     /** Represents a PhactoryAPI */
     class PhactoryAPI extends $protobuf.rpc.Service {
@@ -340,6 +423,104 @@ declare namespace pruntime_rpc {
          * @returns Promise
          */
         public httpFetch(request: pruntime_rpc.IHttpRequest): Promise<pruntime_rpc.HttpResponse>;
+
+        /**
+         * Calls GetContractInfo.
+         * @param request GetContractInfoRequest message or plain object
+         * @param callback Node-style callback called with the error, if any, and GetContractInfoResponse
+         */
+        public getContractInfo(request: pruntime_rpc.IGetContractInfoRequest, callback: pruntime_rpc.PhactoryAPI.GetContractInfoCallback): void;
+
+        /**
+         * Calls GetContractInfo.
+         * @param request GetContractInfoRequest message or plain object
+         * @returns Promise
+         */
+        public getContractInfo(request: pruntime_rpc.IGetContractInfoRequest): Promise<pruntime_rpc.GetContractInfoResponse>;
+
+        /**
+         * Calls GetClusterInfo.
+         * @param request Empty message or plain object
+         * @param callback Node-style callback called with the error, if any, and GetClusterInfoResponse
+         */
+        public getClusterInfo(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GetClusterInfoCallback): void;
+
+        /**
+         * Calls GetClusterInfo.
+         * @param request Empty message or plain object
+         * @returns Promise
+         */
+        public getClusterInfo(request: google.protobuf.IEmpty): Promise<pruntime_rpc.GetClusterInfoResponse>;
+
+        /**
+         * Calls UploadSidevmCode.
+         * @param request SidevmCode message or plain object
+         * @param callback Node-style callback called with the error, if any, and Empty
+         */
+        public uploadSidevmCode(request: pruntime_rpc.ISidevmCode, callback: pruntime_rpc.PhactoryAPI.UploadSidevmCodeCallback): void;
+
+        /**
+         * Calls UploadSidevmCode.
+         * @param request SidevmCode message or plain object
+         * @returns Promise
+         */
+        public uploadSidevmCode(request: pruntime_rpc.ISidevmCode): Promise<google.protobuf.Empty>;
+
+        /**
+         * Calls CalculateContractId.
+         * @param request ContractParameters message or plain object
+         * @param callback Node-style callback called with the error, if any, and ContractId
+         */
+        public calculateContractId(request: pruntime_rpc.IContractParameters, callback: pruntime_rpc.PhactoryAPI.CalculateContractIdCallback): void;
+
+        /**
+         * Calls CalculateContractId.
+         * @param request ContractParameters message or plain object
+         * @returns Promise
+         */
+        public calculateContractId(request: pruntime_rpc.IContractParameters): Promise<pruntime_rpc.ContractId>;
+
+        /**
+         * Calls GetNetworkConfig.
+         * @param request Empty message or plain object
+         * @param callback Node-style callback called with the error, if any, and NetworkConfigResponse
+         */
+        public getNetworkConfig(request: google.protobuf.IEmpty, callback: pruntime_rpc.PhactoryAPI.GetNetworkConfigCallback): void;
+
+        /**
+         * Calls GetNetworkConfig.
+         * @param request Empty message or plain object
+         * @returns Promise
+         */
+        public getNetworkConfig(request: google.protobuf.IEmpty): Promise<pruntime_rpc.NetworkConfigResponse>;
+
+        /**
+         * Calls LoadChainState.
+         * @param request ChainState message or plain object
+         * @param callback Node-style callback called with the error, if any, and Empty
+         */
+        public loadChainState(request: pruntime_rpc.IChainState, callback: pruntime_rpc.PhactoryAPI.LoadChainStateCallback): void;
+
+        /**
+         * Calls LoadChainState.
+         * @param request ChainState message or plain object
+         * @returns Promise
+         */
+        public loadChainState(request: pruntime_rpc.IChainState): Promise<google.protobuf.Empty>;
+
+        /**
+         * Calls Stop.
+         * @param request StopOptions message or plain object
+         * @param callback Node-style callback called with the error, if any, and Empty
+         */
+        public stop(request: pruntime_rpc.IStopOptions, callback: pruntime_rpc.PhactoryAPI.StopCallback): void;
+
+        /**
+         * Calls Stop.
+         * @param request StopOptions message or plain object
+         * @returns Promise
+         */
+        public stop(request: pruntime_rpc.IStopOptions): Promise<google.protobuf.Empty>;
     }
 
     namespace PhactoryAPI {
@@ -497,6 +678,55 @@ declare namespace pruntime_rpc {
          * @param [response] HttpResponse
          */
         type HttpFetchCallback = (error: (Error|null), response?: pruntime_rpc.HttpResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getContractInfo}.
+         * @param error Error, if any
+         * @param [response] GetContractInfoResponse
+         */
+        type GetContractInfoCallback = (error: (Error|null), response?: pruntime_rpc.GetContractInfoResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getClusterInfo}.
+         * @param error Error, if any
+         * @param [response] GetClusterInfoResponse
+         */
+        type GetClusterInfoCallback = (error: (Error|null), response?: pruntime_rpc.GetClusterInfoResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#uploadSidevmCode}.
+         * @param error Error, if any
+         * @param [response] Empty
+         */
+        type UploadSidevmCodeCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#calculateContractId}.
+         * @param error Error, if any
+         * @param [response] ContractId
+         */
+        type CalculateContractIdCallback = (error: (Error|null), response?: pruntime_rpc.ContractId) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#getNetworkConfig}.
+         * @param error Error, if any
+         * @param [response] NetworkConfigResponse
+         */
+        type GetNetworkConfigCallback = (error: (Error|null), response?: pruntime_rpc.NetworkConfigResponse) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#loadChainState}.
+         * @param error Error, if any
+         * @param [response] Empty
+         */
+        type LoadChainStateCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
+
+        /**
+         * Callback as used by {@link pruntime_rpc.PhactoryAPI#stop}.
+         * @param error Error, if any
+         * @param [response] Empty
+         */
+        type StopCallback = (error: (Error|null), response?: google.protobuf.Empty) => void;
     }
 
     /** Properties of a PhactoryInfo. */
@@ -547,20 +777,17 @@ declare namespace pruntime_rpc {
         /** PhactoryInfo gitRevision */
         gitRevision?: (string|null);
 
-        /** PhactoryInfo runningSideTasks */
-        runningSideTasks?: (number|Long|null);
-
         /** PhactoryInfo memoryUsage */
         memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
 
         /** PhactoryInfo waitingForParaheaders */
         waitingForParaheaders?: (boolean|null);
 
-        /** PhactoryInfo networkStatus */
-        networkStatus?: (pruntime_rpc.INetworkStatus|null);
-
         /** PhactoryInfo system */
         system?: (pruntime_rpc.ISystemInfo|null);
+
+        /** PhactoryInfo canLoadChainState */
+        canLoadChainState?: (boolean|null);
     }
 
     /** Represents a PhactoryInfo. */
@@ -617,20 +844,17 @@ declare namespace pruntime_rpc {
         /** PhactoryInfo gitRevision. */
         public gitRevision: string;
 
-        /** PhactoryInfo runningSideTasks. */
-        public runningSideTasks: (number|Long);
-
         /** PhactoryInfo memoryUsage. */
         public memoryUsage?: (pruntime_rpc.IMemoryUsage|null);
 
         /** PhactoryInfo waitingForParaheaders. */
         public waitingForParaheaders: boolean;
 
-        /** PhactoryInfo networkStatus. */
-        public networkStatus?: (pruntime_rpc.INetworkStatus|null);
-
         /** PhactoryInfo system. */
         public system?: (pruntime_rpc.ISystemInfo|null);
+
+        /** PhactoryInfo canLoadChainState. */
+        public canLoadChainState: boolean;
 
         /** PhactoryInfo _genesisBlockHash. */
         public _genesisBlockHash?: "genesisBlockHash";
@@ -733,11 +957,11 @@ declare namespace pruntime_rpc {
         /** SystemInfo numberOfContracts */
         numberOfContracts?: (number|Long|null);
 
-        /** SystemInfo consensusVersion */
-        consensusVersion?: (number|null);
-
         /** SystemInfo maxSupportedConsensusVersion */
         maxSupportedConsensusVersion?: (number|null);
+
+        /** SystemInfo genesisBlock */
+        genesisBlock?: (number|null);
     }
 
     /** Represents a SystemInfo. */
@@ -767,11 +991,11 @@ declare namespace pruntime_rpc {
         /** SystemInfo numberOfContracts. */
         public numberOfContracts: (number|Long);
 
-        /** SystemInfo consensusVersion. */
-        public consensusVersion: number;
-
         /** SystemInfo maxSupportedConsensusVersion. */
         public maxSupportedConsensusVersion: number;
+
+        /** SystemInfo genesisBlock. */
+        public genesisBlock: number;
 
         /**
          * Creates a new SystemInfo instance using the specified properties.
@@ -1651,6 +1875,9 @@ declare namespace pruntime_rpc {
 
         /** InitRuntimeRequest isParachain */
         isParachain?: (boolean|null);
+
+        /** InitRuntimeRequest attestationProvider */
+        attestationProvider?: (Uint8Array|null);
     }
 
     /** Represents an InitRuntimeRequest. */
@@ -1680,11 +1907,17 @@ declare namespace pruntime_rpc {
         /** InitRuntimeRequest isParachain. */
         public isParachain: boolean;
 
+        /** InitRuntimeRequest attestationProvider. */
+        public attestationProvider?: (Uint8Array|null);
+
         /** InitRuntimeRequest _debugSetKey. */
         public _debugSetKey?: "debugSetKey";
 
         /** InitRuntimeRequest _encodedOperator. */
         public _encodedOperator?: "encodedOperator";
+
+        /** InitRuntimeRequest _attestationProvider. */
+        public _attestationProvider?: "attestationProvider";
 
         /**
          * Creates a new InitRuntimeRequest instance using the specified properties.
@@ -1985,6 +2218,9 @@ declare namespace pruntime_rpc {
         /** Attestation payload */
         payload?: (pruntime_rpc.IAttestationReport|null);
 
+        /** Attestation encodedReport */
+        encodedReport?: (Uint8Array|null);
+
         /** Attestation timestamp */
         timestamp?: (number|Long|null);
     }
@@ -2006,6 +2242,9 @@ declare namespace pruntime_rpc {
 
         /** Attestation payload. */
         public payload?: (pruntime_rpc.IAttestationReport|null);
+
+        /** Attestation encodedReport. */
+        public encodedReport: Uint8Array;
 
         /** Attestation timestamp. */
         public timestamp: (number|Long);
@@ -2877,8 +3116,8 @@ declare namespace pruntime_rpc {
         /** WorkerState benchState */
         benchState?: (pruntime_rpc.IBenchState|null);
 
-        /** WorkerState miningState */
-        miningState?: (pruntime_rpc.IMiningState|null);
+        /** WorkerState workingState */
+        workingState?: (pruntime_rpc.IWorkingState|null);
 
         /** WorkerState waitingHeartbeats */
         waitingHeartbeats?: (number[]|null);
@@ -2908,8 +3147,8 @@ declare namespace pruntime_rpc {
         /** WorkerState benchState. */
         public benchState?: (pruntime_rpc.IBenchState|null);
 
-        /** WorkerState miningState. */
-        public miningState?: (pruntime_rpc.IMiningState|null);
+        /** WorkerState workingState. */
+        public workingState?: (pruntime_rpc.IWorkingState|null);
 
         /** WorkerState waitingHeartbeats. */
         public waitingHeartbeats: number[];
@@ -3375,103 +3614,103 @@ declare namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
-    /** Properties of a MiningState. */
-    interface IMiningState {
+    /** Properties of a WorkingState. */
+    interface IWorkingState {
 
-        /** MiningState sessionId */
+        /** WorkingState sessionId */
         sessionId?: (number|null);
 
-        /** MiningState paused */
+        /** WorkingState paused */
         paused?: (boolean|null);
 
-        /** MiningState startTime */
+        /** WorkingState startTime */
         startTime?: (number|Long|null);
     }
 
-    /** Represents a MiningState. */
-    class MiningState implements IMiningState {
+    /** Represents a WorkingState. */
+    class WorkingState implements IWorkingState {
 
         /**
-         * Constructs a new MiningState.
+         * Constructs a new WorkingState.
          * @param [properties] Properties to set
          */
-        constructor(properties?: pruntime_rpc.IMiningState);
+        constructor(properties?: pruntime_rpc.IWorkingState);
 
-        /** MiningState sessionId. */
+        /** WorkingState sessionId. */
         public sessionId: number;
 
-        /** MiningState paused. */
+        /** WorkingState paused. */
         public paused: boolean;
 
-        /** MiningState startTime. */
+        /** WorkingState startTime. */
         public startTime: (number|Long);
 
         /**
-         * Creates a new MiningState instance using the specified properties.
+         * Creates a new WorkingState instance using the specified properties.
          * @param [properties] Properties to set
-         * @returns MiningState instance
+         * @returns WorkingState instance
          */
-        public static create(properties?: pruntime_rpc.IMiningState): pruntime_rpc.MiningState;
+        public static create(properties?: pruntime_rpc.IWorkingState): pruntime_rpc.WorkingState;
 
         /**
-         * Encodes the specified MiningState message. Does not implicitly {@link pruntime_rpc.MiningState.verify|verify} messages.
-         * @param message MiningState message or plain object to encode
+         * Encodes the specified WorkingState message. Does not implicitly {@link pruntime_rpc.WorkingState.verify|verify} messages.
+         * @param message WorkingState message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encode(message: pruntime_rpc.IMiningState, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encode(message: pruntime_rpc.IWorkingState, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Encodes the specified MiningState message, length delimited. Does not implicitly {@link pruntime_rpc.MiningState.verify|verify} messages.
-         * @param message MiningState message or plain object to encode
+         * Encodes the specified WorkingState message, length delimited. Does not implicitly {@link pruntime_rpc.WorkingState.verify|verify} messages.
+         * @param message WorkingState message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encodeDelimited(message: pruntime_rpc.IMiningState, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encodeDelimited(message: pruntime_rpc.IWorkingState, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Decodes a MiningState message from the specified reader or buffer.
+         * Decodes a WorkingState message from the specified reader or buffer.
          * @param reader Reader or buffer to decode from
          * @param [length] Message length if known beforehand
-         * @returns MiningState
+         * @returns WorkingState
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.MiningState;
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.WorkingState;
 
         /**
-         * Decodes a MiningState message from the specified reader or buffer, length delimited.
+         * Decodes a WorkingState message from the specified reader or buffer, length delimited.
          * @param reader Reader or buffer to decode from
-         * @returns MiningState
+         * @returns WorkingState
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.MiningState;
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.WorkingState;
 
         /**
-         * Verifies a MiningState message.
+         * Verifies a WorkingState message.
          * @param message Plain object to verify
          * @returns `null` if valid, otherwise the reason why it is not
          */
         public static verify(message: { [k: string]: any }): (string|null);
 
         /**
-         * Creates a MiningState message from a plain object. Also converts values to their respective internal types.
+         * Creates a WorkingState message from a plain object. Also converts values to their respective internal types.
          * @param object Plain object
-         * @returns MiningState
+         * @returns WorkingState
          */
-        public static fromObject(object: { [k: string]: any }): pruntime_rpc.MiningState;
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.WorkingState;
 
         /**
-         * Creates a plain object from a MiningState message. Also converts values to other types if specified.
-         * @param message MiningState
+         * Creates a plain object from a WorkingState message. Also converts values to other types if specified.
+         * @param message WorkingState
          * @param [options] Conversion options
          * @returns Plain object
          */
-        public static toObject(message: pruntime_rpc.MiningState, options?: $protobuf.IConversionOptions): { [k: string]: any };
+        public static toObject(message: pruntime_rpc.WorkingState, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
         /**
-         * Converts this MiningState to JSON.
+         * Converts this WorkingState to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
@@ -4240,103 +4479,103 @@ declare namespace pruntime_rpc {
         public toJSON(): { [k: string]: any };
     }
 
-    /** Properties of a NetworkStatus. */
-    interface INetworkStatus {
+    /** Properties of a NetworkConfigResponse. */
+    interface INetworkConfigResponse {
 
-        /** NetworkStatus publicRpcPort */
+        /** NetworkConfigResponse publicRpcPort */
         publicRpcPort?: (number|null);
 
-        /** NetworkStatus config */
+        /** NetworkConfigResponse config */
         config?: (pruntime_rpc.INetworkConfig|null);
     }
 
-    /** Represents a NetworkStatus. */
-    class NetworkStatus implements INetworkStatus {
+    /** Represents a NetworkConfigResponse. */
+    class NetworkConfigResponse implements INetworkConfigResponse {
 
         /**
-         * Constructs a new NetworkStatus.
+         * Constructs a new NetworkConfigResponse.
          * @param [properties] Properties to set
          */
-        constructor(properties?: pruntime_rpc.INetworkStatus);
+        constructor(properties?: pruntime_rpc.INetworkConfigResponse);
 
-        /** NetworkStatus publicRpcPort. */
+        /** NetworkConfigResponse publicRpcPort. */
         public publicRpcPort?: (number|null);
 
-        /** NetworkStatus config. */
+        /** NetworkConfigResponse config. */
         public config?: (pruntime_rpc.INetworkConfig|null);
 
-        /** NetworkStatus _publicRpcPort. */
+        /** NetworkConfigResponse _publicRpcPort. */
         public _publicRpcPort?: "publicRpcPort";
 
-        /** NetworkStatus _config. */
+        /** NetworkConfigResponse _config. */
         public _config?: "config";
 
         /**
-         * Creates a new NetworkStatus instance using the specified properties.
+         * Creates a new NetworkConfigResponse instance using the specified properties.
          * @param [properties] Properties to set
-         * @returns NetworkStatus instance
+         * @returns NetworkConfigResponse instance
          */
-        public static create(properties?: pruntime_rpc.INetworkStatus): pruntime_rpc.NetworkStatus;
+        public static create(properties?: pruntime_rpc.INetworkConfigResponse): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Encodes the specified NetworkStatus message. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
-         * @param message NetworkStatus message or plain object to encode
+         * Encodes the specified NetworkConfigResponse message. Does not implicitly {@link pruntime_rpc.NetworkConfigResponse.verify|verify} messages.
+         * @param message NetworkConfigResponse message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encode(message: pruntime_rpc.INetworkStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encode(message: pruntime_rpc.INetworkConfigResponse, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Encodes the specified NetworkStatus message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkStatus.verify|verify} messages.
-         * @param message NetworkStatus message or plain object to encode
+         * Encodes the specified NetworkConfigResponse message, length delimited. Does not implicitly {@link pruntime_rpc.NetworkConfigResponse.verify|verify} messages.
+         * @param message NetworkConfigResponse message or plain object to encode
          * @param [writer] Writer to encode to
          * @returns Writer
          */
-        public static encodeDelimited(message: pruntime_rpc.INetworkStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+        public static encodeDelimited(message: pruntime_rpc.INetworkConfigResponse, writer?: $protobuf.Writer): $protobuf.Writer;
 
         /**
-         * Decodes a NetworkStatus message from the specified reader or buffer.
+         * Decodes a NetworkConfigResponse message from the specified reader or buffer.
          * @param reader Reader or buffer to decode from
          * @param [length] Message length if known beforehand
-         * @returns NetworkStatus
+         * @returns NetworkConfigResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.NetworkStatus;
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Decodes a NetworkStatus message from the specified reader or buffer, length delimited.
+         * Decodes a NetworkConfigResponse message from the specified reader or buffer, length delimited.
          * @param reader Reader or buffer to decode from
-         * @returns NetworkStatus
+         * @returns NetworkConfigResponse
          * @throws {Error} If the payload is not a reader or valid buffer
          * @throws {$protobuf.util.ProtocolError} If required fields are missing
          */
-        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.NetworkStatus;
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Verifies a NetworkStatus message.
+         * Verifies a NetworkConfigResponse message.
          * @param message Plain object to verify
          * @returns `null` if valid, otherwise the reason why it is not
          */
         public static verify(message: { [k: string]: any }): (string|null);
 
         /**
-         * Creates a NetworkStatus message from a plain object. Also converts values to their respective internal types.
+         * Creates a NetworkConfigResponse message from a plain object. Also converts values to their respective internal types.
          * @param object Plain object
-         * @returns NetworkStatus
+         * @returns NetworkConfigResponse
          */
-        public static fromObject(object: { [k: string]: any }): pruntime_rpc.NetworkStatus;
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.NetworkConfigResponse;
 
         /**
-         * Creates a plain object from a NetworkStatus message. Also converts values to other types if specified.
-         * @param message NetworkStatus
+         * Creates a plain object from a NetworkConfigResponse message. Also converts values to other types if specified.
+         * @param message NetworkConfigResponse
          * @param [options] Conversion options
          * @returns Plain object
          */
-        public static toObject(message: pruntime_rpc.NetworkStatus, options?: $protobuf.IConversionOptions): { [k: string]: any };
+        public static toObject(message: pruntime_rpc.NetworkConfigResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
 
         /**
-         * Converts this NetworkStatus to JSON.
+         * Converts this NetworkConfigResponse to JSON.
          * @returns JSON object
          */
         public toJSON(): { [k: string]: any };
@@ -4743,10 +4982,1084 @@ declare namespace pruntime_rpc {
          */
         public toJSON(): { [k: string]: any };
     }
+
+    /** Properties of a GetContractInfoRequest. */
+    interface IGetContractInfoRequest {
+
+        /** GetContractInfoRequest contractIds */
+        contractIds?: (string[]|null);
+    }
+
+    /** Represents a GetContractInfoRequest. */
+    class GetContractInfoRequest implements IGetContractInfoRequest {
+
+        /**
+         * Constructs a new GetContractInfoRequest.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetContractInfoRequest);
+
+        /** GetContractInfoRequest contractIds. */
+        public contractIds: string[];
+
+        /**
+         * Creates a new GetContractInfoRequest instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetContractInfoRequest instance
+         */
+        public static create(properties?: pruntime_rpc.IGetContractInfoRequest): pruntime_rpc.GetContractInfoRequest;
+
+        /**
+         * Encodes the specified GetContractInfoRequest message. Does not implicitly {@link pruntime_rpc.GetContractInfoRequest.verify|verify} messages.
+         * @param message GetContractInfoRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetContractInfoRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetContractInfoRequest message, length delimited. Does not implicitly {@link pruntime_rpc.GetContractInfoRequest.verify|verify} messages.
+         * @param message GetContractInfoRequest message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetContractInfoRequest, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetContractInfoRequest message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetContractInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetContractInfoRequest;
+
+        /**
+         * Decodes a GetContractInfoRequest message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetContractInfoRequest
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetContractInfoRequest;
+
+        /**
+         * Verifies a GetContractInfoRequest message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetContractInfoRequest message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetContractInfoRequest
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetContractInfoRequest;
+
+        /**
+         * Creates a plain object from a GetContractInfoRequest message. Also converts values to other types if specified.
+         * @param message GetContractInfoRequest
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetContractInfoRequest, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetContractInfoRequest to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a GetContractInfoResponse. */
+    interface IGetContractInfoResponse {
+
+        /** GetContractInfoResponse contracts */
+        contracts?: (pruntime_rpc.IContractInfo[]|null);
+    }
+
+    /** Represents a GetContractInfoResponse. */
+    class GetContractInfoResponse implements IGetContractInfoResponse {
+
+        /**
+         * Constructs a new GetContractInfoResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetContractInfoResponse);
+
+        /** GetContractInfoResponse contracts. */
+        public contracts: pruntime_rpc.IContractInfo[];
+
+        /**
+         * Creates a new GetContractInfoResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetContractInfoResponse instance
+         */
+        public static create(properties?: pruntime_rpc.IGetContractInfoResponse): pruntime_rpc.GetContractInfoResponse;
+
+        /**
+         * Encodes the specified GetContractInfoResponse message. Does not implicitly {@link pruntime_rpc.GetContractInfoResponse.verify|verify} messages.
+         * @param message GetContractInfoResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetContractInfoResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetContractInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetContractInfoResponse.verify|verify} messages.
+         * @param message GetContractInfoResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetContractInfoResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetContractInfoResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetContractInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetContractInfoResponse;
+
+        /**
+         * Decodes a GetContractInfoResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetContractInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetContractInfoResponse;
+
+        /**
+         * Verifies a GetContractInfoResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetContractInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetContractInfoResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetContractInfoResponse;
+
+        /**
+         * Creates a plain object from a GetContractInfoResponse message. Also converts values to other types if specified.
+         * @param message GetContractInfoResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetContractInfoResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetContractInfoResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ContractInfo. */
+    interface IContractInfo {
+
+        /** ContractInfo id */
+        id?: (string|null);
+
+        /** ContractInfo codeHash */
+        codeHash?: (string|null);
+
+        /** ContractInfo weight */
+        weight?: (number|null);
+
+        /** ContractInfo sidevm */
+        sidevm?: (pruntime_rpc.ISidevmInfo|null);
+    }
+
+    /** Represents a ContractInfo. */
+    class ContractInfo implements IContractInfo {
+
+        /**
+         * Constructs a new ContractInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IContractInfo);
+
+        /** ContractInfo id. */
+        public id: string;
+
+        /** ContractInfo codeHash. */
+        public codeHash: string;
+
+        /** ContractInfo weight. */
+        public weight: number;
+
+        /** ContractInfo sidevm. */
+        public sidevm?: (pruntime_rpc.ISidevmInfo|null);
+
+        /**
+         * Creates a new ContractInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ContractInfo instance
+         */
+        public static create(properties?: pruntime_rpc.IContractInfo): pruntime_rpc.ContractInfo;
+
+        /**
+         * Encodes the specified ContractInfo message. Does not implicitly {@link pruntime_rpc.ContractInfo.verify|verify} messages.
+         * @param message ContractInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IContractInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ContractInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ContractInfo.verify|verify} messages.
+         * @param message ContractInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IContractInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ContractInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ContractInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ContractInfo;
+
+        /**
+         * Decodes a ContractInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ContractInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ContractInfo;
+
+        /**
+         * Verifies a ContractInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ContractInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ContractInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ContractInfo;
+
+        /**
+         * Creates a plain object from a ContractInfo message. Also converts values to other types if specified.
+         * @param message ContractInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ContractInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ContractInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a SidevmInfo. */
+    interface ISidevmInfo {
+
+        /** SidevmInfo state */
+        state?: (string|null);
+
+        /** SidevmInfo codeHash */
+        codeHash?: (string|null);
+
+        /** SidevmInfo startTime */
+        startTime?: (string|null);
+
+        /** SidevmInfo stopReason */
+        stopReason?: (string|null);
+    }
+
+    /** Represents a SidevmInfo. */
+    class SidevmInfo implements ISidevmInfo {
+
+        /**
+         * Constructs a new SidevmInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ISidevmInfo);
+
+        /** SidevmInfo state. */
+        public state: string;
+
+        /** SidevmInfo codeHash. */
+        public codeHash: string;
+
+        /** SidevmInfo startTime. */
+        public startTime: string;
+
+        /** SidevmInfo stopReason. */
+        public stopReason: string;
+
+        /**
+         * Creates a new SidevmInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SidevmInfo instance
+         */
+        public static create(properties?: pruntime_rpc.ISidevmInfo): pruntime_rpc.SidevmInfo;
+
+        /**
+         * Encodes the specified SidevmInfo message. Does not implicitly {@link pruntime_rpc.SidevmInfo.verify|verify} messages.
+         * @param message SidevmInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ISidevmInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SidevmInfo message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmInfo.verify|verify} messages.
+         * @param message SidevmInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ISidevmInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SidevmInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SidevmInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.SidevmInfo;
+
+        /**
+         * Decodes a SidevmInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SidevmInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.SidevmInfo;
+
+        /**
+         * Verifies a SidevmInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SidevmInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SidevmInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.SidevmInfo;
+
+        /**
+         * Creates a plain object from a SidevmInfo message. Also converts values to other types if specified.
+         * @param message SidevmInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.SidevmInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SidevmInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a GetClusterInfoResponse. */
+    interface IGetClusterInfoResponse {
+
+        /** GetClusterInfoResponse clusters */
+        clusters?: (pruntime_rpc.IClusterInfo[]|null);
+    }
+
+    /** Represents a GetClusterInfoResponse. */
+    class GetClusterInfoResponse implements IGetClusterInfoResponse {
+
+        /**
+         * Constructs a new GetClusterInfoResponse.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IGetClusterInfoResponse);
+
+        /** GetClusterInfoResponse clusters. */
+        public clusters: pruntime_rpc.IClusterInfo[];
+
+        /**
+         * Creates a new GetClusterInfoResponse instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns GetClusterInfoResponse instance
+         */
+        public static create(properties?: pruntime_rpc.IGetClusterInfoResponse): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @param message GetClusterInfoResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IGetClusterInfoResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified GetClusterInfoResponse message, length delimited. Does not implicitly {@link pruntime_rpc.GetClusterInfoResponse.verify|verify} messages.
+         * @param message GetClusterInfoResponse message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IGetClusterInfoResponse, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Decodes a GetClusterInfoResponse message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns GetClusterInfoResponse
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Verifies a GetClusterInfoResponse message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a GetClusterInfoResponse message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns GetClusterInfoResponse
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.GetClusterInfoResponse;
+
+        /**
+         * Creates a plain object from a GetClusterInfoResponse message. Also converts values to other types if specified.
+         * @param message GetClusterInfoResponse
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.GetClusterInfoResponse, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this GetClusterInfoResponse to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ClusterInfo. */
+    interface IClusterInfo {
+
+        /** ClusterInfo id */
+        id?: (string|null);
+
+        /** ClusterInfo version */
+        version?: (string|null);
+
+        /** ClusterInfo stateRoot */
+        stateRoot?: (string|null);
+
+        /** ClusterInfo contracts */
+        contracts?: (string[]|null);
+    }
+
+    /** Represents a ClusterInfo. */
+    class ClusterInfo implements IClusterInfo {
+
+        /**
+         * Constructs a new ClusterInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IClusterInfo);
+
+        /** ClusterInfo id. */
+        public id: string;
+
+        /** ClusterInfo version. */
+        public version: string;
+
+        /** ClusterInfo stateRoot. */
+        public stateRoot: string;
+
+        /** ClusterInfo contracts. */
+        public contracts: string[];
+
+        /**
+         * Creates a new ClusterInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ClusterInfo instance
+         */
+        public static create(properties?: pruntime_rpc.IClusterInfo): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Encodes the specified ClusterInfo message. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @param message ClusterInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IClusterInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ClusterInfo message, length delimited. Does not implicitly {@link pruntime_rpc.ClusterInfo.verify|verify} messages.
+         * @param message ClusterInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IClusterInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Decodes a ClusterInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ClusterInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Verifies a ClusterInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ClusterInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ClusterInfo
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ClusterInfo;
+
+        /**
+         * Creates a plain object from a ClusterInfo message. Also converts values to other types if specified.
+         * @param message ClusterInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ClusterInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ClusterInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a SidevmCode. */
+    interface ISidevmCode {
+
+        /** SidevmCode contract */
+        contract?: (Uint8Array|null);
+
+        /** SidevmCode code */
+        code?: (Uint8Array|null);
+    }
+
+    /** Represents a SidevmCode. */
+    class SidevmCode implements ISidevmCode {
+
+        /**
+         * Constructs a new SidevmCode.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.ISidevmCode);
+
+        /** SidevmCode contract. */
+        public contract: Uint8Array;
+
+        /** SidevmCode code. */
+        public code: Uint8Array;
+
+        /**
+         * Creates a new SidevmCode instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SidevmCode instance
+         */
+        public static create(properties?: pruntime_rpc.ISidevmCode): pruntime_rpc.SidevmCode;
+
+        /**
+         * Encodes the specified SidevmCode message. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @param message SidevmCode message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.ISidevmCode, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SidevmCode message, length delimited. Does not implicitly {@link pruntime_rpc.SidevmCode.verify|verify} messages.
+         * @param message SidevmCode message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.ISidevmCode, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.SidevmCode;
+
+        /**
+         * Decodes a SidevmCode message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SidevmCode
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.SidevmCode;
+
+        /**
+         * Verifies a SidevmCode message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SidevmCode message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SidevmCode
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.SidevmCode;
+
+        /**
+         * Creates a plain object from a SidevmCode message. Also converts values to other types if specified.
+         * @param message SidevmCode
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.SidevmCode, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SidevmCode to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ContractParameters. */
+    interface IContractParameters {
+
+        /** ContractParameters deployer */
+        deployer?: (string|null);
+
+        /** ContractParameters clusterId */
+        clusterId?: (string|null);
+
+        /** ContractParameters codeHash */
+        codeHash?: (string|null);
+
+        /** ContractParameters salt */
+        salt?: (string|null);
+    }
+
+    /** Represents a ContractParameters. */
+    class ContractParameters implements IContractParameters {
+
+        /**
+         * Constructs a new ContractParameters.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IContractParameters);
+
+        /** ContractParameters deployer. */
+        public deployer: string;
+
+        /** ContractParameters clusterId. */
+        public clusterId: string;
+
+        /** ContractParameters codeHash. */
+        public codeHash: string;
+
+        /** ContractParameters salt. */
+        public salt: string;
+
+        /**
+         * Creates a new ContractParameters instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ContractParameters instance
+         */
+        public static create(properties?: pruntime_rpc.IContractParameters): pruntime_rpc.ContractParameters;
+
+        /**
+         * Encodes the specified ContractParameters message. Does not implicitly {@link pruntime_rpc.ContractParameters.verify|verify} messages.
+         * @param message ContractParameters message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IContractParameters, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ContractParameters message, length delimited. Does not implicitly {@link pruntime_rpc.ContractParameters.verify|verify} messages.
+         * @param message ContractParameters message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IContractParameters, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ContractParameters message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ContractParameters
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ContractParameters;
+
+        /**
+         * Decodes a ContractParameters message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ContractParameters
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ContractParameters;
+
+        /**
+         * Verifies a ContractParameters message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ContractParameters message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ContractParameters
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ContractParameters;
+
+        /**
+         * Creates a plain object from a ContractParameters message. Also converts values to other types if specified.
+         * @param message ContractParameters
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ContractParameters, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ContractParameters to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ContractId. */
+    interface IContractId {
+
+        /** ContractId id */
+        id?: (string|null);
+    }
+
+    /** Represents a ContractId. */
+    class ContractId implements IContractId {
+
+        /**
+         * Constructs a new ContractId.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IContractId);
+
+        /** ContractId id. */
+        public id: string;
+
+        /**
+         * Creates a new ContractId instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ContractId instance
+         */
+        public static create(properties?: pruntime_rpc.IContractId): pruntime_rpc.ContractId;
+
+        /**
+         * Encodes the specified ContractId message. Does not implicitly {@link pruntime_rpc.ContractId.verify|verify} messages.
+         * @param message ContractId message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IContractId, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ContractId message, length delimited. Does not implicitly {@link pruntime_rpc.ContractId.verify|verify} messages.
+         * @param message ContractId message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IContractId, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ContractId message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ContractId
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ContractId;
+
+        /**
+         * Decodes a ContractId message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ContractId
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ContractId;
+
+        /**
+         * Verifies a ContractId message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ContractId message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ContractId
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ContractId;
+
+        /**
+         * Creates a plain object from a ContractId message. Also converts values to other types if specified.
+         * @param message ContractId
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ContractId, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ContractId to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a ChainState. */
+    interface IChainState {
+
+        /** ChainState blockNumber */
+        blockNumber?: (number|null);
+
+        /** ChainState encodedState */
+        encodedState?: (Uint8Array|null);
+    }
+
+    /** Represents a ChainState. */
+    class ChainState implements IChainState {
+
+        /**
+         * Constructs a new ChainState.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IChainState);
+
+        /** ChainState blockNumber. */
+        public blockNumber: number;
+
+        /** ChainState encodedState. */
+        public encodedState: Uint8Array;
+
+        /**
+         * Creates a new ChainState instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ChainState instance
+         */
+        public static create(properties?: pruntime_rpc.IChainState): pruntime_rpc.ChainState;
+
+        /**
+         * Encodes the specified ChainState message. Does not implicitly {@link pruntime_rpc.ChainState.verify|verify} messages.
+         * @param message ChainState message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IChainState, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ChainState message, length delimited. Does not implicitly {@link pruntime_rpc.ChainState.verify|verify} messages.
+         * @param message ChainState message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IChainState, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ChainState message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ChainState
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.ChainState;
+
+        /**
+         * Decodes a ChainState message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ChainState
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.ChainState;
+
+        /**
+         * Verifies a ChainState message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ChainState message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ChainState
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.ChainState;
+
+        /**
+         * Creates a plain object from a ChainState message. Also converts values to other types if specified.
+         * @param message ChainState
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.ChainState, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ChainState to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
+
+    /** Properties of a StopOptions. */
+    interface IStopOptions {
+
+        /** StopOptions removeCheckpoints */
+        removeCheckpoints?: (boolean|null);
+    }
+
+    /** Represents a StopOptions. */
+    class StopOptions implements IStopOptions {
+
+        /**
+         * Constructs a new StopOptions.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: pruntime_rpc.IStopOptions);
+
+        /** StopOptions removeCheckpoints. */
+        public removeCheckpoints: boolean;
+
+        /**
+         * Creates a new StopOptions instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns StopOptions instance
+         */
+        public static create(properties?: pruntime_rpc.IStopOptions): pruntime_rpc.StopOptions;
+
+        /**
+         * Encodes the specified StopOptions message. Does not implicitly {@link pruntime_rpc.StopOptions.verify|verify} messages.
+         * @param message StopOptions message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: pruntime_rpc.IStopOptions, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified StopOptions message, length delimited. Does not implicitly {@link pruntime_rpc.StopOptions.verify|verify} messages.
+         * @param message StopOptions message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: pruntime_rpc.IStopOptions, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a StopOptions message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns StopOptions
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): pruntime_rpc.StopOptions;
+
+        /**
+         * Decodes a StopOptions message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns StopOptions
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): pruntime_rpc.StopOptions;
+
+        /**
+         * Verifies a StopOptions message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a StopOptions message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns StopOptions
+         */
+        public static fromObject(object: { [k: string]: any }): pruntime_rpc.StopOptions;
+
+        /**
+         * Creates a plain object from a StopOptions message. Also converts values to other types if specified.
+         * @param message StopOptions
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: pruntime_rpc.StopOptions, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this StopOptions to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+    }
 }
 
 /** Namespace google. */
-declare namespace google {
+export namespace google {
 
     /** Namespace protobuf. */
     namespace protobuf {
@@ -4836,48 +6149,3 @@ declare namespace google {
         }
     }
 }
-
-declare type CertificateData = {
-    certificate: pruntime_rpc.ICertificate;
-    pubkey: Uint8Array;
-    secret: Uint8Array;
-};
-interface CertificateBaseParams {
-    api: ApiPromise;
-    signatureType?: pruntime_rpc.SignatureType;
-}
-interface CertificateParamsWithSigner extends CertificateBaseParams {
-    signer: Signer;
-    account: InjectedAccountWithMeta;
-}
-interface CertificateParamsWithPair extends CertificateBaseParams {
-    pair: KeyringPair;
-}
-declare type CertificateParams = CertificateParamsWithSigner | CertificateParamsWithPair;
-declare const signCertificate: (params: CertificateParams) => Promise<CertificateData>;
-
-declare type Query = (encodedQuery: string, certificateData: CertificateData) => Promise<string>;
-declare type SidevmQuery = (bytes: Bytes, certificateData: CertificateData) => Promise<string>;
-declare type Command = (params: {
-    contractId: string;
-    payload: string;
-    deposit: number;
-}) => SubmittableExtrinsic<'promise', ISubmittableResult>;
-interface PhalaInstance {
-    query: Query;
-    command: Command;
-}
-declare type CreateFn = (options: {
-    api: ApiPromise;
-    baseURL: string;
-    contractId: string;
-    autoDeposit: boolean;
-}) => Promise<{
-    api: ApiPromise;
-    sidevmQuery: SidevmQuery;
-    instantiate: SidevmQuery;
-}>;
-declare const createPruntimeApi: (baseURL: string) => pruntime_rpc.PhactoryAPI;
-declare const create: CreateFn;
-
-export { CertificateData, Command, PhalaInstance, Query, SidevmQuery, create, createPruntimeApi, randomHex, signCertificate, types };
