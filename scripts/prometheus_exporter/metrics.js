@@ -24,7 +24,6 @@ const gauges = [
   wrapGauge('para_headernum', 'para_headernum', info => info.para_headernum),
   wrapGauge('score', 'score', info => info.score),
   wrapGauge('pending_messages', 'pending_messages', info => info.pending_messages),
-  wrapGauge('running_side_tasks', 'running_side_tasks', info => info.running_side_tasks),
   wrapGauge('rust_peak_used', 'rust_peak_used', info => info.memory_usage.rust_peak_used),
   wrapGauge('rust_used', 'rust_used', info => info.memory_usage.rust_used),
   wrapGauge('total_peak_used', 'total_peak_used', info => info.memory_usage.total_peak_used),
