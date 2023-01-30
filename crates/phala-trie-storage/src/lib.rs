@@ -29,11 +29,13 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
-pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>);
+pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>)
+where
+    H::Out: Ord;
 
 impl<H: Hasher> Default for TrieStorage<H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     fn default() -> Self {
         Self(TrieBackendBuilder::new(Default::default(), Default::default()).build())
@@ -44,7 +46,7 @@ pub fn load_trie_backend<H: Hasher>(
     pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let mut root = Default::default();
     let mut mdb = Default::default();
@@ -65,11 +67,11 @@ pub fn serialize_trie_backend<H: Hasher, S>(
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
-    H::Out: Codec + Serialize,
+    H::Out: Codec + Serialize + Ord,
     S: Serializer,
 {
     let root = trie.root();
-    let kvs: im::HashMap<_, _> = trie.backend_storage().clone().drain();
+    let kvs = trie.backend_storage().clone().drain();
     (root, kvs).serialize(serializer)
 }
 
@@ -78,10 +80,10 @@ pub fn deserialize_trie_backend<'de, H: Hasher, De>(
     deserializer: De,
 ) -> Result<TrieBackend<MemoryDB<H>, H>, De::Error>
 where
-    H::Out: Codec + Deserialize<'de>,
+    H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, im::HashMap<_, (Vec<u8>, i32)>) =
+    let (root, kvs): (H::Out, crate::memdb::Map<_, (Vec<u8>, i32)>) =
         Deserialize::deserialize(deserializer)?;
     let mdb = MemoryDB::from_inner(kvs);
     let backend = TrieBackendBuilder::new(mdb, root).build();
@@ -92,7 +94,7 @@ pub fn clone_trie_backend<H: Hasher>(
     trie: &TrieBackend<MemoryDB<H>, H>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let root = trie.root();
     let mdb = trie.backend_storage().clone();
