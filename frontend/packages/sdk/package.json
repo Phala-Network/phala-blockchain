@@ -29,8 +29,8 @@
     "build": "npm run build:node && npm run build:browser",
     "build:node": "tsup --config tsup.node.ts",
     "build:browser": "tsup --config tsup.browser.ts",
-    "generate:defs": "ts-node --skip-project ../../node_modules/.bin/polkadot-types-from-defs --package @phala/sdk --input ./src/interfaces --endpoint ./edgeware.json",
-    "generate:meta": "ts-node --skip-project ../../node_modules/.bin/polkadot-types-from-chain --package @phala/sdk --endpoint ./edgeware.json --output ./src/interfaces",
+    "generate:defs": "ts-node --skip-project ./node_modules/.bin/polkadot-types-from-defs --package @phala/sdk --input ./src/interfaces --endpoint ./edgeware.json",
+    "generate:meta": "ts-node --skip-project ./node_modules/.bin/polkadot-types-from-chain --package @phala/sdk --endpoint ./edgeware.json --output ./src/interfaces",
     "build:proto": "scripts/build_proto.sh",
     "dev": "tsup --watch",
     "lint": "eslint --cache .",
@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.1.1",
+    "@polkadot/extension-inject": "^0.44.8",
     "@polkadot/typegen": "^9.11.1",
     "@types/node": "^16.11.59",
     "@typescript-eslint/eslint-plugin": "^5.42.1",

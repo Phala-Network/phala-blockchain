@@ -1,6 +1,11 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "rootDir": "src",
     "lib": ["es2021", "dom"],
     "target": "es2021",
