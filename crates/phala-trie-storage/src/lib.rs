@@ -71,8 +71,8 @@ where
     S: Serializer,
 {
     let root = trie.root();
-    let kvs = trie.backend_storage().clone().drain();
-    (root, kvs).serialize(serializer)
+    let kvs = trie.backend_storage();
+    (root, ser::SerAsSeq(kvs)).serialize(serializer)
 }
 
 #[cfg(feature = "serde")]
@@ -83,9 +83,12 @@ where
     H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, crate::memdb::Map<_, (Vec<u8>, i32)>) =
-        Deserialize::deserialize(deserializer)?;
-    let mdb = MemoryDB::from_inner(kvs);
+    let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
+    let mdb = MemoryDB::from_inner(
+        kvs.into_iter()
+            .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
+            .collect(),
+    );
     let backend = TrieBackendBuilder::new(mdb, root).build();
     Ok(backend)
 }

@@ -18,7 +18,7 @@ use hash_db::{
     AsHashDB, AsPlainDB, HashDB, HashDBRef, Hasher as KeyHasher, PlainDB, PlainDBRef, Prefix,
 };
 pub(crate) use im::ordmap::{Entry, OrdMap as Map};
-use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData, mem};
+use std::{borrow::Borrow, cmp::Eq, hash, marker::PhantomData};
 
 use sp_state_machine::{backend::Consolidate, DefaultError, TrieBackendStorage};
 use trie_db::DBValue;
@@ -252,11 +252,6 @@ where
         self.data.clear();
     }
 
-    /// Return the internal key-value Map, clearing the current state.
-    pub fn drain(&mut self) -> Map<KF::Key, (T, i32)> {
-        mem::take(&mut self.data)
-    }
-
     /// Grab the raw information associated with a key. Returns None if the key
     /// doesn't exist.
     ///
@@ -272,8 +267,8 @@ where
     }
 
     /// Consolidate all the entries of `other` into `self`.
-    pub fn consolidate(&mut self, mut other: Self) {
-        for (key, (value, rc)) in other.drain() {
+    pub fn consolidate(&mut self, other: Self) {
+        for (key, (value, rc)) in other.data {
             match self.data.entry(key) {
                 Entry::Occupied(mut entry) => {
                     if entry.get().1 < 0 {
@@ -542,11 +537,7 @@ mod tests {
         let mut m = MemoryDB::<KeccakHasher, HashKey<_>, Vec<u8>>::default();
         m.remove(&hello_key, EMPTY_PREFIX);
         assert_eq!(m.raw(&hello_key, EMPTY_PREFIX).unwrap().1, -1);
-        m.purge();
-        assert_eq!(m.raw(&hello_key, EMPTY_PREFIX).unwrap().1, -1);
         m.insert(EMPTY_PREFIX, hello_bytes);
-        assert_eq!(m.raw(&hello_key, EMPTY_PREFIX), None);
-        m.purge();
         assert_eq!(m.raw(&hello_key, EMPTY_PREFIX), None);
 
         let mut m = MemoryDB::<KeccakHasher, HashKey<_>, Vec<u8>>::default();
