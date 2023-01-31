@@ -115,23 +115,13 @@ export const signCertificate = async (
 
 const getSignatureTypeFromAccount = (account: InjectedAccountWithMeta) => {
   const keypairType = account.type || "sr25519";
-  // Polkadot JS signature use wrapBytes
-  const useWrapBytes = account.meta.source === "polkadot-js";
   switch (keypairType) {
     case "sr25519":
-      return useWrapBytes
-        ? pruntimeRpc.SignatureType.Sr25519WrapBytes
-        : pruntimeRpc.SignatureType.Sr25519;
+      return pruntimeRpc.SignatureType.Sr25519WrapBytes;
     case "ed25519":
-      return useWrapBytes
-        ? pruntimeRpc.SignatureType.Ed25519WrapBytes
-        : pruntimeRpc.SignatureType.Ed25519;
+      return pruntimeRpc.SignatureType.Ed25519WrapBytes;
     case "ecdsa":
-      return useWrapBytes
-        ? pruntimeRpc.SignatureType.EcdsaWrapBytes
-        : pruntimeRpc.SignatureType.Ecdsa;
-    default:
-      throw new Error("Unsupported keypair type");
+      return pruntimeRpc.SignatureType.EcdsaWrapBytes;
   }
 };
 
