@@ -325,7 +325,6 @@ pub mod pallet {
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
 				WorkerEvent::Registered(messaging::WorkerInfo {
-					attestation_provider: Some(AttestationProvider::Root),
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
@@ -515,7 +514,6 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								attestation_provider: Some(AttestationProvider::Ias),
 								confidence_level: fields.confidence_level,
 							}),
 						));
@@ -541,7 +539,6 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								attestation_provider: Some(AttestationProvider::Ias),
 								confidence_level: fields.confidence_level,
 							}),
 						));
@@ -632,7 +629,6 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								attestation_provider: attestation_report.provider,
 								confidence_level: attestation_report.confidence_level,
 							}),
 						));
@@ -658,7 +654,6 @@ pub mod pallet {
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
-								attestation_provider: attestation_report.provider,
 								confidence_level: attestation_report.confidence_level,
 							}),
 						));
@@ -1046,7 +1041,6 @@ pub mod pallet {
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					*pubkey,
 					WorkerEvent::Registered(messaging::WorkerInfo {
-						attestation_provider: Some(AttestationProvider::Root),
 						confidence_level: 128u8,
 					}),
 				));

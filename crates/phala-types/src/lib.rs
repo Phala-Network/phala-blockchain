@@ -28,7 +28,7 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{
-        EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey, AttestationProvider,
+        EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey,
     };
 
     pub use phala_mq::bind_topic;
@@ -62,7 +62,6 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub struct WorkerInfo {
-        pub attestation_provider: Option<AttestationProvider>,
         pub confidence_level: u8,
     }
 
