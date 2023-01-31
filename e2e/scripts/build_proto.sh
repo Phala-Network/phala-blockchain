@@ -5,5 +5,9 @@ function buildProto() {
   npx pbts -o "src/proto/$1.d.ts" "src/proto/$1.js"
 }
 
+if [ ! -e node_modules/.bin/pbjs ]; then
+  yarn
+fi
+
 buildProto pruntime_rpc
 buildProto prpc
