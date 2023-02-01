@@ -796,6 +796,7 @@ pub mod pallet {
 				who = vault_info.basepool.pool_account_id;
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			//配合merge_or_init的改动，如最终无nft，则说明该用户没有投资，不该执行withdraw，return error，可简化执行，跳过后面可能产生的无意义存储变化。
 			let nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),

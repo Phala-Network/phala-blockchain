@@ -378,6 +378,7 @@ pub mod pallet {
 				// The share held by the vault
 				let mut vault = ensure_vault::<T>(*vault_staker)
 					.expect("vault in value_subscribers should always exist: qed.");
+				// 配合merge_or_init的改动，如果最终没有nft可供merge，则此时vault没有对stakepool的contribute，理论上不应出现此种情况，如出现，可考虑continue，简化执行，跳过后面可能产生的无意义存储变化。
 				let nft_id = Pallet::<T>::merge_or_init_nft_for_staker(
 					self.cid,
 					vault.basepool.pool_account_id.clone(),
@@ -973,6 +974,7 @@ pub mod pallet {
 		}
 
 		fn remove_properties(cid: CollectionId, nft_id: NftId) {
+			// 使用rmrk最新提供的remove_all_properties
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "name"
 				.as_bytes()
 				.to_vec()
@@ -1008,6 +1010,13 @@ pub mod pallet {
 		/// Merges multiple nfts belong to one user in the pool.
 		///
 		/// TODO(mingxuan): should try to avoid 0 share nft mint.
+		// 原本为遍历所有的nft，挨个burn，最后mint新的。
+		// 现可改为：保留第一个遍历到的nft及其nft_id，将所有的其他nft shares加入其中，并更新nft时间戳信息，返回Some(nft_id)，如遍历最终不存在任何nft，返回None
+		// 考虑到当前几乎不存在真正执行merge的场合，但每次merge_or_init都会调用，此操作可以大幅度降低mint/burn及产生event的频率。
+		// 缺点：
+		// 1.唐景依赖mint_nft的event更新subsquid，需要链上增加事件并唐景配合修改；
+		// 2.有些需要一个空nft的场合，需要额外提供一个create_empty_nft函数。
+		// 3.需进行全面测试。
 		pub fn merge_or_init_nft_for_staker(
 			cid: CollectionId,
 			staker: T::AccountId,
@@ -1059,6 +1068,10 @@ pub mod pallet {
 		) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
 			// TODO(mingxuan): make a common function to simplify code.
+			// name，description规则简单，均为一定格式+pid+nft_id,如从nft直接获取pid困难，可在collection的meta中加入pid，由前端拼接读取
+			// 上线仅需collection增量apply新代码，存量用migration及填坑时的老办法处理。
+			// 如果后续再需修改适配可能存在的通用规则，那到时候再灌就好了，反正规则无法预测，如果以后有，肯定要重新弄。
+			// image为重复内容，所有nft就这两个链接，stakepool用一个，vault用一个，也把是stakepool还是vault写入collection的meta，其余步骤同上。
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "name"
 				.as_bytes()
 				.to_vec()
