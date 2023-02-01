@@ -1,0 +1,4 @@
+**/proto/*
+dist
+esm
+protoWrapper.js

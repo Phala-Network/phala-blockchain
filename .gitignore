@@ -88,3 +88,6 @@ coverage/
 scripts/js/node_modules
 scripts/js/.env
 yarn-error.log
+.yarnrc.yml
+.yarn
+.eslintcache
