@@ -153,6 +153,10 @@ impl Pink {
                 }
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
+                    if !ink_result.debug_message.is_empty() {
+                        let message = String::from_utf8_lossy(&ink_result.debug_message);
+                        log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
+                    }
                 } else {
                     *side_effects = effects.into_query_only_effects();
                 }
@@ -305,10 +309,16 @@ impl Pink {
                     }
                 }
 
-                let _ = pink::transpose_contract_result(result).map_err(|err| {
+                if let Err(err) = result.result {
                     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
-                    TransactionError::Other(format!("Call contract method failed: {err:?}"))
-                })?;
+                    if !result.debug_message.is_empty() {
+                        let message = String::from_utf8_lossy(&result.debug_message);
+                        log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
+                    }
+                    return Err(TransactionError::Other(format!(
+                        "Call contract method failed: {err:?}"
+                    )));
+                }
                 Ok(effects)
             }
         }
