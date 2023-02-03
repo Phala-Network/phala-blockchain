@@ -301,7 +301,7 @@ impl Contract {
                         gas_limit,
                         storage_deposit_limit,
                         input_data,
-                        false,
+                        true,
                         determinism,
                     )
                 },
