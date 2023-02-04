@@ -309,7 +309,7 @@ fn test_mint_nft() {
 }
 
 #[test]
-fn test_merge_or_init_nft() {
+fn test_merge_nft() {
 	new_test_ext().execute_with(|| {
 		set_block_1();
 		setup_workers(2);
@@ -355,14 +355,7 @@ fn test_merge_or_init_nft() {
 			let nft = pallet_rmrk_core::Nfts::<Test>::get(10000, x).unwrap();
 			nft.owner == rmrk_traits::AccountIdOrCollectionNftTuple::AccountId(2)
 		});
-		assert_eq!(nftid_arr.len(), 1);
-		{
-			let nft_attr = PhalaBasePool::get_nft_attr_guard(pool_info.basepool.cid, nftid_arr[0])
-				.unwrap()
-				.attr
-				.clone();
-			assert_eq!(nft_attr.shares, 0);
-		}
+		assert_eq!(nftid_arr.len(), 0);
 	});
 }
 

@@ -915,22 +915,22 @@ pub mod pallet {
 			// `Take` will return actual elements if it's size is smaller than we assigned.
 			// So the result of take(2) is enough to jugg if there has mutiple nfts and could avoid to go through 
 			// the entire iters;
-			let nft_count = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).take(2).count();
+			let nfts: Vec<_> = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).collect();
+			let nft_count = nfts.len();
 			if nft_count == 0 {
 				return Ok(None);
 			}
 			if nft_count == 1 {
-				let maybe_nft_id = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).take(1).next();
-				return Ok(maybe_nft_id);
+				return Ok(Some(nfts[0]));
 			}
-			pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).for_each(|nftid| {
+			for nftid in nfts {
 				let nft_guard =
 					Self::get_nft_attr_guard(cid, nftid).expect("get nft should not fail: qed.");
 				let property = nft_guard.attr.clone();
 				nft_guard.unlock();
 				total_shares += property.shares;
 				Self::burn_nft(&staker, cid, nftid).expect("burn nft should not fail: qed.");
-			});
+			}
 			let nft_id = Self::mint_nft(cid, staker, total_shares, pid)?;
 			Ok(Some(nft_id))
 		}
