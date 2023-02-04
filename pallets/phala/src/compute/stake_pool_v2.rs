@@ -12,7 +12,7 @@ pub mod pallet {
 	use crate::balance_convert::FixedPointConvert;
 	use crate::base_pool;
 	use crate::computation;
-	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, PoolType, StakePool};
+	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool};
 	use crate::registry;
 	use crate::stake_pool;
 	use crate::vault;
@@ -273,6 +273,8 @@ pub mod pallet {
 		_PoolIsBusy,
 		/// The contributed stake is smaller than the minimum threshold
 		InsufficientContribution,
+		/// The caller has no nft to withdraw
+		NoNftToWithdraw,
 		/// Trying to contribute more than the available balance
 		InsufficientBalance,
 		/// The user doesn't have stake in a pool
@@ -715,7 +717,6 @@ pub mod pallet {
 				&mut pool_info.basepool,
 				who.clone(),
 				amount,
-				PoolType::StakePool,
 			)?;
 			if let Some((vault_pid, vault_info)) = &mut maybe_vault {
 				if !vault_info.invest_pools.contains(&pid) {
@@ -742,11 +743,10 @@ pub mod pallet {
 			}
 			// Persist
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
-			base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
 				pool_info.basepool.pid,
-				PoolType::StakePool,
 			)?;
 			if as_vault.is_none() {
 				wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(
@@ -796,12 +796,12 @@ pub mod pallet {
 				who = vault_info.basepool.pool_account_id;
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
-			let nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
 				pool_info.basepool.pid,
-				PoolType::StakePool,
 			)?;
+			let nft_id = maybe_nft_id.ok_or(Error::<T>::NoNftToWithdraw)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
@@ -835,14 +835,12 @@ pub mod pallet {
 				shares,
 				nft_id,
 				as_vault,
-				PoolType::StakePool,
 			)?;
 			nft_guard.save()?;
-			let _nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			let _nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who,
 				pool_info.basepool.pid,
-				PoolType::StakePool,
 			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info.clone()));
 

@@ -5,7 +5,7 @@ pub mod pallet {
 	use crate::balance_convert::{mul as bmul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
-	use crate::pool_proxy::{PoolProxy, PoolType};
+	use crate::pool_proxy::PoolProxy;
 	use crate::registry;
 	use crate::vault;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
@@ -178,17 +178,10 @@ pub mod pallet {
 			_nft_id: &NftId,
 		) -> bool {
 			if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
-				let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
-					.expect("already checked exist; qed.");
-				let pool_type = match pool_proxy {
-					PoolProxy::Vault(_res) => PoolType::Vault,
-					PoolProxy::StakePool(_res) => PoolType::StakePool,
-				};
-				base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+				base_pool::Pallet::<T>::merge_nft_for_staker(
 					*collection_id,
 					recipient.clone(),
 					pid,
-					pool_type,
 				)
 				.expect("mrege or init should not fail");
 			}
