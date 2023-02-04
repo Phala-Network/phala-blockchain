@@ -15,9 +15,9 @@ pub trait System {
 pub use _pink_system_impl::SystemRef;
 mod _pink_system_impl {
     use super::*;
-    use ink_env::call::FromAccountId;
-    use ink_env::CallFlags;
-    use ink_lang::{codegen::TraitCallForwarder, reflect::TraitDefinitionRegistry};
+    use ink::env::call::FromAccountId;
+    use ink::env::CallFlags;
+    use ink::{codegen::TraitCallForwarder, reflect::TraitDefinitionRegistry};
     use pink_extension::PinkEnvironment;
     type TraitInfo = <TraitDefinitionRegistry<PinkEnvironment> as System>::__ink_TraitInfo;
     type Forwarder = <TraitInfo as TraitCallForwarder>::Forwarder;
@@ -43,7 +43,7 @@ mod _pink_system_impl {
                 > + 'static,
         ) {
             MOCK.with(|x| {
-                let callee = ink_env::test::callee::<PinkEnvironment>();
+                let callee = ink::env::test::callee::<PinkEnvironment>();
                 *x.borrow_mut() = Some((callee, Box::new(contract)));
             });
         }
@@ -73,26 +73,25 @@ mod _pink_system_impl {
                     address,
                     call_flags,
                 } => {
-                    use ink_lang::codegen::TraitCallBuilder;
+                    use ink::codegen::TraitCallBuilder;
                     let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder
                         .call()
                         .get_driver(name)
                         .call_flags(call_flags.clone())
-                        .fire()
-                        .expect("Failed to forword call")
+                        .invoke()
                 }
                 #[cfg(feature = "std")]
                 SystemRef::Mock => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
                     let (callee, forwarder) = borrow.as_mut().unwrap();
-                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
-                    let prev_caller = ink_env::caller::<PinkEnvironment>();
-                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
-                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let prev_callee = ink::env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink::env::caller::<PinkEnvironment>();
+                    ink::env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink::env::test::set_callee::<PinkEnvironment>(callee.clone());
                     let ret = forwarder.get_driver(name);
-                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
-                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ink::env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink::env::test::set_caller::<PinkEnvironment>(prev_caller);
                     ret
                 }),
             }
@@ -103,26 +102,25 @@ mod _pink_system_impl {
                     address,
                     call_flags,
                 } => {
-                    use ink_lang::codegen::TraitCallBuilder;
+                    use ink::codegen::TraitCallBuilder;
                     let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder
                         .call()
                         .set_driver(name, driver)
                         .call_flags(call_flags.clone())
-                        .fire()
-                        .expect("Failed to forword call")
+                        .invoke()
                 }
                 #[cfg(feature = "std")]
                 SystemRef::Mock => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
                     let (callee, forwarder) = borrow.as_mut().unwrap();
-                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
-                    let prev_caller = ink_env::caller::<PinkEnvironment>();
-                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
-                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let prev_callee = ink::env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink::env::caller::<PinkEnvironment>();
+                    ink::env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink::env::test::set_callee::<PinkEnvironment>(callee.clone());
                     let ret = forwarder.set_driver(name, driver);
-                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
-                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ink::env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink::env::test::set_caller::<PinkEnvironment>(prev_caller);
                     ret
                 }),
             }
@@ -133,26 +131,25 @@ mod _pink_system_impl {
                     address,
                     call_flags,
                 } => {
-                    use ink_lang::codegen::TraitCallBuilder;
+                    use ink::codegen::TraitCallBuilder;
                     let mut forwarder = Forwarder::from_account_id(*address);
                     forwarder
                         .call()
                         .deploy_sidevm_to(code_hash, contract_id)
                         .call_flags(call_flags.clone())
-                        .fire()
-                        .expect("Failed to forword call")
+                        .invoke()
                 }
                 #[cfg(feature = "std")]
                 SystemRef::Mock => MOCK.with(move |x| {
                     let mut borrow = x.borrow_mut();
                     let (callee, forwarder) = borrow.as_mut().unwrap();
-                    let prev_callee = ink_env::test::callee::<PinkEnvironment>();
-                    let prev_caller = ink_env::caller::<PinkEnvironment>();
-                    ink_env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
-                    ink_env::test::set_callee::<PinkEnvironment>(callee.clone());
+                    let prev_callee = ink::env::test::callee::<PinkEnvironment>();
+                    let prev_caller = ink::env::caller::<PinkEnvironment>();
+                    ink::env::test::set_caller::<PinkEnvironment>(prev_callee.clone());
+                    ink::env::test::set_callee::<PinkEnvironment>(callee.clone());
                     let ret = forwarder.deploy_sidevm_to(code_hash, contract_id);
-                    ink_env::test::set_callee::<PinkEnvironment>(prev_callee);
-                    ink_env::test::set_caller::<PinkEnvironment>(prev_caller);
+                    ink::env::test::set_callee::<PinkEnvironment>(prev_callee);
+                    ink::env::test::set_caller::<PinkEnvironment>(prev_caller);
                     ret
                 }),
             }

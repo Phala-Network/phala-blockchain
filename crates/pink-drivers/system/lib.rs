@@ -10,14 +10,12 @@ pub use system::System;
 mod system {
     use super::pink;
     use alloc::string::String;
-    use ink_storage::{traits::SpreadAllocate, Mapping};
+    use ink::storage::Mapping;
     use pink::system::{ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
     /// Pink's system contract.
     #[ink(storage)]
-    #[derive(SpreadAllocate)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct System {
         /// The owner of the contract(the cluster).
         owner: AccountId,
@@ -30,7 +28,11 @@ mod system {
     impl System {
         #[ink(constructor, selector = 0xed4b9d1b)]
         pub fn default() -> Self {
-            ink_lang::utils::initialize_contract(|me: &mut Self| me.owner = Self::env().caller())
+            Self {
+                owner: Self::env().caller(),
+                administrators: Default::default(),
+                drivers: Default::default(),
+            }
         }
 
         fn ensure_owner(&self) -> Result<AccountId> {
@@ -67,7 +69,7 @@ mod system {
     impl pink::system::System for System {
         #[ink(message)]
         fn version(&self) -> (u16, u16) {
-            (0, 1)
+            (1, 0)
         }
 
         #[ink(message)]
@@ -160,7 +162,7 @@ mod system {
             deposit: Balance,
         ) -> Result<(), DriverError> {
             self.ensure_self()?;
-            let flags = ink_env::CallFlags::default().set_allow_reentry(true);
+            let flags = ink::env::CallFlags::default().set_allow_reentry(true);
             match ContractDepositRef::instance_with_call_flags(flags) {
                 Some(mut driver) => driver.change_deposit(contract_id, deposit),
                 None => Ok(()),
@@ -171,13 +173,12 @@ mod system {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use ink_lang as ink;
         use pink::system::SystemRef;
 
         const OWNER: [u8; 32] = [2u8; 32];
 
         fn test_system() -> SystemRef {
-            ink_env::test::set_caller::<PinkEnvironment>(OWNER.into());
+            ink::env::test::set_caller::<PinkEnvironment>(OWNER.into());
             SystemRef::mock_with(System::default());
             SystemRef::instance()
         }
@@ -186,14 +187,14 @@ mod system {
         fn grant_admin_permissions() {
             let mut system = test_system();
             // The generated SystemRef would set current callee as caller before forwarding the call
-            ink_env::test::set_callee::<PinkEnvironment>(OWNER.into());
+            ink::env::test::set_callee::<PinkEnvironment>(OWNER.into());
             assert_eq!(system.grant_admin([42u8; 32].into()), Ok(()));
 
-            ink_env::test::set_callee::<PinkEnvironment>([42u8; 32].into());
+            ink::env::test::set_callee::<PinkEnvironment>([42u8; 32].into());
             assert_eq!(system.grant_admin([43u8; 32].into()), Err(Error::BadOrigin));
             assert_eq!(system.set_driver("Test".into(), Default::default()), Ok(()));
 
-            ink_env::test::set_callee::<PinkEnvironment>([43u8; 32].into());
+            ink::env::test::set_callee::<PinkEnvironment>([43u8; 32].into());
             assert_eq!(
                 system.set_driver("Test".into(), Default::default()),
                 Err(Error::BadOrigin)
@@ -204,7 +205,7 @@ mod system {
         fn set_driver_permissions() {
             let driver_name = "Hello";
             let mut system = test_system();
-            ink_env::test::set_callee::<PinkEnvironment>(OWNER.into());
+            ink::env::test::set_callee::<PinkEnvironment>(OWNER.into());
 
             let driver = system.get_driver(driver_name.into());
             assert_eq!(driver, None);
@@ -216,7 +217,7 @@ mod system {
             assert_eq!(driver, Some(driver_id));
 
             // The others can not set driver
-            ink_env::test::set_callee::<PinkEnvironment>([42u8; 32].into());
+            ink::env::test::set_callee::<PinkEnvironment>([42u8; 32].into());
             assert_eq!(
                 system.set_driver(driver_name.into(), [2u8; 32].into()),
                 Err(Error::BadOrigin)
@@ -224,9 +225,9 @@ mod system {
             assert_eq!(driver, Some(driver_id));
 
             // The others can set driver after granted admin
-            ink_env::test::set_callee::<PinkEnvironment>(OWNER.into());
+            ink::env::test::set_callee::<PinkEnvironment>(OWNER.into());
             assert_eq!(system.grant_admin([42u8; 32].into()), Ok(()));
-            ink_env::test::set_callee::<PinkEnvironment>([42u8; 32].into());
+            ink::env::test::set_callee::<PinkEnvironment>([42u8; 32].into());
             assert_eq!(
                 system.set_driver(driver_name.into(), [2u8; 32].into()),
                 Ok(())
@@ -236,7 +237,7 @@ mod system {
         #[ink::test]
         fn deploy_sidevm_permissions() {
             let mut system = test_system();
-            ink_env::test::set_callee::<PinkEnvironment>(OWNER.into());
+            ink::env::test::set_callee::<PinkEnvironment>(OWNER.into());
 
             // The owner can not deploy a sidevm
             assert_eq!(

@@ -6,6 +6,7 @@ mkdir -p dist
 
 build() {
     NAME=$1
+    echo "Building $1"
     if [ x$2 = x1 ]; then
         (cd $NAME && make)
         cp $NAME/sideprog.wasm dist/$NAME.sidevm.wasm

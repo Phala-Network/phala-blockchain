@@ -116,7 +116,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
         } else {
             dispatch_ext_call!(env.func_id(), call_in_query, env)
         };
-        let output = match result {
+        let (ret, output) = match result {
             Some(output) => output,
             None => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", env.func_id());
@@ -129,7 +129,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             .or(Err(DispatchError::Other(
                 "PinkExtension::call: failed to write output",
             )))?;
-        Ok(RetVal::Converging(0))
+        Ok(RetVal::Converging(ret))
     }
 
     fn enabled() -> bool {

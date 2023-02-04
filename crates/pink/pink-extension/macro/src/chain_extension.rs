@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{parse::Parse, Result, Type};
 use unzip3::Unzip3 as _;
 
-use ink_lang_ir::ChainExtension;
+use ink_ir::ChainExtension;
 
 #[derive(Debug, PartialEq, Eq)]
 struct MetaNameValue {
@@ -40,9 +40,9 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             item_trait.ident.span(),
         );
 
-        item_trait.items.retain(|i| {
-            !matches!(i, &syn::TraitItem::Type(_))
-        });
+        item_trait
+            .items
+            .retain(|i| !matches!(i, &syn::TraitItem::Type(_)));
 
         item_trait.items.push(syn::parse_quote! {
             type Error;
@@ -146,10 +146,10 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                     match $func_id {
                         #(
                             #ids => {
+                                use $crate::chain_extension::EncodeOutputFallbask as _;
                                 let (#(#args),*) = $env.read_as_unbounded($env.in_len())?;
                                 let output = $handler.#names(#(#args),*)?;
-                                let output = output.encode();
-                                Some(output)
+                                Some($crate::chain_extension::EncodeOutput(output).encode())
                             }
                         )*
                         _ => None,
@@ -215,7 +215,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             .1
             .push(syn::parse_quote! {
                 pub fn #fname(mut call: impl FnMut(#(#input_types),*) #output + 'static) {
-                    ink_env::test::register_chain_extension(
+                    ink::env::test::register_chain_extension(
                         MockExtension::<_, _, _, #id>::new(
                             move |(#(#input_args),*): (#(#input_types_cow),*)| call(#(#input_args_asref),*)
                         ),
@@ -223,7 +223,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 }
             });
             reg_expressions.push(syn::parse_quote! {
-            ink_env::test::register_chain_extension(
+            ink::env::test::register_chain_extension(
                 MockExtension::<_, _, _, #id>::new(
                     move |(#(#input_args),*): (#(#input_types_cow),*)| ext_impl.#origin_fname(#(#input_args),*).unwrap()
                 ),
@@ -245,7 +245,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         mod_item
     };
 
-    let crate_ink_lang = crate::find_crate_name("ink_lang")?;
+    let crate_ink_lang = crate::find_crate_name("ink")?;
     Ok(quote! {
         #[#crate_ink_lang::chain_extension]
         #input

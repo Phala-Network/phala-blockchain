@@ -76,15 +76,15 @@ mod check_system {
         pub fn parse_usd(&self, delegate: Hash, json: String) -> Option<Usd> {
             // The ink sdk currently does not generate typed API for delegate calls. So we have to
             // use this low level approach to call `IndeterministicFunctions::parse_usd()`.
-            use ink_env::call;
+            use ink::env::call;
             let result = call::build_call::<PinkEnvironment>()
-                .call_type(call::DelegateCall::new().code_hash(delegate))
+                .call_type(call::DelegateCall::new(delegate))
                 .exec_input(
                     call::ExecutionInput::new(call::Selector::new(0xafead99e_u32.to_be_bytes()))
                         .push_arg(json),
                 )
-                .returns::<Option<Usd>>()
-                .fire();
+                .returns::<ink::MessageResult<Option<Usd>>>()
+                .invoke();
             pink::info!("parse_usd result: {result:?}");
             result.unwrap()
         }
@@ -92,7 +92,7 @@ mod check_system {
         #[ink(message)]
         pub fn eval_js(
             &self,
-            delegate: ink_env::Hash,
+            delegate: Hash,
             script: String,
             args: Vec<String>,
         ) -> Result<js::Output, String> {
@@ -102,7 +102,7 @@ mod check_system {
         #[ink(message)]
         pub fn eval_js_bytecode(
             &self,
-            delegate: ink_env::Hash,
+            delegate: Hash,
             script: Vec<u8>,
             args: Vec<String>,
         ) -> Result<js::Output, String> {
@@ -131,6 +131,7 @@ mod js {
     use super::*;
     use alloc::string::String;
     use alloc::vec::Vec;
+    use ink::primitives::Hash;
     use scale::{Decode, Encode};
 
     #[derive(Debug, Encode, Decode)]
@@ -141,43 +142,39 @@ mod js {
         Undefined,
     }
 
-    pub fn eval(
-        delegate: ink_env::Hash,
-        script: &str,
-        args: Vec<String>,
-    ) -> Result<Output, String> {
-        use ink_env::call;
+    pub fn eval(delegate: Hash, script: &str, args: Vec<String>) -> Result<Output, String> {
+        use ink::env::call;
 
         let result = call::build_call::<pink::PinkEnvironment>()
-            .call_type(call::DelegateCall::new().code_hash(delegate))
+            .call_type(call::DelegateCall::new(delegate))
             .exec_input(
                 call::ExecutionInput::new(call::Selector::new(0x49bfcd24_u32.to_be_bytes()))
                     .push_arg(script)
                     .push_arg(args),
             )
             .returns::<Result<Output, String>>()
-            .fire();
+            .invoke();
         pink::info!("eval result: {result:?}");
-        result.unwrap()
+        result
     }
 
     pub fn eval_bytecode(
-        delegate: ink_env::Hash,
+        delegate: Hash,
         script: alloc::vec::Vec<u8>,
         args: Vec<String>,
     ) -> Result<Output, String> {
-        use ink_env::call;
+        use ink::env::call;
 
         let result = call::build_call::<pink::PinkEnvironment>()
-            .call_type(call::DelegateCall::new().code_hash(delegate))
+            .call_type(call::DelegateCall::new(delegate))
             .exec_input(
                 call::ExecutionInput::new(call::Selector::new(0xbf0ec203_u32.to_be_bytes()))
                     .push_arg(script)
                     .push_arg(args),
             )
             .returns::<Result<Output, String>>()
-            .fire();
+            .invoke();
         pink::info!("eval result: {result:?}");
-        result.unwrap()
+        result
     }
 }

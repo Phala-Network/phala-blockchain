@@ -550,8 +550,11 @@ pub mod cluster {
             let output = result.result.map_err(|err| {
                 anyhow::anyhow!("Failed to get the system contract version: {err:?}")
             })?;
-            self.config.version = Decode::decode(&mut &output.data[..])
-                .context("Failed to decode the system contract version")?;
+            self.config.version = Result::<_, ()>::decode(&mut &output.data[..])
+                .context("Failed to decode the system contract version")?
+                .or(Err(anyhow::anyhow!(
+                    "Failed to get the system contract version"
+                )))?;
             const SUPPORTED_API_VERSION: u16 = 0;
             if self.config.version.0 > SUPPORTED_API_VERSION {
                 anyhow::bail!(

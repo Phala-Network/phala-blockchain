@@ -1947,6 +1947,7 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::SetContractWeight { contract, weight } => {
                 ensure_system!();
+                info!("Set contract weight for {:?} to {:?}", contract, weight);
                 let contract = get_contract!(&contract);
                 contract.set_weight(weight);
                 contracts.weight_changed = true;

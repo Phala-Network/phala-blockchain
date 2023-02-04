@@ -5,7 +5,7 @@ pub struct MockExtension<F, I, O, const FID: u32> {
     _p: std::marker::PhantomData<(I, O)>,
 }
 
-impl<F, In, Out, const FID: u32> ink_env::test::ChainExtension for MockExtension<F, In, Out, FID>
+impl<F, In, Out, const FID: u32> ink::env::test::ChainExtension for MockExtension<F, In, Out, FID>
 where
     In: Decode,
     Out: Encode,

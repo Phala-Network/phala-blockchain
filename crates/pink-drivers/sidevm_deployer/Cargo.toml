@@ -6,17 +6,12 @@ edition = "2021"
 description = "This is a demo describes how to write a pink driver contract"
 
 [dependencies]
-ink_primitives = { version = "3.4.0", default-features = false }
-ink_metadata = { version = "3.4.0", default-features = false, features = ["derive"], optional = true }
-ink_env = { version = "3.4.0", default-features = false }
-ink_storage = { version = "3.4.0", default-features = false }
-ink_lang = { version = "3.4.0", default-features = false }
-
+ink = { version = "4.0.0-rc", default-features = false }
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { version = "0.2", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
-pink-system = { version = "0.1", default-features = false, path = "../system", features = ["ink-as-dependency"] }
+pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
+system = { version = "0.1", default-features = false, path = "../system", features = ["ink-as-dependency"] }
 
 [lib]
 name = "sidevm_deployer"
@@ -29,13 +24,10 @@ crate-type = [
 [features]
 default = ["std"]
 std = [
-    "ink_metadata/std",
-    "ink_env/std",
-    "ink_storage/std",
-    "ink_primitives/std",
+    "ink/std",
     "scale/std",
     "scale-info/std",
     "pink-extension/std",
-    "pink-system/std",
+    "system/std",
 ]
 ink-as-dependency = []

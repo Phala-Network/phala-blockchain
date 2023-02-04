@@ -1,8 +1,17 @@
 {
   "source": {
-    "hash": "0xa8b4cb877be057f6b4938d880adf8ca73b7b9e971d70dc519623f21a31bb0c01",
-    "language": "ink! 3.0.0-rc9",
-    "compiler": "rustc 1.61.0-nightly"
+    "hash": "0xed6270325b3376133e5a128e5e6d9a28208dcc857b676652a17c5334b4e836bc",
+    "language": "ink! 4.0.0-rc",
+    "compiler": "rustc 1.65.0-nightly",
+    "build_info": {
+      "build_mode": "Release",
+      "cargo_contract_version": "2.0.0-rc.1",
+      "rust_toolchain": "nightly-x86_64-unknown-linux-gnu",
+      "wasm_opt_settings": {
+        "keep_debug_symbols": false,
+        "optimization_passes": "Z"
+      }
+    }
   },
   "contract": {
     "name": "use_cache",
@@ -11,36 +20,131 @@
       "[your_name] <[your_email]>"
     ]
   },
-  "V3": {
-    "spec": {
-      "constructors": [
-        {
-          "args": [],
-          "docs": [],
-          "label": "default",
-          "payable": false,
-          "selector": "0xed4b9d1b"
-        }
+  "spec": {
+    "constructors": [
+      {
+        "args": [],
+        "docs": [],
+        "label": "default",
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink_primitives",
+            "ConstructorResult"
+          ],
+          "type": 0
+        },
+        "selector": "0xed4b9d1b"
+      }
+    ],
+    "docs": [],
+    "events": [],
+    "lang_error": {
+      "displayName": [
+        "ink",
+        "LangError"
       ],
-      "docs": [],
-      "events": [],
-      "messages": [
-        {
-          "args": [],
-          "docs": [],
-          "label": "test",
-          "mutates": false,
-          "payable": false,
-          "returnType": null,
-          "selector": "0x928b2036"
-        }
-      ]
+      "type": 2
     },
-    "storage": {
-      "struct": {
-        "fields": []
+    "messages": [
+      {
+        "args": [],
+        "docs": [],
+        "label": "test",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 0
+        },
+        "selector": "0x928b2036"
+      }
+    ]
+  },
+  "storage": {
+    "root": {
+      "layout": {
+        "struct": {
+          "fields": [],
+          "name": "UseCache"
+        }
+      },
+      "root_key": "0x00000000"
+    }
+  },
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 1
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 2
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 1
+          },
+          {
+            "name": "E",
+            "type": 2
+          }
+        ],
+        "path": [
+          "Result"
+        ]
       }
     },
-    "types": []
-  }
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 1,
+                "name": "CouldNotReadInput"
+              }
+            ]
+          }
+        },
+        "path": [
+          "ink_primitives",
+          "LangError"
+        ]
+      }
+    }
+  ],
+  "version": "4"
 }

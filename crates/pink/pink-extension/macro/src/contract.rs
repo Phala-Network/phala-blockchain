@@ -46,7 +46,7 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
         }
     }
 
-    let crate_ink_lang = crate::find_crate_name("ink_lang")?;
+    let crate_ink_lang = crate::find_crate_name("ink")?;
     let inner_contract = match inner {
         Some(inner) => quote! {
             #inner

@@ -6,7 +6,7 @@ mod chain_extension;
 mod contract;
 mod driver_system;
 
-/// A drop-in replacement for `ink_lang::contract` with pink-specific feature extensions.
+/// A drop-in replacement for `ink::contract` with pink-specific feature extensions.
 ///
 /// # pink-specific features
 /// - `#[pink(on_block_end)]`

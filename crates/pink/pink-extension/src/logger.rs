@@ -70,6 +70,11 @@ macro_rules! trace {
     ($($arg:tt)+) => {{ log!($crate::logger::Level::Trace, $($arg)+) }}
 }
 
+#[macro_export]
+macro_rules! panic {
+    ($($arg:tt)+) => {{ $crate::error!($($arg)+); panic!($($arg)+) }}
+}
+
 /// An extension for Result<T, E> to log error conveniently.
 pub trait ResultExt {
     /// Log the the error message with `pink::error!` with a tip `msg` in front if the Result is Err.
