@@ -912,9 +912,6 @@ pub mod pallet {
 			pid: u64,
 		) -> Result<Option<NftId>, DispatchError> {
 			let mut total_shares: BalanceOf<T> = Zero::zero();
-			// `Take` will return actual elements if it's size is smaller than we assigned.
-			// So the result of take(2) is enough to jugg if there has mutiple nfts and could avoid to go through 
-			// the entire iters;
 			let nfts: Vec<_> = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).collect();
 			let nft_count = nfts.len();
 			if nft_count == 0 {
