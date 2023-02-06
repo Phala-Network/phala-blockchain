@@ -2,11 +2,14 @@ use crate::{
     runtime::ExecSideEffects,
     types::{Hash, Hashing},
 };
-use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
+use phala_trie_storage::{
+    deserialize_trie_backend, new_backend, serialize_trie_backend,
+    InMemoryBackend as GenericInMemoryBackend,
+};
 use serde::{Deserialize, Serialize};
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
-pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
+pub type InMemoryBackend = GenericInMemoryBackend<Hashing>;
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction);
@@ -14,7 +17,9 @@ pub trait CommitTransaction: StorageBackend<Hashing> {
 
 impl CommitTransaction for InMemoryBackend {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction) {
-        self.apply_transaction(root, transaction);
+        let mut storage = sp_std::mem::replace(self, new_backend()).into_storage();
+        storage.consolidate(transaction);
+        *self = Self::new(storage, root)
     }
 }
 

@@ -1,20 +1,24 @@
-#![no_std]
-
 extern crate alloc;
 
 #[cfg(feature = "serde")]
 pub mod ser;
+
+mod memdb;
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use core::iter::FromIterator;
 
 use alloc::vec::Vec;
 
 use parity_scale_codec::Codec;
-use serde::{Serialize, Serializer, Deserializer, Deserialize};
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMut, MemoryDB, TrieMut, HashDBT};
+use sp_trie::{trie_types::TrieDBMut, TrieMut};
+
+pub use memdb::GenericMemoryDB as MemoryDB;
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -28,14 +32,24 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 /// In memory arrays of storage values for multiple child tries.
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
-pub struct TrieStorage<H: Hasher>(TrieBackend<MemoryDB<H>, H>);
+pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
+pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>)
+where
+    H::Out: Ord;
+
+pub fn new_backend<H: Hasher>() -> InMemoryBackend<H>
+where
+    H::Out: Codec + Ord,
+{
+    TrieBackend::new(Default::default(), Default::default())
+}
 
 impl<H: Hasher> Default for TrieStorage<H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     fn default() -> Self {
-        Self(TrieBackend::new(Default::default(), Default::default()))
+        Self(new_backend())
     }
 }
 
@@ -43,7 +57,7 @@ pub fn load_trie_backend<H: Hasher>(
     pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let mut root = Default::default();
     let mut mdb = Default::default();
@@ -58,41 +72,47 @@ where
     TrieBackend::new(mdb, root)
 }
 
+#[cfg(feature = "serde")]
 pub fn serialize_trie_backend<H: Hasher, S>(
     trie: &TrieBackend<MemoryDB<H>, H>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
-    H::Out: Codec + Serialize,
+    H::Out: Codec + Serialize + Ord,
     S: Serializer,
 {
     let root = trie.root();
-    let kvs: Vec<_> = trie
-        .backend_storage()
-        .clone()
-        .drain()
-        .into_iter()
-        .map(|it| it.1)
-        .collect();
-    (root, kvs).serialize(serializer)
+    let kvs = trie.backend_storage();
+    (root, ser::SerAsSeq(kvs)).serialize(serializer)
 }
 
+#[cfg(feature = "serde")]
 pub fn deserialize_trie_backend<'de, H: Hasher, De>(
     deserializer: De,
 ) -> Result<TrieBackend<MemoryDB<H>, H>, De::Error>
 where
-    H::Out: Codec + Deserialize<'de>,
+    H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
     let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
-    let mut mdb = MemoryDB::default();
-    for value in kvs {
-        for _ in 0..value.1 {
-            mdb.insert((&[], None), &value.0);
-        }
-    }
+    let mdb = MemoryDB::from_inner(
+        kvs.into_iter()
+            .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
+            .collect(),
+    );
     let backend = TrieBackend::new(mdb, root);
     Ok(backend)
+}
+
+pub fn clone_trie_backend<H: Hasher>(
+    trie: &TrieBackend<MemoryDB<H>, H>,
+) -> TrieBackend<MemoryDB<H>, H>
+where
+    H::Out: Codec + Ord,
+{
+    let root = trie.root();
+    let mdb = trie.backend_storage().clone();
+    TrieBackend::new(mdb, *root)
 }
 
 impl<H: Hasher> TrieStorage<H>
@@ -140,12 +160,7 @@ where
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
     }
 
-    pub fn purge(&mut self) {
-        let root = *self.0.root();
-        let mut storage = core::mem::take(self).0.into_storage();
-        storage.purge();
-        let _ = core::mem::replace(&mut self.0, TrieBackend::new(storage, root));
-    }
+    pub fn purge(&mut self) {}
 
     /// Return the state root hash
     pub fn root(&self) -> &H::Out {
@@ -171,6 +186,10 @@ where
                 (key, value)
             })
             .collect()
+    }
+
+    pub fn as_trie_backend(&self) -> &InMemoryBackend<H> {
+        &self.0
     }
 }
 
