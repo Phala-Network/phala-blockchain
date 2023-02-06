@@ -69,7 +69,7 @@ mod system {
     impl pink::system::System for System {
         #[ink(message)]
         fn version(&self) -> (u16, u16) {
-            (1, 0)
+            (0, 0)
         }
 
         #[ink(message)]

@@ -272,6 +272,7 @@ impl FatContract {
         };
 
         let handle = if code.is_empty() {
+            info!("Sidevm code {code_hash:?} not found, waiting to be uploaded");
             Arc::new(Mutex::new(SidevmHandle::Stopped(
                 ExitReason::WaitingForCode,
             )))
@@ -463,8 +464,7 @@ fn local_cache_ops() -> sidevm::DynCacheOps {
         }
 
         fn set(&self, contract: &[u8], key: &[u8], value: &[u8]) -> OpResult<()> {
-            cache::set(contract, key, value)
-                .map_err(|_| sidevm::OcallError::ResourceLimited)
+            cache::set(contract, key, value).map_err(|_| sidevm::OcallError::ResourceLimited)
         }
 
         fn set_expiration(

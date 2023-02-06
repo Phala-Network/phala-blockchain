@@ -54,6 +54,10 @@ export const types: RegistryTypes = {
     _enum: {
       BadOrigin: null,
       RuntimeError: "String",
+      SidevmNotFound: null,
+      NoResponse: null,
+      ServiceUnavailable: null,
+      Timeout: null,
     },
   },
   InkQueryOk: {
