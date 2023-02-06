@@ -913,13 +913,11 @@ pub mod pallet {
 		) -> Result<Option<NftId>, DispatchError> {
 			let mut total_shares: BalanceOf<T> = Zero::zero();
 			let nfts: Vec<_> = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).collect();
-			let nft_count = nfts.len();
-			if nft_count == 0 {
-				return Ok(None);
-			}
-			if nft_count == 1 {
-				return Ok(Some(nfts[0]));
-			}
+			match nfts.len() {
+			  0 => return Ok(None),
+			  1 => return Ok(Some(nfts[0])),
+			  _ => (),
+			};
 			for nftid in nfts {
 				let nft_guard =
 					Self::get_nft_attr_guard(cid, nftid).expect("get nft should not fail: qed.");
