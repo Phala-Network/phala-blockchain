@@ -62,7 +62,7 @@ derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.16", default-features = false, features = ["derive-codec"] }
-trie = { package = "sp-trie", path = "../../substrate/primitives/trie" }
+trie = { package = "sp-trie", path = "../sp-trie" }
 frame-system = { package = "frame-system", path = "../../substrate/frame/system" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto" }
