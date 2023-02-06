@@ -377,11 +377,10 @@ pub mod pallet {
 				)
 				.expect("merge nft shoule always success: qed.");
 
-				if maybe_nft_id.is_none() {
+				let Some(nft_id) = maybe_nft_id else {
 					// Never get here
 					continue;
-				}
-				let nft_id = maybe_nft_id.unwrap();
+				};
 				let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
 				let mut vault_shares = nft_guard.attr.shares.to_fixed();
@@ -911,13 +910,11 @@ pub mod pallet {
 		) -> Result<Option<NftId>, DispatchError> {
 			let mut total_shares: BalanceOf<T> = Zero::zero();
 			let nfts: Vec<_> = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).collect();
-			let nft_count = nfts.len();
-			if nft_count == 0 {
-				return Ok(None);
-			}
-			if nft_count == 1 {
-				return Ok(Some(nfts[0]));
-			}
+			match nfts.len() {
+			  0 => return Ok(None),
+			  1 => return Ok(Some(nfts[0])),
+			  _ => (),
+			};
 			for nftid in nfts {
 				let nft_guard =
 					Self::get_nft_attr_guard(cid, nftid).expect("get nft should not fail: qed.");
