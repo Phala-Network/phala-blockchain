@@ -377,11 +377,10 @@ pub mod pallet {
 				)
 				.expect("merge nft shoule always success: qed.");
 
-				if maybe_nft_id.is_none() {
+				let Some(nft_id) = maybe_nft_id else {
 					// Never get here
 					continue;
-				}
-				let nft_id = maybe_nft_id.unwrap();
+				};
 				let nft_guard = Pallet::<T>::get_nft_attr_guard(self.cid, nft_id)
 					.expect("get nft attr should always success: qed.");
 				let mut vault_shares = nft_guard.attr.shares.to_fixed();
