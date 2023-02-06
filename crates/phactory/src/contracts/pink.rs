@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use phala_types::contract::ConvertTo;
-use pink::runtime::{BoxedEventCallbacks, ExecSideEffects};
+use pink::runtime::{BoxedEventCallbacks, EventCallbacks, ExecSideEffects};
 use pink::types::Weight;
 use pink::weights::constants::WEIGHT_REF_TIME_PER_SECOND;
 use runtime::{AccountId, BlockNumber, Hash};
@@ -140,6 +140,17 @@ impl Pink {
                     ),
                 };
                 let (ink_result, effects) = self.instance.bare_call(input_data, true, args);
+                if let Some(log_handler) = &context.log_handler {
+                    if !ink_result.debug_message.is_empty() {
+                        ContractEventCallback::new(log_handler.clone(), context.block_number)
+                            .emit_log(
+                                &self.address(),
+                                true,
+                                log::Level::Debug as usize as _,
+                                String::from_utf8_lossy(&ink_result.debug_message).into_owned(),
+                            );
+                    }
+                }
                 if ink_result.result.is_err() {
                     log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
                 } else {
@@ -282,6 +293,15 @@ impl Pink {
                     });
                     if log_handler.try_send(msg).is_err() {
                         error!("Pink emit message output to log handler failed");
+                    }
+                    if !result.debug_message.is_empty() {
+                        ContractEventCallback::new(log_handler.clone(), context.block.block_number)
+                            .emit_log(
+                                &self.instance.address,
+                                false,
+                                log::Level::Debug as usize as _,
+                                String::from_utf8_lossy(&result.debug_message).into_owned(),
+                            );
                     }
                 }
 
