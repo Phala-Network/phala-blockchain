@@ -904,8 +904,6 @@ pub mod pallet {
 		}
 
 		/// Merges multiple nfts belong to one user in the pool.
-		///
-		/// TODO(mingxuan): should try to avoid 0 share nft mint.
 		pub fn merge_nft_for_staker(
 			cid: CollectionId,
 			staker: T::AccountId,
