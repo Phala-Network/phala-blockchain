@@ -377,7 +377,7 @@ pub mod pallet {
 				)
 				.expect("merge nft shoule always success: qed.");
 
-				if !maybe_nft_id.is_some() {
+				if maybe_nft_id.is_none() {
 					// Never get here
 					continue;
 				}
