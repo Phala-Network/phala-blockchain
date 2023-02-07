@@ -82,7 +82,12 @@ impl IasFields {
 		if confidence_level == 128 {
 			return Err(Error::InvalidQuoteStatus);
 		}
-		if confidence_level < 5 {
+		// CL 1 means there is no known issue of the CPU
+		// CL 2 means the worker's firmware up to date, and the worker has well configured to prevent known issues
+		// CL 3 means the worker's firmware up to date, but needs to well configure its BIOS to prevent known issues
+		// CL 5 means the worker's firmware is outdated
+		// For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the allow list
+		if confidence_level == 3 {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
 				for advisory_id in advisory_ids {
