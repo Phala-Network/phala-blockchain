@@ -525,6 +525,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         request: pb::ContractQueryRequest,
         effects_queue: Sender<(ContractClusterId, ExecSideEffects)>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
+        if self.args.safe_mode {
+            return Err(from_display("Query is unavailable in safe mode"));
+        }
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
