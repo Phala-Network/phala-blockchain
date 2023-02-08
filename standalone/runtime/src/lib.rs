@@ -1400,6 +1400,7 @@ parameter_types! {
     pub const ResourceSymbolLimit: u32 = 10;
     pub const PartsLimit: u32 = 10;
     pub const MaxPriorities: u32 = 3;
+    pub const PropertiesLimit: u32 = 15;
     pub const CollectionSymbolLimit: u32 = 100;
     pub const MaxResourcesOnMint: u32 = 100;
     pub const WPhaMinBalance: Balance = CENTS;
@@ -1411,10 +1412,13 @@ impl pallet_rmrk_core::Config for Runtime {
     type ResourceSymbolLimit = ResourceSymbolLimit;
     type PartsLimit = PartsLimit;
     type MaxPriorities = MaxPriorities;
+    type PropertiesLimit = PropertiesLimit;
     type CollectionSymbolLimit = CollectionSymbolLimit;
     type MaxResourcesOnMint = MaxResourcesOnMint;
     type TransferHooks = PhalaWrappedBalances;
     type WeightInfo = pallet_rmrk_core::weights::SubstrateWeight<Runtime>;
+    #[cfg(feature = "runtime-benchmarks")]
+    type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
 impl pallet_fat::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
