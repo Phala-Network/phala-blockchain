@@ -40,6 +40,9 @@ pub struct InitArgs {
 
     /// The public rpc port with acl enabled
     pub public_port: Option<u16>,
+
+    /// Only sync blocks into pruntime without dispatching messages.
+    pub safe_mode: bool,
 }
 
 pub fn git_revision() -> String {

@@ -75,6 +75,10 @@ struct Args {
     /// Handover key from another running pruntime instance
     #[arg(long)]
     request_handover_from: Option<String>,
+
+    /// Sync blocks without dispatching messages.
+    #[arg(long)]
+    safe_mode: bool,
 }
 
 #[rocket::main]
@@ -138,6 +142,7 @@ async fn main() -> Result<(), rocket::Error> {
             gc_interval: args.gc_interval,
             cores,
             public_port: args.public_port,
+            safe_mode: args.safe_mode,
         }
     };
     info!("init_args: {:#?}", init_args);
