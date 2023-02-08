@@ -402,14 +402,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
 impl<P: pal::Platform> Phactory<P> {
     // Restored from checkpoint
-    pub fn on_restored(&mut self) -> Result<()> {
+    pub fn on_restored(&mut self, safe_mode: bool) -> Result<()> {
         self.check_requirements();
         self.reconfigure_network();
         self.update_runtime_info(|_| {});
         self.trusted_sk =
             Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {
-            system.on_restored()?;
+            system.on_restored(safe_mode)?;
         }
         Ok(())
     }
@@ -510,6 +510,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         storage_path: &str,
         remove_corrupted_checkpoint: bool,
         n_workers: usize,
+        safe_mode: bool,
     ) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
@@ -547,7 +548,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         info!("Loading checkpoint from file {:?}", ckpt_filename);
-        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers) {
+        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers, safe_mode) {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
                 Ok(Some(state))
@@ -568,13 +569,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         key: &[u8],
         reader: R,
         n_workers: usize,
+        safe_mode: bool,
     ) -> anyhow::Result<Self> {
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
         system::sidevm_config(n_workers);
-        let loader: PhactoryLoader<_> =
+        let PhactoryLoader(mut factory) =
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
-        Ok(loader.0)
+        factory
+            .on_restored(safe_mode)
+            .context("Failed to restore Phactory")?;
+        Ok(factory)
     }
 }
 
@@ -652,11 +657,7 @@ impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'d
     for PhactoryLoader<Platform>
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let mut factory = Phactory::load_state(deserializer)?;
-        factory
-            .on_restored()
-            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {err:?}")))?;
-        Ok(Self(factory))
+        Ok(Self(Phactory::load_state(deserializer)?))
     }
 }
 
