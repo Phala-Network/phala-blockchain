@@ -10,7 +10,7 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::base_pool;
 	use crate::computation;
-	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, PoolType, Vault};
+	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, Vault};
 	use crate::registry;
 	use crate::stake_pool_v2;
 	use crate::wrapped_balances;
@@ -136,6 +136,8 @@ pub mod pallet {
 		InsufficientContribution,
 		/// The Vault was bankrupt; cannot interact with it unless all the shares are withdrawn.
 		VaultBankrupt,
+		/// The caller has no nft to withdraw
+		NoNftToWithdraw,
 	}
 
 	#[pallet::call]
@@ -258,13 +260,11 @@ pub mod pallet {
 				target.clone(),
 				shares,
 				vault_pid,
-				PoolType::Vault,
 			)?;
-			let _ = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			let _ = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				target,
 				pool_info.basepool.pid,
-				PoolType::Vault,
 			)?;
 			pool_info.owner_shares -= shares;
 			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
@@ -446,7 +446,6 @@ pub mod pallet {
 				&mut pool_info.basepool,
 				who.clone(),
 				amount,
-				PoolType::Vault,
 			)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
@@ -455,11 +454,10 @@ pub mod pallet {
 
 			// Persist
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info.clone()));
-			base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
 				pool_info.basepool.pid,
-				PoolType::Vault,
 			)?;
 
 			wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(
@@ -488,12 +486,12 @@ pub mod pallet {
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
-			let nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
 				pool_info.basepool.pid,
-				PoolType::Vault,
 			)?;
+			let nft_id = maybe_nft_id.ok_or(Error::<T>::NoNftToWithdraw)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
@@ -527,15 +525,13 @@ pub mod pallet {
 				shares,
 				nft_id,
 				None,
-				PoolType::Vault,
 			)?;
 
 			nft_guard.save()?;
-			let _nft_id = base_pool::Pallet::<T>::merge_or_init_nft_for_staker(
+			let _nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who,
 				pool_info.basepool.pid,
-				PoolType::Vault,
 			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 
