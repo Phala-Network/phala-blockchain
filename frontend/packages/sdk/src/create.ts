@@ -1,7 +1,8 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
-import type { Bytes, Compact, Option, u64 } from "@polkadot/types-codec";
-import type { AccountId } from "@polkadot/types/interfaces";
+import type { Bytes, Compact, Option, Result, u8, u64, Vec } from "@polkadot/types-codec";
+import type { IMap, IEnum } from '@polkadot/types-codec/types';
+import { AccountId, ContractInstantiateResult } from "@polkadot/types/interfaces";
 import type { Codec } from "@polkadot/types/types";
 import {
   BN,
@@ -29,10 +30,10 @@ export type QueryFn = (
   certificateData: CertificateData
 ) => Promise<string>;
 
-export type SidevmQuery = (
+export type SidevmQuery<T = string> = (
   bytes: Bytes,
   certificateData: CertificateData
-) => Promise<string>;
+) => Promise<T>;
 
 type EncryptedData = {
   iv: string;
@@ -80,7 +81,7 @@ export interface CreateFnOptions {
 export interface CreateFnResult {
   api: ApiPromise;
   sidevmQuery: SidevmQuery;
-  instantiate: SidevmQuery;
+  instantiate: SidevmQuery<ContractInstantiateResult | InkQueryError>;
 }
 
 export interface ContractInfo {
@@ -99,6 +100,20 @@ export interface ClusterInfo {
   systemContract?: string;
   workers: string[];
   gasPrice: BN;
+}
+
+export interface InkQueryOk extends IEnum {
+  asInkMessageReturn: Vec<u8>
+}
+
+export interface InkQueryError extends IEnum {
+  BadOrigin: null
+  RuntimeError: string
+}
+
+export interface InkResponse extends IMap {
+  nonce: Vec<u8>;
+  result: Result<InkQueryOk, InkQueryError>;
 }
 
 export const createPruntimeApi = (baseURL: string) => {
@@ -248,8 +263,8 @@ export async function create({
       certificateData
     );
 
-  const instantiate: SidevmQuery = async (payload, certificateData) =>
-    query(
+  const instantiate: SidevmQuery<ContractInstantiateResult | InkQueryError> = async (payload, certificateData) => {
+    const instantiateReturns = await query(
       api
         .createType("InkQuery", {
           head: {
@@ -263,6 +278,16 @@ export async function create({
         .toHex(),
       certificateData
     );
+    const response = api.createType<InkResponse>('InkResponse', instantiateReturns);
+    if (response.result.isErr) {
+      // @FIXME not yet check the branch
+      return api.createType<InkQueryError>('InkQueryError', response.result.asErr.toHex())
+    }
+    return api.createType<ContractInstantiateResult>(
+      'ContractInstantiateResult',
+      response.result.asOk.asInkMessageReturn.toHex()
+    );
+  };
 
   const command: CommandFn = ({ contractId, payload, deposit }) => {
     const encodedPayload = api
