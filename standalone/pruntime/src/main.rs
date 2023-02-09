@@ -76,9 +76,16 @@ struct Args {
     #[arg(long)]
     request_handover_from: Option<String>,
 
-    /// Sync blocks without dispatching messages.
+    /// Safe mode level
+    ///
+    /// - 0, All features enabled.
+    /// - 1, Sync blocks without dispatching messages.
+    /// - 2, Sync blocks without storing the trie proofs and dispatching messages.
+    ///     In this mode, it is needed to invoke prpc.LoadStorageProof to load the necessary values
+    ///     before accepting key handover request.
     #[arg(long)]
-    safe_mode: bool,
+    #[arg(default_value_t = 0)]
+    safe_mode_level: u8,
 }
 
 #[rocket::main]
@@ -142,7 +149,7 @@ async fn main() -> Result<(), rocket::Error> {
             gc_interval: args.gc_interval,
             cores,
             public_port: args.public_port,
-            safe_mode: args.safe_mode,
+            safe_mode_level: args.safe_mode_level,
         }
     };
     info!("init_args: {:#?}", init_args);

@@ -62,7 +62,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
             &args.storage_path,
             args.remove_corrupted_checkpoint,
             args.cores as _,
-            args.safe_mode,
+            args.safe_mode_level,
         ) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");

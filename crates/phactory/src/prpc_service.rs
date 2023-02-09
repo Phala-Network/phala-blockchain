@@ -231,16 +231,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .map(|b| b.block_header.number)
             .unwrap_or(counters.next_block_number - 1);
 
-        let safe_mode = self.args.safe_mode;
+        let safe_mode_level = self.args.safe_mode_level;
 
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
             let state = self.runtime_state()?;
             state
                 .storage_synchronizer
-                .feed_block(&block, state.chain_storage.inner_mut())
+                .feed_block(&block, state.chain_storage.inner_mut(), safe_mode_level > 1)
                 .map_err(from_display)?;
-            if safe_mode {
+            if safe_mode_level > 0 {
                 continue;
             }
             info!("State synced");
@@ -525,7 +525,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         request: pb::ContractQueryRequest,
         effects_queue: Sender<(ContractClusterId, ExecSideEffects)>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
-        if self.args.safe_mode {
+        if self.args.safe_mode_level > 0 {
             return Err(from_display("Query is unavailable in safe mode"));
         }
         // Validate signature
@@ -873,6 +873,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             crate::maybe_remove_checkpoints(&self.args.sealing_path);
         }
         std::process::abort()
+    }
+
+    fn load_storage_proof(&mut self, proof: Vec<Vec<u8>>) -> RpcResult<()> {
+        if self.args.safe_mode_level < 2 {
+            return Err(from_display(
+                "Can not load storage proof when safe_mode_level < 2",
+            ));
+        }
+        self.runtime_state()?
+            .chain_storage
+            .inner_mut()
+            .load_proof(proof);
+        Ok(())
     }
 }
 
@@ -1530,6 +1543,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
     async fn stop(&mut self, request: pb::StopOptions) -> Result<(), prpc::server::Error> {
         self.lock_phactory().stop(request.remove_checkpoints)
+    }
+    async fn load_storage_proof(
+        &mut self,
+        req: phactory_api::prpc::StorageProof,
+    ) -> Result<(), prpc::server::Error> {
+        self.lock_phactory().load_storage_proof(req.proof)?;
+        Ok(())
     }
 }
 

@@ -1652,9 +1652,9 @@ impl<Platform: pal::Platform> System<Platform> {
 }
 
 impl<P: pal::Platform> System<P> {
-    pub fn on_restored(&mut self, safe_mode: bool) -> Result<()> {
+    pub fn on_restored(&mut self, safe_mode_level: u8) -> Result<()> {
         ::pink::runtime::set_worker_pubkey(self.ecdh_key.public());
-        if safe_mode {
+        if safe_mode_level > 0 {
             return Ok(());
         }
         self.contracts.try_restart_sidevms(&self.sidevm_spawner);

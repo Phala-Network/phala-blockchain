@@ -42,7 +42,7 @@ pub struct InitArgs {
     pub public_port: Option<u16>,
 
     /// Only sync blocks into pruntime without dispatching messages.
-    pub safe_mode: bool,
+    pub safe_mode_level: u8,
 }
 
 pub fn git_revision() -> String {
