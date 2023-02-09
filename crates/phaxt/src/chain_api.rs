@@ -107,4 +107,23 @@ impl ChainApi {
             .is_some();
         Ok(registered)
     }
+
+    pub async fn worker_added_at(&self, worker: &[u8]) -> Result<Option<BlockNumber>> {
+        let worker = Value::from_bytes(worker);
+        let address = subxt::dynamic::storage("PhalaRegistry", "WorkerAddedAt", vec![worker]);
+        let Some(block) = self
+            .storage()
+            .at(None)
+            .await?
+            .fetch(&address)
+            .await
+            .context("Failed to get worker info")? else {
+                return Ok(None);
+            };
+        let block_number = block
+            .to_value()?
+            .as_u128()
+            .ok_or_else(|| anyhow!("Invalid block number in WorkerAddedAt"))?;
+        Ok(Some(block_number as _))
+    }
 }
