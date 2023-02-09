@@ -1185,22 +1185,19 @@ impl<Platform: pal::Platform> System<Platform> {
                         Ok(hash) => {
                             send_log!(
                                 log::Level::Info,
-                                format!("Resource uploaded to cluster, by: {origin:?} res hash={hash:?}")
+                                format!("Resource uploaded to cluster, by {origin:?}, type={resource_type:?}, hash={hash:?}")
                             );
                         }
                         Err(err) => {
                             send_log!(
                                 log::Level::Error,
-                                format!("Failed to upload resource to cluster, by: {origin:?} err={err:?}")
+                                format!("Failed to upload resource to cluster, by {origin:?}, type={resource_type:?}, err={err:?}")
                             );
                         }
                     }
                 }
                 let hash = result.map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
-                info!(
-                    "Uploaded code to cluster {}, code_hash={:?}",
-                    cluster_id, hash
-                );
+                info!("Uploaded code to cluster {cluster_id}, type={resource_type:?}, code_hash={hash:?}");
             }
             ClusterOperation::Deposit {
                 cluster_id,
@@ -1940,6 +1937,7 @@ pub(crate) fn apply_pink_events(
             }
             PinkEvent::SetContractWeight { contract, weight } => {
                 ensure_system!();
+                info!("Set contract weight for {:?} to {:?}", contract, weight);
                 let contract = get_contract!(&contract);
                 contract.set_weight(weight);
                 contracts.weight_changed = true;

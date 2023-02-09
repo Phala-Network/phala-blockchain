@@ -8,7 +8,7 @@ edition = "2021"
 keywords = ["fat-contract", "pink", "ink", "S3"]
 
 [dependencies]
-pink-extension = { version = "0.2.0", path = "../../pink/pink-extension", default-features = false }
+pink-extension = { version = "0.4.0", default-features = false, path = "../../pink/pink-extension" }
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 sha2 = { version = "0.10.2", default-features = false }
@@ -17,7 +17,7 @@ base16 = { version = "0.2.1", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-pink-extension-runtime = { version = "0.2.0", path = "../../pink/pink-extension-runtime" }
+pink-extension-runtime = { path = "../../pink/pink-extension-runtime" }
 
 [features]
 default = ["std"]

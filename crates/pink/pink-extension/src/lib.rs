@@ -3,9 +3,9 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
+use ink::env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
 
-use ink_lang::EnvAccess;
+use ink::EnvAccess;
 use scale::{Decode, Encode};
 
 pub use pink_extension_macro::contract;
@@ -155,11 +155,11 @@ impl Topics for PinkEvent {
 
     fn topics<E, B>(
         &self,
-        builder: ink_env::topics::TopicsBuilder<ink_env::topics::state::Uninit, E, B>,
-    ) -> <B as ink_env::topics::TopicsBuilderBackend<E>>::Output
+        builder: ink::env::topics::TopicsBuilder<ink::env::topics::state::Uninit, E, B>,
+    ) -> <B as ink::env::topics::TopicsBuilderBackend<E>>::Output
     where
         E: Environment,
-        B: ink_env::topics::TopicsBuilderBackend<E>,
+        B: ink::env::topics::TopicsBuilderBackend<E>,
     {
         builder
             .build::<Self>()
@@ -262,13 +262,13 @@ pub fn upgrade_system_contract(storage_payer: AccountId) {
 pub enum PinkEnvironment {}
 
 impl Environment for PinkEnvironment {
-    const MAX_EVENT_TOPICS: usize = <ink_env::DefaultEnvironment as Environment>::MAX_EVENT_TOPICS;
+    const MAX_EVENT_TOPICS: usize = <ink::env::DefaultEnvironment as Environment>::MAX_EVENT_TOPICS;
 
-    type AccountId = <ink_env::DefaultEnvironment as Environment>::AccountId;
-    type Balance = <ink_env::DefaultEnvironment as Environment>::Balance;
-    type Hash = <ink_env::DefaultEnvironment as Environment>::Hash;
-    type BlockNumber = <ink_env::DefaultEnvironment as Environment>::BlockNumber;
-    type Timestamp = <ink_env::DefaultEnvironment as Environment>::Timestamp;
+    type AccountId = <ink::env::DefaultEnvironment as Environment>::AccountId;
+    type Balance = <ink::env::DefaultEnvironment as Environment>::Balance;
+    type Hash = <ink::env::DefaultEnvironment as Environment>::Hash;
+    type BlockNumber = <ink::env::DefaultEnvironment as Environment>::BlockNumber;
+    type Timestamp = <ink::env::DefaultEnvironment as Environment>::Timestamp;
 
     type ChainExtension = chain_extension::PinkExt;
 }

@@ -610,7 +610,7 @@ describe('A full stack', function () {
             );
             assert.isFalse(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
-                return output.valueOf();
+                return output.asOk.valueOf();
             }, 6000 * 2), 'Set hook should not success without granting admin first');
         });
 
@@ -625,7 +625,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.onBlockEndCalled(certBob, {});
-                return output.valueOf();
+                return output.asOk.valueOf();
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
 
@@ -647,7 +647,7 @@ describe('A full stack', function () {
                 assert.isTrue(await checkUntil(async () => {
                     const arg0 = "Powered by QuickJS in ink!";
                     const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, [arg0]);
-                    return output?.eq({ Ok: { String: arg0 } });
+                    return output?.eq({ Ok: { Ok: { String: arg0 } } });
                 }, 4 * 6000), 'Failed to evaluate js in contract');
             }
 
@@ -659,7 +659,7 @@ describe('A full stack', function () {
                 })()
                 `;
                 const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, []);
-                assert.isTrue(output?.eq({ Ok: { Bytes: "0x010203" } }), "Failed to return bytes");
+                assert.isTrue(output?.eq({ Ok: { Ok: { Bytes: "0x010203" } } }), "Failed to return bytes");
             }
         });
         it('can parse json in contract delegate call', async function () {
@@ -671,17 +671,15 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystemChecker.query.parseUsd(certAlice, {}, codeHash, '{"usd":1.23}');
-                return output?.unwrap()?.usd.eq(123);
+                return output?.asOk.unwrap()?.usd.eq(123);
             }, 4 * 6000), 'Failed to parse json in contract');
         });
 
         it('tokenomic driver works', async function () {
             {
                 // Should be unable to use local cache before staking
-                const result = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
-                // console.log('result', result);
-                const { output } = result;
-                assert.isFalse(output.valueOf());
+                const { output } = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
+                assert.isFalse(output.asOk.valueOf());
             }
             await assert.txAccepted(
                 ContractSystem.tx['system::setDriver'](txConfig, "ContractDeposit", ContractSystemChecker.address),
@@ -700,19 +698,19 @@ describe('A full stack', function () {
                 // Should be able to use local cache after staking
                 {
                     const { output } = await ContractSystemChecker.query.cacheSet(certAlice, {}, "0xdead", "0xbeef");
-                    assert.isTrue(output.valueOf());
+                    assert.isTrue(output.asOk.valueOf());
                 }
                 {
                     const { output } = await ContractSystemChecker.query.cacheGet(certAlice, {}, "0xdead");
-                    assert.isTrue(output.isSome);
-                    assert.equal(output.unwrap(), "0xbeef");
+                    assert.isTrue(output.asOk.isSome);
+                    assert.equal(output.asOk.unwrap(), "0xbeef");
                 }
             }
         });
 
         it('can set the sidevm as pending state without code uploaded', async function () {
             const { output } = await ContractSystemChecker.query.startSidevm(certAlice, {});
-            assert.isTrue(output.valueOf());
+            assert.isTrue(output.asOk.valueOf());
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
                 return info?.sidevm?.state == 'stopped';
@@ -751,8 +749,8 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output: [_apiLevel, version] } = await ContractSystem.query['system::version'](certAlice, {});
-                return version.eq(0xffff)
+                const { output } = await ContractSystem.query['system::version'](certAlice, {});
+                return output?.eq({ Ok: [0, 0xffff] })
             }, 4 * 6000), 'Upgrade system failed');
         });
 

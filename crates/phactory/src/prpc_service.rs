@@ -814,7 +814,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn upload_sidevm_code(&mut self, contract_id: ContractId, code: Vec<u8>) -> RpcResult<()> {
         self.system()?
             .upload_sidevm_code(contract_id, code)
-            .map_err(from_display)
+            .map_err(from_debug)
     }
 
     pub fn load_chain_state(

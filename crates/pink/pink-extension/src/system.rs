@@ -1,6 +1,5 @@
 #![allow(clippy::let_unit_value)]
 
-use ink_lang as ink;
 use pink_extension_macro as pink;
 
 use alloc::string::String;
@@ -44,7 +43,7 @@ pub trait System {
     #[ink(message)]
     fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()>;
 
-    /// Set a contract as a driver for `name`.
+    /// Get driver contract id for `name`.
     ///
     /// The caller must be the owner of the cluster or an administrator.
     #[ink(message)]

@@ -104,7 +104,7 @@ pub mod messaging {
     }
 
     // Pink messages
-    #[derive(Encode, Decode, Debug, PartialEq, Eq, TypeInfo, Clone)]
+    #[derive(Encode, Decode, Debug, PartialEq, Eq, TypeInfo, Clone, Copy)]
     pub enum ResourceType {
         InkCode,
         SidevmCode,

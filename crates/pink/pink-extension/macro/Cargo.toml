@@ -1,6 +1,6 @@
 [package]
 name = "pink-extension-macro"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2018"
 description = "Macros for writing fat contract"
 license = "Apache-2.0"
@@ -10,8 +10,7 @@ keywords = ["fat-contract", "pink", "ink"]
 proc-macro = true
 
 [dependencies]
-ink_lang_ir = { version = "3.4.0", default-features = false }
-ink_lang_macro = { version = "3.4.0", default-features = false }
+ink_ir = { version = "4.0.0-rc", default-features = false }
 syn = { version = "1.0", features = ["full", "visit-mut", "extra-traits", "parsing"] }
 quote = "1.0"
 proc-macro2 = "1.0"

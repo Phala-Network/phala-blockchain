@@ -1,7 +1,6 @@
+use alloc::vec::Vec;
 ///! Utilities to create and verify off-chain attestation
 use core::fmt;
-use ink_prelude::vec::Vec;
-use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout};
 use pink::chain_extension::{signing, SigType};
 use pink_extension as pink;
 use scale::{Decode, Encode};
@@ -16,11 +15,8 @@ pub struct Attestation {
 }
 
 /// An attestation verifier
-#[derive(Debug, Encode, Decode, Clone, SpreadLayout, PackedLayout, SpreadAllocate)]
-#[cfg_attr(
-    feature = "std",
-    derive(scale_info::TypeInfo, ink_storage::traits::StorageLayout,)
-)]
+#[derive(Debug, Encode, Decode, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Verifier {
     pub pubkey: Vec<u8>,
 }
@@ -46,11 +42,8 @@ impl Verifier {
 }
 
 /// An attestation generator
-#[derive(Encode, Decode, Clone, SpreadLayout, PackedLayout, SpreadAllocate)]
-#[cfg_attr(
-    feature = "std",
-    derive(scale_info::TypeInfo, ink_storage::traits::StorageLayout,)
-)]
+#[derive(Encode, Decode, Clone)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Generator {
     pub privkey: Vec<u8>,
 }
@@ -84,7 +77,6 @@ pub fn create(salt: &[u8]) -> (Generator, Verifier) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ink_lang as ink;
 
     #[ink::test]
     fn it_works() {

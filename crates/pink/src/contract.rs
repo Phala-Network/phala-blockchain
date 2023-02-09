@@ -406,10 +406,6 @@ fn contract_tx<T>(
     result
 }
 
-pub fn transpose_contract_result(result: ContractExecResult) -> Result<Vec<u8>, DispatchError> {
-    result.result.map(|v| v.data)
-}
-
 pub use contract_file::ContractFile;
 
 mod contract_file {

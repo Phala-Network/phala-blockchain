@@ -7,15 +7,13 @@ use pink_extension as pink;
 #[pink::contract(env = PinkEnvironment)]
 mod sidevm_deployer {
     use super::pink;
-    use ink_storage::{traits::SpreadAllocate, Mapping};
+    use ink::storage::Mapping;
     use pink::system::DriverError as Error;
     use pink::PinkEnvironment;
 
     type Result<T> = core::result::Result<T, Error>;
 
     #[ink(storage)]
-    #[derive(SpreadAllocate)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct SidevmOp {
         /// Owner of the contract
         owner: AccountId,
@@ -26,9 +24,10 @@ mod sidevm_deployer {
     impl SidevmOp {
         #[ink(constructor)]
         pub fn default() -> Self {
-            ink_lang::utils::initialize_contract(|me: &mut Self| {
-                me.owner = Self::env().caller();
-            })
+            Self {
+                owner: Self::env().caller(),
+                whitelist: Default::default()
+            }
         }
         #[ink(message)]
         pub fn allow(&mut self, contract: AccountId) -> Result<()> {
@@ -62,17 +61,16 @@ mod sidevm_deployer {
     mod tests {
         use super::*;
 
-        use ink_lang as ink;
-        use pink_system::System;
+        use system::System;
 
         const SYSTEM_ADDR: [u8; 32] = [42u8; 32];
         const SIDEVMOP_ADDR: [u8; 32] = [24u8; 32];
 
         fn with_callee<T>(callee: [u8; 32], f: impl FnOnce() -> T) -> T {
-            let prev = ink_env::test::callee::<PinkEnvironment>();
-            ink_env::test::set_callee::<PinkEnvironment>(callee.into());
+            let prev = ink::env::test::callee::<PinkEnvironment>();
+            ink::env::test::set_callee::<PinkEnvironment>(callee.into());
             let ret = f();
-            ink_env::test::set_callee::<PinkEnvironment>(prev);
+            ink::env::test::set_callee::<PinkEnvironment>(prev);
             ret
         }
 
