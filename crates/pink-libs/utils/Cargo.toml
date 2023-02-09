@@ -1,6 +1,6 @@
 [package]
 name = "pink-utils"
-version = "0.2.0"
+version = "0.4.0"
 edition = "2021"
 description = "Useful utilities for pink"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
