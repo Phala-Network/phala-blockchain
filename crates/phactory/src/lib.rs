@@ -234,6 +234,9 @@ pub struct Phactory<Platform> {
 
     #[serde(skip)]
     can_load_chain_state: bool,
+
+    #[serde(skip)]
+    trusted_sk: bool,
 }
 
 fn default_query_scheduler() -> RequestScheduler<ContractId> {
@@ -262,6 +265,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             query_scheduler: default_query_scheduler(),
             netconfig: Default::default(),
             can_load_chain_state: false,
+            trusted_sk: false,
         }
     }
 
@@ -402,6 +406,8 @@ impl<P: pal::Platform> Phactory<P> {
         self.check_requirements();
         self.reconfigure_network();
         self.update_runtime_info(|_| {});
+        self.trusted_sk =
+            Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {
             system.on_restored()?;
         }
