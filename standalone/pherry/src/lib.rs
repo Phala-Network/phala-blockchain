@@ -93,16 +93,18 @@ pub struct Args {
     #[arg(
         default_value = "ws://localhost:9944",
         long,
-        help = "Substrate rpc websocket endpoint"
+        visible_alias = "substrate-ws-endpoint",
+        help = "Substrate (relaychain for --parachain mode) rpc websocket endpoint"
     )]
-    substrate_ws_endpoint: String,
+    relaychain_ws_endpoint: String,
 
     #[arg(
         default_value = "ws://localhost:9977",
         long,
-        help = "Parachain collator rpc websocket endpoint"
+        alias = "collator-ws-endpoint",
+        help = "Parachain rpc websocket endpoint"
     )]
-    collator_ws_endpoint: String,
+    parachain_ws_endpoint: String,
 
     #[arg(
         default_value = "http://localhost:8000",
@@ -1008,18 +1010,18 @@ async fn bridge(
 ) -> Result<()> {
     // Connect to substrate
 
-    let api: RelaychainApi = subxt_connect(&args.substrate_ws_endpoint).await?;
-    info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
+    let api: RelaychainApi = subxt_connect(&args.relaychain_ws_endpoint).await?;
+    info!("Connected to relaychain at: {}", args.relaychain_ws_endpoint);
 
     let para_uri: &str = if args.parachain {
-        &args.collator_ws_endpoint
+        &args.parachain_ws_endpoint
     } else {
-        &args.substrate_ws_endpoint
+        &args.relaychain_ws_endpoint
     };
     let para_api: ParachainApi = subxt_connect(para_uri).await?;
     info!(
         "Connected to parachain node at: {}",
-        args.collator_ws_endpoint
+        args.parachain_ws_endpoint
     );
 
     if !args.no_wait {
