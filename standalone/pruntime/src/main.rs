@@ -11,7 +11,7 @@ use log::{error, info};
 use phactory_api::ecall_args::{git_revision, InitArgs};
 
 mod handover;
-mod logger;
+use phala_sanitized_logger as logger;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]

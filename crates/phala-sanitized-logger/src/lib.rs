@@ -6,7 +6,7 @@ mod test;
 /// A logger that only allow our codes to print logs
 struct SanitizedLogger(Logger);
 
-pub(crate) fn init(sanitized: bool) {
+pub fn init(sanitized: bool) {
     let env = env_logger::Env::default().default_filter_or("info");
     let mut builder = env_logger::Builder::from_env(env);
     builder.format_timestamp_micros();

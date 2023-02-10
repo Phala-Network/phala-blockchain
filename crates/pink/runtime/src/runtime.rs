@@ -16,7 +16,8 @@ use frame_support::{
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
-pub use extension::{get_side_effects, ExecSideEffects};
+pub use extension::get_side_effects;
+pub use pink_capi::types::ExecSideEffects;
 pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEvent};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
@@ -187,12 +188,6 @@ struct CallInfo {
 
 environmental::environmental!(call_info: CallInfo);
 
-static WORKER_PUBKEY: RwLock<EcdhPublicKey> = RwLock::new([0; 32]);
-
-pub fn set_worker_pubkey(key: EcdhPublicKey) {
-    *WORKER_PUBKEY.write().unwrap() = key;
-}
-
 pub fn using_mode<T>(
     mode: CallMode,
     callbacks: Option<BoxedEventCallbacks>,
@@ -209,7 +204,7 @@ pub fn using_mode<T>(
 pub fn get_call_mode_info() -> Option<CallModeInfo> {
     call_info::with(|info| CallModeInfo {
         mode: info.mode,
-        worker_pubkey: *WORKER_PUBKEY.read().unwrap(),
+        worker_pubkey: todo!(),
     })
 }
 

@@ -23,22 +23,7 @@ use crate::{
     types::AccountId,
 };
 
-#[derive(Default, Debug)]
-pub struct ExecSideEffects {
-    pub pink_events: Vec<(AccountId, PinkEvent)>,
-    pub ink_events: Vec<(AccountId, Vec<H256>, Vec<u8>)>,
-    pub instantiated: Vec<(AccountId, AccountId)>,
-}
-
-impl ExecSideEffects {
-    pub fn into_query_only_effects(mut self) -> Self {
-        self.pink_events
-            .retain(|(_, event)| event.allowed_in_query());
-        self.ink_events.clear();
-        self.instantiated.clear();
-        self
-    }
-}
+use pink_capi::types::ExecSideEffects;
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
@@ -50,7 +35,9 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
 }
 
 pub fn get_side_effects() -> ExecSideEffects {
-    let mut result = ExecSideEffects::default();
+    let mut pink_events = Vec::default();
+    let mut ink_events = Vec::default();
+    let mut instantiated = Vec::default();
     for event in super::System::events() {
         if let super::RuntimeEvent::Contracts(ink_event) = event.event {
             use pallet_contracts::Event as ContractEvent;
@@ -58,7 +45,7 @@ pub fn get_side_effects() -> ExecSideEffects {
                 ContractEvent::Instantiated {
                     deployer,
                     contract: address,
-                } => result.instantiated.push((deployer, address)),
+                } => instantiated.push((deployer, address)),
                 ContractEvent::ContractEmitted {
                     contract: address,
                     data,
@@ -68,21 +55,25 @@ pub fn get_side_effects() -> ExecSideEffects {
                     {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
-                                result.pink_events.push((address, event));
+                                pink_events.push((address, event));
                             }
                             Err(_) => {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
                     } else {
-                        result.ink_events.push((address, event.topics, data));
+                        ink_events.push((address, event.topics, data));
                     }
                 }
                 _ => (),
             }
         }
     }
-    result
+    ExecSideEffects::V1 {
+        pink_events,
+        ink_events,
+        instantiated,
+    }
 }
 
 /// Contract extension for `pink contracts`
@@ -190,11 +181,11 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
-        let seed =
-            crate::runtime::Pink::key_seed().ok_or(DispatchError::Other("Key seed missing"))?;
-        let seed_key = sp_core::sr25519::Pair::restore_from_secret_key(&seed);
+        let privkey =
+            crate::runtime::Pink::key().ok_or(DispatchError::Other("Key seed missing"))?;
+        let privkey = sp_core::sr25519::Pair::restore_from_secret_key(&privkey);
         let contract_address: &[u8] = self.address.as_ref();
-        let derived_pair = seed_key
+        let derived_pair = privkey
             .derive_sr25519_pair(&[contract_address, &salt, b"keygen"])
             .or(Err(DispatchError::Other("Failed to derive sr25519 pair")))?;
         let priviate_key = derived_pair.dump_secret_key();

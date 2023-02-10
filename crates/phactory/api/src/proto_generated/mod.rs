@@ -47,7 +47,7 @@ impl PhactoryInfo {
             cluster: self
                 .system
                 .as_ref()
-                .map(|s| s.number_of_clusters > 0)
+                .map(|s| !s.cluster.is_empty())
                 .unwrap_or(false),
             gblk: self.system.as_ref().map(|s| s.genesis_block).unwrap_or(0),
         }

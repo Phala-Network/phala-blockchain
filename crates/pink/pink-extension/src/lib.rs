@@ -104,8 +104,8 @@ pub enum PinkEvent {
     SetLogHandler(AccountId),
     /// Set the weight of contract used to schedule queries and sidevm vruntime
     SetContractWeight { contract: AccountId, weight: u32 },
-    /// Upgrade the system contract to latest version.
-    UpgradeSystemContract { storage_payer: AccountId },
+    /// System contract version number
+    SystemContractUpdated { version: (u16, u16) },
 }
 
 impl PinkEvent {
@@ -121,7 +121,7 @@ impl PinkEvent {
             PinkEvent::ForceStopSidevm { .. } => true,
             PinkEvent::SetLogHandler(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
-            PinkEvent::UpgradeSystemContract { .. } => false,
+            PinkEvent::SystemContractUpdated { .. } => false,
         }
     }
 
@@ -137,7 +137,7 @@ impl PinkEvent {
             PinkEvent::ForceStopSidevm { .. } => "ForceStopSidevm",
             PinkEvent::SetLogHandler(_) => "SetLogHandler",
             PinkEvent::SetContractWeight { .. } => "SetContractWeight",
-            PinkEvent::UpgradeSystemContract { .. } => "UpgradeSystemContract",
+            PinkEvent::SystemContractUpdated { .. } => "SystemContractUpdated",
         }
     }
 }
@@ -251,9 +251,9 @@ pub fn set_contract_weight(contract: AccountId, weight: u32) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetContractWeight { contract, weight });
 }
 
-/// Upgrade the system contract to latest version
-pub fn upgrade_system_contract(storage_payer: AccountId) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeSystemContract { storage_payer });
+/// The system contract has been updated.
+pub fn emit_system_contract_updated(version: (u16, u16)) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::SystemContractUpdated { version });
 }
 
 /// Pink defined environment. Used this environment to access the fat contract runtime features.

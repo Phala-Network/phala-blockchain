@@ -17,6 +17,8 @@ pub mod pallet {
         SaturatedConversion, Saturating,
     };
 
+    use crate::types::Hash;
+
     type CodeHash<T> = <T as frame_system::Config>::Hash;
     type BalanceOf<T> =
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -33,7 +35,8 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
+    #[pallet::getter(fn cluster_id)]
+    pub(crate) type ClusterId<T: Config> = StorageValue<_, Hash, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn gas_price)]
@@ -50,13 +53,10 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type TreasuryAccount<T: Config> = StorageValue<_, T::AccountId>;
 
-    /// The seed used to derive custom keys in `ink!` contract.
-    ///
-    /// All contracts in a cluster shares the same seed. When deriving a key from the seed, the
-    /// contract address is appended to the seed to avoid collisions.
+    /// The priviate key of the cluster
     #[pallet::storage]
-    #[pallet::getter(fn key_seed)]
-    pub(crate) type KeySeed<T: Config> = StorageValue<_, Sr25519SecretKey>;
+    #[pallet::getter(fn key)]
+    pub(crate) type Key<T: Config> = StorageValue<_, Sr25519SecretKey>;
 
     /// Uploaded sidevm codes
     #[pallet::storage]
@@ -87,7 +87,7 @@ pub mod pallet {
             let buf = phala_types::contract::contract_id_preimage(
                 deploying_address.as_ref(),
                 code_hash.as_ref(),
-                &cluster_id,
+                cluster_id.as_ref(),
                 salt,
             );
             UncheckedFrom::unchecked_from(<T as frame_system::Config>::Hashing::hash(&buf))
@@ -95,12 +95,12 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn set_cluster_id(cluster_id: &[u8]) {
-            <ClusterId<T>>::put(cluster_id.to_vec());
+        pub fn set_cluster_id(cluster_id: Hash) {
+            <ClusterId<T>>::put(cluster_id);
         }
 
-        pub fn set_key_seed(seed: Sr25519SecretKey) {
-            <KeySeed<T>>::put(seed);
+        pub fn set_key(key: Sr25519SecretKey) {
+            <Key<T>>::put(key);
         }
 
         pub fn put_sidevm_code(

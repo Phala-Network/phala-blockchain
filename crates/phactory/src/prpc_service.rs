@@ -9,7 +9,7 @@ use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
 
 use super::*;
 use crate::contracts::ContractClusterId;
-use ::pink::runtime::ExecSideEffects;
+use ::pink::types::{AccountId, ExecSideEffects};
 use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
@@ -28,6 +28,7 @@ use phala_types::{
     ChallengeHandlerInfo, EncryptedWorkerKey, SignedContentType, VersionedWorkerEndpoints,
     WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
+use sp_application_crypto::UncheckedFrom;
 use tokio::sync::oneshot::{channel, Sender};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -362,7 +363,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
         info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
-        ::pink::runtime::set_worker_pubkey(ecdh_pubkey.0);
+        ::pink::runtimes::set_worker_pubkey(ecdh_pubkey.0);
 
         // Measure machine score
         let cpu_core_num: u32 = self.platform.cpu_core_num();
@@ -390,8 +391,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let send_mq = MessageSendQueue::default();
         let recv_mq = MessageDispatcher::default();
-
-        let contracts = contracts::ContractsKeeper::default();
 
         let mut runtime_state = RuntimeState {
             send_mq,
@@ -424,7 +423,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
-            contracts,
             self.args.cores as _,
         );
 
@@ -537,7 +535,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(messages)
     }
 
-    fn apply_side_effects(&mut self, cluster_id: ContractClusterId, effects: ExecSideEffects) {
+    fn apply_side_effects(&mut self, effects: ExecSideEffects) {
         let Some(state) = self.runtime_state.as_ref() else {
             error!("Failed to apply side effects: chain storage missing");
             return;
@@ -546,13 +544,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             error!("Failed to apply side effects: system missing");
             return;
         };
-        system.apply_side_effects(cluster_id, effects, &state.chain_storage);
+        system.apply_side_effects(effects, &state.chain_storage);
     }
 
     fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
-        effects_queue: Sender<(ContractClusterId, ExecSideEffects)>,
+        effects_queue: Sender<ExecSideEffects>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
         if self.args.safe_mode_level > 0 {
             return Err(from_display("Query is unavailable in safe mode"));
@@ -603,17 +601,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let query_scheduler = self.query_scheduler.clone();
         // Dispatch
         let query_future = self.system()?.make_query(
-            &head.id,
+            &AccountId::unchecked_from(head.id),
             accid_origin.as_ref(),
             data[data.len() - rest..].to_vec(),
             query_scheduler,
         )?;
 
         Ok(async move {
-            let (response, cluster_id, effects) = query_future.await?;
+            let (response, effects) = query_future.await?;
 
             effects_queue
-                .send((cluster_id, effects))
+                .send(effects)
                 .map_err(|_| from_display("Failed to apply side effects"))?;
 
             let response = contract::ContractQueryResponse {
@@ -825,30 +823,23 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     pub fn get_cluster_info(&self) -> RpcResult<pb::GetClusterInfoResponse> {
-        // TODO: use `let else`.
-        let system = match &self.system {
-            None => return Ok(Default::default()),
-            Some(system) => system,
+        let Some(System{ contract_cluster: Some(cluster), contracts, .. }) = &self.system else {
+            return Ok(Default::default());
         };
-        let clusters = system
-            .contract_clusters
-            .iter()
-            .map(|(id, cluster)| {
-                let contracts = cluster.iter_contracts().map(hex).collect();
-                let ver = cluster.config.version;
-                let version = format!("{}.{}", ver.0, ver.1);
-                pb::ClusterInfo {
-                    id: hex(id),
-                    state_root: hex(cluster.storage.root()),
-                    contracts,
-                    version,
-                }
-            })
-            .collect();
-        Ok(pb::GetClusterInfoResponse { clusters })
+        let ver = cluster.config.runtime_version;
+        let runtime_version = format!("{}.{}", ver.0, ver.1);
+
+        Ok(pb::GetClusterInfoResponse {
+            info: Some(pb::ClusterInfo {
+                id: hex(cluster.id),
+                state_root: hex(cluster.storage.root()),
+                contracts: contracts.keys().map(hex).collect(),
+                runtime_version,
+            }),
+        })
     }
 
-    pub fn upload_sidevm_code(&mut self, contract_id: ContractId, code: Vec<u8>) -> RpcResult<()> {
+    pub fn upload_sidevm_code(&mut self, contract_id: AccountId, code: Vec<u8>) -> RpcResult<()> {
         self.system()?
             .upload_sidevm_code(contract_id, code)
             .map_err(from_debug)
@@ -1091,11 +1082,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let (tx, rx) = channel();
         let phactory = self.phactory.clone();
         tokio::spawn(async move {
-            if let Ok((cluster_id, effects)) = rx.await {
-                phactory
-                    .lock()
-                    .unwrap()
-                    .apply_side_effects(cluster_id, effects);
+            if let Ok(effects) = rx.await {
+                phactory.lock().unwrap().apply_side_effects(effects);
             }
         });
         let query_fut = self.lock_phactory().contract_query(request, tx)?;

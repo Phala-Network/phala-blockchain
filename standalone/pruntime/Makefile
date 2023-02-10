@@ -1,8 +1,26 @@
 SGX_MODE ?= SW
 
-.PHONY: all clean
+PINK_RUNTIME_VERSION = 1.0
+PINK_RUNTIME_DIR = ../../crates/pink/runtime
+PINK_RUNTIME = ../../target/release/libpink.so
+PINK_RUNTIME_DIST = bin/libpink.so.${PINK_RUNTIME_VERSION}
+
+
+.PHONY: all clean run
 ifeq ($(SGX_MODE),SW)
-all: bin/Rocket.toml bin/app
+all: bin/Rocket.toml bin/app ${PINK_RUNTIME_DIST}
+
+run:
+	./bin/app -c 0
+
+${PINK_RUNTIME_DIST}: ${PINK_RUNTIME}
+	cp $? $@
+	cp $@ target/release/
+	strip --strip-all --keep-symbol=__pink_runtime_init $@
+
+.PHONY: ${PINK_RUNTIME}
+${PINK_RUNTIME}:
+	cd ${PINK_RUNTIME_DIR} && cargo build --release
 
 bin/app: bin/pruntime
 	cd bin && ln -sf pruntime app

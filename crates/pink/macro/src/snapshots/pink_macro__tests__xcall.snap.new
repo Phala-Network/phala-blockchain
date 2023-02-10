@@ -1,0 +1,85 @@
+---
+source: crates/pink/macro/src/tests.rs
+assertion_line: 21
+expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
+---
+pub trait ECalls {
+    fn instantiate(
+        &self,
+        code_hash: Hash,
+        endowment: Balance,
+        gas_limit: u64,
+        input_data: Vec<u8>,
+    ) -> Result<Hash, u32>;
+    fn set_id(&mut self, id: Hash) -> Result<Hash, u32>;
+}
+impl<T: Impl + ImplMut> ECalls for T {
+    fn instantiate(
+        &self,
+        code_hash: Hash,
+        endowment: Balance,
+        gas_limit: u64,
+        input_data: Vec<u8>,
+    ) -> Result<Hash, u32> {
+        let inputs = (code_hash, endowment, gas_limit, input_data);
+        let ret = self.cross_call(1, &inputs.encode());
+        Decode::decode(&mut &ret[..]).expect("Decode failed")
+    }
+    fn set_id(&mut self, id: Hash) -> Result<Hash, u32> {
+        let inputs = (id);
+        let ret = self.cross_call_mut(2, &inputs.encode());
+        Decode::decode(&mut &ret[..]).expect("Decode failed")
+    }
+}
+trait ECallsRo {
+    #[xcall(id = 1)]
+    fn instantiate(
+        &self,
+        code_hash: Hash,
+        endowment: Balance,
+        gas_limit: u64,
+        input_data: Vec<u8>,
+    ) -> Result<Hash, u32>;
+}
+impl<T: Impl> ECallsRo for T {
+    fn instantiate(
+        &self,
+        code_hash: Hash,
+        endowment: Balance,
+        gas_limit: u64,
+        input_data: Vec<u8>,
+    ) -> Result<Hash, u32> {
+        let inputs = (code_hash, endowment, gas_limit, input_data);
+        let ret = self.cross_call(1, &inputs.encode());
+        Decode::decode(&mut &ret[..]).expect("Decode failed")
+    }
+}
+pub fn executing_dispatch(
+    executor: &mut (impl Executing + ?Sized),
+    srv: &mut (impl ECalls + ?Sized),
+    id: u32,
+    input: &[u8],
+) -> Vec<u8> {
+    match id {
+        1 => {
+            let (code_hash, endowment, gas_limit, input_data) =
+                Decode::decode(&mut &input[..]).expect("Failed to decode args");
+            executor
+                .execute(move || srv.instantiate(code_hash, endowment, gas_limit, input_data))
+                .encode()
+        }
+        2 => {
+            let (id) = Decode::decode(&mut &input[..]).expect("Failed to decode args");
+            executor.execute_mut(move || srv.set_id(id)).encode()
+        }
+        _ => panic!("Unknown call id {}", id),
+    }
+}
+pub fn id2name(id: u32) -> &'static str {
+    match id {
+        1u32 => "instantiate",
+        2u32 => "set_id",
+        _ => "unknown",
+    }
+}
+

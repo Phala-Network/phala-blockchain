@@ -9,10 +9,10 @@ ink = { version = "4", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
 
-pink-extension = { default-features = false, path = "../pink-extension" }
+pink-extension = { default-features = false, path = "../../pink-extension" }
 
 [dev-dependencies]
-pink-extension-runtime = { default-features = false, path = "../pink-extension-runtime" }
+pink-extension-runtime = { default-features = false, path = "../../pink-extension-runtime" }
 
 [lib]
 name = "unittests"

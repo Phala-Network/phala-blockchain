@@ -63,6 +63,7 @@ pub struct ServiceRun {
     report_rx: Receiver<Report>,
 }
 
+#[derive(Clone)]
 pub struct Spawner {
     runtime_handle: tokio::runtime::Handle,
     report_tx: Sender<Report>,

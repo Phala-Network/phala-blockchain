@@ -42,6 +42,7 @@ impl<H: KeyHasher> TrieBackendStorage<H> for GenericMemoryDB<H> {
         key: &<H as KeyHasher>::Out,
         prefix: Prefix,
     ) -> Result<Option<DBValue>, DefaultError> {
+        log::info!("runtime: memdb get({:?})", key.as_ref());
         Ok(hash_db::HashDB::get(self, key, prefix))
     }
 }

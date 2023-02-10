@@ -1,5 +1,5 @@
 [profile.release]
-panic = "unwind"
+panic = "abort"
 opt-level = 3
 
 # make sure dev builds with backtrace do
@@ -59,12 +59,16 @@ members = [
 	"crates/phala-types",
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
+	"crates/phala-sanitized-logger",
 	"crates/wasmer-tunables",
 	"crates/phala-rocket-middleware",
-	"crates/pink",
+	"crates/pink/runner",
+	"crates/pink/runtime",
+	"crates/pink/runtime/unittests",
+	"crates/pink/capi",
+	"crates/pink/macro",
 	"crates/pink/pink-extension",
 	"crates/pink/pink-extension-runtime",
-	"crates/pink/unittests",
 	"crates/pink-libs/s3",
 	"crates/pink-libs/utils",
 	"crates/pink-libs/subrpc",

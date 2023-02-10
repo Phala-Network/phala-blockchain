@@ -12,20 +12,14 @@ use crate::{
     types::{AccountId, Balance, BlockNumber, Hash},
 };
 
+type Storage = storage::in_memory_backend::InMemoryStorage;
+
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
 type ContractInstantiateResult =
     pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
 
 type ContractResult<T> =
     pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance>;
-
-pub type Storage = storage::Storage<storage::InMemoryBackend>;
-
-fn _compilation_hint_for_kvdb(db: Storage) {
-    // TODO.kevin: Don't forget to clean up the disk space on cluster destroying when we switch to
-    // a KVDB backend.
-    let _dont_forget_to_clean_up_disk: storage::Storage<storage::InMemoryBackend> = db;
-}
 
 macro_rules! define_mask_fn {
     ($name: ident, $bits: expr, $typ: ty) => {
@@ -132,12 +126,6 @@ fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> C
         }
     }
     result
-}
-
-impl Default for Storage {
-    fn default() -> Self {
-        Self::new(storage::new_in_memory_backend())
-    }
 }
 
 #[derive(Debug, Default, Encode, Decode, Clone)]
@@ -364,16 +352,16 @@ impl Contract {
             let _ = result.result?;
             Ok(effects)
         } else {
-            Ok(Default::default())
+            Ok(ExecSideEffects::V1 {
+                pink_events: vec![],
+                ink_events: vec![],
+                instantiated: vec![],
+            })
         }
     }
 
     pub fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
         self.hooks.on_block_end = Some((selector, Weight::from_ref_time(gas_limit)));
-    }
-
-    pub fn code_hash(&self, storage: &Storage) -> Option<Hash> {
-        storage.code_hash(&self.address)
     }
 }
 

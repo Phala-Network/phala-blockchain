@@ -132,6 +132,11 @@ mod storage_ext {
             self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
         }
 
+        pub fn pink_runtime_version(&self) -> (u32, u32) {
+            // self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
+            todo!()
+        }
+
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
         pub fn mq_sequence(&self, sender: &MessageOrigin) -> u64 {
             self.execute_with(|| pallet_mq::OffchainIngress::<chain::Runtime>::get(sender))
