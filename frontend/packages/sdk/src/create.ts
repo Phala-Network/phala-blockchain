@@ -18,8 +18,8 @@ import {
   sr25519Sign,
   waitReady,
 } from "@polkadot/wasm-crypto";
-import axios, { AxiosError } from "axios";
 import { from } from "rxjs";
+import { fetch } from "undici";
 import type { CertificateData } from "./certificate";
 import { decrypt, encrypt } from "./lib/aes-256-gcm";
 import { randomHex } from "./lib/hex";
@@ -118,32 +118,34 @@ export interface InkResponse extends IMap {
 
 export const createPruntimeApi = (baseURL: string) => {
   // Create a http client prepared for protobuf
-  const http = axios.create({
-    baseURL,
-    headers: {
-      "Content-Type": "application/octet-stream",
-    },
-    responseType: "arraybuffer",
-  }).post;
-
   const pruntimeApi = pruntimeRpc.PhactoryAPI.create(
     async (method, requestData, callback) => {
       try {
-        const res = await http<ArrayBuffer>(
-          `/prpc/PhactoryAPI.${method.name}`,
-          new Uint8Array(requestData)
-        );
-        callback(null, new Uint8Array(res.data));
-      } catch (err: unknown) {
-        if (
-          err instanceof AxiosError &&
-          err.response?.data instanceof ArrayBuffer
-        ) {
-          const message = new Uint8Array(err.response.data);
-          callback(new Error(prpc.PrpcError.decode(message).message));
-        } else {
-          throw err;
-        }
+        const resp = await fetch(
+          `${baseURL}/prpc/PhactoryAPI.${method.name}`,
+          {
+            method: 'POST',
+            headers:{
+              "Content-Type": "application/octet-stream",
+            },
+            body: new Uint8Array(requestData),
+          }
+        )
+        const buffer = await (await resp.blob()).arrayBuffer()
+        callback(null, new Uint8Array(buffer));
+      } catch (err) {
+        // todo fixme
+        console.log('Error:', err)
+        // if (
+        //   err instanceof AxiosError &&
+        //   err.response?.data instanceof ArrayBuffer
+        // ) {
+        //   const message = new Uint8Array(err.response.data);
+        //   callback(new Error(prpc.PrpcError.decode(message).message));
+        // } else {
+        //   throw err;
+        // }
+        throw err;
       }
     }
   );
