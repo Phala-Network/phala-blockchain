@@ -87,4 +87,14 @@ export class OnChainRegistry {
     }
     return new BN(this.clusterInfo.gasPrice)
   }
+
+
+  /**
+   * Static factory method returns a ready to use PhatRegistry object.
+   */
+  static async create(api: ApiPromise) {
+    const instance = new OnChainRegistry(api)
+    await instance.waitReady()
+    return instance
+  }
 }
