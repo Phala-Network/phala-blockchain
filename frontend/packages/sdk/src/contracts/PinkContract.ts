@@ -7,6 +7,7 @@ import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } f
 import type { ContractCallResult, ContractCallSend, ContractQuery, ContractTx, MapMessageQuery, MapMessageTx } from '@polkadot/api-contract/base/types';
 import type { Registry } from '@polkadot/types/types';
 import type { DecorateMethod } from '@polkadot/api/types';
+import type { OnChainRegistry } from '../OnChainRegistry';
 
 
 import { Abi } from '@polkadot/api-contract/Abi';
@@ -120,13 +121,13 @@ function pinkCommand(
   };
 
 
-
 export class PinkContractPromise {
 
   readonly abi: Abi;
   readonly api: ApiBase<'promise'>;
   readonly address: AccountId;
   readonly contractKey: string;
+  readonly phatRegistry: OnChainRegistry;
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>;
   protected readonly _isWeightV1: boolean;
@@ -134,12 +135,12 @@ export class PinkContractPromise {
   readonly #query: MapMessageQuery<'promise'> = {};
   readonly #tx: MapMessageTx<'promise'> = {};
 
-  readonly #phactory: pruntimeRpc.PhactoryAPI;
-  readonly #remotePubkey: string;
-
-  constructor (api: ApiPromise, phactory: pruntimeRpc.PhactoryAPI, remotePubkey: string, abi: string | Record<string, unknown> | Abi, address: string | AccountId, contractKey: string) {
+  constructor (api: ApiPromise, phatRegistry: OnChainRegistry, abi: string | Record<string, unknown> | Abi, address: string | AccountId, contractKey: string) {
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain');
+    }
+    if (!phatRegistry.isReady()) {
+      throw new Error('Your phatRegistry has not been initialized correctly.');
     }
 
     this.abi = abi instanceof Abi
@@ -152,8 +153,7 @@ export class PinkContractPromise {
     this.address = this.registry.createType('AccountId', address);
     this.contractKey = contractKey
 
-    this.#phactory = phactory;
-    this.#remotePubkey = remotePubkey;
+    this.phatRegistry = phatRegistry
 
     this.abi.messages.forEach((m): void => {
       if (m.isMutating) {
@@ -186,7 +186,7 @@ export class PinkContractPromise {
     const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
 
     const queryAgreementKey = sr25519Agree(
-      hexToU8a(hexAddPrefix(this.#remotePubkey)),
+      hexToU8a(hexAddPrefix(this.phatRegistry.remotePubkey)),
       sk
     );
 
@@ -202,7 +202,7 @@ export class PinkContractPromise {
           InkMessage: message.toU8a(params),
         },
       });
-      const data = await pinkQuery(api, this.#phactory, pk, queryAgreementKey, payload.toHex(), cert);
+      const data = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
       const { debugMessage, gasConsumed, gasRequired, result, storageDeposit } = api.createType<ContractExecResult>(
         "ContractExecResult",
         (
@@ -252,8 +252,7 @@ export class PinkContractPromise {
         },
       });
       let deposit = new BN(0);
-      const gasPrice = new BN(1);
-      const gasFee = new BN(gas.refTime).mul(gasPrice);
+      const gasFee = new BN(gas.refTime).mul(this.phatRegistry.gasPrice);
       deposit = new BN(value).add(gasFee).add(new BN(storageDepositLimit || 0));
       return pinkCommand(api, pk, commandAgreementKey, { contractId: dest.toHex(), payload: payload.toHex(), deposit })
     }
