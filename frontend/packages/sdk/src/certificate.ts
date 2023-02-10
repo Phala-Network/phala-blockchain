@@ -1,6 +1,5 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { Signer as InjectedSigner } from "@polkadot/api/types";
-import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import type { KeyringPair } from "@polkadot/keyring/types";
 import type { Signer } from "@polkadot/types/types";
 
@@ -23,7 +22,7 @@ interface CertificateBaseParams {
 
 interface CertificateParamsWithSigner extends CertificateBaseParams {
   signer: Signer | InjectedSigner;
-  account: InjectedAccountWithMeta;
+  account: KeyringPair;
 }
 
 interface CertificateParamsWithPair extends CertificateBaseParams {
@@ -113,7 +112,7 @@ export const signCertificate = async (
   };
 };
 
-const getSignatureTypeFromAccount = (account: InjectedAccountWithMeta) => {
+const getSignatureTypeFromAccount = (account: KeyringPair) => {
   const keypairType = account.type || "sr25519";
   switch (keypairType) {
     case "sr25519":
