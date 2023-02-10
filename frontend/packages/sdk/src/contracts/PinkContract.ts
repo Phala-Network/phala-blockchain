@@ -1,30 +1,33 @@
+import type { Bytes } from '@polkadot/types';
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { AccountId, ContractExecResult, EventRecord, Weight, WeightV2 } from '@polkadot/types/interfaces';
 import type { ApiPromise } from '@polkadot/api';
-import type { AbiMessage, ContractOptions, ContractCallOutcome } from '@polkadot/api-contract/types';
+import type { ISubmittableResult } from '@polkadot/types/types';
+import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } from '@polkadot/api-contract/types';
 import type { ContractCallResult, ContractCallSend, ContractQuery, ContractTx, MapMessageQuery, MapMessageTx } from '@polkadot/api-contract/base/types';
 import type { Registry } from '@polkadot/types/types';
-import type { ApiTypes, DecorateMethod } from '@polkadot/api/types';
+import type { DecorateMethod } from '@polkadot/api/types';
 
-import { pruntime_rpc as pruntimeRpc, pruntime_rpc } from "../proto";
 
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
-import { Base } from '@polkadot/api-contract/base/Base'
+import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract';
+import { applyOnEvent } from '@polkadot/api-contract/util';
 import { withMeta, convertWeight } from '@polkadot/api-contract/base/util'
-import { BN, BN_HUNDRED, BN_ONE, BN_ZERO, isUndefined, logger, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
+import { BN, BN_HUNDRED, BN_ONE, BN_ZERO, isUndefined, logger, hexAddPrefix, hexStripPrefix, u8aToHex, hexToU8a, stringToHex } from '@polkadot/util';
 import {
   sr25519Agree,
   sr25519KeypairFromSeed,
   sr25519Sign,
-  waitReady,
 } from "@polkadot/wasm-crypto";
 import { from } from 'rxjs';
 
+import { pruntime_rpc as pruntimeRpc } from "../proto";
 import { signCertificate, CertificateData } from '../certificate';
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
+
 
 function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractQuery<'promise'> {
   return withMeta(meta, (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
@@ -38,7 +41,6 @@ function createTx(meta: AbiMessage, fn: (options: ContractOptions, params: unkno
   );
 }
 
-// const createEncryptedData: CreateEncryptedData = (data, agreementKey) => {
 function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Array) {
   const iv = hexAddPrefix(randomHex(12));
   return {
@@ -50,7 +52,7 @@ function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Ar
 
 async function pinkQuery(
   api: ApiPromise,
-  pruntimeApi: pruntime_rpc.PhactoryAPI,
+  pruntimeApi: pruntimeRpc.PhactoryAPI,
   pk: Uint8Array,
   queryAgreementKey: Uint8Array,
   encodedQuery: string,
@@ -87,12 +89,44 @@ async function pinkQuery(
   });
 };
 
+function pinkCommand(
+  api: ApiPromise,
+  pk: Uint8Array,
+  commandAgreementKey: Uint8Array,
+  { contractId, payload, deposit }: {
+    contractId: string;
+    payload: string;
+    deposit: BN;
+  }
+) {
+    const encodedPayload = api
+      .createType("CommandPayload", {
+        encrypted: createEncryptedData(pk, payload, commandAgreementKey),
+      })
+      .toHex();
+
+    try {
+      return api.tx.phalaFatContracts.pushContractMessage(
+        contractId,
+        encodedPayload,
+        deposit
+      );
+    } catch (err) {
+      return api.tx.phalaMq.pushMessage(
+        stringToHex(`phala/contract/${hexStripPrefix(contractId)}/command`),
+        encodedPayload
+      );
+    }
+  };
+
+
 
 export class PinkContractPromise {
 
   readonly abi: Abi;
   readonly api: ApiBase<'promise'>;
   readonly address: AccountId;
+  readonly contractKey: string;
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>;
   protected readonly _isWeightV1: boolean;
@@ -103,7 +137,7 @@ export class PinkContractPromise {
   readonly #phactory: pruntimeRpc.PhactoryAPI;
   readonly #remotePubkey: string;
 
-  constructor (api: ApiPromise, phactory: pruntimeRpc.PhactoryAPI, remotePubkey: string, abi: string | Record<string, unknown> | Abi, address: string | AccountId) {
+  constructor (api: ApiPromise, phactory: pruntimeRpc.PhactoryAPI, remotePubkey: string, abi: string | Record<string, unknown> | Abi, address: string | AccountId, contractKey: string) {
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain');
     }
@@ -116,17 +150,16 @@ export class PinkContractPromise {
     this._isWeightV1 = !api.registry.createType<WeightV2>('Weight').proofSize;
 
     this.address = this.registry.createType('AccountId', address);
+    this.contractKey = contractKey
 
     this.#phactory = phactory;
     this.#remotePubkey = remotePubkey;
 
     this.abi.messages.forEach((m): void => {
       if (m.isMutating) {
-        // @ts-ignore
-        this.#tx[m.method] = createTx(m, () => {})
-      } else {
-        this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(m, p).send(f));
+        this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p));
       }
+      this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(m, p).send(f));
     });
   }
 
@@ -160,7 +193,7 @@ export class PinkContractPromise {
     const asyncMethod = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
       // @ts-ignore
       const cert = await signCertificate({ pair: origin, api });
-      const query = api.createType("InkQuery", {
+      const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
           id: this.address,
@@ -169,7 +202,7 @@ export class PinkContractPromise {
           InkMessage: message.toU8a(params),
         },
       });
-      const data = await pinkQuery(api, this.#phactory, pk, queryAgreementKey, query.toHex(), cert);
+      const data = await pinkQuery(api, this.#phactory, pk, queryAgreementKey, payload.toHex(), cert);
       const { debugMessage, gasConsumed, gasRequired, result, storageDeposit } = api.createType<ContractExecResult>(
         "ContractExecResult",
         (
@@ -193,5 +226,63 @@ export class PinkContractPromise {
     return {
       send: this._decorateMethod((origin: string | AccountId | Uint8Array) => from(asyncMethod(origin)))
     };
+  };
+
+  #inkCommand = (messageOrId: AbiMessage | string | number, { gasLimit = BN_ZERO, storageDepositLimit = null, value = BN_ZERO }: ContractOptions, params: unknown[]): SubmittableExtrinsic<'promise'> => {
+    const api = this.api as ApiPromise
+
+    // Generate a keypair for encryption
+    // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
+    const seed = hexToU8a(hexAddPrefix(randomHex(32)));
+    const pair = sr25519KeypairFromSeed(seed);
+    const [sk, pk] = [pair.slice(0, 64), pair.slice(64)];
+
+    const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk);
+
+    const asyncMethod = (dest: AccountId, value: BN, gas: { refTime: BN }, storageDepositLimit: BN | undefined, encParams: Uint8Array) => {
+      // @ts-ignore
+      const payload = api.createType("InkCommand", {
+        InkMessage: {
+          nonce: hexAddPrefix(randomHex(32)),
+          // FIXME: unexpected u8a prefix
+          message: api.createType("Vec<u8>", encParams).toHex(),
+          transfer: value,
+          gasLimit: gas.refTime,
+          storageDepositLimit,
+        },
+      });
+      let deposit = new BN(0);
+      const gasPrice = new BN(1);
+      const gasFee = new BN(gas.refTime).mul(gasPrice);
+      deposit = new BN(value).add(gasFee).add(new BN(storageDepositLimit || 0));
+      return pinkCommand(api, pk, commandAgreementKey, { contractId: dest.toHex(), payload: payload.toHex(), deposit })
+    }
+
+    return asyncMethod(
+      this.address,
+      // @ts-ignore
+      value,
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore jiggle v1 weights, metadata points to latest
+      this._isWeightV1
+        ? convertWeight(gasLimit).v1Weight
+        : convertWeight(gasLimit).v2Weight,
+      storageDepositLimit,
+      this.abi.findMessage(messageOrId).toU8a(params)
+    ).withResultTransform((result: ISubmittableResult) =>
+      // ContractEmitted is the current generation, ContractExecution is the previous generation
+      new ContractSubmittableResult(result, applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) =>
+        records
+          .map(({ event: { data: [, data] } }): DecodedEvent | null => {
+            try {
+              return this.abi.decodeEvent(data as Bytes);
+            } catch (error) {
+              console.error(`Unable to decode contract event: ${(error as Error).message}`);
+              return null;
+            }
+          })
+          .filter((decoded): decoded is DecodedEvent => !!decoded)
+      ))
+    );
   };
 }
