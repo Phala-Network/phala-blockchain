@@ -405,3 +405,7 @@ export async function create({
 
   return { api, sidevmQuery, instantiate };
 }
+
+export async function ready() {
+  await waitReady();
+}
