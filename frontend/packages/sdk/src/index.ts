@@ -7,6 +7,7 @@ export * from "./lib/hex";
 export * from "./create";
 export * from "./certificate";
 export * from "./contracts/PinkContract";
+export * from './OnChainRegistry';
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI;
 export const abis = { system, log_server };
