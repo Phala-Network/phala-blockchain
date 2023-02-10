@@ -1,13 +1,16 @@
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { AccountId, ContractExecResult, EventRecord, Weight, WeightV2 } from '@polkadot/types/interfaces';
-import type { Abi } from '@polkadot/api-contract/Abi';
 import type { ApiPromise } from '@polkadot/api';
 import type { AbiMessage, ContractOptions, ContractCallOutcome } from '@polkadot/api-contract/types';
 import type { ContractCallResult, ContractCallSend, ContractQuery, ContractTx, MapMessageQuery, MapMessageTx } from '@polkadot/api-contract/base/types';
+import type { Registry } from '@polkadot/types/types';
+import type { ApiTypes, DecorateMethod } from '@polkadot/api/types';
 
 import { pruntime_rpc as pruntimeRpc, pruntime_rpc } from "../proto";
 
+import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
+import { ApiBase } from '@polkadot/api/base';
 import { Base } from '@polkadot/api-contract/base/Base'
 import { withMeta, convertWeight } from '@polkadot/api-contract/base/util'
 import { BN, BN_HUNDRED, BN_ONE, BN_ZERO, isUndefined, logger, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
@@ -85,20 +88,32 @@ async function pinkQuery(
 };
 
 
-export class PinkContractPromise extends Base<'promise'> {
+export class PinkContractPromise {
 
+  readonly abi: Abi;
+  readonly api: ApiBase<'promise'>;
   readonly address: AccountId;
+
+  protected readonly _decorateMethod: DecorateMethod<'promise'>;
+  protected readonly _isWeightV1: boolean;
 
   readonly #query: MapMessageQuery<'promise'> = {};
   readonly #tx: MapMessageTx<'promise'> = {};
 
   readonly #phactory: pruntimeRpc.PhactoryAPI;
-
   readonly #remotePubkey: string;
 
-
   constructor (api: ApiPromise, phactory: pruntimeRpc.PhactoryAPI, remotePubkey: string, abi: string | Record<string, unknown> | Abi, address: string | AccountId) {
-    super(api, abi, toPromiseMethod);
+    if (!api || !api.isConnected || !api.tx) {
+      throw new Error('Your API has not been initialized correctly and is not connected to a chain');
+    }
+
+    this.abi = abi instanceof Abi
+      ? abi
+      : new Abi(abi, api.registry.getChainProperties());
+    this.api = api;
+    this._decorateMethod = toPromiseMethod;
+    this._isWeightV1 = !api.registry.createType<WeightV2>('Weight').proofSize;
 
     this.address = this.registry.createType('AccountId', address);
 
@@ -113,6 +128,10 @@ export class PinkContractPromise extends Base<'promise'> {
         this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(m, p).send(f));
       }
     });
+  }
+
+  public get registry (): Registry {
+    return this.api.registry;
   }
 
   public get query (): MapMessageQuery<'promise'> {
