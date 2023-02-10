@@ -1019,15 +1019,13 @@ async fn bridge(
         &args.relaychain_ws_endpoint
     };
     let para_api: ParachainApi = subxt_connect(para_uri).await?;
-    info!(
-        "Connected to parachain node at: {}",
-        args.parachain_ws_endpoint
-    );
+    info!("Connected to parachain node at: {para_uri}");
 
     if !args.no_wait {
         // Don't start our worker until the substrate node is synced
-        info!("Waiting for substrate to sync blocks...");
+        info!("Waiting for relaychain node to sync blocks...");
         wait_until_synced(&api).await?;
+        info!("Waiting for parachain node to sync blocks...");
         wait_until_synced(&para_api).await?;
         info!("Substrate sync blocks done");
     }
