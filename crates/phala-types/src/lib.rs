@@ -451,20 +451,15 @@ pub enum AttestationProvider {
     Ias,
 }
 
-#[derive(Encode, Decode, PartialEq, Eq, Debug, Clone, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug, Default, Clone, TypeInfo)]
 pub enum WorkerStateEnum<BlockNumber> {
+    #[default]
     Empty,
     Free,
     Gatekeeper,
     Pending,
     Computing(BlockNumber),
     Stopping,
-}
-
-impl<BlockNumber> Default for WorkerStateEnum<BlockNumber> {
-    fn default() -> Self {
-        WorkerStateEnum::Empty
-    }
 }
 
 #[derive(Encode, Decode, Debug, Default, Clone, TypeInfo)]
@@ -608,16 +603,11 @@ pub struct WorkerStatsDelta {
     pub num_power: i32,
 }
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+#[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq, TypeInfo)]
 pub enum PayoutReason {
+    #[default]
     OnlineReward,
     ComputeReward,
-}
-
-impl Default for PayoutReason {
-    fn default() -> Self {
-        PayoutReason::OnlineReward
-    }
 }
 
 #[repr(u8)]

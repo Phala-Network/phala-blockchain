@@ -124,18 +124,11 @@ impl<'a> S3<'a> {
         };
         let canonical_querystring = "";
         let canonical_headers = format!(
-            "host:{}\nx-amz-content-sha256:{}\nx-amz-date:{}\n",
-            host, payload_hash, amz_date
+            "host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
         );
         let signed_headers = "host;x-amz-content-sha256;x-amz-date";
         let canonical_request = format!(
-            "{}\n{}\n{}\n{}\n{}\n{}",
-            method,
-            canonical_uri,
-            canonical_querystring,
-            canonical_headers,
-            signed_headers,
-            payload_hash
+            "{method}\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
         );
 
         // 2. Create "String to sign"
@@ -143,8 +136,7 @@ impl<'a> S3<'a> {
         let credential_scope = format!("{datestamp}/{}/{service}/aws4_request", self.region);
         let canonical_request_hash = format!("{:x}", Sha256::digest(canonical_request.as_bytes()));
         let string_to_sign = format!(
-            "{}\n{}\n{}\n{}",
-            algorithm, amz_date, credential_scope, canonical_request_hash
+            "{algorithm}\n{amz_date}\n{credential_scope}\n{canonical_request_hash}"
         );
 
         // 3. Calculate signature

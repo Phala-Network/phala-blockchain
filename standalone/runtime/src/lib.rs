@@ -123,8 +123,8 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub fn wasm_binary_unwrap() -> &'static [u8] {
     WASM_BINARY.expect(
         "Development wasm binary is not available. This means the client is built with \
-		 `SKIP_WASM_BUILD` flag and it is only usable for production chains. Please rebuild with \
-		 the flag disabled.",
+         `SKIP_WASM_BUILD` flag and it is only usable for production chains. Please rebuild with \
+         the flag disabled.",
     )
 }
 
@@ -735,16 +735,16 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
     type MaxWeight = MinerMaxWeight;
     type Solution = NposSolution16;
     type MaxVotesPerVoter =
-	<<Self as pallet_election_provider_multi_phase::Config>::DataProvider as ElectionDataProvider>::MaxVotesPerVoter;
+    <<Self as pallet_election_provider_multi_phase::Config>::DataProvider as ElectionDataProvider>::MaxVotesPerVoter;
 
     // The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
     // weight estimate function is wired to this call's weight.
     fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
         <
-		<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
-		as
-		pallet_election_provider_multi_phase::WeightInfo
-		>::submit_unsigned(v, t, a, d)
+        <Self as pallet_election_provider_multi_phase::Config>::WeightInfo
+        as
+        pallet_election_provider_multi_phase::WeightInfo
+        >::submit_unsigned(v, t, a, d)
     }
 }
 
@@ -1889,7 +1889,7 @@ mod tests {
     #[test]
     fn perbill_as_onchain_accuracy() {
         type OnChainAccuracy =
-		<<Runtime as pallet_election_provider_multi_phase::MinerConfig>::Solution as NposSolution>::Accuracy;
+        <<Runtime as pallet_election_provider_multi_phase::MinerConfig>::Solution as NposSolution>::Accuracy;
         let maximum_chain_accuracy: Vec<UpperOf<OnChainAccuracy>> = (0..MaxNominations::get())
             .map(|_| <UpperOf<OnChainAccuracy>>::from(OnChainAccuracy::one().deconstruct()))
             .collect();
@@ -1902,11 +1902,10 @@ mod tests {
     fn call_size() {
         let size = core::mem::size_of::<RuntimeCall>();
         assert!(
-			size <= 300,
-			"size of RuntimeCall {} is more than 208 bytes: some calls have too big arguments, use Box to reduce the
-			size of RuntimeCall.
-			If the limit is too strong, maybe consider increase the limit to 300.",
-			size,
-		);
+            size <= 300,
+            "Size of RuntimeCall {size} is more than 208 bytes: some calls have too big arguments,
+            use Box to reduce the size of RuntimeCall.
+            If the limit is too strong, maybe consider increase the limit to 300."
+        );
     }
 }

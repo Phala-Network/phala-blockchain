@@ -70,8 +70,7 @@ pub fn get_storage(rpc_node: &str, key: &[u8], at: Option<H256>) -> Result<Optio
 pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<u64, Error> {
     // TODO: can we contruct the json object using serde_json_core?
     let data = format!(
-        r#"{{"id":1,"jsonrpc":"2.0","method":"system_accountNextIndex","params":["{}"]}}"#,
-        ss58_addr
+        r#"{{"id":1,"jsonrpc":"2.0","method":"system_accountNextIndex","params":["{ss58_addr}"]}}"#
     )
     .into_bytes();
     let resp_body = call_rpc(rpc_node, data)?;
@@ -329,8 +328,7 @@ pub fn create_transaction<T: Encode>(
 pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Result<Vec<u8>, Error> {
     let tx_hex = hex::encode(signed_tx);
     let data = format!(
-        r#"{{"id":1,"jsonrpc":"2.0","method":"author_submitExtrinsic","params":["{}"]}}"#,
-        tx_hex
+        r#"{{"id":1,"jsonrpc":"2.0","method":"author_submitExtrinsic","params":["{tx_hex}"]}}"#
     )
     .into_bytes();
     let resp_body = call_rpc(rpc_node, data)?;
