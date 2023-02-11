@@ -604,8 +604,7 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                     .ok_or_else(|| de::Error::custom("Checkpoint version missing"))?;
                 if version > CHECKPOINT_VERSION {
                     return Err(de::Error::custom(format!(
-                        "Checkpoint version {} is not supported",
-                        version
+                        "Checkpoint version {version} is not supported"
                     )));
                 }
 

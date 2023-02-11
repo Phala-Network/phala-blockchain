@@ -36,10 +36,7 @@ pub enum Error {
     NoStateRoot,
     /// Invalid storage changes that cause the state root mismatch
     #[display(
-        fmt = "StateRootMismatch block={:?} expected={:?} actual={:?}",
-        block,
-        expected,
-        actual
+        fmt = "StateRootMismatch block={block:?} expected={expected:?} actual={actual:?}"
     )]
     StateRootMismatch {
         block: chain::BlockNumber,

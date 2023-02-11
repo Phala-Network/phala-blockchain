@@ -58,8 +58,7 @@ async fn running_the_node_works_and_can_be_interrupted() {
 		assert_eq!(
 			common::wait_for(&mut cmd, 60).map(|x| x.success()),
 			Ok(true),
-			"the process must exit gracefully after signal {}",
-			signal,
+			"the process must exit gracefully after signal {signal}"
 		);
 		// Check if the database was closed gracefully. If it was not,
 		// there may exist a ref cycle that prevents the Client from being dropped properly.

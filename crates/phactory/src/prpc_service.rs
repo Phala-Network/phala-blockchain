@@ -530,8 +530,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 },
                 Err(err) => {
                     return Err(from_display(format!(
-                        "Verifying signature failed: {:?}",
-                        err
+                        "Verifying signature failed: {err:?}"
                     )));
                 }
             }
@@ -540,7 +539,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        debug!("Verifying signature passed! origin={:?}", origin);
+        debug!("Verifying signature passed! origin={origin:?}");
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
