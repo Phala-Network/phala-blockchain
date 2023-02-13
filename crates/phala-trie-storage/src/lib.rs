@@ -187,7 +187,8 @@ where
         let root = *self.root();
         let mut storage = MemoryDB::default();
         for value in proof {
-            storage.insert(hash_db::EMPTY_PREFIX, &value);
+            let hash = storage.insert(hash_db::EMPTY_PREFIX, &value);
+            log::debug!("Loaded proof {:?}", hash);
         }
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }

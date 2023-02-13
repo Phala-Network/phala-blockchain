@@ -8007,6 +8007,7 @@ dependencies = [
  "im",
  "impl-serde",
  "keccak-hasher",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "serde",

@@ -18,6 +18,7 @@ serde = { version = "1.0", default-features = false, features = ["derive", "allo
 hash-db = "0.15.2"
 trie-db = "0.24.0"
 im = { version = "15", features = ["serde"] }
+log = "0.4"
 
 [dev-dependencies]
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }

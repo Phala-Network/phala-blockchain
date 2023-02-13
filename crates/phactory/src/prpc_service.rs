@@ -128,6 +128,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }),
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,
+            safe_mode_level: self.args.safe_mode_level as _,
         };
         info!("Got info: {:?}", info);
         info
@@ -541,9 +542,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     }
                 },
                 Err(err) => {
-                    return Err(from_display(format!(
-                        "Verifying signature failed: {err:?}"
-                    )));
+                    return Err(from_display(format!("Verifying signature failed: {err:?}")));
                 }
             }
         } else {
