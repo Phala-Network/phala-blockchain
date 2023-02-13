@@ -92,7 +92,7 @@ pub trait StorageSynchronizer {
         &mut self,
         block: &BlockHeaderWithChanges,
         storage: &mut Storage,
-        no_store: bool,
+        drop_proofs: bool,
     ) -> Result<()>;
 
     /// Assume synced to given block.
@@ -209,12 +209,12 @@ where
         block: &BlockHeaderWithChanges,
         state_roots: &mut VecDeque<Hash>,
         storage: &mut Storage,
-        no_store: bool,
+        drop_proofs: bool,
     ) -> Result<()> {
         if block.block_header.number != self.block_number_next {
             return Err(Error::BlockNumberMismatch);
         }
-        if no_store {
+        if drop_proofs {
             self.block_number_next += 1;
             let root = state_roots.pop_front().ok_or(Error::NoStateRoot)?;
             storage.set_root(root);
@@ -317,10 +317,10 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
         &mut self,
         block: &BlockHeaderWithChanges,
         storage: &mut Storage,
-        no_store: bool,
+        drop_proofs: bool,
     ) -> Result<()> {
         self.sync_state
-            .feed_block(block, &mut self.state_roots, storage, no_store)
+            .feed_block(block, &mut self.state_roots, storage, drop_proofs)
     }
 
     fn sync_parachain_header(
@@ -453,10 +453,10 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         &mut self,
         block: &BlockHeaderWithChanges,
         storage: &mut Storage,
-        no_store: bool,
+        drop_proofs: bool,
     ) -> Result<()> {
         self.sync_state
-            .feed_block(block, &mut self.para_state_roots, storage, no_store)
+            .feed_block(block, &mut self.para_state_roots, storage, drop_proofs)
     }
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
@@ -540,9 +540,9 @@ impl<Validator: BlockValidator> StorageSynchronizer for Synchronizer<Validator> 
         &mut self,
         block: &BlockHeaderWithChanges,
         storage: &mut Storage,
-        no_store: bool,
+        drop_proofs: bool,
     ) -> Result<()> {
-        self.as_dyn_mut().feed_block(block, storage, no_store)
+        self.as_dyn_mut().feed_block(block, storage, drop_proofs)
     }
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {

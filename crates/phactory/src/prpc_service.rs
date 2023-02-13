@@ -236,9 +236,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
             let state = self.runtime_state()?;
+            let drop_proofs = safe_mode_level > 1;
             state
                 .storage_synchronizer
-                .feed_block(&block, state.chain_storage.inner_mut(), safe_mode_level > 1)
+                .feed_block(&block, state.chain_storage.inner_mut(), drop_proofs)
                 .map_err(from_display)?;
             if safe_mode_level > 0 {
                 continue;
