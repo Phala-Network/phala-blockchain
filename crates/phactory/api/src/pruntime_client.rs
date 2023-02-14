@@ -43,7 +43,7 @@ impl RequestClient for RpcRequest {
             .await
             .map_err(from_display)?;
 
-        info!("Response: {}", res.status());
+        info!("{path}: {}", res.status());
         let status = res.status();
         let body = res.bytes().await.map_err(from_display)?;
         if status.is_success() {

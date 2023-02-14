@@ -128,6 +128,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }),
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,
+            safe_mode_level: self.args.safe_mode_level as _,
         };
         info!("Got info: {:?}", info);
         info
@@ -226,25 +227,34 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let counters = self.runtime_state()?.storage_synchronizer.counters();
         blocks.retain(|b| b.block_header.number >= counters.next_block_number);
 
-        let mut last_block = counters.next_block_number - 1;
+        let last_block = blocks
+            .last()
+            .map(|b| b.block_header.number)
+            .unwrap_or(counters.next_block_number - 1);
+
+        let safe_mode_level = self.args.safe_mode_level;
+
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
             let state = self.runtime_state()?;
+            let drop_proofs = safe_mode_level > 1;
             state
                 .storage_synchronizer
-                .feed_block(&block, state.chain_storage.inner_mut())
+                .feed_block(&block, state.chain_storage.inner_mut(), drop_proofs)
                 .map_err(from_display)?;
+            if safe_mode_level > 0 {
+                continue;
+            }
             info!("State synced");
             state.purge_mq();
             self.check_requirements();
             self.handle_inbound_messages(block.block_header.number)?;
-            last_block = block.block_header.number;
 
-            if let Err(e) = self.maybe_take_checkpoint(last_block) {
+            // NOTE: Please make sure don't save checkpoints in safe mode if you are refactoring codes.
+            if let Err(e) = self.maybe_take_checkpoint(block.block_header.number) {
                 error!("Failed to take checkpoint: {:?}", e);
             }
         }
-
         Ok(pb::SyncedTo {
             synced_to: last_block,
         })
@@ -517,6 +527,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         request: pb::ContractQueryRequest,
         effects_queue: Sender<(ContractClusterId, ExecSideEffects)>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
+        if self.args.safe_mode_level > 0 {
+            return Err(from_display("Query is unavailable in safe mode"));
+        }
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
@@ -529,9 +542,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     }
                 },
                 Err(err) => {
-                    return Err(from_display(format!(
-                        "Verifying signature failed: {err:?}"
-                    )));
+                    return Err(from_display(format!("Verifying signature failed: {err:?}")));
                 }
             }
         } else {
@@ -862,6 +873,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             crate::maybe_remove_checkpoints(&self.args.sealing_path);
         }
         std::process::abort()
+    }
+
+    fn load_storage_proof(&mut self, proof: Vec<Vec<u8>>) -> RpcResult<()> {
+        if self.args.safe_mode_level < 2 {
+            return Err(from_display(
+                "Can not load storage proof when safe_mode_level < 2",
+            ));
+        }
+        self.runtime_state()?
+            .chain_storage
+            .inner_mut()
+            .load_proof(proof);
+        Ok(())
     }
 }
 
@@ -1519,6 +1543,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
     async fn stop(&mut self, request: pb::StopOptions) -> Result<(), prpc::server::Error> {
         self.lock_phactory().stop(request.remove_checkpoints)
+    }
+    async fn load_storage_proof(
+        &mut self,
+        req: phactory_api::prpc::StorageProof,
+    ) -> Result<(), prpc::server::Error> {
+        self.lock_phactory().load_storage_proof(req.proof)?;
+        Ok(())
     }
 }
 

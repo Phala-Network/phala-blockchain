@@ -409,7 +409,13 @@ impl<P: pal::Platform> Phactory<P> {
         self.trusted_sk =
             Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {
-            system.on_restored()?;
+            system.on_restored(self.args.safe_mode_level)?;
+        }
+        if self.args.safe_mode_level >= 2 {
+            if let Some(state) = &mut self.runtime_state {
+                info!("Clearing the storage data to save memory");
+                state.chain_storage.inner_mut().load_proof(vec![])
+            }
         }
         Ok(())
     }
@@ -506,17 +512,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub fn restore_from_checkpoint(
         platform: &Platform,
-        sealing_path: &str,
-        storage_path: &str,
-        remove_corrupted_checkpoint: bool,
-        n_workers: usize,
+        args: &InitArgs,
     ) -> anyhow::Result<Option<Self>> {
-        let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
+        let runtime_data = match Self::load_runtime_data(platform, &args.sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
             other => other.context("Failed to load persistent data")?,
         };
-        let files =
-            glob_checkpoint_files_sorted(storage_path).context("Glob checkpoint files failed")?;
+        let files = glob_checkpoint_files_sorted(&args.storage_path)
+            .context("Glob checkpoint files failed")?;
         if files.is_empty() {
             return Ok(None);
         }
@@ -533,7 +536,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     "Failed to open checkpoint file {:?}: {:?}",
                     ckpt_filename, err
                 );
-                if remove_corrupted_checkpoint {
+                if args.remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
                     std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
@@ -547,14 +550,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         info!("Loading checkpoint from file {:?}", ckpt_filename);
-        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, n_workers) {
+        match Self::restore_from_checkpoint_reader(&runtime_data.sk, file, args) {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {:?}", ckpt_filename);
                 Ok(Some(state))
             }
             Err(_err /*Don't leak it into the log*/) => {
                 error!("Failed to load checkpoint file {:?}", ckpt_filename);
-                if remove_corrupted_checkpoint {
+                if args.remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
                     std::fs::remove_file(ckpt_filename)
                         .context("Failed to remove corrupted checkpoint file")?;
@@ -567,14 +570,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn restore_from_checkpoint_reader<R: std::io::Read>(
         key: &[u8],
         reader: R,
-        n_workers: usize,
+        args: &InitArgs,
     ) -> anyhow::Result<Self> {
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
-        system::sidevm_config(n_workers);
-        let loader: PhactoryLoader<_> =
+        system::sidevm_config(args.cores as _);
+        let PhactoryLoader(mut factory) =
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
-        Ok(loader.0)
+        factory.set_args(args.clone());
+        factory
+            .on_restored()
+            .context("Failed to restore Phactory")?;
+        Ok(factory)
     }
 }
 
@@ -652,11 +659,7 @@ impl<'de, Platform: Serialize + DeserializeOwned + pal::Platform> Deserialize<'d
     for PhactoryLoader<Platform>
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let mut factory = Phactory::load_state(deserializer)?;
-        factory
-            .on_restored()
-            .map_err(|err| de::Error::custom(format!("Could not restore Phactory: {err:?}")))?;
-        Ok(Self(factory))
+        Ok(Self(Phactory::load_state(deserializer)?))
     }
 }
 

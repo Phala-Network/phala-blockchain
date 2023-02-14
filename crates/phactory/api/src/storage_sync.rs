@@ -88,7 +88,12 @@ pub trait StorageSynchronizer {
     ) -> Result<chain::BlockNumber>;
 
     /// Feed in a block of storage changes
-    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()>;
+    fn feed_block(
+        &mut self,
+        block: &BlockHeaderWithChanges,
+        storage: &mut Storage,
+        drop_proofs: bool,
+    ) -> Result<()>;
 
     /// Assume synced to given block.
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()>;
@@ -204,9 +209,16 @@ where
         block: &BlockHeaderWithChanges,
         state_roots: &mut VecDeque<Hash>,
         storage: &mut Storage,
+        drop_proofs: bool,
     ) -> Result<()> {
         if block.block_header.number != self.block_number_next {
             return Err(Error::BlockNumberMismatch);
+        }
+        if drop_proofs {
+            self.block_number_next += 1;
+            let root = state_roots.pop_front().ok_or(Error::NoStateRoot)?;
+            storage.set_root(root);
+            return Ok(());
         }
 
         if !self.genesis_state_validated {
@@ -301,9 +313,14 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
         )
     }
 
-    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()> {
+    fn feed_block(
+        &mut self,
+        block: &BlockHeaderWithChanges,
+        storage: &mut Storage,
+        drop_proofs: bool,
+    ) -> Result<()> {
         self.sync_state
-            .feed_block(block, &mut self.state_roots, storage)
+            .feed_block(block, &mut self.state_roots, storage, drop_proofs)
     }
 
     fn sync_parachain_header(
@@ -432,9 +449,14 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
     }
 
     /// Feed in a block of storage changes
-    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()> {
+    fn feed_block(
+        &mut self,
+        block: &BlockHeaderWithChanges,
+        storage: &mut Storage,
+        drop_proofs: bool,
+    ) -> Result<()> {
         self.sync_state
-            .feed_block(block, &mut self.para_state_roots, storage)
+            .feed_block(block, &mut self.para_state_roots, storage, drop_proofs)
     }
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {
@@ -514,8 +536,13 @@ impl<Validator: BlockValidator> StorageSynchronizer for Synchronizer<Validator> 
             .sync_parachain_header(headers, proof, storage_key)
     }
 
-    fn feed_block(&mut self, block: &BlockHeaderWithChanges, storage: &mut Storage) -> Result<()> {
-        self.as_dyn_mut().feed_block(block, storage)
+    fn feed_block(
+        &mut self,
+        block: &BlockHeaderWithChanges,
+        storage: &mut Storage,
+        drop_proofs: bool,
+    ) -> Result<()> {
+        self.as_dyn_mut().feed_block(block, storage, drop_proofs)
     }
 
     fn assume_at_block(&mut self, block_number: chain::BlockNumber) -> Result<()> {

@@ -200,6 +200,7 @@ fn rpc_type(method: &str) -> RpcType {
             GetNetworkConfig => Private,
             LoadChainState => Private,
             Stop => Private,
+            LoadStorageProof => Private,
             // Public RPCs
             GetInfo => Public,
             ContractQuery => Public,
@@ -244,6 +245,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         GetNetworkConfig => 1.kibibytes(),
         LoadChainState => 500.mebibytes(),
         Stop => 1.kibibytes(),
+        LoadStorageProof => 10.mebibytes(),
     }
 }
 

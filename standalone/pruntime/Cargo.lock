@@ -4806,6 +4806,7 @@ version = "0.1.0"
 dependencies = [
  "hash-db",
  "im",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "serde",

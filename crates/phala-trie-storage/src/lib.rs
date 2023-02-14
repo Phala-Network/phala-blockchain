@@ -176,6 +176,22 @@ where
     pub fn as_trie_backend(&self) -> &InMemoryBackend<H> {
         &self.0
     }
+
+    pub fn set_root(&mut self, root: H::Out) {
+        let storage = core::mem::take(self).0.into_storage();
+        let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
+    }
+
+    pub fn load_proof(&mut self, proof: Vec<Vec<u8>>) {
+        use hash_db::HashDB as _;
+        let root = *self.root();
+        let mut storage = MemoryDB::default();
+        for value in proof {
+            let hash = storage.insert(hash_db::EMPTY_PREFIX, &value);
+            log::debug!("Loaded proof {:?}", hash);
+        }
+        let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
+    }
 }
 
 #[cfg(feature = "serde")]

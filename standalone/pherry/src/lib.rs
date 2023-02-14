@@ -235,6 +235,10 @@ pub struct Args {
     /// The prefered block to load the genesis state from.
     #[arg(long)]
     prefer_genesis_at_block: Option<BlockNumber>,
+
+    /// Load handover proof after blocks synced.
+    #[arg(long)]
+    load_handover_proof: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -398,6 +402,25 @@ async fn get_authority_with_proof_at(
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
     })
+}
+
+async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()> {
+    let info = pr.get_info(()).await?;
+    if info.safe_mode_level < 2 {
+        return Ok(());
+    }
+    if info.blocknum == 0 {
+        return Ok(());
+    }
+    let current_block = info.blocknum - 1;
+    let hash = get_header_hash(api, Some(current_block)).await?;
+    let id_key = phaxt::dynamic::storage_key("PhalaRegistry", "PRuntimeAddedAt");
+    let proof = chain_client::read_proofs(api, Some(hash), vec![&id_key])
+        .await
+        .context("Failed to get handover proof")?;
+    info!("Loading handover proof at {current_block}");
+    pr.load_storage_proof(prpc::StorageProof { proof }).await?;
+    Ok(())
 }
 
 /// Returns the next set_id change by a binary search on the known blocks
@@ -1011,7 +1034,10 @@ async fn bridge(
     // Connect to substrate
 
     let api: RelaychainApi = subxt_connect(&args.relaychain_ws_endpoint).await?;
-    info!("Connected to relaychain at: {}", args.relaychain_ws_endpoint);
+    info!(
+        "Connected to relaychain at: {}",
+        args.relaychain_ws_endpoint
+    );
 
     let para_uri: &str = if args.parachain {
         &args.parachain_ws_endpoint
@@ -1280,6 +1306,11 @@ async fn bridge(
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
+            if args.load_handover_proof {
+                try_load_handover_proof(&pr, &para_api)
+                    .await
+                    .context("Failed to load handover proof")?;
+            }
             if !args.no_register && !flags.worker_registered {
                 flags.worker_registered =
                     try_register_worker(&pr, &para_api, &mut signer, operator.clone(), args)
