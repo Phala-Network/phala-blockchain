@@ -557,7 +557,11 @@ impl<Platform: pal::Platform> System<Platform> {
         self.worker_state.registered
     }
 
-    pub fn get_worker_key_challenge(&mut self) -> HandoverChallenge<chain::BlockNumber> {
+    pub fn get_worker_key_challenge(
+        &mut self,
+        block_number: chain::BlockNumber,
+        now: u64,
+    ) -> HandoverChallenge<chain::BlockNumber> {
         let sgx_target_info = if self.dev_mode {
             vec![]
         } else {
@@ -566,8 +570,8 @@ impl<Platform: pal::Platform> System<Platform> {
         };
         let challenge = HandoverChallenge {
             sgx_target_info,
-            block_number: self.block_number,
-            now: self.now_ms,
+            block_number,
+            now,
             dev_mode: self.dev_mode,
             nonce: crate::generate_random_info(),
         };

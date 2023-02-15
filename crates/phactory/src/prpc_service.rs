@@ -61,6 +61,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Runtime not initialized"))
     }
 
+    fn current_block(&mut self) -> RpcResult<(BlockNumber, u64)> {
+        let now_ms = self.runtime_state()?.chain_storage.timestamp_now();
+        let block = self
+            .runtime_state()?
+            .storage_synchronizer
+            .counters()
+            .next_block_number
+            .saturating_sub(1);
+        Ok((block, now_ms))
+    }
+
     pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
@@ -1127,8 +1138,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         _request: (),
     ) -> RpcResult<pb::HandoverChallenge> {
         let mut phactory = self.lock_phactory();
+        let (block, ts) = phactory.current_block()?;
         let system = phactory.system()?;
-        let challenge = system.get_worker_key_challenge();
+        let challenge = system.get_worker_key_challenge(block, ts);
         Ok(pb::HandoverChallenge::new(challenge))
     }
 
@@ -1140,14 +1152,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let attestation_provider = phactory.attestation_provider;
         let dev_mode = phactory.dev_mode;
         let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
+        let (block_number, now_ms) = phactory.current_block()?;
         let system = phactory.system()?;
         let my_identity_key = system.identity_key.clone();
 
         // 1. verify RA report
         // this also ensure the message integrity
         let challenge_handler = request.decode_challenge_handler().map_err(from_display)?;
-        let block_sec = system.now_ms / 1000;
-        let block_number = system.block_number;
+        let block_sec = now_ms / 1000;
         let attestation = if !dev_mode && in_sgx {
             let payload_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
             let raw_attestation = request
