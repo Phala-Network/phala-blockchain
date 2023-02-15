@@ -61,7 +61,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .ok_or_else(|| from_display("Runtime not initialized"))
     }
 
-    fn current_block(&mut self) -> RpcResult<(BlockNumber, u64)> {
+    pub(crate) fn current_block(&mut self) -> RpcResult<(BlockNumber, u64)> {
         let now_ms = self.runtime_state()?.chain_storage.timestamp_now();
         let block = self
             .runtime_state()?
@@ -115,6 +115,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
+        let current_block_time = match self.args.safe_mode_level {
+            0 => self
+                .system
+                .as_ref()
+                .map(|sys| sys.now_ms)
+                .unwrap_or_default(),
+            1 => self
+                .runtime_state
+                .as_ref()
+                .map(|state| state.chain_storage.timestamp_now())
+                .unwrap_or_default(),
+            _ => 0,
+        };
+
         let info = pb::PhactoryInfo {
             initialized,
             registered,
@@ -140,6 +154,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,
             safe_mode_level: self.args.safe_mode_level as _,
+            current_block_time,
         };
         info!("Got info: {:?}", info);
         info
@@ -261,8 +276,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.check_requirements();
             self.handle_inbound_messages(block.block_header.number)?;
 
-            // NOTE: Please make sure don't save checkpoints in safe mode if you are refactoring codes.
-            if let Err(e) = self.maybe_take_checkpoint(block.block_header.number) {
+            if let Err(e) = self.maybe_take_checkpoint() {
                 error!("Failed to take checkpoint: {:?}", e);
             }
         }
@@ -271,14 +285,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         })
     }
 
-    fn maybe_take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
+    fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
         if !self.args.enable_checkpoint {
             return Ok(());
         }
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
-        self.take_checkpoint(current_block)
+        self.take_checkpoint()?;
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1562,6 +1577,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> Result<(), prpc::server::Error> {
         self.lock_phactory().load_storage_proof(req.proof)?;
         Ok(())
+    }
+    async fn take_checkpoint(&mut self, _req: ()) -> Result<pb::SyncedTo, prpc::server::Error> {
+        let synced_to = self.lock_phactory().take_checkpoint().map_err(from_debug)?;
+        Ok(pb::SyncedTo { synced_to })
     }
 }
 
