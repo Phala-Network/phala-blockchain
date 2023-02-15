@@ -420,6 +420,7 @@ async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()
         Some(hash),
         vec![
             &storage_key("PhalaRegistry", "PRuntimeAddedAt")[..],
+            &storage_key("PhalaRegistry", "PRuntimeAllowList")[..],
             &storage_key("Timestamp", "Now")[..],
         ],
     )
