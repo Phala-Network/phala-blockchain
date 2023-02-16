@@ -9,6 +9,7 @@ use tokio::time::sleep;
 use codec::{Decode, Encode};
 use phala_pallets::pallet_registry::Attestation;
 use phaxt::{
+    dynamic::storage_key,
     rpc::ExtraRpcExt as _,
     sp_core::{crypto::Pair, sr25519},
     subxt, RpcClient,
@@ -414,10 +415,17 @@ async fn try_load_handover_proof(pr: &PrClient, api: &ParachainApi) -> Result<()
     }
     let current_block = info.blocknum - 1;
     let hash = get_header_hash(api, Some(current_block)).await?;
-    let id_key = phaxt::dynamic::storage_key("PhalaRegistry", "PRuntimeAddedAt");
-    let proof = chain_client::read_proofs(api, Some(hash), vec![&id_key])
-        .await
-        .context("Failed to get handover proof")?;
+    let proof = chain_client::read_proofs(
+        api,
+        Some(hash),
+        vec![
+            &storage_key("PhalaRegistry", "PRuntimeAddedAt")[..],
+            &storage_key("PhalaRegistry", "PRuntimeAllowList")[..],
+            &storage_key("Timestamp", "Now")[..],
+        ],
+    )
+    .await
+    .context("Failed to get handover proof")?;
     info!("Loading handover proof at {current_block}");
     pr.load_storage_proof(prpc::StorageProof { proof }).await?;
     Ok(())

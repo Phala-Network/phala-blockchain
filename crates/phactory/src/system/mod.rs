@@ -443,6 +443,7 @@ pub struct System<Platform> {
     pub(crate) ecdh_key: EcdhKey,
     #[serde(skip)]
     last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
+    /// Be careful to use this field, as it is not updated in safe mode.
     worker_state: WorkerState,
     // Gatekeeper
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
@@ -454,7 +455,11 @@ pub struct System<Platform> {
     sidevm_spawner: Spawner,
 
     // Cached for query
+    /// The block number of the last block that the worker has synced.
+    /// Be careful to use this field, as it is not updated in safe mode.
     pub(crate) block_number: BlockNumber,
+    /// The timestamp of the last block that the worker has synced.
+    /// Be careful to use this field, as it is not updated in safe mode.
     pub(crate) now_ms: u64,
 
     // If non-zero indicates the block which this worker loaded the chain state from.
@@ -557,7 +562,11 @@ impl<Platform: pal::Platform> System<Platform> {
         self.worker_state.registered
     }
 
-    pub fn get_worker_key_challenge(&mut self) -> HandoverChallenge<chain::BlockNumber> {
+    pub fn get_worker_key_challenge(
+        &mut self,
+        block_number: chain::BlockNumber,
+        now: u64,
+    ) -> HandoverChallenge<chain::BlockNumber> {
         let sgx_target_info = if self.dev_mode {
             vec![]
         } else {
@@ -566,8 +575,8 @@ impl<Platform: pal::Platform> System<Platform> {
         };
         let challenge = HandoverChallenge {
             sgx_target_info,
-            block_number: self.block_number,
-            now: self.now_ms,
+            block_number,
+            now,
             dev_mode: self.dev_mode,
             nonce: crate::generate_random_info(),
         };
