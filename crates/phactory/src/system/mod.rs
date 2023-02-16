@@ -443,6 +443,7 @@ pub struct System<Platform> {
     pub(crate) ecdh_key: EcdhKey,
     #[serde(skip)]
     last_challenge: Option<HandoverChallenge<chain::BlockNumber>>,
+    /// Be careful to use this field, as it is not updated in safe mode.
     worker_state: WorkerState,
     // Gatekeeper
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
@@ -454,7 +455,11 @@ pub struct System<Platform> {
     sidevm_spawner: Spawner,
 
     // Cached for query
+    /// The block number of the last block that the worker has synced.
+    /// Be careful to use this field, as it is not updated in safe mode.
     pub(crate) block_number: BlockNumber,
+    /// The timestamp of the last block that the worker has synced.
+    /// Be careful to use this field, as it is not updated in safe mode.
     pub(crate) now_ms: u64,
 
     // If non-zero indicates the block which this worker loaded the chain state from.
