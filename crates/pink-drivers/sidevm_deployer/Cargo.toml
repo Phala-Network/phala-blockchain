@@ -6,7 +6,7 @@ edition = "2021"
 description = "This is a demo describes how to write a pink driver contract"
 
 [dependencies]
-ink = { version = "4.0.0-rc", default-features = false }
+ink = { version = "4", default-features = false }
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
