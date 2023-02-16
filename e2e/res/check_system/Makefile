@@ -9,7 +9,6 @@ target/ink/start_sidevm.contract: sideprog.wasm
 
 sideprog.wasm: ${SIDE_WASM}
 	cp ${SIDE_WASM} ./sideprog.wasm
-	wasm-strip sideprog.wasm
 
 .PHONY: ${SIDE_WASM}
 

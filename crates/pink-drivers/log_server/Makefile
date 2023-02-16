@@ -6,7 +6,6 @@ target/ink/log_server.contract: sideprog.wasm
 
 sideprog.wasm: ${SIDE_WASM}
 	cp ${SIDE_WASM} .
-	wasm-strip sideprog.wasm
 
 .PHONY: ${SIDE_WASM}
 
