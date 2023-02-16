@@ -201,6 +201,7 @@ fn rpc_type(method: &str) -> RpcType {
             LoadChainState => Private,
             Stop => Private,
             LoadStorageProof => Private,
+            TakeCheckpoint => Private,
             // Public RPCs
             GetInfo => Public,
             ContractQuery => Public,
@@ -246,6 +247,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         LoadChainState => 500.mebibytes(),
         Stop => 1.kibibytes(),
         LoadStorageProof => 10.mebibytes(),
+        TakeCheckpoint => 1.kibibytes(),
     }
 }
 

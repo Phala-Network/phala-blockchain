@@ -472,7 +472,11 @@ impl<P: pal::Platform> Phactory<P> {
 }
 
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
-    pub fn take_checkpoint(&mut self, current_block: chain::BlockNumber) -> anyhow::Result<()> {
+    pub fn take_checkpoint(&mut self) -> anyhow::Result<chain::BlockNumber> {
+        if self.args.safe_mode_level > 0 {
+            anyhow::bail!("Checkpoint is disabled in safe mode");
+        }
+        let (current_block, _) = self.current_block()?;
         let key = self
             .system
             .as_ref()
@@ -491,7 +495,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             self.args.max_checkpoint_files,
             current_block,
         )?;
-        Ok(())
+        Ok(current_block)
     }
 
     pub fn take_checkpoint_to_writer<W: std::io::Write>(
