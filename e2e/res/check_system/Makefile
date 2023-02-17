@@ -5,7 +5,8 @@ TARGET=wasm32-wasi
 SIDE_WASM=${SIDE_PROG_DIR}/target/${TARGET}/release/${SIDE_PROG}.wasm
 
 target/ink/start_sidevm.contract: sideprog.wasm
-	cargo contract build --release
+	cargo check
+	cargo contract build
 
 sideprog.wasm: ${SIDE_WASM}
 	cp ${SIDE_WASM} ./sideprog.wasm

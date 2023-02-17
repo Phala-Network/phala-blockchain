@@ -2,7 +2,7 @@ TARGET=wasm32-wasi
 SIDE_WASM=sideprog/target/${TARGET}/release/sideprog.wasm
 
 target/ink/log_server.contract: sideprog.wasm
-	cargo contract build --release
+	cargo contract build
 
 sideprog.wasm: ${SIDE_WASM}
 	cp ${SIDE_WASM} .
@@ -19,7 +19,7 @@ clean:
 	rm -rf e2e/node_modules/
 
 ../sidevmop/target/ink/manifest.json:
-	cd ../sidevmop && cargo contract build --release
+	cd ../sidevmop && cargo contract build
 
 .PHONY: test
 test: target/ink/log_server.contract ../sidevmop/target/ink/manifest.json
