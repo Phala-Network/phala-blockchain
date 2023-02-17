@@ -143,8 +143,11 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		fn pre_check(sender: &T::AccountId, collection_id: &CollectionId, nft_id: &NftId) -> bool {
-			if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
+		fn pre_check(_sender: &T::AccountId, _collection_id: &CollectionId, _nft_id: &NftId) -> bool {
+			// Forbid any transfer before delegation nft transfer and sell is fully prepared.
+			// TODO(mingxuan): reopen pre_check function.
+			false
+			/*if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
 				if let Ok(net_value) = Pallet::<T>::get_net_value((*sender).clone()) {
 					let property_guard =
 						base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
@@ -169,7 +172,7 @@ pub mod pallet {
 				}
 			};
 
-			true
+			true*/
 		}
 		fn post_transfer(
 			_sender: &T::AccountId,
