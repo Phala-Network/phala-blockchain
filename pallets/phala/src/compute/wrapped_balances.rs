@@ -148,28 +148,6 @@ pub mod pallet {
 				// Forbid any delegation transfer before delegation nft transfer and sell is fully prepared.
 				// TODO(mingxuan): reopen pre_check function.
 				return false
-				/*if let Ok(net_value) = Pallet::<T>::get_net_value((*sender).clone()) {
-					let property_guard =
-						base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
-							.expect("get nft should not fail: qed.");
-					let property = &property_guard.attr;
-					let account_status = match StakerAccounts::<T>::get(sender) {
-						Some(account_status) => account_status,
-						None => unreachable!(),
-					};
-					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
-						.expect("get pool should not fail: qed.");
-					let basepool = &match pool_proxy {
-						PoolProxy::Vault(p) => p.basepool,
-						PoolProxy::StakePool(p) => p.basepool,
-					};
-					if let Some(price) = basepool.share_price() {
-						let nft_value = bmul(property.shares, &price);
-						if account_status.locked + nft_value > net_value {
-							return false;
-						}
-					}
-				}*/
 			}
 
 			true
