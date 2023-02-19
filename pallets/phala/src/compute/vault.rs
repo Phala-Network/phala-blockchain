@@ -138,6 +138,8 @@ pub mod pallet {
 		VaultBankrupt,
 		/// The caller has no nft to withdraw
 		NoNftToWithdraw,
+		/// The pool's delegation nft is on sell.
+		UserNftListed,
 	}
 
 	#[pallet::call]
@@ -246,6 +248,10 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;
 			let mut pool_info = ensure_vault::<T>(vault_pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				Error::<T>::UserNftListed
+			);
 			ensure!(
 				who == pool_info.basepool.owner,
 				Error::<T>::UnauthorizedPoolOwner
@@ -429,6 +435,10 @@ pub mod pallet {
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				Error::<T>::UserNftListed
+			);
 			let a = amount; // Alias to reduce confusion in the code below
 
 			ensure!(
@@ -442,11 +452,8 @@ pub mod pallet {
 			.ok_or(Error::<T>::AssetAccountNotExist)?;
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 
-			let shares = base_pool::Pallet::<T>::contribute(
-				&mut pool_info.basepool,
-				who.clone(),
-				amount,
-			)?;
+			let shares =
+				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
 
 			// We have new free stake now, try to handle the waiting withdraw queue
 
@@ -486,6 +493,10 @@ pub mod pallet {
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				Error::<T>::UserNftListed
+			);
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),

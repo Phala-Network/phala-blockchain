@@ -83,9 +83,9 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-
 	#[pallet::storage]
-	pub type LegacyRewards<T: Config> = StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
+	pub type LegacyRewards<T: Config> =
+		StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
 	/// Mapping from workers to the pool they belong to
 	///
 	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
@@ -316,6 +316,8 @@ pub mod pallet {
 		LockAccountStakeError,
 
 		NoLegacyRewardToClaim,
+		/// The pool's delegation nft is on sell.
+		UserNftListed,
 	}
 
 	#[pallet::call]
@@ -564,7 +566,8 @@ pub mod pallet {
 			target: T::AccountId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let rewards = LegacyRewards::<T>::take((who, pid)).ok_or(Error::<T>::NoLegacyRewardToClaim)?;
+			let rewards =
+				LegacyRewards::<T>::take((who, pid)).ok_or(Error::<T>::NoLegacyRewardToClaim)?;
 			computation::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			Ok(())
@@ -698,6 +701,10 @@ pub mod pallet {
 				maybe_vault = Some((vault_pid, vault_info));
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				Error::<T>::UserNftListed
+			);
 			let a = amount; // Alias to reduce confusion in the code below
 				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			ensure!(
@@ -713,11 +720,8 @@ pub mod pallet {
 			};
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// a lot of weird edge cases when dealing with pending slash.
-			let shares = base_pool::Pallet::<T>::contribute(
-				&mut pool_info.basepool,
-				who.clone(),
-				amount,
-			)?;
+			let shares =
+				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
 			if let Some((vault_pid, vault_info)) = &mut maybe_vault {
 				if !vault_info.invest_pools.contains(&pid) {
 					vault_info.invest_pools.push(pid);
@@ -796,6 +800,10 @@ pub mod pallet {
 				who = vault_info.basepool.pool_account_id;
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				Error::<T>::UserNftListed
+			);
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),

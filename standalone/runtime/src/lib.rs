@@ -1504,6 +1504,22 @@ parameter_types! {
     pub const QueueCapacity: u32 = 128;
 }
 
+parameter_types! {
+    pub const MinimumOfferAmount: Balance = DOLLARS / 10_000;
+    pub const MarketFee: Permill = Permill::from_parts(5_000);
+}
+
+
+impl pallet_rmrk_market::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type ProtocolOrigin = EnsureRoot<AccountId>;
+    type Currency = Balances;
+    type MinimumOfferAmount = MinimumOfferAmount;
+    type WeightInfo = pallet_rmrk_market::weights::SubstrateWeight<Runtime>;
+    type MarketplaceHooks = ();
+    type MarketFee = MarketFee;
+}
+
 impl pallet_anchor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type OnResponse = PhatOracle;
@@ -1586,6 +1602,7 @@ construct_runtime!(
         // NFT
         Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
         RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
+        RmrkMarket: pallet_rmrk_market::{Pallet, Call, Event<T>},
     }
 );
 
