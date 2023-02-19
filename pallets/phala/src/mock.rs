@@ -21,6 +21,7 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	Permill,
 };
 
 use frame_system::EnsureRoot;
@@ -42,6 +43,7 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
 		RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
+		RmrkMarket: pallet_rmrk_market::{Pallet, Call, Event<T>},
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Assets: pallet_assets::{Pallet, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
@@ -237,12 +239,12 @@ parameter_types! {
 	pub const MarketFee: Permill = Permill::from_parts(5_000);
 }
 
-impl pallet_rmrk_market::Config for Runtime {
+impl pallet_rmrk_market::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type ProtocolOrigin = EnsureRoot<Self::AccountId>;
     type Currency = Balances;
     type MinimumOfferAmount = MinimumOfferAmount;
-	type WeightInfo = pallet_rmrk_market::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_rmrk_market::weights::SubstrateWeight<Test>;
     type MarketplaceHooks = ();
     type MarketFee = MarketFee;
 }
