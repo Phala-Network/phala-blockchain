@@ -1,4 +1,6 @@
 SGX_MODE ?= SW
+TARGET=x86_64-unknown-linux-musl
+BUILT_PRUNTIME=target/${TARGET}/release/pruntime
 
 .PHONY: all clean
 ifeq ($(SGX_MODE),SW)
@@ -10,12 +12,12 @@ bin/app: bin/pruntime
 bin/Rocket.toml: gramine-build/Rocket.toml
 	cp $? $@
 
-bin/pruntime: target/release/pruntime
+bin/pruntime: ${BUILT_PRUNTIME}
 	cp $? $@
 
-.PHONY: target/release/pruntime
-target/release/pruntime:
-	cargo build --release
+.PHONY: ${BUILT_PRUNTIME}
+${BUILT_PRUNTIME}:
+	cargo build --release --target ${TARGET}
 
 clean:
 	rm -rf bin/*
