@@ -474,7 +474,7 @@ pub mod pallet {
 
 		/// Check if recipient has Nft listing in a specific collection.
 		pub fn have_nft_on_list(recipient: &T::AccountId, collection_id: &CollectionId) -> bool {
-			let iter = pallet_uniques::Pallet::<T>::owned_in_collection(collection_id, &recipient)
+			let iter = pallet_uniques::Pallet::<T>::owned_in_collection(collection_id, recipient)
 				.take_while(|nftid| {
 					pallet_rmrk_market::ListedNfts::<T>::contains_key(collection_id, nftid)
 				});
