@@ -31,6 +31,7 @@ pub mod pallet {
 		+ crate::PhalaConfig
 		+ registry::Config
 		+ pallet_rmrk_core::Config
+		+ pallet_rmrk_market::Config
 		+ computation::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
@@ -143,8 +144,16 @@ pub mod pallet {
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
 		T: Config + vault::Config,
 	{
-		fn pre_check(sender: &T::AccountId, collection_id: &CollectionId, nft_id: &NftId) -> bool {
+		fn pre_check(
+			sender: &T::AccountId,
+			recipient: &T::AccountId,
+			collection_id: &CollectionId,
+			nft_id: &NftId,
+		) -> bool {
 			if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
+				if Self::have_nft_on_list(recipient, collection_id) {
+					return false;
+				}
 				if let Ok(net_value) = Pallet::<T>::get_net_value((*sender).clone()) {
 					let property_guard =
 						base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
@@ -461,6 +470,18 @@ pub mod pallet {
 				aye: total_aye_amount,
 				nay: total_nay_amount,
 			}
+		}
+
+		/// Check if recipient has Nft listing in a specific collection.
+		pub fn have_nft_on_list(recipient: &T::AccountId, collection_id: &CollectionId) -> bool {
+			let iter = pallet_uniques::Pallet::<T>::owned_in_collection(collection_id, recipient)
+				.take_while(|nftid| {
+					pallet_rmrk_market::ListedNfts::<T>::contains_key(collection_id, nftid)
+				});
+			if iter.count() > 0 {
+				return true;
+			}
+			false
 		}
 
 		/// Tries to update locked W-PHA amount of the user
