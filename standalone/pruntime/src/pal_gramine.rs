@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use log::info;
 use parity_scale_codec::Encode;
-use std::alloc::System;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
@@ -120,7 +119,7 @@ impl Machine for GraminePlatform {
 }
 
 #[global_allocator]
-static ALLOCATOR: StatSizeAllocator<System> = StatSizeAllocator::new(System);
+static ALLOCATOR: StatSizeAllocator<mimalloc::MiMalloc> = StatSizeAllocator::new(mimalloc::MiMalloc);
 
 impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
