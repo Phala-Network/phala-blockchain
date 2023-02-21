@@ -13,11 +13,11 @@ drivers:
 	cp ${DRIVER_DIR}/dist/* .
 
 $(SYSTEM_CONTRACT_BIN):
-	cd "${SYSTEM_CONTRACT_DIR}" && cargo contract build --release
+	cd "${SYSTEM_CONTRACT_DIR}" && cargo contract build
 
 ${CHECK_SYSTEM_BIN}:
 	make -C check_system
 
 ${INDETERMINF}:
-	cd ${INDETERMINF_DIR} && cargo contract build --release
+	cd ${INDETERMINF_DIR} && cargo contract build
 

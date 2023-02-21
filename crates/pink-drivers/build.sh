@@ -11,7 +11,7 @@ build() {
         (cd $NAME && make)
         cp $NAME/sideprog.wasm dist/$NAME.sidevm.wasm
     else
-        (cd $NAME && cargo contract build --release)
+        (cd $NAME && cargo contract build)
     fi
     cp $NAME/target/ink/$NAME.contract dist/
 }
