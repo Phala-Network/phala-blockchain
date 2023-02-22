@@ -135,7 +135,7 @@ impl RuntimeHandle<'_> {
 }
 
 impl OCalls for RuntimeHandle<'_> {
-    fn storage_root(&self) -> Hash {
+    fn storage_root(&self) -> Option<Hash> {
         self.cluster.storage.root()
     }
     fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
@@ -171,11 +171,11 @@ impl OCalls for RuntimeHandle<'_> {
         }
     }
 
-    fn emit_side_effects(&mut self, effects: ExecSideEffects) {}
+    fn emit_side_effects(&mut self, _effects: ExecSideEffects) {}
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
-    fn storage_root(&self) -> Hash {
+    fn storage_root(&self) -> Option<Hash> {
         self.readonly().storage_root()
     }
     fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {

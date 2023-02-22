@@ -128,7 +128,7 @@ pub mod ocall {
     #[cross_call(OCall)]
     pub trait OCalls {
         #[xcall(id = 1)]
-        fn storage_root(&self) -> Hash;
+        fn storage_root(&self) -> Option<Hash>;
         #[xcall(id = 2)]
         fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>>;
         #[xcall(id = 3)]

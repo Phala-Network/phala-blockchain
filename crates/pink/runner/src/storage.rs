@@ -6,16 +6,16 @@ use std::cell::RefCell;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ClusterStorage {
-    root: Hash,
+    root: Option<Hash>,
     kv_store: OrdMap<Vec<u8>, (i32, Vec<u8>)>,
 }
 
 impl ClusterStorage {
-    pub fn root(&self) -> Hash {
+    pub fn root(&self) -> Option<Hash> {
         self.root
     }
     pub fn set_root(&mut self, root: Hash) {
-        self.root = root;
+        self.root = Some(root);
     }
     pub fn get(&self, key: &[u8]) -> Option<&(i32, Vec<u8>)> {
         self.kv_store.get(key)

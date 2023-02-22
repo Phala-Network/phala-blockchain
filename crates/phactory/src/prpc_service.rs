@@ -832,7 +832,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(pb::GetClusterInfoResponse {
             info: Some(pb::ClusterInfo {
                 id: hex(cluster.id),
-                state_root: hex(cluster.storage.root()),
+                state_root: cluster.storage.root().map(hex).unwrap_or_default(),
                 contracts: contracts.keys().map(hex).collect(),
                 runtime_version,
             }),
