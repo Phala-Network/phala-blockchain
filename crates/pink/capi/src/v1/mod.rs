@@ -34,7 +34,7 @@ pub trait OCall: CrossCall {}
 
 pub mod ecall {
     use super::{CrossCallMut, ECall, Executing};
-    use crate::types::{AccountId, Balance, BlockNumber, ExecutionMode, Hash, Weight};
+    use crate::types::{AccountId, Balance, ExecutionMode, Hash, Weight};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
     pub trait EventCallbacks {

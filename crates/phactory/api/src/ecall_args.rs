@@ -1,6 +1,6 @@
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use parity_scale_codec::{Decode, Encode};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
@@ -41,6 +41,4 @@ pub struct InitArgs {
     pub safe_mode_level: u8,
 }
 
-pub fn git_revision() -> String {
-    env!("PHALA_GIT_REVISION").to_string()
-}
+pub use phala_git_revision::git_revision;

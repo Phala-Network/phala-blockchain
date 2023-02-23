@@ -7668,6 +7668,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "phala-crypto",
+ "phala-git-revision",
  "phala-mq",
  "phala-node-runtime",
  "phala-trie-storage",
@@ -7724,6 +7725,10 @@ dependencies = [
  "sp-core",
  "typenum",
 ]
+
+[[package]]
+name = "phala-git-revision"
+version = "0.1.0"
 
 [[package]]
 name = "phala-mq"
@@ -8243,6 +8248,7 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "phala-crypto",
+ "phala-git-revision",
  "phala-sanitized-logger",
  "phala-serde-more",
  "phala-trie-storage",

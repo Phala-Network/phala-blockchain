@@ -135,7 +135,7 @@ async fn main() -> Result<(), rocket::Error> {
             storage_path: storage_path.into(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: git_revision(),
+            git_revision: git_revision().to_string(),
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,

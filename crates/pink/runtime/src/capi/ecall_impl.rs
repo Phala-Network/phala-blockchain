@@ -3,7 +3,7 @@ use log::info;
 use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use pink_capi::{
-    types::{AccountId, Balance, BlockNumber, ExecutionMode, Hash, Weight},
+    types::{AccountId, Balance, ExecutionMode, Hash, Weight},
     v1::{
         ecall::{self, ClusterSetupConfig, TransactionArguments},
         ocall::OCalls,
@@ -239,7 +239,6 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn git_revision(&self) -> String {
-        let todo = "";
-        todo!()
+        phala_git_revision::git_revision().to_string()
     }
 }

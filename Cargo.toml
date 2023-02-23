@@ -51,6 +51,7 @@ members = [
 	"crates/phala-crypto",
 	"crates/phala-node-rpc-ext",
 	"crates/phala-types",
+	"crates/phala-git-revision",
 	"crates/prpc",
 	"crates/prpc-build",
 	"crates/phactory",
