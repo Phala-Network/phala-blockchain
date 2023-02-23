@@ -76,7 +76,7 @@ enum SerMessage {
     Log {
         block_number: u32,
         contract: HexSer<AccountId>,
-        in_query: bool,
+        exec_mode: String,
         #[serde(rename = "timestamp")]
         timestamp_ms: u64,
         level: u8,
@@ -125,14 +125,14 @@ impl From<SystemMessage> for SerMessage {
             SystemMessage::PinkLog {
                 block_number,
                 contract,
-                in_query,
+                exec_mode,
                 timestamp_ms,
                 level,
                 message,
             } => Self::Log {
                 block_number,
                 contract: contract.into(),
-                in_query,
+                exec_mode,
                 timestamp_ms,
                 level,
                 message,

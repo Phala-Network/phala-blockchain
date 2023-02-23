@@ -145,7 +145,7 @@ impl OCalls for RuntimeHandle<'_> {
         todo!()
     }
 
-    fn emit_log(&self, contract: AccountId, in_query: bool, level: u8, message: String) {
+    fn emit_log(&self, contract: AccountId, mode: ExecutionMode, level: u8, message: String) {
         let Some(log_handler) = self.logger.as_ref() else {
             return;
         };
@@ -155,7 +155,7 @@ impl OCalls for RuntimeHandle<'_> {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as _,
-            in_query,
+            exec_mode: mode.display().into(),
             contract: contract.clone().into(),
             level,
             message,
@@ -193,8 +193,8 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.readonly().is_in_query()
     }
 
-    fn emit_log(&self, contract: AccountId, in_query: bool, level: u8, message: String) {
-        self.readonly().emit_log(contract, in_query, level, message)
+    fn emit_log(&self, contract: AccountId, mode: ExecutionMode, level: u8, message: String) {
+        self.readonly().emit_log(contract, mode, level, message)
     }
 
     fn emit_side_effects(&mut self, effects: ExecSideEffects) {

@@ -22,6 +22,14 @@ pub enum ExecutionMode {
 }
 
 impl ExecutionMode {
+    pub fn display(&self) -> &'static str {
+        match self {
+            ExecutionMode::Query => "query",
+            ExecutionMode::Estimating => "estimating",
+            ExecutionMode::Transaction => "transaction",
+        }
+    }
+
     pub fn is_query(&self) -> bool {
         matches!(self, ExecutionMode::Query)
     }

@@ -1166,7 +1166,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                 SystemMessage::PinkLog {
                                     block_number: block.block_number,
                                     contract: system_contract.into(),
-                                    in_query: false,
+                                    exec_mode: ExecutionMode::Transaction.display().into(),
                                     timestamp_ms: block.now_ms,
                                     level: $level as usize as u8,
                                     message: $msg,

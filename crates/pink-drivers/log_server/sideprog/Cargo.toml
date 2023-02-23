@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 log = "0.4.16"
 once_cell = "1.10.0"
-sidevm = "0.1"
+sidevm = { version = "0.1", path = "../../../sidevm/sidevm" }
 tokio = { version = "1", features = ["macros", "io-util"] }
 futures = "0.3"
 log_buffer = "1.0"

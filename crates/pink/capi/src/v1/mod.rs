@@ -140,7 +140,7 @@ pub mod ocall {
         #[xcall(id = 4)]
         fn is_in_query(&self) -> bool;
         #[xcall(id = 5)]
-        fn emit_log(&self, contract: AccountId, in_query: bool, level: u8, message: String);
+        fn emit_log(&self, contract: AccountId, mode: ExecutionMode, level: u8, message: String);
         #[xcall(id = 6)]
         fn emit_side_effects(&mut self, effects: ExecSideEffects);
         #[xcall(id = 7)]
