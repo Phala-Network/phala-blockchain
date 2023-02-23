@@ -97,8 +97,6 @@ pub mod ecall {
         fn total_balance(&self, account: AccountId) -> Balance;
         #[xcall(id = 16)]
         fn code_hash(&self, account: AccountId) -> Option<Hash>;
-        #[xcall(id = 18)]
-        fn code_exists(&self, code_hash: Hash, sidevm: bool) -> bool;
         #[xcall(id = 19)]
         fn contract_instantiate(
             &mut self,

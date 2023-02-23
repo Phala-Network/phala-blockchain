@@ -1,6 +1,7 @@
 use super::{CommitTransaction, Storage};
 use crate::{capi::OCallImpl, types::Hashing};
 use hash_db::Prefix;
+pub use helper::code_exists;
 use phala_trie_storage::MemoryDB;
 use pink_capi::v1::ocall::OCalls;
 use sp_core::Hasher;
@@ -40,5 +41,28 @@ impl ExternalStorage {
             .unwrap_or_else(|| sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>());
         let backend = TrieBackendBuilder::new(ExternalDB, root).build();
         crate::storage::Storage::new(backend)
+    }
+}
+
+pub mod helper {
+    use crate::types::Hash;
+    use subxt::{
+        metadata::DecodeStaticType,
+        storage::{
+            address::{StorageHasher, StorageMapKey},
+            StaticStorageAddress,
+        },
+    };
+
+    pub fn code_exists(code_hash: &Hash) -> bool {
+        let map_key = StorageMapKey::new(code_hash, StorageHasher::Identity);
+        let address = StaticStorageAddress::<DecodeStaticType<()>, (), (), ()>::new(
+            "Contracts",
+            "OwnerInfoOf",
+            vec![map_key],
+            [0; 32],
+        );
+        let key = address.to_bytes();
+        super::ExternalStorage::instantiate().get(&key).is_some()
     }
 }

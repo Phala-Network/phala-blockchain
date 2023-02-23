@@ -117,6 +117,10 @@ pub mod pallet {
             Ok(hash)
         }
 
+        pub fn sidevm_code_exists(code_hash: &T::Hash) -> bool {
+            <SidevmCodes<T>>::contains_key(code_hash)
+        }
+
         pub fn set_system_contract(address: &T::AccountId) {
             <SystemContract<T>>::put(address);
         }

@@ -62,6 +62,7 @@ phala-sanitized-logger = { path = "../../phala-sanitized-logger" }
 hash-db = "0.15"
 anyhow = "1"
 phala-git-revision = { path = "../../phala-git-revision" }
+subxt = { path = "../../../subxt/subxt" }
 
 [dev-dependencies]
 insta = "1.7.2"

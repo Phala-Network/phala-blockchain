@@ -129,6 +129,10 @@ impl ext::PinkExtBackend for MockExtension {
     fn worker_pubkey(&self) -> Result<crate::EcdhPublicKey, Self::Error> {
         Ok(Default::default())
     }
+
+    fn code_exists(&self, _code_hash: Hash, _sidevm: bool) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
 }
 
 thread_local! {

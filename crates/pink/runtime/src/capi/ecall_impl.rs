@@ -156,11 +156,6 @@ impl ecall::ECalls for ECallImpl {
         PalletContracts::code_hash(&account)
     }
 
-    fn code_exists(&self, code_hash: Hash, sidevm: bool) -> bool {
-        let todo = "";
-        todo!()
-    }
-
     fn contract_instantiate(
         &mut self,
         code_hash: Hash,

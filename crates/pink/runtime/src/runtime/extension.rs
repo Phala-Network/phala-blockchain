@@ -268,6 +268,16 @@ impl PinkExtBackend for CallInQuery {
     fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
         Ok(OCallImpl.worker_pubkey())
     }
+
+    fn code_exists(&self, code_hash: Hash, sidevm: bool) -> Result<bool, Self::Error> {
+        if sidevm {
+            Ok(crate::runtime::Pink::sidevm_code_exists(&code_hash.into()))
+        } else {
+            Ok(crate::storage::external_backend::code_exists(
+                &code_hash.into(),
+            ))
+        }
+    }
 }
 
 struct CallInCommand {
@@ -405,5 +415,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
         Ok(Default::default())
+    }
+
+    fn code_exists(&self, code_hash: Hash, sidevm: bool) -> Result<bool, Self::Error> {
+        self.as_in_query.code_exists(code_hash, sidevm)
     }
 }

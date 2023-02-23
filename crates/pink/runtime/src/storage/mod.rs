@@ -81,6 +81,13 @@ where
         let (root, transaction) = self.changes_transaction(changes);
         self.backend.commit_transaction(root, transaction)
     }
+
+    pub fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
+        self.backend
+            .as_trie_backend()
+            .storage(key)
+            .expect("Failed to get storage key")
+    }
 }
 
 pub mod external_backend;

@@ -185,6 +185,10 @@ pub trait PinkExt {
     /// Get current millis since unix epoch from the OS. (Query only)
     #[ink(extension = 18, handle_status = false)]
     fn untrusted_millis_since_unix_epoch() -> u64;
+
+    /// Check whether the code exists in the cluster storage.
+    #[ink(extension = 19, handle_status = false)]
+    fn code_exists(code_hash: Hash, sidevm: bool) -> bool;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
