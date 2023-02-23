@@ -287,14 +287,15 @@ fn check_args_multi_ref(methods: &[Method]) -> Result<()> {
         let mut n_ref = 0;
         let mut has_mut_ref = false;
         for arg in method.method.sig.inputs.iter() {
-            // TODO: use `let else`
-            if let syn::FnArg::Typed(arg) = arg {
-                if let syn::Type::Reference(ty) = &*arg.ty {
-                    n_ref += 1;
-                    if ty.mutability.is_some() {
-                        has_mut_ref = true;
-                    }
-                }
+            let syn::FnArg::Typed(arg) = arg else {
+                continue;
+            };
+            let syn::Type::Reference(ty) = &*arg.ty else {
+                continue;
+            };
+            n_ref += 1;
+            if ty.mutability.is_some() {
+                has_mut_ref = true;
             }
         }
         if has_mut_ref && n_ref > 1 {
