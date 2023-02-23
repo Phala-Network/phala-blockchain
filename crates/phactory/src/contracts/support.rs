@@ -45,6 +45,7 @@ pub struct QueryContext {
     pub log_handler: Option<CommandSender>,
     pub query_scheduler: RequestScheduler<AccountId>,
     pub weight: u32,
+    pub worker_pubkey: [u8; 32],
 }
 
 pub(crate) struct RawData(Vec<u8>);

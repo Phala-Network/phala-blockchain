@@ -623,6 +623,7 @@ impl<Platform: pal::Platform> System<Platform> {
             log_handler: self.get_system_message_handler(),
             query_scheduler,
             weight,
+            worker_pubkey: self.identity_key.public().0,
         };
         let origin = origin.cloned();
         let query = deopaque_query(&query)?;
@@ -1491,7 +1492,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 system_code.len()
             );
             // register cluster
-            let todo = "merge new and setup";
             let mut cluster = Cluster::new(
                 &cluster_id,
                 &cluster_key,

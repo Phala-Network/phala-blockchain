@@ -169,7 +169,6 @@ pub type BoxedEventCallbacks = Box<dyn EventCallbacks>;
 
 pub struct CallModeInfo {
     pub mode: ExecutionMode,
-    pub worker_pubkey: EcdhPublicKey,
 }
 
 struct CallInfo {
@@ -194,11 +193,7 @@ pub fn using_mode<T>(
 }
 
 pub fn get_call_mode_info() -> Option<CallModeInfo> {
-    let todo = "worker_pubkey";
-    call_info::with(|info| CallModeInfo {
-        mode: info.mode,
-        worker_pubkey: todo!(),
-    })
+    call_info::with(|info| CallModeInfo { mode: info.mode })
 }
 
 pub fn get_call_elapsed() -> Option<Duration> {

@@ -180,6 +180,10 @@ impl OCalls for RuntimeHandle<'_> {
     fn exec_context(&self) -> ExecContext {
         context::get()
     }
+
+    fn worker_pubkey(&self) -> [u8; 32] {
+        context::get().worker_pubkey
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -208,6 +212,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn exec_context(&self) -> ExecContext {
         self.readonly().exec_context()
+    }
+
+    fn worker_pubkey(&self) -> [u8; 32] {
+        context::get().worker_pubkey
     }
 }
 
@@ -362,7 +370,12 @@ impl Cluster {
                 } else {
                     ExecutionMode::Query
                 };
-                let ctx = ExecContext::new(mode, context.block_number, context.now_ms);
+                let ctx = ExecContext::new(
+                    mode,
+                    context.block_number,
+                    context.now_ms,
+                    context.worker_pubkey,
+                );
                 context::using(ctx, move || {
                     let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                     let mut runtime =
@@ -437,6 +450,7 @@ impl Cluster {
                     ExecutionMode::Estimating,
                     context.block_number,
                     context.now_ms,
+                    context.worker_pubkey,
                 );
                 context::using(ctx, move || {
                     let mut runtime =

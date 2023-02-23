@@ -134,14 +134,21 @@ pub mod ocall {
         pub mode: ExecutionMode,
         pub block_number: BlockNumber,
         pub now_ms: u64,
+        pub worker_pubkey: [u8; 32],
     }
 
     impl ExecContext {
-        pub fn new(mode: ExecutionMode, block_number: BlockNumber, now_ms: u64) -> Self {
+        pub fn new(
+            mode: ExecutionMode,
+            block_number: BlockNumber,
+            now_ms: u64,
+            worker_pubkey: [u8; 32],
+        ) -> Self {
             Self {
                 mode,
                 block_number,
                 now_ms,
+                worker_pubkey,
             }
         }
     }
@@ -160,5 +167,7 @@ pub mod ocall {
         fn emit_side_effects(&mut self, effects: ExecSideEffects);
         #[xcall(id = 7)]
         fn exec_context(&self) -> ExecContext;
+        #[xcall(id = 8)]
+        fn worker_pubkey(&self) -> [u8; 32];
     }
 }

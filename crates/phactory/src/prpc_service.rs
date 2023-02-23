@@ -261,6 +261,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .unwrap_or(counters.next_block_number - 1);
 
         let safe_mode_level = self.args.safe_mode_level;
+        let pubkey = self.system()?.identity_key.public().0;
 
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
@@ -277,7 +278,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             state.purge_mq();
             let now = state.chain_storage.timestamp_now();
             let block_number = block.block_header.number;
-            let context = ExecContext::new(ExecutionMode::Transaction, block_number, now);
+            let context = ExecContext::new(ExecutionMode::Transaction, block_number, now, pubkey);
             self.check_requirements();
             contracts::pink::context::using(context, || {
                 self.handle_inbound_messages(block_number)

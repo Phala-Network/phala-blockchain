@@ -18,11 +18,12 @@ use scale::{Decode, Encode};
 use sp_runtime::{AccountId32, DispatchError};
 
 use crate::{
+    capi::OCallImpl,
     runtime::{get_call_elapsed, get_call_mode_info},
     types::AccountId,
 };
 
-use pink_capi::types::ExecSideEffects;
+use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
@@ -96,7 +97,6 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
         let call_info = get_call_mode_info().expect("BUG: call ext out of runtime context");
         let call_in_query = CallInQuery {
             address,
-            worker_pubkey: call_info.worker_pubkey,
         };
         let result = if call_info.mode.is_query() {
             dispatch_ext_call!(env.func_id(), call_in_query, env)
@@ -129,7 +129,6 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
 
 struct CallInQuery {
     address: AccountId,
-    worker_pubkey: EcdhPublicKey,
 }
 
 impl PinkRuntimeEnv for CallInQuery {
@@ -269,7 +268,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn worker_pubkey(&self) -> Result<EcdhPublicKey, Self::Error> {
-        Ok(self.worker_pubkey)
+        Ok(OCallImpl.worker_pubkey())
     }
 }
 
