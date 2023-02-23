@@ -1,11 +1,11 @@
 use crate::{
-    runtime::{BoxedEventCallbacks, ExecSideEffects},
+    runtime::{BoxedEventCallbacks, ExecSideEffects, System, Timestamp},
     types::{Hash, Hashing},
 };
 pub use external_backend::ExternalStorage;
 pub use in_memory_backend::InMemoryStorage;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
-use pink_capi::types::ExecutionMode;
+use pink_capi::v1::ocall::ExecContext;
 use serde::{Deserialize, Serialize};
 use sp_state_machine::{
     backend::AsTrieBackend, Backend as StorageBackend, Ext, OverlayedChanges,
@@ -50,7 +50,7 @@ where
 {
     pub fn execute_with<R>(
         &self,
-        mode: ExecutionMode,
+        exec_context: &ExecContext,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects, OverlayedChanges) {
@@ -61,11 +61,10 @@ where
         let mut cache = StorageTransactionCache::default();
         let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
         let (rv, effects) = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
-            let todo = "set block number";
-            // System::set_block_number(block_number);
-            // Timestamp::set_timestamp(now);
-            crate::runtime::System::reset_events();
-            let r = crate::runtime::using_mode(mode, callbacks, f);
+            Timestamp::set_timestamp(exec_context.now_ms);
+            System::set_block_number(exec_context.block_number);
+            System::reset_events();
+            let r = crate::runtime::using_mode(exec_context.mode, callbacks, f);
             (r, crate::runtime::get_side_effects())
         });
         overlay
@@ -76,11 +75,11 @@ where
 
     pub fn execute_mut<R>(
         &mut self,
-        mode: ExecutionMode,
+        context: &ExecContext,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
-        let (rv, effects, overlay) = self.execute_with(mode, callbacks, f);
+        let (rv, effects, overlay) = self.execute_with(context, callbacks, f);
         self.commit_changes(overlay);
         (rv, effects)
     }

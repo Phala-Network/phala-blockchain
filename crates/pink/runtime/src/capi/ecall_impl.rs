@@ -28,15 +28,15 @@ pub(crate) fn storage() -> crate::storage::ExternalStorage {
 impl Executing for crate::storage::ExternalStorage {
     fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
         let todo = "fill query and callbacks";
-        let mode = OCallImpl.exec_mode();
-        let (rv, _effects, _) = self.execute_with(mode, None, f);
+        let context = OCallImpl.exec_context();
+        let (rv, _effects, _) = self.execute_with(&context, None, f);
         rv
     }
 
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
         let todo = "fill query and callbacks";
-        let mode = OCallImpl.exec_mode();
-        let (rv, effects) = self.execute_mut(mode, None, f);
+        let context = OCallImpl.exec_context();
+        let (rv, effects) = self.execute_mut(&context, None, f);
         OCallImpl.emit_side_effects(effects);
         rv
     }

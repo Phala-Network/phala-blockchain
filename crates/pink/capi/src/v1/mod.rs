@@ -125,9 +125,26 @@ pub mod ecall {
 
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
-    use crate::types::{AccountId, ExecSideEffects, ExecutionMode, Hash};
+    use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
+
+    #[derive(Decode, Encode, Clone, Debug, Default)]
+    pub struct ExecContext {
+        pub mode: ExecutionMode,
+        pub block_number: BlockNumber,
+        pub now_ms: u64,
+    }
+
+    impl ExecContext {
+        pub fn new(mode: ExecutionMode, block_number: BlockNumber, now_ms: u64) -> Self {
+            Self {
+                mode,
+                block_number,
+                now_ms,
+            }
+        }
+    }
 
     #[cross_call(OCall)]
     pub trait OCalls {
@@ -137,13 +154,11 @@ pub mod ocall {
         fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>>;
         #[xcall(id = 3)]
         fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>);
-        #[xcall(id = 4)]
-        fn is_in_query(&self) -> bool;
         #[xcall(id = 5)]
-        fn emit_log(&self, contract: AccountId, mode: ExecutionMode, level: u8, message: String);
+        fn emit_log(&self, contract: AccountId, level: u8, message: String);
         #[xcall(id = 6)]
         fn emit_side_effects(&mut self, effects: ExecSideEffects);
         #[xcall(id = 7)]
-        fn exec_mode(&self) -> ExecutionMode;
+        fn exec_context(&self) -> ExecContext;
     }
 }

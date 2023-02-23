@@ -8,7 +8,8 @@ use crate::hex;
 use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
 
 use super::*;
-use ::pink::types::{AccountId, ExecSideEffects};
+use ::pink::capi::v1::ocall::ExecContext;
+use ::pink::types::{AccountId, ExecSideEffects, ExecutionMode};
 use parity_scale_codec::Encode;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
@@ -274,8 +275,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
             info!("State synced");
             state.purge_mq();
+            let now = state.chain_storage.timestamp_now();
+            let block_number = block.block_header.number;
+            let context = ExecContext::new(ExecutionMode::Transaction, block_number, now);
             self.check_requirements();
-            self.handle_inbound_messages(block.block_header.number)?;
+            contracts::pink::context::using(context, || {
+                self.handle_inbound_messages(block_number)
+            })?;
 
             if let Err(e) = self.maybe_take_checkpoint() {
                 error!("Failed to take checkpoint: {:?}", e);
