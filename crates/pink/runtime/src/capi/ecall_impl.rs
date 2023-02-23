@@ -113,7 +113,7 @@ impl ecall::ECalls for ECallImpl {
         account: AccountId,
         code: Vec<u8>,
         deterministic: bool,
-    ) -> Result<Hash, Vec<u8>> {
+    ) -> Result<Hash, String> {
         crate::runtime::Contracts::bare_upload_code(
             account.clone(),
             code,
@@ -125,15 +125,11 @@ impl ecall::ECalls for ECallImpl {
             },
         )
         .map(|v| v.code_hash)
-        .map_err(|err| {
-            let todo = "log error";
-            err.encode()
-        })
+        .map_err(|err| format!("{err:?}"))
     }
 
-    fn upload_sidevm_code(&mut self, account: AccountId, code: Vec<u8>) -> Result<Hash, Vec<u8>> {
-        let todo = "log error";
-        PalletPink::put_sidevm_code(account, code).map_err(|err| err.encode())
+    fn upload_sidevm_code(&mut self, account: AccountId, code: Vec<u8>) -> Result<Hash, String> {
+        PalletPink::put_sidevm_code(account, code).map_err(|err| format!("{err:?}"))
     }
 
     fn get_sidevm_code(&self, hash: Hash) -> Option<Vec<u8>> {

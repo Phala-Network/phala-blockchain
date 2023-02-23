@@ -317,7 +317,7 @@ impl Cluster {
         origin: &AccountId,
         resource_type: ResourceType,
         resource_data: Vec<u8>,
-    ) -> Result<Hash, Vec<u8>> {
+    ) -> Result<Hash, String> {
         match resource_type {
             ResourceType::InkCode => {
                 self.default_runtime_mut()

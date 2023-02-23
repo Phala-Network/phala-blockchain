@@ -80,13 +80,13 @@ pub mod ecall {
             account: AccountId,
             code: Vec<u8>,
             deterministic: bool,
-        ) -> Result<Hash, Vec<u8>>;
+        ) -> Result<Hash, String>;
         #[xcall(id = 8)]
         fn upload_sidevm_code(
             &mut self,
             account: AccountId,
             code: Vec<u8>,
-        ) -> Result<Hash, Vec<u8>>;
+        ) -> Result<Hash, String>;
         #[xcall(id = 9)]
         fn get_sidevm_code(&self, hash: Hash) -> Option<Vec<u8>>;
         #[xcall(id = 11)]
