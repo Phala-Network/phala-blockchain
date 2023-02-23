@@ -1,20 +1,10 @@
-use phala_trie_storage::clone_trie_backend;
-
-use super::{CommitTransaction, Hash, Hashing, MemoryDB, Snapshot, Storage};
+use super::{CommitTransaction, Hash, Hashing, MemoryDB, Storage};
 
 pub type InMemoryStorage = Storage<InMemoryBackend>;
 
 impl Default for InMemoryStorage {
     fn default() -> Self {
         Self::new(new_in_memory_backend())
-    }
-}
-
-impl Snapshot for InMemoryStorage {
-    fn snapshot(&self) -> Self {
-        Storage {
-            backend: clone_trie_backend(&self.backend),
-        }
     }
 }
 

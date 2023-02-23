@@ -2,25 +2,16 @@ use crate::{
     runtime::{BoxedEventCallbacks, ExecSideEffects, System, Timestamp},
     types::{Hash, Hashing},
 };
-pub use external_backend::ExternalStorage;
-pub use in_memory_backend::InMemoryStorage;
-use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
 use pink_capi::v1::ocall::ExecContext;
-use serde::{Deserialize, Serialize};
 use sp_state_machine::{
     backend::AsTrieBackend, Backend as StorageBackend, Ext, OverlayedChanges,
     StorageTransactionCache,
 };
 
-pub mod external_backend;
-pub mod in_memory_backend;
+pub use external_backend::ExternalStorage;
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
     fn commit_transaction(&mut self, root: Hash, transaction: Self::Transaction);
-}
-
-pub trait Snapshot {
-    fn snapshot(&self) -> Self;
 }
 
 pub struct Storage<Backend> {
@@ -30,17 +21,6 @@ pub struct Storage<Backend> {
 impl<Backend> Storage<Backend> {
     pub fn new(backend: Backend) -> Self {
         Self { backend }
-    }
-}
-
-impl<Backend> Storage<Backend>
-where
-    Backend: Snapshot,
-{
-    pub fn snapshot(&self) -> Self {
-        Self {
-            backend: self.backend.snapshot(),
-        }
     }
 }
 
@@ -105,21 +85,4 @@ where
     }
 }
 
-impl Serialize for InMemoryStorage {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let trie = self.backend.as_trie_backend();
-        serialize_trie_backend(trie, serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for InMemoryStorage {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Self::new(deserialize_trie_backend(deserializer)?))
-    }
-}
+pub mod external_backend;
