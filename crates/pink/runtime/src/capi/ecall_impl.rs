@@ -242,9 +242,4 @@ impl ecall::ECalls for ECallImpl {
         let todo = "";
         todo!()
     }
-
-    fn block_number(&self) -> BlockNumber {
-        let todo = "";
-        todo!()
-    }
 }
