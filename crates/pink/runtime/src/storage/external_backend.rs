@@ -5,8 +5,7 @@ use phala_trie_storage::MemoryDB;
 use pink_capi::v1::ocall::OCalls;
 use sp_core::Hasher;
 use sp_state_machine::{
-    backend::AsTrieBackend, Backend as StorageBackend, DBValue, DefaultError, Ext,
-    OverlayedChanges, StorageTransactionCache, TrieBackend, TrieBackendBuilder, TrieBackendStorage,
+    DBValue, DefaultError, TrieBackend, TrieBackendBuilder, TrieBackendStorage,
 };
 
 type Hash = <Hashing as Hasher>::Out;

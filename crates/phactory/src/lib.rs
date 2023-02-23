@@ -7,7 +7,6 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use ::pink::types::AccountId;
-use contracts::pink::Cluster;
 use glob::PatternError;
 use rand::*;
 use serde::{
@@ -45,7 +44,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -262,7 +261,6 @@ fn default_query_scheduler() -> RequestScheduler<AccountId> {
 impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn new(platform: Platform) -> Self {
         let machine_id = platform.machine_id();
-        let _cluster = Cluster::test_default(&[1; 32].into(), (1, 0));
         Phactory {
             platform,
             args: Default::default(),

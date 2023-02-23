@@ -15,7 +15,6 @@ use pink_extension::{
 };
 use pink_extension_runtime::{local_cache, DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
-use sp_core::H256;
 use sp_runtime::{AccountId32, DispatchError};
 
 use crate::{

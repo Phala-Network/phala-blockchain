@@ -3,12 +3,7 @@ use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 use std::collections::BTreeMap;
 
-use crate::{
-    contracts::FatContract,
-    system::TransactionResult,
-    types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply},
-};
-use phala_mq::ContractId;
+use crate::contracts::FatContract;
 
 type ContractMap = BTreeMap<AccountId, FatContract>;
 

@@ -1,8 +1,6 @@
 use im::OrdMap;
-use phala_crypto::sr25519::Sr25519SecretKey;
-use pink_capi::types::{AccountId, Balance, Hash};
+use pink_capi::types::Hash;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ClusterStorage {

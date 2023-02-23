@@ -4,17 +4,15 @@ use crate::{
     contracts::{self, QueryContext, TransactionContext},
     system::{TransactionError, TransactionResult},
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 use parity_scale_codec::{Decode, Encode};
-use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
-use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
-use phala_serde_more as more;
-use phala_types::contract::{messaging::ResourceType, ConvertTo};
+use phala_crypto::sr25519::Persistence;
+use phala_mq::{ContractClusterId, MessageOrigin};
+use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
         ocall::OCalls,
-        CrossCall,
     },
     runtimes::v1::using_ocalls,
     types::ExecutionMode,
@@ -22,21 +20,14 @@ use pink::{
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
 use sp_core::sr25519;
-use sp_runtime::DispatchError;
-use std::collections::{BTreeMap, BTreeSet};
 
 use ::pink::{
-    capi::v1::{self, ecall::EventCallbacks},
+    capi::v1,
     constants::WEIGHT_REF_TIME_PER_SECOND,
-    types::{
-        AccountId, Address, Balance, BlockNumber, ExecSideEffects, Hash, TransactionArguments,
-        Weight,
-    },
+    types::{AccountId, Balance, BlockNumber, ExecSideEffects, Hash, TransactionArguments},
 };
 
 pub use phala_types::contract::InkCommand;
-
-use super::SidevmHandle;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
@@ -241,20 +232,6 @@ impl v1::ECall for RuntimeHandle<'_> {}
 impl v1::ECall for RuntimeHandleMut<'_> {}
 
 impl Cluster {
-    pub fn test_default(id: &ContractClusterId, runtime_version: (u32, u32)) -> Self {
-        let mut cluster = Cluster {
-            id: *id,
-            storage: Default::default(),
-            config: ClusterConfig {
-                runtime_version,
-                ..Default::default()
-            },
-        };
-        cluster.default_runtime_mut().set_cluster_id(*id);
-        assert_eq!(cluster.default_runtime().cluster_id(), *id);
-        cluster
-    }
-
     pub fn new(
         id: &ContractClusterId,
         cluster_key: &sr25519::Pair,
@@ -269,7 +246,6 @@ impl Cluster {
             },
         };
         let mut runtime = cluster.default_runtime_mut();
-        runtime.set_cluster_id(*id);
         runtime.set_key(cluster_key.dump_secret_key());
         cluster
     }
@@ -319,10 +295,6 @@ impl Cluster {
         self.default_runtime().system_contract()
     }
 
-    pub fn set_system_contract(&mut self, contract: AccountId) {
-        self.default_runtime_mut().set_system_contract(contract);
-    }
-
     pub fn code_hash(&self, address: &AccountId) -> Option<Hash> {
         self.default_runtime().code_hash(address.clone())
     }
@@ -356,44 +328,8 @@ impl Cluster {
         }
     }
 
-    pub fn setup(
-        &mut self,
-        gas_price: Balance,
-        deposit_per_item: Balance,
-        deposit_per_byte: Balance,
-        treasury_account: &::pink::types::AccountId,
-    ) {
-        self.default_runtime_mut().setup(
-            gas_price,
-            deposit_per_item,
-            deposit_per_byte,
-            treasury_account.clone(),
-        );
-    }
-
     pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
         self.default_runtime_mut().deposit(who.clone(), amount)
-    }
-
-    // pub fn bare_call(
-    //     &self,
-    //     contract_id: &ContractId,
-    //     input_data: Vec<u8>,
-    //     in_query: bool,
-    //     tx_args: TransactionArguments,
-    // ) -> (ContractExecResult, ExecSideEffects) {
-    //     todo!()
-    // }
-
-    pub fn instantiate(
-        &self,
-        code_hash: Hash,
-        input_data: Vec<u8>,
-        salt: Vec<u8>,
-        in_query: bool,
-        tx_args: TransactionArguments,
-    ) -> Result<(ContractId, ExecSideEffects)> {
-        todo!()
     }
 
     pub(crate) async fn handle_query(
@@ -424,8 +360,6 @@ impl Cluster {
                 }
                 let args = TransactionArguments {
                     origin,
-                    now: context.now_ms,
-                    block_number: context.block_number,
                     transfer,
                     gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                     gas_free: true,
@@ -497,8 +431,6 @@ impl Cluster {
                 }
                 let args = TransactionArguments {
                     origin,
-                    now: context.now_ms,
-                    block_number: context.block_number,
                     transfer,
                     gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
                     gas_free: true,
@@ -521,7 +453,7 @@ impl Cluster {
         contract_id: &AccountId,
         origin: MessageOrigin,
         cmd: InkCommand,
-        context: &mut contracts::TransactionContext,
+        context: &mut TransactionContext,
     ) -> TransactionResult {
         match cmd {
             InkCommand::InkMessage {
@@ -546,8 +478,6 @@ impl Cluster {
 
                 let args = TransactionArguments {
                     origin: origin.clone(),
-                    now: context.block.now_ms,
-                    block_number: context.block.block_number,
                     transfer,
                     gas_limit,
                     gas_free,

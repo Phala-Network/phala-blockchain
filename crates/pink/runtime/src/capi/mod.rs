@@ -1,4 +1,4 @@
-use pink_capi::{helper::InnerType, v1};
+use pink_capi::v1;
 use v1::*;
 
 use phala_sanitized_logger as logger;

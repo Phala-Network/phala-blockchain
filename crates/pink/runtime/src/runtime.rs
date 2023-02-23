@@ -2,10 +2,7 @@ mod extension;
 mod pallet_pink;
 mod weights;
 
-use std::{
-    sync::RwLock,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{

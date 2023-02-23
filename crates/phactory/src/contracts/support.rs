@@ -1,7 +1,6 @@
 use anyhow::{anyhow, bail, Result};
 use pink::{
     capi::v1::ecall::ECalls,
-    storage::ClusterStorage,
     types::{AccountId, ExecutionMode, TransactionArguments},
 };
 use serde::{Deserialize, Serialize};
@@ -23,11 +22,9 @@ use crate::{
     secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
     system::{TransactionError, TransactionResult},
     types::BlockInfo,
-    ContractId, H256,
+    H256,
 };
 use phactory_api::prpc as pb;
-
-use phala_serde_more as more;
 
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
@@ -212,8 +209,6 @@ impl FatContract {
         let input_data = selector.to_be_bytes();
         let tx_args = TransactionArguments {
             origin: self.address.clone(),
-            now: env.block.now_ms,
-            block_number: env.block.block_number,
             transfer: 0,
             gas_free: false,
             storage_deposit_limit: None,

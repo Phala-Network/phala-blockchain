@@ -8,13 +8,13 @@ use crate::{
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{deopaque_query, BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use core::fmt;
 use log::info;
 use phala_scheduler::RequestScheduler;
 use pink::{
-    capi::v1::ecall::ECalls,
-    types::{AccountId, ExecSideEffects, TransactionArguments, Weight},
+    capi::v1::ecall::{ClusterSetupConfig, ECalls},
+    types::{AccountId, ExecSideEffects, ExecutionMode, TransactionArguments},
 };
 use runtime::BlockNumber;
 
@@ -1244,82 +1244,34 @@ impl<Platform: pal::Platform> System<Platform> {
                 match contract_info.code_index {
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
-                        /*
-                        * todo!: set the logger
-                                                   callbacks: ContractEventCallback::from_log_sender(
-                                                       &log_handler,
-                                                       block.block_number,
-                                                   ),
-                        */
                         let tx_args = TransactionArguments {
                             origin: deployer.clone(),
-                            now: block.now_ms,
-                            block_number: block.block_number,
                             transfer,
                             gas_limit,
                             gas_free: false,
                             storage_deposit_limit,
                         };
-                        let contract_id = {
-                            let buf = phala_types::contract::contract_id_preimage(
-                                deployer.as_ref(),
-                                code_hash.as_ref(),
-                                cluster_id.as_ref(),
-                                &contract_info.salt,
-                            );
-                            blake2_256(&buf)
-                        };
-                        let result = cluster
-                            .instantiate(
-                                code_hash,
-                                contract_info.instantiate_data,
-                                contract_info.salt,
-                                false,
-                                tx_args,
-                            )
-                            .with_context(|| format!("Contract deployer: {deployer:?}"));
-                        // Send the reault to the log server
-                        if let Some(log_handler) = &log_handler {
-                            macro_rules! send_log {
-                                ($level: expr, $msg: expr) => {
-                                    let result = log_handler.try_send(
-                                        SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
-                                            block_number: block.block_number,
-                                            contract: contract_id,
-                                            in_query: false,
-                                            timestamp_ms: block.now_ms,
-                                            level: $level as usize as u8,
-                                            message: $msg,
-                                        }),
-                                    );
-                                    if result.is_err() {
-                                        error!("Failed to send log to log handler");
-                                    }
-                                };
-                            }
-                            match &result {
-                                Ok(_) => {
-                                    send_log!(log::Level::Info, "Instantiated".to_owned());
-                                }
-                                Err(err) => {
-                                    send_log!(
-                                        log::Level::Error,
-                                        format!("Instantiating failed: {err:?}")
-                                    );
-                                }
-                            }
-                        }
-                        let (_, effects) = result?;
-                        apply_pink_side_effects(
-                            effects,
-                            &mut self.contracts,
-                            cluster,
-                            block,
-                            &self.egress,
-                            &self.sidevm_spawner,
-                            log_handler,
-                            block.storage,
+                        let mut runtime =
+                            cluster.runtime_mut(log_handler.clone(), block.block_number);
+                        let _result = runtime.contract_instantiate(
+                            code_hash,
+                            contract_info.instantiate_data,
+                            contract_info.salt,
+                            ExecutionMode::Transaction,
+                            tx_args,
                         );
+                        if let Some(effects) = runtime.effects.take() {
+                            apply_pink_side_effects(
+                                effects,
+                                &mut self.contracts,
+                                cluster,
+                                block,
+                                &self.egress,
+                                &self.sidevm_spawner,
+                                log_handler,
+                                block.storage,
+                            );
+                        }
                     }
                 }
             }
@@ -1539,51 +1491,38 @@ impl<Platform: pal::Platform> System<Platform> {
                 system_code.len()
             );
             // register cluster
-            // todo!: runtime_version
+            // todo!: merge new and setup
             let mut cluster = Cluster::new(
-                &event.cluster,
+                &cluster_id,
                 &cluster_key,
                 block.storage.pink_runtime_version(),
             );
-            cluster.setup(
+            let config = ClusterSetupConfig {
+                cluster_id: event.cluster,
+                owner,
+                deposit,
                 gas_price,
                 deposit_per_item,
                 deposit_per_byte,
-                &treasury_account,
-            );
-            cluster.deposit(&owner, deposit);
-            let code_hash = cluster
-                .upload_resource(&owner, ResourceType::InkCode, system_code)
-                .or(Err(TransactionError::FailedToUploadResourceToCluster))?;
-            info!("Worker: pink system code hash {:?}", code_hash);
-            let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
-
-            let args = TransactionArguments {
-                origin: owner.clone(),
-                now: block.now_ms,
-                block_number: block.block_number,
-                transfer: 0,
-                gas_limit: Weight::MAX,
-                gas_free: true,
-                storage_deposit_limit: None,
+                treasury_account,
+                system_code,
             };
-            let (system_address, effects) =
-                cluster.instantiate(code_hash, selector, vec![], false, args)?;
-            cluster.set_system_contract(system_address.0.into());
-            info!(
-                "Cluster deployed, id={:?}, system={:?}, version={:?}",
-                cluster.id, system_address, cluster.config.runtime_version
-            );
-            apply_pink_side_effects(
-                effects,
-                &mut self.contracts,
-                &mut cluster,
-                block,
-                &self.egress,
-                &self.sidevm_spawner,
-                None,
-                block.storage,
-            );
+            let mut runtime = cluster.default_runtime_mut();
+            if let Err(err) = runtime.setup(config) {
+                anyhow::bail!("Cluster {cluster_id:?} setup failed: {err:?}");
+            }
+            if let Some(effects) = runtime.effects {
+                apply_pink_side_effects(
+                    effects,
+                    &mut self.contracts,
+                    &mut cluster,
+                    block,
+                    &self.egress,
+                    &self.sidevm_spawner,
+                    None,
+                    block.storage,
+                );
+            }
             self.contract_cluster = Some(cluster);
 
             let message = WorkerClusterReport::ClusterDeployed {

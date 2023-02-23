@@ -117,7 +117,7 @@ pub mod pallet {
             Ok(hash)
         }
 
-        pub fn set_system_contract(address: T::AccountId) {
+        pub fn set_system_contract(address: &T::AccountId) {
             <SystemContract<T>>::put(address);
         }
 

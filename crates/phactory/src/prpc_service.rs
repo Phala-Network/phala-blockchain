@@ -8,7 +8,6 @@ use crate::hex;
 use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
 
 use super::*;
-use crate::contracts::ContractClusterId;
 use ::pink::types::{AccountId, ExecSideEffects};
 use parity_scale_codec::Encode;
 use pb::{

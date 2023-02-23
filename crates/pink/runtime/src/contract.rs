@@ -2,18 +2,13 @@ use frame_support::weights::Weight;
 use pallet_contracts::Determinism;
 use pallet_contracts_primitives::StorageDeposit;
 use pink_capi::{types::ExecutionMode, v1::ecall::TransactionArguments};
-use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{
-        BoxedEventCallbacks, Contracts, ExecSideEffects, Pink as PalletPink, System, Timestamp, get_call_mode_info,
-    },
-    storage,
-    types::{AccountId, Balance, BlockNumber, Hash},
+    runtime::{Contracts, Pink as PalletPink},
+    types::{AccountId, Balance, Hash},
 };
-
-type Storage = storage::in_memory_backend::InMemoryStorage;
+use anyhow::Result;
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
 type ContractInstantiateResult =
@@ -129,6 +124,17 @@ fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> C
     result
 }
 
+pub fn check_instantiate_result(result: &ContractInstantiateResult) -> Result<AccountId> {
+    let ret = result
+        .result
+        .as_ref()
+        .map_err(|err| anyhow::anyhow!("{err:?}"))?;
+    if ret.result.did_revert() {
+        anyhow::bail!("contract instantiation failed: {:?}", ret.result)
+    }
+    Ok(ret.account_id.clone())
+}
+
 pub fn instantiate(
     code_hash: Hash,
     input_data: Vec<u8>,
@@ -138,33 +144,24 @@ pub fn instantiate(
 ) -> ContractInstantiateResult {
     let TransactionArguments {
         origin,
-        block_number,
-        now,
         transfer,
         gas_limit,
         storage_deposit_limit,
         gas_free,
     } = args;
     let gas_limit = Weight::from_ref_time(gas_limit).set_proof_size(u64::MAX);
-    let result = contract_tx(
-        origin.clone(),
-        block_number,
-        now,
-        gas_limit,
-        gas_free,
-        move || {
-            Contracts::bare_instantiate(
-                origin,
-                transfer,
-                gas_limit,
-                storage_deposit_limit,
-                pallet_contracts_primitives::Code::Existing(code_hash),
-                input_data,
-                salt,
-                false,
-            )
-        },
-    );
+    let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
+        Contracts::bare_instantiate(
+            origin,
+            transfer,
+            gas_limit,
+            storage_deposit_limit,
+            pallet_contracts_primitives::Code::Existing(code_hash),
+            input_data,
+            salt,
+            false,
+        )
+    });
     log::info!("Contract instantiation result: {:?}", &result.result);
     if mode.should_return_coarse_gas() {
         coarse_grained(result, PalletPink::deposit_per_byte())
@@ -187,8 +184,6 @@ pub fn bare_call(
 ) -> ContractExecResult {
     let TransactionArguments {
         origin,
-        now,
-        block_number,
         transfer,
         gas_limit,
         gas_free,
@@ -200,25 +195,18 @@ pub fn bare_call(
     } else {
         Determinism::AllowIndeterminism
     };
-    let result = contract_tx(
-        origin.clone(),
-        block_number,
-        now,
-        gas_limit,
-        gas_free,
-        move || {
-            Contracts::bare_call(
-                origin,
-                address,
-                transfer,
-                gas_limit,
-                storage_deposit_limit,
-                input_data,
-                true,
-                determinism,
-            )
-        },
-    );
+    let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
+        Contracts::bare_call(
+            origin,
+            address,
+            transfer,
+            gas_limit,
+            storage_deposit_limit,
+            input_data,
+            true,
+            determinism,
+        )
+    });
     if mode.should_return_coarse_gas() {
         coarse_grained(result, PalletPink::deposit_per_byte())
     } else {
@@ -228,14 +216,10 @@ pub fn bare_call(
 
 fn contract_tx<T>(
     origin: AccountId,
-    block_number: BlockNumber,
-    now: u64,
     gas_limit: Weight,
     gas_free: bool,
     tx_fn: impl FnOnce() -> ContractResult<T>,
 ) -> ContractResult<T> {
-    System::set_block_number(block_number);
-    Timestamp::set_timestamp(now);
     if !gas_free && PalletPink::pay_for_gas(&origin, gas_limit).is_err() {
         return ContractResult {
             gas_consumed: Weight::zero(),

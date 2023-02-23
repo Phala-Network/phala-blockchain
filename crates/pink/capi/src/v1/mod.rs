@@ -44,28 +44,30 @@ pub mod ecall {
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct TransactionArguments {
         pub origin: AccountId,
-        pub now: u64,
-        pub block_number: BlockNumber,
         pub transfer: Balance,
         pub gas_limit: Weight,
         pub gas_free: bool,
         pub storage_deposit_limit: Option<Balance>,
     }
 
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct ClusterSetupConfig {
+        pub cluster_id: Hash,
+        pub owner: AccountId,
+        pub deposit: Balance,
+        pub gas_price: Balance,
+        pub deposit_per_item: Balance,
+        pub deposit_per_byte: Balance,
+        pub treasury_account: AccountId,
+        pub system_code: Vec<u8>,
+    }
+
     #[cross_call(ECall)]
     pub trait ECalls {
         #[xcall(id = 1)]
-        fn set_cluster_id(&mut self, cluster_id: Hash);
-        #[xcall(id = 100)]
         fn cluster_id(&self) -> Hash;
         #[xcall(id = 2)]
-        fn setup(
-            &mut self,
-            gas_price: Balance,
-            deposit_per_item: Balance,
-            deposit_per_byte: Balance,
-            treasury_account: AccountId,
-        );
+        fn setup(&mut self, config: ClusterSetupConfig) -> Result<(), String>;
         #[xcall(id = 3)]
         fn deposit(&mut self, who: AccountId, value: Balance);
         #[xcall(id = 5)]
@@ -87,8 +89,6 @@ pub mod ecall {
         ) -> Result<Hash, Vec<u8>>;
         #[xcall(id = 9)]
         fn get_sidevm_code(&self, hash: Hash) -> Option<Vec<u8>>;
-        #[xcall(id = 10)]
-        fn set_system_contract(&mut self, address: AccountId);
         #[xcall(id = 11)]
         fn system_contract(&self) -> Option<AccountId>;
         #[xcall(id = 14)]
@@ -125,7 +125,7 @@ pub mod ecall {
 
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
-    use crate::types::{AccountId, ExecutionMode, ExecSideEffects, Hash};
+    use crate::types::{AccountId, ExecSideEffects, ExecutionMode, Hash};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
