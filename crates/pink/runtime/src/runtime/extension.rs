@@ -13,7 +13,7 @@ use pink_extension::{
     },
     dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
-use pink_extension_runtime::{local_cache, DefaultPinkExtension, PinkRuntimeEnv};
+use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_runtime::{AccountId32, DispatchError};
 
@@ -149,6 +149,10 @@ impl CallInQuery {
         }
         Ok(())
     }
+    fn address_bytes(&self) -> Vec<u8> {
+        let slice: &[u8] = self.address.as_ref();
+        slice.to_vec()
+    }
 }
 
 impl PinkExtBackend for CallInQuery {
@@ -198,20 +202,20 @@ impl PinkExtBackend for CallInQuery {
         key: Cow<[u8]>,
         value: Cow<[u8]>,
     ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
-        Ok(local_cache::set(self.address.as_ref(), &key, &value))
+        Ok(OCallImpl.cache_set(self.address_bytes(), key.into_owned(), value.into_owned()))
     }
 
     fn cache_set_expiration(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
-        local_cache::set_expiration(self.address.as_ref(), &key, expire);
+        OCallImpl.cache_set_expiration(self.address_bytes(), key.into_owned(), expire);
         Ok(())
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(local_cache::get(self.address.as_ref(), &key))
+        Ok(OCallImpl.cache_get(self.address_bytes(), key.into_owned()))
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(local_cache::remove(self.address.as_ref(), &key))
+        Ok(OCallImpl.cache_remove(self.address_bytes(), key.into_owned()))
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {

@@ -82,11 +82,8 @@ pub mod ecall {
             deterministic: bool,
         ) -> Result<Hash, String>;
         #[xcall(id = 8)]
-        fn upload_sidevm_code(
-            &mut self,
-            account: AccountId,
-            code: Vec<u8>,
-        ) -> Result<Hash, String>;
+        fn upload_sidevm_code(&mut self, account: AccountId, code: Vec<u8>)
+            -> Result<Hash, String>;
         #[xcall(id = 9)]
         fn get_sidevm_code(&self, hash: Hash) -> Option<Vec<u8>>;
         #[xcall(id = 11)]
@@ -122,6 +119,7 @@ pub mod ecall {
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
+    use pink_extension::chain_extension::StorageQuotaExceeded;
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
@@ -165,5 +163,18 @@ pub mod ocall {
         fn exec_context(&self) -> ExecContext;
         #[xcall(id = 8)]
         fn worker_pubkey(&self) -> [u8; 32];
+        #[xcall(id = 9)]
+        fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>>;
+        #[xcall(id = 10)]
+        fn cache_set(
+            &self,
+            contract: Vec<u8>,
+            key: Vec<u8>,
+            value: Vec<u8>,
+        ) -> Result<(), StorageQuotaExceeded>;
+        #[xcall(id = 11)]
+        fn cache_set_expiration(&self, contract: Vec<u8>, key: Vec<u8>, expiration: u64);
+        #[xcall(id = 12)]
+        fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>>;
     }
 }

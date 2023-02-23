@@ -14,6 +14,7 @@ use pink::{
         ecall::{ECalls, ECallsRo},
         ocall::{ExecContext, OCalls},
     },
+    local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::using_ocalls,
     types::ExecutionMode,
 };
@@ -184,6 +185,39 @@ impl OCalls for RuntimeHandle<'_> {
     fn worker_pubkey(&self) -> [u8; 32] {
         context::get().worker_pubkey
     }
+
+    fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        if !context::get().mode.is_query() {
+            return None;
+        }
+        local_cache::get(&contract, &key)
+    }
+
+    fn cache_set(
+        &self,
+        contract: Vec<u8>,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    ) -> Result<(), StorageQuotaExceeded> {
+        if context::get().mode.is_estimating() {
+            return Ok(());
+        }
+        local_cache::set(&contract, &key, &value)
+    }
+
+    fn cache_set_expiration(&self, contract: Vec<u8>, key: Vec<u8>, expiration: u64) {
+        if context::get().mode.is_estimating() {
+            return;
+        }
+        local_cache::set_expiration(&contract, &key, expiration)
+    }
+
+    fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        if context::get().mode.is_estimating() {
+            return None;
+        }
+        local_cache::remove(&contract, &key)
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -216,6 +250,28 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn worker_pubkey(&self) -> [u8; 32] {
         context::get().worker_pubkey
+    }
+
+    fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        self.readonly().cache_get(contract, key)
+    }
+
+    fn cache_set(
+        &self,
+        contract: Vec<u8>,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    ) -> Result<(), StorageQuotaExceeded> {
+        self.readonly().cache_set(contract, key, value)
+    }
+
+    fn cache_set_expiration(&self, contract: Vec<u8>, key: Vec<u8>, expiration: u64) {
+        self.readonly()
+            .cache_set_expiration(contract, key, expiration)
+    }
+
+    fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        self.readonly().cache_remove(contract, key)
     }
 }
 
