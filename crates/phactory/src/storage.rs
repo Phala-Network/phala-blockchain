@@ -133,8 +133,10 @@ mod storage_ext {
         }
 
         pub fn pink_runtime_version(&self) -> (u32, u32) {
-            let todo = "";
-            todo!()
+            // !! DO NOT CHANGE THIS VALUE !!
+            const DEFAULT_VERSION: (u32, u32) = (1, 0);
+            self.execute_with(pallet_fat::PinkRuntimeVersion::<chain::Runtime>::get)
+                .unwrap_or(DEFAULT_VERSION)
         }
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
