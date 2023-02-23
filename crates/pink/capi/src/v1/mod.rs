@@ -38,7 +38,7 @@ pub mod ecall {
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
     pub trait EventCallbacks {
-        fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String);
+        fn log_to_server(&self, contract: &AccountId, in_query: bool, level: u8, message: String);
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
@@ -160,7 +160,7 @@ pub mod ocall {
         #[xcall(id = 3)]
         fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>);
         #[xcall(id = 5)]
-        fn emit_log(&self, contract: AccountId, level: u8, message: String);
+        fn log_to_server(&self, contract: AccountId, level: u8, message: String);
         #[xcall(id = 6)]
         fn emit_side_effects(&mut self, effects: ExecSideEffects);
         #[xcall(id = 7)]

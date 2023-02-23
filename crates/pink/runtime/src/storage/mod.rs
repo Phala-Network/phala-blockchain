@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{BoxedEventCallbacks, ExecSideEffects, System, Timestamp},
+    runtime::{ExecSideEffects, System, Timestamp},
     types::{Hash, Hashing},
 };
 use pink_capi::v1::ocall::ExecContext;
@@ -31,7 +31,6 @@ where
     pub fn execute_with<R>(
         &self,
         exec_context: &ExecContext,
-        callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects, OverlayedChanges) {
         let backend = self.backend.as_trie_backend();
@@ -44,7 +43,7 @@ where
             Timestamp::set_timestamp(exec_context.now_ms);
             System::set_block_number(exec_context.block_number);
             System::reset_events();
-            let r = crate::runtime::using_mode(exec_context.mode, callbacks, f);
+            let r = crate::runtime::using_mode(exec_context.mode, f);
             (r, crate::runtime::get_side_effects())
         });
         overlay
@@ -56,10 +55,9 @@ where
     pub fn execute_mut<R>(
         &mut self,
         context: &ExecContext,
-        callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
-        let (rv, effects, overlay) = self.execute_with(context, callbacks, f);
+        let (rv, effects, overlay) = self.execute_with(context, f);
         self.commit_changes(overlay);
         (rv, effects)
     }

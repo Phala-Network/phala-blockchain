@@ -1,6 +1,6 @@
 use frame_support::traits::Currency;
 use log::info;
-use pallet_contracts::Determinism;
+use pallet_contracts::{AddressGenerator, Determinism};
 use phala_crypto::sr25519::Sr25519SecretKey;
 use pink_capi::{
     types::{AccountId, Balance, ExecutionMode, Hash, Weight},
@@ -27,16 +27,14 @@ pub(crate) fn storage() -> crate::storage::ExternalStorage {
 
 impl Executing for crate::storage::ExternalStorage {
     fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
-        let todo = "fill query and callbacks";
         let context = OCallImpl.exec_context();
-        let (rv, _effects, _) = self.execute_with(&context, None, f);
+        let (rv, _effects, _) = self.execute_with(&context, f);
         rv
     }
 
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        let todo = "fill query and callbacks";
         let context = OCallImpl.exec_context();
-        let (rv, effects) = self.execute_mut(&context, None, f);
+        let (rv, effects) = self.execute_mut(&context, f);
         OCallImpl.emit_side_effects(effects);
         rv
     }
@@ -171,39 +169,43 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
+        let address = PalletPink::generate_address(&tx_args.origin, &code_hash, &input_data, &salt);
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
-        let todo = "log error and clear effects on error";
-        // // Send the reault to the log server
-        // if let Some(log_handler) = &log_handler {
-        //     macro_rules! send_log {
-        //         ($level: expr, $msg: expr) => {
-        //             let result = log_handler.try_send(
-        //                 SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
-        //                     block_number: block.block_number,
-        //                     contract: contract_id,
-        //                     in_query: false,
-        //                     timestamp_ms: block.now_ms,
-        //                     level: $level as usize as u8,
-        //                     message: $msg,
-        //                 }),
-        //             );
-        //             if result.is_err() {
-        //                 error!("Failed to send log to log handler");
-        //             }
-        //         };
-        //     }
-        //     match &result {
-        //         Ok(_) => {
-        //             send_log!(log::Level::Info, "Instantiated".to_owned());
-        //         }
-        //         Err(err) => {
-        //             send_log!(
-        //                 log::Level::Error,
-        //                 format!("Instantiating failed: {err:?}")
-        //             );
-        //         }
-        //     }
-        // }
+        if !result.debug_message.is_empty() {
+            let message = String::from_utf8_lossy(&result.debug_message).into_owned();
+            OCallImpl.log_to_server(
+                address.clone(),
+                log::Level::Debug as usize as _,
+                message.clone(),
+            );
+            log::debug!("[{address:?}][{mode:?}] debug_message: {message:?}");
+        }
+        match &result.result {
+            Err(err) => {
+                log::error!("[{address:?}][{mode:?}] instantiate error: {err:?}");
+                OCallImpl.log_to_server(
+                    address.clone(),
+                    log::Level::Error as usize as _,
+                    format!("instantiate failed: {err:?}"),
+                );
+            }
+            Ok(ret) if ret.result.did_revert() => {
+                log::error!("[{address:?}][{mode:?}] instantiate reverted");
+                OCallImpl.log_to_server(
+                    address.clone(),
+                    log::Level::Error as usize as _,
+                    format!("instantiate reverted"),
+                );
+            }
+            Ok(_) => {
+                log::info!("[{address:?}][{mode:?}] instantiated");
+                OCallImpl.log_to_server(
+                    address.clone(),
+                    log::Level::Info as usize as _,
+                    "instantiated".to_owned(),
+                );
+            }
+        }
         result.encode()
     }
 
@@ -214,27 +216,35 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
-        let result = crate::contract::bare_call(address, input_data, mode, tx_args);
-        let todo = "log error and clear effects on error";
-        //     if !result.debug_message.is_empty() {
-        //         ContractEventCallback::new(log_handler.clone(), context.block.block_number)
-        //             .emit_log(
-        //                 &self.instance.address,
-        //                 false,
-        //                 log::Level::Debug as usize as _,
-        //                 String::from_utf8_lossy(&result.debug_message).into_owned(),
-        //             );
-        //     }
-        // if let Err(err) = result.result {
-        //     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
-        //     if !result.debug_message.is_empty() {
-        //         let message = String::from_utf8_lossy(&result.debug_message);
-        //         log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
-        //     }
-        //     return Err(TransactionError::Other(format!(
-        //         "Call contract method failed: {err:?}"
-        //     )));
-        // }
+        let result = crate::contract::bare_call(address.clone(), input_data, mode, tx_args);
+        if !result.debug_message.is_empty() {
+            let message = String::from_utf8_lossy(&result.debug_message).into_owned();
+            OCallImpl.log_to_server(
+                address.clone(),
+                log::Level::Debug as usize as _,
+                message.clone(),
+            );
+            log::debug!("[{address:?}][{mode:?}] debug_message: {:?}", message);
+        }
+        match &result.result {
+            Err(err) => {
+                log::error!("[{address:?}][{mode:?}] command exec error: {:?}", err);
+                OCallImpl.log_to_server(
+                    address.clone(),
+                    log::Level::Error as usize as _,
+                    format!("contract call failed: {err:?}"),
+                );
+            }
+            Ok(ret) if ret.did_revert() => {
+                log::error!("[{address:?}][{mode:?}] contract reverted: {:?}", ret);
+                OCallImpl.log_to_server(
+                    address.clone(),
+                    log::Level::Error as usize as _,
+                    format!("contract call reverted"),
+                );
+            }
+            Ok(_) => {}
+        }
         result.encode()
     }
 

@@ -95,9 +95,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
 
         let address = env.ext().address().clone();
         let call_info = get_call_mode_info().expect("BUG: call ext out of runtime context");
-        let call_in_query = CallInQuery {
-            address,
-        };
+        let call_in_query = CallInQuery { address };
         let result = if call_info.mode.is_query() {
             dispatch_ext_call!(env.func_id(), call_in_query, env)
         } else {
@@ -217,7 +215,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn log(&self, level: u8, message: Cow<str>) -> Result<(), Self::Error> {
-        super::emit_log(&self.address, level, message.as_ref().into());
+        OCallImpl.log_to_server(self.address.clone(), level, message.as_ref().into());
         DefaultPinkExtension::new(self).log(level, message)
     }
 

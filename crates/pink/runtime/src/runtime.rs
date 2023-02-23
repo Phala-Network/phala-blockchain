@@ -161,12 +161,6 @@ fn detect_parameter_changes() {
     ));
 }
 
-pub trait EventCallbacks {
-    fn emit_log(&self, contract: &AccountId, mode: ExecutionMode, level: u8, message: String);
-}
-
-pub type BoxedEventCallbacks = Box<dyn EventCallbacks>;
-
 pub struct CallModeInfo {
     pub mode: ExecutionMode,
 }
@@ -174,20 +168,17 @@ pub struct CallModeInfo {
 struct CallInfo {
     mode: ExecutionMode,
     start_at: Instant,
-    callbacks: Option<BoxedEventCallbacks>,
 }
 
 environmental::environmental!(call_info: CallInfo);
 
 pub fn using_mode<T>(
     mode: ExecutionMode,
-    callbacks: Option<BoxedEventCallbacks>,
     f: impl FnOnce() -> T,
 ) -> T {
     let mut info = CallInfo {
         mode,
         start_at: Instant::now(),
-        callbacks,
     };
     call_info::using(&mut info, f)
 }
@@ -198,14 +189,6 @@ pub fn get_call_mode_info() -> Option<CallModeInfo> {
 
 pub fn get_call_elapsed() -> Option<Duration> {
     call_info::with(|info| info.start_at.elapsed())
-}
-
-pub fn emit_log(id: &AccountId, level: u8, msg: String) {
-    call_info::with(|info| {
-        if let Some(callbacks) = &info.callbacks {
-            callbacks.emit_log(id, info.mode, level, msg);
-        }
-    });
 }
 
 #[cfg(test)]

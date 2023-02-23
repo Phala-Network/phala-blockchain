@@ -154,7 +154,7 @@ impl OCalls for RuntimeHandle<'_> {
         panic!("storage_commit called on readonly cluster");
     }
 
-    fn emit_log(&self, contract: AccountId, level: u8, message: String) {
+    fn log_to_server(&self, contract: AccountId, level: u8, message: String) {
         let Some(log_handler) = self.logger.as_ref() else {
             return;
         };
@@ -171,7 +171,7 @@ impl OCalls for RuntimeHandle<'_> {
             message,
         });
         if log_handler.try_send(msg).is_err() {
-            error!("Pink emit_log failed");
+            error!("Pink send log to server failed");
         }
     }
 
@@ -202,8 +202,8 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.cluster.storage.set_root(root);
     }
 
-    fn emit_log(&self, contract: AccountId, level: u8, message: String) {
-        self.readonly().emit_log(contract, level, message)
+    fn log_to_server(&self, contract: AccountId, level: u8, message: String) {
+        self.readonly().log_to_server(contract, level, message)
     }
 
     fn emit_side_effects(&mut self, effects: ExecSideEffects) {
