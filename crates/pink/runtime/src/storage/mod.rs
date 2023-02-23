@@ -11,7 +11,7 @@ pub use in_memory_backend::InMemoryStorage;
 use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
-use pink_capi::types::ExecMode;
+use pink_capi::types::ExecutionMode;
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{
@@ -57,7 +57,7 @@ where
 {
     pub fn execute_with<R>(
         &self,
-        mode: ExecMode,
+        mode: ExecutionMode,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects, OverlayedChanges) {
@@ -80,7 +80,7 @@ where
 
     pub fn execute_mut<R>(
         &mut self,
-        mode: ExecMode,
+        mode: ExecutionMode,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {

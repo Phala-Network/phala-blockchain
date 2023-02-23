@@ -600,17 +600,16 @@ impl<Platform: pal::Platform> System<Platform> {
         contract_id: &AccountId,
         origin: Option<&chain::AccountId>,
         query: OpaqueQuery,
-        query_scheduler: RequestScheduler<ContractId>,
+        query_scheduler: RequestScheduler<AccountId>,
     ) -> Result<
-        impl Future<Output = Result<(OpaqueReply, ExecSideEffects), OpaqueError>>,
+        impl Future<Output = Result<(OpaqueReply, Option<ExecSideEffects>), OpaqueError>>,
         OpaqueError,
     > {
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        let cluster_id = contract.cluster_id();
-        let cluster = self
+        let mut cluster = self
             .contract_cluster
             .as_mut()
             .expect("BUG: contract cluster should always exists")
@@ -711,7 +710,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     None => continue 'next_contract,
                     Some(v) => v,
                 };
-                let cluster_id = contract.cluster_id();
                 let mut env = ExecuteEnv {
                     block,
                     contract_cluster: cluster,
@@ -1129,7 +1127,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     error!("Invalid origin {:?} sent a {:?}", origin, event);
                     anyhow::bail!("Invalid origin");
                 }
-                let cluster = match self.contract_cluster.remove_cluster(&cluster_id) {
+                let _cluster = match self.contract_cluster.remove_cluster(&cluster_id) {
                     // The cluster is not deployed on this worker, just ignore it.
                     None => return Ok(()),
                     Some(cluster) => cluster,
@@ -1666,8 +1664,8 @@ impl<P: pal::Platform> System<P> {
         };
         let ExecSideEffects::V1 {
             pink_events,
-            ink_events,
-            instantiated,
+            ink_events: _,
+            instantiated: _,
         } = effects;
         apply_pink_events(
             pink_events,
@@ -1793,7 +1791,7 @@ pub(crate) fn apply_pink_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     spawner: &Spawner,
-    chain_storage: &crate::ChainStorage,
+    _chain_storage: &crate::ChainStorage,
 ) {
     for (origin, event) in pink_events {
         macro_rules! get_contract {

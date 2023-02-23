@@ -17,7 +17,7 @@ use pink::{
         CrossCall,
     },
     runtimes::v1::using_ocalls,
-    types::ExecMode,
+    types::ExecutionMode,
 };
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
@@ -46,6 +46,8 @@ pub enum Query {
         deposit: u128,
         /// Amount of tokens transfer from the caller to the target contract.
         transfer: u128,
+        /// Whether to use the gas estimation mode.
+        estimating: bool,
     },
     SidevmQuery(Vec<u8>),
     InkInstantiate {
@@ -175,7 +177,7 @@ impl OCalls for RuntimeHandle<'_> {
 
     fn emit_side_effects(&mut self, _effects: ExecSideEffects) {}
 
-    fn exec_mode(&self) -> ExecMode {
+    fn exec_mode(&self) -> ExecutionMode {
         todo!()
     }
 }
@@ -208,7 +210,7 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.effects = Some(effects);
     }
 
-    fn exec_mode(&self) -> ExecMode {
+    fn exec_mode(&self) -> ExecutionMode {
         self.readonly().exec_mode()
     }
 }
@@ -395,141 +397,123 @@ impl Cluster {
     }
 
     pub(crate) async fn handle_query(
-        &self,
+        &mut self,
         contract_id: &AccountId,
         origin: Option<&AccountId>,
         req: Query,
         context: &mut QueryContext,
-    ) -> Result<(Response, ExecSideEffects), QueryError> {
-        todo!()
-        // match req {
-        //     Query::InkMessage {
-        //         payload: input_data,
-        //         deposit,
-        //         transfer,
-        //     } => {
-        //         let _guard = context
-        //             .query_scheduler
-        //             .acquire(self.id(), context.weight)
-        //             .await
-        //             .or(Err(QueryError::ServiceUnavailable))?;
+    ) -> Result<(Response, Option<ExecSideEffects>), QueryError> {
+        match req {
+            Query::InkMessage {
+                payload: input_data,
+                deposit,
+                transfer,
+                estimating,
+            } => {
+                let _guard = context
+                    .query_scheduler
+                    .acquire(contract_id.clone(), context.weight)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
 
-        //         let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-        //         let storage = &mut context.storage;
-        //         if deposit > 0 {
-        //             storage.deposit(&origin, deposit);
-        //         }
-        //         let args = TransactionArguments {
-        //             origin,
-        //             now: context.now_ms,
-        //             block_number: context.block_number,
-        //             storage,
-        //             transfer,
-        //             gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
-        //             gas_free: true,
-        //             storage_deposit_limit: None,
-        //         };
-        //         let (ink_result, effects) = self.instance.bare_call(input_data, true, args);
-        //         if let Some(log_handler) = &context.log_handler {
-        //             if !ink_result.debug_message.is_empty() {
-        //                 ContractEventCallback::new(log_handler.clone(), context.block_number)
-        //                     .emit_log(
-        //                         &self.address(),
-        //                         true,
-        //                         log::Level::Debug as usize as _,
-        //                         String::from_utf8_lossy(&ink_result.debug_message).into_owned(),
-        //                     );
-        //             }
-        //         }
-        //         if ink_result.result.is_err() {
-        //             log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
-        //             if !ink_result.debug_message.is_empty() {
-        //                 let message = String::from_utf8_lossy(&ink_result.debug_message);
-        //                 log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
-        //             }
-        //         } else {
-        //             *side_effects = effects.into_query_only_effects();
-        //         }
-        //         Ok(Response::Payload(ink_result.encode()))
-        //     }
-        //     Query::SidevmQuery(payload) => {
-        //         let handle = context
-        //             .sidevm_handle
-        //             .as_ref()
-        //             .ok_or(QueryError::SidevmNotFound)?;
-        //         let cmd_sender = match handle {
-        //             contracts::SidevmHandle::Stopped(_) => {
-        //                 return Err(QueryError::SidevmNotFound)
-        //             }
-        //             contracts::SidevmHandle::Running(sender) => sender,
-        //         };
-        //         let origin = origin.cloned().map(Into::into);
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
+                let mut runtime =
+                    self.runtime_mut(context.log_handler.clone(), context.block_number);
+                if deposit > 0 {
+                    runtime.deposit(origin.clone(), deposit);
+                }
+                let args = TransactionArguments {
+                    origin,
+                    now: context.now_ms,
+                    block_number: context.block_number,
+                    transfer,
+                    gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                    gas_free: true,
+                    storage_deposit_limit: None,
+                };
+                let mode = if estimating {
+                    ExecutionMode::Estimating
+                } else {
+                    ExecutionMode::Query
+                };
+                let ink_result = runtime.contract_call(contract_id.clone(), input_data, mode, args);
+                let effects = if mode.is_estimating() {
+                    None
+                } else {
+                    runtime.effects.take().map(|e| e.into_query_only_effects())
+                };
+                Ok((Response::Payload(ink_result), effects))
+            }
+            Query::SidevmQuery(payload) => {
+                let handle = context
+                    .sidevm_handle
+                    .as_ref()
+                    .ok_or(QueryError::SidevmNotFound)?;
+                let cmd_sender = match handle {
+                    contracts::SidevmHandle::Stopped(_) => return Err(QueryError::SidevmNotFound),
+                    contracts::SidevmHandle::Running(sender) => sender,
+                };
+                let origin = origin.cloned().map(Into::into);
 
-        //         let (reply_tx, rx) = tokio::sync::oneshot::channel();
+                let (reply_tx, rx) = tokio::sync::oneshot::channel();
 
-        //         const SIDEVM_QUERY_TIMEOUT: Duration = Duration::from_secs(60 * 5);
+                const SIDEVM_QUERY_TIMEOUT: Duration = Duration::from_secs(60 * 5);
 
-        //         tokio::time::timeout(SIDEVM_QUERY_TIMEOUT, async move {
-        //             cmd_sender
-        //                 .send(SidevmCommand::PushQuery {
-        //                     origin,
-        //                     payload,
-        //                     reply_tx,
-        //                 })
-        //                 .await
-        //                 .or(Err(QueryError::ServiceUnavailable))?;
-        //             rx.await
-        //                 .or(Err(QueryError::NoResponse))
-        //                 .map(Response::Payload)
-        //         })
-        //         .await
-        //         .or(Err(QueryError::Timeout))?
-        //     }
-        //     Query::InkInstantiate {
-        //         code_hash,
-        //         salt,
-        //         instantiate_data,
-        //         deposit,
-        //         transfer,
-        //     } => {
-        //         let _guard = context
-        //             .query_scheduler
-        //             .acquire(self.id(), context.weight)
-        //             .await
-        //             .or(Err(QueryError::ServiceUnavailable))?;
+                tokio::time::timeout(SIDEVM_QUERY_TIMEOUT, async move {
+                    cmd_sender
+                        .send(SidevmCommand::PushQuery {
+                            origin,
+                            payload,
+                            reply_tx,
+                        })
+                        .await
+                        .or(Err(QueryError::ServiceUnavailable))?;
+                    rx.await
+                        .or(Err(QueryError::NoResponse))
+                        .map(Response::Payload)
+                })
+                .await
+                .or(Err(QueryError::Timeout))?
+                .map(|response| (response, None))
+            }
+            Query::InkInstantiate {
+                code_hash,
+                salt,
+                instantiate_data,
+                deposit,
+                transfer,
+            } => {
+                let _guard = context
+                    .query_scheduler
+                    .acquire(contract_id.clone(), context.weight)
+                    .await
+                    .or(Err(QueryError::ServiceUnavailable))?;
 
-        //         let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-        //         let storage = &mut context.storage;
-        //         if deposit > 0 {
-        //             storage.deposit(&origin, deposit);
-        //         }
-        //         let args = TransactionArguments {
-        //             origin,
-        //             now: context.now_ms,
-        //             block_number: context.block_number,
-        //             storage,
-        //             transfer,
-        //             gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
-        //             gas_free: true,
-        //             storage_deposit_limit: None,
-        //         };
-        //         let (ink_result, _effects) = ::pink::Contract::instantiate(
-        //             code_hash,
-        //             instantiate_data,
-        //             salt,
-        //             true,
-        //             args,
-        //         );
-        //         if ink_result.result.is_err() {
-        //             log::error!(
-        //                 "Pink [{:?}] est instantiate error: {:?}",
-        //                 self.id(),
-        //                 ink_result
-        //             );
-        //         }
-        //         Ok(Response::Payload(ink_result.encode()))
-        //     }
-        // }
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
+                let mut runtime =
+                    self.runtime_mut(context.log_handler.clone(), context.block_number);
+                if deposit > 0 {
+                    runtime.deposit(origin.clone(), deposit);
+                }
+                let args = TransactionArguments {
+                    origin,
+                    now: context.now_ms,
+                    block_number: context.block_number,
+                    transfer,
+                    gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                    gas_free: true,
+                    storage_deposit_limit: None,
+                };
+                let ink_result = runtime.contract_instantiate(
+                    code_hash,
+                    instantiate_data,
+                    salt,
+                    ExecutionMode::Estimating,
+                    args,
+                );
+                Ok((Response::Payload(ink_result), None))
+            }
+        }
     }
 
     pub(crate) fn handle_command(
@@ -539,81 +523,61 @@ impl Cluster {
         cmd: InkCommand,
         context: &mut contracts::TransactionContext,
     ) -> TransactionResult {
-        todo!()
-        // match cmd {
-        //     InkCommand::InkMessage {
-        //         nonce,
-        //         message,
-        //         transfer,
-        //         gas_limit,
-        //         storage_deposit_limit,
-        //     } => {
-        //         let storage = &mut context.contract_cluster.storage;
-        //         let mut gas_free = false;
-        //         let origin: runtime::AccountId = match origin {
-        //             MessageOrigin::AccountId(origin) => origin.0.into(),
-        //             MessageOrigin::Pallet(_) => {
-        //                 // The caller will be set to the system contract if it's from a pallet call
-        //                 // and without charging for gas
-        //                 gas_free = true;
-        //                 storage
-        //                     .system_contract()
-        //                     .expect("BUG: system contract missing")
-        //             }
-        //             _ => return Err(TransactionError::BadOrigin),
-        //         };
+        match cmd {
+            InkCommand::InkMessage {
+                nonce,
+                message,
+                transfer,
+                gas_limit,
+                storage_deposit_limit,
+            } => {
+                let mut gas_free = false;
+                let origin: runtime::AccountId = match origin {
+                    MessageOrigin::AccountId(origin) => origin.0.into(),
+                    MessageOrigin::Pallet(_) => {
+                        // The caller will be set to the system contract if it's from a pallet call
+                        // and without charging for gas
+                        gas_free = true;
+                        self.system_contract()
+                            .expect("BUG: system contract missing")
+                    }
+                    _ => return Err(TransactionError::BadOrigin),
+                };
 
-        //         let args = TransactionArguments {
-        //             origin: origin.clone(),
-        //             now: context.block.now_ms,
-        //             block_number: context.block.block_number,
-        //             transfer,
-        //             gas_limit,
-        //             gas_free,
-        //             storage_deposit_limit,
-        //         };
+                let args = TransactionArguments {
+                    origin: origin.clone(),
+                    now: context.block.now_ms,
+                    block_number: context.block.block_number,
+                    transfer,
+                    gas_limit,
+                    gas_free,
+                    storage_deposit_limit,
+                };
 
-        //         let (result, effects) = self.instance.bare_call(message, false, args);
+                let mut runtime =
+                    self.runtime_mut(context.log_handler.clone(), context.block.block_number);
+                let output = runtime.contract_call(
+                    contract_id.clone(),
+                    message,
+                    ExecutionMode::Transaction,
+                    args,
+                );
 
-        //         if let Some(log_handler) = &context.log_handler {
-        //             let msg =
-        //                 SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
-        //                     origin: origin.into(),
-        //                     contract: self.instance.address.clone().into(),
-        //                     block_number: context.block.block_number,
-        //                     nonce: nonce.into_inner(),
-        //                     output: result.result.encode(),
-        //                 });
-        //             if log_handler.try_send(msg).is_err() {
-        //                 error!("Pink emit message output to log handler failed");
-        //             }
-        //             if !result.debug_message.is_empty() {
-        //                 ContractEventCallback::new(
-        //                     log_handler.clone(),
-        //                     context.block.block_number,
-        //                 )
-        //                 .emit_log(
-        //                     &self.instance.address,
-        //                     false,
-        //                     log::Level::Debug as usize as _,
-        //                     String::from_utf8_lossy(&result.debug_message).into_owned(),
-        //                 );
-        //             }
-        //         }
-
-        //         if let Err(err) = result.result {
-        //             log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
-        //             if !result.debug_message.is_empty() {
-        //                 let message = String::from_utf8_lossy(&result.debug_message);
-        //                 log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
-        //             }
-        //             return Err(TransactionError::Other(format!(
-        //                 "Call contract method failed: {err:?}"
-        //             )));
-        //         }
-        //         Ok(effects)
-        //     }
-        // }
+                if let Some(log_handler) = &context.log_handler {
+                    let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
+                        origin: origin.into(),
+                        contract: *contract_id.as_ref(),
+                        block_number: context.block.block_number,
+                        nonce: nonce.into_inner(),
+                        output,
+                    });
+                    if log_handler.try_send(msg).is_err() {
+                        error!("Pink emit message output to log handler failed");
+                    }
+                }
+                Ok(runtime.effects)
+            }
+        }
     }
 
     pub(crate) fn snapshot(&self) -> Self {

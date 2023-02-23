@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Result};
 use pink::{
     capi::v1::ecall::ECalls,
     storage::ClusterStorage,
-    types::{AccountId, ExecMode, TransactionArguments},
+    types::{AccountId, ExecutionMode, TransactionArguments},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -47,7 +47,7 @@ pub struct QueryContext {
     pub now_ms: u64,
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
-    pub query_scheduler: RequestScheduler<ContractId>,
+    pub query_scheduler: RequestScheduler<AccountId>,
     pub weight: u32,
 }
 
@@ -169,10 +169,6 @@ impl FatContract {
         &self.address
     }
 
-    pub(crate) fn cluster_id(&self) -> phala_mq::ContractClusterId {
-        self.cluster_id
-    }
-
     pub(crate) fn sidevm_handle(&self) -> Option<SidevmHandle> {
         self.sidevm_info
             .as_ref()
@@ -213,7 +209,6 @@ impl FatContract {
             return Ok(None);
         };
 
-        let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
         let input_data = selector.to_be_bytes();
         let tx_args = TransactionArguments {
             origin: self.address.clone(),
@@ -227,14 +222,12 @@ impl FatContract {
         let mut handle = env
             .contract_cluster
             .runtime_mut(env.log_handler.clone(), env.block.block_number);
-        _ = handle
-            .contract_call(
-                self.address().clone(),
-                input_data.to_vec(),
-                ExecMode::Transaction,
-                tx_args,
-            )
-            .map_err(|(_, s)| s)?;
+        _ = handle.contract_call(
+            self.address().clone(),
+            input_data.to_vec(),
+            ExecutionMode::Transaction,
+            tx_args,
+        );
         Ok(handle.effects)
     }
 

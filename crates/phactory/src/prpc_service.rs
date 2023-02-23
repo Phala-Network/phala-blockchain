@@ -610,9 +610,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(async move {
             let (response, effects) = query_future.await?;
 
-            effects_queue
-                .send(effects)
-                .map_err(|_| from_display("Failed to apply side effects"))?;
+            if let Some(effects) = effects {
+                effects_queue
+                    .send(effects)
+                    .map_err(|_| from_display("Failed to apply side effects"))?;
+            }
 
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,

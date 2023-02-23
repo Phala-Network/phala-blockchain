@@ -6,6 +6,7 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
+use ::pink::types::AccountId;
 use contracts::pink::Cluster;
 use glob::PatternError;
 use rand::*;
@@ -239,7 +240,7 @@ pub struct Phactory<Platform> {
     last_checkpoint: Instant,
     #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
-    query_scheduler: RequestScheduler<ContractId>,
+    query_scheduler: RequestScheduler<AccountId>,
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
@@ -251,7 +252,7 @@ pub struct Phactory<Platform> {
     trusted_sk: bool,
 }
 
-fn default_query_scheduler() -> RequestScheduler<ContractId> {
+fn default_query_scheduler() -> RequestScheduler<AccountId> {
     const FAIR_QUEUE_BACKLOG: usize = 32;
     const FAIR_QUEUE_THREADS: u32 = 8;
 

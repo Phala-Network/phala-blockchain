@@ -14,38 +14,39 @@ pub type Weight = u64;
 pub use pink_extension::{HookPoint, PinkEvent};
 
 #[derive(Decode, Encode, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExecMode {
+pub enum ExecutionMode {
     Query,
-    Estimate,
+    // todo: disable local cache in estimating mode
+    Estimating,
     Transaction,
 }
 
-impl ExecMode {
+impl ExecutionMode {
     pub fn is_query(&self) -> bool {
-        matches!(self, ExecMode::Query)
+        matches!(self, ExecutionMode::Query)
     }
 
     pub fn is_transaction(&self) -> bool {
-        matches!(self, ExecMode::Transaction)
+        matches!(self, ExecutionMode::Transaction)
     }
 
-    pub fn is_estimate(&self) -> bool {
-        matches!(self, ExecMode::Estimate)
+    pub fn is_estimating(&self) -> bool {
+        matches!(self, ExecutionMode::Estimating)
     }
 
     pub fn should_return_coarse_gas(&self) -> bool {
         match self {
-            ExecMode::Query => true,
-            ExecMode::Estimate => true,
-            ExecMode::Transaction => false,
+            ExecutionMode::Query => true,
+            ExecutionMode::Estimating => true,
+            ExecutionMode::Transaction => false,
         }
     }
 
     pub fn deterministic_required(&self) -> bool {
         match self {
-            ExecMode::Query => false,
-            ExecMode::Estimate => true,
-            ExecMode::Transaction => true,
+            ExecutionMode::Query => false,
+            ExecutionMode::Estimating => true,
+            ExecutionMode::Transaction => true,
         }
     }
 }

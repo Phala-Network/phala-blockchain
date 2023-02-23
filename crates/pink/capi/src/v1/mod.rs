@@ -34,7 +34,7 @@ pub trait OCall: CrossCall {}
 
 pub mod ecall {
     use super::{CrossCallMut, ECall, Executing};
-    use crate::types::{AccountId, Balance, BlockNumber, ExecMode, Hash, Weight};
+    use crate::types::{AccountId, Balance, BlockNumber, ExecutionMode, Hash, Weight};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
     pub trait EventCallbacks {
@@ -105,17 +105,17 @@ pub mod ecall {
             code_hash: Hash,
             input_data: Vec<u8>,
             salt: Vec<u8>,
-            mode: ExecMode,
+            mode: ExecutionMode,
             tx_args: TransactionArguments,
-        ) -> Result<Vec<u8>, (Vec<u8>, String)>;
+        ) -> Vec<u8>;
         #[xcall(id = 20)]
         fn contract_call(
             &mut self,
             contract: AccountId,
             input_data: Vec<u8>,
-            mode: ExecMode,
+            mode: ExecutionMode,
             tx_args: TransactionArguments,
-        ) -> Result<Vec<u8>, (Vec<u8>, String)>;
+        ) -> Vec<u8>;
         #[xcall(id = 21)]
         fn git_revision(&self) -> String;
         #[xcall(id = 22)]
@@ -125,7 +125,7 @@ pub mod ecall {
 
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
-    use crate::types::{AccountId, ExecMode, ExecSideEffects, Hash};
+    use crate::types::{AccountId, ExecutionMode, ExecSideEffects, Hash};
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
@@ -144,6 +144,6 @@ pub mod ocall {
         #[xcall(id = 6)]
         fn emit_side_effects(&mut self, effects: ExecSideEffects);
         #[xcall(id = 7)]
-        fn exec_mode(&self) -> ExecMode;
+        fn exec_mode(&self) -> ExecutionMode;
     }
 }

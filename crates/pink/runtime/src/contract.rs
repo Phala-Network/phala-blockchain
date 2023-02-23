@@ -1,7 +1,7 @@
 use frame_support::weights::Weight;
 use pallet_contracts::Determinism;
 use pallet_contracts_primitives::StorageDeposit;
-use pink_capi::{types::ExecMode, v1::ecall::TransactionArguments};
+use pink_capi::{types::ExecutionMode, v1::ecall::TransactionArguments};
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
@@ -133,7 +133,7 @@ pub fn instantiate(
     code_hash: Hash,
     input_data: Vec<u8>,
     salt: Vec<u8>,
-    mode: ExecMode,
+    mode: ExecutionMode,
     args: TransactionArguments,
 ) -> ContractInstantiateResult {
     let TransactionArguments {
@@ -182,7 +182,7 @@ pub fn instantiate(
 pub fn bare_call(
     address: AccountId,
     input_data: Vec<u8>,
-    mode: ExecMode,
+    mode: ExecutionMode,
     tx_args: TransactionArguments,
 ) -> ContractExecResult {
     let TransactionArguments {

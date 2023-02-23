@@ -2,7 +2,7 @@ use frame_support::traits::Currency;
 use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use pink_capi::{
-    types::{AccountId, Balance, BlockNumber, ExecMode, ExecSideEffects, Hash, Weight},
+    types::{AccountId, Balance, BlockNumber, ExecutionMode, ExecSideEffects, Hash, Weight},
     v1::{ecall, ocall::OCalls, CrossCall, Executing},
 };
 use scale::Encode;
@@ -129,30 +129,42 @@ impl ecall::ECalls for ECallImpl {
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
-        mode: ExecMode,
+        mode: ExecutionMode,
         tx_args: ecall::TransactionArguments,
-    ) -> Result<Vec<u8>, (Vec<u8>, String)> {
+    ) -> Vec<u8> {
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
-        let encoded = result.encode();
-        match &result.result {
-            Ok(_) => Ok(encoded),
-            Err(err) => Err((encoded, format!("{err:?}"))),
-        }
+        result.encode()
     }
 
     fn contract_call(
         &mut self,
         address: AccountId,
         input_data: Vec<u8>,
-        mode: ExecMode,
+        mode: ExecutionMode,
         tx_args: ecall::TransactionArguments,
-    ) -> Result<Vec<u8>, (Vec<u8>, String)> {
+    ) -> Vec<u8> {
         let result = crate::contract::bare_call(address, input_data, mode, tx_args);
-        let encoded = result.encode();
-        match &result.result {
-            Ok(_) => Ok(encoded),
-            Err(err) => Err((encoded, format!("{err:?}"))),
-        }
+        let todo = "log error";
+        //     if !result.debug_message.is_empty() {
+        //         ContractEventCallback::new(log_handler.clone(), context.block.block_number)
+        //             .emit_log(
+        //                 &self.instance.address,
+        //                 false,
+        //                 log::Level::Debug as usize as _,
+        //                 String::from_utf8_lossy(&result.debug_message).into_owned(),
+        //             );
+        //     }
+        // if let Err(err) = result.result {
+        //     log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
+        //     if !result.debug_message.is_empty() {
+        //         let message = String::from_utf8_lossy(&result.debug_message);
+        //         log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
+        //     }
+        //     return Err(TransactionError::Other(format!(
+        //         "Call contract method failed: {err:?}"
+        //     )));
+        // }
+        result.encode()
     }
 
     fn git_revision(&self) -> String {
