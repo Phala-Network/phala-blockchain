@@ -27,14 +27,14 @@ pub(crate) fn storage() -> crate::storage::ExternalStorage {
 
 impl Executing for crate::storage::ExternalStorage {
     fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
-        // todo! fill query and callbacks
+        let todo = "fill query and callbacks";
         let mode = OCallImpl.exec_mode();
         let (rv, _effects, _) = self.execute_with(mode, None, f);
         rv
     }
 
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        // todo! fill query and callbacks
+        let todo = "fill query and callbacks";
         let mode = OCallImpl.exec_mode();
         let (rv, effects) = self.execute_mut(mode, None, f);
         OCallImpl.emit_side_effects(effects);
@@ -128,13 +128,13 @@ impl ecall::ECalls for ECallImpl {
         )
         .map(|v| v.code_hash)
         .map_err(|err| {
-            //todo! log error
+            let todo = "log error";
             err.encode()
         })
     }
 
     fn upload_sidevm_code(&mut self, account: AccountId, code: Vec<u8>) -> Result<Hash, Vec<u8>> {
-        // todo: log error
+        let todo = "log error";
         PalletPink::put_sidevm_code(account, code).map_err(|err| err.encode())
     }
 
@@ -159,6 +159,7 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn code_exists(&self, code_hash: Hash, sidevm: bool) -> bool {
+        let todo = "";
         todo!()
     }
 
@@ -238,10 +239,12 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn git_revision(&self) -> String {
+        let todo = "";
         todo!()
     }
 
     fn block_number(&self) -> BlockNumber {
+        let todo = "";
         todo!()
     }
 }

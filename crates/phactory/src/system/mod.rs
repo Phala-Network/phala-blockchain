@@ -1491,7 +1491,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 system_code.len()
             );
             // register cluster
-            // todo!: merge new and setup
+            let todo = "merge new and setup";
             let mut cluster = Cluster::new(
                 &cluster_id,
                 &cluster_key,

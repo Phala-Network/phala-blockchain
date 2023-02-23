@@ -8,7 +8,8 @@ pub mod storage;
 
 pub mod types;
 
-// todo!: remove this
+const TODO: &str = "Remove exports";
+
 pub use export_fixtures::load_test_wasm;
 pub use pink_extension_runtime::local_cache;
 pub use storage::InMemoryStorage as Storage;

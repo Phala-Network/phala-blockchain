@@ -234,7 +234,7 @@ impl FatContract {
     }
 
     pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
-        // todo! disable it in the runtime
+        let todo = "disable it in the runtime";
         self.send_mq.push_data(payload, topic)
     }
 

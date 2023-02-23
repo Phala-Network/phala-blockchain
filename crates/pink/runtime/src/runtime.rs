@@ -194,6 +194,7 @@ pub fn using_mode<T>(
 }
 
 pub fn get_call_mode_info() -> Option<CallModeInfo> {
+    let todo = "worker_pubkey";
     call_info::with(|info| CallModeInfo {
         mode: info.mode,
         worker_pubkey: todo!(),

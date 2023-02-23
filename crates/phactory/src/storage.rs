@@ -133,7 +133,7 @@ mod storage_ext {
         }
 
         pub fn pink_runtime_version(&self) -> (u32, u32) {
-            // self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
+            let todo = "";
             todo!()
         }
 

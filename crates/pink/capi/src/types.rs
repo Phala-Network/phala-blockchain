@@ -14,9 +14,9 @@ pub type Weight = u64;
 pub use pink_extension::{HookPoint, PinkEvent};
 
 #[derive(Decode, Encode, Clone, Copy, Debug, PartialEq, Eq)]
+const TODO: &str = "disable local cache in estimating mode";
 pub enum ExecutionMode {
     Query,
-    // todo: disable local cache in estimating mode
     Estimating,
     Transaction,
 }

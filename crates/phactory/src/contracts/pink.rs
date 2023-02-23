@@ -70,7 +70,6 @@ pub enum QueryError {
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
-    // todo!: fill it according to chain config
     pub runtime_version: (u32, u32),
 }
 
@@ -169,6 +168,7 @@ impl OCalls for RuntimeHandle<'_> {
     fn emit_side_effects(&mut self, _effects: ExecSideEffects) {}
 
     fn exec_mode(&self) -> ExecutionMode {
+        let todo = "";
         todo!()
     }
 }
