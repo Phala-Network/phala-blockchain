@@ -1758,18 +1758,6 @@ pub(crate) fn apply_pink_events(
             };
         }
         match event {
-            PinkEvent::Message(message) => {
-                let contract = get_contract!(&origin);
-                contract.push_message(message.payload, message.topic);
-            }
-            PinkEvent::OspMessage(message) => {
-                let contract = get_contract!(&origin);
-                contract.push_osp_message(
-                    message.message.payload,
-                    message.message.topic,
-                    message.remote_pubkey.as_ref(),
-                );
-            }
             PinkEvent::SetHook {
                 hook,
                 contract: target_contract,

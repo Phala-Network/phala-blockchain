@@ -149,6 +149,7 @@ mod system {
         #[ink(message)]
         fn upgrade_system_contract(&self) -> Result<()> {
             let owner = self.ensure_owner()?;
+            let todo = "redesign";
             pink::upgrade_system_contract(owner);
             Ok(())
         }

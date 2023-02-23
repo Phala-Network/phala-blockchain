@@ -67,11 +67,8 @@ pub enum HookPoint {
 #[derive(Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEvent {
-    /// Contract pushed a raw message
-    Message(Message),
-    /// Contract pushed an osp message
-    OspMessage(OspMessage),
     /// Set contract hook
+    #[codec(index = 2)]
     SetHook {
         /// The event to hook
         hook: HookPoint,
@@ -83,6 +80,7 @@ pub enum PinkEvent {
         gas_limit: u64,
     },
     /// Deploy a sidevm instance to given contract instance
+    #[codec(index = 3)]
     DeploySidevmTo {
         /// The target contract address
         contract: AccountId,
@@ -90,29 +88,34 @@ pub enum PinkEvent {
         code_hash: Hash,
     },
     /// Push a message to the associated sidevm instance.
+    #[codec(index = 4)]
     SidevmMessage(Vec<u8>),
     /// CacheOperation
+    #[codec(index = 5)]
     CacheOp(CacheOp),
     /// Stop the side VM instance if it is running.
+    #[codec(index = 6)]
     StopSidevm,
     /// Force stop the side VM instance if it is running.
+    #[codec(index = 7)]
     ForceStopSidevm {
         /// The target contract address
         contract: AccountId,
     },
     /// Set the log handler contract for current cluster.
+    #[codec(index = 8)]
     SetLogHandler(AccountId),
     /// Set the weight of contract used to schedule queries and sidevm vruntime
+    #[codec(index = 9)]
     SetContractWeight { contract: AccountId, weight: u32 },
     /// System contract version number
+    #[codec(index = 10)]
     SystemContractUpdated { version: (u16, u16) },
 }
 
 impl PinkEvent {
     pub fn allowed_in_query(&self) -> bool {
         match self {
-            PinkEvent::Message(_) => false,
-            PinkEvent::OspMessage(_) => false,
             PinkEvent::SetHook { .. } => false,
             PinkEvent::DeploySidevmTo { .. } => true,
             PinkEvent::SidevmMessage(_) => true,
@@ -127,8 +130,6 @@ impl PinkEvent {
 
     pub fn name(&self) -> &'static str {
         match self {
-            PinkEvent::Message(_) => "Message",
-            PinkEvent::OspMessage(_) => "OspMessage",
             PinkEvent::SetHook { .. } => "SetHook",
             PinkEvent::DeploySidevmTo { .. } => "DeploySidevmTo",
             PinkEvent::SidevmMessage(_) => "SidevmMessage",
@@ -176,23 +177,6 @@ impl PinkEvent {
         let topic: &[u8] = topics[0].as_ref();
         Hash::try_from(topic).expect("Should not failed")
     }
-}
-
-/// Push a raw message to a topic accepting only vanilla messages
-///
-/// Most phala system topics accept vanilla messages
-pub fn push_message(payload: Vec<u8>, topic: Vec<u8>) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::Message(Message { payload, topic }))
-}
-
-/// Push a message to a topic accepting optional secret messages
-///
-/// Contract commands topic accept osp messages
-pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<EcdhPublicKey>) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::OspMessage(OspMessage {
-        message: Message { payload, topic },
-        remote_pubkey,
-    }))
 }
 
 /// Turn on on_block_end feature and set it's selector

@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
 use parity_scale_codec::Decode;
-use phala_crypto::ecdh::EcdhPublicKey;
-use phala_mq::{traits::MessageChannel, SignedMessageChannel};
+use phala_mq::SignedMessageChannel;
 use phala_scheduler::RequestScheduler;
 use runtime::BlockNumber;
 use sidevm::{
@@ -231,23 +230,6 @@ impl FatContract {
             selector,
             gas_limit,
         });
-    }
-
-    pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
-        let todo = "disable it in the runtime";
-        self.send_mq.push_data(payload, topic)
-    }
-
-    pub(crate) fn push_osp_message(
-        &self,
-        payload: Vec<u8>,
-        topic: Vec<u8>,
-        remote_pubkey: Option<&EcdhPublicKey>,
-    ) {
-        let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
-        secret_mq
-            .bind_remote_key(remote_pubkey)
-            .push_data(payload, topic)
     }
 
     pub(crate) fn start_sidevm(

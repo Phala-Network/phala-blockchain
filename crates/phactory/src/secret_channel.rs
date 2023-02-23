@@ -34,6 +34,7 @@ mod sender {
             SecretMessageChannel { key, mq }
         }
 
+        #[allow(dead_code)]
         pub fn bind_remote_key(
             &self,
             remote_pubkey: Option<&'a ecdh::EcdhPublicKey>,
