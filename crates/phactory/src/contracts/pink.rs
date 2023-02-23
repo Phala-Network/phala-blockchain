@@ -17,6 +17,7 @@ use pink::{
         CrossCall,
     },
     runtimes::v1::using_ocalls,
+    types::ExecMode,
 };
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
@@ -138,8 +139,8 @@ impl OCalls for RuntimeHandle<'_> {
     fn storage_root(&self) -> Option<Hash> {
         self.cluster.storage.root()
     }
+
     fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
-        log::info!("host: storage_get({:?})", key);
         self.cluster.storage.get(&key).map(|(_rc, val)| val.clone())
     }
 
@@ -148,6 +149,7 @@ impl OCalls for RuntimeHandle<'_> {
     }
 
     fn is_in_query(&self) -> bool {
+        let todo = "is_in_query";
         todo!()
     }
 
@@ -172,18 +174,22 @@ impl OCalls for RuntimeHandle<'_> {
     }
 
     fn emit_side_effects(&mut self, _effects: ExecSideEffects) {}
+
+    fn exec_mode(&self) -> ExecMode {
+        todo!()
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
     fn storage_root(&self) -> Option<Hash> {
         self.readonly().storage_root()
     }
+
     fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
         self.readonly().storage_get(key)
     }
 
     fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
-        log::info!("host: storage_commit({:?})", root);
         for (key, (value, rc)) in changes {
             self.cluster.storage.set(key, value, rc);
         }
@@ -200,6 +206,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn emit_side_effects(&mut self, effects: ExecSideEffects) {
         self.effects = Some(effects);
+    }
+
+    fn exec_mode(&self) -> ExecMode {
+        self.readonly().exec_mode()
     }
 }
 

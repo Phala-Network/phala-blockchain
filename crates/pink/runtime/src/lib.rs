@@ -8,10 +8,10 @@ pub mod storage;
 
 pub mod types;
 
-pub use contract::{Contract, ContractFile, TransactionArguments};
-pub use storage::InMemoryStorage as Storage;
+// todo!: remove this
 pub use export_fixtures::load_test_wasm;
 pub use pink_extension_runtime::local_cache;
+pub use storage::InMemoryStorage as Storage;
 
 pub use frame_support::weights;
 pub mod capi;

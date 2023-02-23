@@ -2,11 +2,10 @@ use frame_support::traits::Currency;
 use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use pink_capi::{
-    types::{AccountId, Balance, BlockNumber, ExecSideEffects, Hash, Weight},
+    types::{AccountId, Balance, BlockNumber, ExecMode, ExecSideEffects, Hash, Weight},
     v1::{ecall, ocall::OCalls, CrossCall, Executing},
 };
 use scale::Encode;
-use sp_runtime::DispatchError;
 
 use crate::runtime::{
     Balances as PalletBalances, Contracts as PalletContracts, Pink as PalletPink,
@@ -22,16 +21,16 @@ pub(crate) fn storage() -> crate::storage::ExternalStorage {
 
 impl Executing for crate::storage::ExternalStorage {
     fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
-        // todo! output effects
         // todo! fill query and callbacks
-        let (rv, effects, _) = self.execute_with(false, None, f);
+        let mode = OCallImpl.exec_mode();
+        let (rv, _effects, _) = self.execute_with(mode, None, f);
         rv
     }
 
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        // todo! output effects
         // todo! fill query and callbacks
-        let (rv, effects) = self.execute_mut(false, None, f);
+        let mode = OCallImpl.exec_mode();
+        let (rv, effects) = self.execute_mut(mode, None, f);
         OCallImpl.emit_side_effects(effects);
         rv
     }
@@ -130,19 +129,37 @@ impl ecall::ECalls for ECallImpl {
         code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
-        in_query: bool,
+        mode: ExecMode,
         tx_args: ecall::TransactionArguments,
     ) -> Result<Vec<u8>, (Vec<u8>, String)> {
-        todo!()
+        let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
+        let encoded = result.encode();
+        match &result.result {
+            Ok(_) => Ok(encoded),
+            Err(err) => Err((encoded, format!("{err:?}"))),
+        }
     }
 
     fn contract_call(
         &mut self,
-        contract: AccountId,
+        address: AccountId,
         input_data: Vec<u8>,
-        in_query: bool,
+        mode: ExecMode,
         tx_args: ecall::TransactionArguments,
     ) -> Result<Vec<u8>, (Vec<u8>, String)> {
+        let result = crate::contract::bare_call(address, input_data, mode, tx_args);
+        let encoded = result.encode();
+        match &result.result {
+            Ok(_) => Ok(encoded),
+            Err(err) => Err((encoded, format!("{err:?}"))),
+        }
+    }
+
+    fn git_revision(&self) -> String {
+        todo!()
+    }
+
+    fn block_number(&self) -> BlockNumber {
         todo!()
     }
 }

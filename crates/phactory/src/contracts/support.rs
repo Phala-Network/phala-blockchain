@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Result};
 use pink::{
     capi::v1::ecall::ECalls,
     storage::ClusterStorage,
-    types::{AccountId, TransactionArguments},
+    types::{AccountId, ExecMode, TransactionArguments},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -228,7 +228,12 @@ impl FatContract {
             .contract_cluster
             .runtime_mut(env.log_handler.clone(), env.block.block_number);
         _ = handle
-            .contract_call(self.address().clone(), input_data.to_vec(), false, tx_args)
+            .contract_call(
+                self.address().clone(),
+                input_data.to_vec(),
+                ExecMode::Transaction,
+                tx_args,
+            )
             .map_err(|(_, s)| s)?;
         Ok(handle.effects)
     }

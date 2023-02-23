@@ -1,6 +1,6 @@
 use crate::{
     runtime::{
-        Balances, BoxedEventCallbacks, CallMode, Contracts, ExecSideEffects, Pink as PalletPink,
+        Balances, BoxedEventCallbacks, Contracts, ExecSideEffects, Pink as PalletPink,
     },
     types::{AccountId, Balance, Hash, Hashing},
 };
@@ -11,6 +11,7 @@ pub use in_memory_backend::InMemoryStorage;
 use pallet_contracts::Determinism;
 use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend, MemoryDB};
+use pink_capi::types::ExecMode;
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{
@@ -56,7 +57,7 @@ where
 {
     pub fn execute_with<R>(
         &self,
-        in_query: bool,
+        mode: ExecMode,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects, OverlayedChanges) {
@@ -68,11 +69,6 @@ where
         let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
         let (rv, effects) = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             crate::runtime::System::reset_events();
-            let mode = if in_query {
-                CallMode::Query
-            } else {
-                CallMode::Command
-            };
             let r = crate::runtime::using_mode(mode, callbacks, f);
             (r, crate::runtime::get_side_effects())
         });
@@ -84,14 +80,12 @@ where
 
     pub fn execute_mut<R>(
         &mut self,
-        in_query: bool,
+        mode: ExecMode,
         callbacks: Option<BoxedEventCallbacks>,
         f: impl FnOnce() -> R,
     ) -> (R, ExecSideEffects) {
-        let (rv, effects, overlay) = self.execute_with(in_query, callbacks, f);
-        if !in_query {
-            self.commit_changes(overlay);
-        }
+        let (rv, effects, overlay) = self.execute_with(mode, callbacks, f);
+        self.commit_changes(overlay);
         (rv, effects)
     }
 

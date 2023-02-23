@@ -1,12 +1,13 @@
 use frame_support::weights::Weight;
 use pallet_contracts::Determinism;
 use pallet_contracts_primitives::StorageDeposit;
+use pink_capi::{types::ExecMode, v1::ecall::TransactionArguments};
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
 use crate::{
     runtime::{
-        BoxedEventCallbacks, Contracts, ExecSideEffects, Pink as PalletPink, System, Timestamp,
+        BoxedEventCallbacks, Contracts, ExecSideEffects, Pink as PalletPink, System, Timestamp, get_call_mode_info,
     },
     storage,
     types::{AccountId, Balance, BlockNumber, Hash},
@@ -128,240 +129,100 @@ fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> C
     result
 }
 
-#[derive(Debug, Default, Encode, Decode, Clone)]
-struct HookSelectors {
-    on_block_end: Option<(u32, Weight)>,
-}
-
-#[derive(Debug, Encode, Decode, Clone)]
-pub struct Contract {
-    pub address: AccountId,
-    hooks: HookSelectors,
-}
-
-pub struct TransactionArguments<'a> {
-    pub origin: AccountId,
-    pub now: u64,
-    pub block_number: BlockNumber,
-    pub storage: &'a mut Storage,
-    pub transfer: Balance,
-    pub gas_limit: Weight,
-    pub gas_free: bool,
-    pub storage_deposit_limit: Option<Balance>,
-    pub callbacks: Option<BoxedEventCallbacks>,
-}
-
-impl Contract {
-    /// Create a new contract instance from existing address.
-    pub fn from_address(address: AccountId) -> Self {
-        Contract {
-            address,
-            hooks: Default::default(),
-        }
-    }
-
-    /// Create a new contract instance.
-    ///
-    /// # Parameters
-    ///
-    /// * `origin`: The owner of the created contract instance.
-    /// * `code_hash`: The hash of contract code which has been uploaded.
-    /// * `input_data`: The input data to pass to the contract constructor.
-    /// * `salt`: Used for the address derivation.
-    pub fn new(
-        code_hash: Hash,
-        input_data: Vec<u8>,
-        salt: Vec<u8>,
-        in_query: bool,
-        args: TransactionArguments,
-    ) -> Result<(Self, ExecSideEffects), DispatchError> {
-        let (result, effects) = Self::instantiate(code_hash, input_data, salt, in_query, args);
-        let result = result.result?;
-        if result.result.did_revert() {
-            return Err(DispatchError::Other("Exec reverted"));
-        }
-        Ok((Self::from_address(result.account_id), effects))
-    }
-
-    pub fn instantiate(
-        code_hash: Hash,
-        input_data: Vec<u8>,
-        salt: Vec<u8>,
-        in_query: bool,
-        args: TransactionArguments,
-    ) -> (ContractInstantiateResult, ExecSideEffects) {
-        let TransactionArguments {
-            origin,
-            block_number,
-            now,
-            storage,
-            transfer,
-            gas_limit,
-            storage_deposit_limit,
-            callbacks,
-            gas_free,
-        } = args;
-        let gas_limit = gas_limit.set_proof_size(u64::MAX);
-        storage.execute_mut(in_query, callbacks, move || {
-            let result = contract_tx(
-                origin.clone(),
-                block_number,
-                now,
+pub fn instantiate(
+    code_hash: Hash,
+    input_data: Vec<u8>,
+    salt: Vec<u8>,
+    mode: ExecMode,
+    args: TransactionArguments,
+) -> ContractInstantiateResult {
+    let TransactionArguments {
+        origin,
+        block_number,
+        now,
+        transfer,
+        gas_limit,
+        storage_deposit_limit,
+        gas_free,
+    } = args;
+    let gas_limit = Weight::from_ref_time(gas_limit).set_proof_size(u64::MAX);
+    let result = contract_tx(
+        origin.clone(),
+        block_number,
+        now,
+        gas_limit,
+        gas_free,
+        move || {
+            Contracts::bare_instantiate(
+                origin,
+                transfer,
                 gas_limit,
-                gas_free,
-                move || {
-                    Contracts::bare_instantiate(
-                        origin,
-                        transfer,
-                        gas_limit,
-                        storage_deposit_limit,
-                        pallet_contracts_primitives::Code::Existing(code_hash),
-                        input_data,
-                        salt,
-                        false,
-                    )
-                },
-            );
-            log::info!("Contract instantiation result: {:?}", &result.result);
-            if in_query {
-                coarse_grained(result, PalletPink::deposit_per_byte())
-            } else {
-                result
-            }
-        })
-    }
-
-    pub fn new_with_selector(
-        code_hash: Hash,
-        selector: [u8; 4],
-        args: impl Encode,
-        salt: Vec<u8>,
-        tx_args: TransactionArguments,
-    ) -> Result<(Self, ExecSideEffects), DispatchError> {
-        let mut input_data = vec![];
-        selector.encode_to(&mut input_data);
-        args.encode_to(&mut input_data);
-        Self::new(code_hash, input_data, salt, false, tx_args)
-    }
-
-    /// Call a contract method
-    ///
-    /// # Parameters
-    /// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
-    /// # Return
-    /// Returns the SCALE encoded method return value.
-    pub fn bare_call(
-        &self,
-        input_data: Vec<u8>,
-        in_query: bool,
-        tx_args: TransactionArguments,
-    ) -> (ContractExecResult, ExecSideEffects) {
-        let TransactionArguments {
-            origin,
-            now,
-            block_number,
-            storage,
-            transfer,
-            gas_limit,
-            gas_free,
-            callbacks,
-            storage_deposit_limit,
-        } = tx_args;
-        let addr = self.address.clone();
-        let gas_limit = gas_limit.set_proof_size(u64::MAX);
-        let determinism = if in_query {
-            Determinism::AllowIndeterminism
-        } else {
-            Determinism::Deterministic
-        };
-        storage.execute_mut(in_query, callbacks, move || {
-            let result = contract_tx(
-                origin.clone(),
-                block_number,
-                now,
-                gas_limit,
-                gas_free,
-                move || {
-                    Contracts::bare_call(
-                        origin,
-                        addr,
-                        transfer,
-                        gas_limit,
-                        storage_deposit_limit,
-                        input_data,
-                        true,
-                        determinism,
-                    )
-                },
-            );
-            if in_query {
-                coarse_grained(result, PalletPink::deposit_per_byte())
-            } else {
-                result
-            }
-        })
-    }
-
-    /// Call a contract method given it's selector
-    pub fn call_with_selector<RV: Decode>(
-        &self,
-        selector: [u8; 4],
-        args: impl Encode,
-        in_query: bool,
-        tx_args: TransactionArguments,
-    ) -> (Result<RV, DispatchError>, ExecSideEffects) {
-        let mut input_data = vec![];
-        selector.encode_to(&mut input_data);
-        args.encode_to(&mut input_data);
-        let (result, effects) = self.bare_call(input_data, in_query, tx_args);
-        let result = result.result.and_then(|ret| {
-            Decode::decode(&mut &ret.data[..])
-                .map_err(|_| DispatchError::Other("Decode result failed"))
-        });
-
-        (result, effects)
-    }
-
-    /// Called by on each block end by the runtime
-    pub fn on_block_end(
-        &self,
-        storage: &mut Storage,
-        block_number: BlockNumber,
-        now: u64,
-        callbacks: Option<BoxedEventCallbacks>,
-    ) -> Result<ExecSideEffects, DispatchError> {
-        if let Some((selector, gas_limit)) = self.hooks.on_block_end {
-            let mut input_data = vec![];
-            selector.to_be_bytes().encode_to(&mut input_data);
-
-            let (result, effects) = self.bare_call(
+                storage_deposit_limit,
+                pallet_contracts_primitives::Code::Existing(code_hash),
                 input_data,
+                salt,
                 false,
-                TransactionArguments {
-                    origin: self.address.clone(),
-                    now,
-                    block_number,
-                    storage,
-                    transfer: 0,
-                    gas_limit,
-                    gas_free: false,
-                    storage_deposit_limit: None,
-                    callbacks,
-                },
-            );
-            let _ = result.result?;
-            Ok(effects)
-        } else {
-            Ok(ExecSideEffects::V1 {
-                pink_events: vec![],
-                ink_events: vec![],
-                instantiated: vec![],
-            })
-        }
+            )
+        },
+    );
+    log::info!("Contract instantiation result: {:?}", &result.result);
+    if mode.should_return_coarse_gas() {
+        coarse_grained(result, PalletPink::deposit_per_byte())
+    } else {
+        result
     }
+}
 
-    pub fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
-        self.hooks.on_block_end = Some((selector, Weight::from_ref_time(gas_limit)));
+/// Call a contract method
+///
+/// # Parameters
+/// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
+/// # Return
+/// Returns the SCALE encoded method return value.
+pub fn bare_call(
+    address: AccountId,
+    input_data: Vec<u8>,
+    mode: ExecMode,
+    tx_args: TransactionArguments,
+) -> ContractExecResult {
+    let TransactionArguments {
+        origin,
+        now,
+        block_number,
+        transfer,
+        gas_limit,
+        gas_free,
+        storage_deposit_limit,
+    } = tx_args;
+    let gas_limit = Weight::from_ref_time(gas_limit).set_proof_size(u64::MAX);
+    let determinism = if mode.deterministic_required() {
+        Determinism::Deterministic
+    } else {
+        Determinism::AllowIndeterminism
+    };
+    let result = contract_tx(
+        origin.clone(),
+        block_number,
+        now,
+        gas_limit,
+        gas_free,
+        move || {
+            Contracts::bare_call(
+                origin,
+                address,
+                transfer,
+                gas_limit,
+                storage_deposit_limit,
+                input_data,
+                true,
+                determinism,
+            )
+        },
+    );
+    if mode.should_return_coarse_gas() {
+        coarse_grained(result, PalletPink::deposit_per_byte())
+    } else {
+        result
     }
 }
 
@@ -392,40 +253,4 @@ fn contract_tx<T>(
         PalletPink::refund_gas(&origin, refund).expect("BUG: failed to refund gas");
     }
     result
-}
-
-pub use contract_file::ContractFile;
-
-mod contract_file {
-    use impl_serde::serialize as bytes;
-    use serde::Deserialize;
-    #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct ContractFile {
-        pub metadata_version: String,
-        pub source: Source,
-        pub contract: Contract,
-    }
-
-    #[derive(Debug, Deserialize)]
-    pub struct Source {
-        #[serde(with = "bytes")]
-        pub wasm: Vec<u8>,
-        #[serde(with = "bytes")]
-        pub hash: Vec<u8>,
-        pub language: String,
-        pub compiler: String,
-    }
-
-    #[derive(Debug, Deserialize)]
-    pub struct Contract {
-        pub name: String,
-        pub version: String,
-    }
-
-    impl ContractFile {
-        pub fn load(json_contract: &[u8]) -> serde_json::Result<Self> {
-            serde_json::from_slice(json_contract)
-        }
-    }
 }

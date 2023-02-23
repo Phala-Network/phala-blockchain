@@ -14,6 +14,7 @@ use frame_support::{
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 use pallet_contracts::{Config, Frame, Schedule};
+use pink_capi::types::ExecMode;
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
@@ -163,25 +164,19 @@ fn detect_parameter_changes() {
     ));
 }
 
-#[derive(Clone, Copy)]
-pub enum CallMode {
-    Query,
-    Command,
-}
-
 pub trait EventCallbacks {
-    fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String);
+    fn emit_log(&self, contract: &AccountId, mode: ExecMode, level: u8, message: String);
 }
 
 pub type BoxedEventCallbacks = Box<dyn EventCallbacks>;
 
 pub struct CallModeInfo {
-    pub mode: CallMode,
+    pub mode: ExecMode,
     pub worker_pubkey: EcdhPublicKey,
 }
 
 struct CallInfo {
-    mode: CallMode,
+    mode: ExecMode,
     start_at: Instant,
     callbacks: Option<BoxedEventCallbacks>,
 }
@@ -189,7 +184,7 @@ struct CallInfo {
 environmental::environmental!(call_info: CallInfo);
 
 pub fn using_mode<T>(
-    mode: CallMode,
+    mode: ExecMode,
     callbacks: Option<BoxedEventCallbacks>,
     f: impl FnOnce() -> T,
 ) -> T {
@@ -215,7 +210,7 @@ pub fn get_call_elapsed() -> Option<Duration> {
 pub fn emit_log(id: &AccountId, level: u8, msg: String) {
     call_info::with(|info| {
         if let Some(callbacks) = &info.callbacks {
-            callbacks.emit_log(id, matches!(info.mode, CallMode::Query), level, msg);
+            callbacks.emit_log(id, info.mode, level, msg);
         }
     });
 }

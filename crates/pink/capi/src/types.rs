@@ -13,6 +13,43 @@ pub type Weight = u64;
 
 pub use pink_extension::{HookPoint, PinkEvent};
 
+#[derive(Decode, Encode, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExecMode {
+    Query,
+    Estimate,
+    Transaction,
+}
+
+impl ExecMode {
+    pub fn is_query(&self) -> bool {
+        matches!(self, ExecMode::Query)
+    }
+
+    pub fn is_transaction(&self) -> bool {
+        matches!(self, ExecMode::Transaction)
+    }
+
+    pub fn is_estimate(&self) -> bool {
+        matches!(self, ExecMode::Estimate)
+    }
+
+    pub fn should_return_coarse_gas(&self) -> bool {
+        match self {
+            ExecMode::Query => true,
+            ExecMode::Estimate => true,
+            ExecMode::Transaction => false,
+        }
+    }
+
+    pub fn deterministic_required(&self) -> bool {
+        match self {
+            ExecMode::Query => false,
+            ExecMode::Estimate => true,
+            ExecMode::Transaction => true,
+        }
+    }
+}
+
 #[derive(Decode, Encode)]
 pub enum ExecSideEffects {
     V1 {

@@ -19,7 +19,7 @@ use sp_core::H256;
 use sp_runtime::{AccountId32, DispatchError};
 
 use crate::{
-    runtime::{get_call_elapsed, get_call_mode_info, CallMode},
+    runtime::{get_call_elapsed, get_call_mode_info},
     types::AccountId,
 };
 
@@ -99,13 +99,13 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             address,
             worker_pubkey: call_info.worker_pubkey,
         };
-        let result = if matches!(call_info.mode, CallMode::Command) {
+        let result = if call_info.mode.is_query() {
+            dispatch_ext_call!(env.func_id(), call_in_query, env)
+        } else {
             let call = CallInCommand {
                 as_in_query: call_in_query,
             };
             dispatch_ext_call!(env.func_id(), call, env)
-        } else {
-            dispatch_ext_call!(env.func_id(), call_in_query, env)
         };
         let (ret, output) = match result {
             Some(output) => output,
