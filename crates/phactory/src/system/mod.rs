@@ -1479,7 +1479,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
             // TODO(shelven): forget cluster key after expiration time
             if let Some(cluster) = &self.contract_cluster {
-                error!("Faile to deploy cluster {cluster_id:?}");
+                error!("Failed to deploy cluster {cluster_id:?}");
                 error!(
                     "Cluster {:?} is already deployed in this worker",
                     &cluster.id
@@ -1599,12 +1599,9 @@ impl<P: pal::Platform> System<P> {
         effects: ExecSideEffects,
         chain_storage: &crate::ChainStorage,
     ) {
-        let cluster = match &mut self.contract_cluster {
-            Some(cluster) => cluster,
-            None => {
-                error!("Can not apply effects: not cluster deployed");
-                return;
-            }
+        let Some(cluster) = &mut self.contract_cluster else {
+            error!("Can not apply effects: no cluster deployed");
+            return;
         };
         let ExecSideEffects::V1 {
             pink_events,
