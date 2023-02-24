@@ -8373,7 +8373,6 @@ dependencies = [
  "assert_matches",
  "env_logger 0.10.0",
  "environmental",
- "hex-literal",
  "im",
  "insta",
  "libc",

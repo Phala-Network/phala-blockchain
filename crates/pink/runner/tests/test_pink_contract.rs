@@ -1,15 +1,10 @@
-// #![allow(clippy::let_unit_value)]
-
 use assert_matches::assert_matches;
-use hex_literal::hex;
 use phala_crypto::sr25519::Persistence;
-use pink::capi::__pink_runtime_init;
 use pink_capi::v1::ecall::{ECalls, TransactionArguments};
 use pink_runner::{
     local_cache,
     types::{AccountId, Balance, ExecutionMode, Weight},
 };
-use scale::Encode;
 use sp_runtime::{app_crypto::sr25519, AccountId32};
 
 use test_cluster::TestCluster;
@@ -98,7 +93,7 @@ fn test_ink_flip() {
 fn test_ink_cross_contract_instanciate() {
     let mut cluster = TestCluster::for_test();
 
-    let code_hash = cluster
+    let _code_hash = cluster
         .upload_code(
             alice(),
             include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
@@ -193,90 +188,91 @@ fn test_use_cache() {
     );
 }
 
-// #[test]
-// #[ignore = "for dev"]
-// fn test_qjs() {
-//     use scale::{Decode, Encode};
+#[test]
+#[ignore = "for dev"]
+fn test_qjs() {
+    use scale::{Decode, Encode};
 
-//     env_logger::init();
+    env_logger::init();
 
-//     let mut storage = Storage::default();
-//     storage.set_key_seed([1u8; 64]);
-//     storage.deposit(&ALICE, ENOUGH);
-//     let checker = [];
-//     let qjs = [];
-//     // let checker = include_bytes!("../../../e2e/res/check_system/target/ink/check_system.wasm");
-//     // let qjs = include_bytes!("qjs.wasm");
+    let mut cluster = TestCluster::for_test();
+    cluster.set_key(generate_key());
 
-//     #[derive(Debug, Encode, Decode)]
-//     pub enum Output {
-//         String(String),
-//         Bytes(Vec<u8>),
-//         Undefined,
-//     }
+    let checker = [];
+    let qjs = [];
+    // let checker = include_bytes!("../../../../e2e/res/check_system/target/ink/check_system.wasm");
+    // let qjs = include_bytes!("qjs.wasm");
 
-//     let checker_hash = storage.upload_code(&ALICE, checker.to_vec(), true).unwrap();
-//     let qjs_hash = storage.upload_code(&ALICE, qjs.to_vec(), false).unwrap();
+    #[derive(Debug, Encode, Decode)]
+    pub enum Output {
+        String(String),
+        Bytes(Vec<u8>),
+        Undefined,
+    }
 
-//     let (contract, _) = Contract::new_with_selector(
-//         checker_hash,
-//         0xed4b9d1b_u32.to_be_bytes(),
-//         (),
-//         vec![],
-//         tx_args(&mut storage),
-//     )
-//     .unwrap();
+    let checker_hash = cluster
+        .upload_code(alice(), checker.to_vec(), true)
+        .unwrap();
+    let qjs_hash = cluster.upload_code(alice(), qjs.to_vec(), false).unwrap();
 
-//     local_cache::apply_quotas([(contract.address.as_ref(), 1024)]);
+    let contract = cluster
+        .instantiate_typed(
+            checker_hash,
+            0xed4b9d1b,
+            (),
+            vec![],
+            cluster.mode(),
+            tx_args(),
+        )
+        .expect("Failed to instantiate contract");
 
-//     let js = r#"
-//     (function(){
-//         console.log("Hello, World!");
-//         // return scriptArgs[1];
-//         return new Uint8Array([21, 31]);
-//     })()
-//     "#;
-//     let t0 = std::time::Instant::now();
-//     let args: Vec<String> = vec!["Hello".to_string(), "World".to_string()];
-//     let result: Result<Output, String> = contract
-//         .call_with_selector(
-//             0xf32e54c5_u32.to_be_bytes(),
-//             (qjs_hash, js, args),
-//             true,
-//             tx_args(&mut storage),
-//         )
-//         .0
-//         .unwrap();
-//     println!("evaluate result={result:?}, dt={:?}", t0.elapsed());
-// }
+    local_cache::apply_quotas([(contract.as_ref(), 1024)]);
+
+    let js = r#"
+    (function(){
+        console.log("Hello, World!");
+        // return scriptArgs[1];
+        return new Uint8Array([21, 31]);
+    })()
+    "#;
+    let t0 = std::time::Instant::now();
+    let args: Vec<String> = vec!["Hello".to_string(), "World".to_string()];
+    cluster.context.mode = ExecutionMode::Query;
+    type LangError = ();
+    let result = cluster
+        .call_typed::<_, Result<Result<Output, String>, LangError>>(
+            &contract,
+            0xf32e54c5,
+            (qjs_hash, js, args),
+            cluster.mode(),
+            tx_args(),
+        )
+        .expect("Failed to call contract");
+    println!("evaluate result={result:?}, dt={:?}", t0.elapsed());
+}
 
 mod test_cluster {
     use pink_capi::v1::{
-        ecall::{ClusterSetupConfig, ECalls},
-        ocall::{ExecContext, OCalls},
+        ecall::ECalls,
+        ocall::{ExecContext, OCalls, StorageChanges},
         CrossCall, CrossCallMut, ECall,
     };
     use pink_runner::{
         local_cache::{self, StorageQuotaExceeded},
         runtimes::v1::{using_ocalls, Runtime},
         storage::ClusterStorage,
-        types::{
-            AccountId, Balance, BlockNumber, ExecSideEffects, ExecutionMode, Hash,
-            TransactionArguments,
-        },
+        types::{AccountId, Balance, ExecSideEffects, ExecutionMode, Hash, TransactionArguments},
     };
     use scale::{Decode, Encode};
     use sp_runtime::DispatchError;
 
     use crate::ENOUGH;
 
-    use super::{ALICE, BOB};
+    use super::ALICE;
 
     pub type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
     pub type ContractInstantiateResult =
         pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
-    pub type ContractResult<T> =
-        pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance>;
 
     pub struct TestCluster {
         pub storage: ClusterStorage,
@@ -428,7 +424,7 @@ mod test_cluster {
             self.storage.get(&key).map(|(_rc, val)| val.clone())
         }
 
-        fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
+        fn storage_commit(&mut self, root: Hash, changes: StorageChanges) {
             self.storage.commit(root, changes);
         }
 

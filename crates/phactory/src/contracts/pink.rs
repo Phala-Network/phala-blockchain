@@ -12,7 +12,7 @@ use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
-        ocall::{ExecContext, OCalls},
+        ocall::{ExecContext, OCalls, StorageChanges},
     },
     local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::using_ocalls,
@@ -147,7 +147,7 @@ impl OCalls for RuntimeHandle<'_> {
         self.cluster.storage.get(&key).map(|(_rc, val)| val.clone())
     }
 
-    fn storage_commit(&mut self, _root: Hash, _changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
+    fn storage_commit(&mut self, _root: Hash, _changes: StorageChanges) {
         panic!("storage_commit called on readonly cluster");
     }
 
@@ -163,7 +163,7 @@ impl OCalls for RuntimeHandle<'_> {
                 .unwrap_or_default()
                 .as_millis() as _,
             exec_mode: context.mode.display().into(),
-            contract: contract.clone().into(),
+            contract: contract.into(),
             level,
             message,
         });
@@ -225,7 +225,7 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.readonly().storage_get(key)
     }
 
-    fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
+    fn storage_commit(&mut self, root: Hash, changes: StorageChanges) {
         self.cluster.storage.commit(root, changes);
     }
 

@@ -123,6 +123,8 @@ pub mod ocall {
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
+    pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
+
     #[derive(Decode, Encode, Clone, Debug, Default)]
     pub struct ExecContext {
         pub mode: ExecutionMode,
@@ -154,7 +156,7 @@ pub mod ocall {
         #[xcall(id = 2)]
         fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>>;
         #[xcall(id = 3)]
-        fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>);
+        fn storage_commit(&mut self, root: Hash, changes: StorageChanges);
         #[xcall(id = 5)]
         fn log_to_server(&self, contract: AccountId, level: u8, message: String);
         #[xcall(id = 6)]

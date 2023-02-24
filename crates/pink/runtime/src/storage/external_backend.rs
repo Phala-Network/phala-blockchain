@@ -38,7 +38,7 @@ impl ExternalStorage {
     pub fn instantiate() -> Self {
         let root = OCallImpl
             .storage_root()
-            .unwrap_or_else(|| sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>());
+            .unwrap_or_else(sp_trie::empty_trie_root::<sp_state_machine::LayoutV1<Hashing>>);
         let backend = TrieBackendBuilder::new(ExternalDB, root).build();
         crate::storage::Storage::new(backend)
     }

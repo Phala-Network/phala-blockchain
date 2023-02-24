@@ -17,7 +17,6 @@ environmental = "1"
 
 [dev-dependencies]
 pink = { path = "../runtime" }
-hex-literal = "0.3"
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = [
     "derive",
 ] }

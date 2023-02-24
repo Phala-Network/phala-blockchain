@@ -1,5 +1,5 @@
 use im::OrdMap;
-use pink_capi::types::Hash;
+use pink_capi::{types::Hash, v1::ocall::StorageChanges};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -40,7 +40,7 @@ impl ClusterStorage {
         }
     }
 
-    pub fn commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
+    pub fn commit(&mut self, root: Hash, changes: StorageChanges) {
         for (key, (value, rc)) in changes {
             self.update(key, value, rc);
         }

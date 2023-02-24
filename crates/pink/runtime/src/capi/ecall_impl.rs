@@ -68,7 +68,7 @@ impl ecall::ECalls for ECallImpl {
         info!("Worker: pink system code hash {:?}", code_hash);
         let selector = vec![0xed, 0x4b, 0x9d, 0x1b]; // The default() constructor
         let args = TransactionArguments {
-            origin: owner.clone(),
+            origin: owner,
             transfer: 0,
             gas_limit: Weight::MAX,
             gas_free: true,
@@ -115,7 +115,7 @@ impl ecall::ECalls for ECallImpl {
         deterministic: bool,
     ) -> Result<Hash, String> {
         crate::runtime::Contracts::bare_upload_code(
-            account.clone(),
+            account,
             code,
             None,
             if deterministic {
@@ -175,7 +175,7 @@ impl ecall::ECalls for ECallImpl {
             Err(err) => {
                 log::error!("[{address:?}][{mode:?}] instantiate error: {err:?}");
                 OCallImpl.log_to_server(
-                    address.clone(),
+                    address,
                     log::Level::Error as usize as _,
                     format!("instantiate failed: {err:?}"),
                 );
@@ -183,15 +183,15 @@ impl ecall::ECalls for ECallImpl {
             Ok(ret) if ret.result.did_revert() => {
                 log::error!("[{address:?}][{mode:?}] instantiate reverted");
                 OCallImpl.log_to_server(
-                    address.clone(),
+                    address,
                     log::Level::Error as usize as _,
-                    format!("instantiate reverted"),
+                    "instantiate reverted".into(),
                 );
             }
             Ok(_) => {
                 log::info!("[{address:?}][{mode:?}] instantiated");
                 OCallImpl.log_to_server(
-                    address.clone(),
+                    address,
                     log::Level::Info as usize as _,
                     "instantiated".to_owned(),
                 );
@@ -221,7 +221,7 @@ impl ecall::ECalls for ECallImpl {
             Err(err) => {
                 log::error!("[{address:?}][{mode:?}] command exec error: {:?}", err);
                 OCallImpl.log_to_server(
-                    address.clone(),
+                    address,
                     log::Level::Error as usize as _,
                     format!("contract call failed: {err:?}"),
                 );
@@ -229,9 +229,9 @@ impl ecall::ECalls for ECallImpl {
             Ok(ret) if ret.did_revert() => {
                 log::error!("[{address:?}][{mode:?}] contract reverted: {:?}", ret);
                 OCallImpl.log_to_server(
-                    address.clone(),
+                    address,
                     log::Level::Error as usize as _,
-                    format!("contract call reverted"),
+                    "contract call reverted".into(),
                 );
             }
             Ok(_) => {}

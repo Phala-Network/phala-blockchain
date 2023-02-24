@@ -1246,7 +1246,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
                         let tx_args = TransactionArguments {
-                            origin: deployer.clone(),
+                            origin: deployer,
                             transfer,
                             gas_limit,
                             gas_free: false,

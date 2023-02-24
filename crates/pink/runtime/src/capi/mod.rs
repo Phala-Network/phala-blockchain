@@ -7,6 +7,12 @@ pub(crate) use ocall_impl::OCallImpl;
 
 const _: init_t = Some(__pink_runtime_init);
 
+/// This is the entry point of the runtime. It will initialize the runtime and
+/// fill the ecalls table.
+///
+/// # Safety
+///
+/// Make sure pointers are valid.
 #[no_mangle]
 pub unsafe extern "C" fn __pink_runtime_init(
     config: *const config_t,
@@ -26,7 +32,7 @@ pub unsafe extern "C" fn __pink_runtime_init(
     };
     unsafe {
         ocall_impl::set_ocall_fn(ocall);
-        (&mut *ecalls).ecall = Some(ecall);
+        (*ecalls).ecall = Some(ecall);
     }
     0
 }

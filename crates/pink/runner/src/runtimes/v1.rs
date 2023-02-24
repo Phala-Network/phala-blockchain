@@ -55,7 +55,10 @@ impl Runtime {
         Runtime { handle, ecall }
     }
 
-    // for unit test
+    /// # Safety
+    ///
+    /// This is only for unit test. The pointer's in the runtime will be invalid if the original
+    /// runtime is dropped.
     pub unsafe fn dup(&self) -> Self {
         Runtime {
             handle: std::ptr::null_mut(),
