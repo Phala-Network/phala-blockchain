@@ -42,7 +42,7 @@ use phala_types::{
             BatchDispatchClusterKeyEvent, ClusterOperation, ContractOperation, ResourceType,
             WorkerClusterReport,
         },
-        CodeIndex, ContractQueryError, ConvertTo,
+        CodeIndex, ConvertTo,
     },
     messaging::{
         AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
@@ -629,11 +629,17 @@ impl<Platform: pal::Platform> System<Platform> {
         let query = deopaque_query(&query)?;
         let contract_id = contract_id.clone();
         Ok(async move {
-            cluster
+            let result = cluster
                 .handle_query(&contract_id, origin.as_ref(), query, &mut context)
-                .await
-                .map(|(reply, effects)| (reply.encode(), effects))
-                .map_err(|err| ContractQueryError::OtherError(format!("{err:?}")))
+                .await;
+            let (result, effects) = match result {
+                Ok((reply, effects)) => (Ok(reply), effects),
+                Err(err) => {
+                    log::error!("Contract query error: {:?}", err);
+                    (Err(err), None)
+                }
+            };
+            Ok((result.encode(), effects))
         })
     }
 
@@ -1252,8 +1258,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             gas_free: false,
                             storage_deposit_limit,
                         };
-                        let mut runtime =
-                            cluster.runtime_mut(log_handler.clone());
+                        let mut runtime = cluster.runtime_mut(log_handler.clone());
                         let _result = runtime.contract_instantiate(
                             code_hash,
                             contract_info.instantiate_data,

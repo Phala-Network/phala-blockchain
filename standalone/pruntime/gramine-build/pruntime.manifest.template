@@ -40,6 +40,10 @@ type = "chroot"
 path = "/etc"
 uri = "file:/etc"
 
+[[fs.mounts]]
+type = "chroot"
+path = "/pink-runtime"
+uri = "file:pink-runtime/"
 
 [sgx]
 debug = false
@@ -57,6 +61,7 @@ trusted_files = [
   "file:{{ libos }}",
   "file:pruntime",
   "file:{{ libdir }}",
+  "file:pink-runtime/",
 ]
 
 allowed_files = [

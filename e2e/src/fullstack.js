@@ -528,7 +528,7 @@ describe('A full stack', function () {
 
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.system.numberOfClusters == 1;
+                return info.system.cluster != "";
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
             const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
@@ -762,7 +762,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.system.numberOfClusters == 0;
+                return info.system.cluster == "";
             }, 4 * 6000), 'destroy cluster failed');
         });
     });
@@ -1216,16 +1216,10 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
+        fs.cpSync(pRuntimeDir, workDir, { recursive: true })
         if (inSgx) {
-            fs.cpSync(pRuntimeDir, workDir, { recursive: true })
             fs.mkdirSync(path.resolve(`${sealDir}/protected_files/`), { recursive: true });
             fs.mkdirSync(path.resolve(`${sealDir}/storage_files/`), { recursive: true });
-        } else {
-            fs.mkdirSync(sealDir, { recursive: true });
-            const filesMustCopy = ['Rocket.toml', pRuntimeBin];
-            filesMustCopy.forEach(f =>
-                fs.copyFileSync(`${pRuntimeDir}/${f}`, `${workDir}/${f}`)
-            );
         }
     }
     const args = [

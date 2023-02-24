@@ -350,7 +350,12 @@ export async function create({
                   id: dest,
                 },
                 data: {
-                  InkMessage: inputData,
+                  InkMessage: {
+                    payload: inputData,
+                    deposit: 0,
+                    transfer: value,
+                    estimating: false,
+                  },
                 },
               })
               .toHex(),

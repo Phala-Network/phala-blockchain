@@ -320,20 +320,14 @@ impl Cluster {
         self.runtime_mut(None)
     }
 
-    pub fn runtime(
-        &self,
-        logger: Option<CommandSender>,
-    ) -> RuntimeHandle {
+    pub fn runtime(&self, logger: Option<CommandSender>) -> RuntimeHandle {
         RuntimeHandle {
             cluster: self,
             logger,
         }
     }
 
-    pub fn runtime_mut(
-        &mut self,
-        logger: Option<CommandSender>,
-    ) -> RuntimeHandleMut {
+    pub fn runtime_mut(&mut self, logger: Option<CommandSender>) -> RuntimeHandleMut {
         RuntimeHandleMut {
             cluster: self,
             logger,
@@ -423,8 +417,7 @@ impl Cluster {
                 );
                 context::using(ctx, move || {
                     let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-                    let mut runtime =
-                        self.runtime_mut(context.log_handler.clone());
+                    let mut runtime = self.runtime_mut(context.log_handler.clone());
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
                     }
@@ -498,8 +491,7 @@ impl Cluster {
                     context.worker_pubkey,
                 );
                 context::using(ctx, move || {
-                    let mut runtime =
-                        self.runtime_mut(context.log_handler.clone());
+                    let mut runtime = self.runtime_mut(context.log_handler.clone());
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
                     }
@@ -559,8 +551,7 @@ impl Cluster {
                     storage_deposit_limit,
                 };
 
-                let mut runtime =
-                    self.runtime_mut(context.log_handler.clone());
+                let mut runtime = self.runtime_mut(context.log_handler.clone());
                 let output = runtime.contract_call(
                     contract_id.clone(),
                     message,

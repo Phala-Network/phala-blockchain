@@ -18,23 +18,27 @@ pub struct Runtime {
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
-pub static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    let filename = "libpink.so.1.0";
-    let handle = load_pink_library("1.0");
-    if handle.is_null() {
-        panic!("Failed to load {filename}");
+pub static RUNTIME: Lazy<Runtime> = Lazy::new(Default::default);
+
+impl Default for Runtime {
+    fn default() -> Self {
+        let filename = "libpink.so.1.0";
+        let handle = load_pink_library("1.0");
+        if handle.is_null() {
+            panic!("Failed to load {filename}");
+        }
+        let init: init_t = unsafe {
+            std::mem::transmute(libc::dlsym(
+                handle,
+                b"__pink_runtime_init\0".as_ptr() as *const _,
+            ))
+        };
+        let Some(init) = init else {
+            panic!("Failed to get initialize entry in {filename}");
+        };
+        Runtime::from_fn(init, handle, filename)
     }
-    let init: init_t = unsafe {
-        std::mem::transmute(libc::dlsym(
-            handle,
-            b"__pink_runtime_init\0".as_ptr() as *const _,
-        ))
-    };
-    let Some(init) = init else {
-        panic!("Failed to get initialize entry in {filename}");
-    };
-    Runtime::from_fn(init, handle, filename)
-});
+}
 
 impl Runtime {
     pub fn from_fn(init: InnerType<init_t>, handle: *mut c_void, filename: &str) -> Self {
