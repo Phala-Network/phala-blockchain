@@ -12,13 +12,16 @@ impl ClusterStorage {
     pub fn root(&self) -> Option<Hash> {
         self.root
     }
+
     pub fn set_root(&mut self, root: Hash) {
         self.root = Some(root);
     }
+
     pub fn get(&self, key: &[u8]) -> Option<&(i32, Vec<u8>)> {
         self.kv_store.get(key)
     }
-    pub fn set(&mut self, key: Vec<u8>, value: Vec<u8>, rc: i32) {
+
+    fn update(&mut self, key: Vec<u8>, value: Vec<u8>, rc: i32) {
         if rc == 0 {
             return;
         }
@@ -35,5 +38,12 @@ impl ClusterStorage {
                 self.kv_store.insert(key, (rc, value));
             }
         }
+    }
+
+    pub fn commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
+        for (key, (value, rc)) in changes {
+            self.update(key, value, rc);
+        }
+        self.set_root(root);
     }
 }

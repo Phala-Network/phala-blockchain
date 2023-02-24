@@ -13,7 +13,6 @@ use anyhow::Result;
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
 type ContractInstantiateResult =
     pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
-
 type ContractResult<T> =
     pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance>;
 
@@ -159,7 +158,7 @@ pub fn instantiate(
             pallet_contracts_primitives::Code::Existing(code_hash),
             input_data,
             salt,
-            false,
+            true,
         )
     });
     log::info!("Contract instantiation result: {:?}", &result.result);

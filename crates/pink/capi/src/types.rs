@@ -59,7 +59,7 @@ impl ExecutionMode {
     }
 }
 
-#[derive(Decode, Encode)]
+#[derive(Decode, Encode, Debug)]
 pub enum ExecSideEffects {
     V1 {
         pink_events: Vec<(AccountId, PinkEvent)>,

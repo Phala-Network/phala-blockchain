@@ -25,7 +25,7 @@ use sp_core::sr25519;
 use ::pink::{
     capi::v1,
     constants::WEIGHT_REF_TIME_PER_SECOND,
-    types::{AccountId, Balance, BlockNumber, ExecSideEffects, Hash, TransactionArguments},
+    types::{AccountId, Balance, ExecSideEffects, Hash, TransactionArguments},
 };
 
 pub use phala_types::contract::InkCommand;
@@ -84,7 +84,6 @@ pub struct Cluster {
 pub struct RuntimeHandleMut<'a> {
     cluster: &'a mut Cluster,
     logger: Option<CommandSender>,
-    block_number: BlockNumber,
     pub(crate) effects: Option<ExecSideEffects>,
 }
 
@@ -93,7 +92,6 @@ impl RuntimeHandleMut<'_> {
         RuntimeHandle {
             cluster: self.cluster,
             logger: self.logger.clone(),
-            block_number: self.block_number,
         }
     }
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
@@ -104,7 +102,6 @@ impl RuntimeHandleMut<'_> {
 pub struct RuntimeHandle<'a> {
     cluster: &'a Cluster,
     logger: Option<CommandSender>,
-    block_number: BlockNumber,
 }
 
 impl RuntimeHandle<'_> {
@@ -112,7 +109,6 @@ impl RuntimeHandle<'_> {
         RuntimeHandle {
             cluster: self.cluster,
             logger: self.logger.clone(),
-            block_number: self.block_number,
         }
     }
     fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
@@ -161,7 +157,7 @@ impl OCalls for RuntimeHandle<'_> {
         };
         let context = self.exec_context();
         let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
-            block_number: self.block_number,
+            block_number: context.block_number,
             timestamp_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -230,10 +226,7 @@ impl OCalls for RuntimeHandleMut<'_> {
     }
 
     fn storage_commit(&mut self, root: Hash, changes: Vec<(Vec<u8>, (Vec<u8>, i32))>) {
-        for (key, (value, rc)) in changes {
-            self.cluster.storage.set(key, value, rc);
-        }
-        self.cluster.storage.set_root(root);
+        self.cluster.storage.commit(root, changes);
     }
 
     fn log_to_server(&self, contract: AccountId, level: u8, message: String) {
@@ -320,34 +313,30 @@ impl Cluster {
     }
 
     pub fn default_runtime(&self) -> RuntimeHandle {
-        self.runtime(None, 0)
+        self.runtime(None)
     }
 
     pub fn default_runtime_mut(&mut self) -> RuntimeHandleMut {
-        self.runtime_mut(None, 0)
+        self.runtime_mut(None)
     }
 
     pub fn runtime(
         &self,
         logger: Option<CommandSender>,
-        block_number: BlockNumber,
     ) -> RuntimeHandle {
         RuntimeHandle {
             cluster: self,
             logger,
-            block_number,
         }
     }
 
     pub fn runtime_mut(
         &mut self,
         logger: Option<CommandSender>,
-        block_number: BlockNumber,
     ) -> RuntimeHandleMut {
         RuntimeHandleMut {
             cluster: self,
             logger,
-            block_number,
             effects: None,
         }
     }
@@ -435,7 +424,7 @@ impl Cluster {
                 context::using(ctx, move || {
                     let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                     let mut runtime =
-                        self.runtime_mut(context.log_handler.clone(), context.block_number);
+                        self.runtime_mut(context.log_handler.clone());
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
                     }
@@ -510,7 +499,7 @@ impl Cluster {
                 );
                 context::using(ctx, move || {
                     let mut runtime =
-                        self.runtime_mut(context.log_handler.clone(), context.block_number);
+                        self.runtime_mut(context.log_handler.clone());
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
                     }
@@ -571,7 +560,7 @@ impl Cluster {
                 };
 
                 let mut runtime =
-                    self.runtime_mut(context.log_handler.clone(), context.block.block_number);
+                    self.runtime_mut(context.log_handler.clone());
                 let output = runtime.contract_call(
                     contract_id.clone(),
                     message,

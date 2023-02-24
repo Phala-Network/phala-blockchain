@@ -1,6 +1,6 @@
 extern crate alloc;
 
-mod capi;
+pub mod capi;
 mod contract;
 mod runtime;
 mod storage;

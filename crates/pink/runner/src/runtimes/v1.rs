@@ -14,6 +14,7 @@ pub struct Runtime {
     handle: *const c_void,
     ecall: InnerType<cross_call_fn_t>,
 }
+
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
@@ -32,25 +33,42 @@ pub static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
     let Some(init) = init else {
         panic!("Failed to get initialize entry in {filename}");
     };
-    let config = config_t {
-        is_dylib: 1,
-        enclaved: in_enclave(),
-        ocall: Some(ocall),
-    };
-    let mut ecalls = ecalls_t::default();
-    unsafe {
-        if init(&config, &mut ecalls) != 0 {
-            panic!("Failed to initialize {filename}");
-        }
-    };
-    let Some(ecall) = ecalls.ecall else {
-        panic!("Failed to get ecall entry in {filename}");
-    };
-    Runtime { handle, ecall }
+    Runtime::from_fn(init, handle, filename)
 });
+
+impl Runtime {
+    pub fn from_fn(init: InnerType<init_t>, handle: *mut c_void, filename: &str) -> Self {
+        let config = config_t {
+            is_dylib: if handle.is_null() { 0 } else { 1 },
+            enclaved: in_enclave(),
+            ocall: Some(ocall),
+        };
+        let mut ecalls = ecalls_t::default();
+        unsafe {
+            if init(&config, &mut ecalls) != 0 {
+                panic!("Failed to initialize {filename}");
+            }
+        };
+        let Some(ecall) = ecalls.ecall else {
+            panic!("Failed to get ecall entry in {filename}");
+        };
+        Runtime { handle, ecall }
+    }
+
+    // for unit test
+    pub unsafe fn dup(&self) -> Self {
+        Runtime {
+            handle: std::ptr::null_mut(),
+            ecall: self.ecall,
+        }
+    }
+}
 
 impl Drop for Runtime {
     fn drop(&mut self) {
+        if self.handle.is_null() {
+            return;
+        }
         unsafe {
             libc::dlclose(self.handle as *mut _);
         }

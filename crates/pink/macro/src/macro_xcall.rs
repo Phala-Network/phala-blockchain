@@ -232,7 +232,7 @@ fn gen_call_impl_ro(
     let impl_methods: Result<Vec<TokenStream>> =
         methods.into_iter().map(gen_call_impl_method).collect();
     let impl_methods = impl_methods?;
-    let trait_ro = Ident::new(&format!("{}Ro", trait_name), Span::call_site());
+    let trait_ro = Ident::new(&format!("{trait_name}Ro"), Span::call_site());
     Ok(parse_quote! {
         pub trait #trait_ro {
             #(#trait_methods)*

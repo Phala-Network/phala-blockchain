@@ -1,0 +1,28 @@
+---
+source: crates/pink/runner/tests/test_pink_contract.rs
+assertion_line: 59
+expression: result
+---
+ContractResult {
+    gas_consumed: Weight {
+        ref_time: 1326692472,
+        proof_size: 27932,
+    },
+    gas_required: Weight {
+        ref_time: 96468992000,
+        proof_size: 2097152,
+    },
+    storage_deposit: StorageDeposit::Charge(
+        1,
+    ),
+    debug_message: [],
+    result: Ok(
+        InstantiateReturnValue {
+            result: ExecReturnValue {
+                flags: (empty),
+                data: [],
+            },
+            account_id: 35db55bc9f81c9b14ae536cc43c37786f3ff62fe5247a4dccfd7ba3c8bf316af (5DHKYvFE...),
+        },
+    ),
+}

@@ -8370,15 +8370,23 @@ dependencies = [
 name = "pink-runner"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
+ "env_logger 0.10.0",
  "environmental",
+ "hex-literal",
  "im",
+ "insta",
  "libc",
  "log",
  "once_cell",
+ "pallet-contracts-primitives",
+ "parity-scale-codec",
  "phala-crypto",
+ "pink",
  "pink-capi",
  "pink-extension-runtime",
  "serde",
+ "sp-runtime",
  "sp-weights",
 ]
 

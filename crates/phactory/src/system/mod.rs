@@ -1253,7 +1253,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             storage_deposit_limit,
                         };
                         let mut runtime =
-                            cluster.runtime_mut(log_handler.clone(), block.block_number);
+                            cluster.runtime_mut(log_handler.clone());
                         let _result = runtime.contract_instantiate(
                             code_hash,
                             contract_info.instantiate_data,

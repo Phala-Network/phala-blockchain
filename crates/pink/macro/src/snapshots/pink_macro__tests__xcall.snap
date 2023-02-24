@@ -13,7 +13,7 @@ pub trait ECalls {
     ) -> Result<Hash, u32>;
     fn set_id(&mut self, id: Hash) -> Result<Hash, u32>;
 }
-impl<T: Impl + ImplMut> ECalls for T {
+impl<T: Impl + CrossCallMut> ECalls for T {
     fn instantiate(
         &self,
         code_hash: Hash,
@@ -31,8 +31,7 @@ impl<T: Impl + ImplMut> ECalls for T {
         Decode::decode(&mut &ret[..]).expect("Decode failed")
     }
 }
-trait ECallsRo {
-    #[xcall(id = 1)]
+pub trait ECallsRo {
     fn instantiate(
         &self,
         code_hash: Hash,

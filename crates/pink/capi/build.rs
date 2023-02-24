@@ -1,6 +1,7 @@
 fn main() {
     let rootdir = std::env::var("CARGO_MANIFEST_DIR").expect("Missing CARGO_MANIFEST_DIR");
     let capi_dir = format!("{rootdir}/src");
+    #[allow(clippy::single_element_loop)]
     for ver in ["v1"] {
         println!("cargo:rerun-if-changed={capi_dir}/{ver}/types.h");
         let bindings = bindgen::Builder::default()

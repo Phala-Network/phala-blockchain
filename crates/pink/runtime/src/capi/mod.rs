@@ -38,7 +38,6 @@ unsafe extern "C" fn ecall(
     ctx: *mut ::core::ffi::c_void,
     output_fn: output_fn_t,
 ) {
-    log::info!("ecall: {}", call_id);
     let input = unsafe { std::slice::from_raw_parts(data, len) };
     let output = ecall::executing_dispatch(
         &mut ecall_impl::storage(),

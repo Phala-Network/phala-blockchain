@@ -216,7 +216,7 @@ impl FatContract {
         };
         let mut handle = env
             .contract_cluster
-            .runtime_mut(env.log_handler.clone(), env.block.block_number);
+            .runtime_mut(env.log_handler.clone());
         _ = handle.contract_call(
             self.address().clone(),
             input_data.to_vec(),
