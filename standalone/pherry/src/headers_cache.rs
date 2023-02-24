@@ -270,7 +270,7 @@ pub async fn grab_headers(
     Ok(grabbed)
 }
 
-async fn grab_para_headers(
+pub async fn grab_para_headers(
     api: &ParachainApi,
     start_at: BlockNumber,
     count: BlockNumber,
@@ -298,7 +298,7 @@ async fn grab_para_headers(
     Ok(grabbed)
 }
 
-async fn grab_storage_changes(
+pub async fn grab_storage_changes(
     api: &ParachainApi,
     start_at: BlockNumber,
     count: BlockNumber,

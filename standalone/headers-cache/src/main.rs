@@ -148,7 +148,14 @@ enum Action {
         genesis_block: BlockNumber,
         /// Auto grab new headers from the node
         #[clap(long)]
-        grab: bool,
+        #[arg(visible_alias = "grab")]
+        grab_headers: bool,
+        /// Auto grab new parachain headers from the node
+        #[clap(long)]
+        grab_para_headers: bool,
+        /// Auto grab new storage changes from the node
+        #[clap(long)]
+        grab_storage_changes: bool,
         /// The relaychain RPC endpoint
         #[clap(long, default_value = "ws://localhost:9945")]
         node_uri: String,
@@ -156,7 +163,7 @@ enum Action {
         #[clap(long, default_value = "ws://localhost:9944")]
         para_node_uri: String,
         /// Interval that start a batch of grab
-        #[clap(long, default_value_t = 600)]
+        #[clap(long, default_value_t = 30)]
         interval: u64,
         /// Prefered minimum number of blocks between justification
         #[arg(long, default_value_t = 1000)]
@@ -341,16 +348,18 @@ async fn main() -> anyhow::Result<()> {
             db,
             mirror,
             genesis_block,
-            grab,
             node_uri,
             para_node_uri,
             interval,
             justification_interval,
+            grab_headers,
+            grab_para_headers,
+            grab_storage_changes,
         } => {
             let db = db::CacheDB::open(&db)?;
 
             if let Some(upstream) = mirror {
-                if grab {
+                if grab_headers {
                     error!("ignored --grab since --mirror is turned on");
                 }
                 let db = db.clone();
@@ -361,7 +370,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                     std::process::exit(1);
                 });
-            } else if grab {
+            } else if grab_headers {
                 let db = db.clone();
                 tokio::spawn(async move {
                     let result = grab::run(
@@ -371,6 +380,11 @@ async fn main() -> anyhow::Result<()> {
                         interval,
                         justification_interval,
                         genesis_block,
+                        grab::Config {
+                            grab_headers,
+                            grab_para_headers,
+                            grab_storage_changes,
+                        },
                     )
                     .await;
                     if let Err(err) = result {
