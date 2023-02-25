@@ -138,6 +138,10 @@ struct Serve {
     /// Auto grab new storage changes from the node
     #[clap(long)]
     grab_storage_changes: bool,
+    /// Batch size for grabing storage changes
+    #[clap(long)]
+    #[clap(default_value_t = 4)]
+    grab_storage_changes_batch: BlockNumber,
     /// The relaychain RPC endpoint
     #[clap(long, default_value = "ws://localhost:9945")]
     node_uri: String,
@@ -223,7 +227,7 @@ async fn main() -> anyhow::Result<()> {
     match args.action {
         Action::Grab { what } => grab(what).await?,
         Action::Import { db, what } => import(db, what).await?,
-        Action::Serve(args) => serve(args).await?,
+        Action::Serve(config) => serve(config).await?,
         Action::Split { size, file } => split(size, file)?,
         Action::Merge {
             append,
@@ -242,51 +246,26 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn serve(
-    Serve {
-        db,
-        mirror,
-        genesis_block,
-        node_uri,
-        para_node_uri,
-        interval,
-        justification_interval,
-        grab_headers,
-        grab_para_headers,
-        grab_storage_changes,
-    }: Serve,
-) -> anyhow::Result<()> {
-    let db = db::CacheDB::open(&db)?;
+async fn serve(config: Serve) -> anyhow::Result<()> {
+    let db = db::CacheDB::open(&config.db)?;
 
-    if let Some(upstream) = mirror {
-        if grab_headers {
+    if let Some(upstream) = config.mirror.clone() {
+        if config.grab_headers {
             error!("ignored --grab since --mirror is turned on");
         }
         let db = db.clone();
         tokio::spawn(async move {
-            let result = web_api::sync_from(db, &upstream, interval, genesis_block).await;
+            let result =
+                web_api::sync_from(db, &upstream, config.interval, config.genesis_block).await;
             if let Err(err) = result {
                 error!("The mirror task exited with error: {}", err);
             }
             std::process::exit(1);
         });
-    } else if grab_headers {
+    } else if config.grab_headers {
         let db = db.clone();
         tokio::spawn(async move {
-            let result = grab::run(
-                db,
-                &node_uri,
-                &para_node_uri,
-                interval,
-                justification_interval,
-                genesis_block,
-                grab::Config {
-                    grab_headers,
-                    grab_para_headers,
-                    grab_storage_changes,
-                },
-            )
-            .await;
+            let result = grab::run(db, config).await;
             if let Err(err) = result {
                 error!("The grabbing task exited with error: {}", err);
             }
