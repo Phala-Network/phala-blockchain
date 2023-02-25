@@ -36,7 +36,7 @@ export class OnChainRegistry {
       result.forEach(([storageKey, value]) => {
         const clusterId = storageKey.toHuman()
       // @ts-ignore
-        const clusterInfo = value.unwrap().toHuman()
+        const clusterInfo = value.unwrap().toJSON()
       // @ts-ignore
         clusters[clusterId] = clusterInfo
       // @ts-ignore
