@@ -190,7 +190,7 @@ export class PinkContractPromise {
       sk
     );
 
-    const asyncMethod = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
+    const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
       // @ts-ignore
       const cert = await signCertificate({ pair: origin, api });
       const payload = api.createType("InkQuery", {
@@ -224,7 +224,7 @@ export class PinkContractPromise {
     }
 
     return {
-      send: this._decorateMethod((origin: string | AccountId | Uint8Array) => from(asyncMethod(origin)))
+      send: this._decorateMethod((origin: string | AccountId | Uint8Array) => from(inkQueryInternal(origin)))
     };
   };
 
@@ -239,7 +239,7 @@ export class PinkContractPromise {
 
     const commandAgreementKey = sr25519Agree(hexToU8a(this.contractKey), sk);
 
-    const asyncMethod = (dest: AccountId, value: BN, gas: { refTime: BN }, storageDepositLimit: BN | undefined, encParams: Uint8Array) => {
+    const inkCommandInternal = (dest: AccountId, value: BN, gas: { refTime: BN }, storageDepositLimit: BN | undefined, encParams: Uint8Array) => {
       // @ts-ignore
       const payload = api.createType("InkCommand", {
         InkMessage: {
@@ -257,7 +257,7 @@ export class PinkContractPromise {
       return pinkCommand(api, pk, commandAgreementKey, { contractId: dest.toHex(), payload: payload.toHex(), deposit })
     }
 
-    return asyncMethod(
+    return inkCommandInternal(
       this.address,
       // @ts-ignore
       value,
