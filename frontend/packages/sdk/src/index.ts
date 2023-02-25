@@ -1,6 +1,6 @@
 import { pruntime_rpc } from "./proto";
 import system from './abis/system.json';
-import log_server from './abis/log_server.json';
+import logServer from './abis/log_server.json';
 
 export * from "./lib/types";
 export * from "./lib/hex";
@@ -10,4 +10,4 @@ export * from "./contracts/PinkContract";
 export * from './OnChainRegistry';
 
 export const PhactoryAPI = pruntime_rpc.PhactoryAPI;
-export const abis = { system, log_server };
+export const abis = { system, logServer };
