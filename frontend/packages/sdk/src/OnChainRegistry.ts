@@ -43,7 +43,9 @@ export class OnChainRegistry {
         clusters.push([clusterId, clusterInfo])
       })
     }
-    [this.clusterId, this.clusterInfo] = clusters[0]
+    this.clusterId = clusters[0][0][0]
+    this.clusterInfo = clusters[0][1]
+
     // @ts-ignore
     this.remotePubkey = this.clusterInfo.workers[0]
 
