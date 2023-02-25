@@ -100,25 +100,18 @@ function pinkCommand(
     deposit: BN;
   }
 ) {
-    const encodedPayload = api
-      .createType("CommandPayload", {
-        encrypted: createEncryptedData(pk, payload, commandAgreementKey),
-      })
-      .toHex();
+  const encodedPayload = api
+    .createType("CommandPayload", {
+      encrypted: createEncryptedData(pk, payload, commandAgreementKey),
+    })
+    .toHex();
 
-    try {
-      return api.tx.phalaFatContracts.pushContractMessage(
-        contractId,
-        encodedPayload,
-        deposit
-      );
-    } catch (err) {
-      return api.tx.phalaMq.pushMessage(
-        stringToHex(`phala/contract/${hexStripPrefix(contractId)}/command`),
-        encodedPayload
-      );
-    }
-  };
+  return api.tx.phalaFatContracts.pushContractMessage(
+    contractId,
+    encodedPayload,
+    deposit
+  );
+};
 
 
 export class PinkContractPromise {
@@ -130,7 +123,6 @@ export class PinkContractPromise {
   readonly phatRegistry: OnChainRegistry;
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>;
-  protected readonly _isWeightV1: boolean;
 
   readonly #query: MapMessageQuery<'promise'> = {};
   readonly #tx: MapMessageTx<'promise'> = {};
@@ -148,7 +140,6 @@ export class PinkContractPromise {
       : new Abi(abi, api.registry.getChainProperties());
     this.api = api;
     this._decorateMethod = toPromiseMethod;
-    this._isWeightV1 = !api.registry.createType<WeightV2>('Weight').proofSize;
 
     this.address = this.registry.createType('AccountId', address);
     this.contractKey = contractKey
@@ -261,11 +252,7 @@ export class PinkContractPromise {
       this.address,
       // @ts-ignore
       value,
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore jiggle v1 weights, metadata points to latest
-      this._isWeightV1
-        ? convertWeight(gasLimit).v1Weight
-        : convertWeight(gasLimit).v2Weight,
+      convertWeight(gasLimit).v2Weight,
       storageDepositLimit,
       this.abi.findMessage(messageOrId).toU8a(params)
     ).withResultTransform((result: ISubmittableResult) =>
