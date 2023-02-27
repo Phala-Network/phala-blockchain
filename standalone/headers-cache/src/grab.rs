@@ -85,7 +85,7 @@ impl<'c> Crawler<'c> {
                 .context("Failed to fetch genesis info")?;
             db.put_genesis(config.genesis_block, &genesis.encode())?;
             metadata.put_genesis(config.genesis_block);
-            db.put_metadata(&metadata)?;
+            db.put_metadata(metadata)?;
             info!("Got genesis at {}", config.genesis_block);
         }
         Self {
