@@ -189,6 +189,16 @@ pub trait PinkExt {
     /// Check whether the code exists in the cluster storage.
     #[ink(extension = 19, handle_status = false)]
     fn code_exists(code_hash: Hash, sidevm: bool) -> bool;
+
+    /// This loads the latest system contract code from chain storage to the cluster storage.
+    ///
+    /// Returns the code hash of the latest system contract code.
+    #[ink(extension = 20, handle_status = false)]
+    fn import_latest_system_code(payer: AccountId) -> Option<Hash>;
+
+    /// Get the version of the current contract runtime in this cluster.
+    #[ink(extension = 21, handle_status = false)]
+    fn runtime_version() -> (u32, u32);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

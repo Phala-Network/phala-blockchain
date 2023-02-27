@@ -83,6 +83,12 @@ mod storage_ext {
             me
         }
 
+        pub fn snapshot(&self) -> Self {
+            Self {
+                trie_storage: self.trie_storage.snapshot(),
+            }
+        }
+
         pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
             self.trie_storage.load(pairs);
         }

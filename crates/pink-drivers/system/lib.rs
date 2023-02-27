@@ -10,7 +10,7 @@ pub use system::System;
 mod system {
     use super::pink;
     use alloc::string::String;
-    use ink::storage::Mapping;
+    use ink::{codegen::Env, env::call, storage::Mapping};
     use pink::system::{ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
@@ -35,6 +35,15 @@ mod system {
             }
         }
 
+        #[ink(message, selector = 0x0b95be48)]
+        pub fn do_upgrade(&self, _from_version: (u16, u16)) -> Result<()> {
+            self.ensure_self()?;
+            self.ensure_min_runtime_version((1, 0))?;
+            Ok(())
+        }
+    }
+
+    impl System {
         fn ensure_owner(&self) -> Result<AccountId> {
             let caller = self.env().caller();
             if caller == self.owner {
@@ -64,12 +73,24 @@ mod system {
                 Err(Error::PermisionDenied)
             }
         }
+
+        fn ensure_min_runtime_version(&self, version: (u32, u32)) -> Result<()> {
+            if pink::ext().runtime_version() >= version {
+                Ok(())
+            } else {
+                Err(Error::ConditionNotMet)
+            }
+        }
+
+        fn version(&self) -> (u16, u16) {
+            (1, 0)
+        }
     }
 
     impl pink::system::System for System {
         #[ink(message)]
         fn version(&self) -> (u16, u16) {
-            (0, 0)
+            self.version()
         }
 
         #[ink(message)]
@@ -148,9 +169,44 @@ mod system {
 
         #[ink(message)]
         fn upgrade_system_contract(&self) -> Result<()> {
-            let owner = self.ensure_owner()?;
-            let todo = "redesign";
-            pink::upgrade_system_contract(owner);
+            let caller = self.ensure_owner()?;
+            pink::info!("Upgrading system contract...");
+            let Some(code_hash) = pink::ext().import_latest_system_code(caller) else {
+                pink::error!("No new version of system contract found.");
+                return Err(Error::CodeNotFound);
+            };
+            let my_code_hash = self
+                .env()
+                .code_hash(&self.env().account_id())
+                .expect("Code hash should exists here.");
+            if my_code_hash == code_hash.into() {
+                pink::info!("No new version of system contract found.");
+                return Ok(());
+            }
+            // Call the `do_upgrade` from the new version of system contract.
+            call::build_call::<pink::PinkEnvironment>()
+                .call_type(call::DelegateCall::new(code_hash.into()))
+                .exec_input(
+                    call::ExecutionInput::new(call::Selector::new(0x0b95be48_u32.to_be_bytes()))
+                        .push_arg(self.version()),
+                )
+                .returns::<Result<()>>()
+                .invoke()
+                // panic here to revert the state change.
+                .expect("Failed to upgrade system contract.");
+            ink::env::set_code_hash(&code_hash)
+                .expect("Code should exists here or the delegate call would fail");
+            pink::info!("System contract upgraded successfully.");
+            Ok(())
+        }
+
+        /// Upgrade the contract runtime
+        ///
+        /// Be careful when using this function, it would panic the worker if the
+        /// runtime version is not supported.
+        #[ink(message)]
+        fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()> {
+            pink::upgrade_runtime(version);
             Ok(())
         }
     }

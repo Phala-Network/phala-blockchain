@@ -22,10 +22,16 @@ pub static RUNTIME: Lazy<Runtime> = Lazy::new(Default::default);
 
 impl Default for Runtime {
     fn default() -> Self {
-        let filename = "libpink.so.1.0";
-        let handle = load_pink_library("1.0");
+        Self::load_by_version((1, 0))
+    }
+}
+
+impl Runtime {
+    pub fn load_by_version(version: (u32, u32)) -> Self {
+        let (major, minor) = version;
+        let handle = load_pink_library(version);
         if handle.is_null() {
-            panic!("Failed to load {filename}");
+            panic!("Failed to load pink dylib {major}.{minor}");
         }
         let init: init_t = unsafe {
             std::mem::transmute(libc::dlsym(
@@ -34,14 +40,13 @@ impl Default for Runtime {
             ))
         };
         let Some(init) = init else {
-            panic!("Failed to get initialize entry in {filename}");
+            panic!("Failed to get initialize entry in pink dylib {major}.{minor}");
         };
-        Runtime::from_fn(init, handle, filename)
+        Runtime::from_fn(init, handle, version)
     }
-}
 
-impl Runtime {
-    pub fn from_fn(init: InnerType<init_t>, handle: *mut c_void, filename: &str) -> Self {
+    pub fn from_fn(init: InnerType<init_t>, handle: *mut c_void, version: (u32, u32)) -> Self {
+        let filename = format!("libpink.so.{}.{}", version.0, version.1);
         let config = config_t {
             is_dylib: if handle.is_null() { 0 } else { 1 },
             enclaved: in_enclave(),
@@ -53,6 +58,14 @@ impl Runtime {
                 panic!("Failed to initialize {filename}");
             }
         };
+        let Some(get_version) = ecalls.get_version else {
+            panic!("Failed to get ecall entry in {filename}");
+        };
+        let (mut major, mut minor) = (0, 0);
+        unsafe { get_version(&mut major, &mut minor) };
+        if (major, minor) != version {
+            panic!("Version mismatch in {filename}, expect {version:?}, got ({major},{minor})");
+        }
         let Some(ecall) = ecalls.ecall else {
             panic!("Failed to get ecall entry in {filename}");
         };

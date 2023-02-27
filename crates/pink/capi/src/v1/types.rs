@@ -395,6 +395,8 @@ pub type cross_call_fn_t = ::core::option::Option<
         output: output_fn_t,
     ),
 >;
+pub type ecall_get_version_fn_t =
+    ::core::option::Option<unsafe extern "C" fn(major: *mut u32, minor: *mut u32)>;
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct config_t {
@@ -406,6 +408,7 @@ pub struct config_t {
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ecalls_t {
     pub ecall: cross_call_fn_t,
+    pub get_version: ecall_get_version_fn_t,
 }
 pub type init_t = ::core::option::Option<
     unsafe extern "C" fn(config: *const config_t, ecalls: *mut ecalls_t) -> ::core::ffi::c_int,

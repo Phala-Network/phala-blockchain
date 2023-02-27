@@ -8,6 +8,7 @@
 
 typedef void (*output_fn_t)(void *ctx, const uint8_t *data, size_t len);
 typedef void (*cross_call_fn_t)(uint32_t call_id, const uint8_t *data, size_t len, void *ctx, output_fn_t output);
+typedef void (*ecall_get_version_fn_t)(uint32_t *major, uint32_t *minor);
 
 typedef struct
 {
@@ -22,6 +23,7 @@ typedef struct
 typedef struct
 {
     cross_call_fn_t ecall;
+    ecall_get_version_fn_t get_version;
 } ecalls_t;
 
 typedef int init_t(const config_t *config, ecalls_t *ecalls);

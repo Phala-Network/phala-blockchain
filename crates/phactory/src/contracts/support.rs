@@ -21,7 +21,7 @@ use crate::{
     secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
     system::{TransactionError, TransactionResult},
     types::BlockInfo,
-    H256,
+    ChainStorage, H256,
 };
 use phactory_api::prpc as pb;
 
@@ -46,6 +46,7 @@ pub struct QueryContext {
     pub query_scheduler: RequestScheduler<AccountId>,
     pub weight: u32,
     pub worker_pubkey: [u8; 32],
+    pub chain_storage: ChainStorage,
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -214,9 +215,7 @@ impl FatContract {
             storage_deposit_limit: None,
             gas_limit,
         };
-        let mut handle = env
-            .contract_cluster
-            .runtime_mut(env.log_handler.clone());
+        let mut handle = env.contract_cluster.runtime_mut(env.log_handler.clone());
         _ = handle.contract_call(
             self.address().clone(),
             input_data.to_vec(),

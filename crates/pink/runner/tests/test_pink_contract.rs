@@ -277,6 +277,7 @@ mod test_cluster {
     pub struct TestCluster {
         pub storage: ClusterStorage,
         pub context: ExecContext,
+        pub worker_pubkey: [u8; 32],
         pub runtime: Runtime,
         pub(crate) effects: Option<ExecSideEffects>,
     }
@@ -287,6 +288,7 @@ mod test_cluster {
                 storage: self.storage.clone(),
                 context: self.context.clone(),
                 runtime: unsafe { self.runtime.dup() },
+                worker_pubkey: self.worker_pubkey,
                 effects: None,
             }
         }
@@ -299,30 +301,19 @@ mod test_cluster {
                 mode: ExecutionMode::Transaction,
                 block_number: 1,
                 now_ms: 1,
-                worker_pubkey: [1; 32],
             };
             let runtime = Runtime::from_fn(
                 pink::capi::__pink_runtime_init,
                 std::ptr::null_mut(),
-                "test-runtime",
+                (1, 0),
             );
             let mut me = Self {
                 storage,
                 context,
                 runtime,
                 effects: None,
+                worker_pubkey: [1; 32],
             };
-            // me.setup(ClusterSetupConfig {
-            //     cluster_id: [1; 32].into(),
-            //     owner: ALICE.clone(),
-            //     deposit: 0,
-            //     gas_price: 1,
-            //     deposit_per_item: 1,
-            //     deposit_per_byte: 1,
-            //     treasury_account: BOB.clone(),
-            //     system_code: include_bytes!("../../../../e2e/res/system.contract"),
-            // })
-            // .expect("Failed to setup cluster");
             me.deposit(ALICE.clone(), ENOUGH);
             me
         }
@@ -453,7 +444,7 @@ mod test_cluster {
         }
 
         fn worker_pubkey(&self) -> [u8; 32] {
-            self.context.worker_pubkey
+            self.worker_pubkey
         }
 
         fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
@@ -475,6 +466,10 @@ mod test_cluster {
 
         fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
             local_cache::remove(&contract, &key)
+        }
+
+        fn latest_system_code(&self) -> Vec<u8> {
+            vec![]
         }
     }
 

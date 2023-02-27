@@ -130,7 +130,6 @@ pub mod ocall {
         pub mode: ExecutionMode,
         pub block_number: BlockNumber,
         pub now_ms: u64,
-        pub worker_pubkey: [u8; 32],
     }
 
     impl ExecContext {
@@ -138,13 +137,11 @@ pub mod ocall {
             mode: ExecutionMode,
             block_number: BlockNumber,
             now_ms: u64,
-            worker_pubkey: [u8; 32],
         ) -> Self {
             Self {
                 mode,
                 block_number,
                 now_ms,
-                worker_pubkey,
             }
         }
     }
@@ -178,5 +175,7 @@ pub mod ocall {
         fn cache_set_expiration(&self, contract: Vec<u8>, key: Vec<u8>, expiration: u64);
         #[xcall(id = 12)]
         fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>>;
+        #[xcall(id = 13)]
+        fn latest_system_code(&self) -> Vec<u8>;
     }
 }

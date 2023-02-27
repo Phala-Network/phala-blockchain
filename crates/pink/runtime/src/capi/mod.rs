@@ -33,8 +33,15 @@ pub unsafe extern "C" fn __pink_runtime_init(
     unsafe {
         ocall_impl::set_ocall_fn(ocall);
         (*ecalls).ecall = Some(ecall);
+        (*ecalls).get_version = Some(get_version);
     }
     0
+}
+
+unsafe extern "C" fn get_version(major: *mut u32, minor: *mut u32) {
+    let ver = crate::version();
+    *major = ver.0;
+    *minor = ver.1;
 }
 
 unsafe extern "C" fn ecall(

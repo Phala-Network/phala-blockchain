@@ -40,6 +40,15 @@ where
     }
 }
 
+impl<H: Hasher> TrieStorage<H> {
+    pub fn snapshot(&self) -> Self
+    where
+        H::Out: Codec,
+    {
+        Self(clone_trie_backend(&self.0))
+    }
+}
+
 pub fn load_trie_backend<H: Hasher>(
     pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
 ) -> TrieBackend<MemoryDB<H>, H>

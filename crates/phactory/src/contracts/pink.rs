@@ -125,16 +125,60 @@ impl RuntimeHandle<'_> {
 }
 
 pub(crate) mod context {
-    use pink::capi::v1::ocall::ExecContext;
+    use pink::{
+        capi::v1::ocall::ExecContext,
+        types::{BlockNumber, ExecutionMode},
+    };
 
-    environmental::environmental!(exec_context: ExecContext);
+    use crate::ChainStorage;
 
-    pub fn get() -> ExecContext {
-        exec_context::with(|ctx| ctx.clone()).unwrap_or_default()
+    environmental::environmental!(exec_context: trait GetContext);
+
+    pub trait GetContext {
+        fn chain_storage(&self) -> &ChainStorage;
+        fn exec_context(&self) -> ExecContext;
+        fn worker_pubkey(&self) -> [u8; 32];
     }
 
-    pub fn using<T>(mut ctx: ExecContext, f: impl FnOnce() -> T) -> T {
-        exec_context::using(&mut ctx, f)
+    pub struct ContractExecContext {
+        pub mode: ExecutionMode,
+        pub now_ms: u64,
+        pub block_number: BlockNumber,
+        pub worker_pubkey: [u8; 32],
+        pub chain_storage: ChainStorage,
+    }
+
+    impl GetContext for ContractExecContext {
+        fn chain_storage(&self) -> &ChainStorage {
+            &self.chain_storage
+        }
+
+        fn exec_context(&self) -> ExecContext {
+            ExecContext {
+                mode: self.mode,
+                block_number: self.block_number,
+                now_ms: self.now_ms,
+            }
+        }
+        fn worker_pubkey(&self) -> [u8; 32] {
+            self.worker_pubkey
+        }
+    }
+
+    pub fn get() -> ExecContext {
+        exec_context::with(|ctx| ctx.exec_context()).unwrap_or_default()
+    }
+
+    pub fn using<T>(ctx: &mut impl GetContext, f: impl FnOnce() -> T) -> T {
+        exec_context::using(ctx, f)
+    }
+
+    pub fn with<T>(f: impl FnOnce(&dyn GetContext) -> T) -> T {
+        exec_context::with(|ctx| f(ctx)).expect("exec_context not set")
+    }
+
+    pub fn worker_pubkey() -> [u8; 32] {
+        exec_context::with(|ctx| ctx.worker_pubkey()).unwrap_or_default()
     }
 }
 
@@ -179,7 +223,7 @@ impl OCalls for RuntimeHandle<'_> {
     }
 
     fn worker_pubkey(&self) -> [u8; 32] {
-        context::get().worker_pubkey
+        context::worker_pubkey()
     }
 
     fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
@@ -214,6 +258,10 @@ impl OCalls for RuntimeHandle<'_> {
         }
         local_cache::remove(&contract, &key)
     }
+
+    fn latest_system_code(&self) -> Vec<u8> {
+        context::with(|ctx| ctx.chain_storage().pink_system_code().1)
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -242,7 +290,7 @@ impl OCalls for RuntimeHandleMut<'_> {
     }
 
     fn worker_pubkey(&self) -> [u8; 32] {
-        context::get().worker_pubkey
+        self.readonly().worker_pubkey()
     }
 
     fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
@@ -265,6 +313,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
         self.readonly().cache_remove(contract, key)
+    }
+
+    fn latest_system_code(&self) -> Vec<u8> {
+        self.readonly().latest_system_code()
     }
 }
 
@@ -389,7 +441,7 @@ impl Cluster {
         contract_id: &AccountId,
         origin: Option<&AccountId>,
         req: Query,
-        context: &mut QueryContext,
+        context: QueryContext,
     ) -> Result<(Response, Option<ExecSideEffects>), QueryError> {
         match req {
             Query::InkMessage {
@@ -409,15 +461,17 @@ impl Cluster {
                 } else {
                     ExecutionMode::Query
                 };
-                let ctx = ExecContext::new(
+                let mut ctx = context::ContractExecContext {
                     mode,
-                    context.block_number,
-                    context.now_ms,
-                    context.worker_pubkey,
-                );
-                context::using(ctx, move || {
+                    now_ms: context.now_ms,
+                    block_number: context.block_number,
+                    worker_pubkey: context.worker_pubkey,
+                    chain_storage: context.chain_storage,
+                };
+                let log_handler = context.log_handler.clone();
+                context::using(&mut ctx, move || {
                     let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-                    let mut runtime = self.runtime_mut(context.log_handler.clone());
+                    let mut runtime = self.runtime_mut(log_handler);
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
                     }
@@ -484,14 +538,16 @@ impl Cluster {
                     .or(Err(QueryError::ServiceUnavailable))?;
 
                 let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-                let ctx = ExecContext::new(
-                    ExecutionMode::Estimating,
-                    context.block_number,
-                    context.now_ms,
-                    context.worker_pubkey,
-                );
-                context::using(ctx, move || {
-                    let mut runtime = self.runtime_mut(context.log_handler.clone());
+                let mut ctx = context::ContractExecContext {
+                    mode: ExecutionMode::Estimating,
+                    now_ms: context.now_ms,
+                    block_number: context.block_number,
+                    worker_pubkey: context.worker_pubkey,
+                    chain_storage: context.chain_storage,
+                };
+                let log_handler = context.log_handler.clone();
+                context::using(&mut ctx, move || {
+                    let mut runtime = self.runtime_mut(log_handler);
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
                     }

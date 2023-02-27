@@ -284,6 +284,17 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     fn code_exists(&self, _code_hash: Hash, _sidevm: bool) -> Result<bool, Self::Error> {
         Ok(false)
     }
+
+    fn import_latest_system_code(
+        &self,
+        _payer: ext::AccountId,
+    ) -> Result<Option<Hash>, Self::Error> {
+        Ok(None)
+    }
+
+    fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
+        Ok((1, 0))
+    }
 }
 
 struct LimitedWriter<W> {

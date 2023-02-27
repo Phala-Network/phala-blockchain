@@ -282,6 +282,31 @@ impl PinkExtBackend for CallInQuery {
             ))
         }
     }
+
+    fn import_latest_system_code(
+        &self,
+        payer: ext::AccountId,
+    ) -> Result<Option<Hash>, Self::Error> {
+        self.ensure_system()?;
+        let system_code = OCallImpl.latest_system_code();
+        if system_code.is_empty() {
+            return Ok(None);
+        }
+        let code_hash = sp_core::blake2_256(&system_code);
+        if !self.code_exists(code_hash, false)? {
+            crate::runtime::Contracts::bare_upload_code(
+                payer.convert_to(),
+                system_code,
+                None,
+                pallet_contracts::Determinism::Deterministic,
+            )?;
+        };
+        Ok(Some(code_hash))
+    }
+
+    fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
+        Ok(crate::version())
+    }
 }
 
 struct CallInCommand {
@@ -423,5 +448,16 @@ impl PinkExtBackend for CallInCommand {
 
     fn code_exists(&self, code_hash: Hash, sidevm: bool) -> Result<bool, Self::Error> {
         self.as_in_query.code_exists(code_hash, sidevm)
+    }
+
+    fn import_latest_system_code(
+        &self,
+        payer: ext::AccountId,
+    ) -> Result<Option<Hash>, Self::Error> {
+        self.as_in_query.import_latest_system_code(payer)
+    }
+
+    fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
+        self.as_in_query.runtime_version()
     }
 }

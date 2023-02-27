@@ -8,7 +8,6 @@ use crate::hex;
 use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
 
 use super::*;
-use ::pink::capi::v1::ocall::ExecContext;
 use ::pink::types::{AccountId, ExecSideEffects, ExecutionMode};
 use parity_scale_codec::Encode;
 use pb::{
@@ -276,11 +275,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
             info!("State synced");
             state.purge_mq();
-            let now = state.chain_storage.timestamp_now();
+            let now_ms = state.chain_storage.timestamp_now();
+            let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
-            let context = ExecContext::new(ExecutionMode::Transaction, block_number, now, pubkey);
+            let mut context = contracts::pink::context::ContractExecContext {
+                mode: ExecutionMode::Transaction,
+                now_ms,
+                block_number,
+                worker_pubkey: pubkey,
+                chain_storage,
+            };
             self.check_requirements();
-            contracts::pink::context::using(context, || {
+            contracts::pink::context::using(&mut context, || {
                 self.handle_inbound_messages(block_number)
             })?;
 
@@ -606,12 +612,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let query_scheduler = self.query_scheduler.clone();
         // Dispatch
-        let query_future = self.system()?.make_query(
-            &AccountId::unchecked_from(head.id),
-            accid_origin.as_ref(),
-            data[data.len() - rest..].to_vec(),
-            query_scheduler,
-        )?;
+        let query_future = self
+            .system
+            .as_mut()
+            .expect("system always exists here")
+            .make_query(
+                &AccountId::unchecked_from(head.id),
+                accid_origin.as_ref(),
+                data[data.len() - rest..].to_vec(),
+                query_scheduler,
+                &self
+                    .runtime_state
+                    .as_ref()
+                    .expect("runtime state always exists here")
+                    .chain_storage,
+            )?;
 
         Ok(async move {
             let (response, effects) = query_future.await?;

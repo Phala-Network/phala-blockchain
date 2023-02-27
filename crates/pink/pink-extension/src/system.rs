@@ -13,6 +13,8 @@ use crate::{AccountId, Balance, Hash};
 pub enum Error {
     PermisionDenied,
     DriverNotFound,
+    CodeNotFound,
+    ConditionNotMet,
 }
 
 /// Result type for the system contract messages
@@ -90,6 +92,10 @@ pub trait System {
     /// Upgrade the system contract to the latest version.
     #[ink(message)]
     fn upgrade_system_contract(&self) -> Result<()>;
+
+    /// Upgrade the contract runtime
+    #[ink(message)]
+    fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()>;
 }
 
 /// Errors that can occur upon calling a driver contract.

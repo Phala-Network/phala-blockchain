@@ -7,6 +7,7 @@ use crate::{
     pink::{Cluster, ClusterContainer},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{deopaque_query, BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
+    ChainStorage,
 };
 use anyhow::{anyhow, Result};
 use core::fmt;
@@ -601,6 +602,7 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: Option<&chain::AccountId>,
         query: OpaqueQuery,
         query_scheduler: RequestScheduler<AccountId>,
+        chain_storage: &ChainStorage,
     ) -> Result<
         impl Future<Output = Result<(OpaqueReply, Option<ExecSideEffects>), OpaqueError>>,
         OpaqueError,
@@ -616,7 +618,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .snapshot();
         let sidevm_handle = contract.sidevm_handle();
         let weight = contract.weight();
-        let mut context = contracts::QueryContext {
+        let context = contracts::QueryContext {
             block_number: self.block_number,
             now_ms: self.now_ms,
             sidevm_handle,
@@ -624,13 +626,14 @@ impl<Platform: pal::Platform> System<Platform> {
             query_scheduler,
             weight,
             worker_pubkey: self.identity_key.public().0,
+            chain_storage: chain_storage.snapshot(),
         };
         let origin = origin.cloned();
         let query = deopaque_query(&query)?;
         let contract_id = contract_id.clone();
         Ok(async move {
             let result = cluster
-                .handle_query(&contract_id, origin.as_ref(), query, &mut context)
+                .handle_query(&contract_id, origin.as_ref(), query, context)
                 .await;
             let (result, effects) = match result {
                 Ok((reply, effects)) => (Ok(reply), effects),
@@ -1597,7 +1600,7 @@ impl<P: pal::Platform> System<P> {
     pub(crate) fn apply_side_effects(
         &mut self,
         effects: ExecSideEffects,
-        chain_storage: &crate::ChainStorage,
+        chain_storage: &ChainStorage,
     ) {
         let Some(cluster) = &mut self.contract_cluster else {
             error!("Can not apply effects: no cluster deployed");
@@ -1639,7 +1642,7 @@ pub fn handle_contract_command_result(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
-    chain_storage: &crate::ChainStorage,
+    chain_storage: &ChainStorage,
 ) {
     let effects = match result {
         Err(err) => {
@@ -1670,7 +1673,7 @@ pub fn apply_pink_side_effects(
     egress: &SignedMessageChannel,
     spawner: &Spawner,
     log_handler: Option<CommandSender>,
-    chain_storage: &crate::ChainStorage,
+    chain_storage: &ChainStorage,
 ) {
     let ExecSideEffects::V1 {
         pink_events,
@@ -1732,7 +1735,7 @@ pub(crate) fn apply_pink_events(
     contracts: &mut ContractsKeeper,
     cluster: &mut Cluster,
     spawner: &Spawner,
-    _chain_storage: &crate::ChainStorage,
+    _chain_storage: &ChainStorage,
 ) {
     for (origin, event) in pink_events {
         macro_rules! get_contract {
@@ -1831,8 +1834,17 @@ pub(crate) fn apply_pink_events(
                 contract.set_weight(weight);
                 contracts.weight_changed = true;
             }
-            PinkEvent::SystemContractUpdated { version } => {
-                info!("System contract updated: {version:?}");
+            PinkEvent::UpgradeRuntimeTo { version } => {
+                ensure_system!();
+                info!("Try to upgrade runtime to {version:?}");
+                if version == cluster.config.runtime_version {
+                    info!("Runtime version is already {version:?}");
+                    continue;
+                }
+                panic!(
+                    "The runtime version {:?} is not supported by this pruntime yet, please upgrade pruntime",
+                    version
+                );
             }
         }
     }

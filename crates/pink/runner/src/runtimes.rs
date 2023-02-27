@@ -11,7 +11,7 @@ pub fn set_worker_pubkey(key: [u8; 32]) {
 }
 
 /// Load given version of lib pink library using dlopen and return a handle to it.
-fn load_pink_library(version: &str) -> *mut libc::c_void {
+fn load_pink_library((major, minor): (u32, u32)) -> *mut libc::c_void {
     let runtime_dir = match std::env::var("PINK_RUNTIME_PATH") {
         Ok(path) => std::path::Path::new(&path).to_owned(),
         Err(_) => std::env::current_exe()
@@ -20,7 +20,7 @@ fn load_pink_library(version: &str) -> *mut libc::c_void {
             .unwrap()
             .to_owned(),
     };
-    let filename = format!("libpink.so.{version}");
+    let filename = format!("libpink.so.{major}.{minor}");
     let path = runtime_dir.join(filename);
     let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
         return std::ptr::null_mut();
