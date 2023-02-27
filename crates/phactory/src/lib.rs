@@ -107,6 +107,10 @@ fn checkpoint_filename_for(block_number: chain::BlockNumber, basedir: &str) -> S
     format!("{basedir}/{CHECKPOINT_FILE}-{block_number:0>9}")
 }
 
+fn checkpoint_info_filename_for(filename: &str) -> String {
+    format!("{filename}.info.json")
+}
+
 fn checkpoint_filename_pattern(basedir: &str) -> String {
     format!("{basedir}/{CHECKPOINT_FILE}-*")
 }
@@ -160,14 +164,21 @@ fn remove_outdated_checkpoints(
         }
         kept += 1;
         if kept > max_kept {
-            match std::fs::remove_file(&filename) {
-                Err(e) => error!("Failed to remove {}: {}", filename.display(), e),
+            match remove_checkpoint(&filename) {
+                Err(e) => error!("Failed to remove checkpoint {}: {e}", filename.display()),
                 Ok(_) => {
                     info!("Removed {}", filename.display());
                 }
             }
         }
     }
+    Ok(())
+}
+
+fn remove_checkpoint(filename: &Path) -> Result<()> {
+    std::fs::remove_file(filename).context("Failed to remove checkpoint file")?;
+    let info_filename = checkpoint_info_filename_for(&filename.display().to_string());
+    std::fs::remove_file(info_filename).context("Failed to remove checkpoint info file")?;
     Ok(())
 }
 
@@ -483,8 +494,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .context("Take checkpoint failed, runtime is not ready")?
             .identity_key
             .dump_secret_key();
-        info!("Taking checkpoint...");
         let checkpoint_file = checkpoint_filename_for(current_block, &self.args.storage_path);
+        info!("Taking checkpoint to {checkpoint_file}...");
+        self.save_checkpoint_info(&checkpoint_file)?;
         let file = File::create(&checkpoint_file).context("Failed to create checkpoint file")?;
         self.take_checkpoint_to_writer(&key, file)
             .context("Take checkpoint to writer failed")?;
@@ -496,6 +508,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             current_block,
         )?;
         Ok(current_block)
+    }
+
+    pub fn save_checkpoint_info(&self, filename: &str) -> anyhow::Result<()> {
+        let info = self.get_info();
+        let content =
+            serde_json::to_string_pretty(&info).context("Failed to serialize checkpoint info")?;
+        let info_filename = checkpoint_info_filename_for(filename);
+        let mut file =
+            File::create(info_filename).context("Failed to create checkpoint info file")?;
+        file.write_all(content.as_bytes())
+            .context("Failed to write checkpoint info file")?;
+        Ok(())
     }
 
     pub fn take_checkpoint_to_writer<W: std::io::Write>(
