@@ -1,5 +1,9 @@
 [workspace]
 
+[profile.release.package.compiler_builtins]
+debug-assertions = false
+overflow-checks = false
+
 [package]
 name = "tokenomic"
 version = "0.1.0"
