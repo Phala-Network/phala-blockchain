@@ -1,10 +1,11 @@
 SGX_MODE ?= SW
 
-PINK_RUNTIME_VERSION = 1.0
 PINK_RUNTIME_DIR = ../../crates/pink/runtime
+PINK_RUNTIME_VERSION = $(shell ./crate-version -n 2 ${PINK_RUNTIME_DIR}/Cargo.toml)
 PINK_RUNTIME = ../../target/release/libpink.so
 PINK_RUNTIME_DIST = bin/libpink.so.${PINK_RUNTIME_VERSION}
 
+$(info PINK_RUNTIME_VERSION: ${PINK_RUNTIME_VERSION})
 
 .PHONY: all clean run
 ifeq ($(SGX_MODE),SW)

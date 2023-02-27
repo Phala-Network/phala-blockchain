@@ -30,6 +30,7 @@ exclude = [
 	"vendor/ring",
 	"standalone/pruntime",
 	"standalone/prouter",
+	"standalone/crate-version",
 	"crates/pink-drivers/system",
 	"crates/pink-drivers/sidevm_deployer",
 	"crates/pink-drivers/tokenomic",
