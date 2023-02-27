@@ -1224,30 +1224,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         }
         // 5. verify pruntime launch date, never handover to old pruntime
         if !dev_mode && in_sgx {
-            let runtime_info = phactory
-                .runtime_info
-                .as_ref()
-                .ok_or_else(|| from_display("Server runtime not initialized"))?;
-            let my_attn = runtime_info
-                .attestation
-                .as_ref()
-                .ok_or_else(|| from_display("Server attestation not found"))?;
-            let my_attn_report =
-                Option::<AttestationReport>::decode(&mut &my_attn.encoded_report[..])
-                    .map_err(|_| from_display("Decode server attestation failed"))?;
-            let my_attn_report =
-                my_attn_report.ok_or_else(|| from_display("Server attestation not found"))?;
-
-            let my_runtime_hash = match my_attn_report {
-                AttestationReport::SgxIas {
-                    ra_report,
-                    signature: _,
-                    raw_signing_cert: _,
-                } => {
-                    let (ias_fields, _) = IasFields::from_ias_report(&ra_report)
-                        .map_err(|_| from_display("Invalid server RA report"))?;
-                    ias_fields.extend_mrenclave()
-                }
+            let my_la_report = {
+                // target_info and reportdata not important, we just need the report metadata
+                let target_info = sgx_api_lite::target_info().unwrap();
+                sgx_api_lite::report(&target_info, &[0; 64])
+                    .map_err(|_| from_display("Cannot read server pRuntime info"))?
+            };
+            let my_runtime_hash = {
+                let ias_fields = IasFields {
+                    mr_enclave: my_la_report.body.mr_enclave.m,
+                    mr_signer: my_la_report.body.mr_signer.m,
+                    isv_prod_id: my_la_report.body.isv_prod_id.to_ne_bytes(),
+                    isv_svn: my_la_report.body.isv_svn.to_ne_bytes(),
+                    report_data: [0; 64],
+                    confidence_level: 0,
+                };
+                ias_fields.extend_mrenclave()
             };
             let runtime_state = phactory.runtime_state()?;
             let my_runtime_timestamp = runtime_state
@@ -1255,7 +1247,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 .get_pruntime_added_at(&my_runtime_hash)
                 .ok_or_else(|| from_display("Server pRuntime not allowed on chain"))?;
 
-            let attestation = attestation.ok_or_else(|| from_display("Client attestation not found"))?;
+            let attestation =
+                attestation.ok_or_else(|| from_display("Client attestation not found"))?;
             let runtime_hash = match attestation {
                 AttestationReport::SgxIas {
                     ra_report,
