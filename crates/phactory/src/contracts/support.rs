@@ -159,10 +159,6 @@ impl FatContract {
         }
     }
 
-    // pub(crate) fn id(&self) -> ContractId {
-    //     self.contract_id
-    // }
-
     pub(crate) fn address(&self) -> &AccountId {
         &self.address
     }

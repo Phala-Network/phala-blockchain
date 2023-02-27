@@ -4,12 +4,6 @@ use std::sync::RwLock;
 
 use log::error;
 
-static WORKER_PUBKEY: RwLock<[u8; 32]> = RwLock::new([0; 32]);
-
-pub fn set_worker_pubkey(key: [u8; 32]) {
-    *WORKER_PUBKEY.write().unwrap() = key;
-}
-
 /// Load given version of lib pink library using dlopen and return a handle to it.
 fn load_pink_library((major, minor): (u32, u32)) -> *mut libc::c_void {
     let runtime_dir = match std::env::var("PINK_RUNTIME_PATH") {
