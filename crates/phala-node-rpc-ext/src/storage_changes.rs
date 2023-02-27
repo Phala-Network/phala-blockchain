@@ -1,6 +1,5 @@
 use super::*;
 pub use ext_types::*;
-use rayon::prelude::*;
 
 /// State RPC errors.
 #[derive(Debug, thiserror::Error)]
@@ -107,7 +106,7 @@ where
     }
 
     headers
-        .into_par_iter()
+        .into_iter()
         .map(|(id, mut header)| -> Result<_, Error> {
             let api = client.runtime_api();
             let hash = client.expect_block_hash_from_id(&id).expect("Should get the block hash");
