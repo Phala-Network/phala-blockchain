@@ -32,6 +32,8 @@ fn load_pink_library((major, minor): (u32, u32)) -> *mut libc::c_void {
 }
 
 /// Check if we are running in an enclave according to the existence of /dev/attestation/user_report_data
+///
+/// False positive is possible.
 fn in_enclave() -> i32 {
     let path = std::path::Path::new("/dev/attestation/user_report_data");
     if path.exists() {

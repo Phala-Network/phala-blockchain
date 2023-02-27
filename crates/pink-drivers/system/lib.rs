@@ -206,6 +206,7 @@ mod system {
         /// runtime version is not supported.
         #[ink(message)]
         fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()> {
+            pink::info!("Upgrading pink contract runtime...");
             pink::upgrade_runtime(version);
             Ok(())
         }
