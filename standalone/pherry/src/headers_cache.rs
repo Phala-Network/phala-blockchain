@@ -270,7 +270,7 @@ pub async fn grab_headers(
     Ok(grabbed)
 }
 
-async fn grab_para_headers(
+pub async fn grab_para_headers(
     api: &ParachainApi,
     start_at: BlockNumber,
     count: BlockNumber,
@@ -298,7 +298,7 @@ async fn grab_para_headers(
     Ok(grabbed)
 }
 
-async fn grab_storage_changes(
+pub async fn grab_storage_changes(
     api: &ParachainApi,
     start_at: BlockNumber,
     count: BlockNumber,
@@ -350,17 +350,19 @@ pub async fn fetch_genesis_info(
 #[derive(Clone)]
 pub struct Client {
     base_uri: String,
+    http_client: reqwest::Client,
 }
 
 impl Client {
     pub fn new(uri: &str) -> Self {
         Self {
             base_uri: uri.to_string(),
+            http_client: reqwest::Client::new(),
         }
     }
 
     async fn request<T: Decode>(&self, url: &str) -> Result<T> {
-        let response = reqwest::get(url).await.map_err(|err| {
+        let response = self.http_client.get(url).send().await.map_err(|err| {
             warn!("Failed to fetch data from cache: {err}");
             err
         })?;
