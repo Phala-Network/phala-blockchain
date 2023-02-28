@@ -28,6 +28,8 @@ const sgxLoader = "gramine-sgx";
 
 const CENTS = 10_000_000_000;
 
+console.log(`Testing in ${inSgx?"SGX Hardware":"Software"} mode`);
+
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
 describe('A full stack', function () {

@@ -1,3 +1,5 @@
+{% set pink_runtime_mount_dir = "/pink-runtime" %}
+
 [libos]
 entrypoint = "pruntime"
 
@@ -14,7 +16,7 @@ insecure__allow_eventfd = true
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 MALLOC_ARENA_MAX = "1"
 ROCKET_WORKERS = "8"
-PINK_RUNTIME_PATH = "/pink-runtime"
+PINK_RUNTIME_PATH = "{{ pink_runtime_mount_dir }}"
 RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
 i2p_proxy = { passthrough = true }
@@ -42,8 +44,8 @@ uri = "file:/etc"
 
 [[fs.mounts]]
 type = "chroot"
-path = "/pink-runtime"
-uri = "file:pink-runtime/"
+path = "{{ pink_runtime_mount_dir }}"
+uri = "file:{{ pink_runtime_dir }}"
 
 [sgx]
 debug = false
@@ -61,7 +63,7 @@ trusted_files = [
   "file:{{ libos }}",
   "file:pruntime",
   "file:{{ libdir }}",
-  "file:pink-runtime/",
+  "file:{{ pink_runtime_dir }}",
 ]
 
 allowed_files = [
