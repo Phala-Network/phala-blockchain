@@ -1,6 +1,5 @@
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
-use std::sync::RwLock;
 
 use log::error;
 
