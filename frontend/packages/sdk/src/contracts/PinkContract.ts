@@ -4,9 +4,10 @@ import type { AccountId, ContractExecResult, EventRecord, Weight, WeightV2 } fro
 import type { ApiPromise } from '@polkadot/api';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } from '@polkadot/api-contract/types';
-import type { ContractCallResult, ContractCallSend, ContractQuery, ContractTx, MapMessageQuery, MapMessageTx } from '@polkadot/api-contract/base/types';
+import type { ContractCallResult, ContractCallSend, MessageMeta, ContractQuery, ContractTx, MapMessageQuery, MapMessageTx } from '@polkadot/api-contract/base/types';
 import type { Registry } from '@polkadot/types/types';
-import type { DecorateMethod } from '@polkadot/api/types';
+import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
+import type { KeyringPair } from '@polkadot/keyring/types';
 import type { OnChainRegistry } from '../OnChainRegistry';
 
 
@@ -30,7 +31,16 @@ import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractQuery<'promise'> {
+export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
+    (origin: KeyringPair, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+}
+
+export interface MapMessageInkQuery<ApiType extends ApiTypes> {
+    [message: string]: ContractInkQuery<ApiType>;
+}
+
+
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
   return withMeta(meta, (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
     fn(origin, params)
   );
@@ -51,7 +61,7 @@ function createEncryptedData(pk: Uint8Array, data: string, agreementKey: Uint8Ar
   };
 };
 
-async function pinkQuery(
+export async function pinkQuery(
   api: ApiPromise,
   pruntimeApi: pruntimeRpc.PhactoryAPI,
   pk: Uint8Array,
@@ -124,7 +134,7 @@ export class PinkContractPromise {
 
   protected readonly _decorateMethod: DecorateMethod<'promise'>;
 
-  readonly #query: MapMessageQuery<'promise'> = {};
+  readonly #query: MapMessageInkQuery<'promise'> = {};
   readonly #tx: MapMessageTx<'promise'> = {};
 
   constructor (api: ApiPromise, phatRegistry: OnChainRegistry, abi: string | Record<string, unknown> | Abi, address: string | AccountId, contractKey: string) {
@@ -158,7 +168,7 @@ export class PinkContractPromise {
     return this.api.registry;
   }
 
-  public get query (): MapMessageQuery<'promise'> {
+  public get query (): MapMessageInkQuery<'promise'> {
     return this.#query;
   }
 
