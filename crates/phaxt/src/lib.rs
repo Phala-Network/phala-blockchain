@@ -48,7 +48,7 @@ impl PairSigner {
 }
 
 #[derive(Clone)]
-pub struct ChainApi(RpcClient);
+pub struct ChainApi(pub RpcClient);
 pub type ParachainApi = ChainApi;
 pub type RelaychainApi = ChainApi;
 

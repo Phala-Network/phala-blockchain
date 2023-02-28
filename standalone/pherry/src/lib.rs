@@ -283,7 +283,7 @@ async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Ha
     Ok(hash)
 }
 
-async fn get_block_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<(Block, Hash)> {
+pub async fn get_block_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<(Block, Hash)> {
     let hash = get_header_hash(client, h).await?;
     let block = client
         .rpc()
@@ -378,7 +378,7 @@ pub async fn batch_sync_storage_changes(
     Ok(())
 }
 
-async fn get_authority_with_proof_at(
+pub async fn get_authority_with_proof_at(
     api: &RelaychainApi,
     hash: Hash,
 ) -> Result<AuthoritySetChange> {
