@@ -1,4 +1,8 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 #![doc = include_str!("../README.md")]
+
+#[macro_use]
+extern crate alloc;
 
 use pink::chain_extension::HttpResponse;
 use pink_extension as pink;
@@ -7,6 +11,11 @@ use scale::{Decode, Encode};
 // To encrypt/decrypt HTTP payloads
 
 // To generate AWS4 Signature
+use alloc::{
+    borrow::ToOwned,
+    string::{String, ToString},
+    vec::Vec,
+};
 use hmac::{Hmac, Mac};
 use sha2::Digest;
 use sha2::Sha256;
@@ -123,9 +132,8 @@ impl<'a> S3<'a> {
             format!("/{bucket_name}/{object_key}")
         };
         let canonical_querystring = "";
-        let canonical_headers = format!(
-            "host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
-        );
+        let canonical_headers =
+            format!("host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n");
         let signed_headers = "host;x-amz-content-sha256;x-amz-date";
         let canonical_request = format!(
             "{method}\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
@@ -135,9 +143,8 @@ impl<'a> S3<'a> {
         let algorithm = "AWS4-HMAC-SHA256";
         let credential_scope = format!("{datestamp}/{}/{service}/aws4_request", self.region);
         let canonical_request_hash = format!("{:x}", Sha256::digest(canonical_request.as_bytes()));
-        let string_to_sign = format!(
-            "{algorithm}\n{amz_date}\n{credential_scope}\n{canonical_request_hash}"
-        );
+        let string_to_sign =
+            format!("{algorithm}\n{amz_date}\n{credential_scope}\n{canonical_request_hash}");
 
         // 3. Calculate signature
         let signature_key = get_signature_key(
@@ -188,8 +195,10 @@ fn times() -> (String, String) {
     #[cfg(not(test))]
     let datetime = {
         use chrono::{TimeZone, Utc};
-        let time = pink::env().block_timestamp() / 1000;
-        Utc.timestamp(time.try_into().unwrap(), 0)
+        let time = pink::ext().untrusted_millis_since_unix_epoch() / 1000;
+        Utc.timestamp_opt(time as _, 0)
+            .earliest()
+            .expect("Could not convert timestamp to Utc")
     };
 
     // Format both date and datetime for AWS4 signature
@@ -222,39 +231,4 @@ fn get_signature_key(
     let k_region = hmac_sign(&k_date, region_name);
     let k_service = hmac_sign(&k_region, service_name);
     hmac_sign(&k_service, b"aws4_request")
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    #[ignore = "can not run concurrently"]
-    fn it_works() {
-        use crate as s3;
-
-        pink_extension_runtime::mock_ext::mock_all_ext();
-
-        // I don't care to expose them.
-        let endpoint = "s3.kvin.wang:8443";
-        let region = "garage";
-        let access_key = "GKb36294dbfd49a894b19c20cb";
-        let secret_key = "c36c43f1ae5bcb27733753a633fb5df82cc57832822275a761d711637bb268d5";
-
-        let s3 = s3::S3::new(endpoint, region, access_key, secret_key)
-            .unwrap()
-            .virtual_host_mode(); // virtual host mode is required for newly created AWS S3 buckets.
-
-        let bucket = "fat-1";
-        let object_key = "path/to/foo";
-        let value = b"bar";
-
-        s3.put(bucket, object_key, value).unwrap();
-
-        let head = s3.head(bucket, object_key).unwrap();
-        assert_eq!(head.content_length, value.len() as u64);
-
-        let v = s3.get(bucket, object_key).unwrap();
-        assert_eq!(v, value);
-
-        s3.delete(bucket, object_key).unwrap();
-    }
 }
