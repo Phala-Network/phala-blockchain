@@ -1,9 +1,10 @@
 import type { ApiPromise } from "@polkadot/api";
 import type { SubmittableExtrinsic } from "@polkadot/api/types";
-import type { Bytes, Compact, Option, Result, u8, u64, Vec } from "@polkadot/types-codec";
-import type { IMap, IEnum } from '@polkadot/types-codec/types';
-import { AccountId, ContractInstantiateResult } from "@polkadot/types/interfaces";
+import type { Bytes, Compact, Option, u64 } from "@polkadot/types-codec";
+import type { AccountId, ContractInstantiateResult } from "@polkadot/types/interfaces";
 import type { Codec } from "@polkadot/types/types";
+import type { InkResponse, InkQueryError } from "./types";
+
 import {
   BN,
   hexAddPrefix,
@@ -100,20 +101,6 @@ export interface ClusterInfo {
   systemContract?: string;
   workers: string[];
   gasPrice: BN;
-}
-
-export interface InkQueryOk extends IEnum {
-  asInkMessageReturn: Vec<u8>
-}
-
-export interface InkQueryError extends IEnum {
-  BadOrigin: null
-  RuntimeError: string
-}
-
-export interface InkResponse extends IMap {
-  nonce: Vec<u8>;
-  result: Result<InkQueryOk, InkQueryError>;
 }
 
 export const createPruntimeApi = (baseURL: string) => {
