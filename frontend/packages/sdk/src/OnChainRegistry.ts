@@ -61,15 +61,23 @@ export class OnChainRegistry {
 
     this.#phactory = createPruntimeApi(this.pruntimeURL)
 
+    // It might not be a good idea to call getInfo() here, but for now both testnet (POC-5 & closed-beta) not yet
+    // upgrade to the latest Phactory API, so we need to call it here to make sure that's compatible.
+    try {
+      await this.#phactory.getInfo({})
+    } catch (err) {
+      throw new Error('Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.')
+    }
+
     this.#ready = true
   }
 
   public async getContractKey(contractId: string) {
-    const contractKey = (await this.api.query.phalaRegistry.contractKeys(contractId)).toString();
+    const contractKey = await this.api.query.phalaRegistry.contractKeys(contractId);
     if (!contractKey) {
       return undefined
     }
-    return contractKey
+    return contractKey.toString();
   }
 
   public isReady() {
