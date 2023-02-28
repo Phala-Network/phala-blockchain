@@ -32,5 +32,6 @@
   },
   "devDependencies": {
     "protobufjs": "^6.11.3"
-  }
+  },
+  "packageManager": "yarn@2.4.3"
 }

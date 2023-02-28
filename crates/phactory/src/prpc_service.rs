@@ -156,6 +156,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             can_load_chain_state: self.can_load_chain_state,
             safe_mode_level: self.args.safe_mode_level as _,
             current_block_time,
+            max_supported_pink_runtime_version: {
+                let (major, minor) = ::pink::runtimes::max_supported_version();
+                format!("{major}.{minor}")
+            },
         };
         info!("Got info: {:?}", info.debug_info());
         info

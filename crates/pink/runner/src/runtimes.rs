@@ -43,3 +43,7 @@ fn in_enclave() -> i32 {
 }
 
 pub mod v1;
+
+pub fn max_supported_version() -> (u32, u32) {
+    (1, 0)
+}
