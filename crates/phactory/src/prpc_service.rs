@@ -1226,7 +1226,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         if !dev_mode && in_sgx {
             let my_la_report = {
                 // target_info and reportdata not important, we just need the report metadata
-                let target_info = sgx_api_lite::target_info().unwrap();
+                let target_info =
+                    sgx_api_lite::target_info().expect("should not fail in SGX; qed.");
                 sgx_api_lite::report(&target_info, &[0; 64])
                     .map_err(|_| from_display("Cannot read server pRuntime info"))?
             };
