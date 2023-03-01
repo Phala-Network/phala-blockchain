@@ -1,2 +1,2 @@
-*.contract
-*.wasm
+/*.contract
+/*.wasm

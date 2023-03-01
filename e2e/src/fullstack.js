@@ -463,7 +463,7 @@ describe('A full stack', function () {
 
     describe('Cluster & Contract', () => {
         const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
-        const system2Metadata = JSON.parse(fs.readFileSync('./res/system-v0xffff.contract'));
+        const system2Metadata = JSON.parse(fs.readFileSync('./res/prebuilt/system-v0xffff.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system.contract'));
         const indeterminMetadata = JSON.parse(fs.readFileSync('./res/indeterministic_functions.contract'));
         const quickjsMetadata = JSON.parse(fs.readFileSync('./res/prebuilt/qjs.contract'));
