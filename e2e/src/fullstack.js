@@ -464,10 +464,10 @@ describe('A full stack', function () {
     describe('Cluster & Contract', () => {
         const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
         const system2Metadata = JSON.parse(fs.readFileSync('./res/system-v0xffff.contract'));
-        const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system/target/ink/check_system.contract'));
-        const indeterminMetadata = JSON.parse(fs.readFileSync('./res/indeterministic_functions/target/ink/indeterministic_functions.contract'));
-        const quickjsMetadata = JSON.parse(fs.readFileSync('./res/qjs.contract'));
-        const sidevmCode = fs.readFileSync('./res/check_system/sideprog.wasm');
+        const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system.contract'));
+        const indeterminMetadata = JSON.parse(fs.readFileSync('./res/indeterministic_functions.contract'));
+        const quickjsMetadata = JSON.parse(fs.readFileSync('./res/prebuilt/qjs.contract'));
+        const sidevmCode = fs.readFileSync('./res/check_system.sidevm.wasm');
         const contract = checkerMetadata.source;
         const codeHash = hex(contract.hash);
         const initSelector = hex('0xed4b9d1b'); // for default() function

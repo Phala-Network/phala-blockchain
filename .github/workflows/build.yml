@@ -34,6 +34,14 @@ jobs:
         with:
           submodules: 'true'
       - uses: ./.github/actions/build-prouter
+  build-contracts:
+    name: Build contracts
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - uses: ./.github/actions/build-contracts
   e2e-test:
     name: Run E2E tests
     runs-on: ubuntu-20.04
@@ -60,6 +68,11 @@ jobs:
         with:
           name: pruntime-binaries
           path: ./standalone/pruntime/bin
+      - name: Download contract binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: contract-binaries
+          path: ./e2e/res
       - name: Build JS-SDK
         run: cd ./frontend/packages/sdk && yarn && yarn build
       - name: Change permission
@@ -75,7 +88,7 @@ jobs:
         with:
           name: e2e-logs
           path: e2e-logs.tar.gz
-    needs: [ build-core, build-pruntime ]
+    needs: [ build-core, build-pruntime, build-contracts ]
 
   cargo-tests:
     name: Run cargo tests

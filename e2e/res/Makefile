@@ -1,23 +1,18 @@
 DRIVER_DIR=../../crates/pink-drivers/
+PREFIX = $(shell pwd)
 
-CHECK_SYSTEM_BIN=check_system/target/ink/manifest.json
-INDETERMINF_DIR=indeterministic_functions
-INDETERMINF=${INDETERMINF_DIR}/target/ink/manifest.json
+.PHONY: all drivers test-contracts clean
 
-.PHONY: $(SYSTEM_CONTRACT_BIN) ${CHECK_SYSTEM_BIN} ${INDETERMINF} drivers
-
-all: drivers ${CHECK_SYSTEM_BIN} ${INDETERMINF}
+all: drivers test-contracts
 
 drivers:
-	cd ${DRIVER_DIR} && ./build.sh
-	cp ${DRIVER_DIR}/dist/* .
+	make install -C $(DRIVER_DIR) PREFIX=$(PREFIX)
 
-$(SYSTEM_CONTRACT_BIN):
-	cd "${SYSTEM_CONTRACT_DIR}" && cargo contract build
+test-contracts:
+	make install -C ../contracts PREFIX=$(PREFIX)
 
-${CHECK_SYSTEM_BIN}:
-	make -C check_system
-
-${INDETERMINF}:
-	cd ${INDETERMINF_DIR} && cargo contract build
-
+clean:
+	make clean -C $(DRIVER_DIR)
+	make clean -C ../contracts
+	rm -rf *.contract
+	rm -rf *.wasm
