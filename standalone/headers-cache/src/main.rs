@@ -140,7 +140,7 @@ struct Serve {
     grab_storage_changes: bool,
     /// Batch size for grabing storage changes
     #[clap(long)]
-    #[clap(default_value_t = 4)]
+    #[clap(default_value_t = 1)]
     grab_storage_changes_batch: BlockNumber,
     /// The relaychain RPC endpoint
     #[clap(long, default_value = "ws://localhost:9945")]
