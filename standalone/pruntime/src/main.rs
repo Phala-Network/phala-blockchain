@@ -8,7 +8,6 @@ use std::{env, thread};
 use clap::Parser;
 use log::{error, info};
 
-use phactory::BlockNumber;
 use phactory_api::ecall_args::{git_revision, InitArgs};
 
 mod handover;
@@ -66,11 +65,6 @@ struct Args {
     /// Measuring the time it takes to process each RPC call.
     #[arg(long)]
     measure_rpc_time: bool,
-
-    /// Run the database garbage collection at given interval in blocks
-    #[arg(long)]
-    #[arg(default_value_t = 100)]
-    gc_interval: BlockNumber,
 
     /// Handover key from another running pruntime instance
     #[arg(long)]
@@ -146,7 +140,6 @@ async fn main() -> Result<(), rocket::Error> {
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
             max_checkpoint_files: args.max_checkpoint_files,
-            gc_interval: args.gc_interval,
             cores,
             public_port: args.public_port,
             safe_mode_level: args.safe_mode_level,

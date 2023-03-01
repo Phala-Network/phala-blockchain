@@ -31,10 +31,6 @@ pub struct InitArgs {
     /// Max number of checkpoint files kept
     pub max_checkpoint_files: u32,
 
-    /// Run the database garbage collection at given interval in blocks
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub gc_interval: chain::BlockNumber,
-
     /// Number of cores used to run fat contracts
     pub cores: u32,
 
