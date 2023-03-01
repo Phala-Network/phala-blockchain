@@ -93,6 +93,13 @@ pub trait System {
     #[ink(message)]
     fn upgrade_system_contract(&self) -> Result<()>;
 
+    /// Do the upgrade condition checks and state migration if necessary.
+    ///
+    /// This function is called by the system contract itself on the new version
+    /// of code in the upgrading process.
+    #[ink(message)]
+    fn do_upgrade(&self, from_version: (u16, u16)) -> Result<()>;
+
     /// Upgrade the contract runtime
     #[ink(message)]
     fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()>;

@@ -10,7 +10,7 @@ pub use system::System;
 mod system {
     use super::pink;
     use alloc::string::String;
-    use ink::{codegen::Env, env::call, storage::Mapping};
+    use ink::{codegen::Env, storage::Mapping};
     use pink::system::{ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
@@ -33,13 +33,6 @@ mod system {
                 administrators: Default::default(),
                 drivers: Default::default(),
             }
-        }
-
-        #[ink(message, selector = 0x0b95be48)]
-        pub fn do_upgrade(&self, _from_version: (u16, u16)) -> Result<()> {
-            self.ensure_self()?;
-            self.ensure_min_runtime_version((1, 0))?;
-            Ok(())
         }
     }
 
@@ -184,19 +177,25 @@ mod system {
                 return Ok(());
             }
             // Call the `do_upgrade` from the new version of system contract.
-            call::build_call::<pink::PinkEnvironment>()
-                .call_type(call::DelegateCall::new(code_hash.into()))
-                .exec_input(
-                    call::ExecutionInput::new(call::Selector::new(0x0b95be48_u32.to_be_bytes()))
-                        .push_arg(self.version()),
-                )
-                .returns::<Result<()>>()
-                .invoke()
-                // panic here to revert the state change.
-                .expect("Failed to upgrade system contract.");
             ink::env::set_code_hash(&code_hash)
-                .expect("Code should exists here or the delegate call would fail");
+                .expect("System code should exists here");
+            let flags = ink::env::CallFlags::default().set_allow_reentry(true);
+            pink::system::SystemRef::instance_with_call_flags(flags)
+                .do_upgrade(self.version())
+                // panic here to revert the state change.
+                .expect("Failed to call do_upgrade on the new system code");
             pink::info!("System contract upgraded successfully.");
+            Ok(())
+        }
+
+        #[ink(message)]
+        fn do_upgrade(&self, from_version: (u16, u16)) -> Result<()> {
+            self.ensure_self()?;
+            self.ensure_min_runtime_version((1, 0))?;
+            if from_version >= self.version() {
+                pink::error!("The system contract is already upgraded.");
+                return Err(Error::ConditionNotMet);
+            }
             Ok(())
         }
 
