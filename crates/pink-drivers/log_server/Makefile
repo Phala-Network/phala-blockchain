@@ -4,6 +4,7 @@ CONTRACT=target/ink/log_server.contract
 PREFIX ?= $(shell realpath ../dist)
 
 ${CONTRACT}: sideprog.wasm
+	cargo check
 	cargo contract build
 
 sideprog.wasm: ${SIDE_WASM}
