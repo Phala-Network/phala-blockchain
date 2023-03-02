@@ -1,10 +1,10 @@
-name: Build pruntime
-description: Build pruntime
+name: Build contracts
+description: Build contracts
 runs:
   using: "composite"
   steps:
     - uses: ./.github/actions/install_toolchain
-    - name: Install gramine
+    - name: Install deps
       run: sudo bash dockerfile.d/01_apt.sh
       shell: bash
     - name: Install cargo-contract
