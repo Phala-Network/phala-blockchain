@@ -152,10 +152,10 @@ mod js {
                     .push_arg(script)
                     .push_arg(args),
             )
-            .returns::<Result<Output, String>>()
+            .returns::<ink::MessageResult<Result<Output, String>>>()
             .invoke();
         pink::info!("eval result: {result:?}");
-        result
+        result.unwrap()
     }
 
     pub fn eval_bytecode(
@@ -172,9 +172,9 @@ mod js {
                     .push_arg(script)
                     .push_arg(args),
             )
-            .returns::<Result<Output, String>>()
+            .returns::<ink::MessageResult<Result<Output, String>>>()
             .invoke();
         pink::info!("eval result: {result:?}");
-        result
+        result.unwrap()
     }
 }
