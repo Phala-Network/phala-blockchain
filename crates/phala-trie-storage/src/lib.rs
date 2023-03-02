@@ -41,7 +41,10 @@ pub fn new_backend<H: Hasher>() -> InMemoryBackend<H>
 where
     H::Out: Codec + Ord,
 {
-    TrieBackend::new(Default::default(), Default::default())
+    TrieBackend::new(
+        Default::default(),
+        sp_trie::empty_trie_root::<sp_state_machine::Layout<H>>(),
+    )
 }
 
 impl<H: Hasher> Default for TrieStorage<H>
