@@ -10,6 +10,8 @@ runs:
         override: true
         target: wasm32-unknown-unknown
         components: rustfmt
-    - run: sudo apt-get install build-essential cmake pkg-config libssl-dev git llvm clang libclang-dev protobuf-compiler
+    - run: sudo apt update
+      shell: bash
+    - run: sudo apt -y install build-essential cmake pkg-config libssl-dev git llvm clang libclang-dev protobuf-compiler
       shell: bash
 

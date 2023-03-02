@@ -1,0 +1,24 @@
+name: Build contracts
+description: Build contracts
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/install_toolchain
+    - name: Install deps
+      run: sudo bash dockerfile.d/01_apt.sh
+      shell: bash
+    - name: Install cargo-contract
+      run: cargo install cargo-contract --version=^2
+      shell: bash
+    - name: Install rust components
+      run: rustup component add rust-src && rustup target add wasm32-wasi
+      shell: bash
+    - name: Build contracts
+      run: make e2e
+      shell: bash
+    - name: Save contract binaries
+      uses: actions/upload-artifact@v3
+      with:
+        name: contract-binaries
+        path: |
+          ./e2e/res/*
