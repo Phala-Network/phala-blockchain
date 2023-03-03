@@ -1572,11 +1572,7 @@ impl<Platform: pal::Platform> System<Platform> {
         SystemInfo {
             registered: self.is_registered(),
             gatekeeper: Some(self.gatekeeper_status()),
-            cluster: self
-                .contract_cluster
-                .as_ref()
-                .map(|c| hex::encode(c.id))
-                .unwrap_or_default(),
+            number_of_clusters: self.contract_cluster.is_some() as _,
             number_of_contracts: self.contracts.len() as _,
             public_key: hex::encode(self.identity_key.public()),
             ecdh_public_key: hex::encode(self.ecdh_key.public()),

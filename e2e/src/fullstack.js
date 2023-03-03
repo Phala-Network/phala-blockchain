@@ -530,7 +530,7 @@ describe('A full stack', function () {
 
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.system.cluster != "";
+                return info.system.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
             const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
@@ -764,7 +764,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 let info = await pruntime[0].getInfo();
-                return info.system.cluster == "";
+                return info.system.numberOfClusters == 0;
             }, 4 * 6000), 'destroy cluster failed');
         });
     });

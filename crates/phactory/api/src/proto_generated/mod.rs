@@ -23,7 +23,7 @@ pub struct Info<'a> {
     pub rpeak: u64,
     pub mfree: u64,
     pub whdr: bool,
-    pub cluster: bool,
+    pub cluster: u64,
     pub gblk: u32,
 }
 
@@ -47,8 +47,8 @@ impl PhactoryInfo {
             cluster: self
                 .system
                 .as_ref()
-                .map(|s| !s.cluster.is_empty())
-                .unwrap_or(false),
+                .map(|s| s.number_of_clusters)
+                .unwrap_or_default(),
             gblk: self.system.as_ref().map(|s| s.genesis_block).unwrap_or(0),
         }
     }
