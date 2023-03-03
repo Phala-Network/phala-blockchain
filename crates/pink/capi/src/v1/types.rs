@@ -397,12 +397,23 @@ pub type cross_call_fn_t = ::core::option::Option<
 >;
 pub type ecall_get_version_fn_t =
     ::core::option::Option<unsafe extern "C" fn(major: *mut u32, minor: *mut u32)>;
+pub type alloc_fn_t =
+    ::core::option::Option<unsafe extern "C" fn(size: usize, align: usize) -> *mut u8>;
+pub type dealloc_fn_t =
+    ::core::option::Option<unsafe extern "C" fn(p: *mut u8, size: usize, align: usize)>;
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct ocalls_t {
+    pub ocall: cross_call_fn_t,
+    pub alloc: alloc_fn_t,
+    pub dealloc: dealloc_fn_t,
+}
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct config_t {
     pub is_dylib: ::core::ffi::c_int,
     pub enclaved: ::core::ffi::c_int,
-    pub ocall: cross_call_fn_t,
+    pub ocalls: ocalls_t,
 }
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]

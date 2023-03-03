@@ -19,21 +19,20 @@ pub unsafe extern "C" fn __pink_runtime_init(
     ecalls: *mut ecalls_t,
 ) -> ::core::ffi::c_int {
     let config = unsafe { &*config };
-    if config.is_dylib != 0 {
-        logger::init(config.enclaved != 0);
+    if let Err(err) = ocall_impl::set_ocall_fn(config.ocalls) {
+        log::error!("Failed to init runtime: {err}");
+        return -1;
     }
     if ecalls.is_null() {
         log::error!("Failed to init runtime: ecalls is null");
         return -1;
     }
-    let Some(ocall) = config.ocall else {
-        log::error!("Failed to init runtime: ocall is null");
-        return -1;
-    };
     unsafe {
-        ocall_impl::set_ocall_fn(ocall);
         (*ecalls).ecall = Some(ecall);
         (*ecalls).get_version = Some(get_version);
+    }
+    if config.is_dylib != 0 {
+        logger::init(config.enclaved != 0);
     }
     0
 }

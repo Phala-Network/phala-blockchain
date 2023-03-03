@@ -5,7 +5,7 @@ use pink_capi::{
     v1::{
         config_t, cross_call_fn_t, ecalls_t, init_t,
         ocall::{executing_dispatch, OCalls},
-        output_fn_t, IdentExecute,
+        ocalls_t, output_fn_t, IdentExecute,
     },
 };
 use std::ffi::c_void;
@@ -47,10 +47,15 @@ impl Runtime {
 
     pub fn from_fn(init: InnerType<init_t>, handle: *mut c_void, version: (u32, u32)) -> Self {
         let filename = format!("libpink.so.{}.{}", version.0, version.1);
+        let is_dylib = !handle.is_null();
         let config = config_t {
-            is_dylib: if handle.is_null() { 0 } else { 1 },
+            is_dylib: is_dylib as _,
             enclaved: in_enclave(),
-            ocall: Some(ocall),
+            ocalls: ocalls_t {
+                ocall: Some(ocall),
+                alloc: is_dylib.then_some(ocall_alloc),
+                dealloc: is_dylib.then_some(ocall_dealloc),
+            },
         };
         let mut ecalls = ecalls_t::default();
         unsafe {
@@ -132,4 +137,15 @@ unsafe extern "C" fn ocall(
     if let Some(output_fn) = output_fn {
         unsafe { output_fn(ctx, output.as_ptr(), output.len()) };
     }
+}
+
+unsafe extern "C" fn ocall_alloc(size: usize, align: usize) -> *mut u8 {
+    std::alloc::alloc(std::alloc::Layout::from_size_align(size, align).unwrap())
+}
+
+unsafe extern "C" fn ocall_dealloc(ptr: *mut u8, size: usize, align: usize) {
+    std::alloc::dealloc(
+        ptr,
+        std::alloc::Layout::from_size_align(size, align).unwrap(),
+    )
 }
