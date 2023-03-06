@@ -1066,7 +1066,7 @@ pub mod pallet {
 				None => return,
 			};
 
-			while pool_info.get_free_stakes::<T>() >= T::WPhaMinBalance::get() {
+			while pool_info.get_free_stakes::<T>() > T::WPhaMinBalance::get() {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let mut withdraw_nft_guard =
