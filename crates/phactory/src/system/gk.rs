@@ -1102,12 +1102,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             }
             GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
-                    self.tokenomic_params = params.into();
-                    info!(
-                        target: "gk_computing",
-                        "Tokenomic parameter updated: {:#?}",
-                        &self.tokenomic_params
-                    );
+                    self.update_tokenomic_parameters(params);
                 }
             }
             // These events are no longer used in Phala, but kept in the type define for Khala Network.
@@ -1115,6 +1110,18 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             | GatekeeperEvent::_PhalaLaunched
             | GatekeeperEvent::_UnrespFix => unreachable!(),
         }
+    }
+
+    pub fn update_tokenomic_parameters(
+        &mut self,
+        params: phala_types::messaging::TokenomicParameters,
+    ) {
+        self.tokenomic_params = params.into();
+        info!(
+            target: "gk_computing",
+            "Tokenomic parameter updated: {:#?}",
+            &self.tokenomic_params
+        );
     }
 
     pub fn sum_share(&self) -> FixedPoint {
