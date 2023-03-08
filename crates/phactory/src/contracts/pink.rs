@@ -30,6 +30,8 @@ use ::pink::{
 
 pub use phala_types::contract::InkCommand;
 
+mod http_counters;
+
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
     InkMessage {
@@ -302,10 +304,19 @@ impl OCalls for RuntimeHandle<'_> {
 
     fn http_request(
         &self,
-        _contract: AccountId,
+        contract: AccountId,
         request: HttpRequest,
     ) -> Result<HttpResponse, HttpRequestError> {
-        pink_extension_runtime::http_request(request, context::time_remaining())
+        let result = pink_extension_runtime::http_request(request, context::time_remaining());
+        match &result {
+            Ok(response) => {
+                http_counters::add(contract, response.status_code);
+            }
+            Err(_) => {
+                http_counters::add(contract, 0);
+            }
+        }
+        result
     }
 }
 
