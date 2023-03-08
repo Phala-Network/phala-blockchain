@@ -78,6 +78,14 @@ struct Flow {
     previous_finish_tag: VirtualTime,
     average_cost: VirtualTime,
     recent_active_time: Instant,
+    counters: Counters,
+}
+
+#[derive(Default, Clone)]
+struct Counters {
+    time: VirtualTime,
+    dropped: u64,
+    finished: u64,
 }
 
 struct Request<FlowId: FlowIdType> {
@@ -149,6 +157,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
             previous_finish_tag: 0,
             average_cost: 0,
             recent_active_time: Instant::now(),
+            counters: Counters::default(),
         });
 
         let start_tag = self.virtual_time.max(flow.previous_finish_tag);
@@ -164,6 +173,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
                 .expect("Get the latest request from non-empty backlog should not fail");
             if start_tag >= *max_start_tag {
                 flow.previous_finish_tag -= cost;
+                flow.counters.dropped += 1;
                 return Err(AcquireError::Overloaded);
             }
             // Drop the previous low priority request. This would cancel the corresponding
@@ -171,6 +181,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
             if let Some((_, req)) = self.backlog.pop_last() {
                 if let Some(flow) = self.flows.get_mut(&req.flow_id) {
                     flow.previous_finish_tag -= req.cost;
+                    flow.counters.dropped += 1;
                 }
             }
         }
@@ -196,6 +207,8 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
     fn release(&mut self, flow: &FlowId, actual_cost: VirtualTime) {
         if let Some(flow) = self.flows.get_mut(flow) {
             flow.average_cost = (flow.average_cost * 4 + actual_cost) / 5;
+            flow.counters.time += actual_cost;
+            flow.counters.finished += 1;
         }
         self.serving -= 1;
         self.try_pickup_next();
