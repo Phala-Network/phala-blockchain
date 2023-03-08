@@ -72,6 +72,32 @@ impl<FlowId: FlowIdType> RequestScheduler<FlowId> {
             virtual_time: inner.virtual_time,
         }
     }
+
+    pub fn stats(&self) -> Stats<FlowId> {
+        let inner = self.inner.lock().unwrap();
+        Stats {
+            global: inner.counters.clone(),
+            flows: inner
+                .flows
+                .iter()
+                .map(|(k, v)| (k.clone(), v.counters.clone()))
+                .collect(),
+        }
+    }
+
+    pub fn stats_for(&self, flow_id: &FlowId) -> Counters {
+        self.inner
+            .lock()
+            .unwrap()
+            .flows
+            .get(flow_id)
+            .map(|flow| flow.counters.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn stats_global(&self) -> Counters {
+        self.inner.lock().unwrap().counters.clone()
+    }
 }
 
 struct Flow {
@@ -82,10 +108,15 @@ struct Flow {
 }
 
 #[derive(Default, Clone)]
-struct Counters {
-    time: VirtualTime,
-    dropped: u64,
-    finished: u64,
+pub struct Counters {
+    pub total: u64,
+    pub dropped: u64,
+    pub time: VirtualTime,
+}
+
+pub struct Stats<FlowId> {
+    pub global: Counters,
+    pub flows: Vec<(FlowId, Counters)>,
 }
 
 struct Request<FlowId: FlowIdType> {
@@ -131,6 +162,7 @@ struct SchedulerInner<FlowId: FlowIdType> {
     depth: u32,
     serving: u32,
     virtual_time: VirtualTime,
+    counters: Counters,
 }
 
 unsafe impl<T: FlowIdType> Send for SchedulerInner<T> {}
@@ -145,6 +177,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
             depth,
             serving: 0,
             virtual_time: 0,
+            counters: Counters::default(),
         }
     }
 
@@ -166,6 +199,9 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
         let finish_tag = start_tag + cost;
         flow.previous_finish_tag = finish_tag;
 
+        flow.counters.total += 1;
+        self.counters.total += 1;
+
         if self.backlog.len() >= self.backlog_cap {
             let (max_start_tag, _) = self
                 .backlog
@@ -174,6 +210,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
             if start_tag >= *max_start_tag {
                 flow.previous_finish_tag -= cost;
                 flow.counters.dropped += 1;
+                self.counters.dropped += 1;
                 return Err(AcquireError::Overloaded);
             }
             // Drop the previous low priority request. This would cancel the corresponding
@@ -182,6 +219,7 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
                 if let Some(flow) = self.flows.get_mut(&req.flow_id) {
                     flow.previous_finish_tag -= req.cost;
                     flow.counters.dropped += 1;
+                    self.counters.dropped += 1;
                 }
             }
         }
@@ -208,8 +246,8 @@ impl<FlowId: FlowIdType> SchedulerInner<FlowId> {
         if let Some(flow) = self.flows.get_mut(flow) {
             flow.average_cost = (flow.average_cost * 4 + actual_cost) / 5;
             flow.counters.time += actual_cost;
-            flow.counters.finished += 1;
         }
+        self.counters.time += actual_cost;
         self.serving -= 1;
         self.try_pickup_next();
     }

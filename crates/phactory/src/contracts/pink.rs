@@ -30,7 +30,7 @@ use ::pink::{
 
 pub use phala_types::contract::InkCommand;
 
-mod http_counters;
+pub(crate) mod http_counters;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {

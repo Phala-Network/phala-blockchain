@@ -6,22 +6,22 @@ use std::{collections::BTreeMap, sync::Mutex};
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct HttpGlobolCoutners {
     /// Global HTTP counters for all contracts.
-    global: HttpCoutners,
+    pub global: HttpCoutners,
     /// HTTP counters grouped by contract account ID.
-    by_contract: BTreeMap<AccountId, HttpCoutners>,
+    pub by_contract: BTreeMap<AccountId, HttpCoutners>,
 }
 
 /// Represents HTTP counters for a single contract or globally.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-struct HttpCoutners {
+pub struct HttpCoutners {
     /// Time of the latest HTTP activitiy.
     latest_activity: u64,
     /// Number of HTTP requests.
-    requests: u64,
+    pub requests: u64,
     /// Number of failed HTTP requests.
-    failures: u64,
+    pub failures: u64,
     /// HTTP counters grouped by status code.
-    by_status: BTreeMap<u16, u64>,
+    pub by_status_code: BTreeMap<u16, u64>,
 }
 
 static HTTP_COUNTERS: once_cell::sync::OnceCell<Mutex<HttpGlobolCoutners>> =
@@ -44,7 +44,11 @@ pub(super) fn add(contract: AccountId, status_code: u16) {
         counters.global.failures += 1;
     }
     if status_code != 0 {
-        *counters.global.by_status.entry(status_code).or_insert(0) += 1;
+        *counters
+            .global
+            .by_status_code
+            .entry(status_code)
+            .or_insert(0) += 1;
     }
 
     let counters = counters
@@ -57,6 +61,24 @@ pub(super) fn add(contract: AccountId, status_code: u16) {
         counters.failures += 1;
     }
     if status_code != 0 {
-        *counters.by_status.entry(status_code).or_insert(0) += 1;
+        *counters.by_status_code.entry(status_code).or_insert(0) += 1;
     }
+}
+
+pub(crate) fn stats() -> HttpGlobolCoutners {
+    counters().lock().unwrap().clone()
+}
+
+pub(crate) fn stats_for(contract: &AccountId) -> HttpCoutners {
+    counters()
+        .lock()
+        .unwrap()
+        .by_contract
+        .get(contract)
+        .cloned()
+        .unwrap_or_default()
+}
+
+pub(crate) fn stats_global() -> HttpCoutners {
+    counters().lock().unwrap().global.clone()
 }

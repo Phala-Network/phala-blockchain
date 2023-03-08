@@ -1608,6 +1608,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let synced_to = self.lock_phactory().take_checkpoint().map_err(from_debug)?;
         Ok(pb::SyncedTo { synced_to })
     }
+    async fn statistics(
+        &mut self,
+        request: pb::StatisticsReqeust,
+    ) -> Result<pb::StatisticsResponse, prpc::server::Error> {
+        self.lock_phactory().statistics(request).map_err(from_debug)
+    }
 }
 
 fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {

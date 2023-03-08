@@ -7,6 +7,7 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use ::pink::types::AccountId;
+use contracts::pink::http_counters;
 use glob::PatternError;
 use rand::*;
 use serde::{
@@ -16,7 +17,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, convert::TryFrom};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -35,7 +36,7 @@ use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
     ecall_args::{git_revision, InitArgs},
     endpoints::EndpointType,
-    prpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    prpc::{self as pb, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 
@@ -616,6 +617,90 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .on_restored()
             .context("Failed to restore Phactory")?;
         Ok(factory)
+    }
+
+    fn statistics(
+        &mut self,
+        request: pb::StatisticsReqeust,
+    ) -> anyhow::Result<pb::StatisticsResponse> {
+        let uptime = self.uptime.elapsed().as_secs();
+        let contracts_query_stats;
+        let global_query_stats;
+        let contracts_http_stats;
+        let global_http_stats;
+        if let Some(contracts) = request.contracts {
+            let mut query_stats = Vec::new();
+            let mut http_stats = BTreeMap::new();
+            for contract in contracts.values {
+                let contract = AccountId::try_from(&contract[..])
+                    .or(Err(anyhow!("Invalid contract address")))?;
+                let stat = self.query_scheduler.stats_for(&contract);
+                query_stats.push((contract.clone(), stat));
+                let stat = http_counters::stats_for(&contract);
+                http_stats.insert(contract, stat);
+            }
+            contracts_query_stats = query_stats;
+            global_query_stats = self.query_scheduler.stats_global();
+            contracts_http_stats = http_stats;
+            global_http_stats = http_counters::stats_global();
+        } else {
+            let query_stats = self.query_scheduler.stats();
+            contracts_query_stats = query_stats.flows;
+            global_query_stats = query_stats.global;
+            let http_stats = http_counters::stats();
+            contracts_http_stats = http_stats.by_contract;
+            global_http_stats = http_stats.global;
+        }
+
+        return Ok(pb::StatisticsResponse {
+            uptime,
+            query: Some(pb::QueryStats {
+                global: Some(pb::QueryCounters {
+                    total: global_query_stats.total,
+                    dropped: global_query_stats.dropped,
+                }),
+                by_contract: contracts_query_stats
+                    .into_iter()
+                    .map(|(contract, stat)| {
+                        (
+                            format!("0x{}", hex_fmt::HexFmt(contract)),
+                            pb::QueryCounters {
+                                total: stat.total,
+                                dropped: stat.dropped,
+                            },
+                        )
+                    })
+                    .collect(),
+            }),
+            http_egress: Some(pb::HttpEgressStats {
+                global: Some(pb::HttpCounters {
+                    requests: global_http_stats.requests,
+                    failures: global_http_stats.failures,
+                    by_status_code: global_http_stats
+                        .by_status_code
+                        .into_iter()
+                        .map(|(s, c)| (s as u32, c))
+                        .collect(),
+                }),
+                by_contract: contracts_http_stats
+                    .into_iter()
+                    .map(|(contract, stat)| {
+                        (
+                            format!("0x{}", hex_fmt::HexFmt(contract)),
+                            pb::HttpCounters {
+                                requests: stat.requests,
+                                failures: stat.failures,
+                                by_status_code: stat
+                                    .by_status_code
+                                    .into_iter()
+                                    .map(|(s, c)| (s as u32, c))
+                                    .collect(),
+                            },
+                        )
+                    })
+                    .collect(),
+            }),
+        });
     }
 }
 
