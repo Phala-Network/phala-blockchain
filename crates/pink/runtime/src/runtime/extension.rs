@@ -151,7 +151,7 @@ impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
         OCallImpl
-            .http_request(request)
+            .http_request(self.address.clone(), request)
             .map_err(|err| DispatchError::Other(err.display()))
     }
 

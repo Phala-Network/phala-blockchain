@@ -300,7 +300,11 @@ impl OCalls for RuntimeHandle<'_> {
         context::with(|ctx| ctx.chain_storage().pink_system_code().1)
     }
 
-    fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError> {
+    fn http_request(
+        &self,
+        _contract: AccountId,
+        request: HttpRequest,
+    ) -> Result<HttpResponse, HttpRequestError> {
         pink_extension_runtime::http_request(request, context::time_remaining())
     }
 }
@@ -360,8 +364,12 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.readonly().latest_system_code()
     }
 
-    fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError> {
-        self.readonly().http_request(request)
+    fn http_request(
+        &self,
+        contract: AccountId,
+        request: HttpRequest,
+    ) -> Result<HttpResponse, HttpRequestError> {
+        self.readonly().http_request(contract, request)
     }
 }
 

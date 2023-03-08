@@ -472,7 +472,11 @@ mod test_cluster {
             vec![]
         }
 
-        fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError> {
+        fn http_request(
+            &self,
+            _contract: AccountId,
+            request: HttpRequest,
+        ) -> Result<HttpResponse, HttpRequestError> {
             pink_extension_runtime::http_request(request, 10 * 1000)
         }
     }

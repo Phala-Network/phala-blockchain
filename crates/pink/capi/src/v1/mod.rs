@@ -176,6 +176,10 @@ pub mod ocall {
         #[xcall(id = 13)]
         fn latest_system_code(&self) -> Vec<u8>;
         #[xcall(id = 14)]
-        fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError>;
+        fn http_request(
+            &self,
+            contracr: AccountId,
+            request: HttpRequest,
+        ) -> Result<HttpResponse, HttpRequestError>;
     }
 }
