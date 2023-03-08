@@ -249,6 +249,10 @@ pub struct Phactory<Platform> {
 
     #[serde(skip)]
     trusted_sk: bool,
+
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
+    uptime: Instant,
 }
 
 fn default_query_scheduler() -> RequestScheduler<AccountId> {
@@ -278,6 +282,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
+            uptime: Instant::now(),
         }
     }
 
