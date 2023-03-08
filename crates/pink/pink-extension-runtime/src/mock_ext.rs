@@ -17,10 +17,6 @@ impl super::PinkRuntimeEnv for MockExtension {
         static ADDRESS: AccountId32 = AccountId32::new([0; 32]);
         &ADDRESS
     }
-
-    fn call_elapsed(&self) -> Option<std::time::Duration> {
-        Some(std::time::Duration::from_secs(0))
-    }
 }
 
 impl ext::PinkExtBackend for MockExtension {

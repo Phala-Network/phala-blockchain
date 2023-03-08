@@ -18,6 +18,30 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
+#[derive(scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum HttpRequestError {
+    InvalidUrl,
+    InvalidMethod,
+    InvalidHeaderName,
+    InvalidHeaderValue,
+    FailedToCreateClient,
+    Timeout,
+}
+
+impl HttpRequestError {
+    pub fn display(&self) -> &'static str {
+        match self {
+            Self::InvalidUrl => "Invalid URL",
+            Self::InvalidMethod => "Invalid method",
+            Self::InvalidHeaderName => "Invalid header name",
+            Self::InvalidHeaderValue => "Invalid header value",
+            Self::FailedToCreateClient => "Failed to create client",
+            Self::Timeout => "Timeout",
+        }
+    }
+}
+
 impl HttpResponse {
     pub fn ok(body: Vec<u8>) -> Self {
         Self {

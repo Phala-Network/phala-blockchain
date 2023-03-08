@@ -43,8 +43,7 @@ where
             Timestamp::set_timestamp(exec_context.now_ms);
             System::set_block_number(exec_context.block_number);
             System::reset_events();
-            let r = crate::runtime::using_mode(exec_context.mode, f);
-            (r, crate::runtime::get_side_effects())
+            (f(), crate::runtime::get_side_effects())
         });
         overlay
             .commit_transaction()

@@ -4535,6 +4535,7 @@ dependencies = [
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
+ "pink-extension-runtime",
  "pink-runner",
  "prpc",
  "rand 0.8.5",

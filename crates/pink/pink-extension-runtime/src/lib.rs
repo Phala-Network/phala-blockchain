@@ -7,7 +7,8 @@ use std::{
 
 use pink_extension::{
     chain_extension::{
-        self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
+        self as ext, HttpRequest, HttpRequestError, HttpResponse, PinkExtBackend, SigType,
+        StorageQuotaExceeded,
     },
     Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
@@ -25,7 +26,6 @@ pub trait PinkRuntimeEnv {
     type AccountId: AsRef<[u8]> + Display;
 
     fn address(&self) -> &Self::AccountId;
-    fn call_elapsed(&self) -> Option<Duration>;
 }
 
 pub struct DefaultPinkExtension<'a, T, Error> {
@@ -42,87 +42,90 @@ impl<'a, T, E> DefaultPinkExtension<'a, T, E> {
     }
 }
 
-impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExtension<'_, T, E> {
-    type Error = E;
-    fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        // Hardcoded limitations for now
-        const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
-        const MAX_BODY_SIZE: usize = 1024 * 256; // 256KB
+pub fn http_request(
+    request: HttpRequest,
+    timeout_ms: u64,
+) -> Result<HttpResponse, HttpRequestError> {
+    if timeout_ms == 0 {
+        return Err(HttpRequestError::Timeout);
+    }
+    let timeout = Duration::from_millis(timeout_ms);
+    let url: reqwest::Url = request.url.parse().or(Err(HttpRequestError::InvalidUrl))?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .env_proxy(url.host_str().unwrap_or_default())
+        .build()
+        .or(Err(HttpRequestError::FailedToCreateClient))?;
 
-        let elapsed = self.env.call_elapsed().ok_or("Invalid exec env")?;
-        if elapsed >= MAX_QUERY_TIME {
-            return Err("Query time limitation exceeded".into());
-        }
-        let timeout = MAX_QUERY_TIME.saturating_sub(elapsed);
+    let method: Method =
+        FromStr::from_str(request.method.as_str()).or(Err(HttpRequestError::InvalidMethod))?;
+    let mut headers = HeaderMap::new();
+    for (key, value) in &request.headers {
+        let key =
+            HeaderName::from_str(key.as_str()).or(Err(HttpRequestError::InvalidHeaderName))?;
+        let value = HeaderValue::from_str(value).or(Err(HttpRequestError::InvalidHeaderValue))?;
+        headers.insert(key, value);
+    }
 
-        let url: reqwest::Url = request.url.parse().or(Err("Invalid url"))?;
+    let result = client
+        .request(method, url)
+        .headers(headers)
+        .body(request.body)
+        .send();
 
-        let client = reqwest::blocking::Client::builder()
-            .timeout(timeout)
-            .env_proxy(url.host_str().unwrap_or_default())
-            .build()
-            .or(Err("Failed to create client"))?;
-
-        let method: Method =
-            FromStr::from_str(request.method.as_str()).or(Err("Invalid HTTP method"))?;
-        let mut headers = HeaderMap::new();
-        for (key, value) in &request.headers {
-            let key = HeaderName::from_str(key.as_str()).or(Err("Invalid HTTP header key"))?;
-            let value = HeaderValue::from_str(value).or(Err("Invalid HTTP header value"))?;
-            headers.insert(key, value);
-        }
-
-        let result = client
-            .request(method, url)
-            .headers(headers)
-            .body(request.body)
-            .send();
-
-        let mut response = match result {
-            Ok(response) => response,
-            Err(err) => {
-                // If there is somthing wrong with the network, we can not inspect the reason too
-                // much here. Let it return a non-standard 523 here.
-                log::info!("HTTP request error: {err}");
-                return Ok(HttpResponse {
-                    status_code: 523,
-                    reason_phrase: "Unreachable".into(),
-                    body: format!("{err:?}").into_bytes(),
-                    headers: vec![],
-                });
-            }
-        };
-
-        let headers: Vec<_> = response
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
-            .collect();
-
-        let mut body = Vec::new();
-        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
-
-        if let Err(err) = response.copy_to(&mut writer) {
-            log::info!("Failed to read HTTP body: {err}");
+    let mut response = match result {
+        Ok(response) => response,
+        Err(err) => {
+            // If there is somthing wrong with the network, we can not inspect the reason too
+            // much here. Let it return a non-standard 523 here.
+            log::info!("HTTP request error: {err}");
             return Ok(HttpResponse {
-                status_code: 524,
-                reason_phrase: "IO Error".into(),
+                status_code: 523,
+                reason_phrase: "Unreachable".into(),
                 body: format!("{err:?}").into_bytes(),
                 headers: vec![],
             });
-        };
+        }
+    };
 
-        let response = HttpResponse {
-            status_code: response.status().as_u16(),
-            reason_phrase: response
-                .status()
-                .canonical_reason()
-                .unwrap_or_default()
-                .into(),
-            body,
-            headers,
-        };
-        Ok(response)
+    let headers: Vec<_> = response
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
+        .collect();
+
+    const MAX_BODY_SIZE: usize = 1024 * 16; // 16KB
+
+    let mut body = Vec::new();
+    let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+
+    if let Err(err) = response.copy_to(&mut writer) {
+        log::info!("Failed to read HTTP body: {err}");
+        return Ok(HttpResponse {
+            status_code: 524,
+            reason_phrase: "IO Error".into(),
+            body: format!("{err:?}").into_bytes(),
+            headers: vec![],
+        });
+    };
+
+    let response = HttpResponse {
+        status_code: response.status().as_u16(),
+        reason_phrase: response
+            .status()
+            .canonical_reason()
+            .unwrap_or_default()
+            .into(),
+        body,
+        headers,
+    };
+    Ok(response)
+}
+
+impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExtension<'_, T, E> {
+    type Error = E;
+    fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
+        http_request(request, 10 * 1000).map_err(|err| err.display().into())
     }
 
     fn sign(

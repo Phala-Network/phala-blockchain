@@ -12,7 +12,7 @@ use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
-        ocall::{ExecContext, OCalls, StorageChanges},
+        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
     },
     local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::using_ocalls,
@@ -125,6 +125,8 @@ impl RuntimeHandle<'_> {
 }
 
 pub(crate) mod context {
+    use std::time::{Duration, Instant};
+
     use pink::{
         capi::v1::ocall::ExecContext,
         types::{BlockNumber, ExecutionMode},
@@ -138,6 +140,7 @@ pub(crate) mod context {
         fn chain_storage(&self) -> &ChainStorage;
         fn exec_context(&self) -> ExecContext;
         fn worker_pubkey(&self) -> [u8; 32];
+        fn call_elapsed(&self) -> Duration;
     }
 
     pub struct ContractExecContext {
@@ -146,6 +149,26 @@ pub(crate) mod context {
         pub block_number: BlockNumber,
         pub worker_pubkey: [u8; 32],
         pub chain_storage: ChainStorage,
+        pub start_at: Instant,
+    }
+
+    impl ContractExecContext {
+        pub fn new(
+            mode: ExecutionMode,
+            now_ms: u64,
+            block_number: BlockNumber,
+            worker_pubkey: [u8; 32],
+            chain_storage: ChainStorage,
+        ) -> Self {
+            Self {
+                mode,
+                now_ms,
+                block_number,
+                worker_pubkey,
+                chain_storage,
+                start_at: Instant::now(),
+            }
+        }
     }
 
     impl GetContext for ContractExecContext {
@@ -160,8 +183,13 @@ pub(crate) mod context {
                 now_ms: self.now_ms,
             }
         }
+
         fn worker_pubkey(&self) -> [u8; 32] {
             self.worker_pubkey
+        }
+
+        fn call_elapsed(&self) -> Duration {
+            self.start_at.elapsed()
         }
     }
 
@@ -179,6 +207,15 @@ pub(crate) mod context {
 
     pub fn worker_pubkey() -> [u8; 32] {
         exec_context::with(|ctx| ctx.worker_pubkey()).unwrap_or_default()
+    }
+
+    pub fn call_elapsed() -> Duration {
+        exec_context::with(|ctx| ctx.call_elapsed()).unwrap_or_else(|| Duration::from_secs(0))
+    }
+
+    pub fn time_remaining() -> u64 {
+        const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
+        MAX_QUERY_TIME.saturating_sub(call_elapsed()).as_millis() as _
     }
 }
 
@@ -262,6 +299,10 @@ impl OCalls for RuntimeHandle<'_> {
     fn latest_system_code(&self) -> Vec<u8> {
         context::with(|ctx| ctx.chain_storage().pink_system_code().1)
     }
+
+    fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError> {
+        pink_extension_runtime::http_request(request, context::time_remaining())
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -317,6 +358,10 @@ impl OCalls for RuntimeHandleMut<'_> {
 
     fn latest_system_code(&self) -> Vec<u8> {
         self.readonly().latest_system_code()
+    }
+
+    fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError> {
+        self.readonly().http_request(request)
     }
 }
 
@@ -461,13 +506,13 @@ impl Cluster {
                 } else {
                     ExecutionMode::Query
                 };
-                let mut ctx = context::ContractExecContext {
+                let mut ctx = context::ContractExecContext::new(
                     mode,
-                    now_ms: context.now_ms,
-                    block_number: context.block_number,
-                    worker_pubkey: context.worker_pubkey,
-                    chain_storage: context.chain_storage,
-                };
+                    context.now_ms,
+                    context.block_number,
+                    context.worker_pubkey,
+                    context.chain_storage,
+                );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
                     let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
@@ -538,13 +583,13 @@ impl Cluster {
                     .or(Err(QueryError::ServiceUnavailable))?;
 
                 let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-                let mut ctx = context::ContractExecContext {
-                    mode: ExecutionMode::Estimating,
-                    now_ms: context.now_ms,
-                    block_number: context.block_number,
-                    worker_pubkey: context.worker_pubkey,
-                    chain_storage: context.chain_storage,
-                };
+                let mut ctx = context::ContractExecContext::new(
+                    ExecutionMode::Estimating,
+                    context.now_ms,
+                    context.block_number,
+                    context.worker_pubkey,
+                    context.chain_storage,
+                );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
                     let mut runtime = self.runtime_mut(log_handler);

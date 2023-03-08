@@ -119,10 +119,12 @@ pub mod ecall {
 pub mod ocall {
     use super::{CrossCallMut, Executing, OCall};
     use crate::types::{AccountId, BlockNumber, ExecSideEffects, ExecutionMode, Hash};
-    use pink_extension::chain_extension::StorageQuotaExceeded;
     use pink_macro::cross_call;
     use scale::{Decode, Encode};
 
+    pub use pink_extension::chain_extension::{
+        HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
+    };
     pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
 
     #[derive(Decode, Encode, Clone, Debug, Default)]
@@ -133,11 +135,7 @@ pub mod ocall {
     }
 
     impl ExecContext {
-        pub fn new(
-            mode: ExecutionMode,
-            block_number: BlockNumber,
-            now_ms: u64,
-        ) -> Self {
+        pub fn new(mode: ExecutionMode, block_number: BlockNumber, now_ms: u64) -> Self {
             Self {
                 mode,
                 block_number,
@@ -177,5 +175,7 @@ pub mod ocall {
         fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>>;
         #[xcall(id = 13)]
         fn latest_system_code(&self) -> Vec<u8>;
+        #[xcall(id = 14)]
+        fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, HttpRequestError>;
     }
 }

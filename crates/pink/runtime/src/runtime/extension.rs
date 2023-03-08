@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::borrow::Cow;
 
 use frame_support::log::error;
 use frame_support::traits::Currency;
@@ -17,11 +17,7 @@ use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
 use sp_runtime::{AccountId32, DispatchError};
 
-use crate::{
-    capi::OCallImpl,
-    runtime::{get_call_elapsed, get_call_mode_info},
-    types::AccountId,
-};
+use crate::{capi::OCallImpl, types::AccountId};
 
 use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
@@ -94,9 +90,9 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
         }
 
         let address = env.ext().address().clone();
-        let call_info = get_call_mode_info().expect("BUG: call ext out of runtime context");
         let call_in_query = CallInQuery { address };
-        let result = if call_info.mode.is_query() {
+        let mode = OCallImpl.exec_context().mode;
+        let result = if mode.is_query() {
             dispatch_ext_call!(env.func_id(), call_in_query, env)
         } else {
             let call = CallInCommand {
@@ -135,10 +131,6 @@ impl PinkRuntimeEnv for CallInQuery {
     fn address(&self) -> &Self::AccountId {
         &self.address
     }
-
-    fn call_elapsed(&self) -> Option<Duration> {
-        get_call_elapsed()
-    }
 }
 
 impl CallInQuery {
@@ -158,7 +150,9 @@ impl CallInQuery {
 impl PinkExtBackend for CallInQuery {
     type Error = DispatchError;
     fn http_request(&self, request: HttpRequest) -> Result<HttpResponse, Self::Error> {
-        DefaultPinkExtension::new(self).http_request(request)
+        OCallImpl
+            .http_request(request)
+            .map_err(|err| DispatchError::Other(err.display()))
     }
 
     fn sign(

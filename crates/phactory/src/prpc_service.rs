@@ -282,13 +282,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let now_ms = state.chain_storage.timestamp_now();
             let chain_storage = state.chain_storage.snapshot();
             let block_number = block.block_header.number;
-            let mut context = contracts::pink::context::ContractExecContext {
-                mode: ExecutionMode::Transaction,
+            let mut context = contracts::pink::context::ContractExecContext::new(
+                ExecutionMode::Transaction,
                 now_ms,
                 block_number,
-                worker_pubkey: pubkey,
+                pubkey,
                 chain_storage,
-            };
+            );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {
                 self.handle_inbound_messages(block_number)

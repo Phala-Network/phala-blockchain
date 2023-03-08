@@ -2,8 +2,6 @@ mod extension;
 mod pallet_pink;
 mod weights;
 
-use std::time::{Duration, Instant};
-
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
@@ -11,7 +9,6 @@ use frame_support::{
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 use pallet_contracts::{Config, Frame, Schedule};
-use pink_capi::types::ExecutionMode;
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
@@ -159,34 +156,4 @@ fn detect_parameter_changes() {
         <PinkRuntime as Config>::MaxCodeLen::get(),
         <PinkRuntime as Config>::MaxStorageKeyLen::get(),
     ));
-}
-
-pub struct CallModeInfo {
-    pub mode: ExecutionMode,
-}
-
-struct CallInfo {
-    mode: ExecutionMode,
-    start_at: Instant,
-}
-
-environmental::environmental!(call_info: CallInfo);
-
-pub fn using_mode<T>(
-    mode: ExecutionMode,
-    f: impl FnOnce() -> T,
-) -> T {
-    let mut info = CallInfo {
-        mode,
-        start_at: Instant::now(),
-    };
-    call_info::using(&mut info, f)
-}
-
-pub fn get_call_mode_info() -> Option<CallModeInfo> {
-    call_info::with(|info| CallModeInfo { mode: info.mode })
-}
-
-pub fn get_call_elapsed() -> Option<Duration> {
-    call_info::with(|info| info.start_at.elapsed())
 }
