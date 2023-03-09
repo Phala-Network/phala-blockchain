@@ -937,6 +937,7 @@ where
         &self,
         path: String,
         data: &[u8],
+        json: bool,
     ) -> impl Future<Output = (u16, Vec<u8>)> {
         use prpc::server::{Error, ProtoError};
         let data = data.to_vec();
@@ -946,7 +947,13 @@ where
         async move {
             info!("Dispatching request: {}", path);
 
-            let (code, data) = match server.dispatch_request(&path, data).await {
+            let result = if json {
+                server.dispatch_json_request(&path, data).await
+            } else {
+                server.dispatch_request(&path, data).await
+            };
+
+            let (code, data) = match result {
                 Ok(data) => (200, data),
                 Err(err) => {
                     error!("Rpc error: {:?}", err);
@@ -958,7 +965,18 @@ where
                         Error::AppError(msg) => (500, ProtoError::new(msg)),
                         Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
                     };
-                    (code, prpc::codec::encode_message_to_vec(&err))
+                    if json {
+                        let error = format!("{err:?}");
+                        let body =
+                            serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
+                                .unwrap_or_else(|_| {
+                                    r#"{"error": "Failed to encode the error"}"#.to_string()
+                                })
+                                .into_bytes();
+                        (code, body)
+                    } else {
+                        (code, prpc::codec::encode_message_to_vec(&err))
+                    }
                 }
             };
             (code, data)

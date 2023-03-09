@@ -19,32 +19,6 @@ pub fn ecall_getinfo() -> String {
     serde_json::to_string_pretty(&info).unwrap_or_default()
 }
 
-fn serialize_result<T: serde::Serialize, E: std::fmt::Debug>(result: Result<T, E>) -> String {
-    match result {
-        Ok(inner) => serde_json::to_string_pretty(&inner).unwrap_or_default(),
-        Err(err) => {
-            let error = format!("{err:?}");
-            serde_json::to_string_pretty(&serde_json::json!({ "error": error }))
-        }
-        .unwrap_or_default(),
-    }
-}
-
-pub fn ecall_get_contract_info(ids: &str) -> String {
-    let ids = if ids.is_empty() {
-        vec![]
-    } else {
-        ids.split(',').map(|it| it.to_owned()).collect()
-    };
-    let result = APPLICATION.lock_phactory().get_contract_info(&ids);
-    serialize_result(result.map(|it| it.contracts))
-}
-
-pub fn ecall_get_cluster_info() -> String {
-    let result = APPLICATION.lock_phactory().get_cluster_info();
-    serialize_result(result.map(|it| it.clusters))
-}
-
 pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {
     APPLICATION.lock_phactory().sign_http_response(data)
 }
@@ -89,8 +63,8 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub async fn ecall_prpc_request(path: String, data: &[u8]) -> (u16, Vec<u8>) {
-    let (code, data) = APPLICATION.dispatch_request(path, data).await;
+pub async fn ecall_prpc_request(path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
+    let (code, data) = APPLICATION.dispatch_request(path, data, json).await;
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
 }

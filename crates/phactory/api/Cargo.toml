@@ -32,10 +32,10 @@ log = { version = "0.4.14" }
 reqwest = { version = "0.11", optional = true, default-features = false, features = ["rustls-tls", "socks"] }
 
 primitive-types = { version = "0.12.1", optional = true, default-features = false }
+serde_json = "1.0.79"
 
 [dev-dependencies]
 insta = "1.13.0"
-serde_json = "1.0.79"
 
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build" }

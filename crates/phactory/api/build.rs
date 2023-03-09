@@ -21,35 +21,11 @@ fn main() {
         .out_dir(out_dir)
         .mod_prefix("crate::prpc::")
         .disable_package_emission();
-    for r#type in [
-        "InitRuntimeResponse",
-        "Attestation",
-        "AttestationReport",
-        "TokenomicInfo",
-        "TokenomicStat",
-        "WorkerState",
-        "WorkerStat",
-        "BenchState",
-        "WorkingState",
-        "NetworkConfig",
-        "NetworkStatus",
-        "PhactoryInfo",
-        "MemoryUsage",
-        "GatekeeperStatus",
-        "SystemInfo",
-        "ContractInfo",
-        "SidevmInfo",
-        "ClusterInfo",
-    ] {
-        builder = builder.type_attribute(
-            r#type,
-            "#[derive(::serde::Serialize, ::serde::Deserialize)]",
-        )
-    }
-    builder = builder.field_attribute(
-        "InitRuntimeResponse.attestation",
-        "#[serde(skip, default)]",
+    builder = builder.type_attribute(
+        ".pruntime_rpc",
+        "#[derive(::serde::Serialize, ::serde::Deserialize)]",
     );
+    builder = builder.field_attribute("InitRuntimeResponse.attestation", "#[serde(skip, default)]");
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();

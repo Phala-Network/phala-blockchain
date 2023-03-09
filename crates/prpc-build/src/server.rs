@@ -15,7 +15,20 @@ pub fn generate<T: Service>(
     compile_well_known_types: bool,
     attributes: &Attributes,
 ) -> TokenStream {
-    let methods = generate_methods(service, proto_path, emit_package, compile_well_known_types);
+    let methods = generate_methods(
+        service,
+        proto_path,
+        emit_package,
+        compile_well_known_types,
+        false,
+    );
+    let json_methods = generate_methods(
+        service,
+        proto_path,
+        emit_package,
+        compile_well_known_types,
+        true,
+    );
 
     let server_service = quote::format_ident!("{}Server", service.name());
     let server_trait = quote::format_ident!("{}", service.name());
@@ -65,6 +78,14 @@ pub fn generate<T: Service>(
                     #![allow(clippy::let_unit_value)]
                     match path {
                         #methods
+                        _ => Err(prpc::server::Error::NotFound),
+                    }
+                }
+
+                pub async fn dispatch_json_request(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
+                    #![allow(clippy::let_unit_value)]
+                    match path {
+                        #json_methods
                         _ => Err(prpc::server::Error::NotFound),
                     }
                 }
@@ -198,6 +219,7 @@ fn generate_methods<T: Service>(
     proto_path: &str,
     emit_package: bool,
     compile_well_known_types: bool,
+    json: bool,
 ) -> TokenStream {
     let mut stream = TokenStream::new();
 
@@ -219,6 +241,7 @@ fn generate_methods<T: Service>(
                 compile_well_known_types,
                 method_ident,
                 server_trait,
+                json,
             ),
             _ => {
                 panic!("Streaming RPC not supported");
@@ -242,12 +265,26 @@ fn generate_unary<T: Method>(
     compile_well_known_types: bool,
     method_ident: Ident,
     _server_trait: Ident,
+    json: bool,
 ) -> TokenStream {
     let (request, _response) = method.request_response_name(proto_path, compile_well_known_types);
 
-    quote! {
-        let input: #request = prpc::Message::decode(data.as_ref())?;
-        let response = self.inner.#method_ident(input).await?;
-        Ok(prpc::codec::encode_message_to_vec(&response))
+    if json {
+        quote! {
+            let data = data.as_ref();
+            let input: #request = if data.is_empty() {
+                Default::default()
+            } else {
+                serde_json::from_slice(data)?
+            };
+            let response = self.inner.#method_ident(input).await?;
+            Ok(serde_json::to_vec(&response)?)
+        }
+    } else {
+        quote! {
+            let input: #request = prpc::Message::decode(data.as_ref())?;
+            let response = self.inner.#method_ident(input).await?;
+            Ok(prpc::codec::encode_message_to_vec(&response))
+        }
     }
 }

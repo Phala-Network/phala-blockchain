@@ -1,10 +1,8 @@
 use std::str;
 
 use phactory_api::prpc::phactory_api_server::PhactoryAPIMethod;
-use rocket::data::{ByteUnit, Data};
-use rocket::data::{Limits, ToByteUnit};
-use rocket::http::Method;
-use rocket::http::Status;
+use rocket::data::{ByteUnit, Data, Limits, ToByteUnit};
+use rocket::http::{ContentType, Method, Status};
 use rocket::response::status::Custom;
 use rocket::serde::json::{json, Json, Value as JsonValue};
 use rocket::Phase;
@@ -146,16 +144,6 @@ fn getinfo() -> String {
     runtime::ecall_getinfo()
 }
 
-#[get("/contract_info?<id>")]
-fn get_contract_info(id: Option<String>) -> String {
-    runtime::ecall_get_contract_info(&id.unwrap_or_default())
-}
-
-#[get("/cluster_info")]
-fn get_cluster_info() -> String {
-    runtime::ecall_get_cluster_info()
-}
-
 enum RpcType {
     Public,
     Private,
@@ -261,8 +249,14 @@ fn limit_for_method(method: &str, limits: &Limits) -> ByteUnit {
     }
 }
 
-#[post("/<method>", data = "<data>")]
-async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
+#[post("/<method>?<json>", data = "<data>")]
+async fn prpc_proxy(
+    method: String,
+    data: Data<'_>,
+    limits: &Limits,
+    content_type: Option<&ContentType>,
+    json: bool,
+) -> Custom<Vec<u8>> {
     let limit = limit_for_method(&method, limits);
     let data = match read_data(data, limit).await {
         ReadData::Ok(data) => data,
@@ -273,8 +267,12 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
             return Custom(Status::PayloadTooLarge, b"Entity too large".to_vec());
         }
     };
+    let json = json || content_type.map(|t| t.is_json()).unwrap_or(false);
+    prpc_call(method, &data, json).await
+}
 
-    let (status_code, output) = runtime::ecall_prpc_request(method, &data).await;
+async fn prpc_call(method: String, data: &[u8], json: bool) -> Custom<Vec<u8>> {
+    let (status_code, output) = runtime::ecall_prpc_request(method, data, json).await;
     if let Some(status) = Status::from_code(status_code) {
         Custom(status, output)
     } else {
@@ -283,14 +281,35 @@ async fn prpc_proxy(method: String, data: Data<'_>, limits: &Limits) -> Custom<V
     }
 }
 
-#[post("/<method>", data = "<data>")]
-async fn prpc_proxy_acl(method: String, data: Data<'_>, limits: &Limits) -> Custom<Vec<u8>> {
+#[post("/<method>?<json>", data = "<data>")]
+async fn prpc_proxy_acl(
+    method: String,
+    data: Data<'_>,
+    limits: &Limits,
+    content_type: Option<&ContentType>,
+    json: bool,
+) -> Custom<Vec<u8>> {
     info!("prpc_acl: request {}:", method);
     if !rpc_type(&method).is_public() {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);
     }
-    prpc_proxy(method, data, limits).await
+    prpc_proxy(method, data, limits, content_type, json).await
+}
+
+#[get("/<method>")]
+async fn prpc_proxy_get_acl(method: String) -> Custom<Vec<u8>> {
+    info!("prpc_acl: get {}:", method);
+    if !rpc_type(&method).is_public() {
+        error!("prpc_acl: access denied");
+        return Custom(Status::Forbidden, vec![]);
+    }
+    prpc_call(method, b"", true).await
+}
+
+#[get("/<method>")]
+async fn prpc_proxy_get(method: String) -> Custom<Vec<u8>> {
+    prpc_call(method, b"", true).await
 }
 
 fn cors_options() -> CorsOptions {
@@ -347,7 +366,7 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
                 ),
             ],
         )
-        .mount("/", routes![getinfo, get_contract_info, get_cluster_info]);
+        .mount("/", routes![getinfo]);
 
     if args.enable_kick_api {
         info!("ENABLE `kick` API");
@@ -355,7 +374,7 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
         server = server.mount("/", routes![kick]);
     }
 
-    server = server.mount("/prpc", routes![prpc_proxy]);
+    server = server.mount("/prpc", routes![prpc_proxy, prpc_proxy_get]);
     print_rpc_methods("/prpc", prpc::phactory_api_server::supported_methods());
 
     if args.allow_cors {
@@ -388,10 +407,9 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl =
-        rocket::custom(figment).mount("/", routes![getinfo, get_contract_info, get_cluster_info]);
+    let mut server_acl = rocket::custom(figment).mount("/", routes![getinfo]);
 
-    server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl]);
+    server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl, prpc_proxy_get_acl]);
 
     if args.allow_cors {
         info!("Allow CORS");
