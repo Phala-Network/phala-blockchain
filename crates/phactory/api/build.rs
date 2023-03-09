@@ -23,7 +23,14 @@ fn main() {
         ".pruntime_rpc",
         "#[derive(::serde::Serialize, ::serde::Deserialize)]",
     );
-    builder = builder.field_attribute("InitRuntimeResponse.attestation", "#[serde(skip, default)]");
+    builder = builder.field_attribute("InitRuntimeResponse.attestation", "#[serde(skip,default)]");
+    for field in [
+        "GetContractInfoRequest.contracts",
+        "StatisticsReqeust.contracts",
+        "StatisticsReqeust.all",
+    ] {
+        builder = builder.field_attribute(field, "#[serde(default)]");
+    }
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();

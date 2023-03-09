@@ -202,6 +202,7 @@ fn rpc_type(method: &str) -> RpcType {
             GetClusterInfo => Public,
             UploadSidevmCode => Public,
             CalculateContractId => Public,
+            Statistics => Public,
         },
     }
 }
@@ -241,6 +242,7 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         Stop => 1.kibibytes(),
         LoadStorageProof => 10.mebibytes(),
         TakeCheckpoint => 1.kibibytes(),
+        Statistics => 100.kibibytes(),
     }
 }
 

@@ -17,7 +17,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::{collections::BTreeMap, convert::TryFrom};
+use std::{collections::BTreeMap, str::FromStr};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -628,12 +628,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let global_query_stats;
         let contracts_http_stats;
         let global_http_stats;
-        if let Some(contracts) = request.contracts {
+        if request.all {
+            let query_stats = self.query_scheduler.stats();
+            contracts_query_stats = query_stats.flows;
+            global_query_stats = query_stats.global;
+            let http_stats = http_counters::stats();
+            contracts_http_stats = http_stats.by_contract;
+            global_http_stats = http_stats.global;
+        } else {
             let mut query_stats = Vec::new();
             let mut http_stats = BTreeMap::new();
-            for contract in contracts.values {
-                let contract = AccountId::try_from(&contract[..])
-                    .or(Err(anyhow!("Invalid contract address")))?;
+            for contract in request.contracts {
+                let contract =
+                    AccountId::from_str(&contract).or(Err(anyhow!("Invalid contract address")))?;
                 let stat = self.query_scheduler.stats_for(&contract);
                 query_stats.push((contract.clone(), stat));
                 let stat = http_counters::stats_for(&contract);
@@ -643,13 +650,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             global_query_stats = self.query_scheduler.stats_global();
             contracts_http_stats = http_stats;
             global_http_stats = http_counters::stats_global();
-        } else {
-            let query_stats = self.query_scheduler.stats();
-            contracts_query_stats = query_stats.flows;
-            global_query_stats = query_stats.global;
-            let http_stats = http_counters::stats();
-            contracts_http_stats = http_stats.by_contract;
-            global_http_stats = http_stats.global;
         }
 
         return Ok(pb::StatisticsResponse {
