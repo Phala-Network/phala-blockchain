@@ -19,6 +19,7 @@ pub struct Info<'a> {
     pub rmem: u64,
     pub mpeak: u64,
     pub rpeak: u64,
+    pub mfree: u64,
     pub whdr: bool,
     pub cluster: bool,
     pub gblk: u32,
@@ -26,10 +27,7 @@ pub struct Info<'a> {
 
 impl PhactoryInfo {
     pub fn debug_info(&self) -> Info {
-        let (rmem, mpeak, rpeak) = match &self.memory_usage {
-            Some(m) => (m.rust_used, m.total_peak_used, m.rust_peak_used),
-            None => (0, 0, 0),
-        };
+        let mem = self.memory_usage.clone().unwrap_or_default();
         Info {
             reg: self.registered,
             hdr: self.headernum,
@@ -39,9 +37,10 @@ impl PhactoryInfo {
             msgs: self.pending_messages,
             ver: &self.version,
             git: &self.git_revision[0..8],
-            rmem,
-            mpeak,
-            rpeak,
+            rmem: mem.rust_used,
+            rpeak: mem.rust_peak_used,
+            mpeak: mem.total_peak_used,
+            mfree: mem.free,
             whdr: self.waiting_for_paraheaders,
             cluster: self
                 .system

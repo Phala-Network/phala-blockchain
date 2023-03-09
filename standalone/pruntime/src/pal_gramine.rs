@@ -129,6 +129,7 @@ impl MemoryStats for GraminePlatform {
             total_peak_used: vm_peak().unwrap_or_default() * 1024,
             rust_used: stats.current_used,
             rust_peak_used: stats.peak_used,
+            free: mem_free().unwrap_or_default() * 1024,
         }
     }
 }
@@ -148,6 +149,17 @@ fn vm_peak() -> Option<usize> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     for line in status.lines() {
         if line.starts_with("VmPeak:") {
+            let peak = line.split_ascii_whitespace().nth(1)?;
+            return peak.parse().ok();
+        }
+    }
+    None
+}
+
+fn mem_free() -> Option<usize> {
+    let status = std::fs::read_to_string("/proc/meminfo").ok()?;
+    for line in status.lines() {
+        if line.starts_with("MemFree:") {
             let peak = line.split_ascii_whitespace().nth(1)?;
             return peak.parse().ok();
         }
