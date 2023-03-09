@@ -150,6 +150,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 rust_used: m_usage.rust_used as _,
                 rust_peak_used: m_usage.rust_peak_used as _,
                 total_peak_used: m_usage.total_peak_used as _,
+                free: m_usage.free as _,
             }),
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,

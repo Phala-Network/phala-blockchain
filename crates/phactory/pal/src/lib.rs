@@ -31,6 +31,7 @@ pub struct MemoryUsage {
     pub total_peak_used: usize,
     pub rust_used: usize,
     pub rust_peak_used: usize,
+    pub free: usize,
 }
 
 pub trait MemoryStats {
