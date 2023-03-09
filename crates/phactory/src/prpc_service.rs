@@ -156,7 +156,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             safe_mode_level: self.args.safe_mode_level as _,
             current_block_time,
         };
-        info!("Got info: {:?}", info);
+        info!("Got info: {:?}", info.debug_info());
         info
     }
 
