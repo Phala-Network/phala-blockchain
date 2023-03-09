@@ -5,6 +5,8 @@ mod pruntime_rpc;
 pub use protos_codec_extensions::*;
 pub use pruntime_rpc::*;
 
+pub const PROTO_DEF: &str = include_str!("../../proto/pruntime_rpc.proto");
+
 /// Helper struct used to compat the output of `get_info` for logging.
 #[derive(Debug)]
 pub struct Info<'a> {

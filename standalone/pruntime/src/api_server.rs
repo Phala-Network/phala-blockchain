@@ -144,6 +144,11 @@ fn getinfo() -> String {
     runtime::ecall_getinfo()
 }
 
+#[get("/help")]
+fn help() -> String {
+    phactory_api::prpc::PROTO_DEF.to_string()
+}
+
 enum RpcType {
     Public,
     Private,
@@ -366,7 +371,7 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
                 ),
             ],
         )
-        .mount("/", routes![getinfo]);
+        .mount("/", routes![getinfo, help]);
 
     if args.enable_kick_api {
         info!("ENABLE `kick` API");
@@ -407,7 +412,7 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .merge(("port", public_port))
         .merge(("limits", Limits::new().limit("json", 100.mebibytes())));
 
-    let mut server_acl = rocket::custom(figment).mount("/", routes![getinfo]);
+    let mut server_acl = rocket::custom(figment).mount("/", routes![getinfo, help]);
 
     server_acl = server_acl.mount("/prpc", routes![prpc_proxy_acl, prpc_proxy_get_acl]);
 
