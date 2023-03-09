@@ -652,7 +652,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             global_http_stats = http_counters::stats_global();
         }
 
-        return Ok(pb::StatisticsResponse {
+        Ok(pb::StatisticsResponse {
             uptime,
             query: Some(pb::QueryStats {
                 global: Some(pb::QueryCounters {
@@ -700,7 +700,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                     })
                     .collect(),
             }),
-        });
+        })
     }
 }
 

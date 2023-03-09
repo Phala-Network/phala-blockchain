@@ -32,7 +32,7 @@ pub(super) fn counters() -> &'static Mutex<HttpGlobolCoutners> {
 }
 
 pub(super) fn add(contract: AccountId, status_code: u16) {
-    let success = status_code >= 200 && status_code < 300;
+    let success = status_code / 100 == 2;
     let mut counters = counters().lock().unwrap();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

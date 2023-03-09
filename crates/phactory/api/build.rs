@@ -28,6 +28,8 @@ fn main() {
         "GetContractInfoRequest.contracts",
         "StatisticsReqeust.contracts",
         "StatisticsReqeust.all",
+        "HttpFetch.body",
+        "HttpFetch.headers",
     ] {
         builder = builder.field_attribute(field, "#[serde(default)]");
     }
