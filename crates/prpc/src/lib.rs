@@ -51,6 +51,11 @@ pub mod server {
         }
     }
 
+    impl From<serde_json::Error> for Error {
+        fn from(e: serde_json::Error) -> Self {
+            Self::DecodeError(DecodeError::new(e.to_string()))
+        }
+    }
 
     /// The final Error type of RPCs to be serialized to protobuf.
     #[derive(Display, Message)]

@@ -4592,6 +4592,7 @@ dependencies = [
  "reqwest",
  "scale-info",
  "serde",
+ "serde_json",
  "sp-application-crypto",
  "sp-core",
  "sp-finality-grandpa",
@@ -5255,6 +5256,7 @@ dependencies = [
  "derive_more",
  "parity-scale-codec",
  "prost 0.11.2",
+ "serde_json",
 ]
 
 [[package]]
