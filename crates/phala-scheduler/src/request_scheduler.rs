@@ -114,6 +114,12 @@ pub struct Counters {
     pub time: VirtualTime,
 }
 
+impl Counters {
+    pub fn time_ms(&self) -> u64 {
+        ((self.time >> 32) / 1_000_000) as u64
+    }
+}
+
 pub struct Stats<FlowId> {
     pub global: Counters,
     pub flows: Vec<(FlowId, Counters)>,

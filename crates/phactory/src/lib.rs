@@ -654,10 +654,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         Ok(pb::StatisticsResponse {
             uptime,
+            cores: self.args.cores,
             query: Some(pb::QueryStats {
                 global: Some(pb::QueryCounters {
                     total: global_query_stats.total,
                     dropped: global_query_stats.dropped,
+                    time: global_query_stats.time_ms(),
                 }),
                 by_contract: contracts_query_stats
                     .into_iter()
@@ -667,6 +669,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                             pb::QueryCounters {
                                 total: stat.total,
                                 dropped: stat.dropped,
+                                time: stat.time_ms(),
                             },
                         )
                     })
