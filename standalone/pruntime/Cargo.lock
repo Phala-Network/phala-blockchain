@@ -5287,6 +5287,7 @@ dependencies = [
  "clap",
  "colored",
  "env_logger 0.9.0",
+ "hex_fmt",
  "lazy_static",
  "libc",
  "log",

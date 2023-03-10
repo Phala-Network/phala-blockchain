@@ -84,6 +84,8 @@ struct Args {
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
+    pal_gramine::print_target_info();
+
     // Disable the thread local arena(memory pool) for glibc.
     // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
     #[cfg(target_env = "gnu")]

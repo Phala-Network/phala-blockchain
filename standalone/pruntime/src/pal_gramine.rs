@@ -54,13 +54,11 @@ impl RA for GraminePlatform {
 
                 let (attn_report, sig, cert) =
                     ias::create_attestation_report(data, IAS_API_KEY_STR)?;
-                let attestation_report = Some(
-                    phala_types::AttestationReport::SgxIas {
-                        ra_report: attn_report.as_bytes().to_vec(),
-                        signature: sig,
-                        raw_signing_cert: cert,
-                    }
-                );
+                let attestation_report = Some(phala_types::AttestationReport::SgxIas {
+                    ra_report: attn_report.as_bytes().to_vec(),
+                    signature: sig,
+                    raw_signing_cert: cert,
+                });
 
                 Ok(Encode::encode(&attestation_report))
             }
@@ -173,4 +171,20 @@ pub(crate) fn is_gramine() -> bool {
             std::path::Path::new("/dev/attestation/user_report_data").exists();
     }
     *IS_GRAMINE
+}
+
+pub(crate) fn print_target_info() {
+    use hex_fmt::HexFmt;
+    if is_gramine() {
+        println!("Running in Gramine-SGX");
+        let target_info = sgx_api_lite::target_info().expect("Failed to get target info");
+        let report =
+            sgx_api_lite::report(&target_info, &[0; 64]).expect("Failed to get sgx report");
+        println!("mr_enclave  : 0x{}", HexFmt(&report.body.mr_enclave.m));
+        println!("mr_signer   : 0x{}", HexFmt(&report.body.mr_signer.m));
+        println!("isv_svn     : 0x{:?}", HexFmt(report.body.isv_svn.to_ne_bytes()));
+        println!("isv_prod_id : 0x{:?}", HexFmt(report.body.isv_prod_id.to_ne_bytes()));
+    } else {
+        println!("Running in Native mode");
+    }
 }
