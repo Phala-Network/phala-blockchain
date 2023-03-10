@@ -11,7 +11,6 @@ pub struct QueryRequest {
 }
 
 #[derive(Encode, Decode)]
-#[non_exhaustive]
 pub enum SystemMessage {
     PinkLog {
         block_number: u32,
@@ -34,4 +33,10 @@ pub enum SystemMessage {
         nonce: Vec<u8>,
         output: Vec<u8>,
     },
+    Metric(Metric),
+}
+
+#[derive(Encode, Decode)]
+pub enum Metric {
+    PinkQueryIn([u8; 16]),
 }

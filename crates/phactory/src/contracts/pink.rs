@@ -19,8 +19,8 @@ use pink::{
     types::ExecutionMode,
 };
 use serde::{Deserialize, Serialize};
-use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
-use sp_core::sr25519;
+use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
+use sp_core::{blake2_128, sr25519};
 
 use ::pink::{
     capi::v1,
@@ -514,11 +514,21 @@ impl Cluster {
                 transfer,
                 estimating,
             } => {
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                 let _guard = context
                     .query_scheduler
                     .acquire(contract_id.clone(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
+
+                if let Some(logger) = &context.log_handler {
+                    let fp = blake2_128(&(b"phat query finger print", &origin).encode());
+                    if let Err(_err) = logger.try_send(SidevmCommand::PushSystemMessage(
+                        SystemMessage::Metric(Metric::PinkQueryIn(fp)),
+                    )) {
+                        error!("Failed to send metric to log_server");
+                    }
+                }
 
                 let mode = if estimating {
                     ExecutionMode::Estimating
@@ -534,7 +544,6 @@ impl Cluster {
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
-                    let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                     let mut runtime = self.runtime_mut(log_handler);
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);
