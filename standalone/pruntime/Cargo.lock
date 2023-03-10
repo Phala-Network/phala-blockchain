@@ -5001,6 +5001,7 @@ dependencies = [
  "phactory-api",
  "phactory-pal",
  "phala-allocator",
+ "phala-git-revision",
  "phala-rocket-middleware",
  "phala-sanitized-logger",
  "phala-types",

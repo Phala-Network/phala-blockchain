@@ -39,6 +39,7 @@ phactory-pal = { path = "../../crates/phactory/pal" }
 phala-allocator = { path = "../../crates/phala-allocator" }
 phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
 phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
+phala-git-revision = { path = "../../crates/phala-git-revision" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
 hex_fmt = "0.3.0"
 

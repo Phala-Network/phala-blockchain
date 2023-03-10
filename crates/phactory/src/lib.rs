@@ -33,7 +33,7 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
-    ecall_args::{git_revision, InitArgs},
+    ecall_args::InitArgs,
     endpoints::EndpointType,
     prpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     storage_sync::{StorageSynchronizer, Synchronizer},
@@ -282,14 +282,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 
     pub fn init(&mut self, args: InitArgs) {
-        if args.git_revision != git_revision() {
-            panic!(
-                "git revision mismatch: {}(app) vs {}(enclave)",
-                args.git_revision,
-                git_revision()
-            );
-        }
-
         if args.init_bench {
             benchmark::resume();
         }
