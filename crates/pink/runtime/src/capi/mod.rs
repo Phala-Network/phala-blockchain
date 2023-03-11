@@ -32,7 +32,7 @@ pub unsafe extern "C" fn __pink_runtime_init(
         (*ecalls).get_version = Some(get_version);
     }
     if config.is_dylib != 0 {
-        logger::init(config.enclaved != 0);
+        logger::init_subscriber(config.enclaved != 0);
     }
     0
 }

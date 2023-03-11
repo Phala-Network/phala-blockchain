@@ -123,7 +123,7 @@ async fn main() -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port.to_string());
     }
 
-    logger::init(running_under_gramine);
+    logger::init_subscriber(running_under_gramine);
 
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", cores);
