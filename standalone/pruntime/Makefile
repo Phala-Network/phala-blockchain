@@ -2,10 +2,11 @@ SGX_MODE ?= SW
 
 include config.mk
 
-.PHONY: all clean run
+.PHONY: all clean run app runtime
 
-all: bin/Rocket.toml bin/app ${PINK_RUNTIME_DIST}
-
+all: app runtime
+app: bin/app
+runtime: ${PINK_RUNTIME_DIST}
 run:
 	./bin/app -c 0
 
@@ -18,7 +19,7 @@ ${PINK_RUNTIME_DIST}: ${PINK_RUNTIME}
 ${PINK_RUNTIME}:
 	cd ${PINK_RUNTIME_DIR} && cargo build --release
 
-bin/app: bin/pruntime
+bin/app: bin/pruntime bin/Rocket.toml
 	cd bin && ln -sf pruntime app
 
 bin/Rocket.toml: gramine-build/Rocket.toml
