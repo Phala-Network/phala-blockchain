@@ -10,7 +10,7 @@ use rocket::{get, post, routes};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 
 use colored::Colorize as _;
-use log::{debug, error, info};
+use tracing::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -47,11 +47,6 @@ macro_rules! proxy_post {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, format = "json", data = "<contract_input>")]
         fn $name(contract_input: Json<ContractInput>) -> JsonValue {
-            debug!(
-                "{}",
-                ::serde_json::to_string_pretty(&*contract_input).unwrap()
-            );
-
             let input_string = serde_json::to_string(&*contract_input).unwrap();
             do_ecall_handle!($num, input_string.as_bytes())
         }
@@ -283,7 +278,7 @@ async fn prpc_call(method: String, data: &[u8], json: bool) -> Custom<Vec<u8>> {
     if let Some(status) = Status::from_code(status_code) {
         Custom(status, output)
     } else {
-        error!("prpc: Invalid status code: {}!", status_code);
+        error!(status_code, "prpc: Invalid status code!");
         Custom(Status::ServiceUnavailable, vec![])
     }
 }
@@ -296,7 +291,7 @@ async fn prpc_proxy_acl(
     content_type: Option<&ContentType>,
     json: bool,
 ) -> Custom<Vec<u8>> {
-    info!("prpc_acl: request {}:", method);
+    info!(method, "prpc_acl enter");
     if !rpc_type(&method).is_public() {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);
@@ -306,7 +301,7 @@ async fn prpc_proxy_acl(
 
 #[get("/<method>")]
 async fn prpc_proxy_get_acl(method: String) -> Custom<Vec<u8>> {
-    info!("prpc_acl: get {}:", method);
+    info!(method, "prpc_acl get enter");
     if !rpc_type(&method).is_public() {
         error!("prpc_acl: access denied");
         return Custom(Status::Forbidden, vec![]);

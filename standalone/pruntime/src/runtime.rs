@@ -2,8 +2,8 @@ use crate::pal_gramine::GraminePlatform;
 
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
-use log::info;
 use phactory::{benchmark, Phactory, RpcService};
+use tracing::{info, instrument};
 
 lazy_static::lazy_static! {
     static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
@@ -58,13 +58,14 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
 
 pub fn ecall_bench_run(index: u32) {
     if !benchmark::paused() {
-        info!("[{}] Benchmark thread started", index);
+        info!(index, "Benchmark thread started");
         benchmark::run();
     }
 }
 
 pub async fn ecall_prpc_request(path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
+    info!(path, json, "Handling pRPC request");
     let (code, data) = APPLICATION.dispatch_request(path, data, json).await;
-    info!("pRPC status code: {}, data len: {}", code, data.len());
+    info!(code, size=data.len(), "pRPC returned");
     (code, data)
 }

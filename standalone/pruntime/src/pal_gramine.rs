@@ -1,7 +1,7 @@
 use anyhow::anyhow;
-use log::info;
 use parity_scale_codec::Encode;
 use std::alloc::System;
+use tracing::info;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
@@ -54,13 +54,11 @@ impl RA for GraminePlatform {
 
                 let (attn_report, sig, cert) =
                     ias::create_attestation_report(data, IAS_API_KEY_STR)?;
-                let attestation_report = Some(
-                    phala_types::AttestationReport::SgxIas {
-                        ra_report: attn_report.as_bytes().to_vec(),
-                        signature: sig,
-                        raw_signing_cert: cert,
-                    }
-                );
+                let attestation_report = Some(phala_types::AttestationReport::SgxIas {
+                    ra_report: attn_report.as_bytes().to_vec(),
+                    signature: sig,
+                    raw_signing_cert: cert,
+                });
 
                 Ok(Encode::encode(&attestation_report))
             }

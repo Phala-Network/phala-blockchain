@@ -6,7 +6,7 @@ mod runtime;
 use std::{env, thread};
 
 use clap::Parser;
-use log::{error, info};
+use tracing::{error, info, info_span, Instrument};
 
 use phactory_api::ecall_args::{git_revision, InitArgs};
 
@@ -84,17 +84,18 @@ struct Args {
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
-    // Disable the thread local arena(memory pool) for glibc.
-    // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
-    #[cfg(target_env = "gnu")]
-    unsafe {
-        libc::mallopt(libc::M_ARENA_MAX, 1);
-    }
+    let sgx = pal_gramine::is_gramine();
+    logger::init_subscriber(sgx);
+    serve(sgx).await
+}
 
-    let running_under_gramine = pal_gramine::is_gramine();
+#[tracing::instrument(name = "main", skip_all)]
+async fn serve(sgx: bool) -> Result<(), rocket::Error> {
+    info!(sgx, "Starting pruntime...");
+
     let sealing_path;
     let storage_path;
-    if running_under_gramine {
+    if sgx {
         // In gramine, the protected files are configured via manifest file. So we must not allow it to
         // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
         // Should keep it the same with the manifest config.
@@ -123,10 +124,8 @@ async fn main() -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port.to_string());
     }
 
-    logger::init_subscriber(running_under_gramine);
-
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
-    info!("Bench cores: {}", cores);
+    info!(bench_cores = cores);
 
     let init_args = {
         let args = args.clone();
@@ -146,9 +145,9 @@ async fn main() -> Result<(), rocket::Error> {
         }
     };
     info!("init_args: {:#?}", init_args);
-    if let Some(handover_from) = args.request_handover_from {
-        info!("Starting handover from {handover_from}");
-        handover::handover_from(&handover_from, init_args)
+    if let Some(from) = args.request_handover_from {
+        info!(%from, "Starting handover");
+        handover::handover_from(&from, init_args)
             .await
             .expect("Handover failed");
         info!("Handover done");
@@ -175,22 +174,28 @@ async fn main() -> Result<(), rocket::Error> {
 
     if args.public_port.is_some() {
         let args_clone = args.clone();
-        let server_acl = rocket::tokio::spawn(async move {
-            let _rocket = api_server::rocket_acl(&args_clone)
-                .expect("should not failed as port is provided")
-                .launch()
-                .await
-                .expect("Failed to launch API server");
-        });
+        let server_acl = rocket::tokio::spawn(
+            async move {
+                let _rocket = api_server::rocket_acl(&args_clone)
+                    .expect("should not failed as port is provided")
+                    .launch()
+                    .await
+                    .expect("Failed to launch API server");
+            }
+            .instrument(info_span!("srv1")),
+        );
         servers.push(server_acl);
     }
 
-    let server_internal = rocket::tokio::spawn(async move {
-        let _rocket = api_server::rocket(&args)
-            .launch()
-            .await
-            .expect("Failed to launch API server");
-    });
+    let server_internal = rocket::tokio::spawn(
+        async move {
+            let _rocket = api_server::rocket(&args)
+                .launch()
+                .await
+                .expect("Failed to launch API server");
+        }
+        .instrument(info_span!("srv0")),
+    );
     servers.push(server_internal);
 
     for server in servers {
