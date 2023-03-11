@@ -62,10 +62,6 @@ struct Args {
     #[arg(default_value_t = 5)]
     max_checkpoint_files: u32,
 
-    /// Measuring the time it takes to process each RPC call.
-    #[arg(long)]
-    measure_rpc_time: bool,
-
     /// Handover key from another running pruntime instance
     #[arg(long)]
     request_handover_from: Option<String>,

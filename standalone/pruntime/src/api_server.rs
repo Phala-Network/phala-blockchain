@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use tracing::{error, info, instrument};
 
 use phactory_api::{actions, prpc};
-use phala_rocket_middleware::{ResponseSigner, TraceId};
+use phala_rocket_middleware::{RequestTracer, ResponseSigner, TimeMeter, TraceId};
 
 use crate::runtime;
 
@@ -402,18 +402,12 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
 
     if args.allow_cors {
         info!("Allow CORS");
-
         server = server
             .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
             .attach(cors_options().to_cors().expect("To not fail"))
             .manage(cors_options().to_cors().expect("To not fail"));
     }
-
-    if args.measure_rpc_time {
-        info!("Attaching time meter");
-        server = server.attach(phala_rocket_middleware::TimeMeter);
-    }
-
+    server = server.attach(TimeMeter).attach(RequestTracer);
     server
 }
 
@@ -444,7 +438,10 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
     }
 
     let signer = ResponseSigner::new(1024 * 1024 * 10, runtime::ecall_sign_http_response);
-    server_acl = server_acl.attach(signer);
+    server_acl = server_acl
+        .attach(signer)
+        .attach(RequestTracer)
+        .attach(TimeMeter);
 
     Some(server_acl)
 }
