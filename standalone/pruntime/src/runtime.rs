@@ -3,7 +3,7 @@ use crate::pal_gramine::GraminePlatform;
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
 use phactory::{benchmark, Phactory, RpcService};
-use tracing::{info, instrument};
+use tracing::info;
 
 lazy_static::lazy_static! {
     static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
@@ -30,10 +30,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
     }
 
     if args.enable_checkpoint {
-        match Phactory::restore_from_checkpoint(
-            &GraminePlatform,
-            &args,
-        ) {
+        match Phactory::restore_from_checkpoint(&GraminePlatform, &args) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
                 **APPLICATION.lock_phactory() = factory;
@@ -66,6 +63,6 @@ pub fn ecall_bench_run(index: u32) {
 pub async fn ecall_prpc_request(path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
     info!(path, json, "Handling pRPC request");
     let (code, data) = APPLICATION.dispatch_request(path, data, json).await;
-    info!(code, size=data.len(), "pRPC returned");
+    info!(code, size = data.len(), "pRPC returned");
     (code, data)
 }

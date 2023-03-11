@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use rocket::fairing::{Fairing, Info, Kind};
@@ -9,6 +10,12 @@ pub struct RequestTracer;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TraceId(u64);
+
+impl Display for TraceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl TraceId {
     fn next() -> Self {
