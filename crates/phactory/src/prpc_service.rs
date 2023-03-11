@@ -129,7 +129,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             _ => 0,
         };
 
-        let info = pb::PhactoryInfo {
+        pb::PhactoryInfo {
             initialized,
             registered,
             public_key,
@@ -160,9 +160,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 let (major, minor) = ::pink::runtimes::max_supported_version();
                 format!("{major}.{minor}")
             },
-        };
-        info!("Got info: {:?}", info.debug_info());
-        info
+        }
     }
 
     pub(crate) fn sync_header(
@@ -1033,7 +1031,9 @@ fn create_attestation_report_on<Platform: pal::Platform>(
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for RpcService<Platform> {
     /// Get basic information about Phactory state.
     async fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
-        Ok(self.lock_phactory().get_info())
+        let info = self.lock_phactory().get_info();
+        info!("Got info: {:?}", info.debug_info());
+        Ok(info)
     }
 
     /// Sync the parent chain header
