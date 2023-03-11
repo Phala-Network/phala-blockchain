@@ -36,7 +36,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         ) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
-                *APPLICATION.lock_phactory() = factory;
+                **APPLICATION.lock_phactory() = factory;
                 return Ok(());
             }
             Err(err) => {

@@ -998,9 +998,40 @@ where
     }
 }
 
+pub struct LogOnDrop<T> {
+    inner: T,
+    msg: &'static str,
+}
+
+impl<T> core::ops::Deref for LogOnDrop<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> core::ops::DerefMut for LogOnDrop<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+}
+
+impl<T> Drop for LogOnDrop<T> {
+    fn drop(&mut self) {
+        debug!(target: "phactory::lock", "{}", self.msg);
+    }
+}
+
 impl<Platform: pal::Platform> RpcService<Platform> {
-    pub fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
-        self.phactory.lock().unwrap()
+    pub fn lock_phactory(&self) -> LogOnDrop<MutexGuard<'_, Phactory<Platform>>> {
+        debug!(target: "phactory::lock", "Locking phactory...");
+        let guard = self.phactory.lock().unwrap();
+        debug!(target: "phactory::lock", "Locked phactory");
+
+        LogOnDrop {
+            inner: guard,
+            msg: "Unlocked phactory",
+        }
     }
 }
 
