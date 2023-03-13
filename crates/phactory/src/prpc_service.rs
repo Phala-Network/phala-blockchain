@@ -1583,8 +1583,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::GetContractInfoRequest,
     ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
-        self.lock_phactory()
-            .get_contract_info(&request.contracts)
+        self.lock_phactory().get_contract_info(&request.contracts)
     }
 
     async fn get_cluster_info(
