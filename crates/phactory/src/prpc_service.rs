@@ -246,6 +246,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub(crate) fn dispatch_block(
         &mut self,
+        req_id: u64,
         mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
@@ -286,6 +287,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 block_number,
                 pubkey,
                 chain_storage,
+                req_id,
             );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {
@@ -561,6 +563,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     fn contract_query(
         &mut self,
+        req_id: u64,
         request: pb::ContractQueryRequest,
         effects_queue: Sender<ExecSideEffects>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
@@ -617,6 +620,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .as_mut()
             .expect("system always exists here")
             .make_query(
+                req_id,
                 &AccountId::unchecked_from(head.id),
                 accid_origin.as_ref(),
                 data[data.len() - rest..].to_vec(),
@@ -930,8 +934,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 }
 
-#[derive(Clone)]
 pub struct RpcService<Platform> {
+    req_id: u64,
     pub(crate) phactory: Arc<Mutex<Phactory<Platform>>>,
 }
 
@@ -939,6 +943,14 @@ impl<Platform: pal::Platform> RpcService<Platform> {
     pub fn new(platform: Platform) -> RpcService<Platform> {
         RpcService {
             phactory: Arc::new(Mutex::new(Phactory::new(platform))),
+            req_id: 0,
+        }
+    }
+
+    pub fn with_id(&self, req_id: u64) -> RpcService<Platform> {
+        RpcService {
+            phactory: self.phactory.clone(),
+            req_id,
         }
     }
 }
@@ -949,6 +961,7 @@ where
 {
     pub fn dispatch_request(
         &self,
+        req_id: u64,
         path: String,
         data: &[u8],
         json: bool,
@@ -956,7 +969,7 @@ where
         use prpc::server::{Error, ProtoError};
         let data = data.to_vec();
 
-        let mut server = PhactoryApiServer::new(self.clone());
+        let mut server = PhactoryApiServer::new(self.with_id(req_id));
 
         async move {
             info!("Dispatching request: {}", path);
@@ -1100,7 +1113,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     /// Dispatch blocks (Sync storage changes)"
     async fn dispatch_blocks(&mut self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
-        self.lock_phactory().dispatch_block(blocks)
+        self.lock_phactory().dispatch_block(self.req_id, blocks)
     }
 
     async fn init_runtime(
@@ -1142,7 +1155,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 phactory.lock().unwrap().apply_side_effects(effects);
             }
         });
-        let query_fut = self.lock_phactory().contract_query(request, tx)?;
+        let query_fut = self
+            .lock_phactory()
+            .contract_query(self.req_id, request, tx)?;
         query_fut.await
     }
 

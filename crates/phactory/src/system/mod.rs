@@ -598,6 +598,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
     pub fn make_query(
         &mut self,
+        req_id: u64,
         contract_id: &AccountId,
         origin: Option<&chain::AccountId>,
         query: OpaqueQuery,
@@ -627,6 +628,7 @@ impl<Platform: pal::Platform> System<Platform> {
             weight,
             worker_pubkey: self.identity_key.public().0,
             chain_storage: chain_storage.snapshot(),
+            req_id,
         };
         let origin = origin.cloned();
         let query = deopaque_query(&query)?;

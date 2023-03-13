@@ -9,9 +9,9 @@ lazy_static::lazy_static! {
     static ref APPLICATION: RpcService<GraminePlatform> = RpcService::new(GraminePlatform);
 }
 
-pub fn ecall_handle(action: u8, input: &[u8]) -> Result<Vec<u8>> {
+pub fn ecall_handle(req_id: u64, action: u8, input: &[u8]) -> Result<Vec<u8>> {
     let mut factory = APPLICATION.lock_phactory();
-    Ok(factory.handle_scale_api(action, input))
+    Ok(factory.handle_scale_api(req_id, action, input))
 }
 
 pub fn ecall_getinfo() -> String {
@@ -60,9 +60,9 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub async fn ecall_prpc_request(path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
+pub async fn ecall_prpc_request(req_id: u64, path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
     info!(path, json, "Handling pRPC request");
-    let (code, data) = APPLICATION.dispatch_request(path, data, json).await;
+    let (code, data) = APPLICATION.dispatch_request(req_id, path, data, json).await;
     info!(code, size = data.len(), "pRPC returned");
     (code, data)
 }

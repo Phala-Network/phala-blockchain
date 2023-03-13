@@ -47,6 +47,7 @@ pub struct QueryContext {
     pub weight: u32,
     pub worker_pubkey: [u8; 32],
     pub chain_storage: ChainStorage,
+    pub req_id: u64,
 }
 
 pub(crate) struct RawData(Vec<u8>);

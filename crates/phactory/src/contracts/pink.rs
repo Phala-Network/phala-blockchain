@@ -152,6 +152,7 @@ pub(crate) mod context {
         pub worker_pubkey: [u8; 32],
         pub chain_storage: ChainStorage,
         pub start_at: Instant,
+        pub req_id: u64,
     }
 
     impl ContractExecContext {
@@ -161,6 +162,7 @@ pub(crate) mod context {
             block_number: BlockNumber,
             worker_pubkey: [u8; 32],
             chain_storage: ChainStorage,
+            req_id: u64,
         ) -> Self {
             Self {
                 mode,
@@ -169,6 +171,7 @@ pub(crate) mod context {
                 worker_pubkey,
                 chain_storage,
                 start_at: Instant::now(),
+                req_id,
             }
         }
     }
@@ -183,6 +186,7 @@ pub(crate) mod context {
                 mode: self.mode,
                 block_number: self.block_number,
                 now_ms: self.now_ms,
+                req_id: Some(self.req_id),
             }
         }
 
@@ -541,6 +545,7 @@ impl Cluster {
                     context.block_number,
                     context.worker_pubkey,
                     context.chain_storage,
+                    context.req_id,
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
@@ -617,6 +622,7 @@ impl Cluster {
                     context.block_number,
                     context.worker_pubkey,
                     context.chain_storage,
+                    context.req_id,
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
