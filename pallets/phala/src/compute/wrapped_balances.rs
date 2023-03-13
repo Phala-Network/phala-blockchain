@@ -384,12 +384,12 @@ pub mod pallet {
 			cid: CollectionId,
 		) -> DispatchResult {
 			let mut account_status =
-				StakerAccounts::<T>::get(who).ok_or(Error::<T>::StakerAccountNotFound)?;
+				StakerAccounts::<T>::get(who).unwrap_or_default();
 
 			if !account_status.invest_pools.contains(&(pid, cid)) {
 				account_status.invest_pools.push((pid, cid));
-				StakerAccounts::<T>::insert(who, account_status);
 			}
+			StakerAccounts::<T>::insert(who, account_status);
 			Ok(())
 		}
 
