@@ -29,6 +29,7 @@ use phala_types::{
 };
 use sp_application_crypto::UncheckedFrom;
 use tokio::sync::oneshot::{channel, Sender};
+use tracing::{info, error};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -169,9 +170,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         authority_set_change: Option<blocks::AuthoritySetChange>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
-            "sync_header from={:?} to={:?}",
-            headers.first().map(|h| h.header.number),
-            headers.last().map(|h| h.header.number)
+            range=?(
+                headers.first().map(|h| h.header.number),
+                headers.last().map(|h| h.header.number)
+            ),
+            "sync_header",
         );
         self.can_load_chain_state = false;
         let last_header = self
@@ -191,9 +194,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         proof: blocks::StorageProof,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
-            "sync_para_header from={:?} to={:?}",
-            headers.first().map(|h| h.number),
-            headers.last().map(|h| h.number)
+            range=?(
+                headers.first().map(|h| h.number),
+                headers.last().map(|h| h.number)
+            ),
+            "sync_para_header",
         );
 
         let state = self.runtime_state()?;
@@ -250,9 +255,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
-            "dispatch_block from={:?} to={:?}",
-            blocks.first().map(|h| h.block_header.number),
-            blocks.last().map(|h| h.block_header.number)
+            range=?(
+                blocks.first().map(|h| h.block_header.number),
+                blocks.last().map(|h| h.block_header.number)
+            ),
+            "dispatch_block",
         );
         let counters = self.runtime_state()?.storage_synchronizer.counters();
         blocks.retain(|b| b.block_header.number >= counters.next_block_number);
@@ -266,7 +273,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let pubkey = self.system()?.identity_key.public().0;
 
         for block in blocks.into_iter() {
-            info!("Dispatching block: {}", block.block_header.number);
+            info!(block = block.block_header.number, "Dispatching");
             let state = self.runtime_state()?;
             let drop_proofs = safe_mode_level > 1;
             state

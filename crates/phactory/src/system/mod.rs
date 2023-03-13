@@ -11,7 +11,6 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use core::fmt;
-use log::info;
 use phala_scheduler::RequestScheduler;
 use pink::{
     capi::v1::ecall::{ClusterSetupConfig, ECalls},
@@ -61,6 +60,7 @@ use pink::types::{HookPoint, PinkEvent};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
+use tracing::{info, error};
 
 pub type TransactionResult = Result<Option<pink::types::ExecSideEffects>, TransactionError>;
 
@@ -1787,7 +1787,7 @@ pub(crate) fn apply_pink_events(
                     None => SidevmCode::Hash(code_hash),
                 };
                 if let Err(err) = target_contract.start_sidevm(spawner, code, false) {
-                    error!(target: "sidevm", "[{vmid}] Start sidevm failed: {:?}", err);
+                    error!(target: "sidevm", %vmid, ?err, "Start sidevm failed");
                 }
             }
             PinkEvent::SidevmMessage(payload) => {
@@ -1796,7 +1796,7 @@ pub(crate) fn apply_pink_events(
                 if let Err(err) =
                     contract.push_message_to_sidevm(SidevmCommand::PushMessage(payload))
                 {
-                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {:?}", err);
+                    error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
                 }
             }
             PinkEvent::CacheOp(op) => {
@@ -1806,7 +1806,7 @@ pub(crate) fn apply_pink_events(
                 let vmid = sidevm::ShortId(&origin);
                 let contract = get_contract!(&origin);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
-                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {err:?}");
+                    error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
                 }
             }
             PinkEvent::ForceStopSidevm {
@@ -1816,7 +1816,7 @@ pub(crate) fn apply_pink_events(
                 let vmid = sidevm::ShortId(&target_contract);
                 let contract = get_contract!(&origin);
                 if let Err(err) = contract.push_message_to_sidevm(SidevmCommand::Stop) {
-                    error!(target: "sidevm", "[{vmid}] Push message to sidevm failed: {err:?}");
+                    error!(target: "sidevm", %vmid, ?err, "Push message to sidevm failed");
                 }
             }
             PinkEvent::SetLogHandler(handler) => {

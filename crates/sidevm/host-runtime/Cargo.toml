@@ -9,6 +9,7 @@ dashmap = "5.2.0"
 futures = "0.3"
 hex_fmt = "0.3.0"
 log = "0.4.16"
+tracing = "0.1"
 loupe = "0.1.3"
 sidevm-env = { path = "../env", features = ["host"] }
 thread_local = "1.1"

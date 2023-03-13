@@ -61,7 +61,7 @@ pub fn ecall_bench_run(index: u32) {
 }
 
 pub async fn ecall_prpc_request(req_id: u64, path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
-    info!(path, json, "Handling pRPC request");
+    info!(%path, json, "Handling pRPC request");
     let (code, data) = APPLICATION.dispatch_request(req_id, path, data, json).await;
     info!(code, size = data.len(), "pRPC returned");
     (code, data)

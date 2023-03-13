@@ -2,7 +2,6 @@ use crate::env::DynCacheOps;
 use crate::{env::OcallAborted, run::WasmRun};
 use crate::{ShortId, VmId};
 use anyhow::{Context as _, Result};
-use log::{debug, error, info, trace, warn};
 use phala_scheduler::TaskScheduler;
 use serde::{Deserialize, Serialize};
 use sidevm_env::messages::AccountId;
@@ -12,8 +11,9 @@ use tokio::{
     sync::oneshot::Sender as OneshotSender,
     task::JoinHandle,
 };
+use tracing::{debug, error, info, info_span, instrument::Instrument, trace, warn};
 
-pub use sidevm_env::messages::{SystemMessage, Metric};
+pub use sidevm_env::messages::{Metric, SystemMessage};
 pub type CommandSender = Sender<Command>;
 
 #[derive(Debug)]
@@ -139,14 +139,14 @@ impl Spawner {
         )
         .context("Failed to create sidevm instance")?;
         let spawner = self.runtime_handle.clone();
+        let vmid = ShortId(id);
         let handle = self.spawn(async move {
-            let vmid = ShortId(&id);
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
-                    $level!(target: "sidevm", "[{vmid}] Pushing {} to sidevm", $msg);
+                    $level!(target: "sidevm", msg=%$msg, "Pushing message");
                     match $expr {
                         None => {
-                            $level!(target: "sidevm", "[{vmid}] Doesn't accept {}", $msg);
+                            $level!(target: "sidevm", "Message rejected");
                             continue;
                         },
                         Some(v) => v,
@@ -155,17 +155,15 @@ impl Spawner {
                 (@async: $expr: expr, $level: ident, $msg: expr) => {
                     let push = push_msg!($expr, $level, $msg);
                     spawner.spawn(async move {
-                        let vmid = ShortId(&id);
-                        if let Err(e) = push.await {
-                            error!(target: "sidevm", "[{vmid}] Failed to push {} to sidevm: {}", $msg, e);
+                        if let Err(err) = push.await {
+                            error!(target: "sidevm", msg=%$msg, ?err, "Push message failed");
                         }
                     });
                 };
                 (@sync: $expr: expr, $level: ident, $msg: expr) => {
                     let push = push_msg!($expr, $level, $msg);
-                    let vmid = ShortId(&id);
-                    if let Err(e) = push {
-                        error!(target: "sidevm", "[{vmid}] Failed to push {} to sidevm: {}", $msg, e);
+                    if let Err(err) = push {
+                        error!(target: "sidevm", msg=%$msg, %err, "Push message failed");
                     }
                 };
             }
@@ -174,11 +172,11 @@ impl Spawner {
                     cmd = cmd_rx.recv() => {
                         match cmd {
                             None => {
-                                info!(target: "sidevm", "[{vmid}] The command channel is closed. Exiting...");
+                                info!(target: "sidevm", "The command channel is closed. Exiting...");
                                 break ExitReason::InputClosed;
                             }
                             Some(Command::Stop) => {
-                                info!(target: "sidevm", "[{vmid}] Received stop command. Exiting...");
+                                info!(target: "sidevm", "Received stop command. Exiting...");
                                 break ExitReason::Stopped;
                             }
                             Some(Command::PushMessage(msg)) => {
@@ -198,11 +196,11 @@ impl Spawner {
                     rv = &mut wasm_run => {
                         match rv {
                             Ok(ret) => {
-                                info!(target: "sidevm", "[{vmid}] The sidevm instance exited with {} normally.", ret);
+                                info!(target: "sidevm", ret, "The sidevm instance exited normally.");
                                 break ExitReason::Exited(ret);
                             }
                             Err(err) => {
-                                info!(target: "sidevm", "[{vmid}] The sidevm instance exited with error: {}", err);
+                                info!(target: "sidevm", ?err, "The sidevm instance exited.");
                                 match err.downcast::<crate::env::OcallAborted>() {
                                     Ok(err) => {
                                         break ExitReason::OcallAborted(err);
@@ -216,26 +214,28 @@ impl Spawner {
                     }
                 }
             }
-        });
+        }.instrument(info_span!(parent: None, "sidevm", id=%vmid)));
         let report_tx = self.report_tx.clone();
-        let handle = self.spawn(async move {
-            let vmid = ShortId(&id);
-            let reason = match handle.await {
-                Ok(r) => r,
-                Err(err) => {
-                    warn!(target: "sidevm", "[{vmid}] The sidevm instance exited with error: {}", err);
-                    if err.is_cancelled() {
-                        ExitReason::Cancelled
-                    } else {
-                        ExitReason::Panicked
+        let handle = self.spawn(
+            async move {
+                let reason = match handle.await {
+                    Ok(r) => r,
+                    Err(err) => {
+                        warn!(target: "sidevm", ?err, "The sidevm instance exited with error");
+                        if err.is_cancelled() {
+                            ExitReason::Cancelled
+                        } else {
+                            ExitReason::Panicked
+                        }
                     }
+                };
+                if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
+                    warn!(target: "sidevm", ?err, "Failed to send report to sidevm service");
                 }
-            };
-            if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
-                warn!(target: "sidevm", "[{vmid}] Failed to send report to sidevm service: {}", err);
+                reason
             }
-            reason
-        });
+            .instrument(info_span!(parent: None, "sidevm", id=%vmid)),
+        );
         Ok((cmd_tx, handle))
     }
 
