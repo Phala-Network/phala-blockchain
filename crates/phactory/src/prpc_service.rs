@@ -590,8 +590,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             None
         };
 
-        debug!("Verifying signature passed! origin={origin:?}");
-
         let ecdh_key = self.system()?.ecdh_key.clone();
 
         // Decrypt data
