@@ -60,7 +60,7 @@ use pink::types::{HookPoint, PinkEvent};
 use std::cell::Cell;
 use std::convert::TryFrom;
 use std::future::Future;
-use tracing::{info, error};
+use tracing::{error, info};
 
 pub type TransactionResult = Result<Option<pink::types::ExecSideEffects>, TransactionError>;
 

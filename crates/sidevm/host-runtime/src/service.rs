@@ -11,7 +11,7 @@ use tokio::{
     sync::oneshot::Sender as OneshotSender,
     task::JoinHandle,
 };
-use tracing::{debug, error, info, info_span, instrument::Instrument, trace, warn};
+use tracing::{debug, error, info, trace, warn, Instrument};
 
 pub use sidevm_env::messages::{Metric, SystemMessage};
 pub type CommandSender = Sender<Command>;
@@ -118,6 +118,7 @@ impl ServiceRun {
 }
 
 impl Spawner {
+    #[tracing::instrument(parent=None, name="sidevm", fields(id = %ShortId(id)), skip_all)]
     pub fn start(
         &self,
         wasm_bytes: &[u8],
@@ -139,7 +140,6 @@ impl Spawner {
         )
         .context("Failed to create sidevm instance")?;
         let spawner = self.runtime_handle.clone();
-        let vmid = ShortId(id);
         let handle = self.spawn(async move {
             macro_rules! push_msg {
                 ($expr: expr, $level: ident, $msg: expr) => {{
@@ -158,7 +158,7 @@ impl Spawner {
                         if let Err(err) = push.await {
                             error!(target: "sidevm", msg=%$msg, ?err, "Push message failed");
                         }
-                    });
+                    }.in_current_span());
                 };
                 (@sync: $expr: expr, $level: ident, $msg: expr) => {
                     let push = push_msg!($expr, $level, $msg);
@@ -214,28 +214,25 @@ impl Spawner {
                     }
                 }
             }
-        }.instrument(info_span!(parent: None, "sidevm", id=%vmid)));
+        });
         let report_tx = self.report_tx.clone();
-        let handle = self.spawn(
-            async move {
-                let reason = match handle.await {
-                    Ok(r) => r,
-                    Err(err) => {
-                        warn!(target: "sidevm", ?err, "The sidevm instance exited with error");
-                        if err.is_cancelled() {
-                            ExitReason::Cancelled
-                        } else {
-                            ExitReason::Panicked
-                        }
+        let handle = self.spawn(async move {
+            let reason = match handle.await {
+                Ok(r) => r,
+                Err(err) => {
+                    warn!(target: "sidevm", ?err, "The sidevm instance exited with error");
+                    if err.is_cancelled() {
+                        ExitReason::Cancelled
+                    } else {
+                        ExitReason::Panicked
                     }
-                };
-                if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
-                    warn!(target: "sidevm", ?err, "Failed to send report to sidevm service");
                 }
-                reason
+            };
+            if let Err(err) = report_tx.send(Report::VmTerminated { id, reason }).await {
+                warn!(target: "sidevm", ?err, "Failed to send report to sidevm service");
             }
-            .instrument(info_span!(parent: None, "sidevm", id=%vmid)),
-        );
+            reason
+        });
         Ok((cmd_tx, handle))
     }
 
@@ -243,6 +240,6 @@ impl Spawner {
         &self,
         fut: impl Future<Output = O> + Send + 'static,
     ) -> JoinHandle<O> {
-        self.runtime_handle.spawn(fut)
+        self.runtime_handle.spawn(fut.in_current_span())
     }
 }

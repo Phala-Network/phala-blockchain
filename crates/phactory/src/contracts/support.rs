@@ -24,7 +24,7 @@ use crate::{
     ChainStorage, H256,
 };
 use phactory_api::prpc as pb;
-use tracing::{error, info};
+use tracing::{error, info, Instrument};
 
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
@@ -375,11 +375,14 @@ impl FatContract {
             match sidevm_info.handle.lock().unwrap().clone() {
                 SidevmHandle::Stopped(_) => {}
                 SidevmHandle::Running(tx) => {
-                    spawner.spawn(async move {
-                        if let Err(err) = tx.send(SidevmCommand::Stop).await {
-                            error!("Failed to send stop command to sidevm: {}", err);
+                    spawner.spawn(
+                        async move {
+                            if let Err(err) = tx.send(SidevmCommand::Stop).await {
+                                error!("Failed to send stop command to sidevm: {}", err);
+                            }
                         }
-                    });
+                        .in_current_span(),
+                    );
                 }
             }
         }
@@ -453,11 +456,14 @@ fn do_start_sidevm(
     let span = tracing::info_span!("sidevm:start", %vmid);
     let _enter = span.enter();
     info!(target: "sidevm", "Starting sidevm...");
-    spawner.spawn(async move {
-        let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
-        error!(target: "sidevm", ?reason, "Sidevm process terminated");
-        *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
-    });
+    spawner.spawn(
+        async move {
+            let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
+            error!(target: "sidevm", ?reason, "Sidevm process terminated");
+            *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
+        }
+        .in_current_span(),
+    );
     Ok(handle)
 }
 
