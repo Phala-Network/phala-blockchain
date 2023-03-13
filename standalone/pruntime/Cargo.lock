@@ -4562,6 +4562,7 @@ dependencies = [
  "surf",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4788,6 +4789,8 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "log",
+ "tracing-core",
+ "tracing-subscriber 0.3.15",
 ]
 
 [[package]]
@@ -5005,6 +5008,7 @@ dependencies = [
  "pink-extension-runtime",
  "serde",
  "sp-weights",
+ "tracing",
 ]
 
 [[package]]
@@ -5290,7 +5294,6 @@ dependencies = [
  "colored",
  "lazy_static",
  "libc",
- "log",
  "num_cpus",
  "parity-scale-codec",
  "phactory",
@@ -5307,6 +5310,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgx-api-lite",
+ "tracing",
  "urlencoding",
  "version",
 ]
@@ -6365,6 +6369,7 @@ dependencies = [
  "tokio",
  "tokio-proxy",
  "tokio-rustls",
+ "tracing",
  "wasm-instrument",
  "wasmer",
  "wasmer-compiler-singlepass",

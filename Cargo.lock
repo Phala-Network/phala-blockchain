@@ -7655,6 +7655,7 @@ dependencies = [
  "surf",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -8013,6 +8014,8 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.10.0",
  "log",
+ "tracing-core",
+ "tracing-subscriber 0.3.14",
 ]
 
 [[package]]
@@ -8272,6 +8275,7 @@ dependencies = [
  "sp-std",
  "sp-trie",
  "subxt",
+ "tracing",
  "wat",
 ]
 
@@ -8380,6 +8384,7 @@ dependencies = [
  "serde",
  "sp-runtime",
  "sp-weights",
+ "tracing",
 ]
 
 [[package]]
@@ -11446,6 +11451,7 @@ dependencies = [
  "tokio",
  "tokio-proxy",
  "tokio-rustls 0.23.4",
+ "tracing",
  "wasm-instrument 0.3.0",
  "wasmer",
  "wasmer-compiler-cranelift",
