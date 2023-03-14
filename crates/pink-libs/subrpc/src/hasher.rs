@@ -1,9 +1,18 @@
 use sp_core_hashing::*;
+use alloc::vec::Vec;
 
 /// Hasher to use to hash keys to insert to storage.
 pub trait Hasher: 'static {
     type Output: AsRef<[u8]>;
     fn hash(x: &[u8]) -> Self::Output;
+}
+
+pub struct Twox64;
+impl Hasher for Twox64 {
+    type Output = [u8; 8];
+    fn hash(x: &[u8]) -> [u8; 8] {
+        twox_64(x)
+    }
 }
 
 pub struct Twox64Concat;
