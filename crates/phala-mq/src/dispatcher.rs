@@ -117,6 +117,12 @@ pub enum TypedReceiveError {
     CodecError(CodecError),
 }
 
+impl TypedReceiveError {
+    pub fn is_sender_gone(&self) -> bool {
+        matches!(self, Self::SenderGone)
+    }
+}
+
 impl From<CodecError> for TypedReceiveError {
     fn from(e: CodecError) -> Self {
         Self::CodecError(e)
@@ -267,6 +273,10 @@ macro_rules! select_ignore_errors {
                         {
                             $block
                         }
+                    }
+                    Err(err) if err.is_sender_gone() => {
+                        log::warn!("[{}] mq error: {:?}", $crate::function!(), err);
+                        panic!("mq error: {:?}", err);
                     }
                     Err(err) => {
                         log::warn!("[{}] mq ignored error: {:?}", $crate::function!(), err);
