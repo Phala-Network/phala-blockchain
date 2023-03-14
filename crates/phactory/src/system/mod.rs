@@ -125,7 +125,7 @@ impl From<String> for TransactionError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
@@ -133,13 +133,13 @@ struct BenchState {
     duration: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 enum WorkingState {
     Computing,
     Paused,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct WorkingInfo {
     session_id: u32,
     state: WorkingState,
@@ -148,7 +148,7 @@ struct WorkingInfo {
 }
 
 // Minimum worker state machine can be reused to replay in GK.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct WorkerState {
     #[serde(with = "more::pubkey_bytes")]
     pubkey: WorkerPublicKey,
@@ -429,7 +429,7 @@ fn get_contract_key(cluster_key: &sr25519::Pair, contract_id: &ContractId) -> sr
         .expect("should not fail with valid info")
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct System<Platform> {
     platform: Platform,
     // Configuration

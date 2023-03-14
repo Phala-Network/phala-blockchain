@@ -105,7 +105,7 @@ impl<'de> Deserialize<'de> for SidevmHandle {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct SidevmInfo {
     code: Vec<u8>,
     code_hash: H256,
@@ -119,7 +119,7 @@ pub(crate) enum SidevmCode {
     Code(Vec<u8>),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct FatContract {
     send_mq: SignedMessageChannel,
     cmd_rcv_mq: SecretReceiver<RawData>,

@@ -68,6 +68,7 @@ impl<T> Drop for Sender<T> {
     }
 }
 
+#[derive(Clone)]
 pub struct Receiver<T>(ArcCh<T>);
 
 #[derive(Display, Debug)]

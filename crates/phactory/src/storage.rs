@@ -49,6 +49,14 @@ mod storage_ext {
         trie_storage: TrieStorage<crate::RuntimeHasher>,
     }
 
+    impl Clone for ChainStorage {
+        fn clone(&self) -> Self {
+            Self {
+                trie_storage: self.trie_storage.snapshot(),
+            }
+        }
+    }
+
     impl From<TrieStorage<crate::RuntimeHasher>> for ChainStorage {
         fn from(value: TrieStorage<crate::RuntimeHasher>) -> Self {
             Self {

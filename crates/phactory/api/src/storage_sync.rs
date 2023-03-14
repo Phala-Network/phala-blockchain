@@ -2,7 +2,7 @@ use super::blocks::{
     AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, RuntimeHasher, StorageProof,
 };
 
-use alloc::collections::VecDeque;
+use im::Vector as VecDeque;
 use alloc::string::String;
 use alloc::vec::Vec;
 use chain::Hash;
@@ -274,7 +274,7 @@ pub struct Counters {
     pub waiting_for_paraheaders: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SolochainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
     state_roots: VecDeque<Hash>,
@@ -346,7 +346,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ParachainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
     last_relaychain_state_root: Option<Hash>,
@@ -475,7 +475,7 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
 
 // We create this new type to help serialize the original dyn StorageSynchronizer.
 // Because it it impossible to impl Serialize/Deserialize for dyn StorageSynchronizer.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Synchronizer<Validator> {
     Solo(SolochainSynchronizer<Validator>),
     Para(ParachainSynchronizer<Validator>),

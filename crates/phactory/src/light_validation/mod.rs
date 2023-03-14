@@ -39,7 +39,7 @@ mod justification;
 pub mod storage_proof;
 mod types;
 
-use std::collections::BTreeMap;
+use im::OrdMap as BTreeMap;
 use std::fmt;
 
 use anyhow::Result;

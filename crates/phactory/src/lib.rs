@@ -17,7 +17,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::{collections::BTreeMap, str::FromStr};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -64,6 +64,7 @@ pub mod benchmark;
 mod bin_api_service;
 mod contracts;
 mod cryptography;
+mod im_helpers;
 mod light_validation;
 mod prpc_service;
 mod secret_channel;
@@ -75,7 +76,7 @@ mod types;
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct RuntimeState {
     send_mq: MessageSendQueue,
 
@@ -218,7 +219,7 @@ enum RuntimeDataSeal {
 pub struct Phactory<Platform> {
     platform: Platform,
     #[serde(skip)]
-    pub args: InitArgs,
+    pub args: Arc<InitArgs>,
     dev_mode: bool,
     attestation_provider: Option<AttestationProvider>,
     machine_id: Vec<u8>,
@@ -301,11 +302,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
-        self.args = args;
+        self.args = Arc::new(args);
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
-        self.args = args;
+        self.args = Arc::new(args);
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
             system.storage_path = self.args.storage_path.clone();

@@ -1,9 +1,9 @@
+use im::OrdMap as BTreeMap;
 use pink::types::AccountId;
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
-use std::collections::BTreeMap;
 
-use crate::contracts::FatContract;
+use crate::{contracts::FatContract, im_helpers::ordmap_for_each_mut};
 
 type ContractMap = BTreeMap<AccountId, FatContract>;
 
@@ -12,6 +12,15 @@ pub struct ContractsKeeper {
     contracts: ContractMap,
     #[serde(skip)]
     pub(crate) weight_changed: bool,
+}
+
+impl Clone for ContractsKeeper {
+    fn clone(&self) -> Self {
+        Self {
+            contracts: self.contracts.clone(),
+            weight_changed: self.weight_changed.clone(),
+        }
+    }
 }
 
 impl ContractsKeeper {
@@ -36,15 +45,17 @@ impl ContractsKeeper {
     }
 
     pub fn try_restart_sidevms(&mut self, spawner: &Spawner) {
-        for contract in self.contracts.values_mut() {
+        ordmap_for_each_mut(&mut self.contracts, |(_k, contract)| {
             if let Err(err) = contract.restart_sidevm_if_needed(spawner) {
                 error!("Failed to restart sidevm instance: {:?}", err);
             }
-        }
+        });
     }
 
     pub fn drain(&mut self) -> impl Iterator<Item = FatContract> {
-        std::mem::take(&mut self.contracts).into_values()
+        std::mem::take(&mut self.contracts)
+            .into_iter()
+            .map(|(_, v)| v)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&AccountId, &FatContract)> {

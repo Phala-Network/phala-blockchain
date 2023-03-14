@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
@@ -15,13 +15,14 @@ impl Seq for (u64, Message) {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MessageDispatcher {
-    subscribers: BTreeMap<Path, Vec<Sender<(u64, Message)>>>,
+    subscribers: im::OrdMap<Path, Vec<Sender<(u64, Message)>>>,
     local_index: u64,
     //match_subscribers: Vec<Matcher, Vec<Sender<Message>>>,
 }
 
+#[derive(Clone)]
 pub struct Receiver<T> {
     inner: RawReceiver<(u64, T)>,
     topic: Vec<u8>,
@@ -97,7 +98,7 @@ impl MessageDispatcher {
     /// Drop all unhandled messages.
     pub fn clear(&mut self) -> usize {
         let mut count = 0;
-        for subscriber in self.subscribers.values_mut().flatten() {
+        for subscriber in self.subscribers.values().flatten() {
             count += subscriber.clear();
         }
         count
@@ -123,6 +124,15 @@ pub struct TypedReceiver<T> {
     queue: Receiver<Message>,
     #[serde(skip)]
     _t: PhantomData<T>,
+}
+
+impl<T> Clone for TypedReceiver<T> {
+    fn clone(&self) -> Self {
+        Self {
+            queue: self.queue.clone(),
+            _t: self._t.clone(),
+        }
+    }
 }
 
 impl<T: Decode> TypedReceiver<T> {
