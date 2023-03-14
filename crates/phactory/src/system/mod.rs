@@ -543,10 +543,10 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn get_system_message_handler(&mut self) -> Option<CommandSender> {
+    pub fn get_system_message_handler(&self) -> Option<CommandSender> {
         let handler_contract_id = self
             .contract_cluster
-            .as_mut()?
+            .as_ref()?
             .config
             .log_handler
             .as_ref()?;
@@ -597,7 +597,7 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn make_query(
-        &mut self,
+        &self,
         req_id: u64,
         contract_id: &AccountId,
         origin: Option<&chain::AccountId>,
@@ -610,11 +610,11 @@ impl<Platform: pal::Platform> System<Platform> {
     > {
         let contract = self
             .contracts
-            .get_mut(contract_id)
+            .get(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        let mut cluster = self
+        let cluster = self
             .contract_cluster
-            .as_mut()
+            .as_ref()
             .expect("BUG: contract cluster should always exists")
             .snapshot();
         let sidevm_handle = contract.sidevm_handle();

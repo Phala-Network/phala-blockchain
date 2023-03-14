@@ -505,7 +505,7 @@ impl Cluster {
     }
 
     pub(crate) async fn handle_query(
-        &mut self,
+        mut self,
         contract_id: &AccountId,
         origin: Option<&AccountId>,
         req: Query,
@@ -548,27 +548,35 @@ impl Cluster {
                     context.req_id,
                 );
                 let log_handler = context.log_handler.clone();
-                context::using(&mut ctx, move || {
-                    let mut runtime = self.runtime_mut(log_handler);
-                    if deposit > 0 {
-                        runtime.deposit(origin.clone(), deposit);
-                    }
-                    let args = TransactionArguments {
-                        origin,
-                        transfer,
-                        gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
-                        gas_free: true,
-                        storage_deposit_limit: None,
-                    };
-                    let ink_result =
-                        runtime.contract_call(contract_id.clone(), input_data, mode, args);
-                    let effects = if mode.is_estimating() {
-                        None
-                    } else {
-                        runtime.effects.take().map(|e| e.into_query_only_effects())
-                    };
-                    Ok((Response::Payload(ink_result), effects))
+                let todo = "limit worker threads";
+                let span = tracing::Span::current();
+                let contract_id = contract_id.clone();
+                tokio::task::spawn_blocking(move || {
+                    let _guard = span.enter();
+                    context::using(&mut ctx, move || {
+                        let mut runtime = self.runtime_mut(log_handler);
+                        if deposit > 0 {
+                            runtime.deposit(origin.clone(), deposit);
+                        }
+                        let args = TransactionArguments {
+                            origin,
+                            transfer,
+                            gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                            gas_free: true,
+                            storage_deposit_limit: None,
+                        };
+                        let ink_result =
+                            runtime.contract_call(contract_id, input_data, mode, args);
+                        let effects = if mode.is_estimating() {
+                            None
+                        } else {
+                            runtime.effects.take().map(|e| e.into_query_only_effects())
+                        };
+                        Ok((Response::Payload(ink_result), effects))
+                    })
                 })
+                .await
+                .map_err(|_| QueryError::RuntimeError("Failed to spawn blocking task".into()))?
             }
             Query::SidevmQuery(payload) => {
                 let handle = context
