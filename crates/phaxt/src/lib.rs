@@ -61,7 +61,7 @@ impl Deref for ChainApi {
 }
 
 pub use subxt;
-pub type BlockNumber = <Config as subxt::Config>::BlockNumber;
+pub type BlockNumber = u32;
 pub type Hash = primitive_types::H256;
 pub type AccountId = <Config as subxt::Config>::AccountId;
 pub type Index = <Config as subxt::Config>::Index;

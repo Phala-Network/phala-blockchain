@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1.0.130", default-features = false, features = ["derive", "alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37", default-features = false }
-scale = { package = "parity-scale-codec", version = "3.1", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.3", default-features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 
 [features]

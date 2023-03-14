@@ -13,7 +13,7 @@ pub mod pallet {
     use scale_info::TypeInfo;
     use sp_core::crypto::UncheckedFrom;
     use sp_runtime::{
-        traits::{Convert, Hash as _},
+        traits::{TrailingZeroInput, Convert, Hash as _},
         SaturatedConversion, Saturating,
     };
 
@@ -77,7 +77,7 @@ pub mod pallet {
     where
         T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
     {
-        fn generate_address(
+        fn contract_address(
             deploying_address: &T::AccountId,
             code_hash: &CodeHash<T>,
             _input_data: &[u8],
@@ -91,6 +91,12 @@ pub mod pallet {
                 salt,
             );
             UncheckedFrom::unchecked_from(<T as frame_system::Config>::Hashing::hash(&buf))
+        }
+
+        fn deposit_address(contract_addr: &T::AccountId) -> T::AccountId {
+            let entropy = (b"contract_depo_v1", contract_addr).using_encoded(T::Hashing::hash);
+            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+                .expect("infinite length input; no invalid inputs for type; qed")
         }
     }
 

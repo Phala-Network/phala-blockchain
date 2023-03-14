@@ -47,9 +47,8 @@ where
 
     let api = client.runtime_api();
     let best_hash = client.info().best_hash;
-    let at = BlockId::hash(best_hash);
 
-    let seq = api.sender_sequence(&at, &sender)?.unwrap_or(0);
+    let seq = api.sender_sequence(best_hash, &sender)?.unwrap_or(0);
 
     log::debug!(target: "rpc-ext", "State seq for {}: {}", sender, seq);
 
