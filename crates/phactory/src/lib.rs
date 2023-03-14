@@ -214,7 +214,7 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
@@ -255,6 +255,12 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     uptime: Instant,
+
+    #[serde(skip)]
+    pub(crate) rcu_dispatching: bool,
+
+    #[serde(skip)]
+    pub(crate) pending_effects: Vec<::pink::types::ExecSideEffects>,
 }
 
 fn default_query_scheduler() -> RequestScheduler<AccountId> {
@@ -285,6 +291,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             can_load_chain_state: false,
             trusted_sk: false,
             uptime: Instant::now(),
+            rcu_dispatching: false,
+            pending_effects: Vec::new(),
         }
     }
 

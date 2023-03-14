@@ -29,7 +29,7 @@ use phala_types::{
 };
 use sp_application_crypto::UncheckedFrom;
 use tokio::sync::oneshot::{channel, Sender};
-use tracing::{info, error};
+use tracing::{error, info};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -249,7 +249,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         })
     }
 
-    pub(crate) fn dispatch_block(
+    pub(crate) fn dispatch_blocks(
         &mut self,
         req_id: u64,
         mut blocks: Vec<blocks::BlockHeaderWithChanges>,
@@ -1041,15 +1041,20 @@ impl<T> Drop for LogOnDrop<T> {
 }
 
 impl<Platform: pal::Platform> RpcService<Platform> {
-    pub fn lock_phactory(&self) -> LogOnDrop<MutexGuard<'_, Phactory<Platform>>> {
+    pub fn lock_phactory(
+        &self,
+        allow_rcu: bool,
+    ) -> RpcResult<LogOnDrop<MutexGuard<'_, Phactory<Platform>>>> {
         debug!(target: "phactory::lock", "Locking phactory...");
         let guard = self.phactory.lock().unwrap();
         debug!(target: "phactory::lock", "Locked phactory");
-
-        LogOnDrop {
+        if !allow_rcu && guard.rcu_dispatching {
+            return Err(from_display("RCU in progress, please try again later"));
+        }
+        Ok(LogOnDrop {
             inner: guard,
             msg: "Unlocked phactory",
-        }
+        })
     }
 }
 
@@ -1080,7 +1085,7 @@ fn create_attestation_report_on<Platform: pal::Platform>(
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for RpcService<Platform> {
     /// Get basic information about Phactory state.
     async fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
-        let info = self.lock_phactory().get_info();
+        let info = self.lock_phactory(true)?.get_info();
         info!("Got info: {:?}", info.debug_info());
         Ok(info)
     }
@@ -1089,7 +1094,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     async fn sync_header(&mut self, request: pb::HeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         let authority_set_change = request.decode_authority_set_change()?;
-        self.lock_phactory()
+        self.lock_phactory(false)?
             .sync_header(headers, authority_set_change)
     }
 
@@ -1099,7 +1104,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::ParaHeadersToSync,
     ) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
-        self.lock_phactory()
+        self.lock_phactory(false)?
             .sync_para_header(headers, request.proof)
     }
 
@@ -1107,7 +1112,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::CombinedHeadersToSync,
     ) -> Result<pb::HeadersSyncedTo, prpc::server::Error> {
-        self.lock_phactory().sync_combined_headers(
+        self.lock_phactory(false)?.sync_combined_headers(
             request.decode_relaychain_headers()?,
             request.decode_authority_set_change()?,
             request.decode_parachain_headers()?,
@@ -1118,14 +1123,44 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     /// Dispatch blocks (Sync storage changes)"
     async fn dispatch_blocks(&mut self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
-        self.lock_phactory().dispatch_block(self.req_id, blocks)
+        let mut phactory = {
+            let mut phactory = self.lock_phactory(false)?;
+            if phactory.args.no_rcu || benchmark::syncing() {
+                return phactory.dispatch_blocks(self.req_id, blocks);
+            }
+            info!("Cloning Phactory to do RCU dispatch...");
+            let cloned = phactory.clone();
+            phactory.rcu_dispatching = true;
+            cloned
+        };
+        info!("Unlocked Phactory, dispatching blocks...");
+        let req_id = self.req_id;
+        let span = tracing::Span::current();
+        let (synced_to, phactory) = tokio::task::spawn_blocking(move || {
+            let _guard = span.enter();
+            let synced_to = phactory.dispatch_blocks(req_id, blocks);
+            (synced_to, phactory)
+        })
+        .await
+        .expect("Dispatch blocks failed");
+        info!("Done, writing state back to Phactory...");
+        let mut guard = self.lock_phactory(true).unwrap();
+        let pending_effects = std::mem::take(&mut guard.pending_effects);
+        **guard = phactory;
+        if !pending_effects.is_empty() {
+            tracing::info!(count = pending_effects.len(), "Applying pending effects");
+            for effects in pending_effects {
+                guard.apply_side_effects(effects);
+            }
+        }
+        synced_to
     }
 
     async fn init_runtime(
         &mut self,
         request: pb::InitRuntimeRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        self.lock_phactory().init_runtime(
+        self.lock_phactory(false)?.init_runtime(
             request.is_parachain,
             request.decode_genesis_info()?,
             request.decode_genesis_state()?,
@@ -1139,12 +1174,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         req: pb::GetRuntimeInfoRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        self.lock_phactory()
+        self.lock_phactory(true)?
             .get_runtime_info(req.force_refresh_ra, req.decode_operator()?)
     }
 
     async fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
-        self.lock_phactory()
+        self.lock_phactory(false)?
             .get_egress_messages()
             .map(pb::GetEgressMessagesResponse::new)
     }
@@ -1157,11 +1192,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let phactory = self.phactory.clone();
         tokio::spawn(async move {
             if let Ok(effects) = rx.await {
-                phactory.lock().unwrap().apply_side_effects(effects);
+                let mut phactory = phactory.lock().unwrap();
+                if phactory.rcu_dispatching {
+                    // If there is any executing transaction, we need to wait for it to finish.
+                    // TODO.kevin: limit the size?
+                    phactory.pending_effects.push(effects);
+                } else {
+                    phactory.apply_side_effects(effects);
+                }
             }
         });
         let query_fut = self
-            .lock_phactory()
+            .lock_phactory(true)?
             .contract_query(self.req_id, request, tx)?;
         query_fut.await
     }
@@ -1170,7 +1212,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::GetWorkerStateRequest,
     ) -> RpcResult<pb::WorkerState> {
-        let mut phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory(true)?;
         let system = phactory.system()?;
         let gk = system
             .gatekeeper
@@ -1192,28 +1234,28 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::AddEndpointRequest,
     ) -> RpcResult<pb::GetEndpointResponse> {
-        self.lock_phactory()
+        self.lock_phactory(false)?
             .add_endpoint(request.decode_endpoint_type()?, request.endpoint)
     }
 
     async fn refresh_endpoint_signing_time(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
-        self.lock_phactory().sign_endpoints()
+        self.lock_phactory(false)?.sign_endpoints()
     }
 
     async fn get_endpoint_info(&mut self, _: ()) -> RpcResult<pb::GetEndpointResponse> {
-        self.lock_phactory().get_endpoint_info()
+        self.lock_phactory(true)?.get_endpoint_info()
     }
 
     async fn sign_endpoint_info(
         &mut self,
         request: pb::SignEndpointsRequest,
     ) -> Result<pb::GetEndpointResponse, prpc::server::Error> {
-        self.lock_phactory()
+        self.lock_phactory(true)?
             .sign_endpoint_info(VersionedWorkerEndpoints::V1(request.decode_endpoints()?))
     }
 
     async fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
-        let mut phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory(true)?;
         let system = phactory.system()?;
         let derive_key = system
             .identity_key
@@ -1235,7 +1277,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         _request: (),
     ) -> RpcResult<pb::HandoverChallenge> {
-        let mut phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory(false)?;
         let (block, ts) = phactory.current_block()?;
         let system = phactory.system()?;
         let challenge = system.get_worker_key_challenge(block, ts);
@@ -1246,7 +1288,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::HandoverChallengeResponse,
     ) -> RpcResult<pb::HandoverWorkerKey> {
-        let mut phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory(false)?;
         let attestation_provider = phactory.attestation_provider;
         let dev_mode = phactory.dev_mode;
         let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
@@ -1405,7 +1447,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::HandoverChallenge,
     ) -> RpcResult<pb::HandoverChallengeResponse> {
-        let mut phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory(false)?;
 
         // generate and save tmp key only for key handover encryption
         let handover_key = crate::new_sr25519_key();
@@ -1456,7 +1498,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
 
     async fn handover_receive(&mut self, request: pb::HandoverWorkerKey) -> RpcResult<()> {
-        let mut phactory = self.lock_phactory();
+        let mut phactory = self.lock_phactory(false)?;
         let encrypted_worker_key = request.decode_worker_key().map_err(from_display)?;
 
         let dev_mode = encrypted_worker_key.dev_mode;
@@ -1516,7 +1558,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: super::NetworkConfig,
     ) -> Result<(), prpc::server::Error> {
-        self.lock_phactory().set_netconfig(request);
+        self.lock_phactory(false)?.set_netconfig(request);
         Ok(())
     }
 
@@ -1588,14 +1630,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::GetContractInfoRequest,
     ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
-        self.lock_phactory().get_contract_info(&request.contracts)
+        self.lock_phactory(true)?
+            .get_contract_info(&request.contracts)
     }
 
     async fn get_cluster_info(
         &mut self,
         _request: (),
     ) -> Result<pb::GetClusterInfoResponse, prpc::server::Error> {
-        self.lock_phactory().get_cluster_info()
+        self.lock_phactory(true)?.get_cluster_info()
     }
 
     async fn upload_sidevm_code(
@@ -1606,7 +1649,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             .contract
             .try_into()
             .map_err(|_| from_display("Invalid contract id"))?;
-        self.lock_phactory()
+        self.lock_phactory(true)?
             .upload_sidevm_code(contract_id.into(), request.code)
     }
 
@@ -1630,7 +1673,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         _request: (),
     ) -> Result<pb::NetworkConfigResponse, prpc::server::Error> {
-        let phactory = self.lock_phactory();
+        let phactory = self.lock_phactory(true)?;
         Ok(pb::NetworkConfigResponse {
             public_rpc_port: phactory.args.public_port.map(Into::into),
             config: phactory.netconfig.clone(),
@@ -1640,29 +1683,34 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::ChainState,
     ) -> Result<(), prpc::server::Error> {
-        self.lock_phactory()
+        self.lock_phactory(false)?
             .load_chain_state(request.block_number, request.decode_state()?)
             .map_err(from_display)
     }
     async fn stop(&mut self, request: pb::StopOptions) -> Result<(), prpc::server::Error> {
-        self.lock_phactory().stop(request.remove_checkpoints)
+        self.lock_phactory(true)?.stop(request.remove_checkpoints)
     }
     async fn load_storage_proof(
         &mut self,
         req: phactory_api::prpc::StorageProof,
     ) -> Result<(), prpc::server::Error> {
-        self.lock_phactory().load_storage_proof(req.proof)?;
+        self.lock_phactory(false)?.load_storage_proof(req.proof)?;
         Ok(())
     }
     async fn take_checkpoint(&mut self, _req: ()) -> Result<pb::SyncedTo, prpc::server::Error> {
-        let synced_to = self.lock_phactory().take_checkpoint().map_err(from_debug)?;
+        let synced_to = self
+            .lock_phactory(false)?
+            .take_checkpoint()
+            .map_err(from_debug)?;
         Ok(pb::SyncedTo { synced_to })
     }
     async fn statistics(
         &mut self,
         request: pb::StatisticsReqeust,
     ) -> Result<pb::StatisticsResponse, prpc::server::Error> {
-        self.lock_phactory().statistics(request).map_err(from_debug)
+        self.lock_phactory(true)?
+            .statistics(request)
+            .map_err(from_debug)
     }
 }
 

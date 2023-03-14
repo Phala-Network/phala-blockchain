@@ -57,14 +57,14 @@ pub struct OspMessage {
     pub remote_pubkey: Option<EcdhPublicKey>,
 }
 
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum HookPoint {
     OnBlockEnd,
 }
 
 /// System Event used to communicate between the contract and the runtime.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEvent {
     /// Set contract hook
@@ -143,7 +143,7 @@ impl PinkEvent {
     }
 }
 
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CacheOp {
     Set { key: Vec<u8>, value: Vec<u8> },

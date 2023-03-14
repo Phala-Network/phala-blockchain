@@ -39,6 +39,9 @@ pub struct InitArgs {
 
     /// Only sync blocks into pruntime without dispatching messages.
     pub safe_mode_level: u8,
+
+    /// Disable the RCU policy to update the Phactory state.
+    pub no_rcu: bool,
 }
 
 pub use phala_git_revision::git_revision;

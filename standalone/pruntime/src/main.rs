@@ -76,6 +76,10 @@ struct Args {
     #[arg(long)]
     #[arg(default_value_t = 0)]
     safe_mode_level: u8,
+
+    /// Disable the RCU policy to update the Phactory state.
+    #[arg(long)]
+    no_rcu: bool,
 }
 
 #[rocket::main]
@@ -138,6 +142,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
             cores,
             public_port: args.public_port,
             safe_mode_level: args.safe_mode_level,
+            no_rcu: args.no_rcu,
         }
     };
     info!("init_args: {:#?}", init_args);

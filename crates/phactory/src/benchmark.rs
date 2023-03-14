@@ -106,6 +106,10 @@ pub fn paused() -> bool {
     !FLAGS.lock().unwrap().is_empty()
 }
 
+pub fn syncing() -> bool {
+    check_flag(Flags::SYNCING)
+}
+
 pub fn set_flag(flag: Flags, on: bool) {
     let mut guard = FLAGS.lock().unwrap();
     if on {

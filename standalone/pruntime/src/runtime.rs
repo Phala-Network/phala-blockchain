@@ -10,17 +10,21 @@ lazy_static::lazy_static! {
 }
 
 pub fn ecall_handle(req_id: u64, action: u8, input: &[u8]) -> Result<Vec<u8>> {
-    let mut factory = APPLICATION.lock_phactory();
+    let allow_rcu = action == phactory_api::actions::ACTION_GET_INFO;
+    let mut factory = APPLICATION.lock_phactory(allow_rcu)?;
     Ok(factory.handle_scale_api(req_id, action, input))
 }
 
 pub fn ecall_getinfo() -> String {
-    let info = APPLICATION.lock_phactory().get_info();
+    let Ok(guard) = APPLICATION.lock_phactory(true) else {
+        return r#"{"error": "Failed to lock Phactory""#.into();
+    };
+    let info = guard.get_info();
     serde_json::to_string_pretty(&info).unwrap_or_default()
 }
 
 pub fn ecall_sign_http_response(data: &[u8]) -> Option<String> {
-    APPLICATION.lock_phactory().sign_http_response(data)
+    APPLICATION.lock_phactory(true).ok()?.sign_http_response(data)
 }
 
 pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
@@ -33,7 +37,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         match Phactory::restore_from_checkpoint(&GraminePlatform, &args) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
-                **APPLICATION.lock_phactory() = factory;
+                **APPLICATION.lock_phactory(true).expect("Failed to lock Phactory") = factory;
                 return Ok(());
             }
             Err(err) => {
@@ -47,7 +51,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         info!("Checkpoint disabled.");
     }
 
-    APPLICATION.lock_phactory().init(args);
+    APPLICATION.lock_phactory(true).unwrap().init(args);
 
     info!("Enclave init OK");
     Ok(())
