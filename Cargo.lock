@@ -7750,6 +7750,7 @@ dependencies = [
  "serde",
  "sp-core",
  "spin 0.9.3",
+ "tracing",
 ]
 
 [[package]]
