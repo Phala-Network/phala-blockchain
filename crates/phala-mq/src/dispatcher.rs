@@ -80,7 +80,11 @@ impl MessageDispatcher {
                 if let Err(error) = receiver.send((sn, message.clone())) {
                     use crate::simple_mpsc::SendError::*;
                     match error {
-                        ReceiverGone => false,
+                        ReceiverGone => {
+                            let dst = String::from_utf8_lossy(&message.destination.path());
+                            tracing::warn!(%dst, "ReceiverGone");
+                            false
+                        }
                     }
                 } else {
                     count += 1;
