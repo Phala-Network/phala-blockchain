@@ -46,7 +46,7 @@ macro_rules! do_ecall_handle {
 macro_rules! proxy_post {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, format = "json", data = "<contract_input>")]
-        #[instrument(fields(%id), skip_all)]
+        #[instrument(target="prpc", fields(%id), skip_all)]
         fn $name(id: TraceId, contract_input: Json<ContractInput>) -> JsonValue {
             let input_string = serde_json::to_string(&*contract_input).unwrap();
             do_ecall_handle!(id.id(), $num, input_string.as_bytes())
@@ -57,7 +57,7 @@ macro_rules! proxy_post {
 macro_rules! proxy_get {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[get($rpc)]
-        #[instrument(fields(%id), skip_all)]
+        #[instrument(target="prpc", fields(%id), skip_all)]
         fn $name(id: TraceId) -> JsonValue {
             let input_string = r#"{ "input": {} }"#.to_string();
             do_ecall_handle!(id.id(), $num, input_string.as_bytes())
@@ -95,7 +95,7 @@ async fn read_data(data: Data<'_>, limit: ByteUnit) -> ReadData {
 macro_rules! proxy_bin {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, data = "<data>")]
-        #[instrument(fields(%id), skip_all)]
+        #[instrument(target="prpc", fields(%id), skip_all)]
         async fn $name(id: TraceId, data: Data<'_>, limits: &Limits) -> JsonValue {
             let limit = limits.get(stringify!($name)).unwrap_or(100.mebibytes());
             let data = match read_data(data, limit).await {
@@ -139,7 +139,7 @@ fn kick() -> String {
 }
 
 #[get("/info")]
-#[instrument(fields(id=%_id), skip_all)]
+#[instrument(target="prpc", fields(id=%_id), skip_all)]
 fn getinfo(_id: TraceId) -> String {
     runtime::ecall_getinfo()
 }
@@ -257,7 +257,7 @@ fn limit_for_method(method: &str, limits: &Limits) -> ByteUnit {
 }
 
 #[post("/<method>?<json>", data = "<data>")]
-#[instrument(name="prpc", fields(%id), skip_all)]
+#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 async fn prpc_proxy(
     id: TraceId,
     method: String,
@@ -302,7 +302,7 @@ async fn prpc_call(id: u64, method: String, data: &[u8], json: bool) -> Custom<V
 }
 
 #[post("/<method>?<json>", data = "<data>")]
-#[instrument(name="prpc", fields(%id), skip_all)]
+#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 async fn prpc_proxy_acl(
     id: TraceId,
     method: String,
@@ -320,7 +320,7 @@ async fn prpc_proxy_acl(
 }
 
 #[get("/<method>")]
-#[instrument(name="prpc", fields(%id), skip_all)]
+#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 async fn prpc_proxy_get_acl(id: TraceId, method: String) -> Custom<Vec<u8>> {
     info!(method, "prpc_acl get enter");
     if !rpc_type(&method).is_public() {
@@ -331,7 +331,7 @@ async fn prpc_proxy_get_acl(id: TraceId, method: String) -> Custom<Vec<u8>> {
 }
 
 #[get("/<method>")]
-#[instrument(name="prpc", fields(%id), skip_all)]
+#[instrument(target="prpc", name="prpc", fields(%id), skip_all)]
 async fn prpc_proxy_get(id: TraceId, method: String) -> Custom<Vec<u8>> {
     prpc_call(id.id(), method, b"", true).await
 }
