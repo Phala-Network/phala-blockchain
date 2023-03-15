@@ -433,12 +433,14 @@ impl FatContract {
     }
 }
 
+#[tracing::instrument(name="sidevm", skip_all, fields(id=%sidevm::ShortId(&id)))]
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
     id: VmId,
     weight: u32,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
+    info!(target: "sidevm", "Starting sidevm...");
     let max_memory_pages: u32 = 1024; // 64MB
     let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
     let (sender, join_handle) = spawner.start(
@@ -451,11 +453,6 @@ fn do_start_sidevm(
     )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
-
-    let vmid = sidevm::ShortId(&id);
-    let span = tracing::info_span!("sidevm:start", %vmid);
-    let _enter = span.enter();
-    info!(target: "sidevm", "Starting sidevm...");
     spawner.spawn(
         async move {
             let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);

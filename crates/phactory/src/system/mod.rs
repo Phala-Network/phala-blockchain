@@ -491,7 +491,7 @@ fn create_sidevm_service(worker_threads: usize) -> Spawner {
     spawner.spawn(service.run(|report| match report {
         Report::VmTerminated { id, reason } => {
             let id = hex_fmt::HexFmt(&id[..4]);
-            info!("Sidevm {id} terminated with reason: {reason:?}");
+            tracing::info!(%id, %reason, "Sidevm instance terminated");
         }
     }));
     spawner
