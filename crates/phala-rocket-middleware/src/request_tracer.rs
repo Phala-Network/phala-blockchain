@@ -38,11 +38,11 @@ impl Fairing for RequestTracer {
     }
 
     async fn on_request(&self, request: &mut Request<'_>, _data: &mut Data<'_>) {
-        let _t = request.local_cache(|| TraceId::next());
+        let _t = request.local_cache(TraceId::next);
     }
 
     async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
-        let trace = request.local_cache(|| TraceId::next());
+        let trace = request.local_cache(TraceId::next);
         response.set_raw_header("X-Request-Id", trace.id().to_string());
     }
 }
@@ -52,7 +52,7 @@ impl<'r> FromRequest<'r> for TraceId {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let trace = request.local_cache(|| TraceId::next());
+        let trace = request.local_cache(TraceId::next);
         Outcome::Success(*trace)
     }
 }
