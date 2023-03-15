@@ -14,7 +14,7 @@ pub mod pallet {
 		pallet_prelude::*,
 		traits::{
 			ConstBool, Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness,
-			StorageVersion, UnixTime,
+			StorageVersion, UnixTime, ConstU128,
 		},
 		PalletId,
 	};
@@ -30,7 +30,7 @@ pub mod pallet {
 	use scale_info::TypeInfo;
 	use sp_core::U256;
 	use sp_runtime::{
-		traits::{AccountIdConversion, One, Zero},
+		traits::{AccountIdConversion, Zero},
 		SaturatedConversion,
 	};
 	use sp_std::cmp;
@@ -206,6 +206,7 @@ pub mod pallet {
 
 		/// The origin to update tokenomic.
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+		type SetBudgetOrigins: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -238,6 +239,15 @@ pub mod pallet {
 	/// Won't sent heartbeat challenges to the the worker if enabled.
 	#[pallet::storage]
 	pub type HeartbeatPaused<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
+
+	#[pallet::storage]
+	pub type StandardBudgetPerBlock<T> = StorageValue<_, u128, ValueQuery, ConstU128<1729382256910270464000>>;
+
+	#[pallet::storage]
+	pub type BudgetUpdateNonce<T> = StorageValue<_, u64, ValueQuery>;
+
+	#[pallet::storage]
+	pub type LastBugdetUpdateBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	/// The miner state.
 	///
@@ -378,6 +388,10 @@ pub mod pallet {
 			session: T::AccountId,
 			p_instant: u32,
 		},
+		BudgetUpdated {
+			nonce: u64,
+			budget: u128,
+		}
 	}
 
 	#[pallet::error]
@@ -420,6 +434,9 @@ pub mod pallet {
 		InternalErrorCannotStartWithExistingStake,
 		/// Migration root not authorized
 		NotMigrationRoot,
+		NonceIndexInvalid,
+		BudgetUpdateBlockInvalid,
+		BudgetExceedMaxLimit,
 	}
 
 	#[pallet::call]
@@ -525,6 +542,40 @@ pub mod pallet {
 			HeartbeatPaused::<T>::put(paused);
 			Ok(())
 		}
+
+		#[pallet::call_index(7)]
+		#[pallet::weight(1)]
+		#[frame_support::transactional]
+		pub fn set_budget_per_block(
+			origin: OriginFor<T>, 
+			nonce: u64, 
+			block_number: T::BlockNumber, 
+			budget: u128,
+		) -> DispatchResult {
+			T::SetBudgetOrigins::ensure_origin(origin)?;
+			ensure!(
+				nonce > BudgetUpdateNonce::<T>::get(),
+				 Error::<T>::NonceIndexInvalid,
+			);
+			ensure!(
+				block_number > LastBugdetUpdateBlock::<T>::get(),
+				Error::<T>::BudgetUpdateBlockInvalid,
+			);
+			ensure!(
+				budget <= StandardBudgetPerBlock::<T>::get(),
+				Error::<T>::BudgetExceedMaxLimit,
+			);
+			BudgetUpdateNonce::<T>::put(nonce);
+			LastBugdetUpdateBlock::<T>::put(block_number);
+			let mut tokenomic = TokenomicParameters::<T>::get().ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
+			tokenomic.budget_per_block = budget;
+			Self::update_tokenomic_parameters(tokenomic);
+			Self::deposit_event(Event::<T>::BudgetUpdated {
+				nonce,
+				budget,
+			});
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -532,22 +583,11 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert,
 	{
-		fn on_finalize(n: T::BlockNumber) {
+		fn on_finalize(_n: T::BlockNumber) {
 			Self::heartbeat_challenge();
 			// Apply tokenomic update if possible
 			if let Some(tokenomic) = ScheduledTokenomicUpdate::<T>::take() {
 				Self::update_tokenomic_parameters(tokenomic);
-			}
-			// Apply subsidy
-			if let Some(interval) = ComputingHalvingInterval::<T>::get() {
-				let block_elapsed = n - ComputingStartBlock::<T>::get().unwrap_or_default();
-				// Halve when it reaches the last block in an interval
-				if interval > Zero::zero() && block_elapsed % interval == interval - One::one() {
-					let r = Self::trigger_subsidy_halving();
-					if r.is_err() {
-						Self::deposit_event(Event::<T>::InternalErrorWrongHalvingConfigured);
-					}
-				}
 			}
 		}
 	}
@@ -577,16 +617,6 @@ pub mod pallet {
 				online_target,
 			};
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
-		}
-
-		fn trigger_subsidy_halving() -> Result<(), ()> {
-			let mut tokenomic = TokenomicParameters::<T>::get().ok_or(())?;
-			let budget_per_block = FixedPoint::from_bits(tokenomic.budget_per_block);
-			let new_budget = budget_per_block * fp!(0.75);
-			tokenomic.budget_per_block = new_budget.to_bits();
-			Self::deposit_event(Event::<T>::SubsidyBudgetHalved);
-			Self::update_tokenomic_parameters(tokenomic);
-			Ok(())
 		}
 
 		pub fn on_working_message_received(
@@ -1379,27 +1409,6 @@ pub mod pallet {
 				assert_eq!(
 					tokenomic.op_cost(2000) / 12 * 3600 * 24 * 365,
 					fp!(171.71874999975847951583)
-				);
-				// Subsidy halving to 75%
-				let _ = take_messages();
-				let _ = take_events();
-				assert_ok!(PhalaComputation::trigger_subsidy_halving());
-				let params = TokenomicParameters::<Test>::get().unwrap();
-				assert_eq!(FixedPoint::from_bits(params.budget_per_block), fp!(75));
-				assert_ok!(PhalaComputation::trigger_subsidy_halving());
-				let params = TokenomicParameters::<Test>::get().unwrap();
-				assert_eq!(FixedPoint::from_bits(params.budget_per_block), fp!(56.25));
-				let msgs = take_messages();
-				assert_eq!(msgs.len(), 2);
-				let ev = take_events();
-				assert_eq!(
-					ev,
-					vec![
-						TestEvent::PhalaComputation(Event::<Test>::SubsidyBudgetHalved),
-						TestEvent::PhalaComputation(Event::<Test>::TokenomicParametersChanged),
-						TestEvent::PhalaComputation(Event::<Test>::SubsidyBudgetHalved),
-						TestEvent::PhalaComputation(Event::<Test>::TokenomicParametersChanged),
-					]
 				);
 			});
 		}

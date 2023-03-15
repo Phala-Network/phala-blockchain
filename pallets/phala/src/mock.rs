@@ -23,7 +23,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
-use frame_system::EnsureRoot;
+use frame_system::{EnsureRoot, EnsureSignedBy};
 pub(crate) type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -232,6 +232,16 @@ impl pallet_rmrk_core::Config for Test {
 	type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
 
+pub struct SetBudgetMembers;
+
+impl SortedMembers<u64> for SetBudgetMembers {
+    fn sorted_members() -> Vec<u64> {
+        let account1: u64 = 1;
+		let account2: u64 = 2;
+        [account1, account2].to_vec()
+    }
+}
+
 impl computation::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
@@ -242,6 +252,7 @@ impl computation::Config for Test {
 	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, Self::AccountId>;
 }
 
 parameter_types! {

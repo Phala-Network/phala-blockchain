@@ -37,7 +37,7 @@ use frame_support::{
     traits::{
         AsEnsureOriginWithArg, ConstU128, ConstU32, Currency, EitherOfDiverse, EqualPrivilegeOnly,
         Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        U128CurrencyToVote, WithdrawReasons,
+        U128CurrencyToVote, WithdrawReasons, SortedMembers,
     },
     weights::{
         constants::{
@@ -50,6 +50,7 @@ use frame_support::{
 use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
+    EnsureSignedBy,
 };
 pub use node_primitives::{
     AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
@@ -1334,6 +1335,17 @@ impl pallet_mq::Config for Runtime {
     type QueueNotifyConfig = msg_routing::MessageRouteConfig;
     type CallMatcher = MqCallMatcher;
 }
+
+pub struct SetBudgetMembers;
+
+impl SortedMembers<AccountId> for SetBudgetMembers {
+    fn sorted_members() -> Vec<AccountId> {
+        let account1: [u8; 32] =
+            hex_literal::hex!("9e6399cd577e8ac536bdc017675f747b2d1893ad9cc8c69fd17eef73d4e6e51e");
+        [account1.into()].to_vec()
+    }
+}
+
 impl pallet_computation::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
@@ -1344,6 +1356,7 @@ impl pallet_computation::Config for Runtime {
     type OnStopped = PhalaStakePoolv2;
     type OnTreasurySettled = Treasury;
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
+    type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, AccountId>;
 }
 impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
