@@ -129,7 +129,7 @@ mod receiver {
         fn clone(&self) -> Self {
             Self {
                 ecdh_key: self.ecdh_key.clone(),
-                _t: self._t.clone(),
+                _t: self._t,
             }
         }
     }
@@ -172,7 +172,7 @@ mod receiver {
             Self {
                 receiver: self.receiver.clone(),
                 peeler: self.peeler.clone(),
-                _msg: self._msg.clone(),
+                _msg: self._msg,
             }
         }
     }

@@ -18,7 +18,7 @@ impl Clone for ContractsKeeper {
     fn clone(&self) -> Self {
         Self {
             contracts: self.contracts.clone(),
-            weight_changed: self.weight_changed.clone(),
+            weight_changed: self.weight_changed,
         }
     }
 }

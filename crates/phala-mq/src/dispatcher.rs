@@ -81,7 +81,7 @@ impl MessageDispatcher {
                     use crate::simple_mpsc::SendError::*;
                     match error {
                         ReceiverGone => {
-                            let dst = String::from_utf8_lossy(&message.destination.path());
+                            let dst = String::from_utf8_lossy(message.destination.path());
                             tracing::warn!(%dst, "ReceiverGone");
                             false
                         }
@@ -140,7 +140,7 @@ impl<T> Clone for TypedReceiver<T> {
     fn clone(&self) -> Self {
         Self {
             queue: self.queue.clone(),
-            _t: self._t.clone(),
+            _t: self._t,
         }
     }
 }

@@ -4,6 +4,6 @@ pub fn ordmap_for_each_mut<K: Ord + Clone, V: Clone>(
 ) {
     let snapshot = map.clone();
     for key in snapshot.keys() {
-        f((&key, map.get_mut(&key).unwrap()));
+        f((key, map.get_mut(key).unwrap()));
     }
 }
