@@ -36,7 +36,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_fat, pallet_mq, pallet_registry};
+    use chain::{pallet_phat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::{Message, MessageOrigin};
@@ -143,13 +143,13 @@ mod storage_ext {
         }
 
         pub fn pink_system_code(&self) -> (u16, Vec<u8>) {
-            self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
+            self.execute_with(pallet_phat::PinkSystemCode::<chain::Runtime>::get)
         }
 
         pub fn pink_runtime_version(&self) -> (u32, u32) {
             // !! DO NOT CHANGE THIS VALUE !!
             const DEFAULT_VERSION: (u32, u32) = (1, 0);
-            self.execute_with(pallet_fat::PinkRuntimeVersion::<chain::Runtime>::get)
+            self.execute_with(pallet_phat::PinkRuntimeVersion::<chain::Runtime>::get)
                 .unwrap_or(DEFAULT_VERSION)
         }
 

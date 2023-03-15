@@ -2,9 +2,9 @@
 name = "pink-extension-macro"
 version = "0.4.1"
 edition = "2018"
-description = "Macros for writing fat contract"
+description = "Macros for writing phat contract"
 license = "Apache-2.0"
-keywords = ["fat-contract", "pink", "ink"]
+keywords = ["phat-contract", "pink", "ink"]
 
 [lib]
 proc-macro = true

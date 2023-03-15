@@ -3,9 +3,9 @@ use pink::types::AccountId;
 use serde::{Deserialize, Serialize};
 use sidevm::service::Spawner;
 
-use crate::{contracts::FatContract, im_helpers::ordmap_for_each_mut};
+use crate::{contracts::Contract, im_helpers::ordmap_for_each_mut};
 
-type ContractMap = BTreeMap<AccountId, FatContract>;
+type ContractMap = BTreeMap<AccountId, Contract>;
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct ContractsKeeper {
@@ -24,7 +24,7 @@ impl Clone for ContractsKeeper {
 }
 
 impl ContractsKeeper {
-    pub fn insert(&mut self, contract: FatContract) {
+    pub fn insert(&mut self, contract: Contract) {
         self.contracts.insert(contract.address().clone(), contract);
     }
 
@@ -32,11 +32,11 @@ impl ContractsKeeper {
         self.contracts.keys()
     }
 
-    pub fn get_mut(&mut self, id: &AccountId) -> Option<&mut FatContract> {
+    pub fn get_mut(&mut self, id: &AccountId) -> Option<&mut Contract> {
         self.contracts.get_mut(id)
     }
 
-    pub fn get(&self, id: &AccountId) -> Option<&FatContract> {
+    pub fn get(&self, id: &AccountId) -> Option<&Contract> {
         self.contracts.get(id)
     }
 
@@ -52,13 +52,13 @@ impl ContractsKeeper {
         });
     }
 
-    pub fn drain(&mut self) -> impl Iterator<Item = FatContract> {
+    pub fn drain(&mut self) -> impl Iterator<Item = Contract> {
         std::mem::take(&mut self.contracts)
             .into_iter()
             .map(|(_, v)| v)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&AccountId, &FatContract)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&AccountId, &Contract)> {
         self.contracts.iter()
     }
 
@@ -72,7 +72,7 @@ pub(super) trait ToWeight {
     fn to_weight(&self) -> u32;
 }
 
-impl ToWeight for FatContract {
+impl ToWeight for Contract {
     fn to_weight(&self) -> u32 {
         self.weight
     }

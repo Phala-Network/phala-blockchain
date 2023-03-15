@@ -12,7 +12,7 @@ npm install @phala/sdk
 yarn add @phala/sdk
 ```
 
-To work with Fat Contracts, you should also install the following dependencies:
+To work with Phat Contracts, you should also install the following dependencies:
 
 ```
 @polkadot/api @polkadot/api-contract
@@ -20,7 +20,7 @@ To work with Fat Contracts, you should also install the following dependencies:
 
 ## Usage
 
-To start using the SDK, you will need to create a [Polkadot.js](https://polkadot.js.org/docs/api/start/create) API object connecting to the blockchain, and then construct a "decorated" Fat Contract object with the API object.
+To start using the SDK, you will need to create a [Polkadot.js](https://polkadot.js.org/docs/api/start/create) API object connecting to the blockchain, and then construct a "decorated" Phat Contract object with the API object.
 
 ```js
 // Imports
@@ -46,9 +46,9 @@ const contract = new ContractPromise(
 
 ## The contract object
 
-Fat Contract is an extension to [Parity ink!](https://paritytech.github.io/ink-docs/) smart contract. Phala SDK allows you to create the contract object compatible to the ink! contract object. In the above sample code, the `contract` object is a [`ContractPromise`](https://polkadot.js.org/docs/api-contract/start/contract.read) which share the same interface with the original Polkadot.js contract APIs.
+Phat Contract is an extension to [Parity ink!](https://paritytech.github.io/ink-docs/) smart contract. Phala SDK allows you to create the contract object compatible to the ink! contract object. In the above sample code, the `contract` object is a [`ContractPromise`](https://polkadot.js.org/docs/api-contract/start/contract.read) which share the same interface with the original Polkadot.js contract APIs.
 
-However, in Fat Contract the intreaction under the hood is different from the original ink. In Fat Contract, the read and write operations (query and command) are end-to-end encrypted. In addition, the queries are sent to the Secure Enclave workers directly, rather than the blockchain node. Phala SDK takes care of the encryption and transport of the data. Therefore when creating the `ContractPromise` object, we pass an `ApiPromise` _deocrated_ by the Phala SDK's `create()` function as the first argument.
+However, in Phat Contract the intreaction under the hood is different from the original ink. In Phat Contract, the read and write operations (query and command) are end-to-end encrypted. In addition, the queries are sent to the Secure Enclave workers directly, rather than the blockchain node. Phala SDK takes care of the encryption and transport of the data. Therefore when creating the `ContractPromise` object, we pass an `ApiPromise` _deocrated_ by the Phala SDK's `create()` function as the first argument.
 
 You can learn more about how to interact with a contract object from the official Polkadot.js docs:
 
@@ -77,13 +77,13 @@ const r = await contract.tx.methodName({}, arg1, arg2, ...)
 
 Please note that the snake_case name defined in the ink! contract is automatically converted to camelCase in Polkadot.js. The first argument of the method is the calling option, followed by the arguments to the method.
 
-The options you can specify are `value` and `gasLimit`. However the weight system is not used in Fat Contract so far. We always give a sufficient large weight to the executor.
+The options you can specify are `value` and `gasLimit`. However the weight system is not used in Phat Contract so far. We always give a sufficient large weight to the executor.
 
 Commands are always encrypted by the Phala SDK. It generates an ephemeral key to establish an end-to-end encryption channel to the worker (via ECDH) every time it sends a command.
 
 ## Send queries
 
-Queries are sent to the Secure Enclave worker directly via a RPC call. Unlike the original ink! contract where the read calls are not authenticated, Fat Contract queries are usually signed and encrypted. This enables Access Control in Fat Contracts.
+Queries are sent to the Secure Enclave worker directly via a RPC call. Unlike the original ink! contract where the read calls are not authenticated, Phat Contract queries are usually signed and encrypted. This enables Access Control in Phat Contracts.
 
 To send a query, you need to create a `Certificate` object and use it to sign the query. With Polkadot.js Extension, you can create it with the account and the signer object:
 
@@ -123,15 +123,15 @@ The return value `outcome` is a `ContractCallOutcome` object. It includes the fo
 - `output`: - The return value of the call
 - `result`: ContractExecResultResult - The execution result indicating if it's successful or not
 - `debugMessage`: Text - Debug message
-- `gasConsumed`: u64 - Consumed gas (not used in Fat Contract)
-- `gasRequired`: u64 - Required gas (not used in Fat Contract)
-- `storageDeposit`: StorageDeposit - not used in Fat Contract
+- `gasConsumed`: u64 - Consumed gas (not used in Phat Contract)
+- `gasRequired`: u64 - Required gas (not used in Phat Contract)
+- `storageDeposit`: StorageDeposit - not used in Phat Contract
 
 ### The certificate object
 
-A certificate represents the ownership of an on-chain account. Instead of using the wallet to sign the query directly, Fat Contract adopts a chain of certificates to sign the query.
+A certificate represents the ownership of an on-chain account. Instead of using the wallet to sign the query directly, Phat Contract adopts a chain of certificates to sign the query.
 
-Interactive wallets like Polkadot.js Extension triggers a popup every time when signing a message. This becomes annoying for frequent queries in Fat Contracts. To overcome the limitation, we can make an one-time grant by signing a certificate chain, and use the leaf certificate to sign the queries. Some additional advantages are fine-grained permission and TTL control on the authentication.
+Interactive wallets like Polkadot.js Extension triggers a popup every time when signing a message. This becomes annoying for frequent queries in Phat Contracts. To overcome the limitation, we can make an one-time grant by signing a certificate chain, and use the leaf certificate to sign the queries. Some additional advantages are fine-grained permission and TTL control on the authentication.
 
 Although non-interactive wallets like `Keyring` doesn't require user interaction, we still make certificate object as a unified interface.
 

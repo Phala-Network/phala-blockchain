@@ -581,7 +581,7 @@ utils
 
 const contract = program
     .command('contract')
-    .description('fat contract utilities');
+    .description('phat contract utilities');
 
 contract
     .command('upload-code')
@@ -598,7 +598,7 @@ contract
 
 contract
     .command('instantiate')
-    .description('instantiate a fat contract')
+    .description('instantiate a phat contract')
     .argument('<code-hash>', 'the hash of the code, in hex')
     .argument('<call-data>', 'the encoded arguments in hex')
     .argument('<worker>', 'the targeted worker to deploy the contract')

@@ -1,5 +1,5 @@
 ---
-source: pallets/phala/src/fat_tokenomic/tests.rs
+source: pallets/phala/src/phat_tokenomic/tests.rs
 assertion_line: 90
 expression: events
 ---
@@ -58,14 +58,14 @@ expression: events
             amount: 1000000000000,
         },
     ),
-    RuntimeEvent::FatTokenomic(
+    RuntimeEvent::PhatTokenomic(
         Event::ContractDepositChanged {
             cluster: None,
             contract: 0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a,
             deposit: 1000000000000,
         },
     ),
-    RuntimeEvent::FatTokenomic(
+    RuntimeEvent::PhatTokenomic(
         Event::UserStakeChanged {
             cluster: None,
             account: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),

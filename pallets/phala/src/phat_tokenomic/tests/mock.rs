@@ -1,4 +1,4 @@
-use crate::{fat, fat_tokenomic, mq, registry};
+use crate::{phat, phat_tokenomic, mq, registry};
 
 use crate::mock::{MockValidator, NoneAttestationEnabled};
 use frame_support::{pallet_prelude::ConstU32, parameter_types, traits::GenesisBuild};
@@ -28,8 +28,8 @@ frame_support::construct_runtime!(
 		// Phala pallets
 		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
-		FatContracts: fat,
-		FatTokenomic: fat_tokenomic,
+		PhatContracts: phat,
+		PhatTokenomic: phat_tokenomic,
 	}
 );
 
@@ -116,14 +116,14 @@ impl registry::Config for Test {
 	type ParachainId = ConstU32<0>;
 }
 
-impl fat::Config for Test {
+impl phat::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
 	type SidevmCodeSizeLimit = ConstU32<{ 1024 * 1024 }>;
 	type Currency = Balances;
 }
 
-impl fat_tokenomic::Config for Test {
+impl phat_tokenomic::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
