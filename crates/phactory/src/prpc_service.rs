@@ -28,7 +28,6 @@ use phala_types::{
     WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
 use sp_application_crypto::UncheckedFrom;
-use tokio::sync::oneshot::{channel, Sender};
 use tracing::{error, info};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -572,8 +571,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         req_id: u64,
         request: pb::ContractQueryRequest,
-        effects_queue: Sender<ExecSideEffects>,
-    ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
+    ) -> RpcResult<
+        impl Future<Output = RpcResult<(pb::ContractQueryResponse, Option<ExecSideEffects>)>>,
+    > {
         if self.args.safe_mode_level > 0 {
             return Err(from_display("Query is unavailable in safe mode"));
         }
@@ -639,13 +639,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         Ok(async move {
             let (response, effects) = query_future.await?;
-
-            if let Some(effects) = effects {
-                effects_queue
-                    .send(effects)
-                    .map_err(|_| from_display("Failed to apply side effects"))?;
-            }
-
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
                 result: contract::Data(response),
@@ -661,7 +654,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             )
             .map_err(from_debug)?;
 
-            Ok(pb::ContractQueryResponse::new(encrypted_resp))
+            Ok((pb::ContractQueryResponse::new(encrypted_resp), effects))
         })
     }
 
@@ -1188,24 +1181,30 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        let (tx, rx) = channel();
-        let phactory = self.phactory.clone();
-        tokio::spawn(async move {
-            if let Ok(effects) = rx.await {
-                let mut phactory = phactory.lock().unwrap();
-                if phactory.rcu_dispatching {
-                    // If there is any executing transaction, we need to wait for it to finish.
-                    // TODO.kevin: limit the size?
-                    phactory.pending_effects.push(effects);
-                } else {
-                    phactory.apply_side_effects(effects);
-                }
-            }
-        });
         let query_fut = self
             .lock_phactory(true)?
-            .contract_query(self.req_id, request, tx)?;
-        query_fut.await
+            .contract_query(self.req_id, request)?;
+        let (response, effects) = query_fut.await?;
+        'apply_effects: {
+            let Some(effects) = effects else {
+                break 'apply_effects;
+            };
+            if effects.is_empty() {
+                break 'apply_effects;
+            }
+            let mut phactory = self.lock_phactory(true)?;
+            if phactory.rcu_dispatching {
+                const MAX_PENDING: usize = 64;
+                if phactory.pending_effects.len() >= MAX_PENDING {
+                    error!("Too many pending effects, dropping this");
+                    return Err(from_display("Too many pending effects"));
+                }
+                phactory.pending_effects.push(effects);
+            } else {
+                phactory.apply_side_effects(effects);
+            }
+        }
+        Ok(response)
     }
 
     async fn get_worker_state(

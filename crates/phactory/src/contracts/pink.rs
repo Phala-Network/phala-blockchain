@@ -548,7 +548,6 @@ impl Cluster {
                     context.req_id,
                 );
                 let log_handler = context.log_handler.clone();
-                let todo = "limit worker threads";
                 let span = tracing::Span::current();
                 let contract_id = contract_id.clone();
                 tokio::task::spawn_blocking(move || {

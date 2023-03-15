@@ -85,4 +85,14 @@ impl ExecSideEffects {
             },
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            ExecSideEffects::V1 {
+                pink_events,
+                ink_events,
+                instantiated,
+            } => pink_events.is_empty() && ink_events.is_empty() && instantiated.is_empty(),
+        }
+    }
 }
