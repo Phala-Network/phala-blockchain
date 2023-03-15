@@ -9,7 +9,6 @@ panic = "abort"
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.0.19", features = ["derive"] }
-colored = "2"
 reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
     "socks",

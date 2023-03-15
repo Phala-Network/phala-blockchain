@@ -49,8 +49,14 @@ pub fn init_subscriber(sanitized: bool) {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
+    let ansi = std::env::var("RUST_LOG_ANSI_COLOR")
+        .ok()
+        .map(|v| v.parse().ok())
+        .flatten()
+        .unwrap_or_default();
     let builder = builder
         .with_env_filter(filter)
+        .with_ansi(ansi)
         .with_writer(std::io::stderr as fn() -> Stderr);
     let subscriber = builder.finish();
     if sanitized {
