@@ -522,7 +522,8 @@ impl Cluster {
                     .or(Err(QueryError::ServiceUnavailable))?;
 
                 if let Some(logger) = &context.log_handler {
-                    let fp = blake2_128(&(b"phat query finger print", &origin).encode());
+                    let salt = self.default_runtime().get_key();
+                    let fp = blake2_128(&(b"finger print:", &origin, salt).encode());
                     if let Err(_err) = logger.try_send(SidevmCommand::PushSystemMessage(
                         SystemMessage::Metric(Metric::PinkQueryIn(fp)),
                     )) {
