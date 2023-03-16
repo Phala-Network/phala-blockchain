@@ -376,13 +376,16 @@ pub mod messaging {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
         /// Deprecated after <https://github.com/Phala-Network/phala-blockchain/pull/499>
-        RepairV,
+        /// Dropped in Phala. The index is reserved here for Khala+pruntime-v0 compatibility.
+        _RepairV,
         /// Trigger a set of changes:
         /// - <https://github.com/Phala-Network/phala-blockchain/issues/693>
         /// - <https://github.com/Phala-Network/phala-blockchain/issues/676>
-        PhalaLaunched,
-        /// Fix the payout duration problem in unresponsive state
-        UnrespFix,
+        /// Dropped in Phala. The index is reserved here for Khala+pruntime-v0 compatibility.
+        _PhalaLaunched,
+        /// Fix the payout duration problem in unresponsive state.
+        /// Dropped in Phala. The index is reserved here for Khala+pruntime-v0 compatibility.
+        _UnrespFix,
     }
 
     impl GatekeeperEvent {

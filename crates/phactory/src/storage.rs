@@ -36,11 +36,12 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_fat, pallet_mq, pallet_registry};
+    use chain::{pallet_computation, pallet_fat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::{Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
+    use phala_types::messaging::TokenomicParameters;
     use serde::{Deserialize, Serialize};
     use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
 
@@ -173,6 +174,10 @@ mod storage_ext {
                 }
             }
             false
+        }
+
+        pub fn tokenomic_parameters(&self) -> Option<TokenomicParameters> {
+            self.execute_with(pallet_computation::TokenomicParameters::<chain::Runtime>::get)
         }
     }
 }
