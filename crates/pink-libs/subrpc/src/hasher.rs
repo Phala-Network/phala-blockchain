@@ -1,5 +1,5 @@
-use sp_core_hashing::*;
 use alloc::vec::Vec;
+use sp_core_hashing::*;
 
 /// Hasher to use to hash keys to insert to storage.
 pub trait Hasher: 'static {
