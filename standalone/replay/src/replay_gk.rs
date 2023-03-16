@@ -13,8 +13,7 @@ use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, ChainStorage};
 use phactory_api::blocks::BlockHeaderWithChanges;
-use phala_mq::Path as MqPath;
-use phala_mq::{MessageDispatcher, Sr25519Signer};
+use phala_mq::{MessageDispatcher, Path as MqPath, Sr25519Signer};
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
 use pherry::types::{phaxt, subxt, BlockNumber, NumberOrHex, ParachainApi, StorageKey};
@@ -96,9 +95,7 @@ impl ReplayFactory {
             .mq_messages()
             .or(Err("Can not get mq messages from storage"))?;
 
-        let now_ms = self
-            .storage
-            .timestamp_now();
+        let now_ms = self.storage.timestamp_now();
 
         let block = BlockInfo {
             block_number,
@@ -113,6 +110,7 @@ impl ReplayFactory {
         let next_seq = &mut self.next_event_seq;
         let mut records = vec![];
         let mut event_handler = |event: gk::EconomicEvent, state: &gk::WorkerInfo| {
+            log::debug!(target: "event", "event={event:?}, state={state:?}");
             let record = EventRecord {
                 sequence: *next_seq as _,
                 pubkey: *state.pubkey(),
@@ -128,6 +126,13 @@ impl ReplayFactory {
 
         self.gk.will_process_block(&block);
         for message in messages {
+            log::debug!(
+                target: "event",
+                "mq message: sender={}, dst={:?}, payload={}",
+                message.sender,
+                message.destination,
+                crate::helper::try_decode_message(&message)
+            );
             block.recv_mq.dispatch(message);
             self.gk.process_messages(&block, &mut event_handler);
         }
