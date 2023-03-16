@@ -176,7 +176,7 @@ mod storage_ext {
             false
         }
 
-        pub(crate) fn tokenomic_parameters(&self) -> Option<TokenomicParameters> {
+        pub fn tokenomic_parameters(&self) -> Option<TokenomicParameters> {
             self.execute_with(pallet_computation::TokenomicParameters::<chain::Runtime>::get)
         }
     }

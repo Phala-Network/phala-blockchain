@@ -2,7 +2,7 @@ use core::fmt::Debug;
 use parity_scale_codec::Decode;
 use phala_mq::{AccountId, BindTopic, Message};
 use phala_pallets::{
-    pallet_phat::{ClusterRegistryEvent, ContractRegistryEvent},
+    pallet_fat::{ClusterRegistryEvent, ContractRegistryEvent},
     pallet_registry::{GatekeeperRegistryEvent, RegistryEvent},
 };
 use phala_types::{
@@ -13,20 +13,19 @@ use phala_types::{
     },
 };
 
-fn try_decode<T: Debug + Decode + BindTopic>(msg: &Message) -> Option<String> {
-    if &T::topic() != msg.destination.path() {
+fn try_decode<T: Debug + Decode + BindTopic>(topic: &[u8], mut payload: &[u8]) -> Option<String> {
+    if T::topic() != topic {
         return None;
     }
-    let mut data = &msg.payload[..];
-    let decoded = T::decode(&mut data).ok()?;
-    Some(format!("{:?}", decoded))
+    let decoded = T::decode(&mut payload).ok()?;
+    Some(format!("{decoded:?}"))
 }
 
-pub(crate) fn try_decode_message(msg: &Message) -> String {
+pub(crate) fn try_decode_message(topic: &[u8], payload: &[u8]) -> String {
     macro_rules! try_decode {
         ($($t:ty),*) => {
             $(
-                if let Some(decoded) = try_decode::<$t>(msg) {
+                if let Some(decoded) = try_decode::<$t>(topic, payload) {
                     return decoded;
                 }
             )*
@@ -50,5 +49,16 @@ pub(crate) fn try_decode_message(msg: &Message) -> String {
     try_decode!(RegistryEvent);
     try_decode!(GatekeeperRegistryEvent);
 
-    format!("{}", hex_fmt::HexFmt(&msg.payload))
+    format!("{}", hex_fmt::HexFmt(payload))
+}
+
+pub(crate) fn is_gk_launch(msg: &Message) -> bool {
+    if msg.destination.path() != &GatekeeperLaunch::topic() {
+        return false;
+    }
+    let mut data = &msg.payload[..];
+    match GatekeeperLaunch::decode(&mut data) {
+        Ok(event) => matches!(event, GatekeeperLaunch::FirstGatekeeper(_)),
+        Err(_) => false,
+    }
 }
