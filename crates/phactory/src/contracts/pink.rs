@@ -20,7 +20,7 @@ use pink::{
 };
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
-use sp_core::{blake2_128, sr25519};
+use sp_core::{hashing::blake2_64, sr25519};
 
 use ::pink::{
     capi::v1,
@@ -523,7 +523,7 @@ impl Cluster {
 
                 if let Some(logger) = &context.log_handler {
                     let salt = self.default_runtime().get_key();
-                    let fp = blake2_128(&(b"finger print:", &origin, salt).encode());
+                    let fp = blake2_64(&(b"finger print:", &origin, salt).encode());
                     if let Err(_err) = logger.try_send(SidevmCommand::PushSystemMessage(
                         SystemMessage::Metric(Metric::PinkQueryIn(fp)),
                     )) {
