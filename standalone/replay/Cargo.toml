@@ -28,3 +28,5 @@ hex = "*"
 bytes = "1.1.0"
 serde = "1.0"
 serde_cbor = "0.11.2"
+hex_fmt = "0.3"
+phala-pallets = { path = "../../pallets/phala" }
