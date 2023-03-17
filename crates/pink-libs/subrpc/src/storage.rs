@@ -20,7 +20,6 @@ pub fn storage_map_prefix<H: Hasher>(prefix: &[u8], key1: &[u8]) -> Vec<u8> {
     let mut final_key = Vec::with_capacity(prefix.len() + key1_hashed.as_ref().len() + key1.len());
     final_key.extend_from_slice(prefix);
     final_key.extend_from_slice(key1_hashed.as_ref());
-    final_key.extend_from_slice(key1);
     final_key
 }
 
@@ -42,23 +41,21 @@ pub fn storage_double_map_prefix<H1: Hasher, H2: Hasher>(
     );
     final_key.extend_from_slice(prefix);
     final_key.extend_from_slice(key1_hashed.as_ref());
-    final_key.extend_from_slice(key1);
     final_key.extend_from_slice(key2_hashed.as_ref());
-    final_key.extend_from_slice(key2);
     final_key
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hasher::Blake2_128;
+    use crate::hasher::Blake2_128Concat;
     #[test]
     fn storage_key_is_correct() {
         use scale::Encode;
         let map_key =
             hex_literal::hex!("0202020202020202020202020202020202020202020202020202020202020202")
                 .to_vec();
-        let key = storage_double_map_prefix::<Blake2_128, Blake2_128>(
+        let key = storage_double_map_prefix::<Blake2_128Concat, Blake2_128Concat>(
             &storage_prefix("PhatRollupAnchor", "States")[..],
             &hex_literal::hex!("0101010101010101010101010101010101010101010101010101010101010101"),
             &map_key.encode(),
