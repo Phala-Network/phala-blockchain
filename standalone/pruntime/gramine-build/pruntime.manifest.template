@@ -10,13 +10,26 @@ argv0_override = "pruntime"
 insecure__use_cmdline_argv = true
 
 [sys]
+{#
+  It's required by the tokio networks stack. A false report would cause a noop
+  poll, so it's safe to enable it.
+#}
 insecure__allow_eventfd = true
 
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
+{# Without this, Glibc would allocate a 64MB ARENA for each thread. #}
 MALLOC_ARENA_MAX = "1"
+{#
+The size of the thread pool for the tokio runtime created by rocket that
+serving the async tasks.
+#}
 ROCKET_WORKERS = "8"
 PINK_RUNTIME_PATH = "{{ pink_runtime_mount_dir }}"
+{#
+When enable, the pruntime will only logs with targets in the hardcoded whitelist.
+So, log from thirdparty crates will be ignored to avoid unexpected information leaks.
+#}
 RUST_LOG_SANITIZED = "true"
 RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
