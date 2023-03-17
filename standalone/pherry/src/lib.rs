@@ -46,6 +46,7 @@ use notify_client::NotifyClient;
 use phala_types::AttestationProvider;
 
 pub use phaxt::connect as subxt_connect;
+use phaxt::subxt::tx::TxPayload;
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -953,6 +954,10 @@ async fn register_worker(
         None => attestation.encoded_report,
     };
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
+
+    let encoded_call_data = tx.encode_call_data(&para_api.metadata()).expect("should encoded");
+    debug!("register_worker call: 0x{}", hex::encode(encoded_call_data));
+
     let ret = para_api
         .tx()
         .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), params)?

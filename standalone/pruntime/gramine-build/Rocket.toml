@@ -8,6 +8,7 @@ cli_colors = false
 json = 104857600
 bytes = 104857600
 "PhactoryAPI.DispatchBlocks" = 104857600
+"PhactoryAPI.InitRuntime" = 104857600
 
 [default.shutdown]
 ctrlc = false

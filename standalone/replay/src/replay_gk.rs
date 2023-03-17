@@ -13,8 +13,7 @@ use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, ChainStorage};
 use phactory_api::blocks::BlockHeaderWithChanges;
-use phala_mq::Path as MqPath;
-use phala_mq::{MessageDispatcher, Sr25519Signer};
+use phala_mq::{MessageDispatcher, Path as MqPath, Sr25519Signer, Topic};
 use phala_types::WorkerPublicKey;
 use phaxt::rpc::ExtraRpcExt as _;
 use pherry::types::{phaxt, subxt, BlockNumber, NumberOrHex, ParachainApi, StorageKey};
@@ -44,6 +43,7 @@ pub struct ReplayFactory {
     #[serde(default)]
     recv_mq: MessageDispatcher,
     gk: gk::ComputingEconomics<ReplayMsgChannel>,
+    gk_launched: bool,
 }
 
 impl ReplayFactory {
@@ -58,6 +58,7 @@ impl ReplayFactory {
             storage,
             recv_mq,
             gk,
+            gk_launched: false,
         }
     }
 
@@ -96,9 +97,7 @@ impl ReplayFactory {
             .mq_messages()
             .or(Err("Can not get mq messages from storage"))?;
 
-        let now_ms = self
-            .storage
-            .timestamp_now();
+        let now_ms = self.storage.timestamp_now();
 
         let block = BlockInfo {
             block_number,
@@ -113,6 +112,7 @@ impl ReplayFactory {
         let next_seq = &mut self.next_event_seq;
         let mut records = vec![];
         let mut event_handler = |event: gk::EconomicEvent, state: &gk::WorkerInfo| {
+            log::debug!(target: "event", "event={event:?}, state={state:?}");
             let record = EventRecord {
                 sequence: *next_seq as _,
                 pubkey: *state.pubkey(),
@@ -128,17 +128,35 @@ impl ReplayFactory {
 
         self.gk.will_process_block(&block);
         for message in messages {
+            log::debug!(
+                target: "event",
+                "mq message: sender={}, dst={:?}, payload={}",
+                message.sender,
+                message.destination,
+                crate::helper::try_decode_message(message.destination.path(), &message.payload)
+            );
+            if !self.gk_launched {
+                if !crate::helper::is_gk_launch(&message) {
+                    continue;
+                }
+                if let Some(params) = self.storage.tokenomic_parameters() {
+                    self.gk.update_tokenomic_parameters(params);
+                }
+                self.gk_launched = true;
+            }
             block.recv_mq.dispatch(message);
             self.gk.process_messages(&block, &mut event_handler);
         }
-        self.gk.did_process_block(&block, &mut event_handler);
+        if self.gk_launched {
+            self.gk.did_process_block(&block, &mut event_handler);
 
-        if let Some(tx) = event_tx.as_ref() {
-            for record in records {
-                match tx.send(record).await {
-                    Ok(()) => (),
-                    Err(err) => {
-                        log::error!("Can not send event to replay: {}", err);
+            if let Some(tx) = event_tx.as_ref() {
+                for record in records {
+                    match tx.send(record).await {
+                        Ok(()) => (),
+                        Err(err) => {
+                            log::error!("Can not send event to replay: {}", err);
+                        }
                     }
                 }
             }
@@ -182,7 +200,15 @@ struct ReplayMsgChannel;
 
 impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
     type Signer = Sr25519Signer;
-    fn push_data(&self, _data: Vec<u8>, _to: impl Into<MqPath>) {}
+    fn push_data(&self, data: Vec<u8>, to: impl Into<MqPath>) {
+        let topic = Topic::new(to);
+        log::debug!(
+            target: "gk_egress",
+            "gk egress: dst={:?}, payload={}",
+            topic,
+            crate::helper::try_decode_message(topic.path(), &data)
+        );
+    }
 }
 
 pub async fn fetch_genesis_storage(

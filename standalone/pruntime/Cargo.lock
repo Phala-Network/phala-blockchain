@@ -5280,6 +5280,7 @@ dependencies = [
  "anyhow",
  "base64 0.13.0",
  "clap",
+ "hex_fmt",
  "lazy_static",
  "libc",
  "num_cpus",

@@ -80,6 +80,8 @@ struct Args {
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
+    pal_gramine::print_target_info();
+
     let sgx = pal_gramine::is_gramine();
     logger::init_subscriber(sgx);
     serve(sgx).await
