@@ -180,7 +180,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
                     .await
                     .expect("Failed to launch API server");
             }
-            .instrument(info_span!("srv1")),
+            .instrument(info_span!("srv-public")),
         );
         servers.push(server_acl);
     }
@@ -192,7 +192,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
                 .await
                 .expect("Failed to launch API server");
         }
-        .instrument(info_span!("srv0")),
+        .instrument(info_span!("srv-internal")),
     );
     servers.push(server_internal);
 
