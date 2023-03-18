@@ -45,7 +45,7 @@ export default defineConfig({
     }),
     ReplaceModulesPlugin([{
       name: 'undici',
-      contents: 'export const fetch = window.fetch;'
+      contents: 'export const fetch = global.fetch || window.fetch;'
     }])
   ],
   entry: ["src/index.ts"],
