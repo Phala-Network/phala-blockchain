@@ -248,7 +248,7 @@ export class PinkContractPromise {
         InkMessage: {
           nonce: hexAddPrefix(randomHex(32)),
           // FIXME: unexpected u8a prefix
-          message: u8aToHex(encParams),
+          message: api.createType("Vec<u8>", encParams).toHex(),
           transfer: value,
           gasLimit: gas.refTime,
           storageDepositLimit,
