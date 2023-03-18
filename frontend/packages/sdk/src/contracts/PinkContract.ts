@@ -193,7 +193,9 @@ export class PinkContractPromise {
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
       // @ts-ignore
-      const cert = await signCertificate({ pair: origin, api });
+      const signParams = (origin.signer) ? origin : { pair: origin }
+      // @ts-ignore
+      const cert = await signCertificate({ ...signParams, api });
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
