@@ -18,7 +18,6 @@ const ReplaceModulesPlugin = (modules: {
         const filter = new RegExp(`^${name}\\/?(.+)?`)
 
         build.onResolve({ filter }, args => {
-          console.log('args', args)
           return {
             path: args.path,
             namespace: name,
@@ -26,7 +25,6 @@ const ReplaceModulesPlugin = (modules: {
         })
 
         build.onLoad({ filter, namespace: name }, () => {
-          console.log('namespace', name)
           return {
             contents,
             loader,
