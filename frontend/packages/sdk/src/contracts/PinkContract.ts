@@ -100,29 +100,6 @@ export async function pinkQuery(
   });
 };
 
-function pinkCommand(
-  api: ApiPromise,
-  pk: Uint8Array,
-  commandAgreementKey: Uint8Array,
-  { contractId, payload, deposit }: {
-    contractId: string;
-    payload: string;
-    deposit: BN;
-  }
-) {
-  const encodedPayload = api
-    .createType("CommandPayload", {
-      encrypted: createEncryptedData(pk, payload, commandAgreementKey),
-    })
-    .toHex();
-
-  return api.tx.phalaFatContracts.pushContractMessage(
-    contractId,
-    encodedPayload,
-    deposit
-  );
-};
-
 
 export class PinkContractPromise {
 
@@ -254,10 +231,20 @@ export class PinkContractPromise {
           storageDepositLimit,
         },
       });
+      const encodedPayload = api
+        .createType("CommandPayload", {
+          encrypted: createEncryptedData(pk, payload.toHex(), commandAgreementKey),
+        })
+        .toHex();
       let deposit = new BN(0);
       const gasFee = new BN(gas.refTime).mul(this.phatRegistry.gasPrice);
       deposit = new BN(value).add(gasFee).add(new BN(storageDepositLimit || 0));
-      return pinkCommand(api, pk, commandAgreementKey, { contractId: dest.toHex(), payload: payload.toHex(), deposit })
+
+      return api.tx.phalaFatContracts.pushContractMessage(
+        dest,
+        encodedPayload,
+        deposit
+      );
     }
 
     return inkCommandInternal(
@@ -267,9 +254,9 @@ export class PinkContractPromise {
       convertWeight(gasLimit).v2Weight,
       storageDepositLimit,
       this.abi.findMessage(messageOrId).toU8a(params)
-    ).withResultTransform((result: ISubmittableResult) =>
+    ).withResultTransform((result: ISubmittableResult) => {
       // ContractEmitted is the current generation, ContractExecution is the previous generation
-      new ContractSubmittableResult(result, applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) =>
+      return new ContractSubmittableResult(result, applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) =>
         records
           .map(({ event: { data: [, data] } }): DecodedEvent | null => {
             try {
@@ -281,6 +268,6 @@ export class PinkContractPromise {
           })
           .filter((decoded): decoded is DecodedEvent => !!decoded)
       ))
-    );
+    });
   };
 }
