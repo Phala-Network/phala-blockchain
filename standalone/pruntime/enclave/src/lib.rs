@@ -82,10 +82,11 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
                 factory.set_args(args.clone());
 
                 // dump for different key
-                info!("{:?}", args.dump_checkpoint_for_key);
-
                 if args.dump_checkpoint_for_key.is_some() {
-                    info!("Taking checkpoint for different key...");
+                    info!(
+                        "Taking checkpoint for different key... {:?}",
+                        args.dump_checkpoint_for_key
+                    );
 
                     match factory.dump_checkpoint_for_different_key(
                         &SgxPlatform.clone(),

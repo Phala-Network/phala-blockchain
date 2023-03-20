@@ -49,7 +49,6 @@ use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
 use std::time::Instant;
 use types::Error;
-use phactory_api::{prpc as pb};
 
 pub use contracts::pink;
 pub use side_task::SideTaskManager;
