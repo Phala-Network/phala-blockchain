@@ -369,14 +369,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Ok(data) => data,
             Err(err) => match err {
-                Error::PersistentRuntimeNotFound => {
-                    error!("PersistentRuntimeNotFound");
-                    return Ok(None);
-                },
-                _ => {
-                    error!("Different error");
-                    return Err(err.into());
-                },
+                Error::PersistentRuntimeNotFound => return Ok(None),
+                _ => return Err(err.into()),
             },
         };
         let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
@@ -403,12 +397,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let file = match platform.open_protected_file(&tmpfile, &runtime_data.sk) {
             Ok(Some(file)) => file,
-            Ok(None) => {
-                error!("File not opened");
-                return Ok(None);
-            },
+            Ok(None) => return Ok(None),
             Err(err) => {
-                error!("Failed to open checkpoint file");
                 if remove_corrupted {
                     remove_file(&checkpoint_file);
                 }
