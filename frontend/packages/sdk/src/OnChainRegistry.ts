@@ -63,6 +63,14 @@ export class OnChainRegistry {
     return contractKey.toString();
   }
 
+  public async getContractKeyOrFail(contractId: string) {
+    const contractKey = await this.getContractKey(contractId);
+    if (!contractKey) {
+      throw new Error(`Contract ${contractId} not found in cluster.`);
+    }
+    return contractKey;
+  }
+
   public isReady() {
     return this.#ready
   }
