@@ -49,6 +49,7 @@ use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
 use std::time::Instant;
 use types::Error;
+use phactory_api::{prpc as pb};
 
 pub use contracts::pink;
 pub use side_task::SideTaskManager;
@@ -328,6 +329,38 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(())
     }
 
+    pub fn dump_checkpoint_for_different_key(
+        &mut self,
+        platform: &Platform,
+        mut args: InitArgs
+    ) -> anyhow::Result<()> {
+        info!("Loading different key from {:?}", args.dump_checkpoint_for_key);
+
+        match Phactory::restore_from_checkpoint(
+            platform,
+            &args.dump_checkpoint_for_key.unwrap(),
+            args.remove_corrupted_checkpoint,
+        ) {
+            Ok(Some(mut other_factory)) => {
+                info!("Loaded checkpoint for different key");
+
+                self.runtime_info = other_factory.runtime_info;
+                self.system = other_factory.system;
+
+                self.take_checkpoint();
+
+                return Ok(());
+            }
+            Err(err) => {
+                error!("Failed to load checkpoint: {:?}", err);
+                return Err(err);
+            }
+            Ok(None) => {
+                return Err(anyhow!("No checkpoint found"));
+            }
+        };
+    }
+
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
@@ -336,8 +369,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Ok(data) => data,
             Err(err) => match err {
-                Error::PersistentRuntimeNotFound => return Ok(None),
-                _ => return Err(err.into()),
+                Error::PersistentRuntimeNotFound => {
+                    error!("PersistentRuntimeNotFound");
+                    return Ok(None);
+                },
+                _ => {
+                    error!("Different error");
+                    return Err(err.into());
+                },
             },
         };
         let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
@@ -364,8 +403,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let file = match platform.open_protected_file(&tmpfile, &runtime_data.sk) {
             Ok(Some(file)) => file,
-            Ok(None) => return Ok(None),
+            Ok(None) => {
+                error!("File not opened");
+                return Ok(None);
+            },
             Err(err) => {
+                error!("Failed to open checkpoint file");
                 if remove_corrupted {
                     remove_file(&checkpoint_file);
                 }

@@ -73,14 +73,38 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
 
     if args.enable_checkpoint {
         match Phactory::restore_from_checkpoint(
-            &SgxPlatform,
+            &SgxPlatform.clone(),
             &args.sealing_path,
             args.remove_corrupted_checkpoint,
         ) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint");
                 factory.set_args(args.clone());
+
+                // dump for different key
+                info!("{:?}", args.dump_checkpoint_for_key);
+
+                if args.dump_checkpoint_for_key.is_some() {
+                    info!("Taking checkpoint for different key...");
+
+                    match factory.dump_checkpoint_for_different_key(
+                        &SgxPlatform.clone(),
+                        args.clone()
+                    ) {
+                        Ok(_ok) => {
+                            info!("Checkpoint for different key dumped");
+                        }
+                        Err(err) => {
+                            error!("Failed to dump checkpoint: {:?}", err);
+                        }
+                    };
+
+                    // die!
+                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                }
+
                 *APPLICATION.lock().unwrap() = factory;
+
                 return sgx_status_t::SGX_SUCCESS;
             }
             Err(err) => {

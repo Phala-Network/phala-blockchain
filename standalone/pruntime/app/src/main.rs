@@ -90,6 +90,9 @@ struct Args {
     #[structopt(long)]
     remove_corrupted_checkpoint: bool,
 
+    #[structopt(long)]
+    dump_checkpoint_for_key: Option<String>,
+
     /// Measuring the time it takes to process each RPC call.
     #[structopt(long)]
     measure_rpc_time: bool,
@@ -655,6 +658,7 @@ async fn main() {
         git_revision: git_revision(),
         geoip_city_db: args.geoip_city_db,
         enable_checkpoint: !args.disable_checkpoint,
+        dump_checkpoint_for_key: args.dump_checkpoint_for_key,
         checkpoint_interval: args.checkpoint_interval,
         remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
         gc_interval: args.gc_interval,

@@ -25,6 +25,9 @@ pub struct InitArgs {
     /// Enable checkpoint
     pub enable_checkpoint: bool,
 
+    /// Dump checkpoint for different key
+    pub dump_checkpoint_for_key: Option<String>,
+
     /// Checkpoint interval in seconds
     pub checkpoint_interval: u64,
 
