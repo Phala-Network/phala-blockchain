@@ -65,7 +65,6 @@ fixed-sqrt = "0.2.4"
 fixed-macro = "1.2"
 
 # for network service
-surf = { version = "2.3.2", default-features = false, features = ["h1-client-rustls"] }
 futures = { version = "0.3.17", default-features = false }
 async-io = { version = "1.6.0" }
 async-executor = { version = "1.4.1" }

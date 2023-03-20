@@ -126,7 +126,7 @@ pub fn create_extrinsic(
 }
 
 /// Creates a new partial node.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::redundant_clone)]
 pub fn new_partial(
 	config: &Configuration,
 ) -> Result<
