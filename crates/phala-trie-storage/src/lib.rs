@@ -173,7 +173,6 @@ where
         self.0
             .pairs(iter_args)
             .unwrap()
-            .into_iter()
             .map(|pair| {
                 let (k, v) = pair.expect("Should get the key and value");
                 (k, v)
