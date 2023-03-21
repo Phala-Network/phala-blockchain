@@ -1,4 +1,4 @@
-use frame_support::traits::Currency;
+use frame_support::{traits::Currency, weights::constants::WEIGHT_REF_TIME_PER_SECOND};
 use log::info;
 use pallet_contracts::{AddressGenerator, Determinism};
 use phala_crypto::sr25519::Sr25519SecretKey;
@@ -160,6 +160,7 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
+        let tx_args = sanitize_args(tx_args, mode);
         let address = PalletPink::contract_address(&tx_args.origin, &code_hash, &input_data, &salt);
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
         if !result.debug_message.is_empty() {
@@ -207,6 +208,7 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
+        let tx_args = sanitize_args(tx_args, mode);
         let result = crate::contract::bare_call(address.clone(), input_data, mode, tx_args);
         if !result.debug_message.is_empty() {
             let message = String::from_utf8_lossy(&result.debug_message).into_owned();
@@ -242,4 +244,14 @@ impl ecall::ECalls for ECallImpl {
     fn git_revision(&self) -> String {
         phala_git_revision::git_revision().to_string()
     }
+}
+
+/// Clip gas limit to 0.5 second for tx, 10 seconds for query
+fn sanitize_args(mut args: TransactionArguments, mode: ExecutionMode) -> TransactionArguments {
+    let gas_limit = match mode {
+        ExecutionMode::Transaction | ExecutionMode::Estimating => WEIGHT_REF_TIME_PER_SECOND / 2,
+        ExecutionMode::Query => WEIGHT_REF_TIME_PER_SECOND * 10,
+    };
+    args.gas_limit = args.gas_limit.min(gas_limit);
+    args
 }
