@@ -95,7 +95,7 @@ pub mod pallet {
 
         fn deposit_address(contract_addr: &T::AccountId) -> T::AccountId {
             let entropy = (b"contract_depo_v1", contract_addr).using_encoded(T::Hashing::hash);
-            Decode::decode(&mut TrailingZeroInput::new(entropy.as_ref()))
+            UncheckedFrom::unchecked_from(entropy)
                 .expect("infinite length input; no invalid inputs for type; qed")
         }
     }
