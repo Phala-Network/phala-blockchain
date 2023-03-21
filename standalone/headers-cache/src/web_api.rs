@@ -1,12 +1,25 @@
+use std::pin::pin;
+
 use anyhow::{bail, Context, Result};
 use log::{debug, error, info};
-use pherry::headers_cache::BlockInfo;
-use rocket::{get, response::status::NotFound, routes, State};
+use pherry::headers_cache::{read_items_stream, BlockInfo};
+use rand::Rng;
+use rocket::{
+    data::ToByteUnit,
+    futures::StreamExt,
+    get,
+    response::status::{BadRequest, NotFound},
+    routes, State,
+};
+use rocket::{put, Data};
 
 use scale::{Decode, Encode};
 
 use crate::db::CacheDB;
 use crate::BlockNumber;
+use auth::Authorized;
+
+mod auth;
 
 struct App {
     db: CacheDB,
@@ -120,9 +133,83 @@ fn get_storage_changes(
     Ok(changes.encode())
 }
 
-pub(crate) async fn serve(db: CacheDB) -> Result<()> {
+async fn process_items(
+    app: &State<App>,
+    data: Data<'_>,
+    handler: impl Fn(&State<App>, BlockNumber, &[u8]),
+) -> Result<(), BadRequest<String>> {
+    let input = data.open(10.gibibytes());
+    let mut stream = pin!(read_items_stream(input));
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(record) => {
+                let number = record
+                    .header()
+                    .map_err(|e| BadRequest(Some(format!("Decode error: {}", e))))?
+                    .number;
+                handler(app, number, record.payload());
+            }
+            Err(e) => return Err(BadRequest(Some(format!("Decode error: {}", e)))),
+        }
+    }
+    Ok(())
+}
+
+#[put("/headers", data = "<data>")]
+async fn put_headers(
+    _auth: Authorized,
+    app: &State<App>,
+    data: Data<'_>,
+) -> Result<(), BadRequest<String>> {
+    process_items(app, data, |app, number, data| {
+        log::info!("Importing header {}", number);
+        app.db
+            .put_header(number, data)
+            .expect("Failed to put headers into DB");
+    })
+    .await
+}
+
+#[put("/parachain-headers", data = "<data>")]
+async fn put_parachain_headers(
+    _auth: Authorized,
+    app: &State<App>,
+    data: Data<'_>,
+) -> Result<(), BadRequest<String>> {
+    process_items(app, data, |app, number, data| {
+        log::info!("Importing parachain header {}", number);
+        app.db
+            .put_para_header(number, data)
+            .expect("Failed to put para headers into DB");
+    })
+    .await
+}
+
+#[put("/storage-changes", data = "<data>")]
+async fn put_storage_changes(
+    _auth: Authorized,
+    app: &State<App>,
+    data: Data<'_>,
+) -> Result<(), BadRequest<String>> {
+    process_items(app, data, |app, number, data| {
+        log::info!("Importing changes {}", number);
+        app.db
+            .put_storage_changes(number, data)
+            .expect("Failed to put storage changes into DB");
+    })
+    .await
+}
+
+pub(crate) async fn serve(db: CacheDB, token: Option<String>) -> Result<()> {
+    let token = token.unwrap_or_else(|| {
+        let token: [u8; 16] = rand::thread_rng().gen();
+        let token = hex::encode(token);
+        log::warn!("No token provided, generated a random one: {}", token);
+        token
+    });
     let _rocket = rocket::build()
         .manage(App { db })
+        .manage(auth::Token { value: token })
         .mount(
             "/",
             routes![
@@ -132,6 +219,9 @@ pub(crate) async fn serve(db: CacheDB) -> Result<()> {
                 get_headers,
                 get_parachain_headers,
                 get_storage_changes,
+                put_headers,
+                put_parachain_headers,
+                put_storage_changes,
             ],
         )
         .attach(phala_rocket_middleware::TimeMeter)
