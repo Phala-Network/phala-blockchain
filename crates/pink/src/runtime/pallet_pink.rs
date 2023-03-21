@@ -13,7 +13,7 @@ pub mod pallet {
     use scale_info::TypeInfo;
     use sp_core::crypto::UncheckedFrom;
     use sp_runtime::{
-        traits::{TrailingZeroInput, Convert, Hash as _},
+        traits::{Convert, Hash as _},
         SaturatedConversion, Saturating,
     };
 
@@ -96,7 +96,6 @@ pub mod pallet {
         fn deposit_address(contract_addr: &T::AccountId) -> T::AccountId {
             let entropy = (b"contract_depo_v1", contract_addr).using_encoded(T::Hashing::hash);
             UncheckedFrom::unchecked_from(entropy)
-                .expect("infinite length input; no invalid inputs for type; qed")
         }
     }
 
