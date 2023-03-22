@@ -98,12 +98,12 @@ impl<'a> Record<'a> {
     pub fn write(&self, mut writer: impl Write) -> Result<usize> {
         let length = self.payload.len() as u32;
         writer.write_all(&length.to_be_bytes())?;
-        writer.write_all(&*self.payload)?;
+        writer.write_all(&self.payload)?;
         Ok(self.payload.len() + 4)
     }
 
     pub fn payload(&'a self) -> &'a [u8] {
-        &*self.payload
+        &self.payload
     }
 
     pub fn header(&self) -> Result<Header> {
@@ -160,7 +160,7 @@ pub async fn async_read_items(
 }
 
 /// Read headers from grabbed file asynchronously.
-pub fn read_items_stream<'a>(
+pub fn read_items_stream(
     mut input: impl AsyncRead + Unpin,
 ) -> impl Stream<Item = io::Result<Record<'static>>> {
     async_stream::stream! {
