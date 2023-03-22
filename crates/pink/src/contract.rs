@@ -136,7 +136,11 @@ fn coarse_grained<T>(mut result: ContractResult<T>, deposit_per_byte: u128) -> C
 
 impl Default for Storage {
     fn default() -> Self {
-        Self::new(storage::new_in_memory_backend())
+        let mut me = Self::new(storage::new_in_memory_backend());
+        me.execute_mut(false, None, || {
+            System::set_block_number(1);
+        });
+        me
     }
 }
 

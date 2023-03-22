@@ -3,15 +3,14 @@ pub mod ser;
 
 mod memdb;
 
+use std::iter::FromIterator;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use core::iter::FromIterator;
 
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
-use sp_state_machine::{Backend, TrieBackend, TrieBackendBuilder};
+use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
@@ -168,12 +167,15 @@ where
     }
 
     fn pairs_into<R: FromIterator<(Vec<u8>, Vec<u8>)>>(&self, prefix: impl AsRef<[u8]>) -> R {
+        let mut iter_args = IterArgs::default();
+        iter_args.prefix = Some(prefix.as_ref());
+
         self.0
-            .keys(prefix.as_ref())
-            .into_iter()
-            .map(|key| {
-                let value = self.get(&key).expect("Reflected key should exists");
-                (key, value)
+            .pairs(iter_args)
+            .expect("Should get the pairs iter")
+            .map(|pair| {
+                let (k, v) = pair.expect("Should get the key and value");
+                (k, v)
             })
             .collect()
     }

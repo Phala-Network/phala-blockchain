@@ -5,7 +5,7 @@ authors = ["Soptq <sooptq@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-anyhow          = "1.0"
+anyhow          = "1.0.69"
 env_logger      = "0.9.0"
 log             = "0.4"
 tokio           = { version = "1.20.4", features = ["full"] }
@@ -20,7 +20,7 @@ phactory-api    = { path = "../../crates/phactory/api", features = ["pruntime-cl
 phactory-pal    = { path = "../../crates/phactory/pal" }
 phaxt           = { path = "../../crates/phaxt" }
 
-codec           = { package = 'parity-scale-codec', version = "3.0" }
+codec           = { package = 'parity-scale-codec', version = "3.3" }
 zip             = "0.6.3"
 glob            = "0.3.0"
 byteorder       = "1.4.3"
