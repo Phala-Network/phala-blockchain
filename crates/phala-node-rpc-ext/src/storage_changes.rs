@@ -117,7 +117,7 @@ where
                 return Ok(StorageChanges {
                     main_storage_changes: state
                         .pairs(Default::default())
-                        .unwrap()
+                        .expect("Should get the pairs iter")
                         .map(|pair| {
                             let (k, v) = pair.expect("Should get the key and value");
                             (StorageKey(k), Some(StorageKey(v)))
