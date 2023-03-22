@@ -100,6 +100,9 @@ pub mod pallet {
 	pub type ClusterWorkers<T> =
 		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>, ValueQuery>;
 
+	#[pallet::storage]
+	pub type WorkerCluster<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, ContractClusterId>;
+
 	/// The pink-system contract code used to deploy new clusters
 	#[pallet::storage]
 	pub type PinkSystemCode<T> = StorageValue<_, (u16, Vec<u8>), ValueQuery>;
@@ -173,6 +176,7 @@ pub mod pallet {
 		PayloadTooLarge,
 		NoPinkSystemCode,
 		ContractNotFound,
+		WorkerIsBusy,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -238,6 +242,14 @@ pub mod pallet {
 				cluster_id
 			});
 			let cluster = ContractClusterId::from_low_u64_be(cluster_id);
+
+			for worker in &deploy_workers {
+				ensure!(
+					WorkerCluster::<T>::get(&worker).is_none(),
+					Error::<T>::WorkerIsBusy
+				);
+				WorkerCluster::<T>::insert(&worker, cluster);
+			}
 
 			let system_code_hash =
 				PinkSystemCodeHash::<T>::get().ok_or(Error::<T>::NoPinkSystemCode)?;
@@ -456,6 +468,34 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			PinkRuntimeVersion::<T>::put(version);
+			Ok(())
+		}
+
+		#[pallet::call_index(8)]
+		#[pallet::weight(0)]
+		pub fn add_worker_to_cluster(
+			origin: OriginFor<T>,
+			worker_pubkey: WorkerPublicKey,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let cluster_info =
+				Clusters::<T>::get(&cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				cluster_info.owner == origin,
+				Error::<T>::ClusterPermissionDenied
+			);
+			ensure!(
+				registry::Workers::<T>::get(&worker_pubkey).is_some(),
+				Error::<T>::WorkerNotFound
+			);
+			ensure!(
+				WorkerCluster::<T>::get(&worker_pubkey).is_none(),
+				Error::<T>::WorkerIsBusy
+			);
+			// TODO: Do we need to check whether the worker agree to join the cluster?
+			WorkerCluster::<T>::insert(&worker_pubkey, &cluster_id);
+			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
 			Ok(())
 		}
 	}
