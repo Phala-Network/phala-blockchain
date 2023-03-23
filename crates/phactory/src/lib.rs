@@ -856,3 +856,7 @@ fn hex(data: impl AsRef<[u8]>) -> String {
 fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
     hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
 }
+
+pub fn public_data_dir(storage_path: impl AsRef<Path>) -> PathBuf {
+    storage_path.as_ref().to_path_buf().join("public")
+}

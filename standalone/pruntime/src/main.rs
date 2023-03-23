@@ -177,7 +177,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
         let args_clone = args.clone();
         let server_acl = rocket::tokio::spawn(
             async move {
-                let _rocket = api_server::rocket_acl(&args_clone)
+                let _rocket = api_server::rocket_acl(&args_clone, &storage_path)
                     .expect("should not failed as port is provided")
                     .launch()
                     .await
@@ -190,7 +190,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
 
     let server_internal = rocket::tokio::spawn(
         async move {
-            let _rocket = api_server::rocket(&args)
+            let _rocket = api_server::rocket(&args, &storage_path)
                 .launch()
                 .await
                 .expect("Failed to launch API server");

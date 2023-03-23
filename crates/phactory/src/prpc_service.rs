@@ -979,7 +979,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return Err(from_display("Invalid receiver"));
         };
         let receiver = WorkerPublicKey(receiver);
-        // TODO: limit rate of requests?
         let Some(system) = &self.system else {
             return Err(from_display("System is uninitialized"));
         };
@@ -1038,8 +1037,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         )))?;
         let key128 = derive_key_for_cluster_state(&key);
         let nonce = rand::thread_rng().gen();
-        let fullname = PathBuf::from(self.args.storage_path.clone()).join(&filename);
-
+        let dir = public_data_dir(&self.args.storage_path);
+        // Create directory if it does not exist
+        std::fs::create_dir_all(&dir).map_err(from_debug)?;
+        let fullname = dir.join(&filename);
         let mut file = File::create(&fullname).map_err(from_debug)?;
         file.write_all(&system.ecdh_key.public())
             .map_err(from_debug)?;
@@ -1061,11 +1062,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let Some(system) = &self.system else {
             return Err(from_display("System is uninitialized"));
         };
+        if system.contract_cluster.is_some() {
+            return Err(from_display("Already in cluster"));
+        }
         let Some(runtime_state) = &mut self.runtime_state else {
             return Err(from_display("Runtime is uninitialized"));
         };
 
-        let fullname = PathBuf::from(self.args.storage_path.clone()).join(&filename);
+        let fullname = PathBuf::from(&self.args.storage_path).join(&filename);
         let mut reader = File::open(&fullname).map_err(from_debug)?;
         let mut pubkey: EcdhPublicKey = Default::default();
         reader.read_exact(&mut pubkey).map_err(from_debug)?;
@@ -1908,6 +1912,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     ) -> Result<pb::SaveClusterStateArguments, prpc::server::Error> {
         let mut phactory = self.lock_phactory(true, false)?;
         let system = phactory.system()?;
+        if system.contract_cluster.is_some() {
+            return Err(from_display("Already in cluster"));
+        }
         let block_number = system.block_number;
         let min_block_number = block_number + 1;
         let sig = system.identity_key.sign(&wrap_content_to_sign(
