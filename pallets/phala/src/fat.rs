@@ -253,10 +253,10 @@ pub mod pallet {
 
 			for worker in &deploy_workers {
 				ensure!(
-					WorkerCluster::<T>::get(&worker).is_none(),
+					WorkerCluster::<T>::get(worker).is_none(),
 					Error::<T>::WorkerIsBusy
 				);
-				WorkerCluster::<T>::insert(&worker, cluster);
+				WorkerCluster::<T>::insert(worker, cluster);
 			}
 
 			let system_code_hash =
@@ -488,23 +488,22 @@ pub mod pallet {
 			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
-			let cluster_info =
-				Clusters::<T>::get(&cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
 				cluster_info.owner == origin,
 				Error::<T>::ClusterPermissionDenied
 			);
 			ensure!(
-				registry::Workers::<T>::get(&worker_pubkey).is_some(),
+				registry::Workers::<T>::get(worker_pubkey).is_some(),
 				Error::<T>::WorkerNotFound
 			);
 			ensure!(
-				WorkerCluster::<T>::get(&worker_pubkey).is_none(),
+				WorkerCluster::<T>::get(worker_pubkey).is_none(),
 				Error::<T>::WorkerIsBusy
 			);
 			// TODO: Do we need to check whether the worker agree to join the cluster?
-			WorkerCluster::<T>::insert(&worker_pubkey, &cluster_id);
-			ClusterWorkers::<T>::append(cluster_id.clone(), worker_pubkey.clone());
+			WorkerCluster::<T>::insert(worker_pubkey, cluster_id);
+			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
 			Self::deposit_event(Event::WorkerAddedToCluster {
 				worker: worker_pubkey,
 				cluster: cluster_id,
@@ -521,24 +520,23 @@ pub mod pallet {
 			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
-			let cluster_info =
-				Clusters::<T>::get(&cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
 			ensure!(
 				cluster_info.owner == origin,
 				Error::<T>::ClusterPermissionDenied
 			);
 			ensure!(
-				WorkerCluster::<T>::get(&worker_pubkey).as_ref() == Some(&cluster_id),
+				WorkerCluster::<T>::get(worker_pubkey) == Some(cluster_id),
 				Error::<T>::WorkerNotFound
 			);
 			// Put the worker to cluster 0 to avoid it to be added to some cluster again.
-			WorkerCluster::<T>::insert(&worker_pubkey, ContractClusterId::from_low_u64_be(0));
-			ClusterWorkers::<T>::mutate(&cluster_id, |workers| {
+			WorkerCluster::<T>::insert(worker_pubkey, ContractClusterId::from_low_u64_be(0));
+			ClusterWorkers::<T>::mutate(cluster_id, |workers| {
 				workers.retain(|key| key != &worker_pubkey)
 			});
 			Self::deposit_event(Event::WorkerRemovedFromCluster {
-				worker: worker_pubkey.clone(),
-				cluster: cluster_id.clone(),
+				worker: worker_pubkey,
+				cluster: cluster_id,
 			});
 			Self::push_message(ClusterOperation::<T::AccountId>::RemoveWorker {
 				cluster_id,

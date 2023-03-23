@@ -422,7 +422,7 @@ pub(super) fn rocket(args: &super::Args, storage_path: &str) -> rocket::Rocket<i
             .manage(cors_options().to_cors().expect("To not fail"));
     }
     server = server.attach(TimeMeter).attach(RequestTracer);
-    let server = mount_static_file_server(server, &storage_path);
+    server = mount_static_file_server(server, storage_path);
     server
 }
 
@@ -457,6 +457,6 @@ pub(super) fn rocket_acl(args: &super::Args, storage_path: &str) -> Option<rocke
         .attach(signer)
         .attach(RequestTracer)
         .attach(TimeMeter);
-    let server_acl = mount_static_file_server(server_acl, &storage_path);
+    server_acl = mount_static_file_server(server_acl, storage_path);
     Some(server_acl)
 }

@@ -351,7 +351,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return;
         }
         info!("Applying cluster state");
-        let mq_sender = MessageOrigin::Cluster(cluster_state.cluster.id.clone());
+        let mq_sender = MessageOrigin::Cluster(cluster_state.cluster.id);
         system.contract_cluster = Some(cluster_state.cluster.into_owned());
         system.contracts = cluster_state.contracts.into_owned();
         runtime_state
@@ -991,15 +991,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let block_number = system.block_number;
         if block_number < min_block_number {
             return Err(from_display(format!(
-                "Can not save cluster state at block {}",
-                block_number
+                "Can not save cluster state at block {block_number}",
             )));
         }
         if min_block_number + 128 < block_number {
             return Err(from_display(format!(
-                "The destination worker state is too old, min_block_number={}, current_block_number={}",
-                min_block_number,
-                block_number,
+                "The destination worker state is too old, \
+                min_block_number={min_block_number}, \
+                current_block_number={block_number}",
             )));
         }
         let his_cluster = runtime_state
@@ -1018,7 +1017,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         info!(receiver=%hex_fmt::HexFmt(&receiver), "Saving cluster state");
         let pending_messages = runtime_state
             .send_mq
-            .dump_state(&MessageOrigin::Cluster(cluster.id.clone()))
+            .dump_state(&MessageOrigin::Cluster(cluster.id))
             .ok_or(from_display("Failed to dump send mq state"))?;
         let cluster_state = ClusterState {
             block_number,
@@ -1028,7 +1027,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
         let filename = format!(
             "cluster-{}-{}-{}.bin",
-            hex::encode(&cluster.id),
+            hex::encode(cluster.id),
             hex::encode(receiver),
             block_number,
         );
@@ -1041,7 +1040,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Create directory if it does not exist
         std::fs::create_dir_all(&dir).map_err(from_debug)?;
         let fullname = dir.join(&filename);
-        let mut file = File::create(&fullname).map_err(from_debug)?;
+        let mut file = File::create(fullname).map_err(from_debug)?;
         file.write_all(&system.ecdh_key.public())
             .map_err(from_debug)?;
 
@@ -1069,8 +1068,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return Err(from_display("Runtime is uninitialized"));
         };
 
-        let fullname = PathBuf::from(&self.args.storage_path).join(&filename);
-        let mut reader = File::open(&fullname).map_err(from_debug)?;
+        let fullname = PathBuf::from(&self.args.storage_path).join(filename);
+        let mut reader = File::open(fullname).map_err(from_debug)?;
         let mut pubkey: EcdhPublicKey = Default::default();
         reader.read_exact(&mut pubkey).map_err(from_debug)?;
 
@@ -1097,8 +1096,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         info!(version, "Loading cluster state");
         if version != CHECKPOINT_VERSION {
             return Err(from_display(format!(
-                "Incompatible cluster state version {}, expected {}",
-                version, CHECKPOINT_VERSION
+                "Incompatible cluster state version {version}, expected {CHECKPOINT_VERSION}",
             )));
         }
         let recv_mq = &mut runtime_state.recv_mq;
@@ -1941,7 +1939,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             try_decode_hex(&signature).map_err(|_| from_display("Invalid signature"))?;
         if !sr25519::Pair::verify_weak(
             &signature,
-            &wrap_content_to_sign(
+            wrap_content_to_sign(
                 &min_block_number.to_be_bytes(),
                 SignedContentType::ClusterStateRequest,
             ),
