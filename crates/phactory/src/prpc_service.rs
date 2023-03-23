@@ -1,11 +1,13 @@
+use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::future::Future;
+use std::io::Read;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::benchmark::Flags;
-use crate::hex;
 use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
+use crate::{hex, try_decode_hex};
 
 use super::*;
 use ::pink::types::{AccountId, ExecSideEffects, ExecutionMode};
@@ -16,10 +18,12 @@ use pb::{
 };
 use phactory_api::blocks::StorageState;
 use phactory_api::{blocks, crypto, endpoints::EndpointType, prpc as pb};
+use phala_crypto::ecdh::{self, EcdhPublicKey};
 use phala_crypto::{
     key_share,
     sr25519::{Persistence, KDF},
 };
+use phala_mq::MessageOrigin;
 use phala_pallets::utils::attestation::{validate as validate_attestation_report, IasFields};
 use phala_types::contract::contract_id_preimage;
 use phala_types::{
@@ -300,6 +304,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 self.handle_inbound_messages(block_number)
             })?;
 
+            self.maybe_apply_cluster_state();
+
             if let Err(e) = self.maybe_take_checkpoint() {
                 error!("Failed to take checkpoint: {:?}", e);
             }
@@ -318,6 +324,42 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         self.take_checkpoint()?;
         Ok(())
+    }
+
+    fn maybe_apply_cluster_state(&mut self) {
+        let (Some(system), Some(runtime_state)) = (&mut self.system, &mut self.runtime_state) else {
+            // unreachable
+            return;
+        };
+        let Some(cluster_state) = self.cluster_state_to_apply.take() else {
+            return;
+        };
+        if system.gatekeeper.is_some() {
+            info!("It is not allowed to run contracts on a gatekeeper, dropping the state");
+            return;
+        }
+        if system.contract_cluster.is_some() {
+            info!("An cluster has already been deployed on this worker, dropping the state");
+            return;
+        }
+        if cluster_state.block_number != system.block_number {
+            info!(
+                target_block = cluster_state.block_number,
+                "Pending cluster state found, but not ready to apply"
+            );
+            self.cluster_state_to_apply = Some(cluster_state);
+            return;
+        }
+        info!("Applying cluster state");
+        let mq_sender = MessageOrigin::Cluster(cluster_state.cluster.id.clone());
+        system.contract_cluster = Some(cluster_state.cluster.into_owned());
+        system.contracts = cluster_state.contracts.into_owned();
+        runtime_state
+            .send_mq
+            .load_state(&mq_sender, cluster_state.pending_messages);
+        if let Err(e) = self.take_checkpoint() {
+            error!("Failed to take checkpoint: {:?}", e);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -925,6 +967,152 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .chain_storage
             .inner_mut()
             .load_proof(proof);
+        Ok(())
+    }
+
+    fn save_cluster_state(
+        &self,
+        min_block_number: BlockNumber,
+        receiver: &[u8],
+    ) -> RpcResult<pb::SaveClusterStateResponse> {
+        let Ok(receiver) = receiver.try_into() else {
+            return Err(from_display("Invalid receiver"));
+        };
+        let receiver = WorkerPublicKey(receiver);
+        // TODO: limit rate of requests?
+        let Some(system) = &self.system else {
+            return Err(from_display("System is uninitialized"));
+        };
+        let Some(runtime_state) = &self.runtime_state else {
+            return Err(from_display("Runtime is uninitialized"));
+        };
+        let Some(cluster) = &system.contract_cluster else {
+            return Err(from_display("No cluster found"));
+        };
+        let block_number = system.block_number;
+        if block_number < min_block_number {
+            return Err(from_display(format!(
+                "Can not save cluster state at block {}",
+                block_number
+            )));
+        }
+        if min_block_number + 128 < block_number {
+            return Err(from_display(format!(
+                "The destination worker state is too old, min_block_number={}, current_block_number={}",
+                min_block_number,
+                block_number,
+            )));
+        }
+        let his_cluster = runtime_state
+            .chain_storage
+            .get_worker_cluster(&receiver)
+            .ok_or(from_display(
+                "The destination worker is not attached to any cluster",
+            ))?;
+        if his_cluster != cluster.id {
+            return Err(from_display(format!(
+                "The destination worker is attached to another cluster, his_cluster={}, our_cluster={}",
+                hex_fmt::HexFmt(&his_cluster),
+                hex_fmt::HexFmt(&cluster.id),
+            )));
+        }
+        info!(receiver=%hex_fmt::HexFmt(&receiver), "Saving cluster state");
+        let pending_messages = runtime_state
+            .send_mq
+            .dump_state(&MessageOrigin::Cluster(cluster.id.clone()))
+            .ok_or(from_display("Failed to dump send mq state"))?;
+        let cluster_state = ClusterState {
+            block_number,
+            pending_messages,
+            contracts: Cow::Borrowed(&system.contracts),
+            cluster: Cow::Borrowed(cluster),
+        };
+        let filename = format!(
+            "cluster-{}-{}-{}.bin",
+            hex::encode(&cluster.id),
+            hex::encode(receiver),
+            block_number,
+        );
+        let key = ecdh::agree(&system.ecdh_key, &receiver).or(Err(from_display(
+            "Failed to derive ECDH key for cluster state",
+        )))?;
+        let key128 = derive_key_for_cluster_state(&key);
+        let nonce = rand::thread_rng().gen();
+        let fullname = PathBuf::from(self.args.storage_path.clone()).join(&filename);
+
+        let mut file = File::create(&fullname).map_err(from_debug)?;
+        file.write_all(&system.ecdh_key.public())
+            .map_err(from_debug)?;
+
+        let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, file);
+        enc_writer
+            .write_all(&CHECKPOINT_VERSION.to_be_bytes())
+            .map_err(from_debug)?;
+
+        serde_cbor::to_writer(enc_writer, &cluster_state).map_err(from_debug)?;
+        info!(%filename, "Cluster state saved");
+        Ok(pb::SaveClusterStateResponse {
+            block_number,
+            filename,
+        })
+    }
+
+    fn load_cluster_state(&mut self, filename: &str) -> RpcResult<()> {
+        let Some(system) = &self.system else {
+            return Err(from_display("System is uninitialized"));
+        };
+        let Some(runtime_state) = &mut self.runtime_state else {
+            return Err(from_display("Runtime is uninitialized"));
+        };
+
+        let fullname = PathBuf::from(self.args.storage_path.clone()).join(&filename);
+        let mut reader = File::open(&fullname).map_err(from_debug)?;
+        let mut pubkey: EcdhPublicKey = Default::default();
+        reader.read_exact(&mut pubkey).map_err(from_debug)?;
+
+        // Make sure the pubkey is not fake
+        if !runtime_state
+            .chain_storage
+            .is_worker_registered(&WorkerPublicKey(pubkey))
+        {
+            return Err(from_display(format!(
+                "The pubkey {} is not registered",
+                hex_fmt::HexFmt(&pubkey)
+            )));
+        }
+
+        let key = ecdh::agree(&system.ecdh_key, &pubkey).or(Err(from_display(
+            "Failed to derive ECDH key for cluster state",
+        )))?;
+        let key128 = derive_key_for_cluster_state(&key);
+        let mut dec_reader = aead::stream::new_aes128gcm_reader(key128, &mut reader);
+
+        let mut version = [0u8; 4];
+        dec_reader.read_exact(&mut version).map_err(from_debug)?;
+        let version = u32::from_be_bytes(version);
+        info!(version, "Loading cluster state");
+        if version != CHECKPOINT_VERSION {
+            return Err(from_display(format!(
+                "Incompatible cluster state version {}, expected {}",
+                version, CHECKPOINT_VERSION
+            )));
+        }
+        let recv_mq = &mut runtime_state.recv_mq;
+        let send_mq = &mut runtime_state.send_mq;
+        let cluster_state: ClusterState =
+            phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                phala_mq::checkpoint_helper::using_send_mq(send_mq, move || {
+                    serde_cbor::from_reader(dec_reader)
+                })
+            })
+            .map_err(from_debug)?;
+        if cluster_state.block_number <= system.block_number {
+            return Err(from_display(format!(
+                "Staled cluster state, current_block_number={}, state_block_number={}",
+                system.block_number, cluster_state.block_number,
+            )));
+        }
+        self.cluster_state_to_apply = Some(cluster_state);
         Ok(())
     }
 }
@@ -1714,8 +1902,57 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             .statistics(request)
             .map_err(from_debug)
     }
-}
-
-fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
-    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
+    async fn generate_cluster_state_request(
+        &mut self,
+        _: (),
+    ) -> Result<pb::SaveClusterStateArguments, prpc::server::Error> {
+        let mut phactory = self.lock_phactory(true, false)?;
+        let system = phactory.system()?;
+        let block_number = system.block_number;
+        let min_block_number = block_number + 1;
+        let sig = system.identity_key.sign(&wrap_content_to_sign(
+            &min_block_number.to_be_bytes(),
+            SignedContentType::ClusterStateRequest,
+        ));
+        Ok(pb::SaveClusterStateArguments {
+            receiver: hex(system.identity_key.public()),
+            min_block_number,
+            signature: hex(sig),
+        })
+    }
+    async fn save_cluster_state(
+        &mut self,
+        req: pb::SaveClusterStateArguments,
+    ) -> Result<pb::SaveClusterStateResponse, prpc::server::Error> {
+        let pb::SaveClusterStateArguments {
+            receiver,
+            min_block_number,
+            signature,
+        } = req;
+        let receiver = try_decode_hex(&receiver).map_err(|_| from_display("Invalid receiver"))?;
+        let signature =
+            try_decode_hex(&signature).map_err(|_| from_display("Invalid signature"))?;
+        if !sr25519::Pair::verify_weak(
+            &signature,
+            &wrap_content_to_sign(
+                &min_block_number.to_be_bytes(),
+                SignedContentType::ClusterStateRequest,
+            ),
+            &receiver,
+        ) {
+            return Err(from_display("Invalid signature"));
+        }
+        // RCU in progress is not allowed because we need to save the mq egress messages.
+        // If there is an in pregress block execution, we'll get an inconsistent state.
+        self.lock_phactory(false, false)?
+            .save_cluster_state(min_block_number, &receiver)
+    }
+    async fn load_cluster_state(
+        &mut self,
+        req: pb::SaveClusterStateResponse,
+    ) -> Result<(), prpc::server::Error> {
+        self.lock_phactory(false, false)?
+            .load_cluster_state(&req.filename)
+            .map_err(from_debug)
+    }
 }

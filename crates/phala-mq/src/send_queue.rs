@@ -4,8 +4,8 @@ use crate::{
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize)]
-struct Channel {
+#[derive(Default, Serialize, Deserialize, Clone)]
+pub struct Channel {
     sequence: u64,
     messages: Vec<SignedMessage>,
     dummy: bool,
@@ -126,6 +126,16 @@ impl MessageSendQueue {
             let seq = next_sequence_for(k);
             v.messages.retain(|msg| msg.sequence >= seq);
         }
+    }
+
+    pub fn dump_state(&self, sender: &SenderId) -> Option<Channel> {
+        let inner = self.inner.lock();
+        inner.get(sender).cloned()
+    }
+
+    pub fn load_state(&self, sender: &SenderId, state: Channel) {
+        let mut inner = self.inner.lock();
+        inner.insert(sender.clone(), state);
     }
 }
 

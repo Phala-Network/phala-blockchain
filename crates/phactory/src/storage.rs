@@ -39,7 +39,7 @@ mod storage_ext {
     use chain::{pallet_fat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
-    use phala_mq::{Message, MessageOrigin};
+    use phala_mq::{ContractClusterId, Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
     use serde::{Deserialize, Serialize};
     use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
@@ -194,6 +194,13 @@ mod storage_ext {
                 }
             }
             false
+        }
+
+        pub(crate) fn get_worker_cluster(
+            &self,
+            worker: &phala_types::WorkerPublicKey,
+        ) -> Option<ContractClusterId> {
+            self.execute_with(|| pallet_fat::WorkerCluster::<chain::Runtime>::get(worker))
         }
     }
 }

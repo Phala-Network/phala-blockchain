@@ -471,6 +471,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Add a new worker to a cluster
 		#[pallet::call_index(8)]
 		#[pallet::weight(0)]
 		pub fn add_worker_to_cluster(

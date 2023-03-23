@@ -169,7 +169,6 @@ fn rpc_type(method: &str) -> RpcType {
     match PhactoryAPIMethod::from_str(method) {
         None => Private,
         Some(method) => match method {
-            // Private RPCs
             SyncHeader => Private,
             SyncParaHeader => Private,
             SyncCombinedHeaders => Private,
@@ -195,7 +194,7 @@ fn rpc_type(method: &str) -> RpcType {
             Stop => Private,
             LoadStorageProof => Private,
             TakeCheckpoint => Private,
-            // Public RPCs
+
             GetInfo => Public,
             ContractQuery => Public,
             GetContractInfo => Public,
@@ -203,6 +202,10 @@ fn rpc_type(method: &str) -> RpcType {
             UploadSidevmCode => Public,
             CalculateContractId => Public,
             Statistics => Public,
+
+            GenerateClusterStateRequest => Private,
+            SaveClusterState => Public,
+            LoadClusterState => Private,
         },
     }
 }
@@ -243,6 +246,10 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         LoadStorageProof => 10.mebibytes(),
         TakeCheckpoint => 1.kibibytes(),
         Statistics => 100.kibibytes(),
+
+        GenerateClusterStateRequest => 1.kibibytes(),
+        SaveClusterState => 1.kibibytes(),
+        LoadClusterState => 1.kibibytes(),
     }
 }
 
