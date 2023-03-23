@@ -160,6 +160,14 @@ pub mod pallet {
 			account: H256,
 			amount: BalanceOf<T>,
 		},
+		WorkerAddedToCluster {
+			worker: WorkerPublicKey,
+			cluster: ContractClusterId,
+		},
+		WorkerRemovedFromCluster {
+			worker: WorkerPublicKey,
+			cluster: ContractClusterId,
+		},
 	}
 
 	#[pallet::error]
@@ -237,9 +245,9 @@ pub mod pallet {
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let cluster_id = ClusterCounter::<T>::mutate(|counter| {
-				let cluster_id = *counter;
+				// 0 is reserved for removed workers
 				*counter += 1;
-				cluster_id
+				*counter
 			});
 			let cluster = ContractClusterId::from_low_u64_be(cluster_id);
 
@@ -496,7 +504,46 @@ pub mod pallet {
 			);
 			// TODO: Do we need to check whether the worker agree to join the cluster?
 			WorkerCluster::<T>::insert(&worker_pubkey, &cluster_id);
-			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
+			ClusterWorkers::<T>::append(cluster_id.clone(), worker_pubkey.clone());
+			Self::deposit_event(Event::WorkerAddedToCluster {
+				worker: worker_pubkey,
+				cluster: cluster_id,
+			});
+			Ok(())
+		}
+
+		/// Remove a new worker from a cluster
+		#[pallet::call_index(9)]
+		#[pallet::weight(0)]
+		pub fn remove_worker_from_cluster(
+			origin: OriginFor<T>,
+			worker_pubkey: WorkerPublicKey,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let cluster_info =
+				Clusters::<T>::get(&cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				cluster_info.owner == origin,
+				Error::<T>::ClusterPermissionDenied
+			);
+			ensure!(
+				WorkerCluster::<T>::get(&worker_pubkey).as_ref() == Some(&cluster_id),
+				Error::<T>::WorkerNotFound
+			);
+			// Put the worker to cluster 0 to avoid it to be added to some cluster again.
+			WorkerCluster::<T>::insert(&worker_pubkey, ContractClusterId::from_low_u64_be(0));
+			ClusterWorkers::<T>::mutate(&cluster_id, |workers| {
+				workers.retain(|key| key != &worker_pubkey)
+			});
+			Self::deposit_event(Event::WorkerRemovedFromCluster {
+				worker: worker_pubkey.clone(),
+				cluster: cluster_id.clone(),
+			});
+			Self::push_message(ClusterOperation::<T::AccountId>::RemoveWorker {
+				cluster_id,
+				worker: worker_pubkey,
+			});
 			Ok(())
 		}
 	}

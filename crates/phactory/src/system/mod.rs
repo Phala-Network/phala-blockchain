@@ -1222,6 +1222,26 @@ impl<Platform: pal::Platform> System<Platform> {
                     };
                 cluster.deposit(&account, amount);
             }
+            ClusterOperation::RemoveWorker { cluster_id, worker } => {
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                if worker != self.identity_key.public() {
+                    return Ok(());
+                }
+                info!(
+                    "This worker is removed from cluster {}",
+                    hex_fmt::HexFmt(&cluster_id)
+                );
+                let Some(_cluster) = self.contract_cluster.remove_cluster(&cluster_id) else {
+                    info!("Cluster {} is not deployed on this worker", hex_fmt::HexFmt(&cluster_id));
+                    return Ok(());
+                };
+                for contract in self.contracts.drain() {
+                    contract.destroy(&self.sidevm_spawner);
+                }
+                info!("Destroyed cluster {}", hex_fmt::HexFmt(&cluster_id));
+            }
         }
         Ok(())
     }
