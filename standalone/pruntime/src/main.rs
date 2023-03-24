@@ -8,7 +8,8 @@ use std::{env, thread};
 use clap::Parser;
 use log::{error, info};
 
-use phactory_api::ecall_args::{git_revision, InitArgs};
+use phactory_api::ecall_args::InitArgs;
+use phala_git_revision::git_revision_with_ts;
 
 mod handover;
 use phala_sanitized_logger as logger;
@@ -137,7 +138,7 @@ async fn main() -> Result<(), rocket::Error> {
             storage_path: storage_path.into(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: git_revision().to_string(),
+            git_revision: git_revision_with_ts().to_string(),
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
