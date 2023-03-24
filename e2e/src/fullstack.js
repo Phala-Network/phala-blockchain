@@ -1,4 +1,5 @@
 require('dotenv').config();
+const axios = require('axios');
 const { assert } = require('chai');
 const path = require('path');
 const portfinder = require('portfinder');
@@ -28,7 +29,7 @@ const sgxLoader = "gramine-sgx";
 
 const CENTS = 10_000_000_000;
 
-console.log(`Testing in ${inSgx?"SGX Hardware":"Software"} mode`);
+console.log(`Testing in ${inSgx ? "SGX Hardware" : "Software"} mode`);
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -38,6 +39,7 @@ describe('A full stack', function () {
     let cluster;
     let api, keyring, alice, bob;
     let pruntime;
+    let pherry;
     const tmpDir = new TempDir();
     const tmpPath = tmpDir.dir;
 
@@ -45,11 +47,12 @@ describe('A full stack', function () {
         // Check binary files
         [pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
         // Bring up a cluster
-        cluster = new Cluster(4, pathNode, pathRelayer, pathPRuntime, tmpPath);
+        cluster = new Cluster(5, pathNode, pathRelayer, pathPRuntime, tmpPath);
         await cluster.start();
         // APIs
         api = await cluster.api;
         pruntime = cluster.workers.map(w => w.api);
+        pherry = cluster.workers.map(w => w.processRelayer);
         // Create polkadot api and keyring
         await cryptoWaitReady();
         keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
@@ -757,14 +760,47 @@ describe('A full stack', function () {
         });
 
 
+        it('can add worker to cluster', async function () {
+            const info = await pruntime[4].getInfo();
+            const { events } = await assert.txAccepted(
+                api.tx.phalaFatContracts.addWorkerToCluster(hex(info.system?.publicKey), hex(clusterId)),
+                alice,
+            );
+            assertEvents(events, [
+                ['balances', 'Withdraw'],
+                ['phalaFatContracts', 'WorkerAddedToCluster']
+            ]);
+            assert.isTrue(await checkUntil(async () => {
+                const workerCluster = await api.query.phalaFatContracts.workerCluster(hex(info.system?.publicKey));
+                return workerCluster.eq(clusterId);
+            }, 4 * 6000), 'cluster not deployed');
+            pherry[4].kill();
+            const req = await pruntime[4].rpc.generateClusterStateRequest({});
+            await sleep(5000);
+            console.log(`Saving cluster state`);
+            const state = await pruntime[0].rpc.saveClusterState(req);
+            assert.isTrue(state.filename.startsWith('cluster-'));
+            const url = `${pruntime[0].uri}/download/${state.filename}`;
+            const destDir = cluster.workers[4].dirs.storageDir;
+            console.log(`Downloading ${url} to ${destDir}`);
+            await downloadFile(url, destDir, state.filename);
+            console.log(`Loading cluster state`);
+            await pruntime[4].rpc.loadClusterState(state);
+            console.log(`Restarting pherry`);
+            pherry[4].start();
+            await sleep(1000);
+            const clusterInfo = await pruntime[0].rpc.getClusterInfo({});
+            assert.equal(clusterInfo?.info?.id, clusterId);
+            assert.isTrue(clusterInfo?.info?.contracts.length > 0);
+        });
+
         it('can destory cluster', async function () {
             await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaFatContracts.clusterDestroy(clusterId)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                let info = await pruntime[0].getInfo();
-                return info.system.numberOfClusters == 0;
+                return cluster.workers[0].processPRuntime.stopped;
             }, 4 * 6000), 'destroy cluster failed');
         });
     });
@@ -1104,6 +1140,7 @@ class Cluster {
         const key = '0'.repeat(63) + (i + 1).toString();
         w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
         w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+        w.dirs = pRuntimeDirs(this.tmpPath, `pruntime${i}`);
     }
 
     async launchKeyHandoverAndWait() {
@@ -1214,14 +1251,21 @@ function newNode(wsPort, tmpPath, name = 'node') {
     return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name = 'app') {
+function pRuntimeDirs(tmpPath, name) {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
+    const protectedDataDir = path.resolve(`${sealDir}/protected_files/`);
+    const storageDir = path.resolve(`${sealDir}/storage_files/`);
+    return { workDir, sealDir, protectedDataDir, storageDir };
+}
+
+function newPRuntime(teePort, tmpPath, name = 'app') {
+    const { workDir, protectedDataDir, storageDir } = pRuntimeDirs(tmpPath, name);
     if (!fs.existsSync(workDir)) {
         fs.cpSync(pRuntimeDir, workDir, { recursive: true })
         if (inSgx) {
-            fs.mkdirSync(path.resolve(`${sealDir}/protected_files/`), { recursive: true });
-            fs.mkdirSync(path.resolve(`${sealDir}/storage_files/`), { recursive: true });
+            fs.mkdirSync(protectedDataDir, { recursive: true });
+            fs.mkdirSync(storageDir, { recursive: true });
         }
     }
     const args = [
@@ -1283,4 +1327,22 @@ async function createContractApi(api, pruntimeURL, contractId, metadata) {
         metadata,
         contractId,
     );
+}
+
+async function downloadFile(url, directory, filename) {
+    const response = await axios({
+        method: 'get',
+        url: url,
+        responseType: 'stream'
+    });
+
+    const filePath = path.join(directory, filename);
+
+    const writer = fs.createWriteStream(filePath);
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
 }

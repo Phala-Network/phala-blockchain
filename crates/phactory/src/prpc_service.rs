@@ -991,7 +991,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let block_number = system.block_number;
         if block_number < min_block_number {
             return Err(from_display(format!(
-                "Can not save cluster state at block {block_number}",
+                "Can not save cluster state at block {block_number} which earlier than \
+                 min={min_block_number}",
             )));
         }
         if min_block_number + 128 < block_number {
