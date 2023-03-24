@@ -13,7 +13,7 @@ name = "pink_subrpc"
 path = "src/lib.rs"
 
 [dependencies]
-scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 primitive-types = { version = "0.12.1", default-features = false, features = ["codec", "scale-info"] }
 
@@ -32,7 +32,7 @@ base58 = { version = "0.2.0", default-features = false }
 
 [dev-dependencies]
 pink-extension-runtime = { version = "0.4", path = "../../pink/pink-extension-runtime" }
-xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.37", default-features = false, features = ["std"] }
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.39", default-features = false, features = ["std"] }
 
 [features]
 default = ["std"]

@@ -51,7 +51,7 @@ unsafe extern "C" fn ecall(
     output_fn: output_fn_t,
 ) {
     let input = unsafe { std::slice::from_raw_parts(data, len) };
-    let output = ecall::executing_dispatch(
+    let output = ecall::dispatch(
         &mut ecall_impl::storage(),
         &mut ecall_impl::ECallImpl,
         call_id,

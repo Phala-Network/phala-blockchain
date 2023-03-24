@@ -107,6 +107,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type PinkSystemCodeHash<T> = StorageValue<_, H256, OptionQuery>;
 	/// The pink-runtime version used to deploy new clusters.
+	/// See also: `phactory::storage::pink_runtime_version`.
 	#[pallet::storage]
 	pub type PinkRuntimeVersion<T> = StorageValue<_, (u32, u32)>;
 

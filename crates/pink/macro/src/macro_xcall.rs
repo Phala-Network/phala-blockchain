@@ -156,7 +156,7 @@ fn gen_exec_dispatcher(call_methods: &[Method], trait_name: &Ident) -> Result<To
     }
 
     Ok(parse_quote! {
-        pub fn executing_dispatch(
+        pub fn dispatch(
             executor: &mut (impl Executing + ?Sized),
             srv: &mut (impl #trait_name + ?Sized),
             id: u32,

@@ -98,10 +98,10 @@ rocket = { version = "0.5.0-rc.2", git = "https://github.com/SergioBenitez/Rocke
 # TODO.kevin: Move back to crates.io once it released 1.0
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
-sp-core-hashing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+sp-core-hashing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
 pink-extension = { path = "crates/pink/pink-extension" }

@@ -90,7 +90,7 @@ fn test_ink_flip() {
 }
 
 #[test]
-fn test_ink_cross_contract_instanciate() {
+fn test_ink_cross_contract_instantiate() {
     let mut cluster = TestCluster::for_test();
 
     let _code_hash = cluster
