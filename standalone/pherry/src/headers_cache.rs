@@ -6,9 +6,12 @@ use phaxt::{
     subxt::{self, rpc::types::NumberOrHex},
     BlockNumber, ParachainApi, RelaychainApi,
 };
-use std::io::{Read, Write};
+use std::borrow::Cow;
+use std::io::{self, Read, Write};
 
+use futures::stream::Stream;
 use log::{error, info, warn};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub use phactory_api::blocks::{AuthoritySetChange, BlockHeaderWithChanges, GenesisBlockInfo};
 
@@ -29,20 +32,28 @@ pub struct ParaHeader {
 
 #[derive(Clone)]
 pub struct Record<'a> {
-    payload: &'a [u8],
+    payload: Cow<'a, [u8]>,
 }
 
 impl<'a> Record<'a> {
     pub fn new(payload: &'a [u8]) -> Self {
-        Self { payload }
+        Self {
+            payload: payload.into(),
+        }
     }
 
     pub fn read(mut input: impl Read, buffer: &'a mut Vec<u8>) -> Result<Option<Self>> {
         let mut len_buf = [0u8; 4];
 
-        if input.read(&mut len_buf)? != 4 {
-            // EOF
-            return Ok(None);
+        match input.read_exact(&mut len_buf) {
+            Ok(_) => {}
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                    return Ok(None);
+                } else {
+                    return Err(e.into());
+                }
+            }
         }
 
         let length = u32::from_be_bytes(len_buf) as usize;
@@ -56,19 +67,53 @@ impl<'a> Record<'a> {
         Ok(Some(Self::new(&buffer[..length])))
     }
 
+    pub async fn async_read<'b>(
+        mut input: impl AsyncRead + Unpin,
+        buffer: &'b mut Vec<u8>,
+    ) -> Result<Option<Record<'b>>, std::io::Error> {
+        let mut len_buf = [0u8; 4];
+
+        match input.read_exact(&mut len_buf).await {
+            Ok(_) => {}
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                    return Ok(None);
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+
+        let length = u32::from_be_bytes(len_buf) as usize;
+
+        if length > buffer.len() {
+            buffer.resize(length, 0);
+        }
+
+        input.read_exact(&mut buffer[..length]).await?;
+
+        Ok(Some(Record::new(&buffer[..length])))
+    }
+
     pub fn write(&self, mut writer: impl Write) -> Result<usize> {
         let length = self.payload.len() as u32;
         writer.write_all(&length.to_be_bytes())?;
-        writer.write_all(self.payload)?;
+        writer.write_all(&self.payload)?;
         Ok(self.payload.len() + 4)
     }
 
-    pub fn payload(&self) -> &'a [u8] {
-        self.payload
+    pub fn payload(&'a self) -> &'a [u8] {
+        &self.payload
     }
 
     pub fn header(&self) -> Result<Header> {
         Ok(Decode::decode(&mut &self.payload[..])?)
+    }
+
+    pub fn to_owned(&self) -> Record<'static> {
+        Record {
+            payload: self.payload.to_vec().into(),
+        }
     }
 }
 
@@ -91,6 +136,48 @@ pub fn read_items(
         }
     }
     Ok(count)
+}
+
+/// Read headers from grabbed file asynchronously.
+pub async fn async_read_items(
+    mut input: impl AsyncRead + Unpin,
+    mut f: impl FnMut(Record<'_>) -> Result<bool> + Unpin,
+) -> Result<u32> {
+    let mut count = 0_u32;
+    let mut buffer = vec![0u8; 1024 * 100];
+    loop {
+        match Record::async_read(&mut input, &mut buffer).await? {
+            None => break,
+            Some(record) => {
+                count += 1;
+                if f(record)? {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(count)
+}
+
+/// Read headers from grabbed file asynchronously.
+pub fn read_items_stream(
+    mut input: impl AsyncRead + Unpin,
+) -> impl Stream<Item = io::Result<Record<'static>>> {
+    async_stream::stream! {
+        let mut buffer = vec![0u8; 1024 * 100];
+        loop {
+            match Record::async_read(&mut input, &mut buffer).await {
+                Ok(None) => break,
+                Ok(Some(record)) => {
+                    yield Ok(record.to_owned());
+                },
+                Err(e) => {
+                    yield Err(e);
+                    break;
+                },
+            }
+        }
+    }
 }
 
 /// Dump headers from the chain to a log file.

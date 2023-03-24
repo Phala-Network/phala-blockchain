@@ -1757,6 +1757,33 @@ fn test_withdraw() {
 				.clone();
 			assert_eq!(user_nft_attr.shares, 100 * DOLLARS);
 		}
+		let _pid = setup_vault(99);
+		assert_ok!(PhalaVault::contribute(
+			RuntimeOrigin::signed(99),
+			2,
+			300000000100000,
+		));
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(99),
+			2,
+			100000,
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(99),
+			0,
+			299990000000000,
+			Some(2)
+		));
+		assert_ok!(PhalaVault::withdraw(
+			RuntimeOrigin::signed(99),
+			2,
+			300 * DOLLARS,
+		));
+		let pool = ensure_vault::<Test>(1).unwrap();
+		assert_ok!(PhalaVault::check_and_maybe_force_withdraw(
+			RuntimeOrigin::signed(4),
+			pool.basepool.pid
+		));
 	});
 }
 
@@ -1968,7 +1995,7 @@ fn mock_asset_id() {
 		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
 		1,
 		true,
-		1,
+		1000000000,
 	)
 	.expect("create should success .qed");
 }

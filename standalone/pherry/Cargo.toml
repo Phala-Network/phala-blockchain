@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.69"
 env_logger = "0.9.0"
 futures = { package = "futures", version = "0.3.4" }
 log = "0.4"
@@ -21,16 +21,16 @@ rand = "0.8.4"
 clap = { version = "4.0.19", features = ["derive"] }
 
 async-trait = "0.1.57"
-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37", package = "frame-system" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37", package = "sp-runtime" }
-sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37", default-features = false }
-codec = { package = 'parity-scale-codec', version = "3.0" }
-scale-info = { version = '2.0' }
+system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39", package = "frame-system" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39", package = "sp-runtime" }
+sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39", default-features = false }
+codec = { package = 'parity-scale-codec', version = "3.3" }
+scale-info = { version = '2.3' }
 
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
-pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
-balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }
@@ -40,3 +40,4 @@ phala-mq = { path = "../../crates/phala-mq" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 
 phaxt = { path = "../../crates/phaxt" }
+async-stream = "0.3.4"

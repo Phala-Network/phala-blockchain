@@ -253,7 +253,7 @@ pub struct Phactory<Platform> {
 
     #[serde(skip)]
     #[serde(default = "Instant::now")]
-    uptime: Instant,
+    started_at: Instant,
 }
 
 fn default_query_scheduler() -> RequestScheduler<AccountId> {
@@ -283,7 +283,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
-            uptime: Instant::now(),
+            started_at: Instant::now(),
         }
     }
 
@@ -623,7 +623,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         request: pb::StatisticsReqeust,
     ) -> anyhow::Result<pb::StatisticsResponse> {
-        let uptime = self.uptime.elapsed().as_secs();
+        let uptime = self.started_at.elapsed().as_secs();
         let contracts_query_stats;
         let global_query_stats;
         let contracts_http_stats;

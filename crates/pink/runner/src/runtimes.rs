@@ -4,6 +4,8 @@ use std::os::unix::ffi::OsStrExt;
 use log::error;
 
 /// Load given version of lib pink library using dlopen and return a handle to it.
+/// This is the low level support function. Upper level `PinkRuntime` will manage the
+/// lifecycle of the handle(closing it on drop).
 fn load_pink_library((major, minor): (u32, u32)) -> *mut libc::c_void {
     let runtime_dir = match std::env::var("PINK_RUNTIME_PATH") {
         Ok(path) => std::path::Path::new(&path).to_owned(),

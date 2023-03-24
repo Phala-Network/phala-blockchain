@@ -116,9 +116,12 @@ where
                     .map_err(|e| Error::invalid_block(id, e))?;
                 return Ok(StorageChanges {
                     main_storage_changes: state
-                        .pairs()
-                        .into_iter()
-                        .map(|(k, v)| (StorageKey(k), Some(StorageKey(v))))
+                        .pairs(Default::default())
+                        .expect("Should get the pairs iter")
+                        .map(|pair| {
+                            let (k, v) = pair.expect("Should get the key and value");
+                            (StorageKey(k), Some(StorageKey(v)))
+                        })
                         .collect(),
                     child_storage_changes: vec![],
                 });
@@ -129,23 +132,22 @@ where
                 .map_err(|e| Error::invalid_block(id, e))?
                 .ok_or_else(|| Error::invalid_block(id, "block body not found"))?;
             let parent_hash = *header.parent_hash();
-            let parent_id = BlockId::Hash(parent_hash);
 
             // Remove all `Seal`s as they are added by the consensus engines after building the block.
             // On import they are normally removed by the consensus engine.
             header.digest_mut().logs.retain(|d| d.as_seal().is_none());
 
             let block = Block::new(header, extrinsics);
-            api.execute_block(&parent_id, block)
+            api.execute_block(parent_hash, block)
                 .map_err(|e| Error::invalid_block(id, e))?;
 
             let state = backend
                 .state_at(hash)
-                .map_err(|e| Error::invalid_block(parent_id, e))?;
+                .map_err(|e| Error::invalid_block(BlockId::<Block>::Hash(parent_hash), e))?;
 
             let storage_changes = api
                 .into_storage_changes(&state, parent_hash)
-                .map_err(|e| Error::invalid_block(parent_id, e))?;
+                .map_err(|e| Error::invalid_block(BlockId::<Block>::Hash(parent_hash), e))?;
 
             Ok(StorageChanges {
                 main_storage_changes: storage_changes.main_storage_changes.into_(),
