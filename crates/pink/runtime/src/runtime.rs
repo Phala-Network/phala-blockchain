@@ -27,7 +27,7 @@ frame_support::construct_runtime! {
         System: frame_system,
         Timestamp: pallet_timestamp,
         Balances: pallet_balances,
-        Randomness: pallet_randomness_collective_flip,
+        Randomness: pallet_insecure_randomness_collective_flip,
         Contracts: pallet_contracts,
         Pink: pallet_pink,
     }
@@ -90,7 +90,7 @@ impl frame_system::Config for PinkRuntime {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_randomness_collective_flip::Config for PinkRuntime {}
+impl pallet_insecure_randomness_collective_flip::Config for PinkRuntime {}
 
 parameter_types! {
     pub const MinimumPeriod: u64 = 1;

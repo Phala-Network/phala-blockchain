@@ -160,7 +160,7 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
-        let address = PalletPink::generate_address(&tx_args.origin, &code_hash, &input_data, &salt);
+        let address = PalletPink::contract_address(&tx_args.origin, &code_hash, &input_data, &salt);
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
         if !result.debug_message.is_empty() {
             let message = String::from_utf8_lossy(&result.debug_message).into_owned();

@@ -3,9 +3,9 @@ pub mod ser;
 
 mod memdb;
 
-use std::iter::FromIterator;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::iter::FromIterator;
 
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
@@ -41,11 +41,11 @@ where
     }
 }
 
-impl<H: Hasher> TrieStorage<H> {
-    pub fn snapshot(&self) -> Self
-    where
-        H::Out: Codec,
-    {
+impl<H: Hasher> TrieStorage<H>
+where
+    H::Out: Codec + Ord,
+{
+    pub fn snapshot(&self) -> Self {
         Self(clone_trie_backend(&self.0))
     }
 }
