@@ -5,7 +5,7 @@ use phactory_api::{
     ecall_args::InitArgs, prpc::phactory_api_server::PhactoryApi,
     pruntime_client::new_pruntime_client,
 };
-use log::info;
+use tracing::info;
 
 pub(crate) async fn handover_from(url: &str, args: InitArgs) -> Result<()> {
     let mut this = RpcService::new(GraminePlatform);

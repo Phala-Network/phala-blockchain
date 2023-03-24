@@ -1,40 +1,22 @@
 use env_logger::Logger;
 
+pub use logger::init_env_logger;
+pub use subscriber::init_subscriber;
+
 #[cfg(test)]
 mod test;
 
-/// A logger that only allow our codes to print logs
-struct SanitizedLogger(Logger);
+mod logger;
+mod subscriber;
 
-pub fn init(sanitized: bool) {
-    let env = env_logger::Env::default().default_filter_or("info");
-    let mut builder = env_logger::Builder::from_env(env);
-    builder.format_timestamp_micros();
-    if sanitized {
-        let env_logger = builder.build();
-        let max_level = env_logger.filter();
-        let logger = SanitizedLogger(env_logger);
-        log::set_boxed_logger(Box::new(logger)).expect("Failed to install sanitized logger");
-        log::set_max_level(max_level);
-    } else {
-        builder.init();
-    }
-}
-
-impl log::Log for SanitizedLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        self.0.enabled(metadata) && target_allowed(metadata.target())
-    }
-
-    fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            self.0.log(record)
-        }
-    }
-
-    fn flush(&self) {
-        self.0.flush()
-    }
+fn get_env<T>(name: &str, default: T) -> T
+where
+    T: std::str::FromStr,
+{
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 fn target_allowed(target: &str) -> bool {
@@ -53,7 +35,7 @@ fn target_allowed(target: &str) -> bool {
         ("sidevm", Prefix),
         ("prpc_measuring", Eq),
         ("gk_computing", Eq),
-        ("phala_mq", Eq),
+        ("phala_", Prefix),
         ("pruntime", Prefix),
     ];
     for (rule, mode) in whitelist.into_iter() {

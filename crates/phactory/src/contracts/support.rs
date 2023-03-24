@@ -24,6 +24,7 @@ use crate::{
     ChainStorage, H256,
 };
 use phactory_api::prpc as pb;
+use tracing::{error, info, Instrument};
 
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
@@ -47,6 +48,7 @@ pub struct QueryContext {
     pub weight: u32,
     pub worker_pubkey: [u8; 32],
     pub chain_storage: ChainStorage,
+    pub req_id: u64,
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -333,10 +335,12 @@ impl FatContract {
             .clone();
 
         let vmid = sidevm::ShortId(&self.address);
+        let span = tracing::info_span!("sidevm:push", %vmid);
+        let _enter = span.enter();
 
         let tx = match &*handle.lock().unwrap() {
             SidevmHandle::Stopped(_) => {
-                error!(target: "sidevm", "[{vmid}] PM to sidevm failed, instance terminated");
+                error!(target: "sidevm", "PM to sidevm failed, instance terminated");
                 return Err(anyhow!(
                     "Push message to sidevm failed, instance terminated"
                 ));
@@ -348,10 +352,10 @@ impl FatContract {
             use tokio::sync::mpsc::error::TrySendError;
             match err {
                 TrySendError::Full(_) => {
-                    error!(target: "sidevm", "[{vmid}] PM to sidevm failed (channel full), the guest program may be stucked");
+                    error!(target: "sidevm", "PM to sidevm failed (channel full), the guest program may be stucked");
                 }
                 TrySendError::Closed(_) => {
-                    error!(target: "sidevm", "[{vmid}] PM to sidevm failed (channel closed), the VM might be already stopped");
+                    error!(target: "sidevm", "PM to sidevm failed (channel closed), the VM might be already stopped");
                 }
             }
         }
@@ -371,11 +375,14 @@ impl FatContract {
             match sidevm_info.handle.lock().unwrap().clone() {
                 SidevmHandle::Stopped(_) => {}
                 SidevmHandle::Running(tx) => {
-                    spawner.spawn(async move {
-                        if let Err(err) = tx.send(SidevmCommand::Stop).await {
-                            error!("Failed to send stop command to sidevm: {}", err);
+                    spawner.spawn(
+                        async move {
+                            if let Err(err) = tx.send(SidevmCommand::Stop).await {
+                                error!("Failed to send stop command to sidevm: {}", err);
+                            }
                         }
-                    });
+                        .in_current_span(),
+                    );
                 }
             }
         }
@@ -426,12 +433,14 @@ impl FatContract {
     }
 }
 
+#[tracing::instrument(name="sidevm", skip_all, fields(id=%sidevm::ShortId(&id)))]
 fn do_start_sidevm(
     spawner: &sidevm::service::Spawner,
     code: &[u8],
     id: VmId,
     weight: u32,
 ) -> Result<Arc<Mutex<SidevmHandle>>> {
+    info!(target: "sidevm", "Starting sidevm...");
     let max_memory_pages: u32 = 1024; // 64MB
     let gas_per_breath = 50_000_000_000_u64; // about 20 ms bench
     let (sender, join_handle) = spawner.start(
@@ -444,15 +453,14 @@ fn do_start_sidevm(
     )?;
     let handle = Arc::new(Mutex::new(SidevmHandle::Running(sender)));
     let cloned_handle = handle.clone();
-
-    let vmid = sidevm::ShortId(&id);
-    info!(target: "sidevm", "[{vmid}] Starting sidevm...");
-    spawner.spawn(async move {
-        let vmid = sidevm::ShortId(&id);
-        let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
-        error!(target: "sidevm", "[{vmid}] Sidevm process terminated with reason: {:?}", reason);
-        *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
-    });
+    spawner.spawn(
+        async move {
+            let reason = join_handle.await.unwrap_or(ExitReason::Cancelled);
+            error!(target: "sidevm", ?reason, "Sidevm process terminated");
+            *cloned_handle.lock().unwrap() = SidevmHandle::Stopped(reason);
+        }
+        .in_current_span(),
+    );
     Ok(handle)
 }
 

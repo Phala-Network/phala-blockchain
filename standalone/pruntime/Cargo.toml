@@ -9,7 +9,6 @@ panic = "abort"
 [dependencies]
 anyhow = "1.0.69"
 clap = { version = "4.0.19", features = ["derive"] }
-colored = "2"
 reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
     "socks",
@@ -17,7 +16,6 @@ reqwest = { version = "0.11", default-features = false, features = [
 ] }
 reqwest-env-proxy = { path = "../../crates/reqwest-env-proxy" }
 libc = "0.2"
-log = "0.4.14"
 num_cpus = "1.13"
 version = "3.0.0"
 
@@ -41,6 +39,7 @@ phala-rocket-middleware = { path = "../../crates/phala-rocket-middleware" }
 phala-types = { path = "../../crates/phala-types", features = ["enable_serde", "sgx"] }
 phala-git-revision = { path = "../../crates/phala-git-revision" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
+tracing = "0.1"
 hex_fmt = "0.3.0"
 
 [patch.crates-io]

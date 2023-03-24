@@ -132,14 +132,21 @@ pub mod ocall {
         pub mode: ExecutionMode,
         pub block_number: BlockNumber,
         pub now_ms: u64,
+        pub req_id: Option<u64>,
     }
 
     impl ExecContext {
-        pub fn new(mode: ExecutionMode, block_number: BlockNumber, now_ms: u64) -> Self {
+        pub fn new(
+            mode: ExecutionMode,
+            block_number: BlockNumber,
+            now_ms: u64,
+            req_id: Option<u64>,
+        ) -> Self {
             Self {
                 mode,
                 block_number,
                 now_ms,
+                req_id,
             }
         }
     }

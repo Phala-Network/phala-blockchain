@@ -103,6 +103,7 @@ impl Drop for Runtime {
 }
 
 impl Runtime {
+    #[tracing::instrument(skip_all)]
     pub fn ecall(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
         unsafe extern "C" fn output_fn(ctx: *mut ::core::ffi::c_void, data: *const u8, len: usize) {
             let output = &mut *(ctx as *mut Vec<u8>);
@@ -124,6 +125,7 @@ where
     current_ocalls::using(ocalls, f)
 }
 
+#[tracing::instrument(name="ocall", skip_all)]
 unsafe extern "C" fn handle_ocall(
     call_id: u32,
     data: *const u8,

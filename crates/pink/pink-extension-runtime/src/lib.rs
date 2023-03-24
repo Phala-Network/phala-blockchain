@@ -78,7 +78,6 @@ pub fn http_request(
         Err(err) => {
             // If there is somthing wrong with the network, we can not inspect the reason too
             // much here. Let it return a non-standard 523 here.
-            log::info!("HTTP request error: {err}");
             return Ok(HttpResponse {
                 status_code: 523,
                 reason_phrase: "Unreachable".into(),

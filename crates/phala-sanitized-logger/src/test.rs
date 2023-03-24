@@ -25,6 +25,8 @@ fn whitelist_works() {
             "phactory::system::master_key",
             "phactory_api::storage_sync",
             "phala_mq",
+            "phala_node_runtime",
+            "phala_pallets::mining::pallet::migrations",
             "pink",
             "pink::contract",
             "pink::runtime::extension",
@@ -50,7 +52,7 @@ fn whitelist_works() {
 fn see_log() {
     use log::info;
 
-    init(true);
+    init_env_logger(true);
     info!(target: "pink", "target pink");
     info!(target: "other", "target other");
 }

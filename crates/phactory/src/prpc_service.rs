@@ -29,6 +29,7 @@ use phala_types::{
 };
 use sp_application_crypto::UncheckedFrom;
 use tokio::sync::oneshot::{channel, Sender};
+use tracing::{info, error};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -129,7 +130,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             _ => 0,
         };
 
-        let info = pb::PhactoryInfo {
+        pb::PhactoryInfo {
             initialized,
             registered,
             public_key,
@@ -160,9 +161,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 let (major, minor) = ::pink::runtimes::max_supported_version();
                 format!("{major}.{minor}")
             },
-        };
-        info!("Got info: {:?}", info.debug_info());
-        info
+        }
     }
 
     pub(crate) fn sync_header(
@@ -171,9 +170,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         authority_set_change: Option<blocks::AuthoritySetChange>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
-            "sync_header from={:?} to={:?}",
-            headers.first().map(|h| h.header.number),
-            headers.last().map(|h| h.header.number)
+            range=?(
+                headers.first().map(|h| h.header.number),
+                headers.last().map(|h| h.header.number)
+            ),
+            "sync_header",
         );
         self.can_load_chain_state = false;
         let last_header = self
@@ -193,9 +194,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         proof: blocks::StorageProof,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
-            "sync_para_header from={:?} to={:?}",
-            headers.first().map(|h| h.number),
-            headers.last().map(|h| h.number)
+            range=?(
+                headers.first().map(|h| h.number),
+                headers.last().map(|h| h.number)
+            ),
+            "sync_para_header",
         );
 
         let state = self.runtime_state()?;
@@ -248,12 +251,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     pub(crate) fn dispatch_block(
         &mut self,
+        req_id: u64,
         mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> RpcResult<pb::SyncedTo> {
         info!(
-            "dispatch_block from={:?} to={:?}",
-            blocks.first().map(|h| h.block_header.number),
-            blocks.last().map(|h| h.block_header.number)
+            range=?(
+                blocks.first().map(|h| h.block_header.number),
+                blocks.last().map(|h| h.block_header.number)
+            ),
+            "dispatch_block",
         );
         let counters = self.runtime_state()?.storage_synchronizer.counters();
         blocks.retain(|b| b.block_header.number >= counters.next_block_number);
@@ -267,7 +273,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let pubkey = self.system()?.identity_key.public().0;
 
         for block in blocks.into_iter() {
-            info!("Dispatching block: {}", block.block_header.number);
+            info!(block = block.block_header.number, "Dispatching");
             let state = self.runtime_state()?;
             let drop_proofs = safe_mode_level > 1;
             state
@@ -288,6 +294,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 block_number,
                 pubkey,
                 chain_storage,
+                req_id,
             );
             self.check_requirements();
             contracts::pink::context::using(&mut context, || {
@@ -563,6 +570,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     fn contract_query(
         &mut self,
+        req_id: u64,
         request: pb::ContractQueryRequest,
         effects_queue: Sender<ExecSideEffects>,
     ) -> RpcResult<impl Future<Output = RpcResult<pb::ContractQueryResponse>>> {
@@ -588,8 +596,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             info!("No query signature");
             None
         };
-
-        debug!("Verifying signature passed! origin={origin:?}");
 
         let ecdh_key = self.system()?.ecdh_key.clone();
 
@@ -619,6 +625,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .as_mut()
             .expect("system always exists here")
             .make_query(
+                req_id,
                 &AccountId::unchecked_from(head.id),
                 accid_origin.as_ref(),
                 data[data.len() - rest..].to_vec(),
@@ -932,8 +939,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 }
 
-#[derive(Clone)]
 pub struct RpcService<Platform> {
+    req_id: u64,
     pub(crate) phactory: Arc<Mutex<Phactory<Platform>>>,
 }
 
@@ -941,6 +948,14 @@ impl<Platform: pal::Platform> RpcService<Platform> {
     pub fn new(platform: Platform) -> RpcService<Platform> {
         RpcService {
             phactory: Arc::new(Mutex::new(Phactory::new(platform))),
+            req_id: 0,
+        }
+    }
+
+    pub fn with_id(&self, req_id: u64) -> RpcService<Platform> {
+        RpcService {
+            phactory: self.phactory.clone(),
+            req_id,
         }
     }
 }
@@ -951,6 +966,7 @@ where
 {
     pub fn dispatch_request(
         &self,
+        req_id: u64,
         path: String,
         data: &[u8],
         json: bool,
@@ -958,7 +974,7 @@ where
         use prpc::server::{Error, ProtoError};
         let data = data.to_vec();
 
-        let mut server = PhactoryApiServer::new(self.clone());
+        let mut server = PhactoryApiServer::new(self.with_id(req_id));
 
         async move {
             info!("Dispatching request: {}", path);
@@ -1000,9 +1016,40 @@ where
     }
 }
 
+pub struct LogOnDrop<T> {
+    inner: T,
+    msg: &'static str,
+}
+
+impl<T> core::ops::Deref for LogOnDrop<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> core::ops::DerefMut for LogOnDrop<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+}
+
+impl<T> Drop for LogOnDrop<T> {
+    fn drop(&mut self) {
+        debug!(target: "phactory::lock", "{}", self.msg);
+    }
+}
+
 impl<Platform: pal::Platform> RpcService<Platform> {
-    pub fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
-        self.phactory.lock().unwrap()
+    pub fn lock_phactory(&self) -> LogOnDrop<MutexGuard<'_, Phactory<Platform>>> {
+        debug!(target: "phactory::lock", "Locking phactory...");
+        let guard = self.phactory.lock().unwrap();
+        debug!(target: "phactory::lock", "Locked phactory");
+
+        LogOnDrop {
+            inner: guard,
+            msg: "Unlocked phactory",
+        }
     }
 }
 
@@ -1033,7 +1080,9 @@ fn create_attestation_report_on<Platform: pal::Platform>(
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for RpcService<Platform> {
     /// Get basic information about Phactory state.
     async fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
-        Ok(self.lock_phactory().get_info())
+        let info = self.lock_phactory().get_info();
+        info!("Got info: {:?}", info.debug_info());
+        Ok(info)
     }
 
     /// Sync the parent chain header
@@ -1069,7 +1118,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     /// Dispatch blocks (Sync storage changes)"
     async fn dispatch_blocks(&mut self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
-        self.lock_phactory().dispatch_block(blocks)
+        self.lock_phactory().dispatch_block(self.req_id, blocks)
     }
 
     async fn init_runtime(
@@ -1111,7 +1160,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 phactory.lock().unwrap().apply_side_effects(effects);
             }
         });
-        let query_fut = self.lock_phactory().contract_query(request, tx)?;
+        let query_fut = self
+            .lock_phactory()
+            .contract_query(self.req_id, request, tx)?;
         query_fut.await
     }
 
@@ -1537,8 +1588,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         &mut self,
         request: pb::GetContractInfoRequest,
     ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
-        self.lock_phactory()
-            .get_contract_info(&request.contracts)
+        self.lock_phactory().get_contract_info(&request.contracts)
     }
 
     async fn get_cluster_info(

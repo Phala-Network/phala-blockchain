@@ -45,12 +45,21 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }))
     }
 
-    fn bin_dispatch_block(&mut self, input: blocks::DispatchBlockReq) -> Result<Value, Value> {
-        let resp = self.dispatch_block(input.blocks).map_err(display)?;
+    fn bin_dispatch_block(
+        &mut self,
+        req_id: u64,
+        input: blocks::DispatchBlockReq,
+    ) -> Result<Value, Value> {
+        let resp = self.dispatch_block(req_id, input.blocks).map_err(display)?;
         Ok(json!({ "dispatched_to": resp.synced_to }))
     }
 
-    fn try_handle_scale_api(&mut self, action: u8, input: &[u8]) -> Result<Value, Value> {
+    fn try_handle_scale_api(
+        &mut self,
+        req_id: u64,
+        action: u8,
+        input: &[u8],
+    ) -> Result<Value, Value> {
         use phactory_api::actions::*;
 
         fn load_scale<T: Decode>(mut scale: &[u8]) -> Result<T, Value> {
@@ -62,13 +71,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             BIN_ACTION_SYNC_HEADER => self.bin_sync_header(load_scale(input)?),
             BIN_ACTION_SYNC_PARA_HEADER => self.bin_sync_para_header(load_scale(input)?),
             BIN_ACTION_SYNC_COMBINED_HEADERS => self.bin_sync_combined_headers(load_scale(input)?),
-            BIN_ACTION_DISPATCH_BLOCK => self.bin_dispatch_block(load_scale(input)?),
+            BIN_ACTION_DISPATCH_BLOCK => self.bin_dispatch_block(req_id, load_scale(input)?),
             _ => Err(error_msg("Action not found")),
         }
     }
 
-    pub fn handle_scale_api(&mut self, action: u8, input: &[u8]) -> Vec<u8> {
-        let result = self.try_handle_scale_api(action, input);
+    pub fn handle_scale_api(&mut self, req_id: u64, action: u8, input: &[u8]) -> Vec<u8> {
+        let result = self.try_handle_scale_api(req_id, action, input);
         let (status, payload) = match result {
             Ok(payload) => ("ok", payload),
             Err(payload) => ("error", payload),

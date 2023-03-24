@@ -25,15 +25,27 @@ pub(crate) fn storage() -> crate::storage::ExternalStorage {
     crate::storage::ExternalStorage::instantiate()
 }
 
+/// Set spans for blocknumber and request id
+macro_rules! instrument_context {
+    ($context: expr) => {
+        let span = $context.req_id.map(|id| tracing::info_span!("prpc", id));
+        let _enter = span.as_ref().map(|span| span.enter());
+        let span = tracing::info_span!("pink", blk = $context.block_number);
+        let _enter = span.enter();
+    };
+}
+
 impl Executing for crate::storage::ExternalStorage {
     fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
         let context = OCallImpl.exec_context();
+        instrument_context!(&context);
         let (rv, _effects, _) = self.execute_with(&context, f);
         rv
     }
 
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
         let context = OCallImpl.exec_context();
+        instrument_context!(&context);
         let (rv, effects) = self.execute_mut(&context, f);
         OCallImpl.emit_side_effects(effects);
         rv

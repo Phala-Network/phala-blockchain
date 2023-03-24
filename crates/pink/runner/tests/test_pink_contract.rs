@@ -301,6 +301,7 @@ mod test_cluster {
                 mode: ExecutionMode::Transaction,
                 block_number: 1,
                 now_ms: 1,
+                req_id: None,
             };
             let runtime = Runtime::from_fn(
                 pink::capi::__pink_runtime_init,

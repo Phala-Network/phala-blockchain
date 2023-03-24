@@ -9,6 +9,7 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 sha2 = "0.10.2"
 log = "0.4.14"
+tracing = "0.1"
 pallet-contracts = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
 pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
 pallet-contracts-proc-macro = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }

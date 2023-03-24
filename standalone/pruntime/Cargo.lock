@@ -743,17 +743,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "colored"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3616f750b84d8f0de8a58bda93e08e2a81ad3f523089b05f1dffecab48c6cbd"
-dependencies = [
- "atty",
- "lazy_static",
- "winapi",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4296,6 +4285,7 @@ dependencies = [
  "sp-trie",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4522,6 +4512,8 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "log",
+ "tracing-core",
+ "tracing-subscriber 0.3.15",
 ]
 
 [[package]]
@@ -4719,6 +4711,7 @@ dependencies = [
  "pink-extension-runtime",
  "serde",
  "sp-weights",
+ "tracing",
 ]
 
 [[package]]
@@ -4990,11 +4983,9 @@ dependencies = [
  "anyhow",
  "base64",
  "clap",
- "colored",
  "hex_fmt",
  "lazy_static",
  "libc",
- "log",
  "num_cpus",
  "parity-scale-codec",
  "phactory",
@@ -5012,6 +5003,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgx-api-lite",
+ "tracing",
  "urlencoding",
  "version",
 ]
@@ -6032,6 +6024,7 @@ dependencies = [
  "tokio",
  "tokio-proxy",
  "tokio-rustls",
+ "tracing",
  "wasm-instrument",
  "wasmer",
  "wasmer-compiler-singlepass",
