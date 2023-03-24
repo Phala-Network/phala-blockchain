@@ -28,6 +28,8 @@ const sgxLoader = "gramine-sgx";
 
 const CENTS = 10_000_000_000;
 
+console.log(`Testing in ${inSgx?"SGX Hardware":"Software"} mode`);
+
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
 describe('A full stack', function () {
@@ -750,7 +752,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystem.query['system::version'](certAlice, {});
-                return output?.eq({ Ok: [0, 0xffff] })
+                return output?.eq({ Ok: [1, 0xffff] })
             }, 4 * 6000), 'Upgrade system failed');
         });
 
@@ -1216,16 +1218,10 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
+        fs.cpSync(pRuntimeDir, workDir, { recursive: true })
         if (inSgx) {
-            fs.cpSync(pRuntimeDir, workDir, { recursive: true })
             fs.mkdirSync(path.resolve(`${sealDir}/protected_files/`), { recursive: true });
             fs.mkdirSync(path.resolve(`${sealDir}/storage_files/`), { recursive: true });
-        } else {
-            fs.mkdirSync(sealDir, { recursive: true });
-            const filesMustCopy = ['Rocket.toml', pRuntimeBin];
-            filesMustCopy.forEach(f =>
-                fs.copyFileSync(`${pRuntimeDir}/${f}`, `${workDir}/${f}`)
-            );
         }
     }
     const args = [

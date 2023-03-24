@@ -32,7 +32,8 @@ phala-serde-more = { path = "../phala-serde-more" }
 
 phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
-pink = { path = "../pink" }
+pink = { path = "../pink/runner", package = "pink-runner" }
+pink-extension-runtime = { path = "../pink/pink-extension-runtime" }
 
 sp-io                = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
 sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39", features = ["disable_target_static_assertions"] }
@@ -80,6 +81,8 @@ phala-scheduler = { path = "../phala-scheduler" }
 sgx-api-lite = { path = "../sgx-api-lite" }
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks"] }
 reqwest-env-proxy = { path = "../reqwest-env-proxy" }
+
+environmental = "1"
 
 [dev-dependencies]
 insta = "1.7.2"

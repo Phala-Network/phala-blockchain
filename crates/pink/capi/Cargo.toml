@@ -1,0 +1,16 @@
+[package]
+name = "pink-capi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+pink-extension = { path = "../pink-extension" }
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = [
+    "derive",
+] }
+pink-macro = { path = "../macro" }
+
+[build-dependencies]
+bindgen = "0.64.0"

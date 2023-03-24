@@ -106,6 +106,10 @@ pub mod pallet {
 	/// The blake2_256 hash of the pink-system contract code.
 	#[pallet::storage]
 	pub type PinkSystemCodeHash<T> = StorageValue<_, H256, OptionQuery>;
+	/// The pink-runtime version used to deploy new clusters.
+	/// See also: `phactory::storage::pink_runtime_version`.
+	#[pallet::storage]
+	pub type PinkRuntimeVersion<T> = StorageValue<_, (u32, u32)>;
 
 	/// The next pink-system contract code to be applied from the next block
 	#[pallet::storage]
@@ -444,6 +448,17 @@ pub mod pallet {
 			NextPinkSystemCode::<T>::put(code);
 			Ok(())
 		}
+
+		#[pallet::call_index(7)]
+		#[pallet::weight(0)]
+		pub fn set_pink_runtime_version(
+			origin: OriginFor<T>,
+			version: (u32, u32),
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			PinkRuntimeVersion::<T>::put(version);
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T>
@@ -547,15 +562,15 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
-			// TODO.kevin: use `let else` to early return once the next rustc released
-			if let Some(next_code) = NextPinkSystemCode::<T>::take() {
-				let hash: H256 = crate::hashing::blake2_256(&next_code).into();
-				PinkSystemCodeHash::<T>::put(hash);
-				PinkSystemCode::<T>::mutate(|(ver, code)| {
-					*ver += 1;
-					*code = next_code;
-				});
-			}
+			let Some(next_code) = NextPinkSystemCode::<T>::take() else {
+				return Weight::zero();
+			};
+			let hash: H256 = crate::hashing::blake2_256(&next_code).into();
+			PinkSystemCodeHash::<T>::put(hash);
+			PinkSystemCode::<T>::mutate(|(ver, code)| {
+				*ver += 1;
+				*code = next_code;
+			});
 			Weight::zero()
 		}
 	}

@@ -252,6 +252,11 @@ where
         self.data.clear();
     }
 
+    /// Return the internal key-value Map, clearing the current state.
+    pub fn drain(&mut self) -> Map<KF::Key, (T, i32)> {
+        core::mem::take(&mut self.data)
+    }
+
     /// Grab the raw information associated with a key. Returns None if the key
     /// doesn't exist.
     ///

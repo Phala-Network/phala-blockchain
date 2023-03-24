@@ -1,10 +1,13 @@
 use anyhow::{anyhow, bail, Result};
+use pink::{
+    capi::v1::ecall::ECalls,
+    types::{AccountId, ExecutionMode, TransactionArguments},
+};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
 use parity_scale_codec::Decode;
-use phala_crypto::ecdh::EcdhPublicKey;
-use phala_mq::{traits::MessageChannel, SignedMessageChannel};
+use phala_mq::SignedMessageChannel;
 use phala_scheduler::RequestScheduler;
 use runtime::BlockNumber;
 use sidevm::{
@@ -12,21 +15,19 @@ use sidevm::{
     OcallAborted, VmId,
 };
 
-use super::pink::cluster::ClusterKeeper;
+use super::pink::Cluster;
 use crate::{
     hex,
     secret_channel::{KeyPair, SecretMessageChannel, SecretReceiver},
     system::{TransactionError, TransactionResult},
     types::BlockInfo,
-    ContractId, H256,
+    ChainStorage, H256,
 };
 use phactory_api::prpc as pb;
 
-use phala_serde_more as more;
-
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
-    pub contract_clusters: &'a mut ClusterKeeper,
+    pub contract_cluster: &'a mut Cluster,
     pub log_handler: Option<CommandSender>,
 }
 
@@ -34,19 +35,18 @@ pub struct TransactionContext<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
     pub mq: &'a SignedMessageChannel,
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
-    pub contract_clusters: &'a mut ClusterKeeper,
-    pub self_id: ContractId,
     pub log_handler: Option<CommandSender>,
 }
 
 pub struct QueryContext {
     pub block_number: BlockNumber,
     pub now_ms: u64,
-    pub storage: ::pink::Storage,
     pub sidevm_handle: Option<SidevmHandle>,
     pub log_handler: Option<CommandSender>,
-    pub query_scheduler: RequestScheduler<ContractId>,
+    pub query_scheduler: RequestScheduler<AccountId>,
     pub weight: u32,
+    pub worker_pubkey: [u8; 32],
+    pub chain_storage: ChainStorage,
 }
 
 pub(crate) struct RawData(Vec<u8>);
@@ -119,52 +119,48 @@ pub(crate) enum SidevmCode {
 
 #[derive(Serialize, Deserialize)]
 pub struct FatContract {
-    #[serde(with = "more::scale_bytes")]
-    contract: AnyContract,
     send_mq: SignedMessageChannel,
     cmd_rcv_mq: SecretReceiver<RawData>,
     #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
     cluster_id: phala_mq::ContractClusterId,
-    contract_id: phala_mq::ContractId,
+    address: AccountId,
     sidevm_info: Option<SidevmInfo>,
     weight: u32,
     code_hash: Option<H256>,
+    on_block_end: Option<OnBlockEnd>,
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
+struct OnBlockEnd {
+    selector: u32,
+    gas_limit: u64,
 }
 
 impl FatContract {
     pub(crate) fn new(
-        contract: impl Into<AnyContract>,
         send_mq: SignedMessageChannel,
         cmd_rcv_mq: SecretReceiver<RawData>,
         ecdh_key: KeyPair,
         cluster_id: phala_mq::ContractClusterId,
-        contract_id: phala_mq::ContractId,
+        address: AccountId,
         code_hash: Option<H256>,
     ) -> Self {
         FatContract {
-            contract: contract.into(),
             send_mq,
             cmd_rcv_mq,
             ecdh_key,
             cluster_id,
-            contract_id,
+            address,
             sidevm_info: None,
             weight: 0,
             code_hash,
+            on_block_end: None,
         }
     }
 
-    pub(crate) fn id(&self) -> ContractId {
-        self.contract_id
-    }
-
-    pub(crate) fn cluster_id(&self) -> phala_mq::ContractClusterId {
-        self.cluster_id
-    }
-
-    pub(crate) fn snapshot_for_query(&self) -> AnyContract {
-        self.contract.snapshot()
+    pub(crate) fn address(&self) -> &AccountId {
+        &self.address
     }
 
     pub(crate) fn sidevm_handle(&self) -> Option<SidevmHandle> {
@@ -182,16 +178,18 @@ impl FatContract {
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
-            contract_clusters: env.contract_clusters,
-            self_id: self.id(),
             log_handler: env.log_handler.clone(),
         };
 
         phala_mq::select! {
             next_cmd = self.cmd_rcv_mq => match next_cmd {
                 Ok((_, cmd, origin)) => {
-                    info!("Contract {:?} handling command", self.id());
-                    self.contract.handle_command(origin, cmd.0, &mut context)
+                    info!("Contract {:?} handling command", self.address());
+                    let Ok(command) = Decode::decode(&mut &cmd.0[..]) else {
+                        error!("Failed to decode command input");
+                        return Some(Err(TransactionError::BadInput));
+                    };
+                    env.contract_cluster.handle_command(self.address(), origin, command, &mut context)
                 }
                 Err(_e) => {
                     Err(TransactionError::ChannelError)
@@ -201,37 +199,33 @@ impl FatContract {
     }
 
     pub(crate) fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
-        let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
-        let mut context = TransactionContext {
-            block: env.block,
-            mq: &self.send_mq,
-            secret_mq,
-            contract_clusters: env.contract_clusters,
-            self_id: self.id(),
-            log_handler: env.log_handler.clone(),
+        let Some(OnBlockEnd { selector, gas_limit }) = self.on_block_end else {
+            return Ok(None);
         };
-        self.contract.on_block_end(&mut context)
+
+        let input_data = selector.to_be_bytes();
+        let tx_args = TransactionArguments {
+            origin: self.address.clone(),
+            transfer: 0,
+            gas_free: false,
+            storage_deposit_limit: None,
+            gas_limit,
+        };
+        let mut handle = env.contract_cluster.runtime_mut(env.log_handler.clone());
+        _ = handle.contract_call(
+            self.address().clone(),
+            input_data.to_vec(),
+            ExecutionMode::Transaction,
+            tx_args,
+        );
+        Ok(handle.effects)
     }
 
     pub(crate) fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
-        let AnyContract::Pink(pink) = &mut self.contract;
-        pink.set_on_block_end_selector(selector, gas_limit)
-    }
-
-    pub(crate) fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
-        self.send_mq.push_data(payload, topic)
-    }
-
-    pub(crate) fn push_osp_message(
-        &self,
-        payload: Vec<u8>,
-        topic: Vec<u8>,
-        remote_pubkey: Option<&EcdhPublicKey>,
-    ) {
-        let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
-        secret_mq
-            .bind_remote_key(remote_pubkey)
-            .push_data(payload, topic)
+        self.on_block_end = Some(OnBlockEnd {
+            selector,
+            gas_limit,
+        });
     }
 
     pub(crate) fn start_sidevm(
@@ -277,7 +271,7 @@ impl FatContract {
                 ExitReason::WaitingForCode,
             )))
         } else {
-            do_start_sidevm(spawner, &code, self.contract_id.0, self.weight)?
+            do_start_sidevm(spawner, &code, *self.address.as_ref(), self.weight)?
         };
 
         let start_time = chrono::Utc::now().to_rfc3339();
@@ -315,7 +309,12 @@ impl FatContract {
                     return Ok(());
                 }
                 sidevm_info.start_time = chrono::Utc::now().to_rfc3339();
-                do_start_sidevm(spawner, &sidevm_info.code, self.contract_id.0, self.weight)?
+                do_start_sidevm(
+                    spawner,
+                    &sidevm_info.code,
+                    *self.address.as_ref(),
+                    self.weight,
+                )?
             } else {
                 return Ok(());
             };
@@ -333,7 +332,7 @@ impl FatContract {
             .handle
             .clone();
 
-        let vmid = sidevm::ShortId(&self.contract_id.0);
+        let vmid = sidevm::ShortId(&self.address);
 
         let tx = match &*handle.lock().unwrap() {
             SidevmHandle::Stopped(_) => {
@@ -384,7 +383,11 @@ impl FatContract {
 
     pub fn set_weight(&mut self, weight: u32) {
         self.weight = weight;
-        info!("Updated weight for contarct {:?} to {}", self.id(), weight);
+        info!(
+            "Updated weight for contarct {:?} to {}",
+            self.address(),
+            weight
+        );
         if let Some(SidevmHandle::Running(tx)) = self.sidevm_handle() {
             if tx.try_send(SidevmCommand::UpdateWeight(weight)).is_err() {
                 error!("Failed to update weight for sidevm, maybe it has crashed");
@@ -397,7 +400,7 @@ impl FatContract {
 
     pub fn info(&self) -> pb::ContractInfo {
         pb::ContractInfo {
-            id: hex(self.contract_id),
+            id: hex(&self.address),
             weight: self.weight,
             code_hash: self.code_hash.as_ref().map(hex).unwrap_or_default(),
             sidevm: self.sidevm_info.as_ref().map(|info| {

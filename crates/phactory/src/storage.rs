@@ -84,6 +84,12 @@ mod storage_ext {
             me
         }
 
+        pub fn snapshot(&self) -> Self {
+            Self {
+                trie_storage: self.trie_storage.snapshot(),
+            }
+        }
+
         pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
             self.trie_storage.load(pairs);
         }
@@ -131,6 +137,13 @@ mod storage_ext {
 
         pub fn pink_system_code(&self) -> (u16, Vec<u8>) {
             self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
+        }
+
+        pub fn pink_runtime_version(&self) -> (u32, u32) {
+            // !! DO NOT CHANGE THIS VALUE !!
+            const DEFAULT_VERSION: (u32, u32) = (1, 0);
+            self.execute_with(pallet_fat::PinkRuntimeVersion::<chain::Runtime>::get)
+                .unwrap_or(DEFAULT_VERSION)
         }
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.

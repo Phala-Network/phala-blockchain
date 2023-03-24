@@ -1,5 +1,5 @@
 [profile.release]
-panic = "unwind"
+panic = "abort"
 opt-level = 3
 
 # make sure dev builds with backtrace do
@@ -30,6 +30,7 @@ exclude = [
 	"vendor/ring",
 	"standalone/pruntime",
 	"standalone/prouter",
+	"standalone/crate-version",
 	"crates/pink-drivers/system",
 	"crates/pink-drivers/sidevm_deployer",
 	"crates/pink-drivers/tokenomic",
@@ -51,6 +52,7 @@ members = [
 	"crates/phala-crypto",
 	"crates/phala-node-rpc-ext",
 	"crates/phala-types",
+	"crates/phala-git-revision",
 	"crates/prpc",
 	"crates/prpc-build",
 	"crates/phactory",
@@ -59,12 +61,16 @@ members = [
 	"crates/phala-types",
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
+	"crates/phala-sanitized-logger",
 	"crates/wasmer-tunables",
 	"crates/phala-rocket-middleware",
-	"crates/pink",
+	"crates/pink/runner",
+	"crates/pink/runtime",
+	"crates/pink/runtime/unittests",
+	"crates/pink/capi",
+	"crates/pink/macro",
 	"crates/pink/pink-extension",
 	"crates/pink/pink-extension-runtime",
-	"crates/pink/unittests",
 	"crates/pink-libs/s3",
 	"crates/pink-libs/utils",
 	"crates/pink-libs/subrpc",

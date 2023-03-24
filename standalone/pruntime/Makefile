@@ -1,8 +1,22 @@
 SGX_MODE ?= SW
 
-.PHONY: all clean
-ifeq ($(SGX_MODE),SW)
-all: bin/Rocket.toml bin/app
+include config.mk
+
+.PHONY: all clean run
+
+all: bin/Rocket.toml bin/app ${PINK_RUNTIME_DIST}
+
+run:
+	./bin/app -c 0
+
+${PINK_RUNTIME_DIST}: ${PINK_RUNTIME}
+	cp $? $@
+	cp $@ target/release/
+	strip --strip-all --keep-symbol=__pink_runtime_init $@
+
+.PHONY: ${PINK_RUNTIME}
+${PINK_RUNTIME}:
+	cd ${PINK_RUNTIME_DIR} && cargo build --release
 
 bin/app: bin/pruntime
 	cd bin && ln -sf pruntime app
@@ -20,12 +34,6 @@ target/release/pruntime:
 clean:
 	rm -rf bin/*
 	cargo clean
-else
-all:
-	make -C gramine-build
-clean:
-	make clean -C gramine-build
-endif
 
 .PHONY: clippy
 clippy:

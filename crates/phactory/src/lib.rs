@@ -6,6 +6,7 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
+use ::pink::types::AccountId;
 use glob::PatternError;
 use rand::*;
 use serde::{
@@ -43,7 +44,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -238,7 +239,7 @@ pub struct Phactory<Platform> {
     last_checkpoint: Instant,
     #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
-    query_scheduler: RequestScheduler<ContractId>,
+    query_scheduler: RequestScheduler<AccountId>,
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
@@ -250,7 +251,7 @@ pub struct Phactory<Platform> {
     trusted_sk: bool,
 }
 
-fn default_query_scheduler() -> RequestScheduler<ContractId> {
+fn default_query_scheduler() -> RequestScheduler<AccountId> {
     const FAIR_QUEUE_BACKLOG: usize = 32;
     const FAIR_QUEUE_THREADS: u32 = 8;
 

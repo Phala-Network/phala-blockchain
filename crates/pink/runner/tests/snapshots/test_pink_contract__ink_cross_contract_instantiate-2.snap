@@ -1,0 +1,20 @@
+---
+source: crates/pink/runner/tests/test_pink_contract.rs
+expression: cluster.effects.take()
+---
+Some(
+    V1 {
+        pink_events: [],
+        ink_events: [],
+        instantiated: [
+            (
+                056a8ab55cc7f7405e121302a0af5b46d8c5fd78d2dbc8c2ac994802bdfb71dc (5CBokECH...),
+                21987f6137bade4149694c00329d55d598d109be0b22535758528d14fc12b4e9 (5Cpkjnu5...),
+            ),
+            (
+                0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+                056a8ab55cc7f7405e121302a0af5b46d8c5fd78d2dbc8c2ac994802bdfb71dc (5CBokECH...),
+            ),
+        ],
+    },
+)
