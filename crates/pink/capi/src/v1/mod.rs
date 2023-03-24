@@ -178,7 +178,7 @@ pub mod ocall {
         #[xcall(id = 14)]
         fn http_request(
             &self,
-            contracr: AccountId,
+            contract: AccountId,
             request: HttpRequest,
         ) -> Result<HttpResponse, HttpRequestError>;
     }

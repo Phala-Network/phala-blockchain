@@ -4,7 +4,7 @@ use pink_capi::{
     helper::InnerType,
     v1::{
         config_t, cross_call_fn_t, ecalls_t, init_t,
-        ocall::{executing_dispatch, OCalls},
+        ocall::{self, OCalls},
         ocalls_t, output_fn_t, IdentExecute,
     },
 };
@@ -12,7 +12,7 @@ use std::ffi::c_void;
 
 pub struct Runtime {
     handle: *const c_void,
-    ecall: InnerType<cross_call_fn_t>,
+    ecall_fn: InnerType<cross_call_fn_t>,
 }
 
 unsafe impl Send for Runtime {}
@@ -52,17 +52,16 @@ impl Runtime {
             is_dylib: is_dylib as _,
             enclaved: in_enclave(),
             ocalls: ocalls_t {
-                ocall: Some(ocall),
+                ocall: Some(handle_ocall),
                 alloc: is_dylib.then_some(ocall_alloc),
                 dealloc: is_dylib.then_some(ocall_dealloc),
             },
         };
         let mut ecalls = ecalls_t::default();
-        unsafe {
-            if init(&config, &mut ecalls) != 0 {
-                panic!("Failed to initialize {filename}");
-            }
-        };
+        let ret = unsafe { init(&config, &mut ecalls) };
+        if ret != 0 {
+            panic!("Failed to initialize {filename}, ret={ret}");
+        }
         let Some(get_version) = ecalls.get_version else {
             panic!("Failed to get ecall entry in {filename}");
         };
@@ -74,17 +73,20 @@ impl Runtime {
         let Some(ecall) = ecalls.ecall else {
             panic!("Failed to get ecall entry in {filename}");
         };
-        Runtime { handle, ecall }
+        Runtime {
+            handle,
+            ecall_fn: ecall,
+        }
     }
 
     /// # Safety
     ///
-    /// This is only for unit test. The pointer's in the runtime will be invalid if the original
+    /// This is for unit test only. The pointer's in the runtime will be invalid if the original
     /// runtime is dropped.
     pub unsafe fn dup(&self) -> Self {
         Runtime {
             handle: std::ptr::null_mut(),
-            ecall: self.ecall,
+            ecall_fn: self.ecall_fn,
         }
     }
 }
@@ -108,7 +110,7 @@ impl Runtime {
         }
         let mut output = Vec::new();
         let ctx = &mut output as *mut _ as *mut c_void;
-        unsafe { (self.ecall)(call_id, data.as_ptr(), data.len(), ctx, Some(output_fn)) };
+        unsafe { (self.ecall_fn)(call_id, data.as_ptr(), data.len(), ctx, Some(output_fn)) };
         output
     }
 }
@@ -122,7 +124,7 @@ where
     current_ocalls::using(ocalls, f)
 }
 
-unsafe extern "C" fn ocall(
+unsafe extern "C" fn handle_ocall(
     call_id: u32,
     data: *const u8,
     len: usize,
@@ -131,7 +133,7 @@ unsafe extern "C" fn ocall(
 ) {
     let input = std::slice::from_raw_parts(data, len);
     let output = current_ocalls::with(move |ocalls| {
-        executing_dispatch(&mut IdentExecute, ocalls, call_id, input)
+        ocall::dispatch(&mut IdentExecute, ocalls, call_id, input)
     })
     .expect("No OCalls set");
     if let Some(output_fn) = output_fn {
