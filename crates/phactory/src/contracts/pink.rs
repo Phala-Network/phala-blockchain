@@ -19,8 +19,8 @@ use pink::{
     types::ExecutionMode,
 };
 use serde::{Deserialize, Serialize};
-use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
-use sp_core::sr25519;
+use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
+use sp_core::{blake2_256, sr25519, twox_64};
 
 use ::pink::{
     capi::v1,
@@ -29,6 +29,8 @@ use ::pink::{
 };
 
 pub use phala_types::contract::InkCommand;
+
+pub(crate) mod http_counters;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
@@ -72,6 +74,7 @@ pub enum QueryError {
 pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
     pub runtime_version: (u32, u32),
+    pub secret_salt: [u8; 32],
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -302,10 +305,19 @@ impl OCalls for RuntimeHandle<'_> {
 
     fn http_request(
         &self,
-        _contract: AccountId,
+        contract: AccountId,
         request: HttpRequest,
     ) -> Result<HttpResponse, HttpRequestError> {
-        pink_extension_runtime::http_request(request, context::time_remaining())
+        let result = pink_extension_runtime::http_request(request, context::time_remaining());
+        match &result {
+            Ok(response) => {
+                http_counters::add(contract, response.status_code);
+            }
+            Err(_) => {
+                http_counters::add(contract, 0);
+            }
+        }
+        result
     }
 }
 
@@ -404,16 +416,19 @@ impl Cluster {
         cluster_key: &sr25519::Pair,
         runtime_version: (u32, u32),
     ) -> Self {
+        let secret_key = cluster_key.dump_secret_key();
+        let secret_salt = blake2_256(&secret_key);
         let mut cluster = Cluster {
             id: *id,
             storage: Default::default(),
             config: ClusterConfig {
                 runtime_version,
+                secret_salt,
                 ..Default::default()
             },
         };
         let mut runtime = cluster.default_runtime_mut();
-        runtime.set_key(cluster_key.dump_secret_key());
+        runtime.set_key(secret_key);
         cluster
     }
 
@@ -503,11 +518,21 @@ impl Cluster {
                 transfer,
                 estimating,
             } => {
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                 let _guard = context
                     .query_scheduler
                     .acquire(contract_id.clone(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
+
+                if let Some(logger) = &context.log_handler {
+                    let fp = twox_64(&(&origin, &self.config.secret_salt).encode());
+                    if let Err(_err) = logger.try_send(SidevmCommand::PushSystemMessage(
+                        SystemMessage::Metric(Metric::PinkQueryIn(fp)),
+                    )) {
+                        error!("Failed to send metric to log_server");
+                    }
+                }
 
                 let mode = if estimating {
                     ExecutionMode::Estimating
@@ -523,7 +548,6 @@ impl Cluster {
                 );
                 let log_handler = context.log_handler.clone();
                 context::using(&mut ctx, move || {
-                    let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                     let mut runtime = self.runtime_mut(log_handler);
                     if deposit > 0 {
                         runtime.deposit(origin.clone(), deposit);

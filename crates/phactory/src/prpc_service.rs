@@ -1538,7 +1538,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         request: pb::GetContractInfoRequest,
     ) -> Result<pb::GetContractInfoResponse, prpc::server::Error> {
         self.lock_phactory()
-            .get_contract_info(&request.contract_ids)
+            .get_contract_info(&request.contracts)
     }
 
     async fn get_cluster_info(
@@ -1607,6 +1607,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     async fn take_checkpoint(&mut self, _req: ()) -> Result<pb::SyncedTo, prpc::server::Error> {
         let synced_to = self.lock_phactory().take_checkpoint().map_err(from_debug)?;
         Ok(pb::SyncedTo { synced_to })
+    }
+    async fn statistics(
+        &mut self,
+        request: pb::StatisticsReqeust,
+    ) -> Result<pb::StatisticsResponse, prpc::server::Error> {
+        self.lock_phactory().statistics(request).map_err(from_debug)
     }
 }
 

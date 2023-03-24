@@ -4258,6 +4258,7 @@ dependencies = [
  "log",
  "num-bigint",
  "num-traits",
+ "once_cell",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
@@ -4315,7 +4316,7 @@ dependencies = [
  "phala-trie-storage",
  "phala-types",
  "primitive-types",
- "prost 0.11.2",
+ "prost 0.11.8",
  "prpc",
  "prpc-build",
  "reqwest",
@@ -4856,12 +4857,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.2"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0841812012b2d4a6145fae9a6af1534873c32aa67fff26bd09f8fa42c83f95a"
+checksum = "e48e50df39172a3e7eb17e14642445da64996989bc212b583015435d39a58537"
 dependencies = [
  "bytes",
- "prost-derive 0.11.2",
+ "prost-derive 0.11.8",
 ]
 
 [[package]]
@@ -4886,9 +4887,9 @@ dependencies = [
 
 [[package]]
 name = "prost-build"
-version = "0.11.2"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d8b442418ea0822409d9e7d047cbf1e7e9e1760b172bf9982cf29d517c93511"
+checksum = "2c828f93f5ca4826f97fedcbd3f9a536c16b12cff3dbbb4a007f932bbad95b12"
 dependencies = [
  "bytes",
  "heck 0.4.0",
@@ -4898,8 +4899,8 @@ dependencies = [
  "multimap",
  "petgraph",
  "prettyplease",
- "prost 0.11.2",
- "prost-types 0.11.2",
+ "prost 0.11.8",
+ "prost-types 0.11.8",
  "regex",
  "syn 1.0.99",
  "tempfile",
@@ -4921,9 +4922,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.11.2"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "164ae68b6587001ca506d3bf7f1000bfa248d0e1217b618108fba4ec1d0cc306"
+checksum = "4ea9b0f8cbe5e15a8a042d030bd96668db28ecb567ec37d691971ff5731d2b1b"
 dependencies = [
  "anyhow",
  "itertools",
@@ -4944,12 +4945,11 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.11.2"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "747761bc3dc48f9a34553bf65605cf6cb6288ba219f3450b4275dbd81539551a"
+checksum = "379119666929a1afd7a043aa6cf96fa67a6dce9af60c88095a4686dbce4c9c88"
 dependencies = [
- "bytes",
- "prost 0.11.2",
+ "prost 0.11.8",
 ]
 
 [[package]]
@@ -4960,7 +4960,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "parity-scale-codec",
- "prost 0.11.2",
+ "prost 0.11.8",
  "serde_json",
 ]
 
@@ -4975,10 +4975,10 @@ dependencies = [
  "log",
  "multimap",
  "proc-macro2 1.0.43",
- "prost 0.11.2",
- "prost-build 0.11.2",
+ "prost 0.11.8",
+ "prost-build 0.11.8",
  "prost-build 0.9.0",
- "prost-types 0.11.2",
+ "prost-types 0.11.8",
  "quote 1.0.21",
  "syn 1.0.99",
 ]

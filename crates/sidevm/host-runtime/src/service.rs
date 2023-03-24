@@ -13,7 +13,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-pub use sidevm_env::messages::SystemMessage;
+pub use sidevm_env::messages::{SystemMessage, Metric};
 pub type CommandSender = Sender<Command>;
 
 #[derive(Debug)]

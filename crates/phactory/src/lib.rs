@@ -7,6 +7,7 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use ::pink::types::AccountId;
+use contracts::pink::http_counters;
 use glob::PatternError;
 use rand::*;
 use serde::{
@@ -16,7 +17,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -35,7 +36,7 @@ use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
     ecall_args::{git_revision, InitArgs},
     endpoints::EndpointType,
-    prpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    prpc::{self as pb, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 
@@ -249,6 +250,10 @@ pub struct Phactory<Platform> {
 
     #[serde(skip)]
     trusted_sk: bool,
+
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
+    started_at: Instant,
 }
 
 fn default_query_scheduler() -> RequestScheduler<AccountId> {
@@ -278,6 +283,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
+            started_at: Instant::now(),
         }
     }
 
@@ -611,6 +617,93 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .on_restored()
             .context("Failed to restore Phactory")?;
         Ok(factory)
+    }
+
+    fn statistics(
+        &mut self,
+        request: pb::StatisticsReqeust,
+    ) -> anyhow::Result<pb::StatisticsResponse> {
+        let uptime = self.started_at.elapsed().as_secs();
+        let contracts_query_stats;
+        let global_query_stats;
+        let contracts_http_stats;
+        let global_http_stats;
+        if request.all {
+            let query_stats = self.query_scheduler.stats();
+            contracts_query_stats = query_stats.flows;
+            global_query_stats = query_stats.global;
+            let http_stats = http_counters::stats();
+            contracts_http_stats = http_stats.by_contract;
+            global_http_stats = http_stats.global;
+        } else {
+            let mut query_stats = Vec::new();
+            let mut http_stats = BTreeMap::new();
+            for contract in request.contracts {
+                let contract =
+                    AccountId::from_str(&contract).or(Err(anyhow!("Invalid contract address")))?;
+                let stat = self.query_scheduler.stats_for(&contract);
+                query_stats.push((contract.clone(), stat));
+                let stat = http_counters::stats_for(&contract);
+                http_stats.insert(contract, stat);
+            }
+            contracts_query_stats = query_stats;
+            global_query_stats = self.query_scheduler.stats_global();
+            contracts_http_stats = http_stats;
+            global_http_stats = http_counters::stats_global();
+        }
+
+        Ok(pb::StatisticsResponse {
+            uptime,
+            cores: self.args.cores,
+            query: Some(pb::QueryStats {
+                global: Some(pb::QueryCounters {
+                    total: global_query_stats.total,
+                    dropped: global_query_stats.dropped,
+                    time: global_query_stats.time_ms(),
+                }),
+                by_contract: contracts_query_stats
+                    .into_iter()
+                    .map(|(contract, stat)| {
+                        (
+                            format!("0x{}", hex_fmt::HexFmt(contract)),
+                            pb::QueryCounters {
+                                total: stat.total,
+                                dropped: stat.dropped,
+                                time: stat.time_ms(),
+                            },
+                        )
+                    })
+                    .collect(),
+            }),
+            http_egress: Some(pb::HttpEgressStats {
+                global: Some(pb::HttpCounters {
+                    requests: global_http_stats.requests,
+                    failures: global_http_stats.failures,
+                    by_status_code: global_http_stats
+                        .by_status_code
+                        .into_iter()
+                        .map(|(s, c)| (s as u32, c))
+                        .collect(),
+                }),
+                by_contract: contracts_http_stats
+                    .into_iter()
+                    .map(|(contract, stat)| {
+                        (
+                            format!("0x{}", hex_fmt::HexFmt(contract)),
+                            pb::HttpCounters {
+                                requests: stat.requests,
+                                failures: stat.failures,
+                                by_status_code: stat
+                                    .by_status_code
+                                    .into_iter()
+                                    .map(|(s, c)| (s as u32, c))
+                                    .collect(),
+                            },
+                        )
+                    })
+                    .collect(),
+            }),
+        })
     }
 }
 
