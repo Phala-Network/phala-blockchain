@@ -105,7 +105,6 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -296,7 +295,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(0)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn force_set_benchmark_duration(origin: OriginFor<T>, value: u32) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			BenchmarkDuration::<T>::put(value);
@@ -307,7 +306,7 @@ pub mod pallet {
 		///
 		/// For test only.
 		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
@@ -350,7 +349,7 @@ pub mod pallet {
 		///
 		/// For test only.
 		#[pallet::call_index(2)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn force_register_topic_pubkey(
 			origin: OriginFor<T>,
 			topic: Vec<u8>,
@@ -365,7 +364,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(3)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn register_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
@@ -411,7 +410,7 @@ pub mod pallet {
 		///
 		/// At least one gatekeeper should be available
 		#[pallet::call_index(4)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
@@ -440,7 +439,7 @@ pub mod pallet {
 
 		/// Rotate the master key
 		#[pallet::call_index(5)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 

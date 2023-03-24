@@ -76,7 +76,6 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -352,7 +351,7 @@ pub mod pallet {
 
 		// Push message to contract with some deposit into the cluster to pay the gas fee
 		#[pallet::call_index(3)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0))]
 		pub fn push_contract_message(
 			origin: OriginFor<T>,
 			contract_id: ContractId,

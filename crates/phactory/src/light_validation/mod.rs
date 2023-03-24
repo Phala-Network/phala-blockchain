@@ -54,7 +54,7 @@ use finality_grandpa::voter_set::VoterSet;
 use num::AsPrimitive;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::H256;
-use sp_finality_grandpa::{AuthorityId, AuthorityWeight, SetId};
+use sp_consensus_grandpa::{AuthorityId, AuthorityWeight, SetId};
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::EncodedJustification;
 
