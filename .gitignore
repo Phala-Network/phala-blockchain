@@ -76,6 +76,9 @@ ring/pregenerated/
 **/pruntime/Enclave_t.c
 **/pruntime/Enclave_t.h
 
+# Bindgen
+/crates/pink/capi/src/v1/types.rs
+
 # Generated and temp files
 **/pruntime/app/src/protos/*.rs
 **/pruntime/enclave/src/protos/*.rs
