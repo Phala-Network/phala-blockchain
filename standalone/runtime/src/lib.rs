@@ -55,15 +55,13 @@ pub use node_primitives::{
     AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
 };
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
-use pallet_grandpa::{
-    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
-};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as pallet_session_historical;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_inherents::{CheckInherentsResult, InherentData};
 use sp_runtime::{
@@ -117,6 +115,11 @@ use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+
+/// Max size for serialized extrinsic params for this testing runtime.
+/// This is a quite arbitrary but empirically battle tested value.
+#[cfg(test)]
+pub const CALL_PARAMS_MAX_SIZE: usize = 300;
 
 /// Wasm binary unwrapped. If built with `SKIP_WASM_BUILD`, the function panics.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -431,24 +434,12 @@ impl pallet_babe::Config for Runtime {
     type ExpectedBlockTime = ExpectedBlockTime;
     type EpochChangeTrigger = pallet_babe::ExternalTrigger;
     type DisabledValidators = Session;
-
-    type KeyOwnerProofSystem = Historical;
-
-    type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        pallet_babe::AuthorityId,
-    )>>::Proof;
-
-    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        pallet_babe::AuthorityId,
-    )>>::IdentificationTuple;
-
-    type HandleEquivocation =
-        pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
-
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type KeyOwnerProof =
+        <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+    type EquivocationReportSystem =
+        pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -733,6 +724,7 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
     type Solution = NposSolution16;
     type MaxVotesPerVoter =
     <<Self as pallet_election_provider_multi_phase::Config>::DataProvider as ElectionDataProvider>::MaxVotesPerVoter;
+    type MaxWinners = MaxActiveValidators;
 
     // The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
     // weight estimate function is wired to this call's weight.
@@ -1180,26 +1172,12 @@ parameter_types! {
 
 impl pallet_grandpa::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-
-    type KeyOwnerProofSystem = Historical;
-
-    type KeyOwnerProof =
-        <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        GrandpaId,
-    )>>::IdentificationTuple;
-
-    type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-        Self::KeyOwnerIdentification,
-        Offences,
-        ReportLongevity,
-    >;
-
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
     type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+    type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+    type EquivocationReportSystem =
+        pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -1525,7 +1503,7 @@ impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
 
 construct_runtime!(
-    pub enum Runtime where
+    pub struct Runtime where
         Block = Block,
         NodeBlock = node_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
@@ -1708,21 +1686,21 @@ impl_runtime_apis! {
         }
     }
 
-    impl fg_primitives::GrandpaApi<Block> for Runtime {
-        fn grandpa_authorities() -> GrandpaAuthorityList {
+    impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
+        fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
             Grandpa::grandpa_authorities()
         }
 
-        fn current_set_id() -> fg_primitives::SetId {
+        fn current_set_id() -> sp_consensus_grandpa::SetId {
             Grandpa::current_set_id()
         }
 
         fn submit_report_equivocation_unsigned_extrinsic(
-            equivocation_proof: fg_primitives::EquivocationProof<
+            equivocation_proof: sp_consensus_grandpa::EquivocationProof<
                 <Block as BlockT>::Hash,
                 NumberFor<Block>,
             >,
-            key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
+            key_owner_proof: sp_consensus_grandpa::OpaqueKeyOwnershipProof,
         ) -> Option<()> {
             let key_owner_proof = key_owner_proof.decode()?;
 
@@ -1733,30 +1711,30 @@ impl_runtime_apis! {
         }
 
         fn generate_key_ownership_proof(
-            _set_id: fg_primitives::SetId,
+            _set_id: sp_consensus_grandpa::SetId,
             authority_id: GrandpaId,
-        ) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
+        ) -> Option<sp_consensus_grandpa::OpaqueKeyOwnershipProof> {
             use codec::Encode;
 
-            Historical::prove((fg_primitives::KEY_TYPE, authority_id))
+            Historical::prove((sp_consensus_grandpa::KEY_TYPE, authority_id))
                 .map(|p| p.encode())
-                .map(fg_primitives::OpaqueKeyOwnershipProof::new)
+                .map(sp_consensus_grandpa::OpaqueKeyOwnershipProof::new)
         }
     }
 
     impl pallet_nomination_pools_runtime_api::NominationPoolsApi<Block, AccountId, Balance> for Runtime {
-		fn pending_rewards(who: AccountId) -> Balance {
-			NominationPools::api_pending_rewards(who).unwrap_or_default()
-		}
+        fn pending_rewards(who: AccountId) -> Balance {
+            NominationPools::api_pending_rewards(who).unwrap_or_default()
+        }
 
-		fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
-			NominationPools::api_points_to_balance(pool_id, points)
-		}
+        fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
+            NominationPools::api_points_to_balance(pool_id, points)
+        }
 
-		fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
-			NominationPools::api_balance_to_points(pool_id, new_funds)
-		}
-	}
+        fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
+            NominationPools::api_balance_to_points(pool_id, new_funds)
+        }
+    }
 
     impl sp_consensus_babe::BabeApi<Block> for Runtime {
         fn configuration() -> sp_consensus_babe::BabeConfiguration {
@@ -1929,10 +1907,10 @@ mod tests {
     fn call_size() {
         let size = core::mem::size_of::<RuntimeCall>();
         assert!(
-            size <= 300,
-            "Size of RuntimeCall {size} is more than 208 bytes: some calls have too big arguments,
-            use Box to reduce the size of RuntimeCall.
-            If the limit is too strong, maybe consider increase the limit to 300."
+            size <= CALL_PARAMS_MAX_SIZE,
+            "size of RuntimeCall {size} is more than {CALL_PARAMS_MAX_SIZE} bytes.
+             Some calls have too big arguments, use Box to reduce the size of RuntimeCall.
+             If the limit is too strong, maybe consider increase the limit.",
         );
     }
 }

@@ -14,7 +14,7 @@ use phaxt::{
     sp_core::{crypto::Pair, sr25519},
     subxt, RpcClient,
 };
-use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use subxt::config::{substrate::Era, Header as _};
 
 mod endpoint;

@@ -114,7 +114,7 @@ parameter_types! {
     pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
     pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
     pub const DeletionQueueDepth: u32 = 1024;
-    pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
+    pub const DeletionWeightLimit: Weight = Weight::from_parts(500_000_000_000, 0);
     pub const MaxCodeLen: u32 = MAX_CODE_NAME;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;

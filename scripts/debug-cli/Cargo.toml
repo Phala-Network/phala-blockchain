@@ -11,10 +11,10 @@ hex = "0.4"
 clap = { version = "4.0.19", features = ["derive"] }
 anyhow = "1.0.69"
 
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.39" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
 
 phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }

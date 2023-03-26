@@ -29,10 +29,9 @@ use node_primitives::Block;
 use sc_client_api::BlockBackend;
 use sc_consensus_babe::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
-use sc_network::NetworkService;
-use sc_network_common::{
-	protocol::event::Event, service::NetworkEventStream, sync::warp::WarpSyncParams,
-};
+use sc_network::{event::Event, NetworkEventStream, NetworkService};
+use sc_network_common::sync::warp::WarpSyncParams;
+use sc_network_sync::SyncingService;
 use sc_service::{config::Configuration, error::Error as ServiceError, PruningMode, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
@@ -46,7 +45,7 @@ sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispat
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
-grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
 /// The transaction pool type defintion.
 pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
@@ -313,6 +312,8 @@ pub struct NewFullBase {
 	pub client: Arc<FullClient>,
 	/// The networking service of the node.
 	pub network: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
+	/// The syncing service of the node.
+	pub sync: Arc<SyncingService<Block>>,
 	/// The transaction pool of the node.
 	pub transaction_pool: Arc<TransactionPool>,
 	/// The rpc handlers of the node.
@@ -365,7 +366,7 @@ pub fn new_full_base(
 		Vec::default(),
 	));
 
-	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
+	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -404,6 +405,7 @@ pub fn new_full_base(
 		task_manager: &mut task_manager,
 		system_rpc_tx,
 		tx_handler_controller,
+		sync_service: sync_service.clone(),
 		telemetry: telemetry.as_mut(),
 	})?;
 
@@ -441,8 +443,8 @@ pub fn new_full_base(
 			select_chain,
 			env: proposer,
 			block_import,
-			sync_oracle: network.clone(),
-			justification_sync_link: network.clone(),
+			sync_oracle: sync_service.clone(),
+			justification_sync_link: sync_service.clone(),
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				async move {
@@ -538,6 +540,7 @@ pub fn new_full_base(
 			config,
 			link: grandpa_link,
 			network: network.clone(),
+			sync: Arc::new(sync_service.clone()),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 			voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			prometheus_registry,
@@ -554,7 +557,14 @@ pub fn new_full_base(
 	}
 
 	network_starter.start_network();
-	Ok(NewFullBase { task_manager, client, network, transaction_pool, rpc_handlers })
+	Ok(NewFullBase {
+		task_manager,
+		client,
+		network,
+		sync: sync_service,
+		transaction_pool,
+		rpc_handlers,
+	})
 }
 
 /// Builds a new service for a full client.
@@ -627,7 +637,7 @@ mod tests {
 			chain_spec,
 			|config| {
 				let mut setup_handles = None;
-				let NewFullBase { task_manager, client, network, transaction_pool, .. } =
+				let NewFullBase { task_manager, client, network, sync, transaction_pool, .. } =
 					new_full_base(
 						config,
 						false,
@@ -641,6 +651,7 @@ mod tests {
 					task_manager,
 					client,
 					network,
+					sync,
 					transaction_pool,
 				);
 				Ok((node, setup_handles.unwrap()))
@@ -747,7 +758,7 @@ mod tests {
 				);
 				params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
 
-				futures::executor::block_on(block_import.import_block(params, Default::default()))
+				futures::executor::block_on(block_import.import_block(params))
 					.expect("error importing test block");
 			},
 			|service, _| {
@@ -809,12 +820,13 @@ mod tests {
 		sc_service_test::consensus(
 			crate::chain_spec::tests::integration_test_config_with_two_authorities(),
 			|config| {
-				let NewFullBase { task_manager, client, network, transaction_pool, .. } =
+				let NewFullBase { task_manager, client, network, sync, transaction_pool, .. } =
 					new_full_base(config, false, |_, _| ())?;
 				Ok(sc_service_test::TestNetComponents::new(
 					task_manager,
 					client,
 					network,
+					sync,
 					transaction_pool,
 				))
 			},
