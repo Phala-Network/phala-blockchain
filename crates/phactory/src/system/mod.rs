@@ -861,13 +861,19 @@ impl<Platform: pal::Platform> System<Platform> {
                 .expect("empty master key history")
                 .secret,
         );
-        let gatekeeper = gk::Gatekeeper::new(
+        let mut gatekeeper = gk::Gatekeeper::new(
             master_key_history,
             block.recv_mq,
             block
                 .send_mq
                 .channel(MessageOrigin::Gatekeeper, master_key.into()),
         );
+        if let Some(params) = block.storage.tokenomic_parameters() {
+            gatekeeper
+                .computing_economics
+                .update_tokenomic_parameters(params);
+        }
+
         self.gatekeeper = Some(gatekeeper);
 
         // TODO: clear up existing clusters

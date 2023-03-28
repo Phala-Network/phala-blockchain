@@ -75,7 +75,7 @@ fn mask_deposit(deposit: u128, deposit_per_byte: u128) -> u128 {
 }
 
 fn mask_gas(weight: Weight) -> Weight {
-    Weight::from_ref_time(mask_low_bits64(weight.ref_time(), 28))
+    Weight::from_parts(mask_low_bits64(weight.ref_time(), 28), 0)
 }
 
 #[test]
@@ -148,7 +148,7 @@ pub fn instantiate(
         storage_deposit_limit,
         gas_free,
     } = args;
-    let gas_limit = Weight::from_ref_time(gas_limit).set_proof_size(u64::MAX);
+    let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
         Contracts::bare_instantiate(
             origin,
@@ -188,7 +188,7 @@ pub fn bare_call(
         gas_free,
         storage_deposit_limit,
     } = tx_args;
-    let gas_limit = Weight::from_ref_time(gas_limit).set_proof_size(u64::MAX);
+    let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let determinism = if mode.deterministic_required() {
         Determinism::Deterministic
     } else {

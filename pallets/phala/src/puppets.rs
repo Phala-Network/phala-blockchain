@@ -6,7 +6,6 @@ pub mod parachain_info {
 		use frame_support::pallet_prelude::*;
 
 		#[pallet::pallet]
-		#[pallet::generate_store(pub(super) trait Store)]
 		#[pallet::without_storage_info]
 		pub struct Pallet<T>(_);
 
@@ -33,7 +32,6 @@ pub mod parachain_system {
 		use frame_support::pallet_prelude::*;
 
 		#[pallet::pallet]
-		#[pallet::generate_store(pub(super) trait Store)]
 		#[pallet::without_storage_info]
 		pub struct Pallet<T>(_);
 

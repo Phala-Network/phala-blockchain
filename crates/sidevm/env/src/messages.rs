@@ -38,5 +38,5 @@ pub enum SystemMessage {
 
 #[derive(Encode, Decode)]
 pub enum Metric {
-    PinkQueryIn([u8; 16]),
+    PinkQueryIn([u8; 8]),
 }

@@ -29,7 +29,6 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -63,7 +62,7 @@ pub mod pallet {
 	{
 		/// Syncs an unverified offchain message to the message queue
 		#[pallet::call_index(0)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn sync_offchain_message(
 			origin: OriginFor<T>,
 			signed_message: SignedMessage,
@@ -98,7 +97,7 @@ pub mod pallet {
 		// Messaging API for end user.
 		// TODO.kevin: confirm the weight
 		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn push_message(
 			origin: OriginFor<T>,
 			destination: Vec<u8>,
@@ -113,7 +112,7 @@ pub mod pallet {
 
 		// Force push a from-pallet message.
 		#[pallet::call_index(2)]
-		#[pallet::weight(Weight::from_ref_time(10_000u64) + T::DbWeight::get().writes(1u64))]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
 		pub fn force_push_pallet_message(
 			origin: OriginFor<T>,
 			destination: Vec<u8>,

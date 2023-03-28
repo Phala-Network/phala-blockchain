@@ -11,17 +11,30 @@ const { program } = require('commander');
 const bn1e12 = new BN(10).pow(new BN(12));
 const bn0 = new BN(0);
 
+const Logger = {
+    info(...args) {
+        const t = new Date().toLocaleString();
+        process.stdout.write(`[${t}] `);
+        console.info(...args);
+    },
+    warn(...args) {
+        const t = new Date().toLocaleString();
+        process.stderr.write(`[${t}] `);
+        console.warn(...args);
+    }
+};
+
 program
     .option('--floor <amount>', 'floor price.', '1000')
-    .option('--roof <amount>', 'roof price', '8000')
+    .option('--ceil <amount>', 'ceil price', '8000')
     .option('--margin <amount>', 'margin to the other bidder', '10')
     .option('--interval <ms>', 'bidding interval in ms', '6000')
     .option('--funding <account>', 'funding account', 'GFLdqBZKfPfbpbVB8rAc8tqqWSKpKHskkGHPGAgQ4atRkJ7')
-    .option('--auction-id <id>', 'auction id to bid', '32')
-    .option('--first-period <period>', 'first lease period to bid', '21')
-    .option('--last-period <period>', 'last lease period to bid', '28')
-    .option('--para-id <para-id>', 'para id', '2111')
-    // .argument('<orig-spec>', 'The original chain spec to modify.')
+    .option('--auction-id <id>', 'auction id to bid', '73')
+    .option('--first-period <period>', 'first lease period to bid', '28')
+    .option('--last-period <period>', 'last lease period to bid', '35')
+    .option('--para-id <para-id>', 'para id', '2264')
+    .option('--dry-run', 'dry run')
     .action(() =>
         main()
             .then(process.exit)
@@ -31,7 +44,7 @@ program
     .parse(process.argv);
 
 function logWinner(paraId, amount) {
-    console.log(`Winner: ${paraId} ${amount.toString()}`);
+    Logger.info(`Winner: ${paraId} ${amount.toString()}`);
 }
 
 async function sleep(t) {
@@ -43,16 +56,17 @@ async function sleep(t) {
 async function main() {
     const opts = program.opts();
     const fundingAccount = opts.funding;
-    const [floor, roof, margin, intervalMs, paraId, auctionId, firstPeriod, lastPeriod] = [
-        opts.floor, opts.roof, opts.margin, opts.interval, opts.paraId,
+    const [floor, ceil, margin, intervalMs, paraId, auctionId, firstPeriod, lastPeriod] = [
+        opts.floor, opts.ceil, opts.margin, opts.interval, opts.paraId,
         opts.auctionId, opts.firstPeriod, opts.lastPeriod
     ].map(x => parseInt(x));
-    const [floorBn, roofBn, marginBn] = [floor, roof, margin].map(x => new BN(x).mul(bn1e12));
+    const { dryRun } = opts;
+    const [floorBn, ceilBn, marginBn] = [floor, ceil, margin].map(x => new BN(x).mul(bn1e12));
     const privkey = process.env.PRIVKEY || '//Alice';
 
-    console.log('Options', {
+    Logger.info('Options', {
         fundingAccount,
-        floor, roof, margin, intervalMs, paraId, auctionId, firstPeriod, lastPeriod,
+        floor, ceil, margin, intervalMs, paraId, auctionId, firstPeriod, lastPeriod, dryRun,
     });
 
     const wsProvider = new WsProvider('wss://kusama-rpc.polkadot.io');
@@ -69,23 +83,22 @@ async function main() {
 
     const currentAuction = (await api.query.auctions.auctionCounter()).toNumber();
     if (currentAuction != auctionId) {
-        console.log(`Not the current auction: ${auctionId} != ${currentAuction}`);
+        Logger.info(`Not the current auction: ${auctionId} != ${currentAuction}`);
     }
 
-    console.log('Constants', {endingPeriod, sampleLength});
+    Logger.info('Constants', {endingPeriod, sampleLength});
 
     while (true) {
-        console.log(new Date())
         const header = await api.rpc.chain.getHeader();
         const blocknum = header.number.toNumber();
-        console.log(blocknum);
+        Logger.info(blocknum);
 
         let elapsed = blocknum - endingPeriodStart;
         if (elapsed < 0) {
-            console.warn('Auction not started');
+            Logger.warn('Auction not started');
             elapsed = 0;
         } else if (elapsed > endingPeriod) {
-            console.warn('Auction ended');
+            Logger.warn('Auction ended');
             process.exit();
         }
 
@@ -105,43 +118,40 @@ async function main() {
             logWinner(winningParaId, winningAmount);
 
             if (winningParaId == paraId) {
-                console.log('We are winning');
+                Logger.info('We are winning');
             } else {
                 const price = BN.max(
                     BN.min(
                         winningAmount.add(marginBn),
-                        roofBn
+                        ceilBn
                     ),
                     floorBn
                 );
-                console.log(`Bidding at ${price.toString()}`);
-
-                if (price.lt(winningAmount)) {
-                    console.warn('Price too high. Given up.');
-                    return;
-                }
-
-                // const h = await api.tx.proxy.proxy(
-                //     fundingAccount,
-                //     null,
-                //     api.tx.auctions.bid(
-                //         paraId,
-                //         auctionId,
-                //         firstPeriod,
-                //         lastPeriod,
-                //         price,
-                //     )
-                // ).signAndSend(pair, {nonce: -1});
-
-                const h = await api.tx.auctions.bid(
+                Logger.info(`Bidding at ${price.toString()}`, {
                     paraId,
                     auctionId,
                     firstPeriod,
                     lastPeriod,
-                    price,
-                ).signAndSend(pair, {nonce: -1});
+                    price: price.toString(),
+                });
 
-                console.log('Bid sent at block', blocknum, h);
+                if (price.lt(winningAmount)) {
+                    warn('Price too high. Given up.');
+                    return;
+                }
+
+                if (!dryRun) {
+                    const h = await api.tx.auctions.bid(
+                        paraId,
+                        auctionId,
+                        firstPeriod,
+                        lastPeriod,
+                        price,
+                    ).signAndSend(pair, {nonce: -1});
+                    Logger.info('Bid sent at block', blocknum, h);
+                } else {
+                    Logger.info('(Dry-Run) Bid sent at block', blocknum);
+                }
             }
         }
 

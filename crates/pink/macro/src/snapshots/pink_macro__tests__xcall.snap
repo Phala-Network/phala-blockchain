@@ -53,7 +53,7 @@ impl<T: Impl> ECallsRo for T {
         Decode::decode(&mut &ret[..]).expect("Decode failed")
     }
 }
-pub fn executing_dispatch(
+pub fn dispatch(
     executor: &mut (impl Executing + ?Sized),
     srv: &mut (impl ECalls + ?Sized),
     id: u32,

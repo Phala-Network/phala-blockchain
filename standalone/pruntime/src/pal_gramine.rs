@@ -172,3 +172,19 @@ pub(crate) fn is_gramine() -> bool {
     }
     *IS_GRAMINE
 }
+
+pub(crate) fn print_target_info() {
+    use hex_fmt::HexFmt;
+    if is_gramine() {
+        println!("Running in Gramine-SGX");
+        let target_info = sgx_api_lite::target_info().expect("Failed to get target info");
+        let report =
+            sgx_api_lite::report(&target_info, &[0; 64]).expect("Failed to get sgx report");
+        println!("mr_enclave  : 0x{}", HexFmt(&report.body.mr_enclave.m));
+        println!("mr_signer   : 0x{}", HexFmt(&report.body.mr_signer.m));
+        println!("isv_svn     : 0x{:?}", HexFmt(report.body.isv_svn.to_ne_bytes()));
+        println!("isv_prod_id : 0x{:?}", HexFmt(report.body.isv_prod_id.to_ne_bytes()));
+    } else {
+        println!("Running in Native mode");
+    }
+}
