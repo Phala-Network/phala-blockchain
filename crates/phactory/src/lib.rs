@@ -253,10 +253,6 @@ pub struct Phactory<Platform> {
     trusted_sk: bool,
 
     #[serde(skip)]
-    #[serde(default = "Instant::now")]
-    uptime: Instant,
-
-    #[serde(skip)]
     pub(crate) rcu_dispatching: bool,
 
     #[serde(skip)]
@@ -294,7 +290,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
-            uptime: Instant::now(),
             rcu_dispatching: false,
             pending_effects: Vec::new(),
             started_at: Instant::now(),
