@@ -3554,6 +3554,7 @@ dependencies = [
  "base64",
  "derive_more",
  "frame-system",
+ "im",
  "log",
  "parity-scale-codec",
  "phala-crypto",
@@ -3608,6 +3609,7 @@ dependencies = [
  "derive_more",
  "environmental",
  "hex",
+ "im",
  "log",
  "parity-scale-codec",
  "phala-serde-more",
@@ -3615,6 +3617,7 @@ dependencies = [
  "serde",
  "sp-core",
  "spin 0.9.4",
+ "tracing",
 ]
 
 [[package]]
