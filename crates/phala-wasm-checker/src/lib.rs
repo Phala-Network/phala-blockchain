@@ -4,21 +4,13 @@ use wasmparser::{Parser, Payload};
 
 mod error;
 
+#[derive(Default)]
 pub struct WasmInfo {
     pub num_instructions: u32,
     pub num_functions: u32,
     pub const_data_size: usize,
 }
 
-impl WasmInfo {
-    pub fn new() -> Self {
-        WasmInfo {
-            num_instructions: 0,
-            num_functions: 0,
-            const_data_size: 0,
-        }
-    }
-}
 
 impl WasmInfo {
     pub fn estimate_wasmi_memory_cost(&self) -> usize {
@@ -29,7 +21,7 @@ impl WasmInfo {
 
 pub fn wasm_info(data: &[u8]) -> Result<WasmInfo, ParseError> {
     let parser = Parser::new(0);
-    let mut stats = WasmInfo::new();
+    let mut stats = WasmInfo::default();
 
     for payload in parser.parse_all(data) {
         match payload? {
