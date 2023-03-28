@@ -498,11 +498,11 @@ describe('A full stack', function () {
         it('can upload system code', async function () {
             const systemCode = systemMetadata.source.wasm;
             await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
+                api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                let code = await api.query.phalaFatContracts.pinkSystemCode();
+                let code = await api.query.phalaPhatContracts.pinkSystemCode();
                 return code[1] == systemCode;
             }, 4 * 6000), 'upload system code failed');
         });
@@ -513,7 +513,7 @@ describe('A full stack', function () {
             const runtime1 = await pruntime[1].getInfo();
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaFatContracts.addCluster(
+                    api.tx.phalaPhatContracts.addCluster(
                         alice.address,
                         perm,
                         [hex(runtime0.system.publicKey), hex(runtime1.system.publicKey)],
@@ -523,7 +523,7 @@ describe('A full stack', function () {
             );
 
             assert.isTrue(await checkUntil(async () => {
-                const clusters = await api.query.phalaFatContracts.clusters.entries();
+                const clusters = await api.query.phalaPhatContracts.clusters.entries();
                 clusterId = clusters[0][0].args[0].toString();
                 return clusters.length == 1;
             }, 4 * 6000), 'cluster creation failed');
@@ -533,10 +533,10 @@ describe('A full stack', function () {
                 return info.system.numberOfClusters == 1;
             }, 4 * 6000), 'cluster creation in pruntime failed');
 
-            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            const clusterInfo = await api.query.phalaPhatContracts.clusters(clusterId);
             const { systemContract } = clusterInfo.unwrap();
             assert.isTrue(await checkUntil(async () => {
-                const contractInfo = await api.query.phalaFatContracts.contracts(systemContract.toHex());
+                const contractInfo = await api.query.phalaPhatContracts.contracts(systemContract.toHex());
                 return contractInfo.isSome;
             }, 4 * 6000), 'system contract instantiation failed');
             ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
@@ -551,7 +551,7 @@ describe('A full stack', function () {
 
         it('can deploy cluster to multiple workers', async function () {
             assert.isTrue(await checkUntil(async () => {
-                const clusterWorkers = await api.query.phalaFatContracts.clusterWorkers(clusterId);
+                const clusterWorkers = await api.query.phalaPhatContracts.clusterWorkers(clusterId);
                 return clusterWorkers.length == 2;
             }, 4 * 6000), 'cluster not deployed');
         });
@@ -561,7 +561,7 @@ describe('A full stack', function () {
             const codeHash = hex(contract.hash);
 
             await assert.txAccepted(
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
+                api.tx.phalaPhatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
                 alice,
             );
 
@@ -571,7 +571,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'Upload system checker code failed');
 
             await assert.txFailed(
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
+                api.tx.phalaPhatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
                 bob,
             )
         });
@@ -579,17 +579,17 @@ describe('A full stack', function () {
         it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
+                api.tx.phalaPhatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
                 alice,
             );
             assertEvents(events, [
                 ['balances', 'Withdraw'],
-                ['phalaFatContracts', 'Instantiating']
+                ['phalaPhatContracts', 'Instantiating']
             ]);
 
             const { event } = events[1];
             let contractId = hex(event.toJSON().data[0]);
-            let contractInfo = await api.query.phalaFatContracts.contracts(contractId);
+            let contractInfo = await api.query.phalaPhatContracts.contracts(contractId);
             assert.isTrue(contractInfo.isSome, 'no contract info');
 
             assert.isTrue(await checkUntil(async () => {
@@ -598,7 +598,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'contract key generation failed');
 
             assert.isTrue(await checkUntil(async () => {
-                let clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
+                let clusterContracts = await api.query.phalaPhatContracts.clusterContracts(clusterId);
                 // A system contract and the user deployed one.
                 return clusterContracts.length == 2;
             }, 4 * 6000), 'instantiation failed');
@@ -609,7 +609,7 @@ describe('A full stack', function () {
         it('can not set hook without admin permission', async function () {
             // Give some money to the ContractSystemChecker to run the on_block_end
             await assert.txAccepted(
-                api.tx.phalaFatContracts.transferToCluster(CENTS * 1000, clusterId, ContractSystemChecker.address),
+                api.tx.phalaPhatContracts.transferToCluster(CENTS * 1000, clusterId, ContractSystemChecker.address),
                 alice,
             );
             await assert.txAccepted(
@@ -641,7 +641,7 @@ describe('A full stack', function () {
             const code = quickjsMetadata.source.wasm;
             const codeHash = quickjsMetadata.source.hash;
             await assert.txAccepted(
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
+                api.tx.phalaPhatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -676,7 +676,7 @@ describe('A full stack', function () {
             const code = indeterminMetadata.source.wasm;
             const codeHash = indeterminMetadata.source.hash;
             await assert.txAccepted(
-                api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
+                api.tx.phalaPhatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -699,7 +699,7 @@ describe('A full stack', function () {
             );
             const weight = 10;
             await assert.txAccepted(
-                api.tx.phalaFatTokenomic.adjustStake(ContractSystemChecker.address, weight * CENTS),
+                api.tx.phalaPhatTokenomic.adjustStake(ContractSystemChecker.address, weight * CENTS),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
@@ -738,7 +738,7 @@ describe('A full stack', function () {
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
+                api.tx.phalaPhatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId, 0, "10000000000000", null, 0),
                 alice,
             );
         });
@@ -746,11 +746,11 @@ describe('A full stack', function () {
         it('can upload the second system contract', async function () {
             const systemCode = system2Metadata.source.wasm;
             await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaFatContracts.setPinkSystemCode(systemCode)),
+                api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                let code = await api.query.phalaFatContracts.pinkSystemCode();
+                let code = await api.query.phalaPhatContracts.pinkSystemCode();
                 return code[1] == systemCode;
             }, 4 * 6000), 'upload system code failed');
         });
@@ -769,7 +769,7 @@ describe('A full stack', function () {
 
         it('can destory cluster', async function () {
             await assert.txAccepted(
-                api.tx.sudo.sudo(api.tx.phalaFatContracts.clusterDestroy(clusterId)),
+                api.tx.sudo.sudo(api.tx.phalaPhatContracts.clusterDestroy(clusterId)),
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {

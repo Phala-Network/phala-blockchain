@@ -120,7 +120,7 @@ pub(crate) enum SidevmCode {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct FatContract {
+pub struct Contract {
     send_mq: SignedMessageChannel,
     cmd_rcv_mq: SecretReceiver<RawData>,
     #[serde(with = "crate::secret_channel::ecdh_serde")]
@@ -139,7 +139,7 @@ struct OnBlockEnd {
     gas_limit: u64,
 }
 
-impl FatContract {
+impl Contract {
     pub(crate) fn new(
         send_mq: SignedMessageChannel,
         cmd_rcv_mq: SecretReceiver<RawData>,
@@ -148,7 +148,7 @@ impl FatContract {
         address: AccountId,
         code_hash: Option<H256>,
     ) -> Self {
-        FatContract {
+        Contract {
             send_mq,
             cmd_rcv_mq,
             ecdh_key,

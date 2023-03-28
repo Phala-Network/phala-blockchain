@@ -5,7 +5,7 @@ edition = "2021"
 description = "Useful utilities for pink"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
-keywords = ["fat-contract", "pink", "ink"]
+keywords = ["phat-contract", "pink", "ink"]
 
 [dependencies]
 ink = { version = "4", default-features = false }

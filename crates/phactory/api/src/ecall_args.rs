@@ -31,7 +31,7 @@ pub struct InitArgs {
     /// Max number of checkpoint files kept
     pub max_checkpoint_files: u32,
 
-    /// Number of cores used to run fat contracts
+    /// Number of cores used to run phat contracts
     pub cores: u32,
 
     /// The public rpc port with acl enabled

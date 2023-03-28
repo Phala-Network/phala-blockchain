@@ -1,4 +1,4 @@
-//! The Fat Contract registry
+//! The Phat Contract registry
 
 pub use self::pallet::*;
 

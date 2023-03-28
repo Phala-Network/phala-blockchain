@@ -1,9 +1,9 @@
 [package]
-description = "Macros for writing fat contract sidevm program"
+description = "Macros for writing phat contract sidevm program"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 edition = "2021"
-keywords = ["fat-contract", "pink", "ink", "sidevm"]
+keywords = ["phat-contract", "pink", "ink", "sidevm"]
 name = "sidevm-macro"
 version = "0.1.1"
 

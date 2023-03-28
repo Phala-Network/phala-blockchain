@@ -2,9 +2,9 @@
 name = "pink-extension"
 version = "0.4.1"
 edition = "2018"
-description = "Phala's ink! for writing fat contracts"
+description = "Phala's ink! for writing phat contracts"
 license = "Apache-2.0"
-keywords = ["fat-contract", "pink", "ink"]
+keywords = ["phat-contract", "pink", "ink"]
 
 [dependencies]
 ink = { version = "4.0.1", default-features = false, features = ["ink-debug"] }

@@ -2,7 +2,7 @@ use core::fmt::Debug;
 use parity_scale_codec::Decode;
 use phala_mq::{AccountId, BindTopic, Message};
 use phala_pallets::{
-    pallet_fat::{ClusterRegistryEvent, ContractRegistryEvent},
+    pallet_phat::{ClusterRegistryEvent, ContractRegistryEvent},
     pallet_registry::{GatekeeperRegistryEvent, RegistryEvent},
 };
 use phala_types::{

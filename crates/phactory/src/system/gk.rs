@@ -1,5 +1,5 @@
 use super::{RotatedMasterKey, TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_fat::ClusterRegistryEvent;
+use chain::pallet_phat::ClusterRegistryEvent;
 use chain::pallet_registry::GatekeeperRegistryEvent;
 use phala_crypto::{
     aead, key_share,

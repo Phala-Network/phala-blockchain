@@ -97,7 +97,7 @@ impl ink::env::chain_extension::FromStatusCode for ErrorCode {
     }
 }
 
-/// Extensions for the ink runtime defined by fat contract.
+/// Extensions for the ink runtime defined by phat contract.
 #[pink_extension_macro::chain_extension]
 pub trait PinkExt {
     type ErrorCode = ErrorCode;

@@ -106,7 +106,7 @@ use sp_runtime::generic::Era;
 mod voter_bags;
 
 pub use phala_pallets::{
-    pallet_base_pool, pallet_computation, pallet_fat, pallet_fat_tokenomic, pallet_mq,
+    pallet_base_pool, pallet_computation, pallet_phat, pallet_phat_tokenomic, pallet_mq,
     pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
     puppets,
 };
@@ -1405,7 +1405,7 @@ impl pallet_rmrk_core::Config for Runtime {
     #[cfg(feature = "runtime-benchmarks")]
     type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
-impl pallet_fat::Config for Runtime {
+impl pallet_phat::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 * 2 }>;
     type SidevmCodeSizeLimit = ConstU32<{ 1024 * 1024 * 8 }>;
@@ -1479,7 +1479,7 @@ impl pallet_assets::Config for Runtime {
     type BenchmarkHelper = ();
 }
 
-impl pallet_fat_tokenomic::Config for Runtime {
+impl pallet_phat_tokenomic::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
 }
@@ -1557,8 +1557,8 @@ construct_runtime!(
         PhalaVault: pallet_vault,
         PhalaWrappedBalances: pallet_wrapped_balances,
         PhalaBasePool: pallet_base_pool,
-        PhalaFatContracts: pallet_fat,
-        PhalaFatTokenomic: pallet_fat_tokenomic,
+        PhalaPhatContracts: pallet_phat,
+        PhalaPhatTokenomic: pallet_phat_tokenomic,
 
         // Rollup and Oracles
         PhatRollupAnchor: pallet_anchor = 100,

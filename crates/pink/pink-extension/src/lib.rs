@@ -244,7 +244,7 @@ pub fn upgrade_runtime(version: (u32, u32)) {
     emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeRuntimeTo { version });
 }
 
-/// Pink defined environment. Used this environment to access the fat contract runtime features.
+/// Pink defined environment. Used this environment to access the phat contract runtime features.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEnvironment {}
