@@ -100,7 +100,7 @@ enum SerMessage {
     TooLarge,
     #[serde(rename_all = "camelCase")]
     QueryIn {
-        user: HexSer<[u8; 16]>,
+        user: HexSer<[u8; 8]>,
     },
 }
 

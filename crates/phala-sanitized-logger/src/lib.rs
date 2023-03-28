@@ -9,6 +9,16 @@ mod test;
 mod logger;
 mod subscriber;
 
+fn get_env<T>(name: &str, default: T) -> T
+where
+    T: std::str::FromStr,
+{
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
 fn target_allowed(target: &str) -> bool {
     use MatchMode::*;
     enum MatchMode {

@@ -3,6 +3,7 @@ use super::*;
 struct SanitizedLogger(Logger);
 
 pub fn init_env_logger(sanitized: bool) {
+    let sanitized = crate::get_env("RUST_LOG_SANITIZED", sanitized);
     let env = env_logger::Env::default().default_filter_or("info");
     let mut builder = env_logger::Builder::from_env(env);
     builder.format_timestamp_micros();

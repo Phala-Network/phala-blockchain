@@ -7,11 +7,12 @@ license = "Apache-2.0"
 keywords = ["phat-contract", "pink", "ink"]
 
 [dependencies]
-ink = { version = "4", default-features = false, features = ["ink-debug"] }
-scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
-scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
+ink = { version = "4.0.1", default-features = false, features = ["ink-debug"] }
+scale = { package = "parity-scale-codec", version = "3.3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.3", default-features = false, features = ["derive"], optional = true }
 pink-extension-macro = { version = "0.4.0", path = "./macro" }
 log = "0.4.17"
+dlmalloc = { version = "0.2.4", default-features = false, features = ["global"], optional = true }
 
 [dev-dependencies]
 insta = "1.7.2"
@@ -24,4 +25,5 @@ std = [
     "scale-info/std",
 ]
 runtime_utils = ["std"]
+dlmalloc = ["ink/no-allocator", "dep:dlmalloc"]
 ink-as-dependency = []
