@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use scale_info::TypeInfo;
-pub use sp_finality_grandpa::{AuthorityList, SetId};
+pub use sp_consensus_grandpa::{AuthorityList, SetId};
 
 pub use phala_trie_storage::ser::StorageChanges;
 use sp_core::U256;

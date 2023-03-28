@@ -558,12 +558,18 @@ describe('A full stack', function () {
 
         it('can upload code with access control', async function () {
             const code = hex(contract.wasm);
-            // For now, there is no way to check whether code is uploaded in script
-            // since this requires monitering the async CodeUploaded event
+            const codeHash = hex(contract.hash);
+
             await assert.txAccepted(
                 api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
                 alice,
             );
+
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystem.query['system::codeExists'](certAlice, {}, codeHash, 'Ink');
+                return output?.eq({ Ok: true })
+            }, 4 * 6000), 'Upload system checker code failed');
+
             await assert.txFailed(
                 api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'InkCode', hex(code)),
                 bob,
@@ -638,6 +644,10 @@ describe('A full stack', function () {
                 api.tx.phalaFatContracts.clusterUploadResource(clusterId, 'IndeterministicInkCode', hex(code)),
                 alice,
             );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystem.query['system::codeExists'](certAlice, {}, codeHash, 'Ink');
+                return output?.eq({ Ok: true })
+            }, 4 * 6000), 'Upload qjs code failed');
             {
                 // args works
                 const jsCode = `
@@ -646,11 +656,9 @@ describe('A full stack', function () {
                     return scriptArgs[0];
                 })()
                 `;
-                assert.isTrue(await checkUntil(async () => {
-                    const arg0 = "Powered by QuickJS in ink!";
-                    const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, [arg0]);
-                    return output?.eq({ Ok: { Ok: { String: arg0 } } });
-                }, 4 * 6000), 'Failed to evaluate js in contract');
+                const arg0 = "Powered by QuickJS in ink!";
+                const { output } = await ContractSystemChecker.query.evalJs(certAlice, {}, codeHash, jsCode, [arg0]);
+                assert.isTrue(output?.eq({ Ok: { Ok: { String: arg0 } } }));
             }
 
             {
@@ -672,9 +680,11 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.parseUsd(certAlice, {}, codeHash, '{"usd":1.23}');
-                return output?.asOk.unwrap()?.usd.eq(123);
-            }, 4 * 6000), 'Failed to parse json in contract');
+                const { output } = await ContractSystem.query['system::codeExists'](certAlice, {}, codeHash, 'Ink');
+                return output?.eq({ Ok: true })
+            }, 4 * 6000), 'Upload test contract code failed');
+            const { output } = await ContractSystemChecker.query.parseUsd(certAlice, {}, codeHash, '{"usd":1.23}');
+            assert.isTrue(output?.asOk.unwrap()?.usd.eq(123));
         });
 
         it('tokenomic driver works', async function () {

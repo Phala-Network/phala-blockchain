@@ -4,7 +4,7 @@ name = "sidevm-host-runtime"
 version = "0.1.0"
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.69"
 dashmap = "5.2.0"
 futures = "0.3"
 hex_fmt = "0.3.0"
@@ -27,7 +27,7 @@ serde = { version = "1.0", features = ["derive"] }
 rand = "0.8.5"
 thiserror = "1"
 libc = "0.2"
-scale = { version = "3.1", package = "parity-scale-codec" }
+scale = { version = "3.3", package = "parity-scale-codec" }
 tokio-rustls = "0.23"
 rustls-pemfile = "1"
 webpki-roots = "0.22"

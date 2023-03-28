@@ -15,7 +15,7 @@ use frame_support::{
 	},
 };
 use frame_support_test::TestRandomness;
-use frame_system as system;
+use frame_system::{self as system, EnsureRoot, EnsureSigned, EnsureSignedBy};
 use phala_types::messaging::Message;
 use sp_core::H256;
 use sp_runtime::{
@@ -23,7 +23,6 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 };
 
-use frame_system::EnsureRoot;
 pub(crate) type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -111,7 +110,7 @@ impl pallet_scheduler::Config for Test {
 	type PalletsOrigin = OriginCaller;
 	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = ();
-	type ScheduleOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ScheduleOrigin = EnsureRoot<Self::AccountId>;
 	type MaxScheduledPerBlock = ();
 	type WeightInfo = ();
 	type OriginPrivilegeCmp = EqualPrivilegeOnly;
@@ -174,7 +173,7 @@ impl registry::Config for Test {
 	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
-	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type GovernanceOrigin = EnsureRoot<Self::AccountId>;
 	type ParachainId = ConstU32<0>;
 }
 
@@ -194,7 +193,7 @@ impl pallet_uniques::Config for Test {
 	type ItemId = u32;
 	type Currency = Balances;
 	type ForceOrigin = EnsureRoot<Self::AccountId>;
-	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<Self::AccountId>>;
+	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<Self::AccountId>>;
 	type Locker = pallet_rmrk_core::Pallet<Test>;
 	type CollectionDeposit = CollectionDeposit;
 	type ItemDeposit = ItemDeposit;
@@ -241,7 +240,7 @@ impl computation::Config for Test {
 	type OnUnbound = PhalaStakePoolv2;
 	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
-	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type UpdateTokenomicOrigin = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {
@@ -301,27 +300,27 @@ impl pallet_democracy::Config for Test {
 	type VoteLockingPeriod = EnactmentPeriod; // Same as EnactmentPeriod
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ExternalOrigin = EnsureRoot<Self::AccountId>;
 	/// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ExternalMajorityOrigin = EnsureRoot<Self::AccountId>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ExternalDefaultOrigin = EnsureRoot<Self::AccountId>;
 	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type InstantOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type FastTrackOrigin = EnsureRoot<Self::AccountId>;
+	type InstantOrigin = EnsureRoot<Self::AccountId>;
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type CancellationOrigin = EnsureRoot<Self::AccountId>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
-	type CancelProposalOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type BlacklistOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type CancelProposalOrigin = EnsureRoot<Self::AccountId>;
+	type BlacklistOrigin = EnsureRoot<Self::AccountId>;
 	// Any single technical committee member may veto a coming council proposal, however they can
 	// only do it once and it lasts only for the cooloff period.
-	type VetoOrigin = frame_system::EnsureSignedBy<OneToFive, u64>;
+	type VetoOrigin = EnsureSignedBy<OneToFive, u64>;
 	type CooloffPeriod = CooloffPeriod;
 	type Slash = ();
 	type Scheduler = Scheduler;
@@ -332,6 +331,7 @@ impl pallet_democracy::Config for Test {
 	type Preimages = Preimage;
 	type MaxDeposits = ConstU32<100>;
 	type MaxBlacklisted = ConstU32<100>;
+	type SubmitOrigin = EnsureSigned<Self::AccountId>;
 }
 
 parameter_types! {
@@ -348,7 +348,7 @@ impl pallet_assets::Config for Test {
 	type AssetId = u32;
 	type AssetIdParameter = codec::Compact<u32>;
 	type Currency = Balances;
-	type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ForceOrigin = EnsureRoot<Self::AccountId>;
 	type AssetDeposit = AssetDeposit;
 	type AssetAccountDeposit = ConstU128<10>;
 	type MetadataDepositBase = MetadataDepositBase;
@@ -362,7 +362,7 @@ impl pallet_assets::Config for Test {
 	type RemoveItemsLimit = ConstU32<1000>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = ();
-	type CreateOrigin = AsEnsureOriginWithArg<frame_system::EnsureSigned<Self::AccountId>>;
+	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<Self::AccountId>>;
 }
 
 impl stake_pool_v2::Config for Test {
@@ -371,7 +371,7 @@ impl stake_pool_v2::Config for Test {
 	type GracePeriod = WorkingGracePeriod;
 	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type ComputingSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type ComputingSwitchOrigin = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {

@@ -20,7 +20,7 @@ use pink::{
 };
 use serde::{Deserialize, Serialize};
 use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
-use sp_core::{blake2_128, sr25519};
+use sp_core::{blake2_256, sr25519, twox_64};
 
 use ::pink::{
     capi::v1,
@@ -74,6 +74,7 @@ pub enum QueryError {
 pub struct ClusterConfig {
     pub log_handler: Option<AccountId>,
     pub runtime_version: (u32, u32),
+    pub secret_salt: [u8; 32],
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -419,16 +420,19 @@ impl Cluster {
         cluster_key: &sr25519::Pair,
         runtime_version: (u32, u32),
     ) -> Self {
+        let secret_key = cluster_key.dump_secret_key();
+        let secret_salt = blake2_256(&secret_key);
         let mut cluster = Cluster {
             id: *id,
             storage: Default::default(),
             config: ClusterConfig {
                 runtime_version,
+                secret_salt,
                 ..Default::default()
             },
         };
         let mut runtime = cluster.default_runtime_mut();
-        runtime.set_key(cluster_key.dump_secret_key());
+        runtime.set_key(secret_key);
         cluster
     }
 
@@ -526,7 +530,7 @@ impl Cluster {
                     .or(Err(QueryError::ServiceUnavailable))?;
 
                 if let Some(logger) = &context.log_handler {
-                    let fp = blake2_128(&(b"phat query finger print", &origin).encode());
+                    let fp = twox_64(&(&origin, &self.config.secret_salt).encode());
                     if let Err(_err) = logger.try_send(SidevmCommand::PushSystemMessage(
                         SystemMessage::Metric(Metric::PinkQueryIn(fp)),
                     )) {
