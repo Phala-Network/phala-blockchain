@@ -1182,7 +1182,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
 
     async fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
-        self.lock_phactory(false)?
+        self.lock_phactory(true)?
             .get_egress_messages()
             .map(pb::GetEgressMessagesResponse::new)
     }
