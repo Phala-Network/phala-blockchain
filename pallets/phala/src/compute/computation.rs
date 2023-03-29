@@ -207,6 +207,7 @@ pub mod pallet {
 		/// The origin to update tokenomic.
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		type SetBudgetOrigins: EnsureOrigin<Self::RuntimeOrigin>;
+		type SetContractRootOrigins: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -597,6 +598,17 @@ pub mod pallet {
 			tokenomic.budget_per_block = budget;
 			Self::update_tokenomic_parameters(tokenomic);
 			Self::deposit_event(Event::<T>::BudgetUpdated { nonce, budget });
+			Ok(())
+		}
+
+		#[pallet::call_index(8)]
+		#[pallet::weight(1)]
+		pub fn update_contract_root(
+			origin: OriginFor<T>,
+			account_id: AccountId32,
+		) -> DispatchResult {
+			T::SetContractRootOrigins::ensure_origin(origin)?;
+			ContractAccount::<T>::put(account_id);
 			Ok(())
 		}
 	}

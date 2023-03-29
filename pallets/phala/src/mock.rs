@@ -253,6 +253,7 @@ impl computation::Config for Test {
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, Self::AccountId>;
+	type SetContractRootOrigins = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {

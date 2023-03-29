@@ -1357,6 +1357,7 @@ impl pallet_computation::Config for Runtime {
     type OnTreasurySettled = Treasury;
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
     type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, AccountId>;
+    type SetContractRootOrigins = EnsureRootOrHalfCouncil;
 }
 impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
