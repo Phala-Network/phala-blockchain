@@ -8009,6 +8009,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-wasm-checker"
+version = "0.1.0"
+dependencies = [
+ "wasmparser 0.102.0",
+]
+
+[[package]]
 name = "phat-offchain-rollup"
 version = "0.1.0"
 dependencies = [
@@ -8195,6 +8202,7 @@ dependencies = [
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
+ "phala-wasm-checker",
  "pink-capi",
  "pink-extension",
  "pink-extension-runtime",
@@ -14480,6 +14488,16 @@ name = "wasmparser"
 version = "0.100.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64b20236ab624147dfbb62cf12a19aaf66af0e41b8398838b66e997d07d269d4"
+dependencies = [
+ "indexmap",
+ "url",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.102.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48134de3d7598219ab9eaf6b91b15d8e50d31da76b8519fe4ecfcec2cf35104b"
 dependencies = [
  "indexmap",
  "url",

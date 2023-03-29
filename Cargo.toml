@@ -62,6 +62,7 @@ members = [
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
 	"crates/phala-sanitized-logger",
+	"crates/phala-wasm-checker",
 	"crates/wasmer-tunables",
 	"crates/phala-rocket-middleware",
 	"crates/pink/runner",

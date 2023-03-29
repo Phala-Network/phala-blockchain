@@ -106,16 +106,16 @@ impl pallet_timestamp::Config for PinkRuntime {
 // Workaround for the test failure in runtime_integrity_tests
 // https://github.com/paritytech/substrate/pull/12993/files#diff-67684005af418e25ff88c2ae5b520f0c040371f1d817e03a3652e76b9485224aR1217
 #[cfg(test)]
-const MAX_CODE_NAME: u32 = 64 * 1024;
+const MAX_CODE_LEN: u32 = 64 * 1024;
 #[cfg(not(test))]
-const MAX_CODE_NAME: u32 = 2 * 1024 * 1024;
+const MAX_CODE_LEN: u32 = 2 * 1024 * 1024;
 
 parameter_types! {
     pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
     pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = Weight::from_parts(500_000_000_000, 0);
-    pub const MaxCodeLen: u32 = MAX_CODE_NAME;
+    pub const MaxCodeLen: u32 = MAX_CODE_LEN;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;
 

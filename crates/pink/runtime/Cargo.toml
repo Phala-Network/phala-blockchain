@@ -60,6 +60,7 @@ hash-db = "0.16.0"
 anyhow = "1"
 phala-git-revision = { path = "../../phala-git-revision" }
 subxt = { path = "../../../subxt/subxt" }
+phala-wasm-checker = { path = "../../phala-wasm-checker" }
 
 [dev-dependencies]
 insta = "1.7.2"
