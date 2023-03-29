@@ -37,7 +37,7 @@ use frame_support::{
     traits::{
         AsEnsureOriginWithArg, ConstU128, ConstU32, Currency, EitherOfDiverse, EqualPrivilegeOnly,
         Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        U128CurrencyToVote, WithdrawReasons, SortedMembers,
+        SortedMembers, U128CurrencyToVote, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -49,8 +49,7 @@ use frame_support::{
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureRoot,
-    EnsureSignedBy,
+    EnsureRoot, EnsureSignedBy,
 };
 pub use node_primitives::{
     AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
@@ -110,8 +109,8 @@ mod voter_bags;
 
 pub use phala_pallets::{
     pallet_base_pool, pallet_computation, pallet_fat, pallet_fat_tokenomic, pallet_mq,
-    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
-    puppets,
+    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault,
+    pallet_wrapped_balances, puppets,
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 
@@ -337,7 +336,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                 c,
                 RuntimeCall::Utility { .. }
                     | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::add_worker { .. })
-                    | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::remove_worker { .. })
+                    | RuntimeCall::PhalaStakePoolv2(
+                        pallet_stake_pool_v2::Call::remove_worker { .. }
+                    )
                     | RuntimeCall::PhalaStakePoolv2(
                         pallet_stake_pool_v2::Call::start_computing { .. }
                     )
@@ -1023,7 +1024,8 @@ impl pallet_treasury::Config for Runtime {
     type SpendFunds = Bounties;
     type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
     type MaxApprovals = MaxApprovals;
-    type SpendOrigin = frame_system::EnsureWithSuccess<EnsureRoot<AccountId>, AccountId, MaxBalance>;
+    type SpendOrigin =
+        frame_system::EnsureWithSuccess<EnsureRoot<AccountId>, AccountId, MaxBalance>;
 }
 
 parameter_types! {
@@ -1340,9 +1342,7 @@ pub struct SetBudgetMembers;
 
 impl SortedMembers<AccountId> for SetBudgetMembers {
     fn sorted_members() -> Vec<AccountId> {
-        let account1: [u8; 32] =
-            hex_literal::hex!("9e6399cd577e8ac536bdc017675f747b2d1893ad9cc8c69fd17eef73d4e6e51e");
-        [account1.into()].to_vec()
+        [pallet_computation::pallet::ContractAccount::<Runtime>::get()].to_vec()
     }
 }
 

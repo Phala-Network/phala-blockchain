@@ -13,8 +13,8 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			ConstBool, Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness,
-			StorageVersion, UnixTime, ConstU128,
+			ConstBool, ConstU128, Currency, ExistenceRequirement::KeepAlive, OnUnbalanced,
+			Randomness, StorageVersion, UnixTime,
 		},
 		PalletId,
 	};
@@ -31,7 +31,7 @@ pub mod pallet {
 	use sp_core::U256;
 	use sp_runtime::{
 		traits::{AccountIdConversion, Zero},
-		SaturatedConversion,
+		AccountId32, SaturatedConversion,
 	};
 	use sp_std::cmp;
 
@@ -241,13 +241,28 @@ pub mod pallet {
 	pub type HeartbeatPaused<T> = StorageValue<_, bool, ValueQuery, ConstBool<true>>;
 
 	#[pallet::storage]
-	pub type StandardBudgetPerBlock<T> = StorageValue<_, u128, ValueQuery, ConstU128<1729382256910270464000>>;
+	pub type MaxBudgetLimit<T> =
+		StorageValue<_, u128, ValueQuery, ConstU128<1729382256910270464000>>;
 
 	#[pallet::storage]
 	pub type BudgetUpdateNonce<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
 	pub type LastBugdetUpdateBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+
+	pub struct DefaultContractAccount;
+
+	impl Get<AccountId32> for DefaultContractAccount {
+		fn get() -> AccountId32 {
+			let account: [u8; 32] = hex_literal::hex!(
+				"9e6399cd577e8ac536bdc017675f747b2d1893ad9cc8c69fd17eef73d4e6e51e"
+			);
+			account.into()
+		}
+	}
+
+	#[pallet::storage]
+	pub type ContractAccount<T> = StorageValue<_, AccountId32, ValueQuery, DefaultContractAccount>;
 
 	/// The miner state.
 	///
@@ -296,7 +311,9 @@ pub mod pallet {
 		/// Cool down expiration changed (in sec).
 		///
 		/// Indicates a change in [`CoolDownPeriod`].
-		CoolDownExpirationChanged { period: u64 },
+		CoolDownExpirationChanged {
+			period: u64,
+		},
 		/// A worker starts computing.
 		///
 		/// Affected states:
@@ -314,7 +331,9 @@ pub mod pallet {
 		/// Affected states:
 		/// - the worker info at [`Sessions`] is updated with `WorkerCoolingDown` state
 		/// - [`OnlineWorkers`] is decremented
-		WorkerStopped { session: T::AccountId },
+		WorkerStopped {
+			session: T::AccountId,
+		},
 		/// Worker is reclaimed, with its slash settled.
 		WorkerReclaimed {
 			session: T::AccountId,
@@ -344,12 +363,16 @@ pub mod pallet {
 		///
 		/// Affected states:
 		/// - the worker info at [`Sessions`] is updated from `WorkerIdle` to `WorkerUnresponsive`
-		WorkerEnterUnresponsive { session: T::AccountId },
+		WorkerEnterUnresponsive {
+			session: T::AccountId,
+		},
 		/// Worker returns to responsive state.
 		///
 		/// Affected states:
 		/// - the worker info at [`Sessions`] is updated from `WorkerUnresponsive` to `WorkerIdle`
-		WorkerExitUnresponsive { session: T::AccountId },
+		WorkerExitUnresponsive {
+			session: T::AccountId,
+		},
 		/// Worker settled successfully.
 		///
 		/// It results in the v in [`Sessions`] being updated. It also indicates the downstream
@@ -361,7 +384,9 @@ pub mod pallet {
 			payout_bits: u128,
 		},
 		/// Some internal error happened when settling a worker's ledger.
-		InternalErrorWorkerSettleFailed { worker: WorkerPublicKey },
+		InternalErrorWorkerSettleFailed {
+			worker: WorkerPublicKey,
+		},
 		/// Block subsidy halved by 25%.
 		///
 		/// This event will be followed by a [`TokenomicParametersChanged`](#variant.TokenomicParametersChanged)
@@ -391,7 +416,7 @@ pub mod pallet {
 		BudgetUpdated {
 			nonce: u64,
 			budget: u128,
-		}
+		},
 	}
 
 	#[pallet::error]
@@ -547,33 +572,31 @@ pub mod pallet {
 		#[pallet::weight(1)]
 		#[frame_support::transactional]
 		pub fn set_budget_per_block(
-			origin: OriginFor<T>, 
-			nonce: u64, 
-			block_number: T::BlockNumber, 
+			origin: OriginFor<T>,
+			nonce: u64,
+			block_number: T::BlockNumber,
 			budget: u128,
 		) -> DispatchResult {
 			T::SetBudgetOrigins::ensure_origin(origin)?;
 			ensure!(
 				nonce > BudgetUpdateNonce::<T>::get(),
-				 Error::<T>::NonceIndexInvalid,
+				Error::<T>::NonceIndexInvalid,
 			);
 			ensure!(
 				block_number > LastBugdetUpdateBlock::<T>::get(),
 				Error::<T>::BudgetUpdateBlockInvalid,
 			);
 			ensure!(
-				budget <= StandardBudgetPerBlock::<T>::get(),
+				budget <= MaxBudgetLimit::<T>::get(),
 				Error::<T>::BudgetExceedMaxLimit,
 			);
+			let mut tokenomic = TokenomicParameters::<T>::get()
+				.ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
 			BudgetUpdateNonce::<T>::put(nonce);
 			LastBugdetUpdateBlock::<T>::put(block_number);
-			let mut tokenomic = TokenomicParameters::<T>::get().ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
 			tokenomic.budget_per_block = budget;
 			Self::update_tokenomic_parameters(tokenomic);
-			Self::deposit_event(Event::<T>::BudgetUpdated {
-				nonce,
-				budget,
-			});
+			Self::deposit_event(Event::<T>::BudgetUpdated { nonce, budget });
 			Ok(())
 		}
 	}

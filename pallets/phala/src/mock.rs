@@ -235,11 +235,11 @@ impl pallet_rmrk_core::Config for Test {
 pub struct SetBudgetMembers;
 
 impl SortedMembers<u64> for SetBudgetMembers {
-    fn sorted_members() -> Vec<u64> {
-        let account1: u64 = 1;
+	fn sorted_members() -> Vec<u64> {
+		let account1: u64 = 1;
 		let account2: u64 = 2;
-        [account1, account2].to_vec()
-    }
+		[account1, account2].to_vec()
+	}
 }
 
 impl computation::Config for Test {
