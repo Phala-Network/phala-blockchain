@@ -62,6 +62,7 @@ jobs:
           body: Nightly build
           files: |
             ./dist/pruntime-binaries/pruntime
+            ./dist/pruntime-binaries/libpink.so.*
             ./dist/core-blockchain-binaries/phala-node
             ./dist/core-blockchain-binaries/pherry
             ./dist/contract-binaries/system.contract
