@@ -104,13 +104,13 @@ export class OnChainRegistry {
 
   public async getClusters(clusterId?: string) {
     if (clusterId) {
-      const result = (await this.api.query.phalaFatContracts.clusters(clusterId)) as Option<ClusterInfo>
+      const result = (await this.api.query.phalaPhatContracts.clusters(clusterId)) as Option<ClusterInfo>
       if (result.isNone) {
         return null
       }
       return result.unwrap()
     } else {
-      const result = await this.api.query.phalaFatContracts.clusters.entries()
+      const result = await this.api.query.phalaPhatContracts.clusters.entries()
       return result.map(([storageKey, value]) => {
         const clusterId = storageKey.args.map(i => i.toPrimitive())[0] as string
         const clusterInfo = (value as Option<ClusterInfo>).unwrap()
