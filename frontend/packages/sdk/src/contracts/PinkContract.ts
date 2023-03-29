@@ -240,7 +240,7 @@ export class PinkContractPromise {
       const gasFee = new BN(gas.refTime).mul(this.phatRegistry.gasPrice);
       deposit = new BN(value).add(gasFee).add(new BN(storageDepositLimit || 0));
 
-      return api.tx.phalaFatContracts.pushContractMessage(
+      return api.tx.phalaPhatContracts.pushContractMessage(
         dest,
         encodedPayload,
         deposit

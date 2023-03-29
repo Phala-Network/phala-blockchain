@@ -189,11 +189,11 @@ export async function create({
 
   let gasPrice = new BN(0);
   if (autoDeposit) {
-    const contractInfo = (await api.query.phalaFatContracts.contracts(
+    const contractInfo = (await api.query.phalaPhatContracts.contracts(
       contractId
     )) as Option<Codec>;
     const cluster = (contractInfo.unwrap() as unknown as ContractInfo).cluster;
-    const clusterInfo = (await api.query.phalaFatContracts.clusters(
+    const clusterInfo = (await api.query.phalaPhatContracts.clusters(
       cluster
     )) as Option<Codec>;
     gasPrice = new BN(
@@ -286,7 +286,7 @@ export async function create({
       .toHex();
 
     try {
-      return api.tx.phalaFatContracts.pushContractMessage(
+      return api.tx.phalaPhatContracts.pushContractMessage(
         contractId,
         encodedPayload,
         deposit
