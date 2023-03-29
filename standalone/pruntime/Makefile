@@ -1,4 +1,8 @@
 SGX_MODE ?= SW
+BUILD?=release
+ifeq ($(BUILD),release)
+	XARGS=--release
+endif
 
 include config.mk
 
@@ -12,12 +16,12 @@ run:
 
 ${PINK_RUNTIME_DIST}: ${PINK_RUNTIME}
 	cp $? $@
-	cp $@ target/release/
+	cp $@ target/${BUILD}/
 	strip --strip-all --keep-symbol=__pink_runtime_init $@
 
 .PHONY: ${PINK_RUNTIME}
 ${PINK_RUNTIME}:
-	cd ${PINK_RUNTIME_DIR} && cargo build --release
+	cd ${PINK_RUNTIME_DIR} && cargo build ${XARGS}
 
 bin/app: bin/pruntime bin/Rocket.toml
 	cd bin && ln -sf pruntime app
@@ -25,12 +29,12 @@ bin/app: bin/pruntime bin/Rocket.toml
 bin/Rocket.toml: gramine-build/Rocket.toml
 	cp $? $@
 
-bin/pruntime: target/release/pruntime
+bin/pruntime: target/${BUILD}/pruntime
 	cp $? $@
 
-.PHONY: target/release/pruntime
-target/release/pruntime:
-	cargo build --release
+.PHONY: target/${BUILD}/pruntime
+target/${BUILD}/pruntime:
+	cargo build ${XARGS}
 
 clean:
 	rm -rf bin/*

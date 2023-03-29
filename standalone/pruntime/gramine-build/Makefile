@@ -1,5 +1,6 @@
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
+BUILD ?= release
 
 include ../config.mk
 
@@ -27,11 +28,11 @@ LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 PINK_RUNTIME_DIST_DIR = ${RUNTIME_DIR}/pink-runtime
 
 ifeq ($(USE_MUSL),1)
-BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
+BIN_FILE = ../target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
 CARGO_ARGS = --target x86_64-unknown-linux-musl
 HOST_LIBC_DIR = /lib/x86_64-linux-musl
 else
-BIN_FILE = ../target/release/${BIN_NAME}
+BIN_FILE = ../target/${BUILD}/${BIN_NAME}
 CARGO_ARGS =
 HOST_LIBC_DIR = /lib/x86_64-linux-gnu
 endif
@@ -53,7 +54,7 @@ endif
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	make -C ..
+	make BUILD=${BUILD} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
