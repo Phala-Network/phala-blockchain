@@ -100,7 +100,7 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>, ValueQuery>;
 
 	#[pallet::storage]
-	pub type WorkerCluster<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, ContractClusterId>;
+	pub type ClusterByWorkers<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, ContractClusterId>;
 
 	/// The pink-system contract code used to deploy new clusters
 	#[pallet::storage]
@@ -253,10 +253,10 @@ pub mod pallet {
 
 			for worker in &deploy_workers {
 				ensure!(
-					WorkerCluster::<T>::get(worker).is_none(),
+					ClusterByWorkers::<T>::get(worker).is_none(),
 					Error::<T>::WorkerIsBusy
 				);
-				WorkerCluster::<T>::insert(worker, cluster);
+				ClusterByWorkers::<T>::insert(worker, cluster);
 			}
 
 			let system_code_hash =
@@ -498,11 +498,11 @@ pub mod pallet {
 				Error::<T>::WorkerNotFound
 			);
 			ensure!(
-				WorkerCluster::<T>::get(worker_pubkey).is_none(),
+				ClusterByWorkers::<T>::get(worker_pubkey).is_none(),
 				Error::<T>::WorkerIsBusy
 			);
 			// TODO: Do we need to check whether the worker agree to join the cluster?
-			WorkerCluster::<T>::insert(worker_pubkey, cluster_id);
+			ClusterByWorkers::<T>::insert(worker_pubkey, cluster_id);
 			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
 			Self::deposit_event(Event::WorkerAddedToCluster {
 				worker: worker_pubkey,
@@ -526,11 +526,11 @@ pub mod pallet {
 				Error::<T>::ClusterPermissionDenied
 			);
 			ensure!(
-				WorkerCluster::<T>::get(worker_pubkey) == Some(cluster_id),
+				ClusterByWorkers::<T>::get(worker_pubkey) == Some(cluster_id),
 				Error::<T>::WorkerNotFound
 			);
 			// Put the worker to cluster 0 to avoid it to be added to some cluster again.
-			WorkerCluster::<T>::insert(worker_pubkey, ContractClusterId::from_low_u64_be(0));
+			ClusterByWorkers::<T>::insert(worker_pubkey, ContractClusterId::from_low_u64_be(0));
 			ClusterWorkers::<T>::mutate(cluster_id, |workers| {
 				workers.retain(|key| key != &worker_pubkey)
 			});
