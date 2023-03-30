@@ -773,15 +773,15 @@ describe('A full stack', function () {
         it('can add worker to cluster', async function () {
             const info = await pruntime[4].getInfo();
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.addWorkerToCluster(hex(info.system?.publicKey), hex(clusterId)),
+                api.tx.phalaPhatContracts.addWorkerToCluster(hex(info.system?.publicKey), hex(clusterId)),
                 alice,
             );
             assertEvents(events, [
                 ['balances', 'Withdraw'],
-                ['phalaFatContracts', 'WorkerAddedToCluster']
+                ['phalaPhatContracts', 'WorkerAddedToCluster']
             ]);
             assert.isTrue(await checkUntil(async () => {
-                const workerCluster = await api.query.phalaFatContracts.workerCluster(hex(info.system?.publicKey));
+                const workerCluster = await api.query.phalaPhatContracts.workerCluster(hex(info.system?.publicKey));
                 return workerCluster.eq(clusterId);
             }, 4 * 6000), 'cluster not deployed');
             pherry[4].kill();

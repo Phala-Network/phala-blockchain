@@ -205,7 +205,7 @@ mod storage_ext {
             &self,
             worker: &phala_types::WorkerPublicKey,
         ) -> Option<ContractClusterId> {
-            self.execute_with(|| pallet_fat::WorkerCluster::<chain::Runtime>::get(worker))
+            self.execute_with(|| pallet_phat::WorkerCluster::<chain::Runtime>::get(worker))
         }
     }
 }
