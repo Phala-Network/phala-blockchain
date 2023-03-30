@@ -1237,12 +1237,8 @@ impl<Platform: pal::Platform> System<Platform> {
                 if worker != self.identity_key.public() {
                     return Ok(());
                 }
-                info!(
-                    "This worker is removed from cluster {}",
-                    hex_fmt::HexFmt(&cluster_id)
-                );
                 let Some(_cluster) = self.contract_cluster.remove_cluster(&cluster_id) else {
-                    info!("Cluster {} is not deployed on this worker", hex_fmt::HexFmt(&cluster_id));
+                    warn!("Cluster {} is not deployed on this worker", hex_fmt::HexFmt(&cluster_id));
                     return Ok(());
                 };
                 for contract in self.contracts.drain() {
@@ -1253,7 +1249,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     hex_fmt::HexFmt(&cluster_id)
                 );
                 warn!("The worker will exit now.");
-                warn!("If you want to want provide computation power to the some cluster, please create a new worker.");
+                warn!("If you want to keep providing computation power to some cluster, please create a new worker.");
                 std::process::exit(0);
             }
         }
