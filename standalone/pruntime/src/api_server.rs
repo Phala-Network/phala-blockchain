@@ -10,7 +10,6 @@ use rocket::{get, post, routes};
 use rocket::{Build, Phase, Rocket};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 
-use colored::Colorize as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tracing::{error, info, instrument};
@@ -364,7 +363,7 @@ fn cors_options() -> CorsOptions {
 fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     info!("Methods under {}:", prefix);
     for method in methods {
-        info!("    {}", format!("{prefix}/{method}").blue());
+        info!("    {}", format!("{prefix}/{method}"));
     }
 }
 

@@ -11,7 +11,7 @@ mod system {
     use super::pink;
     use alloc::string::String;
     use ink::{codegen::Env, storage::Mapping};
-    use pink::system::{ContractDeposit, ContractDepositRef, DriverError, Error, Result};
+    use pink::system::{CodeType, ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
     /// Pink's system contract.
@@ -205,9 +205,16 @@ mod system {
         /// runtime version is not supported.
         #[ink(message)]
         fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()> {
+            let _ = self.ensure_owner()?;
             pink::info!("Upgrading pink contract runtime...");
             pink::upgrade_runtime(version);
             Ok(())
+        }
+
+        /// Check if the code is already uploaded to the cluster with given code hash.
+        #[ink(message)]
+        fn code_exists(&self, code_hash: [u8; 32], code_type: CodeType) -> bool {
+            pink::ext().code_exists(code_hash.into(), code_type.is_sidevm())
         }
     }
 

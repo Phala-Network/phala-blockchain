@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Mutex};
 
 /// Represents outgoing HTTP requests statistics.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct HttpGlobolCoutners {
+pub struct HttpGlobolCounters {
     /// Global HTTP counters for all contracts.
     pub global: HttpCoutners,
     /// HTTP counters grouped by contract account ID.
@@ -24,11 +24,11 @@ pub struct HttpCoutners {
     pub by_status_code: BTreeMap<u16, u64>,
 }
 
-static HTTP_COUNTERS: once_cell::sync::OnceCell<Mutex<HttpGlobolCoutners>> =
+static HTTP_COUNTERS: once_cell::sync::OnceCell<Mutex<HttpGlobolCounters>> =
     once_cell::sync::OnceCell::new();
 
-pub(super) fn counters() -> &'static Mutex<HttpGlobolCoutners> {
-    HTTP_COUNTERS.get_or_init(|| Mutex::new(HttpGlobolCoutners::default()))
+pub(super) fn counters() -> &'static Mutex<HttpGlobolCounters> {
+    HTTP_COUNTERS.get_or_init(|| Mutex::new(HttpGlobolCounters::default()))
 }
 
 pub(super) fn add(contract: AccountId, status_code: u16) {
@@ -65,7 +65,7 @@ pub(super) fn add(contract: AccountId, status_code: u16) {
     }
 }
 
-pub(crate) fn stats() -> HttpGlobolCoutners {
+pub(crate) fn stats() -> HttpGlobolCounters {
     counters().lock().unwrap().clone()
 }
 

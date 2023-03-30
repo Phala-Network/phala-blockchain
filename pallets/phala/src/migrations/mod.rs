@@ -15,13 +15,13 @@ use frame_support::{
 use log;
 
 use crate::compute::{base_pool, computation, stake_pool_v2, vault, wrapped_balances};
-use crate::fat;
+use crate::phat;
 use crate::mq;
 use crate::registry;
 
 /// Alias for the runtime that implements all Phala Pallets
 pub trait PhalaPallets:
-	fat::Config
+	phat::Config
 	+ frame_system::Config
 	+ computation::Config
 	+ mq::Config
@@ -33,7 +33,7 @@ pub trait PhalaPallets:
 {
 }
 impl<T> PhalaPallets for T where
-	T: fat::Config
+	T: phat::Config
 		+ frame_system::Config
 		+ computation::Config
 		+ mq::Config
@@ -57,7 +57,7 @@ type Versions = (
 #[allow(dead_code)]
 fn get_versions<T: PhalaPallets>() -> Versions {
 	(
-		StorageVersion::get::<fat::Pallet<T>>(),
+		StorageVersion::get::<phat::Pallet<T>>(),
 		StorageVersion::get::<computation::Pallet<T>>(),
 		StorageVersion::get::<mq::Pallet<T>>(),
 		StorageVersion::get::<registry::Pallet<T>>(),
@@ -78,7 +78,7 @@ fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
 
 #[allow(dead_code)]
 fn set_unified_version<T: PhalaPallets>(version: u16) {
-	StorageVersion::new(version).put::<fat::Pallet<T>>();
+	StorageVersion::new(version).put::<phat::Pallet<T>>();
 	StorageVersion::new(version).put::<computation::Pallet<T>>();
 	StorageVersion::new(version).put::<mq::Pallet<T>>();
 	StorageVersion::new(version).put::<registry::Pallet<T>>();

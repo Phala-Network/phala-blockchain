@@ -1,4 +1,4 @@
-//! The Fat Contract tokenomic module
+//! The Phat Contract tokenomic module
 
 pub use self::pallet::*;
 
@@ -30,7 +30,6 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
@@ -80,11 +79,11 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::mq::Config,
-		T: crate::fat::Config,
+		T: crate::phat::Config,
 	{
 		/// Adjust stake to given contract.
 		///
-		/// Fat contracts accept depoits from accounts. The deposit info would be sent the cluster's
+		/// Phat contracts accept depoits from accounts. The deposit info would be sent the cluster's
 		/// system contract. Then the system contract would invoke the driver contract (if installed)
 		/// to process the deposit info. A public good cluster usually would set the contracts' scheduling
 		/// weights according to the total depoit on contracts. More weights means it would get more
@@ -121,7 +120,7 @@ pub mod pallet {
 			ContractUserStakes::<T>::insert(&user, contract, amount);
 			ContractTotalStakes::<T>::insert(contract, total);
 
-			let cluster = crate::fat::Pallet::<T>::get_contract_info(&contract).map(|x| x.cluster);
+			let cluster = crate::phat::Pallet::<T>::get_contract_info(&contract).map(|x| x.cluster);
 
 			Self::deposit_event(Event::ContractDepositChanged {
 				cluster,
@@ -137,7 +136,7 @@ pub mod pallet {
 			});
 
 			if let Some(the_system_contract) =
-				crate::fat::Pallet::<T>::get_system_contract(&contract)
+				crate::phat::Pallet::<T>::get_system_contract(&contract)
 			{
 				let selector: u32 = 0xa24bcb44; // ContractDeposit::change_deposit()
 				let message = (selector.to_be_bytes(), contract, total).encode();

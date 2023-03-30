@@ -440,7 +440,7 @@ expression: "travel_types::<blocks::SyncCombinedHeadersReq>()"
     "id": 20,
     "type": {
       "path": [
-        "sp_finality_grandpa",
+        "sp_consensus_grandpa",
         "app",
         "Public"
       ],

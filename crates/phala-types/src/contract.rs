@@ -144,7 +144,7 @@ pub mod messaging {
         DispatchKeys(BatchDispatchClusterKeyEvent),
         /// Force destroying a cluster.
         ///
-        /// This leaves a door to clean up the beta clusters in fat v1.
+        /// This leaves a door to clean up the beta clusters in phat v1.
         /// We might need to redesign a more graceful one in the future.
         DestroyCluster(ContractClusterId),
         /// Upload ink code to the cluster.

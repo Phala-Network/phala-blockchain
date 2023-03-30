@@ -1231,7 +1231,7 @@ impl<Platform: pal::Platform> RpcService<Platform> {
         let guard = self.phactory.lock().unwrap();
         debug!(target: "phactory::lock", "Locked phactory");
         if !allow_rcu && guard.rcu_dispatching {
-            return Err(from_display("RCU in progress, please try again later"));
+            return Err(from_display("RCU in progress, please try the request again later"));
         }
         if !allow_safemode && guard.args.safe_mode_level > 0 {
             return Err(from_display("This RPC is disabled in safe mode"));
@@ -1311,13 +1311,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let mut phactory = {
             let mut phactory = self.lock_phactory(false, true)?;
             if phactory.args.no_rcu || benchmark::syncing() {
+                // If RCU way is not suitable here, we do the traditional locked dispatch.
                 return phactory.dispatch_blocks(self.req_id, blocks);
             }
+            // Otherwise, we clone the phactory and execute/dispatch the events of the blocks with
+            // a cloned phactory without locking(the lock would be released in the end of this scope)
+            // the singleton phactory. This way, we can avoid blocking the RPC server.
             info!("Cloning Phactory to do RCU dispatch...");
             let cloned = phactory.clone();
+            // We set rcu_dispatching = true to avoid a reentrant call to dispatch_blocks which
+            // would cause a state inconsistency.
             phactory.rcu_dispatching = true;
             cloned
         };
+        // Start to dispatch the blocks with the cloned phactory without locking the singleton phactory.
         info!("Unlocked Phactory, dispatching blocks...");
         let req_id = self.req_id;
         let span = tracing::Span::current();
@@ -1331,8 +1338,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         info!("Done, writing state back to Phactory...");
         let mut guard = self.lock_phactory(true, true).unwrap();
         let pending_effects = std::mem::take(&mut guard.pending_effects);
+        // While putting the cloned phactory back, the rcu_dispatching flag is also overwritten with
+        // its original value `false`.
         **guard = phactory;
         if !pending_effects.is_empty() {
+            // Apply pending effects with the singleton phactory locked.
             tracing::info!(count = pending_effects.len(), "Applying pending effects");
             for effects in pending_effects {
                 guard.apply_side_effects(effects);
@@ -1364,7 +1374,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     }
 
     async fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
-        self.lock_phactory(false, false)?
+        self.lock_phactory(true, false)?
             .get_egress_messages()
             .map(pb::GetEgressMessagesResponse::new)
     }

@@ -8,7 +8,8 @@ use std::{env, thread};
 use clap::Parser;
 use tracing::{error, info, info_span, Instrument};
 
-use phactory_api::ecall_args::{git_revision, InitArgs};
+use phactory_api::ecall_args::InitArgs;
+use phala_git_revision::git_revision_with_ts;
 
 mod handover;
 use phala_sanitized_logger as logger;
@@ -48,9 +49,9 @@ struct Args {
     #[arg(long)]
     disable_checkpoint: bool,
 
-    /// Checkpoint interval in seconds, default to 5 minutes
+    /// Checkpoint interval in seconds, default to 30 minutes
     #[arg(long)]
-    #[arg(default_value_t = 300)]
+    #[arg(default_value_t = 1800)]
     checkpoint_interval: u64,
 
     /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
@@ -84,6 +85,8 @@ struct Args {
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
+    pal_gramine::print_target_info();
+
     let sgx = pal_gramine::is_gramine();
     logger::init_subscriber(sgx);
     serve(sgx).await
@@ -134,7 +137,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
             storage_path: storage_path.into(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: git_revision().to_string(),
+            git_revision: git_revision_with_ts().to_string(),
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
@@ -183,7 +186,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
                     .await
                     .expect("Failed to launch API server");
             }
-            .instrument(info_span!("srv1")),
+            .instrument(info_span!("srv-public")),
         );
         servers.push(server_acl);
     }
@@ -195,7 +198,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
                 .await
                 .expect("Failed to launch API server");
         }
-        .instrument(info_span!("srv0")),
+        .instrument(info_span!("srv-internal")),
     );
     servers.push(server_internal);
 

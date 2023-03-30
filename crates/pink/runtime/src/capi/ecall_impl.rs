@@ -1,4 +1,4 @@
-use frame_support::traits::Currency;
+use frame_support::{traits::Currency, weights::constants::WEIGHT_REF_TIME_PER_SECOND};
 use log::info;
 use pallet_contracts::{AddressGenerator, Determinism};
 use phala_crypto::sr25519::Sr25519SecretKey;
@@ -126,6 +126,20 @@ impl ecall::ECalls for ECallImpl {
         code: Vec<u8>,
         deterministic: bool,
     ) -> Result<Hash, String> {
+        /*
+        According to the cost estimation in ink tests: https://github.com/paritytech/substrate/pull/12993/files#diff-70e9723e9db62816e35f6f885b6770a8449c75a6c2733e9fa7a245fe52c4656cR423
+        If we set max code len to 2MB, the max memory cost for a single call stack would be calculated as:
+        cost = (MaxCodeLen * 4 + MAX_STACK_SIZE + max_heap_size) * max_call_depth
+             = (2MB * 4 + 1MB + 4MB) * 6
+             = 78MB
+        If we allow 8 concurrent calls, the total memory cost would be 78MB * 8 = 624MB.
+        */
+        let info = phala_wasm_checker::wasm_info(&code)
+            .map_err(|err| format!("Invalid wasm: {err:?}"))?;
+        let max_wasmi_cost = crate::runtime::MaxCodeLen::get() as usize * 4;
+        if info.estimate_wasmi_memory_cost() > max_wasmi_cost {
+            return Err("DecompressedCodeTooLarge".into());
+        }
         crate::runtime::Contracts::bare_upload_code(
             account,
             code,
@@ -172,7 +186,8 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
-        let address = PalletPink::generate_address(&tx_args.origin, &code_hash, &input_data, &salt);
+        let tx_args = sanitize_args(tx_args, mode);
+        let address = PalletPink::contract_address(&tx_args.origin, &code_hash, &input_data, &salt);
         let result = crate::contract::instantiate(code_hash, input_data, salt, mode, tx_args);
         if !result.debug_message.is_empty() {
             let message = String::from_utf8_lossy(&result.debug_message).into_owned();
@@ -219,6 +234,7 @@ impl ecall::ECalls for ECallImpl {
         mode: ExecutionMode,
         tx_args: TransactionArguments,
     ) -> Vec<u8> {
+        let tx_args = sanitize_args(tx_args, mode);
         let result = crate::contract::bare_call(address.clone(), input_data, mode, tx_args);
         if !result.debug_message.is_empty() {
             let message = String::from_utf8_lossy(&result.debug_message).into_owned();
@@ -254,4 +270,14 @@ impl ecall::ECalls for ECallImpl {
     fn git_revision(&self) -> String {
         phala_git_revision::git_revision().to_string()
     }
+}
+
+/// Clip gas limit to 0.5 second for tx, 10 seconds for query
+fn sanitize_args(mut args: TransactionArguments, mode: ExecutionMode) -> TransactionArguments {
+    let gas_limit = match mode {
+        ExecutionMode::Transaction | ExecutionMode::Estimating => WEIGHT_REF_TIME_PER_SECOND / 2,
+        ExecutionMode::Query => WEIGHT_REF_TIME_PER_SECOND * 10,
+    };
+    args.gas_limit = args.gas_limit.min(gas_limit);
+    args
 }

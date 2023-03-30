@@ -27,7 +27,7 @@ frame_support::construct_runtime! {
         System: frame_system,
         Timestamp: pallet_timestamp,
         Balances: pallet_balances,
-        Randomness: pallet_randomness_collective_flip,
+        Randomness: pallet_insecure_randomness_collective_flip,
         Contracts: pallet_contracts,
         Pink: pallet_pink,
     }
@@ -90,7 +90,7 @@ impl frame_system::Config for PinkRuntime {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_randomness_collective_flip::Config for PinkRuntime {}
+impl pallet_insecure_randomness_collective_flip::Config for PinkRuntime {}
 
 parameter_types! {
     pub const MinimumPeriod: u64 = 1;
@@ -103,12 +103,19 @@ impl pallet_timestamp::Config for PinkRuntime {
     type WeightInfo = ();
 }
 
+// Workaround for the test failure in runtime_integrity_tests
+// https://github.com/paritytech/substrate/pull/12993/files#diff-67684005af418e25ff88c2ae5b520f0c040371f1d817e03a3652e76b9485224aR1217
+#[cfg(test)]
+const MAX_CODE_LEN: u32 = 64 * 1024;
+#[cfg(not(test))]
+const MAX_CODE_LEN: u32 = 2 * 1024 * 1024;
+
 parameter_types! {
     pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
     pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
     pub const DeletionQueueDepth: u32 = 1024;
-    pub const DeletionWeightLimit: Weight = Weight::from_ref_time(500_000_000_000);
-    pub const MaxCodeLen: u32 = 2 * 1024 * 1024;
+    pub const DeletionWeightLimit: Weight = Weight::from_parts(500_000_000_000, 0);
+    pub const MaxCodeLen: u32 = MAX_CODE_LEN;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;
 
@@ -130,7 +137,7 @@ impl Config for PinkRuntime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
     type CallFilter = frame_support::traits::Nothing;
-    type CallStack = [Frame<Self>; 31];
+    type CallStack = [Frame<Self>; 5];
     type WeightPrice = Pink;
     type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;

@@ -1,6 +1,5 @@
 ---
 source: crates/pink/runner/tests/test_pink_contract.rs
-assertion_line: 74
 expression: result
 ---
 ContractResult {

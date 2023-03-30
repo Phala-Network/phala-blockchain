@@ -343,10 +343,11 @@ chain
         const threshold = Math.ceil(totalMembers * 0.75);
         // Build motion
         const hash = blake2AsHex(callHex);
-        const external = api.tx.democracy.externalProposeMajority(hash).method.toHex();
+        const legacy = api.createType('FrameSupportPreimagesBounded', {Legacy: hash});
+        const external = api.tx.democracy.externalProposeMajority(legacy).method.toHex();
         const motionCall = createMotion(api, threshold, external);
         const call = api.tx.utility.batchAll([
-            api.tx.democracy.notePreimage(callHex),
+            api.tx.preimage.notePreimage(callHex),
             motionCall,
         ]);
         console.log(call.toHex());
@@ -460,7 +461,7 @@ xcmp
 
         const message = api.createType('XcmVersionedXcm', {
             V2: [
-                // Withdraw 1 KSM to buy execution
+                // Withdraw 0.1 KSM to buy execution by default, please take care of DOT which decimal is 10
                 {
                     WithdrawAsset: [{
                         id: { Concrete: { parents: 0, interior: 'Here' } },
@@ -521,7 +522,11 @@ xcmp
             ])
         };
 
-        console.log(call.method.toHex());
+        // Send transaction as root
+        if (program.opts().send) {
+            let sudoCall = api.tx.sudo.sudo(call);
+            await printTxOrSend(sudoCall);
+        }
     }));
 
 // Utilities
@@ -581,7 +586,7 @@ utils
 
 const contract = program
     .command('contract')
-    .description('fat contract utilities');
+    .description('phat contract utilities');
 
 contract
     .command('upload-code')
@@ -598,7 +603,7 @@ contract
 
 contract
     .command('instantiate')
-    .description('instantiate a fat contract')
+    .description('instantiate a phat contract')
     .argument('<code-hash>', 'the hash of the code, in hex')
     .argument('<call-data>', 'the encoded arguments in hex')
     .argument('<worker>', 'the targeted worker to deploy the contract')

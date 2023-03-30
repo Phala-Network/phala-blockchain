@@ -117,7 +117,7 @@ pub trait OcallFuncs {
 pub enum InputChannel {
     /// Input channel for system messages such as receiving log events from other contracts.
     SystemMessage = 1,
-    /// Input channel for general messages pushed from pink contract part of this fat contract.
+    /// Input channel for general messages pushed from pink contract part of this phat contract.
     GeneralMessage = 2,
     /// Input channel for queries from external RPC requests.
     Query = 3,

@@ -37,7 +37,7 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
-    ecall_args::{git_revision, InitArgs},
+    ecall_args::InitArgs,
     endpoints::EndpointType,
     prpc::{self as pb, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     storage_sync::{StorageSynchronizer, Synchronizer},
@@ -256,14 +256,14 @@ pub struct Phactory<Platform> {
     trusted_sk: bool,
 
     #[serde(skip)]
-    #[serde(default = "Instant::now")]
-    uptime: Instant,
-
-    #[serde(skip)]
     pub(crate) rcu_dispatching: bool,
 
     #[serde(skip)]
     pub(crate) pending_effects: Vec<::pink::types::ExecSideEffects>,
+
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
+    started_at: Instant,
 
     #[serde(skip)]
     pub(crate) cluster_state_to_apply: Option<ClusterState<'static>>,
@@ -304,22 +304,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
-            uptime: Instant::now(),
             rcu_dispatching: false,
             pending_effects: Vec::new(),
+            started_at: Instant::now(),
             cluster_state_to_apply: None,
         }
     }
 
     pub fn init(&mut self, args: InitArgs) {
-        if args.git_revision != git_revision() {
-            panic!(
-                "git revision mismatch: {}(app) vs {}(enclave)",
-                args.git_revision,
-                git_revision()
-            );
-        }
-
         if args.init_bench {
             benchmark::resume();
         }
@@ -647,7 +639,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         request: pb::StatisticsReqeust,
     ) -> anyhow::Result<pb::StatisticsResponse> {
-        let uptime = self.uptime.elapsed().as_secs();
+        let uptime = self.started_at.elapsed().as_secs();
         let contracts_query_stats;
         let global_query_stats;
         let contracts_http_stats;

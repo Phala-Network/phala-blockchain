@@ -20,7 +20,7 @@ use runtime::BlockNumber;
 
 use crate::contracts;
 use crate::pal;
-use chain::pallet_fat::ContractRegistryEvent;
+use chain::pallet_phat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
 pub use master_key::{gk_master_key_exists, RotatedMasterKey};
 use parity_scale_codec::{Decode, Encode};
@@ -861,13 +861,19 @@ impl<Platform: pal::Platform> System<Platform> {
                 .expect("empty master key history")
                 .secret,
         );
-        let gatekeeper = gk::Gatekeeper::new(
+        let mut gatekeeper = gk::Gatekeeper::new(
             master_key_history,
             block.recv_mq,
             block
                 .send_mq
                 .channel(MessageOrigin::Gatekeeper, master_key.into()),
         );
+        if let Some(params) = block.storage.tokenomic_parameters() {
+            gatekeeper
+                .computing_economics
+                .update_tokenomic_parameters(params);
+        }
+
         self.gatekeeper = Some(gatekeeper);
 
         // TODO: clear up existing clusters
@@ -1919,7 +1925,7 @@ pub fn install_contract(
             .into(),
         ecdh_key.clone(),
     );
-    let wrapped = contracts::FatContract::new(mq, cmd_mq, ecdh_key, cluster_id, address, code_hash);
+    let wrapped = contracts::Contract::new(mq, cmd_mq, ecdh_key, cluster_id, address, code_hash);
     contracts.insert(wrapped);
     Ok(())
 }

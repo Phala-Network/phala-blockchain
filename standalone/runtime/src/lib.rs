@@ -49,21 +49,19 @@ use frame_support::{
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureRoot,
+    EnsureRoot, EnsureSigned,
 };
 pub use node_primitives::{
     AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
 };
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
-use pallet_grandpa::{
-    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
-};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as pallet_session_historical;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_inherents::{CheckInherentsResult, InherentData};
 use sp_runtime::{
@@ -108,7 +106,7 @@ use sp_runtime::generic::Era;
 mod voter_bags;
 
 pub use phala_pallets::{
-    pallet_base_pool, pallet_computation, pallet_fat, pallet_fat_tokenomic, pallet_mq,
+    pallet_base_pool, pallet_computation, pallet_phat, pallet_phat_tokenomic, pallet_mq,
     pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
     puppets,
 };
@@ -117,6 +115,11 @@ use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 // Make the WASM binary available.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
+
+/// Max size for serialized extrinsic params for this testing runtime.
+/// This is a quite arbitrary but empirically battle tested value.
+#[cfg(test)]
+pub const CALL_PARAMS_MAX_SIZE: usize = 300;
 
 /// Wasm binary unwrapped. If built with `SKIP_WASM_BUILD`, the function panics.
 #[cfg(all(feature = "std", feature = "include-wasm"))]
@@ -248,7 +251,7 @@ impl phala_pallets::PhalaConfig for Runtime {
     type Currency = Balances;
 }
 
-impl pallet_randomness_collective_flip::Config for Runtime {}
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
 impl pallet_utility::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -431,24 +434,12 @@ impl pallet_babe::Config for Runtime {
     type ExpectedBlockTime = ExpectedBlockTime;
     type EpochChangeTrigger = pallet_babe::ExternalTrigger;
     type DisabledValidators = Session;
-
-    type KeyOwnerProofSystem = Historical;
-
-    type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        pallet_babe::AuthorityId,
-    )>>::Proof;
-
-    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        pallet_babe::AuthorityId,
-    )>>::IdentificationTuple;
-
-    type HandleEquivocation =
-        pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
-
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type KeyOwnerProof =
+        <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+    type EquivocationReportSystem =
+        pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -517,14 +508,8 @@ impl pallet_timestamp::Config for Runtime {
     type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
 }
 
-parameter_types! {
-    pub const UncleGenerations: BlockNumber = 5;
-}
-
 impl pallet_authorship::Config for Runtime {
     type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-    type UncleGenerations = UncleGenerations;
-    type FilterUncle = ();
     type EventHandler = (Staking, ImOnline);
 }
 
@@ -620,10 +605,13 @@ impl pallet_staking::Config for Runtime {
 impl pallet_fast_unstake::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ControlOrigin = frame_system::EnsureRoot<AccountId>;
-    type BatchSize = ConstU32<128>;
+    type BatchSize = ConstU32<64>;
     type Deposit = ConstU128<{ DOLLARS }>;
     type Currency = Balances;
     type Staking = Staking;
+    type MaxErasToCheckPerBlock = ConstU32<1>;
+    #[cfg(feature = "runtime-benchmarks")]
+    type MaxBackersPerValidator = MaxNominatorRewardedPerValidator;
     type WeightInfo = ();
 }
 
@@ -736,6 +724,7 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
     type Solution = NposSolution16;
     type MaxVotesPerVoter =
     <<Self as pallet_election_provider_multi_phase::Config>::DataProvider as ElectionDataProvider>::MaxVotesPerVoter;
+    type MaxWinners = MaxActiveValidators;
 
     // The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
     // weight estimate function is wired to this call's weight.
@@ -860,6 +849,7 @@ impl pallet_democracy::Config for Runtime {
     /// (NTB) vote.
     type ExternalDefaultOrigin =
         pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 1>;
+    type SubmitOrigin = EnsureSigned<AccountId>;
     /// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
     /// be tabled immediately and with a shorter voting/enactment period.
     type FastTrackOrigin =
@@ -909,6 +899,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
     type MaxMembers = CouncilMaxMembers;
     type DefaultVote = pallet_collective::PrimeDefaultVote;
     type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
+    type SetMembersOrigin = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {
@@ -920,8 +911,9 @@ parameter_types! {
     pub TermDuration: BlockNumber = 7 * Days::get();
     pub const DesiredMembers: u32 = 13;
     pub const DesiredRunnersUp: u32 = 7;
-    pub const MaxVoters: u32 = 10 * 1000;
-    pub const MaxCandidates: u32 = 1000;
+    pub const MaxVotesPerVoter: u32 = 16;
+    pub const MaxVoters: u32 = 512;
+    pub const MaxCandidates: u32 = 64;
     pub const ElectionsPhragmenPalletId: LockIdentifier = *b"phrelect";
 }
 
@@ -946,6 +938,7 @@ impl pallet_elections_phragmen::Config for Runtime {
     type DesiredRunnersUp = DesiredRunnersUp;
     type TermDuration = TermDuration;
     type MaxVoters = MaxVoters;
+    type MaxVotesPerVoter = MaxVotesPerVoter;
     type MaxCandidates = MaxCandidates;
     type WeightInfo = pallet_elections_phragmen::weights::SubstrateWeight<Runtime>;
 }
@@ -966,6 +959,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
     type MaxMembers = TechnicalMaxMembers;
     type DefaultVote = pallet_collective::PrimeDefaultVote;
     type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
+    type SetMembersOrigin = EnsureRoot<Self::AccountId>;
 }
 
 type EnsureRootOrHalfCouncil = EitherOfDiverse<
@@ -1172,27 +1166,18 @@ impl pallet_authority_discovery::Config for Runtime {
     type MaxAuthorities = MaxAuthorities;
 }
 
+parameter_types! {
+    pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
 impl pallet_grandpa::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-
-    type KeyOwnerProofSystem = Historical;
-
-    type KeyOwnerProof =
-        <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-    type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-        KeyTypeId,
-        GrandpaId,
-    )>>::IdentificationTuple;
-
-    type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-        Self::KeyOwnerIdentification,
-        Offences,
-        ReportLongevity,
-    >;
-
     type WeightInfo = ();
     type MaxAuthorities = MaxAuthorities;
+    type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+    type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+    type EquivocationReportSystem =
+        pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -1420,7 +1405,7 @@ impl pallet_rmrk_core::Config for Runtime {
     #[cfg(feature = "runtime-benchmarks")]
     type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
-impl pallet_fat::Config for Runtime {
+impl pallet_phat::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 * 2 }>;
     type SidevmCodeSizeLimit = ConstU32<{ 1024 * 1024 * 8 }>;
@@ -1494,7 +1479,7 @@ impl pallet_assets::Config for Runtime {
     type BenchmarkHelper = ();
 }
 
-impl pallet_fat_tokenomic::Config for Runtime {
+impl pallet_phat_tokenomic::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
 }
@@ -1518,7 +1503,7 @@ impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
 
 construct_runtime!(
-    pub enum Runtime where
+    pub struct Runtime where
         Block = Block,
         NodeBlock = node_primitives::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
@@ -1550,7 +1535,7 @@ construct_runtime!(
         AuthorityDiscovery: pallet_authority_discovery,
         Offences: pallet_offences,
         Historical: pallet_session_historical::{Pallet},
-        RandomnessCollectiveFlip: pallet_randomness_collective_flip,
+        RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
         Identity: pallet_identity,
         Society: pallet_society,
         Recovery: pallet_recovery,
@@ -1572,8 +1557,8 @@ construct_runtime!(
         PhalaVault: pallet_vault,
         PhalaWrappedBalances: pallet_wrapped_balances,
         PhalaBasePool: pallet_base_pool,
-        PhalaFatContracts: pallet_fat,
-        PhalaFatTokenomic: pallet_fat_tokenomic,
+        PhalaPhatContracts: pallet_phat,
+        PhalaPhatTokenomic: pallet_phat_tokenomic,
 
         // Rollup and Oracles
         PhatRollupAnchor: pallet_anchor = 100,
@@ -1701,21 +1686,21 @@ impl_runtime_apis! {
         }
     }
 
-    impl fg_primitives::GrandpaApi<Block> for Runtime {
-        fn grandpa_authorities() -> GrandpaAuthorityList {
+    impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
+        fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
             Grandpa::grandpa_authorities()
         }
 
-        fn current_set_id() -> fg_primitives::SetId {
+        fn current_set_id() -> sp_consensus_grandpa::SetId {
             Grandpa::current_set_id()
         }
 
         fn submit_report_equivocation_unsigned_extrinsic(
-            equivocation_proof: fg_primitives::EquivocationProof<
+            equivocation_proof: sp_consensus_grandpa::EquivocationProof<
                 <Block as BlockT>::Hash,
                 NumberFor<Block>,
             >,
-            key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
+            key_owner_proof: sp_consensus_grandpa::OpaqueKeyOwnershipProof,
         ) -> Option<()> {
             let key_owner_proof = key_owner_proof.decode()?;
 
@@ -1726,20 +1711,28 @@ impl_runtime_apis! {
         }
 
         fn generate_key_ownership_proof(
-            _set_id: fg_primitives::SetId,
+            _set_id: sp_consensus_grandpa::SetId,
             authority_id: GrandpaId,
-        ) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
+        ) -> Option<sp_consensus_grandpa::OpaqueKeyOwnershipProof> {
             use codec::Encode;
 
-            Historical::prove((fg_primitives::KEY_TYPE, authority_id))
+            Historical::prove((sp_consensus_grandpa::KEY_TYPE, authority_id))
                 .map(|p| p.encode())
-                .map(fg_primitives::OpaqueKeyOwnershipProof::new)
+                .map(sp_consensus_grandpa::OpaqueKeyOwnershipProof::new)
         }
     }
 
     impl pallet_nomination_pools_runtime_api::NominationPoolsApi<Block, AccountId, Balance> for Runtime {
-        fn pending_rewards(member_account: AccountId) -> Balance {
-            NominationPools::pending_rewards(member_account).unwrap_or_default()
+        fn pending_rewards(who: AccountId) -> Balance {
+            NominationPools::api_pending_rewards(who).unwrap_or_default()
+        }
+
+        fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
+            NominationPools::api_points_to_balance(pool_id, points)
+        }
+
+        fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
+            NominationPools::api_balance_to_points(pool_id, new_funds)
         }
     }
 
@@ -1805,8 +1798,7 @@ impl_runtime_apis! {
     }
 
     impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
-        Block,
-        Balance,
+        Block, Balance,
     > for Runtime {
         fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
             TransactionPayment::query_info(uxt, len)
@@ -1814,16 +1806,29 @@ impl_runtime_apis! {
         fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
             TransactionPayment::query_fee_details(uxt, len)
         }
+        fn query_weight_to_fee(weight: Weight) -> Balance {
+            TransactionPayment::weight_to_fee(weight)
+        }
+        fn query_length_to_fee(length: u32) -> Balance {
+            TransactionPayment::length_to_fee(length)
+        }
     }
 
-    impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
-        for Runtime
+    impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<
+        Block, Balance, RuntimeCall
+    > for Runtime
     {
         fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
             TransactionPayment::query_call_info(call, len)
         }
         fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
             TransactionPayment::query_call_fee_details(call, len)
+        }
+        fn query_weight_to_fee(weight: Weight) -> Balance {
+            TransactionPayment::weight_to_fee(weight)
+        }
+        fn query_length_to_fee(length: u32) -> Balance {
+            TransactionPayment::length_to_fee(length)
         }
     }
 
@@ -1902,10 +1907,10 @@ mod tests {
     fn call_size() {
         let size = core::mem::size_of::<RuntimeCall>();
         assert!(
-            size <= 300,
-            "Size of RuntimeCall {size} is more than 208 bytes: some calls have too big arguments,
-            use Box to reduce the size of RuntimeCall.
-            If the limit is too strong, maybe consider increase the limit to 300."
+            size <= CALL_PARAMS_MAX_SIZE,
+            "size of RuntimeCall {size} is more than {CALL_PARAMS_MAX_SIZE} bytes.
+             Some calls have too big arguments, use Box to reduce the size of RuntimeCall.
+             If the limit is too strong, maybe consider increase the limit.",
         );
     }
 }
