@@ -93,19 +93,19 @@ impl WorkerLifecycleManager {
         }
 
         let dd = dsm.clone();
-        dd.clone().wait_until_rpc_avail().await;
+        dd.clone().wait_until_rpc_avail(true).await;
 
         info!("Preparing genesis...");
         let relay_api = dd
             .clone()
-            .current_relaychain_rpc_client()
+            .current_relaychain_rpc_client(true)
             .await
             .unwrap()
             .client
             .clone();
         let para_api = dd
             .clone()
-            .current_parachain_rpc_client()
+            .current_parachain_rpc_client(true)
             .await
             .unwrap()
             .client

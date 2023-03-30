@@ -3,7 +3,7 @@ use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
-use futures::future::{join, join3};
+use futures::future::join;
 use log::{debug, error, info, warn};
 use phactory_api::prpc::PhactoryInfo;
 use phactory_api::pruntime_client::{new_pruntime_client, PRuntimeClient};
@@ -210,6 +210,10 @@ impl WorkerContext {
                 WorkerLifecycleState::Preparing => {}
                 WorkerLifecycleState::Working => {}
                 WorkerLifecycleState::HasError(e) => {
+                    error!(
+                        "Worker {}({}, {}) stopped due to error: {}",
+                        &worker.name, &worker.id, &worker.endpoint, e
+                    );
                     // todo: may need some cleanups
                 }
             }
@@ -239,8 +243,18 @@ impl WorkerContext {
             i = pr.get_info(()).await?;
         }
 
-        if lm.fast_sync_enabled && i.can_load_chain_state {
-            let para_api = &lm.dsm.clone().current_parachain_rpc_client().await?.client;
+        if lm.fast_sync_enabled
+            && i.can_load_chain_state
+            && *&lm.dsm.is_relaychain_full
+            && *&lm.dsm.is_relaychain_full
+        {
+            let para_api = &lm
+                .dsm
+                .clone()
+                .current_parachain_rpc_client(true)
+                .await
+                .expect("No online rpc client")
+                .client;
             let pubkey = &i.public_key.unwrap();
             let pubkey = hex::decode(pubkey)?;
             set_worker_message!(c, "Trying to load chain state...");

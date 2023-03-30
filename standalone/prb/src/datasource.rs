@@ -7,6 +7,8 @@ use log::{error, info, warn};
 use paste::paste;
 use phaxt::{ChainApi, RpcClient};
 use pherry::headers_cache::Client as CacheClient;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -18,8 +20,8 @@ use uuid::Uuid;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct DataSourceConfig {
-    relaychain: RelaychainDataSourceConfig,
-    parachain: ParachainDataSourceConfig,
+    pub relaychain: RelaychainDataSourceConfig,
+    pub parachain: ParachainDataSourceConfig,
 }
 
 impl DataSourceConfig {
@@ -31,13 +33,20 @@ impl DataSourceConfig {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RelaychainDataSourceConfig {
-    data_sources: Vec<DataSource>,
+    pub select_policy: SelectPolicy,
+    pub data_sources: Vec<DataSource>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ParachainDataSourceConfig {
-    para_id: u32,
-    data_sources: Vec<DataSource>,
+    pub select_policy: SelectPolicy,
+    pub data_sources: Vec<DataSource>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum SelectPolicy {
+    Failover,
+    Random,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -48,14 +57,13 @@ pub enum DataSource {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SubstrateWebSocketSource {
-    endpoint: String,
-    pruned: bool,
+    pub endpoint: String,
+    pub pruned: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct HeadersCacheHttpSource {
-    endpoint: String,
-    pruned: bool,
+    pub endpoint: String,
 }
 
 impl Into<CacheClient> for HeadersCacheHttpSource {
@@ -72,43 +80,61 @@ pub struct SubstrateWebSocketSourceInstance {
     pub pruned: bool,
 }
 
+pub struct HeadersCacheHttpSourceInstance {
+    pub uuid: Uuid,
+    pub uuid_str: String,
+    pub client: CacheClient,
+    pub endpoint: String,
+}
+
 pub type WrappedSubstrateWebSocketSourceInstance = Arc<SubstrateWebSocketSourceInstance>;
+pub type WrappedHeadersCacheHttpSourceInstance = Arc<HeadersCacheHttpSourceInstance>;
 
 pub type SubstrateWebSocketSourceMap = HashMap<String, WrappedSubstrateWebSocketSourceInstance>;
 pub type WrappedSubstrateWebSocketSourceMap = Arc<RwLock<SubstrateWebSocketSourceMap>>;
+pub type HeadersCacheHttpSourceMap = HashMap<String, WrappedHeadersCacheHttpSourceInstance>;
+pub type WrappedHeadersCacheHttpSourceMap = Arc<RwLock<HeadersCacheHttpSourceMap>>;
 
-pub type SubstrateWebSocketSourceIdList = Vec<String>;
+pub type DataSourceIdList = Vec<String>;
 
 pub struct DataSourceManager {
     pub config: DataSourceConfig,
-    pub relaychain_rpc_client_ids: SubstrateWebSocketSourceIdList,
-    pub relaychain_full_rpc_client_ids: SubstrateWebSocketSourceIdList,
+    pub relaychain_rpc_client_ids: DataSourceIdList,
+    pub relaychain_full_rpc_client_ids: DataSourceIdList,
+    pub relaychain_headers_cache_ids: DataSourceIdList,
     pub relaychain_rpc_client_map: WrappedSubstrateWebSocketSourceMap,
-    pub parachain_rpc_client_ids: SubstrateWebSocketSourceIdList,
-    pub parachain_full_rpc_client_ids: SubstrateWebSocketSourceIdList,
+    pub relaychain_headers_cache_map: WrappedHeadersCacheHttpSourceMap,
+    pub parachain_rpc_client_ids: DataSourceIdList,
+    pub parachain_full_rpc_client_ids: DataSourceIdList,
+    pub parachain_headers_cache_ids: DataSourceIdList,
     pub parachain_rpc_client_map: WrappedSubstrateWebSocketSourceMap,
+    pub parachain_headers_cache_map: WrappedHeadersCacheHttpSourceMap,
+    pub is_relaychain_full: bool,
+    pub is_parachain_full: bool,
 }
 
-macro_rules! dump_substrate_rpc_ids_from_config {
+macro_rules! dump_ds_ids_from_config {
     ($source:expr) => {{
-        let groups = $source
-            .data_sources
-            .clone()
-            .into_iter()
-            .filter_map(|c| match c {
-                DataSource::SubstrateWebSocketSource(c) => Some((
-                    Uuid::new_v5(&Uuid::NAMESPACE_URL, c.endpoint.as_bytes()).to_string(),
-                    c.pruned,
-                )),
-                _ => None,
-            });
-        let ret2 = groups
-            .clone()
-            .into_iter()
-            .filter_map(|(id, pruned)| if pruned { None } else { Some(id) })
-            .collect();
-        let ret1 = groups.into_iter().map(|(id, _)| id).collect();
-        (ret1, ret2)
+        let mut full_rpc_ids = Vec::new();
+        let mut rpc_ids = Vec::new();
+        let mut hc_ids = Vec::new();
+
+        for c in $source.data_sources.clone() {
+            match c {
+                DataSource::SubstrateWebSocketSource(c) => {
+                    let id = Uuid::new_v5(&Uuid::NAMESPACE_URL, c.endpoint.as_bytes()).to_string();
+                    rpc_ids.push(id.clone());
+                    if !c.pruned {
+                        full_rpc_ids.push(id);
+                    }
+                }
+                DataSource::HeadersCacheHttpSource(c) => {
+                    let id = Uuid::new_v5(&Uuid::NAMESPACE_URL, c.endpoint.as_bytes()).to_string();
+                    hc_ids.push(id);
+                }
+            }
+        }
+        (full_rpc_ids, rpc_ids, hc_ids)
     }};
 }
 
@@ -137,7 +163,10 @@ macro_rules! ds_loop {
                         let map = &dsm.[<$t _rpc_client_map>];
                         Self::subxt_loop(config, map.clone()).await;
                     }
-                    DataSource::HeadersCacheHttpSource(_) => todo!(),
+                    DataSource::HeadersCacheHttpSource(config) => {
+                        let map = &dsm.[<$t _headers_cache_map>];
+                        Self::headers_cache_loop(config, map.clone()).await;
+                    },
                 }
             }
         }
@@ -145,43 +174,61 @@ macro_rules! ds_loop {
 }
 
 impl DataSourceManager {
-    pub async fn current_relaychain_ds(&self) -> WrappedSubstrateWebSocketSourceInstance {
-        todo!()
-    }
-
     pub async fn current_relaychain_rpc_client(
         self: Arc<Self>,
-    ) -> Result<WrappedSubstrateWebSocketSourceInstance> {
-        let ids = &self.relaychain_rpc_client_ids;
+        full: bool,
+    ) -> Option<WrappedSubstrateWebSocketSourceInstance> {
+        let ids = if full {
+            &self.relaychain_full_rpc_client_ids
+        } else {
+            &self.relaychain_rpc_client_ids
+        };
+        let mut ids = ids.clone();
+        match &self.config.relaychain.select_policy {
+            SelectPolicy::Random => ids.shuffle(&mut thread_rng()),
+            SelectPolicy::Failover => {}
+        };
+
         let map = self.relaychain_rpc_client_map.clone();
         let map = map.read().await;
         for i in ids {
-            if let Some(i) = map.get(i) {
-                return Ok(i.clone());
+            if let Some(i) = map.get(&i) {
+                return Some(i.clone());
             }
         }
-        Err(anyhow!("No rpc client available."))
+        None
     }
 
     pub async fn current_parachain_rpc_client(
         self: Arc<Self>,
-    ) -> Result<WrappedSubstrateWebSocketSourceInstance> {
-        let ids = &self.parachain_rpc_client_ids;
+        full: bool,
+    ) -> Option<WrappedSubstrateWebSocketSourceInstance> {
+        let ids = if full {
+            &self.parachain_full_rpc_client_ids
+        } else {
+            &self.parachain_rpc_client_ids
+        };
+        let mut ids = ids.clone();
+        match &self.config.parachain.select_policy {
+            SelectPolicy::Random => ids.shuffle(&mut thread_rng()),
+            SelectPolicy::Failover => {}
+        };
+
         let map = self.parachain_rpc_client_map.clone();
         let map = map.read().await;
         for i in ids {
-            if let Some(i) = map.get(i) {
-                return Ok(i.clone());
+            if let Some(i) = map.get(&i) {
+                return Some(i.clone());
             }
         }
-        Err(anyhow!("No rpc client available."))
+        None
     }
 
-    pub async fn wait_until_rpc_avail(self: Arc<Self>) {
+    pub async fn wait_until_rpc_avail(self: Arc<Self>, full: bool) {
         info!("Waiting for Substrate RPC clients to be available...");
         loop {
-            if let Ok(_) = self.clone().current_relaychain_rpc_client().await {
-                if let Ok(_) = self.clone().current_parachain_rpc_client().await {
+            if let Some(_) = self.clone().current_relaychain_rpc_client(full).await {
+                if let Some(_) = self.clone().current_parachain_rpc_client(full).await {
                     break;
                 }
             }
@@ -191,39 +238,55 @@ impl DataSourceManager {
 
     pub async fn from_config(
         config: DataSourceConfig,
-    ) -> (WrappedDataSourceManager, Vec<JoinHandle<()>>) {
+    ) -> Result<(WrappedDataSourceManager, Vec<JoinHandle<()>>)> {
         let relaychain_rpc_client_map: SubstrateWebSocketSourceMap = HashMap::new();
         let relaychain_rpc_client_map = Arc::new(RwLock::new(relaychain_rpc_client_map));
+
+        let relaychain_headers_cache_map = HashMap::new();
+        let relaychain_headers_cache_map = Arc::new(RwLock::new(relaychain_headers_cache_map));
 
         let parachain_rpc_client_map: SubstrateWebSocketSourceMap = HashMap::new();
         let parachain_rpc_client_map = Arc::new(RwLock::new(parachain_rpc_client_map));
 
-        let (relaychain_full_rpc_client_ids, relaychain_rpc_client_ids): (
-            SubstrateWebSocketSourceIdList,
-            SubstrateWebSocketSourceIdList,
-        ) = dump_substrate_rpc_ids_from_config!(config.relaychain);
-        let (parachain_full_rpc_client_ids, parachain_rpc_client_ids): (
-            SubstrateWebSocketSourceIdList,
-            SubstrateWebSocketSourceIdList,
-        ) = dump_substrate_rpc_ids_from_config!(config.parachain);
+        let parachain_headers_cache_map = HashMap::new();
+        let parachain_headers_cache_map = Arc::new(RwLock::new(parachain_headers_cache_map));
 
-        if (relaychain_full_rpc_client_ids.len() + parachain_full_rpc_client_ids.len()) < 2 {
-            panic!("Running with only pruned nodes is not supported yet!")
-        }
+        let (
+            relaychain_full_rpc_client_ids,
+            relaychain_rpc_client_ids,
+            relaychain_headers_cache_ids,
+        ): (DataSourceIdList, DataSourceIdList, DataSourceIdList) =
+            dump_ds_ids_from_config!(config.relaychain);
+        let (parachain_full_rpc_client_ids, parachain_rpc_client_ids, parachain_headers_cache_ids): (
+            DataSourceIdList,
+            DataSourceIdList,
+            DataSourceIdList,
+        ) = dump_ds_ids_from_config!(config.parachain);
 
-        // TODO: support headers-cache + pruned nodes
+        let is_relaychain_full = relaychain_full_rpc_client_ids.len() > 0;
+        let is_parachain_full = parachain_full_rpc_client_ids.len() > 0;
 
         let dsm = Self {
             config: config.clone(),
             relaychain_rpc_client_ids,
             relaychain_full_rpc_client_ids,
             relaychain_rpc_client_map,
+            relaychain_headers_cache_ids,
+            relaychain_headers_cache_map,
             parachain_rpc_client_ids,
             parachain_full_rpc_client_ids,
             parachain_rpc_client_map,
+            parachain_headers_cache_ids,
+            parachain_headers_cache_map,
+            is_relaychain_full,
+            is_parachain_full,
         };
         let dsm = Arc::new(dsm);
         let ret = dsm.clone();
+
+        if !(*&ret.is_relaychain_full && *&ret.is_relaychain_full) {
+            warn!("Pruned mode detected hence fast sync feature disabled.");
+        }
 
         let handles = vec![
             invoke_ds_loops!(config, dsm, relaychain),
@@ -231,11 +294,61 @@ impl DataSourceManager {
         ];
         let handles = handles.into_iter().flatten().collect::<Vec<_>>();
 
-        (ret, handles)
+        Ok((ret, handles))
     }
 
     ds_loop!(relaychain);
     ds_loop!(parachain);
+
+    async fn headers_cache_loop(
+        config: HeadersCacheHttpSource,
+        map: WrappedHeadersCacheHttpSourceMap,
+    ) {
+        let uuid = Uuid::new_v5(&Uuid::NAMESPACE_URL, config.endpoint.as_bytes());
+        let uuid_str = uuid.to_string();
+        let client = CacheClient::new(config.endpoint.as_str());
+        let instance = HeadersCacheHttpSourceInstance {
+            uuid,
+            uuid_str: uuid_str.clone(),
+            client: client.clone(),
+            endpoint: config.endpoint.clone(),
+        };
+        let instance = Arc::new(instance);
+
+        let mut online = false;
+        let mut fail_count = 0;
+        loop {
+            if let Ok(()) = client.ping().await {
+                if !online {
+                    let m = map.clone();
+                    let mut m = map.write().await;
+                    m.insert(uuid_str.clone(), instance.clone());
+                    online = true;
+                    fail_count = 0;
+                    drop(m);
+                    info!("Headers cache {}({}) online!", &uuid_str, &config.endpoint);
+                }
+            } else {
+                if online {
+                    fail_count += 1;
+                    if fail_count >= 3 {
+                        let m = map.clone();
+                        let mut m = map.write().await;
+                        m.remove(&uuid_str);
+                        online = false;
+                        drop(m);
+                        warn!("Headers cache {}({}) down!", &uuid_str, &config.endpoint);
+                    } else {
+                        warn!(
+                            "Pining to headers cache {}({}) failed!",
+                            &uuid_str, &config.endpoint
+                        );
+                    }
+                }
+            }
+            sleep(Duration::from_secs(6)).await;
+        }
+    }
 
     async fn subxt_loop(config: SubstrateWebSocketSource, map: WrappedSubstrateWebSocketSourceMap) {
         let uuid = Uuid::new_v5(&Uuid::NAMESPACE_URL, config.endpoint.as_bytes());
@@ -320,5 +433,7 @@ pub async fn setup_data_source_manager(
 ) -> Result<(WrappedDataSourceManager, Vec<JoinHandle<()>>)> {
     let path = std::path::PathBuf::from(config_path);
     let config = DataSourceConfig::read_from_file(path);
-    Ok(DataSourceManager::from_config(config).await)
+    DataSourceManager::from_config(config).await
 }
+
+impl DataSourceManager {}

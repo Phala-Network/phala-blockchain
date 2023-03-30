@@ -34,3 +34,4 @@ chrono = "0.4.24"
 hex = { version = "*" }
 
 phala-types = { path = "../../crates/phala-types" }
+rand = "0.8.5"

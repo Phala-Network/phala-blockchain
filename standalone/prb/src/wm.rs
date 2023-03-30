@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::api::{start_api_server, WorkerStatus, WorkerStatusMap};
 use anyhow::{anyhow, Result};
-use futures::future::try_join_all;
+use futures::future::{join, try_join_all};
 use log::{debug, info};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 
@@ -110,10 +110,14 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         state_map: HashMap::new(),
     }));
 
-    let _ = tokio::join!(
+    let join_handle = join(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
         try_join_all(ds_handles),
-        async {
+    );
+
+    tokio::select! {
+        _ = join_handle => {}
+        _ = async {
             loop {
                 let (reload_tx, mut reload_rx) = mpsc::channel::<()>(1);
                 let main_handle =
@@ -129,8 +133,8 @@ pub async fn wm(args: WorkerManagerCliArgs) {
                     }
                 }
             }
-        }
-    );
+        } => {}
+    }
 }
 
 pub async fn set_lifecycle_manager(
@@ -259,7 +263,7 @@ async fn message_loop(
                 let _ = response_tx.unwrap().send(FastSyncLockBusy);
             }
             ReleaseFastSyncLock(id) => {
-                if (id == fast_sync_lock_owner) {
+                if id == fast_sync_lock_owner {
                     fast_sync_lock_owner = "";
                 } else {
                     panic!(
