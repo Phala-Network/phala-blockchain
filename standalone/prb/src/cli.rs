@@ -14,10 +14,6 @@ pub struct WorkerManagerCliArgs {
     #[arg(short = 's', long, env, default_value = "/var/data/prb-wm/ds.yml")]
     pub data_source_config_path: String,
 
-    /// Use persisted cache index
-    #[arg(short = 'c', long, env)]
-    pub use_persisted_cache_index: bool,
-
     /// Listen address of management interface
     #[arg(short = 'm', long, env, default_values_t = vec!["0.0.0.0:3001".to_string(), "[::]:3001".to_string()])]
     pub mgmt_listen_addresses: Vec<String>,
@@ -29,6 +25,10 @@ pub struct WorkerManagerCliArgs {
     /// Disable fast-sync feature
     #[arg(long, env)]
     pub disable_fast_sync: bool,
+
+    /// Size of in-memory cache, default to 1 GiB
+    #[arg(short = 'c', long, env, default_value_t = 1073741824)]
+    pub cache_size: usize,
 }
 
 pub async fn start_wm() {

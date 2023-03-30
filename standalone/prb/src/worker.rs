@@ -224,13 +224,14 @@ impl WorkerContext {
 
     async fn handle_on_starting(c: WrappedWorkerContext) -> Result<()> {
         let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let dsm = (&lm.dsm).clone();
 
         let mut i = pr.get_info(()).await?;
 
         if !i.initialized {
             set_worker_message!(c, "Initializing pRuntime...");
             let res = pr
-                .init_runtime(lm.default_pruntime_init_request.clone())
+                .init_runtime(dsm.get_init_runtime_default_request().await?)
                 .await?;
             set_worker_message!(c, "Initialized pRuntime.");
             debug!(

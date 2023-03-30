@@ -35,3 +35,5 @@ hex = { version = "*" }
 
 phala-types = { path = "../../crates/phala-types" }
 rand = "0.8.5"
+memory-lru = "0.1.1"
+namedlock = "0.7.0"

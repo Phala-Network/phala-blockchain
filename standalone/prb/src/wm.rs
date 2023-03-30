@@ -34,7 +34,6 @@ pub struct WorkerManagerContext {
     pub initialized: bool,
     pub current_lifecycle_manager: Option<WrappedWorkerLifecycleManager>,
     pub inv_db: WrappedDb,
-    pub ci_db: WrappedDb,
     pub dsm: WrappedDataSourceManager,
     pub state_map: WorkerStatusMap,
 }
@@ -94,10 +93,10 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     info!("Staring prb-wm with {:?}", &args);
 
     let inv_db = setup_inventory_db(&args.db_path);
-    let ci_db = setup_cache_index_db(&args.db_path, args.use_persisted_cache_index);
-    let (dsm, ds_handles) = setup_data_source_manager(&args.data_source_config_path)
-        .await
-        .expect("Initialize data source manager");
+    let (dsm, ds_handles) =
+        setup_data_source_manager(&args.data_source_config_path, *&args.cache_size)
+            .await
+            .expect("Initialize data source manager");
 
     let fast_sync_enabled = !args.disable_fast_sync;
 
@@ -105,7 +104,6 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         initialized: false,
         current_lifecycle_manager: None,
         inv_db,
-        ci_db,
         dsm,
         state_map: HashMap::new(),
     }));
@@ -148,18 +146,11 @@ pub async fn set_lifecycle_manager(
     let ctx_read = ctx_read.read().await;
     let dsm = ctx_read.dsm.clone();
     let inv_db = ctx_read.inv_db.clone();
-    let ci_db = ctx_read.ci_db.clone();
     drop(ctx_read);
 
-    let lm = WorkerLifecycleManager::create(
-        tx.clone(),
-        ctx.clone(),
-        dsm,
-        inv_db,
-        ci_db,
-        fast_sync_enabled,
-    )
-    .await;
+    let lm =
+        WorkerLifecycleManager::create(tx.clone(), ctx.clone(), dsm, inv_db, fast_sync_enabled)
+            .await;
 
     let mut ctx_write = ctx.write().await;
     ctx_write.current_lifecycle_manager = Some(lm.clone());

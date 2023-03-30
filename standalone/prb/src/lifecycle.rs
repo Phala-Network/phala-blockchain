@@ -25,7 +25,6 @@ pub struct WorkerLifecycleManager {
     pub dsm: WrappedDataSourceManager,
     pub should_stop: bool,
     pub inv_db: WrappedDb,
-    pub ci_db: WrappedDb,
     pub workers: Vec<Worker>,
     pub worker_context_vec: Vec<WrappedWorkerContext>,
     pub worker_context_map: WorkerContextMap,
@@ -44,7 +43,6 @@ impl WorkerLifecycleManager {
         main_ctx: WrappedWorkerManagerContext,
         dsm: WrappedDataSourceManager,
         inv_db: WrappedDb,
-        ci_db: WrappedDb,
         fast_sync_enabled: bool,
     ) -> WrappedWorkerLifecycleManager {
         let workers =
@@ -93,7 +91,7 @@ impl WorkerLifecycleManager {
         }
 
         let dd = dsm.clone();
-        dd.clone().wait_until_rpc_avail(true).await;
+        dd.clone().wait_until_rpc_avail(false).await;
 
         info!("Preparing genesis...");
         let relay_api = dd
@@ -157,7 +155,6 @@ impl WorkerLifecycleManager {
             dsm,
             should_stop: false,
             inv_db: inv_db.clone(),
-            ci_db: ci_db.clone(),
             workers,
             worker_context_map,
             worker_context_vec,

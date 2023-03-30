@@ -5824,6 +5824,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "memory-lru"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce95ae042940bad7e312857b929ee3d11b8f799a80cb7b9c7ec5125516906395"
+dependencies = [
+ "lru",
+]
+
+[[package]]
 name = "memory_units"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6045,6 +6054,12 @@ dependencies = [
  "quote 1.0.26",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "namedlock"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00080bed36de1de35105737807ffe79cebdaf3b4c47f8335be7297df82e19a2b"
 
 [[package]]
 name = "names"
@@ -8714,6 +8729,8 @@ dependencies = [
  "jsonrpsee",
  "lazy_static",
  "log",
+ "memory-lru",
+ "namedlock",
  "paste",
  "phactory-api",
  "phala-types",
