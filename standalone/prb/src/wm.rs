@@ -90,7 +90,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let inv_db = setup_inventory_db(&args.db_path);
     let (dsm, ds_handles) =
-        setup_data_source_manager(&args.data_source_config_path, *&args.cache_size)
+        setup_data_source_manager(&args.data_source_config_path, args.cache_size)
             .await
             .expect("Initialize data source manager");
 
@@ -166,7 +166,7 @@ impl WorkerManagerMessage {
 
 async fn message_loop(
     ctx: WrappedWorkerManagerContext,
-    tx: WorkerManagerCommandTx,
+    _tx: WorkerManagerCommandTx,
     mut rx: WorkerManagerCommandRx,
     reload_tx: WrappedReloadTx,
 ) {

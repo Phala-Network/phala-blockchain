@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Context, Result};
-use axum::http::uri;
 use jsonrpsee::{
     async_client::ClientBuilder,
     client_transport::ws::{Uri, WsTransportClientBuilder},
@@ -18,9 +17,9 @@ use pherry::{get_authority_with_proof_at, get_block_at, headers_cache::Client as
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{collections::HashMap, mem::size_of};
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -122,7 +121,7 @@ impl LockSpace {
         let mut s = s.lock().await;
         let lock = s.get_or_create(key);
         drop(s);
-        lock.clone()
+        lock
     }
     pub async fn clean(s: WrappedDataSourceCacheLockSpace) {
         let s = s.clone();
@@ -133,16 +132,16 @@ impl LockSpace {
 
     pub fn get_or_create(&mut self, key: String) -> Arc<Semaphore> {
         if let Some(ret) = self.locks.get(&key) {
-            return ret.clone();
+            ret.clone()
         } else {
             let ret = Arc::new(Semaphore::new(1));
             self.locks.insert(key, ret.clone());
-            ret.clone()
+            ret
         }
     }
     pub fn do_clean(&mut self) {
         let locks = &mut self.locks;
-        locks.retain(|k, s| s.available_permits() != 0);
+        locks.retain(|_k, s| s.available_permits() != 0);
     }
 }
 
@@ -162,7 +161,7 @@ impl ResidentSize for DataSourceCacheItem {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum DataStourceError {
+pub enum DataSourceError {
     #[error("No valid data source found (key: {key})")]
     NoValidDataSource { key: String },
 }
@@ -339,10 +338,10 @@ impl DataSourceManager {
     pub async fn wait_until_rpc_avail(self: Arc<Self>, full: bool) {
         info!("Waiting for Substrate RPC clients to be available...");
         loop {
-            if let Some(_) = self.clone().current_relaychain_rpc_client(full).await {
-                if let Some(_) = self.clone().current_parachain_rpc_client(full).await {
-                    break;
-                }
+            if (self.clone().current_relaychain_rpc_client(full).await).is_some()
+                && (self.clone().current_parachain_rpc_client(full).await).is_some()
+            {
+                break;
             }
             sleep(Duration::from_secs(1)).await;
         }
@@ -404,7 +403,7 @@ impl DataSourceManager {
         let ret = dsm.clone();
         let dsm_move = dsm.clone();
 
-        if !(*&ret.is_relaychain_full && *&ret.is_relaychain_full) {
+        if !(ret.is_relaychain_full && ret.is_parachain_full) {
             warn!("Pruned mode detected hence fast sync feature disabled.");
         }
 
@@ -454,7 +453,7 @@ impl DataSourceManager {
             if let Ok(()) = client.ping().await {
                 if !online {
                     let m = map.clone();
-                    let mut m = map.write().await;
+                    let mut m = m.write().await;
                     m.insert(uuid_str.clone(), instance.clone());
                     online = true;
                     fail_count = 0;
@@ -465,7 +464,7 @@ impl DataSourceManager {
                 fail_count += 1;
                 if fail_count >= 3 {
                     let m = map.clone();
-                    let mut m = map.write().await;
+                    let mut m = m.write().await;
                     m.remove(&uuid_str);
                     online = false;
                     drop(m);
@@ -534,9 +533,10 @@ impl DataSourceManager {
             }
         };
         let uri = format!(
-            "{}://{}{}",
+            "{}://{}:{}{}",
             scheme,
-            format!("{}:{}", raw_uri.host().unwrap(), &port),
+            raw_uri.host().unwrap(),
+            &port,
             raw_uri.path_and_query().unwrap().as_str()
         );
         debug!("raw: {}, parsed: {}", &config.endpoint, &uri);
@@ -560,7 +560,7 @@ impl DataSourceManager {
 
         let client = ChainApi(client);
         let instance = SubstrateWebSocketSourceInstance {
-            uuid: uuid.clone(),
+            uuid: *uuid,
             uuid_str: uuid_str.clone(),
             client,
             endpoint: config.endpoint.clone(),
@@ -627,11 +627,11 @@ macro_rules! use_parachain_hc {
 
 impl DataSourceManager {
     pub async fn get_init_runtime_default_request(self: Arc<Self>) -> Result<InitRuntimeRequest> {
-        let mut key = "init".to_string();
+        let key = "init".to_string();
 
-        let lock = (&self.lock_space).clone();
+        let lock = self.lock_space.clone();
         let lock = LockSpace::get_lock(lock, key.clone()).await;
-        let lock = lock.acquire().await;
+        let lock = lock.acquire().await?;
 
         let cache = self.cache.clone();
         let mut cache = cache.write().await;
@@ -696,10 +696,8 @@ impl DataSourceManager {
         let mut cache = cache.write().await;
         cache.insert(key, DataSourceCacheItem::InitRuntimeRequest(ret.clone()));
         drop(cache);
-
-        return Ok(ret);
-
         drop(lock);
-        Err(DataStourceError::NoValidDataSource { key }.into())
+
+        Ok(ret)
     }
 }

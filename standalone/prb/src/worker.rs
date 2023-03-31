@@ -1,14 +1,14 @@
 use crate::db::Worker;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use chrono::prelude::*;
 use futures::future::join;
 use log::{debug, error, info, warn};
 use phactory_api::prpc::PhactoryInfo;
 use phactory_api::pruntime_client::{new_pruntime_client, PRuntimeClient};
 use pherry::chain_client::search_suitable_genesis_for_worker;
-use pherry::get_block_at;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -114,7 +114,7 @@ impl WorkerContext {
             id: w.id.clone(),
             self_ref: None,
             sm_tx: None,
-            worker: w.clone(),
+            worker: w,
             state: WorkerLifecycleState::Starting,
             tx,
             rx: Arc::new(Mutex::new(rx)),
@@ -130,7 +130,7 @@ impl WorkerContext {
     pub fn set_last_message(&mut self, m: &str) {
         let time: DateTime<Local> = Local::now();
         let worker = &self.worker;
-        self.last_message = format!("[{}] {}", time, m);
+        self.last_message = format!("[{time}] {m}");
         info!(
             "Worker {}({}, {}): {}",
             &worker.name, &worker.id, &worker.endpoint, &m
@@ -153,7 +153,7 @@ impl WorkerContext {
                 WorkerManagerMessage::ShouldStartWorkerLifecycle(c.clone()),
             )
             .await
-            .expect(format!("Failed to start worker {}", worker.name).as_str())
+            .unwrap_or_else(|_| panic!("Failed to start worker {}", worker.name))
         {
             let cc = c.clone();
             let mut cc = cc.write().await;
@@ -171,11 +171,11 @@ impl WorkerContext {
         .await;
     }
 
-    async fn restart(c: WrappedWorkerContext) {}
+    async fn restart(_c: WrappedWorkerContext) {}
 
     async fn do_start(c: WrappedWorkerContext) {
         let (tx, rx) = mpsc::unbounded_channel::<WorkerLifecycleState>();
-        let cc = c.clone();
+        let _cc = c.clone();
         let mut cc = c.write().await;
         cc.sm_tx = Some(tx.clone());
         drop(cc);
@@ -187,7 +187,7 @@ impl WorkerContext {
     }
 
     async fn send_status(c: WrappedWorkerContext) {
-        let (lm, _, pr, _) = extract_essential_values!(c);
+        let (lm, _, _pr, _) = extract_essential_values!(c);
         let _ = lm
             .clone()
             .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
@@ -195,13 +195,13 @@ impl WorkerContext {
     }
 
     async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
-        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (_lm, worker, _pr, sm_tx) = extract_essential_values!(c);
 
         let _ = sm_tx.clone().send(WorkerLifecycleState::Starting);
         Self::send_status(c.clone()).await;
 
         while let Some(s) = sm_rx.recv().await {
-            let cc = c.clone();
+            let _cc = c.clone();
             let mut cc = c.write().await;
             cc.state = s.clone();
             drop(cc);
@@ -232,7 +232,7 @@ impl WorkerContext {
 
     async fn handle_on_starting(c: WrappedWorkerContext) -> Result<()> {
         let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
-        let dsm = (&lm.dsm).clone();
+        let dsm = lm.dsm.clone();
 
         let mut i = pr.get_info(()).await?;
 
@@ -267,14 +267,13 @@ impl WorkerContext {
             let pubkey = &i.public_key.unwrap();
             let pubkey = hex::decode(pubkey)?;
             set_worker_message!(c, "Trying to load chain state...");
-            let lock = (&lm.fast_sync_semaphore).clone();
+            let lock = lm.fast_sync_semaphore.clone();
             let lock = lock.acquire().await?;
             let search = search_suitable_genesis_for_worker(para_api, &pubkey, None).await;
             drop(lock);
             match search {
                 Ok((block_number, state)) => {
-                    pr
-                        .load_chain_state(phactory_api::prpc::ChainState::new(block_number, state))
+                    pr.load_chain_state(phactory_api::prpc::ChainState::new(block_number, state))
                         .await?;
                     set_worker_message!(c, "Loaded chain state!");
                 }

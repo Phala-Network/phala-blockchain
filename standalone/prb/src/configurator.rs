@@ -14,12 +14,9 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
         ConfigCommands::AddPool { pid, .. } => {
             db::add_pool(db.clone(), args.command.clone())?;
             let p = get_pool_by_pid(db.clone(), *pid)?;
-            match p {
-                Some(p) => {
-                    let p = serde_json::to_string_pretty(&p)?;
-                    println!("{}", p);
-                }
-                None => {}
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                println!("{p}");
             }
         }
         ConfigCommands::RemovePool { pid } => {
@@ -28,43 +25,34 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
         ConfigCommands::UpdatePool { pid, .. } => {
             db::update_pool(db.clone(), args.command.clone())?;
             let p = get_pool_by_pid(db.clone(), *pid)?;
-            match p {
-                Some(p) => {
-                    let p = serde_json::to_string_pretty(&p)?;
-                    println!("{}", p);
-                }
-                None => {}
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                println!("{p}");
             }
         }
         ConfigCommands::GetPool { pid } => {
             let p = get_pool_by_pid(db, *pid)?;
-            match p {
-                Some(p) => {
-                    let p = serde_json::to_string_pretty(&p)?;
-                    println!("{}", p);
-                }
-                None => {}
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                println!("{p}");
             }
         }
         ConfigCommands::GetPoolWithWorkers { pid } => {
             let p = get_pool_by_pid_with_workers(db, *pid)?;
-            match p {
-                Some(p) => {
-                    let p = serde_json::to_string_pretty(&p)?;
-                    println!("{}", p);
-                }
-                None => {}
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                println!("{p}");
             }
         }
         ConfigCommands::GetAllPools => {
             let v = get_all_pools(db)?;
             let v = serde_json::to_string_pretty(&v)?;
-            println!("{}", v);
+            println!("{v}");
         }
         ConfigCommands::GetAllPoolsWithWorkers => {
             let v = get_all_pools_with_workers(db)?;
             let v = serde_json::to_string_pretty(&v)?;
-            println!("{}", v);
+            println!("{v}");
         }
         ConfigCommands::AddWorker { name, pid, .. } => {
             add_worker(db.clone(), args.command.clone())?;
@@ -72,7 +60,7 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
                 get_worker_by_name(db.clone(), name.to_string())?.context("Failed to add!")?;
             v.pid = Some(*pid);
             let v = serde_json::to_string_pretty(&v)?;
-            println!("{}", v);
+            println!("{v}");
         }
         ConfigCommands::UpdateWorker {
             name,
@@ -88,7 +76,7 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
             let mut v = get_worker_by_name(db.clone(), new_name)?.context("Failed to add!")?;
             v.pid = Some(*pid);
             let v = serde_json::to_string_pretty(&v)?;
-            println!("{}", v);
+            println!("{v}");
         }
         ConfigCommands::RemoveWorker { name } => {
             remove_worker(db, name.clone())?;

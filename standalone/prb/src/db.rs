@@ -158,7 +158,7 @@ pub fn setup_inventory_db(db_path: &str) -> WrappedDb {
     let db = Arc::new(db);
     debug!("Opened inventory database in {:?}", db_path);
 
-    let _iter = vec![
+    vec![
         ID_PROP_WORKER_NAME,
         ID_PROP_WORKER_ENABLED,
         ID_PROP_WORKER_SYNC_ONLY,
@@ -171,7 +171,7 @@ pub fn setup_inventory_db(db_path: &str) -> WrappedDb {
     .for_each(|i| {
         let ii = Identifier::new(*i).unwrap();
         db.index_property(ii)
-            .expect(format!("inv_db: Failed to index property {:?}", *i).as_str());
+            .unwrap_or_else(|_| panic!("inv_db: Failed to index property {:?}", *i));
         debug!("inv_db: Indexing property {:?}", *i);
     });
 
@@ -181,7 +181,7 @@ pub fn setup_inventory_db(db_path: &str) -> WrappedDb {
 pub fn get_pool_by_pid(db: WrappedDb, pid: u64) -> Result<Option<Pool>> {
     let v = get_raw_pool_by_pid(db, pid)?;
     match v {
-        Some(v) => Ok(Some(v.clone().into())),
+        Some(v) => Ok(Some(v.into())),
         None => Ok(None),
     }
 }
@@ -253,8 +253,7 @@ pub fn get_all_workers(db: WrappedDb) -> Result<Vec<Worker>> {
     let pools = get_all_pools_with_workers(db)?;
     let workers = pools
         .into_iter()
-        .map(|p| p.workers.unwrap_or(vec![]))
-        .flatten()
+        .flat_map(|p| p.workers.unwrap_or(vec![]))
         .collect::<Vec<_>>();
     Ok(workers)
 }
@@ -274,10 +273,7 @@ pub fn add_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     let id = db.create_vertex_from_type(
                         Identifier::new(ID_VERTEX_INVENTORY_POOL).unwrap(),
                     )?;
-                    let uq: VertexQuery = SpecificVertexQuery {
-                        ids: vec![id.clone()],
-                    }
-                    .into();
+                    let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
                     db.set_vertex_properties(
                         VertexPropertyQuery {
                             inner: uq.clone(),
@@ -301,7 +297,7 @@ pub fn add_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     )?;
                     db.set_vertex_properties(
                         VertexPropertyQuery {
-                            inner: uq.clone(),
+                            inner: uq,
                             name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
                         },
                         serde_json::Value::Bool(sync_only),
@@ -326,10 +322,7 @@ pub fn update_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             match p {
                 Some(v) => {
                     let id = v.vertex.id;
-                    let uq: VertexQuery = SpecificVertexQuery {
-                        ids: vec![id.clone()],
-                    }
-                    .into();
+                    let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
                     db.set_vertex_properties(
                         VertexPropertyQuery {
                             inner: uq.clone(),
@@ -346,7 +339,7 @@ pub fn update_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     )?;
                     db.set_vertex_properties(
                         VertexPropertyQuery {
-                            inner: uq.clone(),
+                            inner: uq,
                             name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
                         },
                         serde_json::Value::Bool(sync_only),
@@ -363,7 +356,7 @@ pub fn update_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
 pub fn remove_pool(db: WrappedDb, pid: u64) -> Result<()> {
     let p = get_raw_pool_by_pid(db.clone(), pid)?;
     let workers = get_raw_workers_by_pid(db.clone(), pid)?;
-    if workers.len() > 0 {
+    if !workers.is_empty() {
         return Err(anyhow!("Pool not empty!"));
     }
     match p {
@@ -461,10 +454,7 @@ pub fn add_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             let p = p.vertex.id;
 
             let id = db.create_vertex_from_type(Identifier::new(ID_VERTEX_INVENTORY_WORKER)?)?;
-            let uq: VertexQuery = SpecificVertexQuery {
-                ids: vec![id.clone()],
-            }
-            .into();
+            let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
 
             let setup = || -> Result<()> {
                 db.set_vertex_properties(
@@ -503,7 +493,7 @@ pub fn add_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     serde_json::Value::Bool(sync_only),
                 )?;
                 let e = EdgeKey {
-                    outbound_id: id.clone(),
+                    outbound_id: id,
                     t: Identifier::new(ID_EDGE_BELONG_TO)?,
                     inbound_id: p,
                 };
@@ -535,17 +525,14 @@ pub fn update_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
         } => {
             let worker =
                 get_raw_worker_by_name(db.clone(), name.clone())?.context("Worker not found!")?;
-            let id = worker.vertex.id.clone();
+            let id = worker.vertex.id;
 
             let name = match new_name {
-                None => name.to_string(),
-                Some(nn) => nn.to_string(),
+                None => name,
+                Some(nn) => nn,
             };
 
-            let edges = SpecificVertexQuery {
-                ids: vec![id.clone()],
-            }
-            .into();
+            let edges = SpecificVertexQuery { ids: vec![id] }.into();
             let edges = PipeEdgeQuery {
                 inner: Box::new(edges),
                 direction: EdgeDirection::Outbound,
@@ -573,17 +560,14 @@ pub fn update_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     get_raw_pool_by_pid(db.clone(), pid)?.context("New pool not found!")?;
                 db.delete_edges(SpecificEdgeQuery { keys }.into())?;
                 let e = EdgeKey {
-                    outbound_id: id.clone(),
+                    outbound_id: id,
                     t: Identifier::new(ID_EDGE_BELONG_TO)?,
-                    inbound_id: new_pool.vertex.id.clone(),
+                    inbound_id: new_pool.vertex.id,
                 };
                 db.create_edge(&e)?;
             };
 
-            let uq: VertexQuery = SpecificVertexQuery {
-                ids: vec![id.clone()],
-            }
-            .into();
+            let uq: VertexQuery = SpecificVertexQuery { ids: vec![id] }.into();
             db.set_vertex_properties(
                 VertexPropertyQuery {
                     inner: uq.clone(),
@@ -614,7 +598,7 @@ pub fn update_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             )?;
             db.set_vertex_properties(
                 VertexPropertyQuery {
-                    inner: uq.clone(),
+                    inner: uq,
                     name: Identifier::new(ID_PROP_WORKER_SYNC_ONLY).unwrap(),
                 },
                 serde_json::Value::Bool(sync_only),
