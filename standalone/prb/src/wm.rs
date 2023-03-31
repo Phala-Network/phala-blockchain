@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 
 use crate::cli::WorkerManagerCliArgs;
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
-use crate::db::{setup_cache_index_db, setup_inventory_db, WrappedDb};
+use crate::db::{setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerLifecycleManager, WrappedWorkerLifecycleManager};
 use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
@@ -49,11 +49,7 @@ pub enum WorkerManagerMessage {
     ShouldResetLifecycleManager,
 
     ShouldStartWorkerLifecycle(WrappedWorkerContext),
-    ShoudUpdateWorkerStatus(WrappedWorkerContext),
-
-    AcquireFastSyncLock(String),
-    ReleaseFastSyncLock(String),
-    FastSyncLockBusy,
+    ShouldUpdateWorkerStatus(WrappedWorkerContext),
 }
 
 pub type WrappedReloadTx = mpsc::Sender<()>;
@@ -162,20 +158,25 @@ pub async fn set_lifecycle_manager(
     );
 }
 
+impl WorkerManagerMessage {
+    fn discriminant(&self) -> u8 {
+        unsafe { *(self as *const Self as *const u8) }
+    }
+}
+
 async fn message_loop(
     ctx: WrappedWorkerManagerContext,
     tx: WorkerManagerCommandTx,
     mut rx: WorkerManagerCommandRx,
     reload_tx: WrappedReloadTx,
 ) {
-    let mut fast_sync_lock_owner = "";
-
     debug!("message_loop start");
     while let Some(WorkerManagerCommand {
         message,
         response_tx,
     }) = rx.recv().await
     {
+        debug!("message_loop got {}", message.discriminant());
         match message {
             ShouldBreakMessageLoop => break,
             LifecycleManagerStarted => {
@@ -220,7 +221,7 @@ async fn message_loop(
                 drop(ctx);
             }
 
-            ShoudUpdateWorkerStatus(c) => {
+            ShouldUpdateWorkerStatus(c) => {
                 let cc = c.read().await;
                 let ctx = ctx.clone();
                 let mut ctx = ctx.write().await;
@@ -235,36 +236,8 @@ async fn message_loop(
                 drop(ctx);
             }
 
-            AcquireFastSyncLock(id) => {
-                debug!(
-                    "AcquireFastSyncLock: {} {} {}",
-                    &id,
-                    &fast_sync_lock_owner,
-                    id == fast_sync_lock_owner
-                );
-                if (id == fast_sync_lock_owner) {
-                    let _ = response_tx.unwrap().send(ResponseOk);
-                    return;
-                }
-                if (fast_sync_lock_owner.len() == 0) {
-                    fast_sync_lock_owner = id.as_str();
-                    let _ = response_tx.unwrap().send(ResponseOk);
-                    return;
-                }
-                let _ = response_tx.unwrap().send(FastSyncLockBusy);
-            }
-            ReleaseFastSyncLock(id) => {
-                if id == fast_sync_lock_owner {
-                    fast_sync_lock_owner = "";
-                } else {
-                    panic!(
-                        "Disorded fast_sync_lock_owner! Excepting {}, got {}.",
-                        fast_sync_lock_owner, id
-                    )
-                }
-            }
-
             _ => {}
         }
     }
+    debug!("message_loop end");
 }

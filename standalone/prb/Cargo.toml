@@ -27,7 +27,7 @@ serde_yaml = "0.9.19"
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phaxt = { path = "../../crates/phaxt" }
 pherry = { path = "../pherry" }
-jsonrpsee = "0.16.2"
+jsonrpsee = { version = "0.16.2", features = ["full"] }
 paste = "1.0.12"
 axum = "0.6.11"
 chrono = "0.4.24"

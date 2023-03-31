@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use axum::http::uri;
 use jsonrpsee::{
     async_client::ClientBuilder,
     client_transport::ws::{Uri, WsTransportClientBuilder},
@@ -6,7 +7,10 @@ use jsonrpsee::{
 use log::{debug, error, info, warn};
 use memory_lru::{MemoryLruCache, ResidentSize};
 use paste::paste;
-use phactory_api::{blocks::GenesisBlockInfo, prpc::InitRuntimeRequest};
+use phactory_api::{
+    blocks::GenesisBlockInfo,
+    prpc::{InitRuntimeRequest, Message},
+};
 use phala_types::AttestationProvider;
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
@@ -21,6 +25,8 @@ use tokio::sync::{Mutex, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use uuid::Uuid;
+
+static CACHE_SIZE_EXPANSION: f64 = 1.25;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct DataSourceConfig {
@@ -147,7 +153,11 @@ pub enum DataSourceCacheItem {
 
 impl ResidentSize for DataSourceCacheItem {
     fn resident_size(&self) -> usize {
-        std::mem::size_of_val(self)
+        match self {
+            DataSourceCacheItem::InitRuntimeRequest(e) => {
+                (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
+            }
+        }
     }
 }
 
@@ -286,6 +296,46 @@ impl DataSourceManager {
         None
     }
 
+    pub async fn current_relaychain_headers_cache(
+        self: Arc<Self>,
+    ) -> Option<WrappedHeadersCacheHttpSourceInstance> {
+        let ids = &self.relaychain_headers_cache_ids;
+        let mut ids = ids.clone();
+        match &self.config.relaychain.select_policy {
+            SelectPolicy::Random => ids.shuffle(&mut thread_rng()),
+            SelectPolicy::Failover => {}
+        };
+
+        let map = self.relaychain_headers_cache_map.clone();
+        let map = map.read().await;
+        for i in ids {
+            if let Some(i) = map.get(&i) {
+                return Some(i.clone());
+            }
+        }
+        None
+    }
+
+    pub async fn current_parachain_headers_cache(
+        self: Arc<Self>,
+    ) -> Option<WrappedHeadersCacheHttpSourceInstance> {
+        let ids = &self.parachain_headers_cache_ids;
+        let mut ids = ids.clone();
+        match &self.config.parachain.select_policy {
+            SelectPolicy::Random => ids.shuffle(&mut thread_rng()),
+            SelectPolicy::Failover => {}
+        };
+
+        let map = self.parachain_headers_cache_map.clone();
+        let map = map.read().await;
+        for i in ids {
+            if let Some(i) = map.get(&i) {
+                return Some(i.clone());
+            }
+        }
+        None
+    }
+
     pub async fn wait_until_rpc_avail(self: Arc<Self>, full: bool) {
         info!("Waiting for Substrate RPC clients to be available...");
         loop {
@@ -326,8 +376,8 @@ impl DataSourceManager {
             DataSourceIdList,
         ) = dump_ds_ids_from_config!(config.parachain);
 
-        let is_relaychain_full = relaychain_full_rpc_client_ids.len() > 0;
-        let is_parachain_full = parachain_full_rpc_client_ids.len() > 0;
+        let is_relaychain_full = !relaychain_full_rpc_client_ids.is_empty();
+        let is_parachain_full = !parachain_full_rpc_client_ids.is_empty();
 
         let lock_space = LockSpace::new();
         let cache = MemoryLruCache::new(cache_size);
@@ -411,22 +461,20 @@ impl DataSourceManager {
                     drop(m);
                     info!("Headers cache {}({}) online!", &uuid_str, &config.endpoint);
                 }
-            } else {
-                if online {
-                    fail_count += 1;
-                    if fail_count >= 3 {
-                        let m = map.clone();
-                        let mut m = map.write().await;
-                        m.remove(&uuid_str);
-                        online = false;
-                        drop(m);
-                        warn!("Headers cache {}({}) down!", &uuid_str, &config.endpoint);
-                    } else {
-                        warn!(
-                            "Pinging to headers cache {}({}) failed!",
-                            &uuid_str, &config.endpoint
-                        );
-                    }
+            } else if online {
+                fail_count += 1;
+                if fail_count >= 3 {
+                    let m = map.clone();
+                    let mut m = map.write().await;
+                    m.remove(&uuid_str);
+                    online = false;
+                    drop(m);
+                    warn!("Headers cache {}({}) down!", &uuid_str, &config.endpoint);
+                } else {
+                    warn!(
+                        "Pinging to headers cache {}({}) failed!",
+                        &uuid_str, &config.endpoint
+                    );
                 }
             }
             sleep(Duration::from_secs(6)).await;
@@ -473,12 +521,31 @@ impl DataSourceManager {
         map: WrappedSubstrateWebSocketSourceMap,
     ) -> Result<()> {
         let uuid_str = uuid.to_string();
-        let url: Uri = config.endpoint.parse().context("Invalid websocket url")?;
+        let raw_uri: Uri = config.endpoint.parse().context("Invalid websocket url")?;
+        let raw_port = raw_uri.port_u16();
+        let scheme = raw_uri.scheme_str().unwrap();
+        let port = if let Some(p) = raw_port {
+            p
+        } else {
+            match scheme {
+                "ws" => 80,
+                "wss" => 443,
+                _ => 80,
+            }
+        };
+        let uri = format!(
+            "{}://{}{}",
+            scheme,
+            format!("{}:{}", raw_uri.host().unwrap(), &port),
+            raw_uri.path_and_query().unwrap().as_str()
+        );
+        debug!("raw: {}, parsed: {}", &config.endpoint, &uri);
+        let uri: Uri = uri.parse().context("Invalid websocket url")?;
+
         let (sender, receiver) = WsTransportClientBuilder::default()
             .max_request_body_size(u32::MAX)
-            .build(url)
-            .await
-            .context("Failed to build ws transport")?;
+            .build(uri)
+            .await?;
         let ws_client = ClientBuilder::default().build_with_tokio(sender, receiver);
         let ws_client = Arc::new(ws_client);
 
@@ -526,7 +593,7 @@ macro_rules! use_relaychain_api {
         $dsm.clone()
             .current_relaychain_rpc_client($full)
             .await
-            .unwrap()
+            .ok_or(anyhow!("rpc client not found"))?
             .client
             .clone()
     };
@@ -538,9 +605,23 @@ macro_rules! use_parachain_api {
         $dsm.clone()
             .current_parachain_rpc_client($full)
             .await
-            .unwrap()
+            .ok_or(anyhow!("rpc client not found"))?
             .client
             .clone()
+    };
+}
+
+#[macro_export]
+macro_rules! use_relaychain_hc {
+    ($dsm:ident) => {
+        $dsm.clone().current_relaychain_headers_cache().await
+    };
+}
+
+#[macro_export]
+macro_rules! use_parachain_hc {
+    ($dsm:ident) => {
+        $dsm.clone().current_parachain_headers_cache().await
     };
 }
 
@@ -559,39 +640,48 @@ impl DataSourceManager {
         };
         drop(cache);
 
-        let relay_api = use_relaychain_api!(self, true);
-        let para_api = use_parachain_api!(self, true);
+        let relay_hc = use_relaychain_hc!(self);
 
-        let relaychain_start_block = para_api
-            .clone()
-            .relay_parent_number()
-            .await
-            .expect("Relaychain start block not found")
-            - 1;
-        let genesis_block = get_block_at(&relay_api, Some(relaychain_start_block))
-            .await
-            .expect("Genesis block not found")
-            .0
-            .block;
-        let genesis_hash = relay_api
-            .rpc()
-            .block_hash(Some(subxt_types::BlockNumber::from(
-                subxt_types::NumberOrHex::Number(relaychain_start_block as u64),
-            )))
-            .await
-            .expect("Genesis hash not found")
-            .unwrap();
-        let set_proof = get_authority_with_proof_at(&relay_api, genesis_hash)
-            .await
-            .expect("get_authority_with_proof_at Failed");
-        let genesis_info = GenesisBlockInfo {
-            block_header: genesis_block.header.clone(),
-            authority_set: set_proof.authority_set,
-            proof: set_proof.authority_proof,
+        let relay_api = use_relaychain_api!(self, false);
+        let para_api = use_parachain_api!(self, false);
+
+        let relaychain_start_block = para_api.clone().relay_parent_number().await? - 1;
+
+        let mut genesis_info: Option<GenesisBlockInfo> = match relay_hc {
+            Some(relay_hc) => {
+                let client = &relay_hc.client;
+                match client.get_genesis(relaychain_start_block).await {
+                    Ok(genesis_info) => Some(genesis_info),
+                    Err(e) => {
+                        warn!("get_init_runtime_default_request: {}", e);
+                        None
+                    }
+                }
+            }
+            None => None,
         };
-        let genesis_state = pherry::chain_client::fetch_genesis_storage(&para_api)
-            .await
-            .expect("fetch_genesis_storage failed");
+
+        if genesis_info.is_none() {
+            let genesis_block = get_block_at(&relay_api, Some(relaychain_start_block))
+                .await?
+                .0
+                .block;
+            let genesis_hash = relay_api
+                .rpc()
+                .block_hash(Some(subxt_types::BlockNumber::from(
+                    subxt_types::NumberOrHex::Number(relaychain_start_block as u64),
+                )))
+                .await?
+                .unwrap();
+            let set_proof = get_authority_with_proof_at(&relay_api, genesis_hash).await?;
+            genesis_info = Some(GenesisBlockInfo {
+                block_header: genesis_block.header.clone(),
+                authority_set: set_proof.authority_set,
+                proof: set_proof.authority_proof,
+            });
+        }
+        let genesis_info = genesis_info.unwrap();
+        let genesis_state = pherry::chain_client::fetch_genesis_storage(&para_api).await?;
         let ret = InitRuntimeRequest::new(
             false,
             genesis_info.clone(),
@@ -604,11 +694,6 @@ impl DataSourceManager {
 
         let cache = self.cache.clone();
         let mut cache = cache.write().await;
-        debug!(
-            "InitRuntimeRequest: {} bytes: {:?}",
-            std::mem::size_of_val(&ret),
-            ret
-        );
         cache.insert(key, DataSourceCacheItem::InitRuntimeRequest(ret.clone()));
         drop(cache);
 

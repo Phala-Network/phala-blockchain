@@ -1,5 +1,6 @@
 #![feature(async_closure)]
 #![feature(addr_parse_ascii)]
+#![feature(layout_for_ptr)]
 
 extern crate core;
 

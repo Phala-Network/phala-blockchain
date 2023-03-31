@@ -60,8 +60,16 @@ macro_rules! set_worker_message {
     ($c:expr, $m:expr) => {{
         let cc = $c.clone();
         let mut cc = cc.write().await;
+        let ctx = cc.ctx.clone();
+        let ctx = ctx.read().await;
+        let lm = ctx.current_lifecycle_manager.as_ref();
+        let lm = lm.unwrap().clone();
+        drop(ctx);
         cc.set_last_message($m);
         drop(cc);
+        let _ = lm
+            .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus($c.clone()))
+            .await;
     }};
 }
 
@@ -153,7 +161,7 @@ impl WorkerContext {
             drop(cc);
         }
         let _ = lm
-            .send_to_main_channel(WorkerManagerMessage::ShoudUpdateWorkerStatus(c.clone()))
+            .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
             .await;
 
         let _ = join(
@@ -182,7 +190,7 @@ impl WorkerContext {
         let (lm, _, pr, _) = extract_essential_values!(c);
         let _ = lm
             .clone()
-            .send_to_main_channel(WorkerManagerMessage::ShoudUpdateWorkerStatus(c.clone()))
+            .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
             .await;
     }
 
@@ -240,14 +248,14 @@ impl WorkerContext {
             )
         }
 
-        if let None = i.public_key {
+        if i.public_key.is_none() {
             i = pr.get_info(()).await?;
         }
 
         if lm.fast_sync_enabled
             && i.can_load_chain_state
-            && *&lm.dsm.is_relaychain_full
-            && *&lm.dsm.is_relaychain_full
+            && lm.dsm.is_relaychain_full
+            && lm.dsm.is_parachain_full
         {
             let para_api = &lm
                 .dsm
@@ -259,12 +267,13 @@ impl WorkerContext {
             let pubkey = &i.public_key.unwrap();
             let pubkey = hex::decode(pubkey)?;
             set_worker_message!(c, "Trying to load chain state...");
-            lm.clone().acquire_fast_sync_lock(worker.id.clone()).await;
+            let lock = (&lm.fast_sync_semaphore).clone();
+            let lock = lock.acquire().await?;
             let search = search_suitable_genesis_for_worker(para_api, &pubkey, None).await;
-            lm.clone().release_fast_sync_lock(worker.id.clone()).await;
+            drop(lock);
             match search {
                 Ok((block_number, state)) => {
-                    let _ = pr
+                    pr
                         .load_chain_state(phactory_api::prpc::ChainState::new(block_number, state))
                         .await?;
                     set_worker_message!(c, "Loaded chain state!");
@@ -278,8 +287,6 @@ impl WorkerContext {
                 }
             }
         }
-
-        let i = pr.get_info(()).await?;
 
         let _ = sm_tx.clone().send(WorkerLifecycleState::Synchronizing);
         Ok(())
@@ -330,7 +337,7 @@ impl WorkerContext {
             }
             let _ = lm
                 .clone()
-                .send_to_main_channel(WorkerManagerMessage::ShoudUpdateWorkerStatus(c.clone()))
+                .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
                 .await;
         }
     }
