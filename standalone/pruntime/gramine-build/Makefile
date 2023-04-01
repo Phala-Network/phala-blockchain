@@ -46,7 +46,7 @@ PRUNTIME_SEAL_DIR ?= ${PRUNTIME_DATA_DIR}/protected_files
 PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 
 .PHONY: all
-all: ${BIN_NAME} ${BIN_NAME}.manifest
+all: ${BIN_NAME} ${BIN_NAME}.manifest ${LIBOS}
 ifeq ($(SGX),1)
 all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
 endif
@@ -87,7 +87,9 @@ ${LIBOS}:
 ifeq ($(USE_MUSL),0)
 	cp -rfL ${HOST_LIBC_DIR}/libgcc_s.so.1 ${RUNTIME_DIR}/lib/
 endif
+ifeq ($(SGX),1)
 	cp -rfL ${GRAMINE_DIR}/sgx ${RUNTIME_DIR}/
+endif
 	cp -rfL ${GRAMINE_LIBOS} ${RUNTIME_DIR}/
 
 ${BIN_NAME}.sig: ${BIN_NAME}.manifest.sgx
@@ -123,9 +125,9 @@ dist: all
 ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
-	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
 endif
+	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
 token-dist: token dist
