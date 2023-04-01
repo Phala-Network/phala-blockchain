@@ -48,7 +48,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageSendQueue, MessageOrigin};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -272,7 +272,7 @@ pub struct Phactory<Platform> {
 #[derive(Serialize, Deserialize, Clone)]
 struct ClusterState<'a> {
     block_number: BlockNumber,
-    pending_messages: ChannelState,
+    pending_messages: Vec<(MessageOrigin, ChannelState)>,
     contracts: Cow<'a, ContractsKeeper>,
     cluster: Cow<'a, Cluster>,
 }

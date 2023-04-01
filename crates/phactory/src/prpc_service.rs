@@ -351,12 +351,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return;
         }
         info!("Applying cluster state");
-        let mq_sender = MessageOrigin::Cluster(cluster_state.cluster.id);
         system.contract_cluster = Some(cluster_state.cluster.into_owned());
         system.contracts = cluster_state.contracts.into_owned();
-        runtime_state
-            .send_mq
-            .load_state(&mq_sender, cluster_state.pending_messages);
+
+        for (sender, messages) in cluster_state.pending_messages {
+            runtime_state.send_mq.load_state(&sender, messages);
+        }
         if let Err(e) = self.take_checkpoint() {
             error!("Failed to take checkpoint: {:?}", e);
         }
@@ -1016,13 +1016,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             )));
         }
         info!(receiver=%hex_fmt::HexFmt(&receiver), "Saving cluster state");
-        let pending_messages = runtime_state
+        let mq_sender = MessageOrigin::Cluster(cluster.id);
+        let messages = runtime_state
             .send_mq
-            .dump_state(&MessageOrigin::Cluster(cluster.id))
+            .dump_state(&mq_sender)
             .ok_or(from_display("Failed to dump send mq state"))?;
         let cluster_state = ClusterState {
             block_number,
-            pending_messages,
+            pending_messages: vec![(mq_sender, messages)],
             contracts: Cow::Borrowed(&system.contracts),
             cluster: Cow::Borrowed(cluster),
         };
@@ -1231,7 +1232,9 @@ impl<Platform: pal::Platform> RpcService<Platform> {
         let guard = self.phactory.lock().unwrap();
         debug!(target: "phactory::lock", "Locked phactory");
         if !allow_rcu && guard.rcu_dispatching {
-            return Err(from_display("RCU in progress, please try the request again later"));
+            return Err(from_display(
+                "RCU in progress, please try the request again later",
+            ));
         }
         if !allow_safemode && guard.args.safe_mode_level > 0 {
             return Err(from_display("This RPC is disabled in safe mode"));
