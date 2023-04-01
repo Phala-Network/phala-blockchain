@@ -1,11 +1,11 @@
 {
   "source": {
-    "hash": "0xc9691be9e11c6dce102526fbd7824662b1a7eaf18f9cb4211f4dcb38136f10d1",
-    "language": "ink! 4.0.0-rc",
-    "compiler": "rustc 1.66.0-nightly",
+    "hash": "0xb6c58a33b0237d7a9e972aec23518fee82f1f41313b6554913037966ac936eda",
+    "language": "ink! 4.1.0",
+    "compiler": "rustc 1.69.0-nightly",
     "build_info": {
-      "build_mode": "Release",
-      "cargo_contract_version": "2.0.0-rc.1",
+      "build_mode": "Debug",
+      "cargo_contract_version": "2.1.0",
       "rust_toolchain": "nightly-aarch64-apple-darwin",
       "wasm_opt_settings": {
         "keep_debug_symbols": false,
@@ -385,6 +385,91 @@
       {
         "args": [
           {
+            "label": "from_version",
+            "type": {
+              "displayName": [],
+              "type": 7
+            }
+          }
+        ],
+        "docs": [],
+        "label": "System::do_upgrade",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 9
+        },
+        "selector": "0x667e0041"
+      },
+      {
+        "args": [
+          {
+            "label": "version",
+            "type": {
+              "displayName": [],
+              "type": 22
+            }
+          }
+        ],
+        "docs": [
+          " Upgrade the contract runtime",
+          "",
+          " Be careful when using this function, it would panic the worker if the",
+          " runtime version is not supported."
+        ],
+        "label": "System::upgrade_runtime",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 9
+        },
+        "selector": "0x317f6bf3"
+      },
+      {
+        "args": [
+          {
+            "label": "code_hash",
+            "type": {
+              "displayName": [],
+              "type": 1
+            }
+          },
+          {
+            "label": "code_type",
+            "type": {
+              "displayName": [
+                "CodeType"
+              ],
+              "type": 23
+            }
+          }
+        ],
+        "docs": [
+          " Check if the code is already uploaded to the cluster with given code hash."
+        ],
+        "label": "System::code_exists",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 20
+        },
+        "selector": "0x6fc58436"
+      },
+      {
+        "args": [
+          {
             "label": "contract_id",
             "type": {
               "displayName": [
@@ -412,7 +497,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 22
+          "type": 24
         },
         "selector": "0xa24bcb44"
       }
@@ -734,6 +819,14 @@
               {
                 "index": 1,
                 "name": "DriverNotFound"
+              },
+              {
+                "index": 2,
+                "name": "CodeNotFound"
+              },
+              {
+                "index": 3,
+                "name": "ConditionNotMet"
               }
             ]
           }
@@ -967,12 +1060,47 @@
       "id": 22,
       "type": {
         "def": {
+          "tuple": [
+            16,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "Ink"
+              },
+              {
+                "index": 1,
+                "name": "Sidevm"
+              }
+            ]
+          }
+        },
+        "path": [
+          "pink_extension",
+          "system",
+          "CodeType"
+        ]
+      }
+    },
+    {
+      "id": 24,
+      "type": {
+        "def": {
           "variant": {
             "variants": [
               {
                 "fields": [
                   {
-                    "type": 23
+                    "type": 25
                   }
                 ],
                 "index": 0,
@@ -993,7 +1121,7 @@
         "params": [
           {
             "name": "T",
-            "type": 23
+            "type": 25
           },
           {
             "name": "E",
@@ -1006,7 +1134,7 @@
       }
     },
     {
-      "id": 23,
+      "id": 25,
       "type": {
         "def": {
           "variant": {
@@ -1023,7 +1151,7 @@
               {
                 "fields": [
                   {
-                    "type": 24
+                    "type": 26
                   }
                 ],
                 "index": 1,
@@ -1039,7 +1167,7 @@
           },
           {
             "name": "E",
-            "type": 24
+            "type": 26
           }
         ],
         "path": [
@@ -1048,7 +1176,7 @@
       }
     },
     {
-      "id": 24,
+      "id": 26,
       "type": {
         "def": {
           "variant": {
