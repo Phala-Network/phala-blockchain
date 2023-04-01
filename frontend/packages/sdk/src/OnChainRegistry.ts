@@ -1,12 +1,16 @@
 import type { ApiPromise } from '@polkadot/api';
+import type { KeyringPair } from '@polkadot/keyring/types';
+import type { U64, Result } from '@polkadot/types';
 
 import { waitReady } from "@polkadot/wasm-crypto";
 import { BN } from '@polkadot/util';
+import { Option, Map, Enum, Vec, U8aFixed, Text } from '@polkadot/types';
+import { AccountId } from '@polkadot/types/interfaces';
 
 import { createPruntimeApi } from './create';
 import { pruntime_rpc } from './proto';
-import { Option, Map, Enum, Vec, U8aFixed, Text } from '@polkadot/types';
-import { AccountId } from '@polkadot/types/interfaces';
+import { PinkContractPromise } from './contracts/PinkContract';
+import systemAbi from './abis/system.json';
 
 export class UnexpectedEndpointError extends Error {
 }
@@ -44,18 +48,19 @@ export class OnChainRegistry {
   public api: ApiPromise
 
   public clusterId: string | undefined
-  public clusterInfo: Record<string, any> | undefined
+  public clusterInfo: ClusterInfo | undefined
   public remotePubkey: string | undefined
   public pruntimeURL: string | undefined
 
   #ready: boolean = false
   #phactory: pruntime_rpc.PhactoryAPI | undefined
+  #systemContract: PinkContractPromise | undefined
 
   constructor(api: ApiPromise) {
     this.api = api
   }
 
-  public async getContractKey(contractId: string) {
+  public async getContractKey(contractId: AccountId | string) {
     const contractKey = await this.api.query.phalaRegistry.contractKeys(contractId);
     if (!contractKey) {
       return undefined
@@ -83,10 +88,10 @@ export class OnChainRegistry {
   }
 
   get gasPrice() {
-    if (!this.#ready || !this.clusterInfo) {
+    if (!this.#ready || !this.clusterInfo || !this.clusterInfo.gasPrice) {
       throw new Error('You need initialize OnChainRegistry first.')
     }
-    return new BN(this.clusterInfo.gasPrice)
+    return this.clusterInfo.gasPrice
   }
 
   /**
@@ -188,10 +193,42 @@ export class OnChainRegistry {
       throw new Error('Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.')
     }
     this.clusterId = clusterId
-    this.clusterInfo = clusterInfo
+    this.clusterInfo = clusterInfo as ClusterInfo
     this.remotePubkey = workerId!
     this.pruntimeURL = pruntimeURL!
 
     this.#ready = true
+
+    const systemContractId = this.clusterInfo.systemContract
+    if (systemContractId) {
+      const systemContractKey = await this.getContractKey(systemContractId)
+      if (systemContractKey) {
+        this.#systemContract = new PinkContractPromise(this.api, this, systemAbi, systemContractId, systemContractKey)
+      }
+    }
+  }
+
+  get systemContract() {
+    if (this.#systemContract) {
+      return this.#systemContract
+    }
+    console.warn('System contract not found, you might not connect to a health cluster.')
+  }
+
+  async getClusterBalance(pair: KeyringPair, address: string | AccountId) {
+    const system = this.#systemContract
+    if (!system) {
+      throw new Error('System contract not found, you might not connect to a health cluster.')
+    }
+    const { output: totalBalanceOf } = await system.query['system::totalBalanceOf'](pair, address)
+    const { output: freeBalanceOf } = await system.query['system::freeBalanceOf'](pair, address)
+    return {
+      total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
+      free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),
+    }
+  }
+
+  transferToCluster(address: string | AccountId, amount: number | string | BN) {
+    return this.api.tx.phalaPhatContracts.transferToCluster(amount, this.clusterId, address)
   }
 }
