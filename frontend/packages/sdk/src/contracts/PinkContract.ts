@@ -1,23 +1,25 @@
 import type { Bytes } from '@polkadot/types';
 import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
-import type { AccountId, ContractExecResult, EventRecord, Weight, WeightV2 } from '@polkadot/types/interfaces';
+import type { AccountId, ContractExecResult, EventRecord } from '@polkadot/types/interfaces';
 import type { ApiPromise } from '@polkadot/api';
+import type { ApiBase } from '@polkadot/api/base';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { AbiMessage, ContractOptions, ContractCallOutcome, DecodedEvent } from '@polkadot/api-contract/types';
-import type { ContractCallResult, ContractCallSend, MessageMeta, ContractQuery, ContractTx, MapMessageQuery, MapMessageTx } from '@polkadot/api-contract/base/types';
+import type { ContractCallResult, ContractCallSend, MessageMeta, ContractTx, MapMessageTx } from '@polkadot/api-contract/base/types';
 import type { Registry } from '@polkadot/types/types';
 import type { DecorateMethod, ApiTypes } from '@polkadot/api/types';
 import type { KeyringPair } from '@polkadot/keyring/types';
+
 import type { OnChainRegistry } from '../OnChainRegistry';
+import type { AbiLike } from '../types';
 
 
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
-import { ApiBase } from '@polkadot/api/base';
 import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract';
 import { applyOnEvent } from '@polkadot/api-contract/util';
 import { withMeta, convertWeight } from '@polkadot/api-contract/base/util'
-import { BN, BN_HUNDRED, BN_ONE, BN_ZERO, isUndefined, logger, hexAddPrefix, hexStripPrefix, u8aToHex, hexToU8a, stringToHex } from '@polkadot/util';
+import { BN, BN_ZERO, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
 import {
   sr25519Agree,
   sr25519KeypairFromSeed,
@@ -32,11 +34,11 @@ import { randomHex } from "../lib/hex";
 
 
 export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-    (origin: KeyringPair, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+  (origin: KeyringPair, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
 }
 
 export interface MapMessageInkQuery<ApiType extends ApiTypes> {
-    [message: string]: ContractInkQuery<ApiType>;
+  [message: string]: ContractInkQuery<ApiType>;
 }
 
 
@@ -114,7 +116,7 @@ export class PinkContractPromise {
   readonly #query: MapMessageInkQuery<'promise'> = {};
   readonly #tx: MapMessageTx<'promise'> = {};
 
-  constructor (api: ApiPromise, phatRegistry: OnChainRegistry, abi: string | Record<string, unknown> | Abi, address: string | AccountId, contractKey: string) {
+  constructor (api: ApiBase<'promise'>, phatRegistry: OnChainRegistry, abi: AbiLike, address: string | AccountId, contractKey: string) {
     if (!api || !api.isConnected || !api.tx) {
       throw new Error('Your API has not been initialized correctly and is not connected to a chain');
     }
@@ -127,11 +129,10 @@ export class PinkContractPromise {
       : new Abi(abi, api.registry.getChainProperties());
     this.api = api;
     this._decorateMethod = toPromiseMethod;
+    this.phatRegistry = phatRegistry
 
     this.address = this.registry.createType('AccountId', address);
     this.contractKey = contractKey
-
-    this.phatRegistry = phatRegistry
 
     this.abi.messages.forEach((m): void => {
       if (m.isMutating) {
