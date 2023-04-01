@@ -1,19 +1,23 @@
+use crate::datasource::WrappedDataSourceManager;
 use crate::db::Worker;
+use crate::lifecycle::WrappedWorkerLifecycleManager;
+use crate::use_parachain_hc;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
 use anyhow::Result;
 use chrono::prelude::*;
 use futures::future::join;
 use log::{debug, error, info, warn};
-use phactory_api::prpc::PhactoryInfo;
+use phactory_api::prpc::{HeadersToSync, PhactoryInfo};
 use phactory_api::pruntime_client::{new_pruntime_client, PRuntimeClient};
-use pherry::chain_client::search_suitable_genesis_for_worker;
-
+use pherry::{chain_client::search_suitable_genesis_for_worker, BlockSyncState};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio::time::sleep;
+
+static PARACHAIN_BLOCK_BATCH_SIZE: u8 = 2;
 
 pub type WorkerLifecycleCommandTx = mpsc::UnboundedSender<WorkerLifecycleCommand>;
 pub type WorkerLifecycleCommandRx = mpsc::UnboundedReceiver<WorkerLifecycleCommand>;
@@ -175,7 +179,6 @@ impl WorkerContext {
 
     async fn do_start(c: WrappedWorkerContext) {
         let (tx, rx) = mpsc::unbounded_channel::<WorkerLifecycleState>();
-        let _cc = c.clone();
         let mut cc = c.write().await;
         cc.sm_tx = Some(tx.clone());
         drop(cc);
@@ -201,7 +204,6 @@ impl WorkerContext {
         Self::send_status(c.clone()).await;
 
         while let Some(s) = sm_rx.recv().await {
-            let _cc = c.clone();
             let mut cc = c.write().await;
             cc.state = s.clone();
             drop(cc);
@@ -292,7 +294,7 @@ impl WorkerContext {
     }
 
     async fn handle_on_synchronizing(c: WrappedWorkerContext) -> Result<()> {
-        set_worker_message!(c, "Now start synchronizing!");
+        tokio::spawn(Self::sync_loop(c.clone()));
         Ok(())
     }
 
@@ -305,7 +307,7 @@ impl WorkerContext {
             let cc = c.clone();
             let cc = cc.read().await;
             if let WorkerLifecycleState::HasError(_) = &cc.state {
-                break;
+                return;
             }
             drop(cc);
 
@@ -354,5 +356,201 @@ impl WorkerContext {
             }
         }
         drop(rx);
+    }
+}
+
+impl WorkerContext {
+    async fn sync_loop(c: WrappedWorkerContext) {
+        set_worker_message!(c, "Now start synchronizing!");
+        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let dsm = lm.dsm.clone();
+
+        let mut sync_state = BlockSyncState {
+            blocks: Vec::new(),
+            authory_set_state: None,
+        };
+
+        loop {
+            let cc = c.clone();
+            let cc = cc.read().await;
+            if let WorkerLifecycleState::HasError(_) = &cc.state {
+                return;
+            }
+
+            match Self::sync_loop_round(
+                c.clone(),
+                lm.clone(),
+                worker.clone(),
+                pr.clone(),
+                sm_tx.clone(),
+                dsm.clone(),
+            )
+            .await
+            {
+                Ok(dont_wait) => {
+                    if !dont_wait {
+                        sleep(Duration::from_secs(3)).await;
+                    }
+                }
+                Err(e) => {
+                    let _ = sm_tx.send(WorkerLifecycleState::HasError(e.to_string()));
+                    return;
+                }
+            }
+        }
+    }
+
+    async fn sync_loop_round(
+        c: WrappedWorkerContext,
+        lm: WrappedWorkerLifecycleManager,
+        worker: Worker,
+        pr: Arc<PRuntimeClient>,
+        sm_tx: WorkerLifecycleStateTx,
+        dsm: WrappedDataSourceManager,
+    ) -> Result<bool> {
+        let dsm = lm.dsm.clone();
+        let i = pr.get_info(()).await?;
+
+        let next_para_headernum = i.para_headernum;
+        if i.blocknum < next_para_headernum {
+            Self::batch_sync_storage_changes(
+                pr.clone(),
+                dsm.clone(),
+                i.blocknum,
+                next_para_headernum - 1,
+                PARACHAIN_BLOCK_BATCH_SIZE,
+            )
+            .await?;
+        }
+        if i.waiting_for_paraheaders {
+            Self::maybe_sync_waiting_parablocks(
+                pr.clone(),
+                dsm.clone(),
+                &i,
+                PARACHAIN_BLOCK_BATCH_SIZE,
+            )
+            .await?;
+        }
+        let done_with_hc = Self::sync_with_cached_headers(pr.clone(), dsm.clone(), &i).await?;
+        if done_with_hc {
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
+    async fn batch_sync_storage_changes(
+        pr: Arc<PRuntimeClient>,
+        dsm: WrappedDataSourceManager,
+        from: u32,
+        to: u32,
+        batch_size: u8,
+    ) -> Result<()> {
+        let ranges = (from..=to)
+            .step_by(batch_size as _)
+            .map(|from| (from, to.min(from.saturating_add((batch_size - 1) as _))))
+            .collect::<Vec<(u32, u32)>>();
+        if ranges.is_empty() {
+            return Ok(());
+        }
+        let range_handles = ranges
+            .into_iter()
+            .map(|(from, to)| tokio::spawn(dsm.clone().fetch_storage_changes(from, to)))
+            .collect::<Vec<_>>();
+        for handle in range_handles {
+            let sc = handle.await??;
+            pr.dispatch_blocks(sc).await?;
+        }
+        Ok(())
+    }
+    async fn sync_parachain_header(
+        pr: Arc<PRuntimeClient>,
+        dsm: WrappedDataSourceManager,
+        from: u32,
+        to: u32,
+        last_header_proof: Vec<Vec<u8>>,
+    ) -> Result<u32> {
+        if to > from {
+            return Ok(to - 1);
+        }
+        let mut headers = dsm.clone().get_para_headers(from, to).await?;
+        headers.proof = last_header_proof;
+        let res = pr.sync_para_header(headers).await?;
+
+        Ok(res.synced_to)
+    }
+    async fn maybe_sync_waiting_parablocks(
+        pr: Arc<PRuntimeClient>,
+        dsm: WrappedDataSourceManager,
+        i: &PhactoryInfo,
+        batch_size: u8,
+    ) -> Result<()> {
+        let fin_header = dsm
+            .clone()
+            .get_para_header_by_relay_header(i.headernum - 1)
+            .await?;
+        if fin_header.is_none() {
+            return Ok(());
+        }
+        let (fin_header_num, proof) = fin_header.unwrap();
+        if fin_header_num > i.para_headernum - 1 {
+            let hdr_synced_to = Self::sync_parachain_header(
+                pr.clone(),
+                dsm.clone(),
+                i.para_headernum,
+                fin_header_num,
+                proof,
+            )
+            .await?;
+            if i.blocknum <= hdr_synced_to {
+                Self::batch_sync_storage_changes(
+                    pr,
+                    dsm.clone(),
+                    i.blocknum,
+                    hdr_synced_to,
+                    batch_size,
+                )
+                .await?;
+            }
+        }
+        Ok(())
+    }
+    async fn sync_with_cached_headers(
+        pr: Arc<PRuntimeClient>,
+        dsm: WrappedDataSourceManager,
+        i: &PhactoryInfo,
+    ) -> Result<bool> {
+        let (relay_headers, last_para_num, last_para_proof) =
+            match dsm.clone().get_cached_headers(i.headernum).await? {
+                None => return Ok(false),
+                Some(relay_headers) => relay_headers,
+            };
+        pr.sync_header(relay_headers).await?;
+        if last_para_num.is_none() || last_para_proof.is_none() {
+            return Ok(true);
+        }
+        let last_para_num = last_para_num.unwrap();
+        let last_para_proof = last_para_proof.unwrap();
+
+        let hdr_synced_to = Self::sync_parachain_header(
+            pr.clone(),
+            dsm.clone(),
+            i.para_headernum,
+            last_para_num,
+            last_para_proof,
+        )
+        .await?;
+        if i.blocknum < hdr_synced_to {
+            Self::batch_sync_storage_changes(
+                pr,
+                dsm,
+                i.blocknum,
+                hdr_synced_to,
+                PARACHAIN_BLOCK_BATCH_SIZE,
+            )
+            .await?;
+        }
+
+        Ok(true)
     }
 }

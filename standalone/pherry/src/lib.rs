@@ -264,13 +264,13 @@ struct RunningFlags {
     restart_failure_count: u32,
 }
 
-struct BlockSyncState {
-    blocks: Vec<Block>,
+pub struct BlockSyncState {
+    pub blocks: Vec<Block>,
     /// Tracks the latest known authority set id at a certain block.
-    authory_set_state: Option<(BlockNumber, SetId)>,
+    pub authory_set_state: Option<(BlockNumber, SetId)>,
 }
 
-async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Hash> {
+pub async fn get_header_hash(client: &phaxt::RpcClient, h: Option<u32>) -> Result<Hash> {
     let pos = h.map(|h| subxt::rpc::types::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client
@@ -305,7 +305,10 @@ pub async fn get_header_at(client: &phaxt::RpcClient, h: Option<u32>) -> Result<
     Ok((header.convert_to(), hash))
 }
 
-async fn get_block_without_storage_changes(api: &RelaychainApi, h: Option<u32>) -> Result<Block> {
+pub async fn get_block_without_storage_changes(
+    api: &RelaychainApi,
+    h: Option<u32>,
+) -> Result<Block> {
     let (block, hash) = get_block_at(api, h).await?;
     info!("get_block: Got block {:?} hash {}", h, hash.to_string());
     Ok(block)
@@ -690,7 +693,7 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_finalized_header(
+pub async fn get_finalized_header(
     api: &RelaychainApi,
     para_api: &ParachainApi,
     last_header_hash: Hash,
@@ -962,7 +965,9 @@ async fn register_worker(
     };
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
 
-    let encoded_call_data = tx.encode_call_data(&para_api.metadata()).expect("should encoded");
+    let encoded_call_data = tx
+        .encode_call_data(&para_api.metadata())
+        .expect("should encoded");
     debug!("register_worker call: 0x{}", hex::encode(encoded_call_data));
 
     let ret = para_api

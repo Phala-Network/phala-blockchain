@@ -8,16 +8,11 @@ use crate::worker::{WorkerContext, WrappedWorkerContext};
 use anyhow::Result;
 use log::{debug, info};
 
-
-
-
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::sync::{RwLock, Semaphore};
 use tokio::task::JoinSet;
-
 
 pub struct WorkerLifecycleManager {
     pub main_tx: WorkerManagerCommandTx,
@@ -29,7 +24,7 @@ pub struct WorkerLifecycleManager {
     pub worker_context_vec: Vec<WrappedWorkerContext>,
     pub worker_context_map: WorkerContextMap,
     pub fast_sync_enabled: bool,
-    pub fast_sync_semaphore: Arc<Semaphore>
+    pub fast_sync_semaphore: Arc<Semaphore>,
 }
 pub type WrappedWorkerLifecycleManager = Arc<WorkerLifecycleManager>;
 
@@ -103,7 +98,7 @@ impl WorkerLifecycleManager {
             worker_context_map,
             worker_context_vec,
             fast_sync_enabled,
-            fast_sync_semaphore
+            fast_sync_semaphore,
         };
         Arc::new(lm)
     }
@@ -116,7 +111,7 @@ impl WorkerLifecycleManager {
         for c in v {
             join_set.spawn(WorkerContext::start(c));
         }
-        while let Some(_) = join_set.join_next().await {} // wait tasks to be done
+        while (join_set.join_next().await).is_some() {} // wait tasks to be done
         self.clone()
             .send_to_main_channel(WorkerManagerMessage::ShouldBreakMessageLoop)
             .await

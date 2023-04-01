@@ -1,4 +1,5 @@
-use anyhow::{anyhow, Context, Result};
+use crate::datasource::DataSourceError::*;
+use anyhow::{Context, Result};
 use jsonrpsee::{
     async_client::ClientBuilder,
     client_transport::ws::{Uri, WsTransportClientBuilder},
@@ -6,18 +7,26 @@ use jsonrpsee::{
 use log::{debug, error, info, warn};
 use memory_lru::{MemoryLruCache, ResidentSize};
 use paste::paste;
+use phactory_api::blocks::HeaderToSync;
+use phactory_api::prpc::{HeadersToSync, ParaHeadersToSync};
 use phactory_api::{
     blocks::GenesisBlockInfo,
-    prpc::{InitRuntimeRequest, Message},
+    prpc::{Blocks, InitRuntimeRequest, Message},
 };
 use phala_types::AttestationProvider;
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
-use pherry::{get_authority_with_proof_at, get_block_at, headers_cache::Client as CacheClient};
+use pherry::headers_cache::{BlockInfo, ParaHeader};
+use pherry::types::ConvertTo;
+use pherry::{
+    get_authority_with_proof_at, get_block_at, get_finalized_header, get_header_hash,
+    headers_cache::Client as CacheClient,
+};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::mem::size_of_val;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, RwLock, Semaphore};
@@ -148,22 +157,55 @@ impl LockSpace {
 #[derive(Clone)]
 pub enum DataSourceCacheItem {
     InitRuntimeRequest(InitRuntimeRequest),
+    StorageChanges(Blocks),
+    ParaHeaderByRelayHeight(Option<(u32, Vec<Vec<u8>>)>),
+    ParaHeadersToSyncWithoutProof(ParaHeadersToSync),
+    CachedHeadersToSync(Option<(HeadersToSync, Option<u32>, Option<Vec<Vec<u8>>>)>),
 }
 
 impl ResidentSize for DataSourceCacheItem {
     fn resident_size(&self) -> usize {
-        match self {
+        let ret = match self {
             DataSourceCacheItem::InitRuntimeRequest(e) => {
                 (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
             }
-        }
+            DataSourceCacheItem::StorageChanges(e) => {
+                (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
+            }
+            DataSourceCacheItem::ParaHeaderByRelayHeight(e) => match e {
+                None => 16,
+                Some((_, e)) => {
+                    let bytes_len = e.iter().flatten().collect::<Vec<_>>().len();
+                    ((e.len() + 1) * size_of_val(e)) + bytes_len
+                }
+            },
+            DataSourceCacheItem::ParaHeadersToSyncWithoutProof(e) => {
+                (e.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _
+            }
+            DataSourceCacheItem::CachedHeadersToSync(e) => match e {
+                None => 16,
+                Some((pb, last_num, proof)) => {
+                    let bytes: usize = (pb.encoded_len() as f64 * CACHE_SIZE_EXPANSION) as _;
+                    let proof_bytes = proof.iter().flatten().collect::<Vec<_>>().len();
+                    size_of_val(last_num) + bytes + proof_bytes
+                }
+            },
+        };
+        debug!("resident_size: {ret}");
+        ret
     }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum DataSourceError {
-    #[error("No valid data source found (key: {key})")]
-    NoValidDataSource { key: String },
+    #[error("Unknown error occurred, this is a bug.")]
+    UnknownError,
+    #[error("No valid data source found")]
+    NoValidDataSource,
+    #[error("BlockHashNotFound {0}")]
+    BlockHashNotFound(u32),
+    #[error("BlockNotFound {0}")]
+    BlockNotFound(u32),
 }
 
 pub struct DataSourceManager {
@@ -593,9 +635,7 @@ macro_rules! use_relaychain_api {
         $dsm.clone()
             .current_relaychain_rpc_client($full)
             .await
-            .ok_or(anyhow!("rpc client not found"))?
-            .client
-            .clone()
+            .map(|i| i.client.clone())
     };
 }
 
@@ -605,24 +645,57 @@ macro_rules! use_parachain_api {
         $dsm.clone()
             .current_parachain_rpc_client($full)
             .await
-            .ok_or(anyhow!("rpc client not found"))?
-            .client
-            .clone()
+            .map(|i| i.client.clone())
     };
 }
 
 #[macro_export]
 macro_rules! use_relaychain_hc {
     ($dsm:ident) => {
-        $dsm.clone().current_relaychain_headers_cache().await
+        $dsm.clone()
+            .current_relaychain_headers_cache()
+            .await
+            .map(|i| i.client.clone())
     };
 }
 
 #[macro_export]
 macro_rules! use_parachain_hc {
     ($dsm:ident) => {
-        $dsm.clone().current_parachain_headers_cache().await
+        $dsm.clone()
+            .current_parachain_headers_cache()
+            .await
+            .map(|i| i.client.clone())
     };
+}
+
+macro_rules! return_if_cached {
+    ($dsm:ident, $key:ident, $t:ident, $l:ident) => {{
+        let cache = $dsm.cache.clone();
+        let mut cache = cache.write().await;
+        if let Some(DataSourceCacheItem::$t(d)) = cache.get(&$key) {
+            drop($l);
+            return Ok(d.clone());
+        }
+        drop(cache);
+    }};
+}
+
+macro_rules! cache_and_return {
+    ($dsm:ident, $key:ident, $t:ident, $d:ident, $l:ident) => {{
+        let cache = $dsm.cache.clone();
+        let mut cache = cache.write().await;
+        cache.insert($key.clone(), DataSourceCacheItem::$t($d.clone()));
+        drop(cache);
+        drop($l);
+        return Ok($d);
+    }};
+}
+
+macro_rules! get_lock {
+    ($dsm:ident, $key:ident) => {{
+        LockSpace::get_lock($dsm.lock_space.clone(), $key.clone()).await
+    }};
 }
 
 impl DataSourceManager {
@@ -642,22 +715,19 @@ impl DataSourceManager {
 
         let relay_hc = use_relaychain_hc!(self);
 
-        let relay_api = use_relaychain_api!(self, false);
-        let para_api = use_parachain_api!(self, false);
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
+        let para_api = use_parachain_api!(self, false).ok_or(NoValidDataSource)?;
 
         let relaychain_start_block = para_api.clone().relay_parent_number().await? - 1;
 
         let mut genesis_info: Option<GenesisBlockInfo> = match relay_hc {
-            Some(relay_hc) => {
-                let client = &relay_hc.client;
-                match client.get_genesis(relaychain_start_block).await {
-                    Ok(genesis_info) => Some(genesis_info),
-                    Err(e) => {
-                        warn!("get_init_runtime_default_request: {}", e);
-                        None
-                    }
+            Some(relay_hc) => match relay_hc.get_genesis(relaychain_start_block).await {
+                Ok(genesis_info) => Some(genesis_info),
+                Err(e) => {
+                    warn!("get_init_runtime_default_request: {}", e);
+                    None
                 }
-            }
+            },
             None => None,
         };
 
@@ -699,5 +769,157 @@ impl DataSourceManager {
         drop(lock);
 
         Ok(ret)
+    }
+    pub async fn fetch_storage_changes(self: Arc<Self>, from: u32, to: u32) -> Result<Blocks> {
+        let key = format!("sc:{from}:{to}");
+        let lock = LockSpace::get_lock(self.lock_space.clone(), key.clone()).await;
+        let lock = lock.acquire().await?;
+
+        let cache = self.cache.clone();
+        let mut cache = cache.write().await;
+        if let Some(DataSourceCacheItem::StorageChanges(data)) = cache.get(&key) {
+            return Ok(data.clone());
+        };
+        drop(cache);
+
+        let hc = self.clone().current_parachain_headers_cache().await;
+        let para_api = if hc.is_some() {
+            use_parachain_api!(self, false)
+        } else {
+            use_parachain_api!(self, true)
+        }
+        .ok_or(NoValidDataSource)?;
+        let ret = if let Some(hc) = hc {
+            pherry::fetch_storage_changes(&para_api, Some(&hc.client), from, to).await
+        } else {
+            pherry::fetch_storage_changes(&para_api, None, from, to).await
+        }?;
+        let ret = Blocks::new(ret);
+
+        let cache = self.cache.clone();
+        let mut cache = cache.write().await;
+        cache.insert(key, DataSourceCacheItem::StorageChanges(ret.clone()));
+        drop(cache);
+        drop(lock);
+
+        Ok(ret)
+    }
+    pub async fn get_para_header_by_relay_header(
+        self: Arc<Self>,
+        height: u32,
+    ) -> Result<Option<(u32, Vec<Vec<u8>>)>> {
+        let key = format!("ph:rh:{height}");
+        let lock = get_lock!(self, key);
+        let lock = lock.acquire().await?;
+
+        return_if_cached!(self, key, ParaHeaderByRelayHeight, lock);
+
+        let hc = use_relaychain_hc!(self);
+        if let Some(hc) = hc {
+            let headers = hc.get_headers(height).await;
+            if let Ok(mut headers) = headers {
+                if headers.len() > 1 {
+                    drop(lock);
+                    return Ok(None);
+                }
+                if headers.len() == 1 {
+                    let header = headers
+                        .remove(0)
+                        .para_header
+                        .map(|h| (h.fin_header_num, h.proof));
+                    cache_and_return!(self, key, ParaHeaderByRelayHeight, header, lock);
+                }
+            }
+        }
+
+        let relay_api = use_relaychain_api!(self, true).ok_or(NoValidDataSource)?;
+        let para_api = use_parachain_api!(self, true).ok_or(NoValidDataSource)?;
+
+        let last_header_hash = get_header_hash(&relay_api, Some(height)).await?;
+        let header = get_finalized_header(&relay_api, &para_api, last_header_hash)
+            .await?
+            .map(|(h, proof)| (h.number, proof));
+
+        cache_and_return!(self, key, ParaHeaderByRelayHeight, header, lock);
+    }
+    pub async fn get_para_headers(
+        self: Arc<Self>,
+        from: u32,
+        to: u32,
+    ) -> Result<ParaHeadersToSync> {
+        let key = format!("ph:{from}:{to}");
+        let lock = get_lock!(self, key);
+        let lock = lock.acquire().await?;
+
+        return_if_cached!(self, key, ParaHeadersToSyncWithoutProof, lock);
+
+        if let Some(hc) = use_parachain_hc!(self) {
+            let count = from - to + 1;
+            if let Ok(d) = hc.get_parachain_headers(from, count).await {
+                let d = ParaHeadersToSync::new(d, vec![]);
+                cache_and_return!(self, key, ParaHeadersToSyncWithoutProof, d, lock);
+            }
+        }
+
+        let para_api = use_parachain_api!(self, true).ok_or(NoValidDataSource)?;
+        let mut d = vec![];
+        for b in from..=to {
+            let num = subxt_types::BlockNumber::from(subxt_types::NumberOrHex::Number(b as _));
+            let hash = para_api
+                .rpc()
+                .block_hash(Some(num))
+                .await?
+                .ok_or(BlockHashNotFound(b))?;
+            let header = para_api
+                .rpc()
+                .header(Some(hash))
+                .await?
+                .ok_or(BlockNotFound(b))?;
+            d.push(header.convert_to());
+        }
+        let d = ParaHeadersToSync::new(d, vec![]);
+        cache_and_return!(self, key, ParaHeadersToSyncWithoutProof, d, lock);
+    }
+    pub async fn get_cached_headers(
+        self: Arc<Self>,
+        relay_header_height: u32,
+    ) -> Result<Option<(HeadersToSync, Option<u32>, Option<Vec<Vec<u8>>>)>> {
+        let key = format!("ch:{relay_header_height}");
+        let lock = get_lock!(self, key);
+        let lock = lock.acquire().await?;
+
+        return_if_cached!(self, key, CachedHeadersToSync, lock);
+
+        let hc = use_relaychain_hc!(self);
+        if hc.is_none() {
+            return Ok(None);
+        }
+        let hc = hc.unwrap();
+        if let Ok(mut headers) = hc.get_headers(relay_header_height).await {
+            let last_header = match headers.last_mut() {
+                Some(header) => header,
+                None => return Ok(None),
+            };
+            let authority_set_change = last_header.authority_set_change.take();
+            let para_header = last_header.para_header.take();
+            let headers = headers
+                .into_iter()
+                .map(|info| HeaderToSync {
+                    header: info.header,
+                    justification: info.justification,
+                })
+                .collect::<Vec<_>>();
+            let headers = HeadersToSync::new(headers, authority_set_change);
+            let ret = match para_header {
+                None => Some((headers, None, None)),
+                Some(para_header) => Some((
+                    headers,
+                    Some(para_header.fin_header_num),
+                    Some(para_header.proof),
+                )),
+            };
+            cache_and_return!(self, key, CachedHeadersToSync, ret, lock);
+        }
+        Ok(None)
     }
 }
