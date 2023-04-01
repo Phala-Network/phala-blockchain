@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::api::{start_api_server, WorkerStatus, WorkerStatusMap};
 use anyhow::{anyhow, Result};
 use futures::future::{join, try_join_all};
-use log::{debug, info};
+use log::{debug, info, trace};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 
 use crate::cli::WorkerManagerCliArgs;
@@ -176,7 +176,7 @@ async fn message_loop(
         response_tx,
     }) = rx.recv().await
     {
-        debug!("message_loop got {}", message.discriminant());
+        trace!("message_loop got {}", message.discriminant());
         match message {
             ShouldBreakMessageLoop => break,
             LifecycleManagerStarted => {

@@ -1,5 +1,5 @@
 use crate::datasource::DataSourceError::*;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use jsonrpsee::{
     async_client::ClientBuilder,
     client_transport::ws::{Uri, WsTransportClientBuilder},
@@ -7,24 +7,26 @@ use jsonrpsee::{
 use log::{debug, error, info, warn};
 use memory_lru::{MemoryLruCache, ResidentSize};
 use paste::paste;
-use phactory_api::blocks::HeaderToSync;
+use phactory_api::blocks::{AuthorityList, AuthoritySet, AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{HeadersToSync, ParaHeadersToSync};
 use phactory_api::{
     blocks::GenesisBlockInfo,
     prpc::{Blocks, InitRuntimeRequest, Message},
 };
 use phala_types::AttestationProvider;
+use phaxt::sp_core::{Decode, Encode, H256};
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
 use pherry::headers_cache::{BlockInfo, ParaHeader};
-use pherry::types::ConvertTo;
+use pherry::types::{Block, ConvertTo, Hash, Header};
 use pherry::{
-    get_authority_with_proof_at, get_block_at, get_finalized_header, get_header_hash,
+    chain_client, get_authority_with_proof_at, get_block_at, get_finalized_header, get_header_hash,
     headers_cache::Client as CacheClient,
 };
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
+use sp_consensus_grandpa::{VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use std::collections::HashMap;
 use std::mem::size_of_val;
 use std::sync::Arc;
@@ -161,6 +163,10 @@ pub enum DataSourceCacheItem {
     ParaHeaderByRelayHeight(Option<(u32, Vec<Vec<u8>>)>),
     ParaHeadersToSyncWithoutProof(ParaHeadersToSync),
     CachedHeadersToSync(Option<(HeadersToSync, Option<u32>, Option<Vec<Vec<u8>>>)>),
+    RelayBlock(Block),
+    BlockHash(Option<H256>),
+    U32(Option<u32>),
+    AuthoritySetChange(AuthoritySetChange),
 }
 
 impl ResidentSize for DataSourceCacheItem {
@@ -190,8 +196,15 @@ impl ResidentSize for DataSourceCacheItem {
                     size_of_val(last_num) + bytes + proof_bytes
                 }
             },
+            DataSourceCacheItem::RelayBlock(e) => {
+                (e.encoded_size() as f64 * CACHE_SIZE_EXPANSION) as _
+            }
+            DataSourceCacheItem::BlockHash(_) => 34,
+            DataSourceCacheItem::U32(_) => 6,
+            DataSourceCacheItem::AuthoritySetChange(e) => {
+                (e.encoded_size() as f64 * CACHE_SIZE_EXPANSION) as _
+            }
         };
-        debug!("resident_size: {ret}");
         ret
     }
 }
@@ -206,6 +219,10 @@ pub enum DataSourceError {
     BlockHashNotFound(u32),
     #[error("BlockNotFound {0}")]
     BlockNotFound(u32),
+    #[error("SearchSetIdChangeInEmptyRange")]
+    SearchSetIdChangeInEmptyRange,
+    #[error("No authority key found")]
+    NoAuthorityKeyFound,
 }
 
 pub struct DataSourceManager {
@@ -922,5 +939,95 @@ impl DataSourceManager {
             cache_and_return!(self, key, CachedHeadersToSync, ret, lock);
         }
         Ok(None)
+    }
+    pub async fn get_relay_block_without_storage_changes(self: Arc<Self>, h: u32) -> Result<Block> {
+        let key = format!("rb:wsc:{h}");
+        let lock = get_lock!(self, key);
+        let lock = lock.acquire().await?;
+        return_if_cached!(self, key, RelayBlock, lock);
+
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
+        let (block, hash) = get_block_at(&relay_api, Some(h)).await?;
+        cache_and_return!(self, key, RelayBlock, block, lock);
+    }
+    pub async fn get_relay_block_hash(self: Arc<Self>, h: u32) -> Result<Option<H256>> {
+        let key = format!("rb:h:{h}");
+        let lock = get_lock!(self, key);
+        let lock = lock.acquire().await?;
+        return_if_cached!(self, key, BlockHash, lock);
+
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
+        let ret = relay_api.rpc().block_hash(Some(h.into())).await?;
+        cache_and_return!(self, key, BlockHash, ret, lock);
+    }
+    pub async fn get_setid_changed_height(
+        self: Arc<Self>,
+        last_set: (u32, u64),
+        known_blocks: &Vec<Block>,
+    ) -> Result<Option<u32>> {
+        let (last_block, last_id) = last_set;
+        let key = format!("si:c:{last_block}:{last_id}");
+        let lock = get_lock!(self, key);
+        return_if_cached!(self, key, U32, lock);
+        if known_blocks.is_empty() {
+            return Err(SearchSetIdChangeInEmptyRange.into());
+        }
+        let headers: Vec<&Header> = known_blocks
+            .iter()
+            .filter(|b| b.block.header.number > last_block && b.justifications.is_some())
+            .map(|b| &b.block.header)
+            .collect();
+        let mut l: i64 = 0;
+        let mut r = (headers.len() as i64) - 1;
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
+        while l <= r {
+            let mid = (l + r) / 2;
+            let hash = headers[mid as usize].hash();
+            let set_id = relay_api.current_set_id(Some(hash)).await?;
+            // Left: set_id == last_id, Right: set_id > last_id
+            if set_id == last_id {
+                l = mid + 1;
+            } else {
+                r = mid - 1;
+            }
+        }
+        if (l as usize) < headers.len() {
+            let ret = Some(headers[l as usize].number);
+            cache_and_return!(self, key, U32, ret, lock);
+        }
+        Ok(None)
+    }
+    pub async fn get_authority_with_proof_at(
+        self: Arc<Self>,
+        hash: Hash,
+    ) -> Result<AuthoritySetChange> {
+        let key = format!("p:{hash}");
+        let lock = get_lock!(self, key);
+        let lock = lock.acquire().await?;
+        return_if_cached!(self, key, AuthoritySetChange, lock);
+
+        let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
+        let id_key = phaxt::dynamic::storage_key("Grandpa", "CurrentSetId");
+        let value = relay_api
+            .rpc()
+            .storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
+            .await?
+            .ok_or(NoAuthorityKeyFound)?
+            .0;
+        let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
+            .expect("Failed to decode VersionedAuthorityList")
+            .into();
+        let id = relay_api.current_set_id(Some(hash)).await?;
+        // Proof
+        let proof = chain_client::read_proofs(
+            &relay_api,
+            Some(hash),
+            vec![GRANDPA_AUTHORITIES_KEY, &id_key],
+        )
+        .await?;
+        Ok(AuthoritySetChange {
+            authority_set: AuthoritySet { list, id },
+            authority_proof: proof,
+        })
     }
 }

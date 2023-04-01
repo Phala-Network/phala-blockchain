@@ -3092,9 +3092,9 @@ dependencies = [
 
 [[package]]
 name = "finality-grandpa"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e24e6c429951433ccb7c87fd528c60084834dcd14763182c1f83291bcde24c34"
+checksum = "36530797b9bf31cd4ff126dcfee8170f86b00cfdcea3269d73133cc0415945c3"
 dependencies = [
  "either",
  "futures",
@@ -6110,12 +6110,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "namedlock"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00080bed36de1de35105737807ffe79cebdaf3b4c47f8335be7297df82e19a2b"
-
-[[package]]
 name = "names"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8784,7 +8778,6 @@ dependencies = [
  "lazy_static",
  "log",
  "memory-lru",
- "namedlock",
  "paste",
  "phactory-api",
  "phala-types",
@@ -8796,6 +8789,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.19",
+ "sp-consensus-grandpa",
  "thiserror",
  "tokio",
  "url",
