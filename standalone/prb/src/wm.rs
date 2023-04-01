@@ -115,7 +115,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
             loop {
                 let (reload_tx, mut reload_rx) = mpsc::channel::<()>(1);
                 let main_handle =
-                    set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled);
+                    set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled, args.webhook_url.clone());
 
                 tokio::select! {
                     _ = main_handle => {
@@ -135,6 +135,7 @@ pub async fn set_lifecycle_manager(
     ctx: WrappedWorkerManagerContext,
     reload_tx: WrappedReloadTx,
     fast_sync_enabled: bool,
+    webhook_url: Option<String>,
 ) {
     let (tx, rx) = mpsc::unbounded_channel::<WorkerManagerCommand>();
 
@@ -144,9 +145,15 @@ pub async fn set_lifecycle_manager(
     let inv_db = ctx_read.inv_db.clone();
     drop(ctx_read);
 
-    let lm =
-        WorkerLifecycleManager::create(tx.clone(), ctx.clone(), dsm, inv_db, fast_sync_enabled)
-            .await;
+    let lm = WorkerLifecycleManager::create(
+        tx.clone(),
+        ctx.clone(),
+        dsm,
+        inv_db,
+        fast_sync_enabled,
+        webhook_url,
+    )
+    .await;
 
     let mut ctx_write = ctx.write().await;
     ctx_write.current_lifecycle_manager = Some(lm.clone());

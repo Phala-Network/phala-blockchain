@@ -1,5 +1,5 @@
 use crate::datasource::DataSourceError::*;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use jsonrpsee::{
     async_client::ClientBuilder,
     client_transport::ws::{Uri, WsTransportClientBuilder},
@@ -17,7 +17,7 @@ use phala_types::AttestationProvider;
 use phaxt::sp_core::{Decode, Encode, H256};
 use phaxt::subxt::rpc::types as subxt_types;
 use phaxt::{ChainApi, RpcClient};
-use pherry::headers_cache::{BlockInfo, ParaHeader};
+
 use pherry::types::{Block, ConvertTo, Hash, Header};
 use pherry::{
     chain_client, get_authority_with_proof_at, get_block_at, get_finalized_header, get_header_hash,
@@ -947,7 +947,7 @@ impl DataSourceManager {
         return_if_cached!(self, key, RelayBlock, lock);
 
         let relay_api = use_relaychain_api!(self, false).ok_or(NoValidDataSource)?;
-        let (block, hash) = get_block_at(&relay_api, Some(h)).await?;
+        let (block, _hash) = get_block_at(&relay_api, Some(h)).await?;
         cache_and_return!(self, key, RelayBlock, block, lock);
     }
     pub async fn get_relay_block_hash(self: Arc<Self>, h: u32) -> Result<Option<H256>> {

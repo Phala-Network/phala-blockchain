@@ -6,11 +6,13 @@ use crate::wm::{
 };
 use crate::worker::{WorkerContext, WrappedWorkerContext};
 use anyhow::Result;
-use log::{debug, info};
+use log::{debug, info, warn};
 
+use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::api::WorkerStatus;
 use tokio::sync::{RwLock, Semaphore};
 use tokio::task::JoinSet;
 
@@ -25,6 +27,8 @@ pub struct WorkerLifecycleManager {
     pub worker_context_map: WorkerContextMap,
     pub fast_sync_enabled: bool,
     pub fast_sync_semaphore: Arc<Semaphore>,
+    pub webhook_url: Option<String>,
+    pub reqwest: Client,
 }
 pub type WrappedWorkerLifecycleManager = Arc<WorkerLifecycleManager>;
 
@@ -37,6 +41,7 @@ impl WorkerLifecycleManager {
         dsm: WrappedDataSourceManager,
         inv_db: WrappedDb,
         fast_sync_enabled: bool,
+        webhook_url: Option<String>,
     ) -> WrappedWorkerLifecycleManager {
         let workers =
             get_all_workers(inv_db.clone()).expect("Failed to load workers from local database");
@@ -99,8 +104,34 @@ impl WorkerLifecycleManager {
             worker_context_vec,
             fast_sync_enabled,
             fast_sync_semaphore,
+            webhook_url,
+            reqwest: Client::new(),
         };
         Arc::new(lm)
+    }
+
+    pub async fn webhook_send(self: Arc<Self>, c: WrappedWorkerContext) -> Result<()> {
+        if self.webhook_url.is_none() {
+            return Ok(());
+        }
+        let cc = c.read().await;
+        let s = WorkerStatus {
+            worker: cc.worker.clone(),
+            state: cc.state.clone(),
+            phactory_info: cc.info.clone(),
+            last_message: cc.last_message.clone(),
+        };
+        let body = serde_json::to_string(&s)?;
+        if let Err(e) = self
+            .reqwest
+            .post(self.webhook_url.as_ref().unwrap())
+            .body(body)
+            .send()
+            .await
+        {
+            warn!("Error while sending to webhook: {e}")
+        }
+        Ok(())
     }
 
     pub async fn spawn_lifecycle_tasks(self: Arc<Self>) {

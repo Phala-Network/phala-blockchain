@@ -79,6 +79,7 @@ macro_rules! set_worker_message {
         drop(ctx);
         cc.set_last_message($m);
         drop(cc);
+        tokio::spawn(lm.clone().webhook_send($c.clone()));
         let _ = lm
             .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus($c.clone()))
             .await;
@@ -206,7 +207,7 @@ impl WorkerContext {
     }
 
     async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
-        let (_lm, worker, _pr, sm_tx) = extract_essential_values!(c);
+        let (lm, worker, _pr, sm_tx) = extract_essential_values!(c);
 
         let _ = sm_tx.clone().send(WorkerLifecycleState::Starting);
         Self::send_status(c.clone()).await;
@@ -235,10 +236,12 @@ impl WorkerContext {
                         &worker.name, &worker.id, &worker.endpoint, e
                     );
                     // todo: may need some cleanups
+                    std::process::exit(0x0100);
                 }
             }
 
             Self::send_status(c.clone()).await;
+            tokio::spawn(lm.clone().webhook_send(c.clone()));
         }
     }
 
@@ -456,6 +459,8 @@ impl WorkerContext {
         let pp = pr.clone();
         let dd = dsm.clone();
         let ii = i.clone();
+        sync_state.authory_set_state = None;
+        sync_state.blocks.clear();
         let not_done_with_hc =
             tokio::spawn(async move { Self::sync_with_cached_headers(pp, dd, &ii).await })
                 .await??;
