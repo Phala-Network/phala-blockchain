@@ -719,6 +719,7 @@ impl DataSourceManager {
         let para_api = use_parachain_api!(self, false).ok_or(NoValidDataSource)?;
 
         let relaychain_start_block = para_api.clone().relay_parent_number().await? - 1;
+        debug!("relaychain_start_block: {relaychain_start_block}");
 
         let mut genesis_info: Option<GenesisBlockInfo> = match relay_hc {
             Some(relay_hc) => match relay_hc.get_genesis(relaychain_start_block).await {
@@ -854,7 +855,7 @@ impl DataSourceManager {
         return_if_cached!(self, key, ParaHeadersToSyncWithoutProof, lock);
 
         if let Some(hc) = use_parachain_hc!(self) {
-            let count = from - to + 1;
+            let count = to - from + 1;
             if let Ok(d) = hc.get_parachain_headers(from, count).await {
                 let d = ParaHeadersToSync::new(d, vec![]);
                 cache_and_return!(self, key, ParaHeadersToSyncWithoutProof, d, lock);

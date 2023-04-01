@@ -294,7 +294,7 @@ impl WorkerContext {
     }
 
     async fn handle_on_synchronizing(c: WrappedWorkerContext) -> Result<()> {
-        tokio::spawn(Self::sync_loop(c.clone()));
+        tokio::spawn(Self::sync_loop(c));
         Ok(())
     }
 
@@ -376,6 +376,7 @@ impl WorkerContext {
             if let WorkerLifecycleState::HasError(_) = &cc.state {
                 return;
             }
+            drop(cc);
 
             match Self::sync_loop_round(
                 c.clone(),
@@ -412,26 +413,35 @@ impl WorkerContext {
         let i = pr.get_info(()).await?;
 
         let next_para_headernum = i.para_headernum;
+        debug!(
+            "i.blocknum: {}, next_para_headernum: {next_para_headernum}",
+            &i.blocknum
+        );
         if i.blocknum < next_para_headernum {
-            Self::batch_sync_storage_changes(
+            tokio::spawn(Self::batch_sync_storage_changes(
                 pr.clone(),
                 dsm.clone(),
                 i.blocknum,
                 next_para_headernum - 1,
                 PARACHAIN_BLOCK_BATCH_SIZE,
-            )
-            .await?;
+            ))
+            .await??;
         }
         if i.waiting_for_paraheaders {
-            Self::maybe_sync_waiting_parablocks(
-                pr.clone(),
-                dsm.clone(),
-                &i,
-                PARACHAIN_BLOCK_BATCH_SIZE,
-            )
-            .await?;
+            let pp = pr.clone();
+            let dd = dsm.clone();
+            let i = i.clone();
+            tokio::spawn(async move {
+                let i = i.clone();
+                Self::maybe_sync_waiting_parablocks(pp, dd, &i, PARACHAIN_BLOCK_BATCH_SIZE).await
+            })
+            .await??;
         }
-        let done_with_hc = Self::sync_with_cached_headers(pr.clone(), dsm.clone(), &i).await?;
+
+        let done_with_hc = tokio::spawn(async move {
+            Self::sync_with_cached_headers(pr.clone(), dsm.clone(), &i).await
+        })
+        .await??;
         if done_with_hc {
             return Ok(true);
         }
@@ -470,7 +480,8 @@ impl WorkerContext {
         to: u32,
         last_header_proof: Vec<Vec<u8>>,
     ) -> Result<u32> {
-        if to > from {
+        if from > to {
+            debug!("from: {from}, to: {to}");
             return Ok(to - 1);
         }
         let mut headers = dsm.clone().get_para_headers(from, to).await?;
@@ -485,6 +496,7 @@ impl WorkerContext {
         i: &PhactoryInfo,
         batch_size: u8,
     ) -> Result<()> {
+        debug!("maybe_sync_waiting_parablocks");
         let fin_header = dsm
             .clone()
             .get_para_header_by_relay_header(i.headernum - 1)
@@ -493,7 +505,7 @@ impl WorkerContext {
             return Ok(());
         }
         let (fin_header_num, proof) = fin_header.unwrap();
-        if fin_header_num > i.para_headernum - 1 {
+        if fin_header_num + 1 > i.para_headernum {
             let hdr_synced_to = Self::sync_parachain_header(
                 pr.clone(),
                 dsm.clone(),
