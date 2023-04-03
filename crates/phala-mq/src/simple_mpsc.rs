@@ -7,7 +7,7 @@ use derive_more::Display;
 struct Channel<T> {
     deque: VecDeque<T>,
     sender_count: usize,
-    receiver_gone: bool,
+    receiver_count: usize,
 }
 
 impl<T> Channel<T> {
@@ -19,7 +19,7 @@ impl<T> Channel<T> {
         Self {
             deque: VecDeque::with_capacity(cap),
             sender_count: 1,
-            receiver_gone: false,
+            receiver_count: 1,
         }
     }
 }
@@ -36,7 +36,7 @@ pub enum SendError {
 impl<T> Sender<T> {
     pub fn send(&self, value: T) -> Result<(), SendError> {
         let mut ch = self.0.lock();
-        if ch.receiver_gone {
+        if ch.receiver_count == 0 {
             Err(SendError::ReceiverGone)
         } else {
             ch.deque.push_back(value);
@@ -112,7 +112,14 @@ impl<T: Seq> Receiver<T> {
 
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
-        self.0.lock().receiver_gone = true;
+        self.0.lock().receiver_count -= 1;
+    }
+}
+
+impl<T> Clone for Receiver<T> {
+    fn clone(&self) -> Receiver<T> {
+        self.0.lock().receiver_count += 1;
+        Receiver(self.0.clone())
     }
 }
 

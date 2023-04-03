@@ -39,7 +39,7 @@ mod justification;
 pub mod storage_proof;
 mod types;
 
-use std::collections::BTreeMap;
+use im::OrdMap as BTreeMap;
 use std::fmt;
 
 use anyhow::Result;
@@ -54,7 +54,7 @@ use finality_grandpa::voter_set::VoterSet;
 use num::AsPrimitive;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::H256;
-use sp_finality_grandpa::{AuthorityId, AuthorityWeight, SetId};
+use sp_consensus_grandpa::{AuthorityId, AuthorityWeight, SetId};
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::EncodedJustification;
 

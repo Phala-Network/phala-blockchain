@@ -11,12 +11,11 @@ pub struct QueryRequest {
 }
 
 #[derive(Encode, Decode)]
-#[non_exhaustive]
 pub enum SystemMessage {
     PinkLog {
         block_number: u32,
         contract: AccountId,
-        in_query: bool,
+        exec_mode: String,
         timestamp_ms: u64,
         level: u8,
         message: String,
@@ -34,4 +33,10 @@ pub enum SystemMessage {
         nonce: Vec<u8>,
         output: Vec<u8>,
     },
+    Metric(Metric),
+}
+
+#[derive(Encode, Decode)]
+pub enum Metric {
+    PinkQueryIn([u8; 8]),
 }

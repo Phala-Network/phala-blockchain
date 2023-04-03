@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
 
+[profile.release.package.compiler_builtins]
+debug-assertions = false
+overflow-checks = false
+
 [dependencies]
 ink = { version = "4", default-features = false }
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }

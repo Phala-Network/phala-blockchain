@@ -2,7 +2,7 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 
-pub use http_request::{HttpRequest, HttpResponse};
+pub use http_request::{HttpRequest, HttpResponse, HttpRequestError};
 pub use ink::primitives::AccountId;
 pub use signing::SigType;
 
@@ -97,7 +97,7 @@ impl ink::env::chain_extension::FromStatusCode for ErrorCode {
     }
 }
 
-/// Extensions for the ink runtime defined by fat contract.
+/// Extensions for the ink runtime defined by phat contract.
 #[pink_extension_macro::chain_extension]
 pub trait PinkExt {
     type ErrorCode = ErrorCode;
@@ -185,6 +185,20 @@ pub trait PinkExt {
     /// Get current millis since unix epoch from the OS. (Query only)
     #[ink(extension = 18, handle_status = false)]
     fn untrusted_millis_since_unix_epoch() -> u64;
+
+    /// Check whether the code exists in the cluster storage.
+    #[ink(extension = 19, handle_status = false)]
+    fn code_exists(code_hash: Hash, sidevm: bool) -> bool;
+
+    /// This loads the latest system contract code from chain storage to the cluster storage.
+    ///
+    /// Returns the code hash of the latest system contract code.
+    #[ink(extension = 20, handle_status = false)]
+    fn import_latest_system_code(payer: AccountId) -> Option<Hash>;
+
+    /// Get the version of the current contract runtime in this cluster.
+    #[ink(extension = 21, handle_status = false)]
+    fn runtime_version() -> (u32, u32);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

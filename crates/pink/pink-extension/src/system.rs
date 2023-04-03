@@ -13,6 +13,25 @@ use crate::{AccountId, Balance, Hash};
 pub enum Error {
     PermisionDenied,
     DriverNotFound,
+    CodeNotFound,
+    ConditionNotMet,
+}
+
+/// The code type for existance check.
+#[derive(Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum CodeType {
+    Ink,
+    Sidevm,
+}
+
+impl CodeType {
+    pub fn is_ink(&self) -> bool {
+        matches!(self, CodeType::Ink)
+    }
+    pub fn is_sidevm(&self) -> bool {
+        matches!(self, CodeType::Sidevm)
+    }
 }
 
 /// Result type for the system contract messages
@@ -90,6 +109,21 @@ pub trait System {
     /// Upgrade the system contract to the latest version.
     #[ink(message)]
     fn upgrade_system_contract(&self) -> Result<()>;
+
+    /// Do the upgrade condition checks and state migration if necessary.
+    ///
+    /// This function is called by the system contract itself on the new version
+    /// of code in the upgrading process.
+    #[ink(message)]
+    fn do_upgrade(&self, from_version: (u16, u16)) -> Result<()>;
+
+    /// Upgrade the contract runtime
+    #[ink(message)]
+    fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()>;
+
+    /// Check if the code is already uploaded to the cluster with given code hash.
+    #[ink(message)]
+    fn code_exists(&self, code_hash: Hash, code_type: CodeType) -> bool;
 }
 
 /// Errors that can occur upon calling a driver contract.

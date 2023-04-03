@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, thread::JoinHandle};
+use std::thread::JoinHandle;
 
 use crossbeam::channel::{bounded, Sender};
 use log::{error, warn};
@@ -140,7 +140,7 @@ fn do_validate(
     let from = headers[0].header.number;
     let to = headers.last().unwrap().header.number;
 
-    let mut state_roots = VecDeque::new();
+    let mut state_roots = Default::default();
     let result = client.sync_header(headers, auth_change, &mut state_roots, 0);
     if let Err(err) = result {
         error!("Failed to sync header from={from:?} to={to:?}: {err:?}");

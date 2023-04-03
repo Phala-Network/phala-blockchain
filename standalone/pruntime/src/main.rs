@@ -6,12 +6,13 @@ mod runtime;
 use std::{env, thread};
 
 use clap::Parser;
-use log::{error, info};
+use tracing::{error, info, info_span, Instrument};
 
-use phactory_api::ecall_args::{git_revision, InitArgs};
+use phactory_api::ecall_args::InitArgs;
+use phala_git_revision::git_revision_with_ts;
 
 mod handover;
-mod logger;
+use phala_sanitized_logger as logger;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The Phala TEE worker app.", version, author)]
@@ -48,9 +49,9 @@ struct Args {
     #[arg(long)]
     disable_checkpoint: bool,
 
-    /// Checkpoint interval in seconds, default to 5 minutes
+    /// Checkpoint interval in seconds, default to 30 minutes
     #[arg(long)]
-    #[arg(default_value_t = 300)]
+    #[arg(default_value_t = 1800)]
     checkpoint_interval: u64,
 
     /// Remove corrupted checkpoint so that pruntime can restart to continue to load others.
@@ -61,10 +62,6 @@ struct Args {
     #[arg(long)]
     #[arg(default_value_t = 5)]
     max_checkpoint_files: u32,
-
-    /// Measuring the time it takes to process each RPC call.
-    #[arg(long)]
-    measure_rpc_time: bool,
 
     /// Handover key from another running pruntime instance
     #[arg(long)]
@@ -80,23 +77,28 @@ struct Args {
     #[arg(long)]
     #[arg(default_value_t = 0)]
     safe_mode_level: u8,
+
+    /// Disable the RCU policy to update the Phactory state.
+    #[arg(long)]
+    no_rcu: bool,
 }
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     pal_gramine::print_target_info();
 
-    // Disable the thread local arena(memory pool) for glibc.
-    // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
-    #[cfg(target_env = "gnu")]
-    unsafe {
-        libc::mallopt(libc::M_ARENA_MAX, 1);
-    }
+    let sgx = pal_gramine::is_gramine();
+    logger::init_subscriber(sgx);
+    serve(sgx).await
+}
 
-    let running_under_gramine = pal_gramine::is_gramine();
+#[tracing::instrument(name = "main", skip_all)]
+async fn serve(sgx: bool) -> Result<(), rocket::Error> {
+    info!(sgx, "Starting pruntime...");
+
     let sealing_path;
     let storage_path;
-    if running_under_gramine {
+    if sgx {
         // In gramine, the protected files are configured via manifest file. So we must not allow it to
         // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
         // Should keep it the same with the manifest config.
@@ -125,10 +127,8 @@ async fn main() -> Result<(), rocket::Error> {
         env::set_var("ROCKET_PORT", port.to_string());
     }
 
-    logger::init(running_under_gramine);
-
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
-    info!("Bench cores: {}", cores);
+    info!(bench_cores = cores);
 
     let init_args = {
         let args = args.clone();
@@ -137,7 +137,7 @@ async fn main() -> Result<(), rocket::Error> {
             storage_path: storage_path.into(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: git_revision(),
+            git_revision: git_revision_with_ts().to_string(),
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
@@ -145,12 +145,13 @@ async fn main() -> Result<(), rocket::Error> {
             cores,
             public_port: args.public_port,
             safe_mode_level: args.safe_mode_level,
+            no_rcu: args.no_rcu,
         }
     };
     info!("init_args: {:#?}", init_args);
-    if let Some(handover_from) = args.request_handover_from {
-        info!("Starting handover from {handover_from}");
-        handover::handover_from(&handover_from, init_args)
+    if let Some(from) = args.request_handover_from {
+        info!(%from, "Starting handover");
+        handover::handover_from(&from, init_args)
             .await
             .expect("Handover failed");
         info!("Handover done");
@@ -177,22 +178,28 @@ async fn main() -> Result<(), rocket::Error> {
 
     if args.public_port.is_some() {
         let args_clone = args.clone();
-        let server_acl = rocket::tokio::spawn(async move {
-            let _rocket = api_server::rocket_acl(&args_clone)
-                .expect("should not failed as port is provided")
-                .launch()
-                .await
-                .expect("Failed to launch API server");
-        });
+        let server_acl = rocket::tokio::spawn(
+            async move {
+                let _rocket = api_server::rocket_acl(&args_clone)
+                    .expect("should not failed as port is provided")
+                    .launch()
+                    .await
+                    .expect("Failed to launch API server");
+            }
+            .instrument(info_span!("srv-public")),
+        );
         servers.push(server_acl);
     }
 
-    let server_internal = rocket::tokio::spawn(async move {
-        let _rocket = api_server::rocket(&args)
-            .launch()
-            .await
-            .expect("Failed to launch API server");
-    });
+    let server_internal = rocket::tokio::spawn(
+        async move {
+            let _rocket = api_server::rocket(&args)
+                .launch()
+                .await
+                .expect("Failed to launch API server");
+        }
+        .instrument(info_span!("srv-internal")),
+    );
     servers.push(server_internal);
 
     for server in servers {

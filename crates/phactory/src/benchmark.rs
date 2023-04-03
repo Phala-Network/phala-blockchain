@@ -32,15 +32,15 @@ pub struct State {
 
 pub fn dump_state() -> State {
     State {
-        counter: ITERATION_COUNTER.load(Ordering::Relaxed),
-        score: SCORE.load(Ordering::Relaxed),
+        counter: ITERATION_COUNTER.load(Ordering::SeqCst),
+        score: SCORE.load(Ordering::SeqCst),
         flags: *FLAGS.lock().unwrap(),
     }
 }
 
 pub fn restore_state(state: State) {
-    ITERATION_COUNTER.store(state.counter, Ordering::Relaxed);
-    SCORE.store(state.score, Ordering::Relaxed);
+    ITERATION_COUNTER.store(state.counter, Ordering::SeqCst);
+    SCORE.store(state.score, Ordering::SeqCst);
     *FLAGS.lock().unwrap() = state.flags;
 }
 
@@ -71,14 +71,14 @@ pub fn run() {
         for _ in 0..UNIT {
             let _ = black_box(count_prime(black_box(MAX_NUM)));
         }
-        let count = ITERATION_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let count = ITERATION_COUNTER.fetch_add(1, Ordering::SeqCst);
         if count % 100 == 0 {
             let score = est_score(since, start);
             debug!(
                 "Benchmark counnter increased to {}, est score={}",
                 count, score,
             );
-            SCORE.store(score, Ordering::Relaxed);
+            SCORE.store(score, Ordering::SeqCst);
         }
         if paused() {
             return;
@@ -87,11 +87,11 @@ pub fn run() {
 }
 
 pub fn iteration_counter() -> u64 {
-    ITERATION_COUNTER.load(Ordering::Relaxed)
+    ITERATION_COUNTER.load(Ordering::SeqCst)
 }
 
 pub fn reset_iteration_counter() {
-    ITERATION_COUNTER.store(0, Ordering::Relaxed);
+    ITERATION_COUNTER.store(0, Ordering::SeqCst);
 }
 
 pub fn pause() {
@@ -104,6 +104,10 @@ pub fn resume() {
 
 pub fn paused() -> bool {
     !FLAGS.lock().unwrap().is_empty()
+}
+
+pub fn syncing() -> bool {
+    check_flag(Flags::SYNCING)
 }
 
 pub fn set_flag(flag: Flags, on: bool) {
@@ -120,7 +124,7 @@ pub fn check_flag(flag: Flags) -> bool {
 }
 
 pub fn score() -> u64 {
-    SCORE.load(Ordering::Relaxed)
+    SCORE.load(Ordering::SeqCst)
 }
 
 fn est_score(since: u64, start: u64) -> u64 {
@@ -129,7 +133,7 @@ fn est_score(since: u64, start: u64) -> u64 {
         return 0;
     }
     // Normalize to 6s (standard block time)
-    (ITERATION_COUNTER.load(Ordering::Relaxed) - start) * 6 / (now - since)
+    (ITERATION_COUNTER.load(Ordering::SeqCst) - start) * 6 / (now - since)
 }
 
 fn now() -> u64 {

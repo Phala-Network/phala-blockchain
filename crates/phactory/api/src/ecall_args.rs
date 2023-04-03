@@ -1,6 +1,6 @@
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use parity_scale_codec::{Decode, Encode};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
@@ -31,7 +31,7 @@ pub struct InitArgs {
     /// Max number of checkpoint files kept
     pub max_checkpoint_files: u32,
 
-    /// Number of cores used to run fat contracts
+    /// Number of cores used to run phat contracts
     pub cores: u32,
 
     /// The public rpc port with acl enabled
@@ -39,8 +39,9 @@ pub struct InitArgs {
 
     /// Only sync blocks into pruntime without dispatching messages.
     pub safe_mode_level: u8,
+
+    /// Disable the RCU policy to update the Phactory state.
+    pub no_rcu: bool,
 }
 
-pub fn git_revision() -> String {
-    env!("PHALA_GIT_REVISION").to_string()
-}
+pub use phala_git_revision::git_revision;

@@ -1,4 +1,4 @@
-use sidevm::env::messages::{AccountId, SystemMessage, H256};
+use sidevm::env::messages::{AccountId, Metric, SystemMessage, H256};
 use std::{collections::VecDeque, ops::Deref};
 
 pub struct Buffer {
@@ -76,7 +76,7 @@ enum SerMessage {
     Log {
         block_number: u32,
         contract: HexSer<AccountId>,
-        in_query: bool,
+        exec_mode: String,
         #[serde(rename = "timestamp")]
         timestamp_ms: u64,
         level: u8,
@@ -97,8 +97,11 @@ enum SerMessage {
         nonce: HexSer<Vec<u8>>,
         output: HexSer<Vec<u8>>,
     },
-    Unknown,
     TooLarge,
+    #[serde(rename_all = "camelCase")]
+    QueryIn {
+        user: HexSer<[u8; 8]>,
+    },
 }
 
 impl SerMessage {
@@ -112,8 +115,8 @@ impl SerMessage {
                 topics_len + payload.len() * 2
             }
             SerMessage::MessageOutput { nonce, output, .. } => nonce.len() * 2 + output.len() * 2,
-            SerMessage::Unknown => 0,
             SerMessage::TooLarge => 0,
+            SerMessage::QueryIn{ user } => user.len() * 2,
         };
         128 + payload
     }
@@ -125,14 +128,14 @@ impl From<SystemMessage> for SerMessage {
             SystemMessage::PinkLog {
                 block_number,
                 contract,
-                in_query,
+                exec_mode,
                 timestamp_ms,
                 level,
                 message,
             } => Self::Log {
                 block_number,
                 contract: contract.into(),
-                in_query,
+                exec_mode,
                 timestamp_ms,
                 level,
                 message,
@@ -161,7 +164,7 @@ impl From<SystemMessage> for SerMessage {
                 nonce: nonce.into(),
                 output: output.into(),
             },
-            _ => Self::Unknown,
+            SystemMessage::Metric(Metric::PinkQueryIn(user)) => Self::QueryIn { user: HexSer(user) },
         }
     }
 }
@@ -175,7 +178,7 @@ fn contract_id_of(sysmessage: &SystemMessage) -> String {
         SystemMessage::PinkLog { contract, .. } => contract,
         SystemMessage::PinkEvent { contract, .. } => contract,
         SystemMessage::PinkMessageOutput { contract, .. } => contract,
-        _ => return Default::default(),
+        SystemMessage::Metric(_) => return "<metric>".into(),
     };
     hex(id)
 }

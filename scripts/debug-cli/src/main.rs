@@ -148,7 +148,7 @@ async fn main() {
         }
         Cli::DecodeFrnkJustification { hex_data } => {
             let data = decode_hex(&hex_data);
-            let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..])
+            let j = sc_consensus_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..])
                 .expect("Error decoding FRNK justification");
             println!("{j:?}");
         }

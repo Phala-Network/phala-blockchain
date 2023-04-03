@@ -34,6 +34,7 @@ mod sender {
             SecretMessageChannel { key, mq }
         }
 
+        #[allow(dead_code)]
         pub fn bind_remote_key(
             &self,
             remote_pubkey: Option<&'a ecdh::EcdhPublicKey>,
@@ -124,6 +125,15 @@ mod receiver {
         _t: PhantomData<T>,
     }
 
+    impl<T> Clone for SecretPeeler<T> {
+        fn clone(&self) -> Self {
+            Self {
+                ecdh_key: self.ecdh_key.clone(),
+                _t: self._t,
+            }
+        }
+    }
+
     impl<T> SecretPeeler<T> {
         pub fn new(ecdh_key: ecdh::EcdhKey) -> Self {
             SecretPeeler {
@@ -155,6 +165,16 @@ mod receiver {
         receiver: TypedReceiver<Wrp>,
         peeler: Plr,
         _msg: PhantomData<Msg>,
+    }
+
+    impl<Msg, Wrp, Plr: Clone> Clone for PeelingReceiver<Msg, Wrp, Plr> {
+        fn clone(&self) -> Self {
+            Self {
+                receiver: self.receiver.clone(),
+                peeler: self.peeler.clone(),
+                _msg: self._msg,
+            }
+        }
     }
 
     impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, PlainPeeler<Msg>> {

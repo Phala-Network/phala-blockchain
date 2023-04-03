@@ -1,6 +1,8 @@
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
 
+include ../config.mk
+
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
 CFLAGS = -Wall -Wextra
@@ -22,6 +24,7 @@ GRAMINE_RUNTIME_DIR ?= $(shell ./gramine-dir runtime)
 RUNTIME_DIR = cruntime
 LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
 LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
+PINK_RUNTIME_DIST_DIR = ${RUNTIME_DIR}/pink-runtime
 
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
@@ -50,10 +53,12 @@ endif
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	cargo build --release ${CARGO_ARGS}
+	make -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
+	mkdir -p ${PINK_RUNTIME_DIST_DIR}
+	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}
 
 ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 	gramine-manifest \
@@ -63,6 +68,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dseal_dir=${PRUNTIME_SEAL_DIR} \
 		-Dstorage_dir=${PRUNTIME_STORAGE_DIR} \
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
+		-Dpink_runtime_dir=${PINK_RUNTIME_DIST_DIR}/ \
 		-Dlibos=${LIBOS} \
 		-Dra_method=${RA_METHOD} \
 		$< $@

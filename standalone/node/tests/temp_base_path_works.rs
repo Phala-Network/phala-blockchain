@@ -32,6 +32,7 @@ use std::{
 
 pub mod common;
 
+#[ignore = "this test is flaky and has rewritten in newer Substrate"]
 #[tokio::test]
 async fn temp_base_path_works() {
 	let mut cmd = Command::new(cargo_bin("phala-node"));

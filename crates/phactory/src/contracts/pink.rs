@@ -1,18 +1,36 @@
 use std::time::Duration;
 
-use crate::contracts;
-use crate::system::{TransactionError, TransactionResult};
-use anyhow::{anyhow, Result};
+use crate::{
+    contracts::{self, QueryContext, TransactionContext},
+    system::{TransactionError, TransactionResult},
+};
+use anyhow::Result;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
-use phala_types::contract::ConvertTo;
-use pink::runtime::{BoxedEventCallbacks, EventCallbacks, ExecSideEffects};
-use pink::types::Weight;
-use pink::weights::constants::WEIGHT_REF_TIME_PER_SECOND;
-use runtime::{AccountId, BlockNumber, Hash};
-use sidevm::service::{Command as SidevmCommand, CommandSender, SystemMessage};
+use phala_crypto::sr25519::Persistence;
+use phala_mq::{ContractClusterId, MessageOrigin};
+use phala_types::contract::messaging::ResourceType;
+use pink::{
+    capi::v1::{
+        ecall::{ECalls, ECallsRo},
+        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+    },
+    local_cache::{self, StorageQuotaExceeded},
+    runtimes::v1::using_ocalls,
+    types::ExecutionMode,
+};
+use serde::{Deserialize, Serialize};
+use sidevm::service::{Command as SidevmCommand, CommandSender, Metric, SystemMessage};
+use sp_core::{blake2_256, sr25519, twox_64};
 
-pub use phala_types::contract::InkCommand as Command;
+use ::pink::{
+    capi::v1,
+    constants::WEIGHT_REF_TIME_PER_SECOND,
+    types::{AccountId, Balance, ExecSideEffects, Hash, TransactionArguments},
+};
+
+pub use phala_types::contract::InkCommand;
+
+pub(crate) mod http_counters;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Query {
@@ -22,6 +40,8 @@ pub enum Query {
         deposit: u128,
         /// Amount of tokens transfer from the caller to the target contract.
         transfer: u128,
+        /// Whether to use the gas estimation mode.
+        estimating: bool,
     },
     SidevmQuery(Vec<u8>),
     InkInstantiate {
@@ -50,117 +70,516 @@ pub enum QueryError {
     Timeout,
 }
 
-#[derive(Encode, Decode, Clone)]
-pub struct Pink {
-    pub(crate) instance: pink::Contract,
-    cluster_id: ContractClusterId,
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct ClusterConfig {
+    pub log_handler: Option<AccountId>,
+    pub runtime_version: (u32, u32),
+    pub secret_salt: [u8; 32],
 }
 
-impl Pink {
-    pub fn instantiate(
-        cluster_id: ContractClusterId,
-        code_hash: Hash,
-        input_data: Vec<u8>,
-        salt: Vec<u8>,
-        in_query: bool,
-        tx_args: ::pink::TransactionArguments,
-    ) -> Result<(Self, ExecSideEffects)> {
-        let origin = tx_args.origin.clone();
-        let (instance, effects) =
-            pink::Contract::new(code_hash, input_data, salt, in_query, tx_args).map_err(|err| {
-                anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,)
-            })?;
-        Ok((
-            Self {
-                cluster_id,
-                instance,
-            },
-            effects,
-        ))
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Cluster {
+    pub id: ContractClusterId,
+    pub config: ClusterConfig,
+    pub storage: pink::storage::ClusterStorage,
+}
+
+pub struct RuntimeHandleMut<'a> {
+    cluster: &'a mut Cluster,
+    logger: Option<CommandSender>,
+    pub(crate) effects: Option<ExecSideEffects>,
+}
+
+impl RuntimeHandleMut<'_> {
+    fn readonly(&self) -> RuntimeHandle {
+        RuntimeHandle {
+            cluster: self.cluster,
+            logger: self.logger.clone(),
+        }
+    }
+    fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
+        using_ocalls(self, f)
+    }
+}
+
+pub struct RuntimeHandle<'a> {
+    cluster: &'a Cluster,
+    logger: Option<CommandSender>,
+}
+
+impl RuntimeHandle<'_> {
+    fn dup(&self) -> RuntimeHandle {
+        RuntimeHandle {
+            cluster: self.cluster,
+            logger: self.logger.clone(),
+        }
+    }
+    fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
+        using_ocalls(&mut self.dup(), f)
+    }
+    fn ensure_version(&self, version: (u32, u32)) {
+        if self.cluster.config.runtime_version != version {
+            panic!(
+                "Cross call {version:?} is not supported in runtime version {:?}",
+                self.cluster.config.runtime_version
+            );
+        }
+    }
+}
+
+pub(crate) mod context {
+    use std::time::{Duration, Instant};
+
+    use pink::{
+        capi::v1::ocall::ExecContext,
+        types::{BlockNumber, ExecutionMode},
+    };
+
+    use crate::ChainStorage;
+
+    environmental::environmental!(exec_context: trait GetContext);
+
+    pub trait GetContext {
+        fn chain_storage(&self) -> &ChainStorage;
+        fn exec_context(&self) -> ExecContext;
+        fn worker_pubkey(&self) -> [u8; 32];
+        fn call_elapsed(&self) -> Duration;
     }
 
-    pub fn from_address(address: AccountId, cluster_id: ContractClusterId) -> Self {
-        let instance = pink::Contract::from_address(address);
-        Self {
-            instance,
-            cluster_id,
+    pub struct ContractExecContext {
+        pub mode: ExecutionMode,
+        pub now_ms: u64,
+        pub block_number: BlockNumber,
+        pub worker_pubkey: [u8; 32],
+        pub chain_storage: ChainStorage,
+        pub start_at: Instant,
+        pub req_id: u64,
+    }
+
+    impl ContractExecContext {
+        pub fn new(
+            mode: ExecutionMode,
+            now_ms: u64,
+            block_number: BlockNumber,
+            worker_pubkey: [u8; 32],
+            chain_storage: ChainStorage,
+            req_id: u64,
+        ) -> Self {
+            Self {
+                mode,
+                now_ms,
+                block_number,
+                worker_pubkey,
+                chain_storage,
+                start_at: Instant::now(),
+                req_id,
+            }
         }
     }
 
-    pub fn id(&self) -> ContractId {
-        self.instance.address.convert_to()
+    impl GetContext for ContractExecContext {
+        fn chain_storage(&self) -> &ChainStorage {
+            &self.chain_storage
+        }
+
+        fn exec_context(&self) -> ExecContext {
+            ExecContext {
+                mode: self.mode,
+                block_number: self.block_number,
+                now_ms: self.now_ms,
+                req_id: Some(self.req_id),
+            }
+        }
+
+        fn worker_pubkey(&self) -> [u8; 32] {
+            self.worker_pubkey
+        }
+
+        fn call_elapsed(&self) -> Duration {
+            self.start_at.elapsed()
+        }
     }
 
-    pub fn address(&self) -> AccountId {
-        self.instance.address.clone()
+    pub fn get() -> ExecContext {
+        exec_context::with(|ctx| ctx.exec_context()).unwrap_or_default()
     }
 
-    pub fn set_on_block_end_selector(&mut self, selector: u32, gas_limit: u64) {
-        self.instance.set_on_block_end_selector(selector, gas_limit)
+    pub fn using<T>(ctx: &mut impl GetContext, f: impl FnOnce() -> T) -> T {
+        exec_context::using(ctx, f)
+    }
+
+    pub fn with<T>(f: impl FnOnce(&dyn GetContext) -> T) -> T {
+        exec_context::with(|ctx| f(ctx)).expect("exec_context not set")
+    }
+
+    pub fn worker_pubkey() -> [u8; 32] {
+        exec_context::with(|ctx| ctx.worker_pubkey()).unwrap_or_default()
+    }
+
+    pub fn call_elapsed() -> Duration {
+        exec_context::with(|ctx| ctx.call_elapsed()).unwrap_or_else(|| Duration::from_secs(0))
+    }
+
+    pub fn time_remaining() -> u64 {
+        const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
+        MAX_QUERY_TIME.saturating_sub(call_elapsed()).as_millis() as _
     }
 }
 
-impl Pink {
-    pub(crate) async fn handle_query(
+impl OCalls for RuntimeHandle<'_> {
+    fn storage_root(&self) -> Option<Hash> {
+        self.cluster.storage.root()
+    }
+
+    fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
+        self.cluster.storage.get(&key).map(|(_rc, val)| val.clone())
+    }
+
+    fn storage_commit(&mut self, _root: Hash, _changes: StorageChanges) {
+        panic!("storage_commit called on readonly cluster");
+    }
+
+    fn log_to_server(&self, contract: AccountId, level: u8, message: String) {
+        let Some(log_handler) = self.logger.as_ref() else {
+            return;
+        };
+        let context = self.exec_context();
+        let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
+            block_number: context.block_number,
+            timestamp_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as _,
+            exec_mode: context.mode.display().into(),
+            contract: contract.into(),
+            level,
+            message,
+        });
+        if log_handler.try_send(msg).is_err() {
+            error!("Pink send log to server failed");
+        }
+    }
+
+    fn emit_side_effects(&mut self, _effects: ExecSideEffects) {}
+
+    fn exec_context(&self) -> ExecContext {
+        context::get()
+    }
+
+    fn worker_pubkey(&self) -> [u8; 32] {
+        context::worker_pubkey()
+    }
+
+    fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        if !context::get().mode.is_query() {
+            return None;
+        }
+        local_cache::get(&contract, &key)
+    }
+
+    fn cache_set(
         &self,
+        contract: Vec<u8>,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    ) -> Result<(), StorageQuotaExceeded> {
+        if context::get().mode.is_estimating() {
+            return Ok(());
+        }
+        local_cache::set(&contract, &key, &value)
+    }
+
+    fn cache_set_expiration(&self, contract: Vec<u8>, key: Vec<u8>, expiration: u64) {
+        if context::get().mode.is_estimating() {
+            return;
+        }
+        local_cache::set_expiration(&contract, &key, expiration)
+    }
+
+    fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        if context::get().mode.is_estimating() {
+            return None;
+        }
+        local_cache::remove(&contract, &key)
+    }
+
+    fn latest_system_code(&self) -> Vec<u8> {
+        context::with(|ctx| ctx.chain_storage().pink_system_code().1)
+    }
+
+    fn http_request(
+        &self,
+        contract: AccountId,
+        request: HttpRequest,
+    ) -> Result<HttpResponse, HttpRequestError> {
+        let result = pink_extension_runtime::http_request(request, context::time_remaining());
+        match &result {
+            Ok(response) => {
+                http_counters::add(contract, response.status_code);
+            }
+            Err(_) => {
+                http_counters::add(contract, 0);
+            }
+        }
+        result
+    }
+}
+
+impl OCalls for RuntimeHandleMut<'_> {
+    fn storage_root(&self) -> Option<Hash> {
+        self.readonly().storage_root()
+    }
+
+    fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
+        self.readonly().storage_get(key)
+    }
+
+    fn storage_commit(&mut self, root: Hash, changes: StorageChanges) {
+        self.cluster.storage.commit(root, changes);
+    }
+
+    fn log_to_server(&self, contract: AccountId, level: u8, message: String) {
+        self.readonly().log_to_server(contract, level, message)
+    }
+
+    fn emit_side_effects(&mut self, effects: ExecSideEffects) {
+        self.effects = Some(effects);
+    }
+
+    fn exec_context(&self) -> ExecContext {
+        self.readonly().exec_context()
+    }
+
+    fn worker_pubkey(&self) -> [u8; 32] {
+        self.readonly().worker_pubkey()
+    }
+
+    fn cache_get(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        self.readonly().cache_get(contract, key)
+    }
+
+    fn cache_set(
+        &self,
+        contract: Vec<u8>,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    ) -> Result<(), StorageQuotaExceeded> {
+        self.readonly().cache_set(contract, key, value)
+    }
+
+    fn cache_set_expiration(&self, contract: Vec<u8>, key: Vec<u8>, expiration: u64) {
+        self.readonly()
+            .cache_set_expiration(contract, key, expiration)
+    }
+
+    fn cache_remove(&self, contract: Vec<u8>, key: Vec<u8>) -> Option<Vec<u8>> {
+        self.readonly().cache_remove(contract, key)
+    }
+
+    fn latest_system_code(&self) -> Vec<u8> {
+        self.readonly().latest_system_code()
+    }
+
+    fn http_request(
+        &self,
+        contract: AccountId,
+        request: HttpRequest,
+    ) -> Result<HttpResponse, HttpRequestError> {
+        self.readonly().http_request(contract, request)
+    }
+}
+
+impl v1::CrossCall for RuntimeHandle<'_> {
+    fn cross_call(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
+        self.ensure_version((1, 0));
+        self.execute(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+    }
+}
+
+impl v1::CrossCall for RuntimeHandleMut<'_> {
+    fn cross_call(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
+        self.readonly().ensure_version((1, 0));
+        self.readonly()
+            .execute(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+    }
+}
+
+impl v1::CrossCallMut for RuntimeHandleMut<'_> {
+    fn cross_call_mut(&mut self, call_id: u32, data: &[u8]) -> Vec<u8> {
+        self.readonly().ensure_version((1, 0));
+        self.execute_mut(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+    }
+}
+
+impl v1::ECall for RuntimeHandle<'_> {}
+impl v1::ECall for RuntimeHandleMut<'_> {}
+
+impl Cluster {
+    pub fn new(
+        id: &ContractClusterId,
+        cluster_key: &sr25519::Pair,
+        runtime_version: (u32, u32),
+    ) -> Self {
+        let secret_key = cluster_key.dump_secret_key();
+        let secret_salt = blake2_256(&secret_key);
+        let mut cluster = Cluster {
+            id: *id,
+            storage: Default::default(),
+            config: ClusterConfig {
+                runtime_version,
+                secret_salt,
+                ..Default::default()
+            },
+        };
+        let mut runtime = cluster.default_runtime_mut();
+        runtime.set_key(secret_key);
+        cluster
+    }
+
+    pub fn default_runtime(&self) -> RuntimeHandle {
+        self.runtime(None)
+    }
+
+    pub fn default_runtime_mut(&mut self) -> RuntimeHandleMut {
+        self.runtime_mut(None)
+    }
+
+    pub fn runtime(&self, logger: Option<CommandSender>) -> RuntimeHandle {
+        RuntimeHandle {
+            cluster: self,
+            logger,
+        }
+    }
+
+    pub fn runtime_mut(&mut self, logger: Option<CommandSender>) -> RuntimeHandleMut {
+        RuntimeHandleMut {
+            cluster: self,
+            logger,
+            effects: None,
+        }
+    }
+
+    pub fn key(&self) -> sr25519::Pair {
+        let raw_key = self
+            .default_runtime()
+            .get_key()
+            .expect("cluster key not set");
+        sr25519::Pair::restore_from_secret_key(&raw_key)
+    }
+
+    pub fn system_contract(&self) -> Option<AccountId> {
+        self.default_runtime().system_contract()
+    }
+
+    pub fn code_hash(&self, address: &AccountId) -> Option<Hash> {
+        self.default_runtime().code_hash(address.clone())
+    }
+
+    pub fn upload_resource(
+        &mut self,
+        origin: &AccountId,
+        resource_type: ResourceType,
+        resource_data: Vec<u8>,
+    ) -> Result<Hash, String> {
+        match resource_type {
+            ResourceType::InkCode => {
+                self.default_runtime_mut()
+                    .upload_code(origin.clone(), resource_data, true)
+            }
+            ResourceType::SidevmCode => self
+                .default_runtime_mut()
+                .upload_sidevm_code(origin.clone(), resource_data),
+            ResourceType::IndeterministicInkCode => {
+                self.default_runtime_mut()
+                    .upload_code(origin.clone(), resource_data, false)
+            }
+        }
+    }
+
+    pub fn get_resource(&self, resource_type: ResourceType, hash: &Hash) -> Option<Vec<u8>> {
+        match resource_type {
+            ResourceType::InkCode => None,
+            ResourceType::SidevmCode => self.default_runtime().get_sidevm_code(*hash),
+            ResourceType::IndeterministicInkCode => None,
+        }
+    }
+
+    pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
+        self.default_runtime_mut().deposit(who.clone(), amount)
+    }
+
+    pub(crate) async fn handle_query(
+        mut self,
+        contract_id: &AccountId,
         origin: Option<&AccountId>,
         req: Query,
-        context: &mut contracts::QueryContext,
-        side_effects: &mut ExecSideEffects,
-    ) -> Result<Response, QueryError> {
+        context: QueryContext,
+    ) -> Result<(Response, Option<ExecSideEffects>), QueryError> {
         match req {
             Query::InkMessage {
                 payload: input_data,
                 deposit,
                 transfer,
+                estimating,
             } => {
+                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
                 let _guard = context
                     .query_scheduler
-                    .acquire(self.id(), context.weight)
+                    .acquire(contract_id.clone(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
 
-                let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-                let storage = &mut context.storage;
-                if deposit > 0 {
-                    storage.deposit(&origin, deposit);
-                }
-                let args = ::pink::TransactionArguments {
-                    origin,
-                    now: context.now_ms,
-                    block_number: context.block_number,
-                    storage,
-                    transfer,
-                    gas_limit: Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND * 10, u64::MAX),
-                    gas_free: true,
-                    storage_deposit_limit: None,
-                    callbacks: ContractEventCallback::from_log_sender(
-                        &context.log_handler,
-                        context.block_number,
-                    ),
-                };
-                let (ink_result, effects) = self.instance.bare_call(input_data, true, args);
-                if let Some(log_handler) = &context.log_handler {
-                    if !ink_result.debug_message.is_empty() {
-                        ContractEventCallback::new(log_handler.clone(), context.block_number)
-                            .emit_log(
-                                &self.address(),
-                                true,
-                                log::Level::Debug as usize as _,
-                                String::from_utf8_lossy(&ink_result.debug_message).into_owned(),
-                            );
+                if let Some(logger) = &context.log_handler {
+                    let fp = twox_64(&(&origin, &self.config.secret_salt).encode());
+                    if let Err(_err) = logger.try_send(SidevmCommand::PushSystemMessage(
+                        SystemMessage::Metric(Metric::PinkQueryIn(fp)),
+                    )) {
+                        error!("Failed to send metric to log_server");
                     }
                 }
-                if ink_result.result.is_err() {
-                    log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
-                    if !ink_result.debug_message.is_empty() {
-                        let message = String::from_utf8_lossy(&ink_result.debug_message);
-                        log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
-                    }
+
+                let mode = if estimating {
+                    ExecutionMode::Estimating
                 } else {
-                    *side_effects = effects.into_query_only_effects();
-                }
-                Ok(Response::Payload(ink_result.encode()))
+                    ExecutionMode::Query
+                };
+                let mut ctx = context::ContractExecContext::new(
+                    mode,
+                    context.now_ms,
+                    context.block_number,
+                    context.worker_pubkey,
+                    context.chain_storage,
+                    context.req_id,
+                );
+                let log_handler = context.log_handler.clone();
+                let span = tracing::Span::current();
+                let contract_id = contract_id.clone();
+                tokio::task::spawn_blocking(move || {
+                    let _guard = span.enter();
+                    context::using(&mut ctx, move || {
+                        let mut runtime = self.runtime_mut(log_handler);
+                        if deposit > 0 {
+                            runtime.deposit(origin.clone(), deposit);
+                        }
+                        let args = TransactionArguments {
+                            origin,
+                            transfer,
+                            gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                            gas_free: true,
+                            storage_deposit_limit: None,
+                        };
+                        let ink_result =
+                            runtime.contract_call(contract_id, input_data, mode, args);
+                        let effects = if mode.is_estimating() {
+                            None
+                        } else {
+                            runtime.effects.take().map(|e| e.into_query_only_effects())
+                        };
+                        Ok((Response::Payload(ink_result), effects))
+                    })
+                })
+                .await
+                .map_err(|_| QueryError::RuntimeError("Failed to spawn blocking task".into()))?
             }
             Query::SidevmQuery(payload) => {
                 let handle = context
@@ -192,6 +611,7 @@ impl Pink {
                 })
                 .await
                 .or(Err(QueryError::Timeout))?
+                .map(|response| (response, None))
             }
             Query::InkInstantiate {
                 code_hash,
@@ -202,60 +622,60 @@ impl Pink {
             } => {
                 let _guard = context
                     .query_scheduler
-                    .acquire(self.id(), context.weight)
+                    .acquire(contract_id.clone(), context.weight)
                     .await
                     .or(Err(QueryError::ServiceUnavailable))?;
 
                 let origin = origin.cloned().ok_or(QueryError::BadOrigin)?;
-                let storage = &mut context.storage;
-                if deposit > 0 {
-                    storage.deposit(&origin, deposit);
-                }
-                let args = ::pink::TransactionArguments {
-                    origin,
-                    now: context.now_ms,
-                    block_number: context.block_number,
-                    storage,
-                    transfer,
-                    gas_limit: Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND * 10, u64::MAX),
-                    gas_free: true,
-                    storage_deposit_limit: None,
-                    callbacks: ContractEventCallback::from_log_sender(
-                        &context.log_handler,
-                        context.block_number,
-                    ),
-                };
-                let (ink_result, _effects) =
-                    ::pink::Contract::instantiate(code_hash, instantiate_data, salt, true, args);
-                if ink_result.result.is_err() {
-                    log::error!(
-                        "Pink [{:?}] est instantiate error: {:?}",
-                        self.id(),
-                        ink_result
+                let mut ctx = context::ContractExecContext::new(
+                    ExecutionMode::Estimating,
+                    context.now_ms,
+                    context.block_number,
+                    context.worker_pubkey,
+                    context.chain_storage,
+                    context.req_id,
+                );
+                let log_handler = context.log_handler.clone();
+                context::using(&mut ctx, move || {
+                    let mut runtime = self.runtime_mut(log_handler);
+                    if deposit > 0 {
+                        runtime.deposit(origin.clone(), deposit);
+                    }
+                    let args = TransactionArguments {
+                        origin,
+                        transfer,
+                        gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                        gas_free: true,
+                        storage_deposit_limit: None,
+                    };
+                    let ink_result = runtime.contract_instantiate(
+                        code_hash,
+                        instantiate_data,
+                        salt,
+                        ExecutionMode::Estimating,
+                        args,
                     );
-                }
-                Ok(Response::Payload(ink_result.encode()))
+                    Ok((Response::Payload(ink_result), None))
+                })
             }
         }
     }
 
     pub(crate) fn handle_command(
         &mut self,
+        contract_id: &AccountId,
         origin: MessageOrigin,
-        cmd: Command,
-        context: &mut contracts::TransactionContext,
+        cmd: InkCommand,
+        context: &mut TransactionContext,
     ) -> TransactionResult {
         match cmd {
-            Command::InkMessage {
+            InkCommand::InkMessage {
                 nonce,
                 message,
                 transfer,
                 gas_limit,
                 storage_deposit_limit,
             } => {
-                let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
-                    .expect("Pink cluster should always exists!");
-
                 let mut gas_free = false;
                 let origin: runtime::AccountId = match origin {
                     MessageOrigin::AccountId(origin) => origin.0.into(),
@@ -263,89 +683,43 @@ impl Pink {
                         // The caller will be set to the system contract if it's from a pallet call
                         // and without charging for gas
                         gas_free = true;
-                        storage
-                            .system_contract()
+                        self.system_contract()
                             .expect("BUG: system contract missing")
                     }
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
-                let args = ::pink::TransactionArguments {
+                let args = TransactionArguments {
                     origin: origin.clone(),
-                    now: context.block.now_ms,
-                    block_number: context.block.block_number,
-                    storage,
                     transfer,
-                    gas_limit: Weight::from_ref_time(gas_limit),
+                    gas_limit,
                     gas_free,
                     storage_deposit_limit,
-                    callbacks: ContractEventCallback::from_log_sender(
-                        &context.log_handler,
-                        context.block.block_number,
-                    ),
                 };
 
-                let (result, effects) = self.instance.bare_call(message, false, args);
+                let mut runtime = self.runtime_mut(context.log_handler.clone());
+                let output = runtime.contract_call(
+                    contract_id.clone(),
+                    message,
+                    ExecutionMode::Transaction,
+                    args,
+                );
 
                 if let Some(log_handler) = &context.log_handler {
                     let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkMessageOutput {
                         origin: origin.into(),
-                        contract: self.instance.address.clone().into(),
+                        contract: *contract_id.as_ref(),
                         block_number: context.block.block_number,
                         nonce: nonce.into_inner(),
-                        output: result.result.encode(),
+                        output,
                     });
                     if log_handler.try_send(msg).is_err() {
                         error!("Pink emit message output to log handler failed");
                     }
-                    if !result.debug_message.is_empty() {
-                        ContractEventCallback::new(log_handler.clone(), context.block.block_number)
-                            .emit_log(
-                                &self.instance.address,
-                                false,
-                                log::Level::Debug as usize as _,
-                                String::from_utf8_lossy(&result.debug_message).into_owned(),
-                            );
-                    }
                 }
-
-                if let Err(err) = result.result {
-                    log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
-                    if !result.debug_message.is_empty() {
-                        let message = String::from_utf8_lossy(&result.debug_message);
-                        log::error!("Pink [{:?}] buffer: {:?}", self.id(), message);
-                    }
-                    return Err(TransactionError::Other(format!(
-                        "Call contract method failed: {err:?}"
-                    )));
-                }
-                Ok(effects)
+                Ok(runtime.effects)
             }
         }
-    }
-
-    pub(crate) fn on_block_end(
-        &mut self,
-        context: &mut contracts::TransactionContext,
-    ) -> TransactionResult {
-        let storage = cluster_storage(context.contract_clusters, &self.cluster_id)
-            .expect("Pink cluster should always exists!");
-        let effects = self
-            .instance
-            .on_block_end(
-                storage,
-                context.block.block_number,
-                context.block.now_ms,
-                ContractEventCallback::from_log_sender(
-                    &context.log_handler,
-                    context.block.block_number,
-                ),
-            )
-            .map_err(|err| {
-                log::error!("Pink [{:?}] on_block_end exec error: {:?}", self.id(), err);
-                TransactionError::Other(format!("Call contract on_block_end failed: {err:?}"))
-            })?;
-        Ok(effects)
     }
 
     pub(crate) fn snapshot(&self) -> Self {
@@ -353,258 +727,32 @@ impl Pink {
     }
 }
 
-fn cluster_storage<'a>(
-    clusters: &'a mut cluster::ClusterKeeper,
-    cluster_id: &ContractClusterId,
-) -> Result<&'a mut pink::Storage> {
-    clusters
-        .get_cluster_storage_mut(cluster_id)
-        .ok_or_else(|| anyhow!("Contract cluster {:?} not found! qed!", cluster_id))
+pub trait ClusterContainer {
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn len(&self) -> usize;
+    fn get_cluster(&self, cluster_id: &ContractClusterId) -> Option<&Cluster>;
+    fn get_cluster_mut(&mut self, cluster_id: &ContractClusterId) -> Option<&mut Cluster>;
+    fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster>;
 }
 
-pub mod cluster {
-    use anyhow::{Context, Result};
-    use parity_scale_codec::Decode;
-    use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
-    use phala_mq::{ContractClusterId, ContractId};
-    use phala_serde_more as more;
-    use phala_types::contract::messaging::ResourceType;
-    use pink::{
-        types::{AccountId, Balance, Hash},
-        weights::Weight,
-    };
-    use serde::{Deserialize, Serialize};
-    use sp_core::sr25519;
-    use sp_runtime::{AccountId32, DispatchError};
-    use std::collections::{BTreeMap, BTreeSet};
-
-    #[derive(Default, Serialize, Deserialize)]
-    pub struct ClusterKeeper {
-        clusters: BTreeMap<ContractClusterId, Cluster>,
-    }
-
-    impl ClusterKeeper {
-        pub fn is_empty(&self) -> bool {
-            self.clusters.is_empty()
-        }
-
-        pub fn len(&self) -> usize {
-            self.clusters.len()
-        }
-
-        pub fn get_cluster_storage_mut(
-            &mut self,
-            cluster_id: &ContractClusterId,
-        ) -> Option<&mut pink::Storage> {
-            Some(&mut self.clusters.get_mut(cluster_id)?.storage)
-        }
-
-        pub fn get_cluster_mut(&mut self, cluster_id: &ContractClusterId) -> Option<&mut Cluster> {
-            self.clusters.get_mut(cluster_id)
-        }
-
-        pub fn get_cluster_or_default_mut(
-            &mut self,
-            cluster_id: &ContractClusterId,
-            cluster_key: &sr25519::Pair,
-        ) -> &mut Cluster {
-            self.clusters.entry(*cluster_id).or_insert_with(|| {
-                let mut cluster = Cluster {
-                    storage: Default::default(),
-                    contracts: Default::default(),
-                    key: cluster_key.clone(),
-                    config: Default::default(),
-                };
-                let seed_key = cluster_key
-                    .derive_sr25519_pair(&[b"ink key derivation seed"])
-                    .expect("Derive key seed should always success!");
-                cluster.set_id(cluster_id);
-                cluster.set_key_seed(seed_key.dump_secret_key());
-                cluster
-            })
-        }
-
-        pub fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster> {
-            self.clusters.remove(cluster_id)
-        }
-
-        pub fn iter(&self) -> impl Iterator<Item = (&ContractClusterId, &Cluster)> {
-            self.clusters.iter()
+impl ClusterContainer for Option<Cluster> {
+    fn len(&self) -> usize {
+        if self.is_some() {
+            1
+        } else {
+            0
         }
     }
-
-    #[derive(Serialize, Deserialize, Default)]
-    pub struct ClusterConfig {
-        pub log_handler: Option<ContractId>,
-        // Version used to control the contract API availability.
-        pub version: (u16, u16),
+    fn get_cluster(&self, cluster_id: &ContractClusterId) -> Option<&Cluster> {
+        self.as_ref().filter(|c| c.id == *cluster_id)
     }
-
-    #[derive(Serialize, Deserialize)]
-    pub struct Cluster {
-        pub storage: pink::Storage,
-        contracts: BTreeSet<ContractId>,
-        #[serde(with = "more::key_bytes")]
-        key: sr25519::Pair,
-        pub config: ClusterConfig,
+    fn get_cluster_mut(&mut self, cluster_id: &ContractClusterId) -> Option<&mut Cluster> {
+        self.as_mut().filter(|c| c.id == *cluster_id)
     }
-
-    impl Cluster {
-        /// Add a new contract to the cluster. Returns true if the contract is new.
-        pub fn add_contract(&mut self, address: ContractId) -> bool {
-            self.contracts.insert(address)
-        }
-
-        pub fn key(&self) -> &sr25519::Pair {
-            &self.key
-        }
-
-        pub fn system_contract(&self) -> Option<AccountId32> {
-            self.storage.system_contract()
-        }
-
-        pub fn set_system_contract(&mut self, contract: AccountId32) {
-            self.storage.set_system_contract(contract);
-        }
-
-        pub fn set_id(&mut self, id: &ContractClusterId) {
-            self.storage.set_cluster_id(id.as_bytes());
-        }
-
-        pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
-            self.storage.set_key_seed(seed);
-        }
-
-        pub fn upload_resource(
-            &mut self,
-            origin: &AccountId,
-            resource_type: ResourceType,
-            resource_data: Vec<u8>,
-        ) -> Result<Hash, DispatchError> {
-            match resource_type {
-                ResourceType::InkCode => self.storage.upload_code(origin, resource_data, true),
-                ResourceType::SidevmCode => self.storage.upload_sidevm_code(origin, resource_data),
-                ResourceType::IndeterministicInkCode => {
-                    self.storage.upload_code(origin, resource_data, false)
-                }
-            }
-        }
-
-        pub fn get_resource(&self, resource_type: ResourceType, hash: &Hash) -> Option<Vec<u8>> {
-            match resource_type {
-                ResourceType::InkCode => None,
-                ResourceType::SidevmCode => self.storage.get_sidevm_code(hash),
-                ResourceType::IndeterministicInkCode => None,
-            }
-        }
-
-        pub fn iter_contracts(&self) -> impl Iterator<Item = &ContractId> {
-            self.contracts.iter()
-        }
-
-        pub fn setup(
-            &mut self,
-            gas_price: Balance,
-            deposit_per_item: Balance,
-            deposit_per_byte: Balance,
-            treasury_account: &::pink::types::AccountId,
-        ) {
-            self.storage.setup(
-                gas_price,
-                deposit_per_item,
-                deposit_per_byte,
-                treasury_account,
-            );
-        }
-
-        pub fn deposit(&mut self, who: &::pink::types::AccountId, amount: Balance) {
-            self.storage.deposit(who, amount)
-        }
-
-        pub fn set_system_contract_code(&mut self, code_hash: Hash) -> Result<(), DispatchError> {
-            self.storage.set_system_contract_code(code_hash)?;
-            self.sync_system_contract_version()
-                .expect("Failed to sync the system contract version. Please upgrade pRuntime!");
-            Ok(())
-        }
-
-        pub fn sync_system_contract_version(&mut self) -> Result<()> {
-            let Some(system_address) = self.system_contract() else {
-                anyhow::bail!("No system contract");
-            };
-            let system = pink::Contract::from_address(system_address.clone());
-            // System::version
-            let selector = 0x87c98a8d_u32.to_be_bytes().to_vec();
-            let args = ::pink::TransactionArguments {
-                origin: system_address,
-                now: 1,
-                block_number: 1,
-                storage: &mut self.storage,
-                transfer: 0,
-                gas_limit: Weight::MAX,
-                gas_free: true,
-                storage_deposit_limit: None,
-                callbacks: None,
-            };
-            let (result, _) = system.bare_call(selector, true, args);
-            let output = result.result.map_err(|err| {
-                anyhow::anyhow!("Failed to get the system contract version: {err:?}")
-            })?;
-            self.config.version = Result::<_, ()>::decode(&mut &output.data[..])
-                .context("Failed to decode the system contract version")?
-                .or(Err(anyhow::anyhow!(
-                    "Failed to get the system contract version"
-                )))?;
-            const SUPPORTED_API_VERSION: u16 = 0;
-            if self.config.version.0 > SUPPORTED_API_VERSION {
-                anyhow::bail!(
-                    "The pink-system version is not supported, please upgrade the pRuntime"
-                );
-            }
-            Ok(())
-        }
-    }
-}
-
-pub(crate) struct ContractEventCallback {
-    log_handler: CommandSender,
-    block_number: BlockNumber,
-}
-
-impl ContractEventCallback {
-    pub fn new(log_handler: CommandSender, block_number: BlockNumber) -> Self {
-        ContractEventCallback {
-            log_handler,
-            block_number,
-        }
-    }
-
-    pub fn from_log_sender(
-        log_handler: &Option<CommandSender>,
-        block_number: BlockNumber,
-    ) -> Option<BoxedEventCallbacks> {
-        Some(Box::new(ContractEventCallback::new(
-            log_handler.as_ref().cloned()?,
-            block_number,
-        )))
-    }
-}
-
-impl pink::runtime::EventCallbacks for ContractEventCallback {
-    fn emit_log(&self, contract: &AccountId, in_query: bool, level: u8, message: String) {
-        let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
-            block_number: self.block_number,
-            timestamp_ms: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as _,
-            in_query,
-            contract: contract.clone().into(),
-            level,
-            message,
-        });
-        if self.log_handler.try_send(msg).is_err() {
-            error!("Pink emit_log failed");
-        }
+    fn remove_cluster(&mut self, cluster_id: &ContractClusterId) -> Option<Cluster> {
+        _ = self.get_cluster(cluster_id)?;
+        self.take()
     }
 }

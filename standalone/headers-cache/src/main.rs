@@ -154,6 +154,9 @@ struct Serve {
     /// Prefered minimum number of blocks between justification
     #[arg(long, default_value_t = 1000)]
     justification_interval: BlockNumber,
+    /// Token for uploading APIs.
+    #[arg(long)]
+    token: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -248,6 +251,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn serve(config: Serve) -> anyhow::Result<()> {
     let db = db::CacheDB::open(&config.db)?;
+    let token = config.token.clone();
 
     if let Some(upstream) = config.mirror.clone() {
         if config.grab_headers {
@@ -272,7 +276,7 @@ async fn serve(config: Serve) -> anyhow::Result<()> {
             std::process::exit(1);
         });
     }
-    web_api::serve(db).await?;
+    web_api::serve(db, token).await?;
     Ok(())
 }
 

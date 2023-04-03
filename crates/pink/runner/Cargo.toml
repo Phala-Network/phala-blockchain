@@ -1,0 +1,28 @@
+[package]
+name = "pink-runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pink-capi = { path = "../capi" }
+pink-extension-runtime = { path = "../pink-extension-runtime" }
+phala-crypto = { path = "../../phala-crypto" }
+serde = { version = "1", features = ["derive"] }
+sp-weights = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+im = "15"
+once_cell = "1"
+libc = "0.2"
+log = "0.4"
+tracing = "0.1"
+environmental = "1"
+
+[dev-dependencies]
+pink = { path = "../runtime" }
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = [
+    "derive",
+] }
+insta = "1"
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+env_logger = "0.10.0"
+assert_matches = "1.5.0"

@@ -17,10 +17,6 @@ impl super::PinkRuntimeEnv for MockExtension {
         static ADDRESS: AccountId32 = AccountId32::new([0; 32]);
         &ADDRESS
     }
-
-    fn call_elapsed(&self) -> Option<std::time::Duration> {
-        Some(std::time::Duration::from_secs(0))
-    }
 }
 
 impl ext::PinkExtBackend for MockExtension {
@@ -128,6 +124,18 @@ impl ext::PinkExtBackend for MockExtension {
 
     fn worker_pubkey(&self) -> Result<crate::EcdhPublicKey, Self::Error> {
         Ok(Default::default())
+    }
+
+    fn code_exists(&self, _code_hash: Hash, _sidevm: bool) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+
+    fn import_latest_system_code(&self, _payer: ext::AccountId) -> Result<Option<Hash>, Self::Error> {
+        Ok(None)
+    }
+
+    fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
+        Ok((1, 0))
     }
 }
 

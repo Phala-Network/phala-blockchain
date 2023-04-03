@@ -1,7 +1,7 @@
 use anyhow::anyhow;
-use log::info;
 use parity_scale_codec::Encode;
 use std::alloc::System;
+use tracing::info;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use phala_allocator::StatSizeAllocator;

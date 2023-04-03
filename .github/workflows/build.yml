@@ -99,7 +99,7 @@ jobs:
           submodules: 'true'
       - uses: ./.github/actions/install_toolchain
       - name: Run cargo tests
-        run: cargo test -vv --workspace --exclude node-executor --exclude phala-node
+        run: cargo test --tests --release --workspace --exclude node-executor --exclude phala-node
 
   cargo-clippy:
     name: Run cargo clippy

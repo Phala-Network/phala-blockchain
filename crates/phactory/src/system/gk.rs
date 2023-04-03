@@ -1,5 +1,5 @@
 use super::{RotatedMasterKey, TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_fat::ClusterRegistryEvent;
+use chain::pallet_phat::ClusterRegistryEvent;
 use chain::pallet_registry::GatekeeperRegistryEvent;
 use phala_crypto::{
     aead, key_share,
@@ -14,16 +14,16 @@ use phala_types::{
     },
     messaging::{
         BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, GatekeeperEvent,
-        KeyDistribution, MessageOrigin, WorkingInfoUpdateEvent, WorkingReportEvent, RandomNumber,
-        RandomNumberEvent, RotateMasterKeyEvent, SettleInfo, SystemEvent, WorkerEvent,
-        WorkerEventWithKey,
+        KeyDistribution, MessageOrigin, RandomNumber, RandomNumberEvent, RotateMasterKeyEvent,
+        SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey, WorkingInfoUpdateEvent,
+        WorkingReportEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};
 
-use crate::types::BlockInfo;
+use crate::{im_helpers::ordmap_for_each_mut, types::BlockInfo};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -69,7 +69,7 @@ fn get_cluster_key(master_key: &sr25519::Pair, cluster: &ContractClusterId) -> s
 }
 
 #[cfg(feature = "gk-stat")]
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 struct WorkerStat {
     last_heartbeat_for_block: chain::BlockNumber,
     last_heartbeat_at_block: chain::BlockNumber,
@@ -77,7 +77,7 @@ struct WorkerStat {
     last_gk_responsive_event_at_block: chain::BlockNumber,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
@@ -110,7 +110,7 @@ impl WorkerInfo {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct Gatekeeper<MsgChan> {
     /// The current master key in use
     #[serde(with = "more::key_bytes")]
@@ -424,15 +424,9 @@ where
             GatekeeperEvent::TokenomicParametersChanged(_params) => {
                 // Handled by ComputingEconomics
             }
-            GatekeeperEvent::RepairV => {
-                // Handled by ComputingEconomics
-            }
-            GatekeeperEvent::PhalaLaunched => {
-                // Handled by ComputingEconomics
-            }
-            GatekeeperEvent::UnrespFix => {
-                // Handled by ComputingEconomics
-            }
+            GatekeeperEvent::_RepairV
+            | GatekeeperEvent::_PhalaLaunched
+            | GatekeeperEvent::_UnrespFix => unreachable!(),
         }
     }
 
@@ -632,54 +626,22 @@ impl<F: FnMut(EconomicEvent, &WorkerInfo)> EconomicEventListener for F {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ComputingEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     computing_events: TypedReceiver<WorkingReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
+    workers: im::OrdMap<WorkerPublicKey, WorkerInfo>,
     tokenomic_params: tokenomic::Params,
-    /// Indicates a set of update is enabled on-chain
-    /// - Remove payout delta V limitation
-    ///   (https://github.com/Phala-Network/phala-blockchain/issues/693)
-    /// - Fix issue 676 (https://github.com/Phala-Network/phala-blockchain/issues/676)
-    #[serde(default)]
-    phala_launched: bool,
-    /// Indicates if the payout duration problem in unresponsive state if fixed
-    #[serde(default)]
-    unresp_fix: bool,
     #[serde(skip, default)]
     eco_cache: EconomicCalcCache,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct EconomicCalcCache {
     sum_share: FixedPoint,
     report: WorkingInfoUpdateEvent<chain::BlockNumber>,
-}
-
-#[test]
-fn test_restore_phala_launched() {
-    #[derive(Serialize, Deserialize)]
-    struct ComputingEconomics0 {
-        tokenomic_params: u32,
-    }
-
-    #[derive(Serialize, Deserialize)]
-    struct ComputingEconomics1 {
-        tokenomic_params: u32,
-        #[serde(default)]
-        phala_launched: bool,
-    }
-
-    let checkpoint = serde_cbor::to_vec(&ComputingEconomics0 {
-        tokenomic_params: 1,
-    })
-    .unwrap();
-
-    let state: ComputingEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
-    assert!(!state.phala_launched);
 }
 
 #[cfg(feature = "gk-stat")]
@@ -732,8 +694,6 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             gatekeeper_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             tokenomic_params: tokenomic::test_params(),
-            phala_launched: false,
-            unresp_fix: false,
             eco_cache: Default::default(),
         }
     }
@@ -753,9 +713,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         let sum_share = self.sum_share();
         let report = WorkingInfoUpdateEvent::new(block.block_number, block.now_ms);
         self.eco_cache = EconomicCalcCache { sum_share, report };
-        for worker in self.workers.values_mut() {
+        ordmap_for_each_mut(&mut self.workers, |(_k, worker)| {
             worker.heartbeat_flag = false;
-        }
+        });
     }
 
     pub fn did_process_block(
@@ -763,7 +723,10 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         block: &BlockInfo<'_>,
         event_listener: &mut impl EconomicEventListener,
     ) {
-        for worker_info in self.workers.values_mut() {
+        let eco_cache = &mut self.eco_cache;
+        let heartbeat_window = self.tokenomic_params.heartbeat_window;
+        let params = &self.tokenomic_params;
+        ordmap_for_each_mut(&mut self.workers, |(_k, worker_info)| {
             trace!(target: "gk_computing",
                 "[{}] block_post_process",
                 hex::encode(worker_info.state.pubkey)
@@ -777,7 +740,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     "[{}] Computing already stopped, do nothing.",
                     hex::encode(worker_info.state.pubkey)
                 );
-                continue;
+                return;
             }
 
             if worker_info.unresponsive {
@@ -788,7 +751,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                         hex::encode(worker_info.state.pubkey)
                     );
                     worker_info.unresponsive = false;
-                    self.eco_cache
+                    eco_cache
                         .report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
@@ -801,7 +764,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                     event_listener.emit_event(EconomicEvent::ExitUnresponsive, worker_info);
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                if block.block_number - hb_sent_at > self.tokenomic_params.heartbeat_window {
+                if block.block_number - hb_sent_at > heartbeat_window {
                     trace!(
                         target: "gk_computing",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
@@ -809,7 +772,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                         block.block_number,
                         hb_sent_at
                     );
-                    self.eco_cache.report.offline.push(worker_info.state.pubkey);
+                    eco_cache.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
 
                     #[cfg(feature = "gk-stat")]
@@ -822,7 +785,6 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 }
             }
 
-            let params = &self.tokenomic_params;
             if worker_info.unresponsive {
                 trace!(
                     target: "gk_computing",
@@ -840,13 +802,13 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                 );
                 worker_info.tokenomic.update_v_idle(params);
             }
-        }
+        });
 
-        let report = &self.eco_cache.report;
+        let report = core::mem::take(&mut self.eco_cache.report);
 
         if !report.is_empty() {
             debug!(target: "gk_computing", "Report: {:?}", report);
-            self.egress.push_message(report);
+            self.egress.push_message(&report);
         }
     }
 
@@ -995,11 +957,9 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(worker_info.state.pubkey)
                     );
-                    if self.unresp_fix {
-                        worker_info
-                            .tokenomic
-                            .update_v_recover(block.now_ms, block.block_number);
-                    }
+                    worker_info
+                        .tokenomic
+                        .update_v_recover(block.now_ms, block.block_number);
                     fp!(0)
                 } else {
                     trace!(
@@ -1012,7 +972,6 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
                         self.eco_cache.sum_share,
                         block.now_ms,
                         block.block_number,
-                        self.phala_launched,
                     );
 
                     // NOTE: keep the reporting order (vs the one while computing stop).
@@ -1055,7 +1014,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
 
         let log_on = log::log_enabled!(log::Level::Debug);
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
-        for worker_info in self.workers.values_mut() {
+        ordmap_for_each_mut(&mut self.workers, |(_k, worker_info)| {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info
@@ -1064,7 +1023,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             if tracker.challenge_received {
                 event_listener.emit_event(EconomicEvent::HeartbeatChallenge, worker_info);
             }
-        }
+        });
 
         match &event {
             SystemEvent::WorkerEvent(e) => {
@@ -1137,7 +1096,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
         origin: MessageOrigin,
         event: GatekeeperEvent,
         _block: &BlockInfo<'_>,
-        event_listener: &mut impl EconomicEventListener,
+        _event_listener: &mut impl EconomicEventListener,
     ) {
         match event {
             GatekeeperEvent::NewRandomNumber(_random_number_event) => {
@@ -1145,59 +1104,32 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             }
             GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
-                    self.tokenomic_params = params.into();
-                    info!(
-                        target: "gk_computing",
-                        "Tokenomic parameter updated: {:#?}",
-                        &self.tokenomic_params
-                    );
+                    self.update_tokenomic_parameters(params);
                 }
             }
-            GatekeeperEvent::RepairV => {
-                if origin.is_pallet() {
-                    info!(target: "gk_computing", "Repairing V");
-                    // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
-                    // not being applied.
-                    //
-                    // See below links for more detail:
-                    // https://github.com/Phala-Network/phala-blockchain/issues/489
-                    // https://github.com/Phala-Network/phala-blockchain/issues/495
-                    // https://forum.phala.network/t/topic/2753#timeline
-                    // https://forum.phala.network/t/topic/2909
-                    for w in self.workers.values_mut() {
-                        if w.state.working_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
-                            w.tokenomic.v = w.tokenomic.v_init;
-                            event_listener.emit_event(EconomicEvent::RecoverV, w)
-                        }
-                    }
-                }
-            }
-            GatekeeperEvent::PhalaLaunched => {
-                if origin.is_pallet() {
-                    // Fixes:
-                    // - https://github.com/Phala-Network/phala-blockchain/issues/693
-                    // - https://github.com/Phala-Network/phala-blockchain/issues/676
-                    self.phala_launched = true;
-                }
-            }
-            GatekeeperEvent::UnrespFix => {
-                if origin.is_pallet() {
-                    self.unresp_fix = true;
-                }
-            }
+            // These events are no longer used in Phala, but kept in the type define for Khala Network.
+            GatekeeperEvent::_RepairV
+            | GatekeeperEvent::_PhalaLaunched
+            | GatekeeperEvent::_UnrespFix => unreachable!(),
         }
+    }
+
+    pub fn update_tokenomic_parameters(
+        &mut self,
+        params: phala_types::messaging::TokenomicParameters,
+    ) {
+        self.tokenomic_params = params.into();
+        info!(
+            target: "gk_computing",
+            "Tokenomic parameter updated: {:#?}",
+            &self.tokenomic_params
+        );
     }
 
     pub fn sum_share(&self) -> FixedPoint {
         self.workers
             .values()
-            .filter(|info| {
-                if self.phala_launched {
-                    !info.unresponsive && info.state.working_state.is_some()
-                } else {
-                    !info.unresponsive
-                }
-            })
+            .filter(|info| !info.unresponsive && info.state.working_state.is_some())
             .map(|info| info.tokenomic.share())
             .sum()
     }
@@ -1330,7 +1262,7 @@ mod tokenomic {
         }
     }
 
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Debug, Serialize, Deserialize, Clone)]
     pub struct Params {
         #[serde(with = "serde_fp")]
         rho: FixedPoint,
@@ -1414,7 +1346,6 @@ mod tokenomic {
             sum_share: FixedPoint,
             now_ms: u64,
             block_number: u32,
-            full_payout: bool,
         ) -> (FixedPoint, FixedPoint) {
             const NO_UPDATE: (FixedPoint, FixedPoint) = (fp!(0), fp!(0));
             if sum_share == fp!(0) {
@@ -1433,27 +1364,11 @@ mod tokenomic {
             }
             let blocks = FixedPoint::from_num(block_number - self.v_update_block);
             let budget = share / sum_share * params.budget_per_block * blocks;
-            let to_payout = budget * params.payout_ration;
-            let to_treasury = budget * params.treasury_ration;
+            let actual_payout = budget * params.payout_ration;
+            let actual_treasury = budget * params.treasury_ration;
 
-            let actual_payout;
-            let actual_treasury;
-            if full_payout {
-                // With `full_payout`, the worker gets paid with its share directly. However, v can
-                // only be deducted up to the v increment since the last payout.
-                // (Current behavior)
-                actual_payout = to_payout; // w
-                actual_treasury = to_treasury;
-                let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
-                self.v -= actual_v_deduct;
-            } else {
-                // Without `full_payout`, the worker gets paid up to the v increment to ensure v
-                // will not decrease over the time by payout.
-                // (Legacy behavior)
-                actual_payout = self.v_deductible.clamp(fp!(0), to_payout); // w
-                actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
-                self.v -= actual_payout;
-            }
+            let actual_v_deduct = self.v_deductible.clamp(fp!(0), actual_payout);
+            self.v -= actual_v_deduct;
 
             self.v_deductible = fp!(0);
             self.v_update_at = now_ms;
@@ -1542,7 +1457,7 @@ mod serde_fp {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{BlockInfo, FixedPoint, MessageChannel, ComputingEconomics};
+    use super::{BlockInfo, ComputingEconomics, FixedPoint, MessageChannel};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path, Sr25519Signer};
@@ -1644,10 +1559,6 @@ pub mod tests {
 
         fn get_worker(&self, n: usize) -> &super::WorkerInfo {
             &self.gk.workers[&self.workers[n]]
-        }
-
-        fn get_worker_mut(&mut self, n: usize) -> &mut super::WorkerInfo {
-            self.gk.workers.get_mut(&self.workers[n]).unwrap()
         }
     }
 
@@ -2248,11 +2159,11 @@ pub mod tests {
         let report = r.gk.egress.drain_working_info_update_event();
         assert_eq!(
             FixedPoint::from_bits(report[0].settle[0].payout),
-            fp!(14.69197867920878555043)
+            fp!(576424.184820453732333905)
         );
         assert_eq!(
             FixedPoint::from_bits(report[0].settle[0].treasury),
-            fp!(3.6729946698021946595)
+            fp!(144106.0462051134330737112)
         );
 
         // Slash 0.1% (1hr + 10 blocks challenge window)
@@ -2322,7 +2233,7 @@ pub mod tests {
         let report = r.gk.egress.drain_working_info_update_event();
         assert_eq!(
             FixedPoint::from_bits(report[0].settle[0].payout),
-            fp!(144.61014041614143905393)
+            fp!(564977.41335989500435977944)
         );
     }
 
@@ -2374,29 +2285,6 @@ pub mod tests {
             }
             r.gk.test_process_messages(block);
         });
-
-        for i in 0..=1 {
-            let worker = r.get_worker_mut(i);
-
-            worker.tokenomic.v = fp!(100);
-            worker.tokenomic.v_init = fp!(200);
-
-            assert!(worker.tokenomic.v < worker.tokenomic.v_init);
-        }
-
-        assert_eq!(r.get_worker(0).tokenomic.v, fp!(100));
-        assert_eq!(r.get_worker(1).tokenomic.v, fp!(100));
-
-        block_number += 1;
-        with_block(block_number, |block| {
-            let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
-            r.mq.dispatch_bound(&sender, msg::GatekeeperEvent::RepairV);
-            r.gk.test_process_messages(block);
-        });
-
-        // Should repaired and rewarded
-        assert_eq!(r.get_worker(0).tokenomic.v, fp!(200.00021447729505831407));
-        assert_eq!(r.get_worker(1).tokenomic.v, fp!(200.00021447729505831407));
     }
 
     #[test]

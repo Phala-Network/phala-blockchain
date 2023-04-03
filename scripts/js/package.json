@@ -4,8 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "rollup -c rollup.config.js",
-    "build:all": "rollup -c rollup.config.js src/*.js",
+    "build": "rollup -c rollup.config.mjs",
+    "build:all": "rollup -c rollup.config.mjs src/*.js",
     "build:proto": "./build_proto.sh"
   },
   "dependencies": {

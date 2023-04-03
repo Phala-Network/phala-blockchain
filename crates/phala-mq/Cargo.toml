@@ -7,11 +7,12 @@ edition = "2018"
 
 [dependencies]
 log = "0.4.14"
+tracing = { version = "0.1", default-features = false }
 hex = { version =  "0.4.3", default-features = false, features = ['alloc'] }
 derive_more = { version = "0.99", default-features = false, features = ["display"] }
-parity-scale-codec = { version = "3.0", default-features = false, features = ["derive"] }
-scale-info = { version = "2.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.37", default-features = false }
+parity-scale-codec = { version = "3.3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.3", default-features = false, features = ["derive"] }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 spin = { version = "0.9", default-features = false, features = ["mutex", "use_ticket_mutex"], optional = true }
@@ -19,6 +20,7 @@ phala-serde-more = { path = "../phala-serde-more", default-features = false }
 
 # for checkpoint
 environmental = { version = "1.1.3", optional = true }
+im = "15"
 
 [features]
 default = ["dispatcher", "queue", "signers", "checkpoint"]

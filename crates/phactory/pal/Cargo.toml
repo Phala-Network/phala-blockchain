@@ -5,5 +5,5 @@ edition = "2018"
 description = "Platform abstraction layer for Phactory Runtime"
 
 [dependencies]
-anyhow = "1.0.43"
+anyhow = "1.0.69"
 phala-types = { path = "../../phala-types", default-features = false, features = ["enable_serde", "sgx"] }

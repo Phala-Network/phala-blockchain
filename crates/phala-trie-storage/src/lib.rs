@@ -5,13 +5,12 @@ mod memdb;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use core::iter::FromIterator;
+use std::iter::FromIterator;
 
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
-use sp_state_machine::{Backend, TrieBackend, TrieBackendBuilder};
+use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
 pub use memdb::GenericMemoryDB as MemoryDB;
@@ -29,14 +28,25 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
-pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>);
+pub struct TrieStorage<H: Hasher>(InMemoryBackend<H>)
+where
+    H::Out: Ord;
 
 impl<H: Hasher> Default for TrieStorage<H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     fn default() -> Self {
         Self(TrieBackendBuilder::new(Default::default(), Default::default()).build())
+    }
+}
+
+impl<H: Hasher> TrieStorage<H>
+where
+    H::Out: Codec + Ord,
+{
+    pub fn snapshot(&self) -> Self {
+        Self(clone_trie_backend(&self.0))
     }
 }
 
@@ -44,7 +54,7 @@ pub fn load_trie_backend<H: Hasher>(
     pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let mut root = Default::default();
     let mut mdb = Default::default();
@@ -65,12 +75,12 @@ pub fn serialize_trie_backend<H: Hasher, S>(
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
-    H::Out: Codec + Serialize,
+    H::Out: Codec + Serialize + Ord,
     S: Serializer,
 {
     let root = trie.root();
-    let kvs: im::HashMap<_, _> = trie.backend_storage().clone().drain();
-    (root, kvs).serialize(serializer)
+    let kvs = trie.backend_storage();
+    (root, ser::SerAsSeq(kvs)).serialize(serializer)
 }
 
 #[cfg(feature = "serde")]
@@ -78,12 +88,15 @@ pub fn deserialize_trie_backend<'de, H: Hasher, De>(
     deserializer: De,
 ) -> Result<TrieBackend<MemoryDB<H>, H>, De::Error>
 where
-    H::Out: Codec + Deserialize<'de>,
+    H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
-    let (root, kvs): (H::Out, im::HashMap<_, (Vec<u8>, i32)>) =
-        Deserialize::deserialize(deserializer)?;
-    let mdb = MemoryDB::from_inner(kvs);
+    let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
+    let mdb = MemoryDB::from_inner(
+        kvs.into_iter()
+            .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
+            .collect(),
+    );
     let backend = TrieBackendBuilder::new(mdb, root).build();
     Ok(backend)
 }
@@ -92,7 +105,7 @@ pub fn clone_trie_backend<H: Hasher>(
     trie: &TrieBackend<MemoryDB<H>, H>,
 ) -> TrieBackend<MemoryDB<H>, H>
 where
-    H::Out: Codec,
+    H::Out: Codec + Ord,
 {
     let root = trie.root();
     let mdb = trie.backend_storage().clone();
@@ -163,12 +176,15 @@ where
     }
 
     fn pairs_into<R: FromIterator<(Vec<u8>, Vec<u8>)>>(&self, prefix: impl AsRef<[u8]>) -> R {
+        let mut iter_args = IterArgs::default();
+        iter_args.prefix = Some(prefix.as_ref());
+
         self.0
-            .keys(prefix.as_ref())
-            .into_iter()
-            .map(|key| {
-                let value = self.get(&key).expect("Reflected key should exists");
-                (key, value)
+            .pairs(iter_args)
+            .expect("Should get the pairs iter")
+            .map(|pair| {
+                let (k, v) = pair.expect("Should get the key and value");
+                (k, v)
             })
             .collect()
     }

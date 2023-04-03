@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 
 extern crate alloc;
 
@@ -14,6 +15,9 @@ pub mod chain_extension;
 pub use chain_extension::pink_extension_instance as ext;
 pub mod logger;
 pub mod system;
+
+#[cfg(all(not(feature = "std"), feature = "dlmalloc"))]
+mod allocator_dlmalloc;
 
 pub use logger::ResultExt;
 
@@ -57,21 +61,18 @@ pub struct OspMessage {
     pub remote_pubkey: Option<EcdhPublicKey>,
 }
 
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum HookPoint {
     OnBlockEnd,
 }
 
 /// System Event used to communicate between the contract and the runtime.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEvent {
-    /// Contract pushed a raw message
-    Message(Message),
-    /// Contract pushed an osp message
-    OspMessage(OspMessage),
     /// Set contract hook
+    #[codec(index = 2)]
     SetHook {
         /// The event to hook
         hook: HookPoint,
@@ -83,6 +84,7 @@ pub enum PinkEvent {
         gas_limit: u64,
     },
     /// Deploy a sidevm instance to given contract instance
+    #[codec(index = 3)]
     DeploySidevmTo {
         /// The target contract address
         contract: AccountId,
@@ -90,29 +92,34 @@ pub enum PinkEvent {
         code_hash: Hash,
     },
     /// Push a message to the associated sidevm instance.
+    #[codec(index = 4)]
     SidevmMessage(Vec<u8>),
     /// CacheOperation
+    #[codec(index = 5)]
     CacheOp(CacheOp),
     /// Stop the side VM instance if it is running.
+    #[codec(index = 6)]
     StopSidevm,
     /// Force stop the side VM instance if it is running.
+    #[codec(index = 7)]
     ForceStopSidevm {
         /// The target contract address
         contract: AccountId,
     },
     /// Set the log handler contract for current cluster.
+    #[codec(index = 8)]
     SetLogHandler(AccountId),
     /// Set the weight of contract used to schedule queries and sidevm vruntime
+    #[codec(index = 9)]
     SetContractWeight { contract: AccountId, weight: u32 },
-    /// Upgrade the system contract to latest version.
-    UpgradeSystemContract { storage_payer: AccountId },
+    /// Upgrade the runtime to given version
+    #[codec(index = 10)]
+    UpgradeRuntimeTo { version: (u32, u32) },
 }
 
 impl PinkEvent {
     pub fn allowed_in_query(&self) -> bool {
         match self {
-            PinkEvent::Message(_) => false,
-            PinkEvent::OspMessage(_) => false,
             PinkEvent::SetHook { .. } => false,
             PinkEvent::DeploySidevmTo { .. } => true,
             PinkEvent::SidevmMessage(_) => true,
@@ -121,14 +128,12 @@ impl PinkEvent {
             PinkEvent::ForceStopSidevm { .. } => true,
             PinkEvent::SetLogHandler(_) => false,
             PinkEvent::SetContractWeight { .. } => false,
-            PinkEvent::UpgradeSystemContract { .. } => false,
+            PinkEvent::UpgradeRuntimeTo { .. } => false,
         }
     }
 
     pub fn name(&self) -> &'static str {
         match self {
-            PinkEvent::Message(_) => "Message",
-            PinkEvent::OspMessage(_) => "OspMessage",
             PinkEvent::SetHook { .. } => "SetHook",
             PinkEvent::DeploySidevmTo { .. } => "DeploySidevmTo",
             PinkEvent::SidevmMessage(_) => "SidevmMessage",
@@ -137,12 +142,12 @@ impl PinkEvent {
             PinkEvent::ForceStopSidevm { .. } => "ForceStopSidevm",
             PinkEvent::SetLogHandler(_) => "SetLogHandler",
             PinkEvent::SetContractWeight { .. } => "SetContractWeight",
-            PinkEvent::UpgradeSystemContract { .. } => "UpgradeSystemContract",
+            PinkEvent::UpgradeRuntimeTo { .. } => "UpgradeRuntimeTo",
         }
     }
 }
 
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CacheOp {
     Set { key: Vec<u8>, value: Vec<u8> },
@@ -176,23 +181,6 @@ impl PinkEvent {
         let topic: &[u8] = topics[0].as_ref();
         Hash::try_from(topic).expect("Should not failed")
     }
-}
-
-/// Push a raw message to a topic accepting only vanilla messages
-///
-/// Most phala system topics accept vanilla messages
-pub fn push_message(payload: Vec<u8>, topic: Vec<u8>) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::Message(Message { payload, topic }))
-}
-
-/// Push a message to a topic accepting optional secret messages
-///
-/// Contract commands topic accept osp messages
-pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<EcdhPublicKey>) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::OspMessage(OspMessage {
-        message: Message { payload, topic },
-        remote_pubkey,
-    }))
 }
 
 /// Turn on on_block_end feature and set it's selector
@@ -251,12 +239,12 @@ pub fn set_contract_weight(contract: AccountId, weight: u32) {
     emit_event::<PinkEnvironment, _>(PinkEvent::SetContractWeight { contract, weight });
 }
 
-/// Upgrade the system contract to latest version
-pub fn upgrade_system_contract(storage_payer: AccountId) {
-    emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeSystemContract { storage_payer });
+/// Upgrade the runtime to given version
+pub fn upgrade_runtime(version: (u32, u32)) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::UpgradeRuntimeTo { version });
 }
 
-/// Pink defined environment. Used this environment to access the fat contract runtime features.
+/// Pink defined environment. Used this environment to access the phat contract runtime features.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEnvironment {}

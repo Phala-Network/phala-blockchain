@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context as _, Result};
-use log::{error, warn, info};
 use std::{fs, time::Duration};
+use tracing::{error, info, warn};
 
 use reqwest_env_proxy::EnvProxyBuilder as _;
 
@@ -15,7 +15,7 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
     let timeout = Some(Duration::from_secs(8));
 
     let url: reqwest::Url = format!("https://{IAS_HOST}{IAS_REPORT_ENDPOINT}").parse()?;
-    info!("Getting RA report from {}", url);
+    info!(from=%url, "Getting RA report");
     let mut res = reqwest::blocking::Client::builder()
         .timeout(timeout)
         .env_proxy(url.domain().unwrap_or_default())
@@ -44,7 +44,7 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
             _ => "Unknown error occured",
         };
 
-        error!("{}", msg);
+        error!(%msg);
         return Err(anyhow!(format!("Bad http status: {status_code}")));
     }
 

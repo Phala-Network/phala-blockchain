@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
@@ -15,13 +15,14 @@ impl Seq for (u64, Message) {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MessageDispatcher {
-    subscribers: BTreeMap<Path, Vec<Sender<(u64, Message)>>>,
+    subscribers: im::OrdMap<Path, Vec<Sender<(u64, Message)>>>,
     local_index: u64,
     //match_subscribers: Vec<Matcher, Vec<Sender<Message>>>,
 }
 
+#[derive(Clone)]
 pub struct Receiver<T> {
     inner: RawReceiver<(u64, T)>,
     topic: Vec<u8>,
@@ -79,7 +80,11 @@ impl MessageDispatcher {
                 if let Err(error) = receiver.send((sn, message.clone())) {
                     use crate::simple_mpsc::SendError::*;
                     match error {
-                        ReceiverGone => false,
+                        ReceiverGone => {
+                            let dst = String::from_utf8_lossy(message.destination.path());
+                            tracing::warn!(%dst, "ReceiverGone");
+                            false
+                        }
                     }
                 } else {
                     count += 1;
@@ -97,7 +102,7 @@ impl MessageDispatcher {
     /// Drop all unhandled messages.
     pub fn clear(&mut self) -> usize {
         let mut count = 0;
-        for subscriber in self.subscribers.values_mut().flatten() {
+        for subscriber in self.subscribers.values().flatten() {
             count += subscriber.clear();
         }
         count
@@ -112,6 +117,12 @@ pub enum TypedReceiveError {
     CodecError(CodecError),
 }
 
+impl TypedReceiveError {
+    pub fn is_sender_gone(&self) -> bool {
+        matches!(self, Self::SenderGone)
+    }
+}
+
 impl From<CodecError> for TypedReceiveError {
     fn from(e: CodecError) -> Self {
         Self::CodecError(e)
@@ -123,6 +134,15 @@ pub struct TypedReceiver<T> {
     queue: Receiver<Message>,
     #[serde(skip)]
     _t: PhantomData<T>,
+}
+
+impl<T> Clone for TypedReceiver<T> {
+    fn clone(&self) -> Self {
+        Self {
+            queue: self.queue.clone(),
+            _t: self._t,
+        }
+    }
 }
 
 impl<T: Decode> TypedReceiver<T> {
@@ -253,6 +273,10 @@ macro_rules! select_ignore_errors {
                         {
                             $block
                         }
+                    }
+                    Err(err) if err.is_sender_gone() => {
+                        log::warn!("[{}] mq error: {:?}", $crate::function!(), err);
+                        panic!("mq error: {:?}", err);
                     }
                     Err(err) => {
                         log::warn!("[{}] mq ignored error: {:?}", $crate::function!(), err);

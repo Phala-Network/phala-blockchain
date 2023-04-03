@@ -6,6 +6,8 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
+use ::pink::types::AccountId;
+use contracts::pink::http_counters;
 use glob::PatternError;
 use rand::*;
 use serde::{
@@ -15,7 +17,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -32,9 +34,9 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 use phactory_api::{
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
-    ecall_args::{git_revision, InitArgs},
+    ecall_args::InitArgs,
     endpoints::EndpointType,
-    prpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    prpc::{self as pb, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 
@@ -43,7 +45,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -62,6 +64,7 @@ pub mod benchmark;
 mod bin_api_service;
 mod contracts;
 mod cryptography;
+mod im_helpers;
 mod light_validation;
 mod prpc_service;
 mod secret_channel;
@@ -73,7 +76,7 @@ mod types;
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct RuntimeState {
     send_mq: MessageSendQueue,
 
@@ -211,12 +214,12 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
     #[serde(skip)]
-    pub args: InitArgs,
+    pub args: Arc<InitArgs>,
     dev_mode: bool,
     attestation_provider: Option<AttestationProvider>,
     machine_id: Vec<u8>,
@@ -238,7 +241,7 @@ pub struct Phactory<Platform> {
     last_checkpoint: Instant,
     #[serde(skip)]
     #[serde(default = "default_query_scheduler")]
-    query_scheduler: RequestScheduler<ContractId>,
+    query_scheduler: RequestScheduler<AccountId>,
 
     #[serde(default)]
     netconfig: Option<NetworkConfig>,
@@ -248,9 +251,19 @@ pub struct Phactory<Platform> {
 
     #[serde(skip)]
     trusted_sk: bool,
+
+    #[serde(skip)]
+    pub(crate) rcu_dispatching: bool,
+
+    #[serde(skip)]
+    pub(crate) pending_effects: Vec<::pink::types::ExecSideEffects>,
+
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
+    started_at: Instant,
 }
 
-fn default_query_scheduler() -> RequestScheduler<ContractId> {
+fn default_query_scheduler() -> RequestScheduler<AccountId> {
     const FAIR_QUEUE_BACKLOG: usize = 32;
     const FAIR_QUEUE_THREADS: u32 = 8;
 
@@ -277,28 +290,23 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
+            rcu_dispatching: false,
+            pending_effects: Vec::new(),
+            started_at: Instant::now(),
         }
     }
 
     pub fn init(&mut self, args: InitArgs) {
-        if args.git_revision != git_revision() {
-            panic!(
-                "git revision mismatch: {}(app) vs {}(enclave)",
-                args.git_revision,
-                git_revision()
-            );
-        }
-
         if args.init_bench {
             benchmark::resume();
         }
 
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
-        self.args = args;
+        self.args = Arc::new(args);
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
-        self.args = args;
+        self.args = Arc::new(args);
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
             system.storage_path = self.args.storage_path.clone();
@@ -610,6 +618,93 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .on_restored()
             .context("Failed to restore Phactory")?;
         Ok(factory)
+    }
+
+    fn statistics(
+        &mut self,
+        request: pb::StatisticsReqeust,
+    ) -> anyhow::Result<pb::StatisticsResponse> {
+        let uptime = self.started_at.elapsed().as_secs();
+        let contracts_query_stats;
+        let global_query_stats;
+        let contracts_http_stats;
+        let global_http_stats;
+        if request.all {
+            let query_stats = self.query_scheduler.stats();
+            contracts_query_stats = query_stats.flows;
+            global_query_stats = query_stats.global;
+            let http_stats = http_counters::stats();
+            contracts_http_stats = http_stats.by_contract;
+            global_http_stats = http_stats.global;
+        } else {
+            let mut query_stats = Vec::new();
+            let mut http_stats = BTreeMap::new();
+            for contract in request.contracts {
+                let contract =
+                    AccountId::from_str(&contract).or(Err(anyhow!("Invalid contract address")))?;
+                let stat = self.query_scheduler.stats_for(&contract);
+                query_stats.push((contract.clone(), stat));
+                let stat = http_counters::stats_for(&contract);
+                http_stats.insert(contract, stat);
+            }
+            contracts_query_stats = query_stats;
+            global_query_stats = self.query_scheduler.stats_global();
+            contracts_http_stats = http_stats;
+            global_http_stats = http_counters::stats_global();
+        }
+
+        Ok(pb::StatisticsResponse {
+            uptime,
+            cores: self.args.cores,
+            query: Some(pb::QueryStats {
+                global: Some(pb::QueryCounters {
+                    total: global_query_stats.total,
+                    dropped: global_query_stats.dropped,
+                    time: global_query_stats.time_ms(),
+                }),
+                by_contract: contracts_query_stats
+                    .into_iter()
+                    .map(|(contract, stat)| {
+                        (
+                            format!("0x{}", hex_fmt::HexFmt(contract)),
+                            pb::QueryCounters {
+                                total: stat.total,
+                                dropped: stat.dropped,
+                                time: stat.time_ms(),
+                            },
+                        )
+                    })
+                    .collect(),
+            }),
+            http_egress: Some(pb::HttpEgressStats {
+                global: Some(pb::HttpCounters {
+                    requests: global_http_stats.requests,
+                    failures: global_http_stats.failures,
+                    by_status_code: global_http_stats
+                        .by_status_code
+                        .into_iter()
+                        .map(|(s, c)| (s as u32, c))
+                        .collect(),
+                }),
+                by_contract: contracts_http_stats
+                    .into_iter()
+                    .map(|(contract, stat)| {
+                        (
+                            format!("0x{}", hex_fmt::HexFmt(contract)),
+                            pb::HttpCounters {
+                                requests: stat.requests,
+                                failures: stat.failures,
+                                by_status_code: stat
+                                    .by_status_code
+                                    .into_iter()
+                                    .map(|(s, c)| (s as u32, c))
+                                    .collect(),
+                            },
+                        )
+                    })
+                    .collect(),
+            }),
+        })
     }
 }
 

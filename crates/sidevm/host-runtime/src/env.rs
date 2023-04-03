@@ -68,12 +68,12 @@ impl<'a, T> FnEnvMut<'a, T> {
     }
 }
 
-pub struct ShortId<'a>(pub &'a [u8]);
+pub struct ShortId<T>(pub T);
 
-impl fmt::Display for ShortId<'_> {
+impl<T: AsRef<[u8]>> fmt::Display for ShortId<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let len = self.0.len();
-        hex_fmt::HexFmt(&self.0[..len.min(6)]).fmt(f)
+        let len = self.0.as_ref().len();
+        hex_fmt::HexFmt(&self.0.as_ref()[..len.min(6)]).fmt(f)
     }
 }
 
@@ -326,8 +326,7 @@ impl Env {
     pub fn set_weight(&self, weight: u32) {
         let mut inner = self.inner.lock().unwrap();
         inner.weight = weight;
-        let vm_id = ShortId(&inner.id);
-        log::debug!(target: "sidevm", "[{}] Updated weight to {}", vm_id, weight);
+        tracing::debug!(target: "sidevm", weight, "Weight updated");
     }
 
     pub fn set_instance(&self, instance: Instance) {
@@ -473,9 +472,7 @@ impl<'a, 'b> env::OcallFuncs for FnEnvMut<'a, &'b mut EnvInner> {
     }
 
     fn log(&mut self, level: log::Level, message: &str) -> Result<()> {
-        let task = self.current_task;
-        let vm_id = ShortId(&self.id);
-        log::log!(target: "sidevm", level, "[{vm_id}][tid={task:<3}] {message}");
+        log::log!(target: "sidevm", level, "{message}");
         Ok(())
     }
 
@@ -655,6 +652,7 @@ fn sidevm_ocall(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(name="ocall", fields(tid=task_id), skip_all)]
 fn do_ocall(
     mut func_env: FunctionEnvMut<Env>,
     task_id: i32,
@@ -679,11 +677,7 @@ fn do_ocall(
 
     if env.ocall_trace_enabled {
         let func_name = env::ocall_id2name(func_id);
-        let vm_id = ShortId(&env.id);
-        log::trace!(
-            target: "sidevm",
-            "[{vm_id}][tid={task_id:<3}] {func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}"
-        );
+        tracing::trace!(target: "sidevm", "{func_name}({p0}, {p1}, {p2}, {p3}) = {result:?}");
     }
     convert(result)
 }

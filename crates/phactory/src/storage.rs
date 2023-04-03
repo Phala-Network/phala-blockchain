@@ -36,17 +36,26 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_fat, pallet_mq, pallet_registry};
+    use chain::{pallet_computation, pallet_phat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::{Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
+    use phala_types::messaging::TokenomicParameters;
     use serde::{Deserialize, Serialize};
     use sp_state_machine::{Ext, OverlayedChanges, StorageTransactionCache};
 
     #[derive(Serialize, Deserialize, Default)]
     pub struct ChainStorage {
         trie_storage: TrieStorage<crate::RuntimeHasher>,
+    }
+
+    impl Clone for ChainStorage {
+        fn clone(&self) -> Self {
+            Self {
+                trie_storage: self.trie_storage.snapshot(),
+            }
+        }
     }
 
     impl From<TrieStorage<crate::RuntimeHasher>> for ChainStorage {
@@ -81,6 +90,12 @@ mod storage_ext {
             let mut me = Self::default();
             me.load(pairs);
             me
+        }
+
+        pub fn snapshot(&self) -> Self {
+            Self {
+                trie_storage: self.trie_storage.snapshot(),
+            }
         }
 
         pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
@@ -129,7 +144,14 @@ mod storage_ext {
         }
 
         pub fn pink_system_code(&self) -> (u16, Vec<u8>) {
-            self.execute_with(pallet_fat::PinkSystemCode::<chain::Runtime>::get)
+            self.execute_with(pallet_phat::PinkSystemCode::<chain::Runtime>::get)
+        }
+
+        pub fn pink_runtime_version(&self) -> (u32, u32) {
+            // !! DO NOT CHANGE THIS VALUE !!
+            const DEFAULT_VERSION: (u32, u32) = (1, 0);
+            self.execute_with(pallet_phat::PinkRuntimeVersion::<chain::Runtime>::get)
+                .unwrap_or(DEFAULT_VERSION)
         }
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
@@ -173,6 +195,10 @@ mod storage_ext {
                 }
             }
             false
+        }
+
+        pub fn tokenomic_parameters(&self) -> Option<TokenomicParameters> {
+            self.execute_with(pallet_computation::TokenomicParameters::<chain::Runtime>::get)
         }
     }
 }

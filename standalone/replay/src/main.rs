@@ -1,3 +1,4 @@
+mod helper;
 mod replay_gk;
 
 use clap::Parser;

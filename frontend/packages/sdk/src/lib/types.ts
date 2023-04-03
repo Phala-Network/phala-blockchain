@@ -31,6 +31,7 @@ export const types: RegistryTypes = {
         payload: "Vec<u8>",
         deposit: "u128",
         transfer: "u128",
+        estimating: "bool",
       },
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
