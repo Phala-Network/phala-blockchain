@@ -10,6 +10,7 @@ pub mod configurator;
 pub mod datasource;
 pub mod db;
 pub mod lifecycle;
+pub mod tx;
 pub mod utils;
 pub mod wm;
 pub mod worker;

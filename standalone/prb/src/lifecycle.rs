@@ -1,5 +1,6 @@
 use crate::datasource::WrappedDataSourceManager;
 use crate::db::{get_all_workers, Worker, WrappedDb};
+use crate::tx::TxManager;
 use crate::wm::{
     send_to_main_channel, send_to_main_channel_and_wait_for_response, WorkerManagerCommandTx,
     WorkerManagerMessage, WrappedWorkerManagerContext,
@@ -7,11 +8,9 @@ use crate::wm::{
 use crate::worker::{WorkerContext, WrappedWorkerContext};
 use anyhow::Result;
 use log::{debug, info, warn};
-
 use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
-
 use crate::api::WorkerStatus;
 use tokio::sync::{RwLock, Semaphore};
 use tokio::task::JoinSet;
@@ -22,6 +21,7 @@ pub struct WorkerLifecycleManager {
     pub dsm: WrappedDataSourceManager,
     pub should_stop: bool,
     pub inv_db: WrappedDb,
+    pub txm: Arc<TxManager>,
     pub workers: Vec<Worker>,
     pub worker_context_vec: Vec<WrappedWorkerContext>,
     pub worker_context_map: WorkerContextMap,
@@ -42,6 +42,7 @@ impl WorkerLifecycleManager {
         inv_db: WrappedDb,
         fast_sync_enabled: bool,
         webhook_url: Option<String>,
+        txm: Arc<TxManager>,
     ) -> WrappedWorkerLifecycleManager {
         let workers =
             get_all_workers(inv_db.clone()).expect("Failed to load workers from local database");
@@ -99,6 +100,7 @@ impl WorkerLifecycleManager {
             dsm,
             should_stop: false,
             inv_db: inv_db.clone(),
+            txm,
             workers,
             worker_context_map,
             worker_context_vec,

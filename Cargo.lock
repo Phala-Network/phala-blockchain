@@ -8785,6 +8785,7 @@ dependencies = [
  "pherry",
  "rand 0.8.5",
  "reqwest",
+ "rocksdb",
  "rust-fsm",
  "serde",
  "serde_json",

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::api::{start_api_server, WorkerStatus, WorkerStatusMap};
+use crate::tx::TxManager;
 use anyhow::{anyhow, Result};
 use futures::future::{join, try_join_all};
 use log::{debug, info, trace};
@@ -96,6 +97,8 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let fast_sync_enabled = !args.disable_fast_sync;
 
+    let txm = Arc::new(TxManager::new(&args.db_path).expect("TxManager"));
+
     let ctx = Arc::new(RwLock::new(WorkerManagerContext {
         initialized: false,
         current_lifecycle_manager: None,
@@ -115,7 +118,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
             loop {
                 let (reload_tx, mut reload_rx) = mpsc::channel::<()>(1);
                 let main_handle =
-                    set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled, args.webhook_url.clone());
+                    set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled, args.webhook_url.clone(), txm.clone());
 
                 tokio::select! {
                     _ = main_handle => {
@@ -136,6 +139,7 @@ pub async fn set_lifecycle_manager(
     reload_tx: WrappedReloadTx,
     fast_sync_enabled: bool,
     webhook_url: Option<String>,
+    txm: Arc<TxManager>,
 ) {
     let (tx, rx) = mpsc::unbounded_channel::<WorkerManagerCommand>();
 
@@ -152,6 +156,7 @@ pub async fn set_lifecycle_manager(
         inv_db,
         fast_sync_enabled,
         webhook_url,
+        txm
     )
     .await;
 
