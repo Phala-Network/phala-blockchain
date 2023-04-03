@@ -144,9 +144,13 @@ pub enum ConfigCommands {
         #[arg(short, long, default_value_t = false)]
         disabled: bool,
 
-        /// Whether the should be in sync-only mode
+        /// Whether the worker should be in sync-only mode
         #[arg(short, long, default_value_t = false)]
         sync_only: bool,
+
+        /// Whether the worker should be a gatekeeper
+        #[arg(short, long, default_value_t = false)]
+        gatekeeper: bool,
     },
 
     /// Update a worker
@@ -175,9 +179,13 @@ pub enum ConfigCommands {
         #[arg(short, long, default_value_t = false)]
         disabled: bool,
 
-        /// Whether the should be in sync-only mode
+        /// Whether the worker should be in sync-only mode
         #[arg(short, long, default_value_t = false)]
         sync_only: bool,
+
+        /// Whether the worker should be a gatekeeper
+        #[arg(short, long, default_value_t = false)]
+        gatekeeper: bool,
     },
 
     /// Remove a worker

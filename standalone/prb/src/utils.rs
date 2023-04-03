@@ -16,3 +16,24 @@ pub async fn join_handles(handles: Vec<JoinHandle<()>>) {
         }
     }
 }
+
+#[macro_export]
+macro_rules! with_retry {
+    ($f:expr, $c:expr, $s:expr) => {{
+        let mut retry_count: u8 = 0;
+        loop {
+            let r = $f.await;
+            match r {
+                Err(e) => {
+                    warn!("Attempt #{retry_count}({}): {}", stringify!($f), &e);
+                    retry_count += 1;
+                    if retry_count == ($c + 1) {
+                        break Err(e);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis($s)).await;
+                }
+                _ => break r,
+            }
+        }
+    }};
+}

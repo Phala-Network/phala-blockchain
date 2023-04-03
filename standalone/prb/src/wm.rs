@@ -1,19 +1,17 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use crate::api::{start_api_server, WorkerStatus, WorkerStatusMap};
-use crate::tx::TxManager;
-use anyhow::{anyhow, Result};
-use futures::future::{join, try_join_all};
-use log::{debug, info, trace};
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
-
 use crate::cli::WorkerManagerCliArgs;
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::db::{setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerLifecycleManager, WrappedWorkerLifecycleManager};
+use crate::tx::TxManager;
 use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
+use anyhow::{anyhow, Result};
+use futures::future::{try_join3, try_join_all};
+use log::{debug, info, trace};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 
 pub type GlobalWorkerManagerCommandChannelPair = (
     mpsc::UnboundedSender<WorkerManagerCommand>,
@@ -37,6 +35,7 @@ pub struct WorkerManagerContext {
     pub inv_db: WrappedDb,
     pub dsm: WrappedDataSourceManager,
     pub state_map: WorkerStatusMap,
+    pub txm: Arc<TxManager>,
 }
 
 pub type WrappedWorkerManagerContext = Arc<RwLock<WorkerManagerContext>>;
@@ -97,18 +96,20 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let fast_sync_enabled = !args.disable_fast_sync;
 
-    let txm = Arc::new(TxManager::new(&args.db_path).expect("TxManager"));
+    let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
 
     let ctx = Arc::new(RwLock::new(WorkerManagerContext {
         initialized: false,
         current_lifecycle_manager: None,
         inv_db,
-        dsm,
+        dsm: dsm.clone(),
+        txm: txm.clone(),
         state_map: HashMap::new(),
     }));
 
-    let join_handle = join(
+    let join_handle = try_join3(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
+        txm_handle,
         try_join_all(ds_handles),
     );
 
@@ -118,7 +119,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
             loop {
                 let (reload_tx, mut reload_rx) = mpsc::channel::<()>(1);
                 let main_handle =
-                    set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled, args.webhook_url.clone(), txm.clone());
+                    set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled, args.webhook_url.clone());
 
                 tokio::select! {
                     _ = main_handle => {
@@ -139,7 +140,6 @@ pub async fn set_lifecycle_manager(
     reload_tx: WrappedReloadTx,
     fast_sync_enabled: bool,
     webhook_url: Option<String>,
-    txm: Arc<TxManager>,
 ) {
     let (tx, rx) = mpsc::unbounded_channel::<WorkerManagerCommand>();
 
@@ -147,6 +147,7 @@ pub async fn set_lifecycle_manager(
     let ctx_read = ctx_read.read().await;
     let dsm = ctx_read.dsm.clone();
     let inv_db = ctx_read.inv_db.clone();
+    let txm = ctx_read.txm.clone();
     drop(ctx_read);
 
     let lm = WorkerLifecycleManager::create(
@@ -156,7 +157,7 @@ pub async fn set_lifecycle_manager(
         inv_db,
         fast_sync_enabled,
         webhook_url,
-        txm
+        txm,
     )
     .await;
 

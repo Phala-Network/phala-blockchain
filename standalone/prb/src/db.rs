@@ -24,6 +24,7 @@ pub const ID_PROP_WORKER_ENDPOINT: &str = "endpoint";
 pub const ID_PROP_WORKER_STAKE: &str = "stake";
 pub const ID_PROP_WORKER_ENABLED: &str = "enabled";
 pub const ID_PROP_WORKER_SYNC_ONLY: &str = "sync_only";
+pub const ID_PROP_WORKER_GATEKEEPER: &str = "gatekeeper";
 
 // Account-related settings moved to trade service
 pub const ID_PROP_POOL_NAME: &str = "name";
@@ -55,19 +56,20 @@ pub struct Worker {
     pub pid: Option<u64>,
     pub enabled: bool,
     pub sync_only: bool,
+    pub gatekeeper: bool,
 }
 
-impl Into<Pool> for VertexProperties {
-    fn into(self) -> Pool {
-        let mut ret = Pool {
-            id: self.vertex.id.to_string(),
+impl From<VertexProperties> for Pool {
+    fn from(value: VertexProperties) -> Self {
+        let mut ret = Self {
+            id: value.vertex.id.to_string(),
             name: "".to_string(),
             pid: 0,
             enabled: true,
             sync_only: false,
             workers: None,
         };
-        self.props.iter().for_each(|p| match p.name.as_str() {
+        value.props.iter().for_each(|p| match p.name.as_str() {
             ID_PROP_POOL_NAME => {
                 ret.name = p.value.as_str().unwrap().to_string();
             }
@@ -86,18 +88,19 @@ impl Into<Pool> for VertexProperties {
     }
 }
 
-impl Into<Worker> for VertexProperties {
-    fn into(self) -> Worker {
-        let mut ret = Worker {
-            id: self.vertex.id.to_string(),
+impl From<VertexProperties> for Worker {
+    fn from(value: VertexProperties) -> Self {
+        let mut ret = Self {
+            id: value.vertex.id.to_string(),
             name: "".to_string(),
             stake: "".to_string(),
             endpoint: "".to_string(),
             pid: None,
             enabled: true,
             sync_only: false,
+            gatekeeper: false,
         };
-        self.props.iter().for_each(|p| match p.name.as_str() {
+        value.props.iter().for_each(|p| match p.name.as_str() {
             ID_PROP_WORKER_NAME => {
                 ret.name = p.value.as_str().unwrap().to_string();
             }
@@ -112,6 +115,9 @@ impl Into<Worker> for VertexProperties {
             }
             ID_PROP_WORKER_SYNC_ONLY => {
                 ret.sync_only = p.value.as_bool().unwrap();
+            }
+            ID_PROP_WORKER_GATEKEEPER => {
+                ret.gatekeeper = p.value.as_bool().unwrap();
             }
             &_ => {}
         });
@@ -162,6 +168,7 @@ pub fn setup_inventory_db(db_path: &str) -> WrappedDb {
         ID_PROP_WORKER_NAME,
         ID_PROP_WORKER_ENABLED,
         ID_PROP_WORKER_SYNC_ONLY,
+        ID_PROP_WORKER_GATEKEEPER,
         ID_PROP_POOL_NAME,
         ID_PROP_POOL_PID,
         ID_PROP_POOL_ENABLED,
@@ -339,6 +346,13 @@ pub fn update_pool(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     )?;
                     db.set_vertex_properties(
                         VertexPropertyQuery {
+                            inner: uq.clone(),
+                            name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
+                        },
+                        serde_json::Value::Bool(sync_only),
+                    )?;
+                    db.set_vertex_properties(
+                        VertexPropertyQuery {
                             inner: uq,
                             name: Identifier::new(ID_PROP_POOL_SYNC_ONLY).unwrap(),
                         },
@@ -445,6 +459,7 @@ pub fn add_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             pid,
             disabled,
             sync_only,
+            gatekeeper,
         } => {
             let stake = validate_bn_string(stake)?;
             let name = validate_worker_name_existence(db.clone(), name)?;
@@ -492,6 +507,13 @@ pub fn add_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
                     },
                     serde_json::Value::Bool(sync_only),
                 )?;
+                db.set_vertex_properties(
+                    VertexPropertyQuery {
+                        inner: uq.clone(),
+                        name: Identifier::new(ID_PROP_WORKER_GATEKEEPER).unwrap(),
+                    },
+                    serde_json::Value::Bool(gatekeeper),
+                )?;
                 let e = EdgeKey {
                     outbound_id: id,
                     t: Identifier::new(ID_EDGE_BELONG_TO)?,
@@ -522,6 +544,7 @@ pub fn update_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             stake,
             disabled,
             sync_only,
+            gatekeeper,
         } => {
             let worker =
                 get_raw_worker_by_name(db.clone(), name.clone())?.context("Worker not found!")?;
@@ -598,10 +621,17 @@ pub fn update_worker(db: WrappedDb, cmd: ConfigCommands) -> Result<Uuid> {
             )?;
             db.set_vertex_properties(
                 VertexPropertyQuery {
-                    inner: uq,
+                    inner: uq.clone(),
                     name: Identifier::new(ID_PROP_WORKER_SYNC_ONLY).unwrap(),
                 },
                 serde_json::Value::Bool(sync_only),
+            )?;
+            db.set_vertex_properties(
+                VertexPropertyQuery {
+                    inner: uq,
+                    name: Identifier::new(ID_PROP_WORKER_GATEKEEPER).unwrap(),
+                },
+                serde_json::Value::Bool(gatekeeper),
             )?;
 
             Ok(id)

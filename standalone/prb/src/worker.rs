@@ -4,7 +4,7 @@ use crate::db::Worker;
 use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use crate::{use_parachain_api, use_relaychain_api};
+use crate::{use_parachain_api, use_relaychain_api, with_retry};
 use anyhow::Result;
 use chrono::prelude::*;
 use futures::future::join;
@@ -518,7 +518,8 @@ impl WorkerContext {
             debug!("from: {from}, to: {to}");
             return Ok(to - 1);
         }
-        let mut headers = dsm.clone().get_para_headers(from, to).await?;
+
+        let mut headers = with_retry!(dsm.clone().get_para_headers(from, to), 3, 1500)?;
         headers.proof = last_header_proof;
         let res = pr.sync_para_header(headers).await?;
 

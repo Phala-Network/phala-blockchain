@@ -648,7 +648,7 @@ pub async fn setup_data_source_manager(
 
 #[macro_export]
 macro_rules! use_relaychain_api {
-    ($dsm:ident, $full:ident) => {
+    ($dsm:expr, $full:ident) => {
         $dsm.clone()
             .current_relaychain_rpc_client($full)
             .await
@@ -658,7 +658,7 @@ macro_rules! use_relaychain_api {
 
 #[macro_export]
 macro_rules! use_parachain_api {
-    ($dsm:ident, $full:ident) => {
+    ($dsm:expr, $full:ident) => {
         $dsm.clone()
             .current_parachain_rpc_client($full)
             .await
@@ -668,7 +668,7 @@ macro_rules! use_parachain_api {
 
 #[macro_export]
 macro_rules! use_relaychain_hc {
-    ($dsm:ident) => {
+    ($dsm:expr) => {
         $dsm.clone()
             .current_relaychain_headers_cache()
             .await
@@ -678,7 +678,7 @@ macro_rules! use_relaychain_hc {
 
 #[macro_export]
 macro_rules! use_parachain_hc {
-    ($dsm:ident) => {
+    ($dsm:expr) => {
         $dsm.clone()
             .current_parachain_headers_cache()
             .await
