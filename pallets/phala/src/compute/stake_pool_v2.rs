@@ -82,9 +82,9 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-
 	#[pallet::storage]
-	pub type LegacyRewards<T: Config> = StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
+	pub type LegacyRewards<T: Config> =
+		StorageMap<_, Twox64Concat, (T::AccountId, u64), BalanceOf<T>>;
 	/// Mapping from workers to the pool they belong to
 	///
 	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
@@ -563,7 +563,8 @@ pub mod pallet {
 			target: T::AccountId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let rewards = LegacyRewards::<T>::take((who, pid)).ok_or(Error::<T>::NoLegacyRewardToClaim)?;
+			let rewards =
+				LegacyRewards::<T>::take((who, pid)).ok_or(Error::<T>::NoLegacyRewardToClaim)?;
 			computation::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			Ok(())
@@ -712,11 +713,8 @@ pub mod pallet {
 			};
 			ensure!(free >= a, Error::<T>::InsufficientBalance);
 			// a lot of weird edge cases when dealing with pending slash.
-			let shares = base_pool::Pallet::<T>::contribute(
-				&mut pool_info.basepool,
-				who.clone(),
-				amount,
-			)?;
+			let shares =
+				base_pool::Pallet::<T>::contribute(&mut pool_info.basepool, who.clone(), amount)?;
 			if let Some((vault_pid, vault_info)) = &mut maybe_vault {
 				if !vault_info.invest_pools.contains(&pid) {
 					vault_info.invest_pools.push(pid);

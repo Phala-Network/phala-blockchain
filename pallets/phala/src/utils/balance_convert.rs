@@ -14,7 +14,9 @@ impl FixedPointConvert for u128 {
 		Self::from_fixed(&FixedPoint::from_bits(bits))
 	}
 	fn from_fixed(v: &FixedPoint) -> Self {
-		U80F48::unwrapped_from_num(*v).unwrapped_mul_int(PHA).to_num()
+		U80F48::unwrapped_from_num(*v)
+			.unwrapped_mul_int(PHA)
+			.to_num()
 	}
 	fn to_fixed(&self) -> FixedPoint {
 		let v = U80F48::unwrapped_from_num(*self);

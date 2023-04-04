@@ -90,10 +90,7 @@ pub mod pallet {
 	#[pallet::getter(fn next_nft_id)]
 	pub type NextNftId<T: Config> = StorageMap<_, Twox64Concat, CollectionId, NftId, ValueQuery>;
 
-	type LockKey = (
-		CollectionId,
-		NftId,
-	);
+	type LockKey = (CollectionId, NftId);
 
 	#[pallet::storage]
 	pub type LockIterateStartPos<T> = StorageValue<_, Option<LockKey>, ValueQuery>;
@@ -510,8 +507,7 @@ pub mod pallet {
 			let last_pos = LockIterateStartPos::<T>::get();
 			let mut iter = match last_pos {
 				Some(pos) => {
-					let key: Vec<u8> =
-						pallet_rmrk_core::pallet::Lock::<T>::hashed_key_for(pos);
+					let key: Vec<u8> = pallet_rmrk_core::pallet::Lock::<T>::hashed_key_for(pos);
 					pallet_rmrk_core::pallet::Lock::<T>::iter_from(key)
 				}
 				None => pallet_rmrk_core::pallet::Lock::<T>::iter(),
@@ -519,8 +515,10 @@ pub mod pallet {
 			let mut record_vec = vec![];
 			let mut i = 0;
 			for ((cid, nft_id), _) in iter.by_ref() {
-				if cid >= RESERVE_CID_START && !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id) {
-						record_vec.push((cid, nft_id));
+				if cid >= RESERVE_CID_START
+					&& !pallet_rmrk_core::pallet::Nfts::<T>::contains_key(cid, nft_id)
+				{
+					record_vec.push((cid, nft_id));
 				}
 				i += 1;
 				if i > max_iterations {
@@ -638,11 +636,7 @@ pub mod pallet {
 					Error::<T>::NotInContributeWhitelist
 				);
 			}
-			Self::merge_nft_for_staker(
-				pool.cid,
-				account_id.clone(),
-				pool.pid,
-			)?;
+			Self::merge_nft_for_staker(pool.cid, account_id.clone(), pool.pid)?;
 			// The nft instance must be wrote to Nft storage at the end of the function
 			// this nft's property shouldn't be accessed or wrote again from storage before set_nft_attr
 			// is called. Or the property of the nft will be overwrote incorrectly.
@@ -908,11 +902,12 @@ pub mod pallet {
 			pid: u64,
 		) -> Result<Option<NftId>, DispatchError> {
 			let mut total_shares: BalanceOf<T> = Zero::zero();
-			let nfts: Vec<_> = pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).collect();
+			let nfts: Vec<_> =
+				pallet_uniques::Pallet::<T>::owned_in_collection(&cid, &staker).collect();
 			match nfts.len() {
-			  0 => return Ok(None),
-			  1 => return Ok(Some(nfts[0])),
-			  _ => (),
+				0 => return Ok(None),
+				1 => return Ok(Some(nfts[0])),
+				_ => (),
 			};
 			for nftid in nfts {
 				let nft_guard =
@@ -951,10 +946,7 @@ pub mod pallet {
 			})
 		}
 
-		fn set_nft_desc_attr(
-			cid: CollectionId,
-			nft_id: NftId,
-		) -> DispatchResult {
+		fn set_nft_desc_attr(cid: CollectionId, nft_id: NftId) -> DispatchResult {
 			pallet_rmrk_core::Pallet::<T>::set_lock((cid, nft_id), false);
 			let key: BoundedVec<u8, <T as pallet_uniques::Config>::KeyLimit> = "createtime"
 				.as_bytes()

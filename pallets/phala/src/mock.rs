@@ -231,6 +231,16 @@ impl pallet_rmrk_core::Config for Test {
 	type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
 
+pub struct SetBudgetMembers;
+
+impl SortedMembers<u64> for SetBudgetMembers {
+	fn sorted_members() -> Vec<u64> {
+		let account1: u64 = 1;
+		let account2: u64 = 2;
+		[account1, account2].to_vec()
+	}
+}
+
 impl computation::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
@@ -241,6 +251,8 @@ impl computation::Config for Test {
 	type OnStopped = PhalaStakePoolv2;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = EnsureRoot<Self::AccountId>;
+	type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, Self::AccountId>;
+	type SetContractRootOrigins = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {

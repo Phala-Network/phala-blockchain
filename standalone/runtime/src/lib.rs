@@ -37,7 +37,7 @@ use frame_support::{
     traits::{
         AsEnsureOriginWithArg, ConstU128, ConstU32, Currency, EitherOfDiverse, EqualPrivilegeOnly,
         Everything, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        U128CurrencyToVote, WithdrawReasons,
+        SortedMembers, U128CurrencyToVote, WithdrawReasons,
     },
     weights::{
         constants::{
@@ -49,7 +49,7 @@ use frame_support::{
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureRoot, EnsureSigned,
+    EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 pub use node_primitives::{
     AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
@@ -339,7 +339,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                 c,
                 RuntimeCall::Utility { .. }
                     | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::add_worker { .. })
-                    | RuntimeCall::PhalaStakePoolv2(pallet_stake_pool_v2::Call::remove_worker { .. })
+                    | RuntimeCall::PhalaStakePoolv2(
+                        pallet_stake_pool_v2::Call::remove_worker { .. }
+                    )
                     | RuntimeCall::PhalaStakePoolv2(
                         pallet_stake_pool_v2::Call::start_computing { .. }
                     )
@@ -1325,6 +1327,15 @@ impl pallet_mq::Config for Runtime {
     type QueueNotifyConfig = msg_routing::MessageRouteConfig;
     type CallMatcher = MqCallMatcher;
 }
+
+pub struct SetBudgetMembers;
+
+impl SortedMembers<AccountId> for SetBudgetMembers {
+    fn sorted_members() -> Vec<AccountId> {
+        [pallet_computation::pallet::ContractAccount::<Runtime>::get()].to_vec()
+    }
+}
+
 impl pallet_computation::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
@@ -1335,6 +1346,8 @@ impl pallet_computation::Config for Runtime {
     type OnStopped = PhalaStakePoolv2;
     type OnTreasurySettled = Treasury;
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
+    type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, AccountId>;
+    type SetContractRootOrigins = EnsureRootOrHalfCouncil;
 }
 impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
