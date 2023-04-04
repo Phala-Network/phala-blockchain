@@ -26,7 +26,7 @@ export class InkCodeSubmittableResult<ApiType extends ApiTypes> extends Submitta
   // readonly blueprint?: Blueprint<ApiType>;
   // readonly contract?: Contract<ApiType>;
   
-  #isReady: boolean = false;
+  #isFinalized: boolean = false
 
   constructor (result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
   // constructor (result: ISubmittableResult, blueprint?: Blueprint<ApiType>, contract?: Contract<ApiType>) {
@@ -39,8 +39,8 @@ export class InkCodeSubmittableResult<ApiType extends ApiTypes> extends Submitta
   //   this.contract = contract;
   }
 
-  async waitReady(pair: KeyringPair, timeout: number = 10_000) {
-    if (this.#isReady) {
+  async waitFinalized(pair: KeyringPair, timeout: number = 10_000) {
+    if (this.#isFinalized) {
       return
     }
     if (this.isInBlock || this.isFinalized) {
@@ -51,7 +51,7 @@ export class InkCodeSubmittableResult<ApiType extends ApiTypes> extends Submitta
       while (true) {
         const { output } = await system.query['system::codeExists'](pair, codeHash, 'Ink')
         if (output && (output as Result<bool, any>).asOk.toPrimitive()) {
-          this.#isReady = true;
+          this.#isFinalized = true;
           return
         }
         const t1 = new Date().getTime();

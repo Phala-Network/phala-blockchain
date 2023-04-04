@@ -109,7 +109,7 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
   readonly abi: Abi;
   // readonly contract?: Contract<ApiType>;
 
-  #isReady: boolean = false;
+  #isFinalized: boolean = false;
 
   constructor (result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
     super(result);
@@ -119,8 +119,8 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
   //   this.contract = contract;
   }
 
-  async waitReady(timeout: number = 120_000) {
-    if (this.#isReady) {
+  async waitFinalized(timeout: number = 120_000) {
+    if (this.#isFinalized) {
       return
     }
 
@@ -145,7 +145,7 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
         if (contractIds.indexOf(contractId) !== -1) {
           const result2 = (await this.registry.api.query.phalaRegistry.contractKeys(contractId)) as unknown as Option<any>
           if (result2.isSome) {
-            this.#isReady = true
+            this.#isFinalized = true
             return
           }
         }
