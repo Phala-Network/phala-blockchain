@@ -1,12 +1,8 @@
-import type { SubmittableExtrinsic } from '@polkadot/api/submittable/types';
 import type { bool, Result } from '@polkadot/types';
 import type { ApiTypes, DecorateMethod } from '@polkadot/api/types';
-import type { AccountId, EventRecord } from '@polkadot/types/interfaces';
 import type { ISubmittableResult } from '@polkadot/types/types';
-import type { Codec } from '@polkadot/types-codec/types';
 import type { KeyringPair } from '@polkadot/keyring/types';
-// import type { AbiConstructor, BlueprintOptions } from '../types.js';
-import type { AbiConstructor, BlueprintOptions } from '@polkadot/api-contract/types';
+import type { AbiConstructor } from '@polkadot/api-contract/types';
 import type { MapConstructorExec } from '@polkadot/api-contract/base/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
@@ -14,29 +10,28 @@ import type { AbiLike, WasmLike } from '../types';
 
 import { SubmittableResult } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
-import { BN_ZERO, compactAddLength, isUndefined, isWasm, u8aToU8a } from '@polkadot/util';
+import { isUndefined } from '@polkadot/util';
 import { createBluePrintTx } from '@polkadot/api-contract/base/util';
-
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
 
-export class InkCodeSubmittableResult<ApiType extends ApiTypes> extends SubmittableResult {
+import { PinkBlueprintPromise } from './PinkBlueprint';
+
+
+export class InkCodeSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry;
   readonly abi: Abi;
-  // readonly blueprint?: Blueprint<ApiType>;
-  // readonly contract?: Contract<ApiType>;
+  readonly blueprint?: PinkBlueprintPromise;
   
   #isFinalized: boolean = false
 
   constructor (result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
-  // constructor (result: ISubmittableResult, blueprint?: Blueprint<ApiType>, contract?: Contract<ApiType>) {
     super(result);
 
     this.registry = registry;
     this.abi = abi;
 
-  //   this.blueprint = blueprint;
-  //   this.contract = contract;
+    this.blueprint = new PinkBlueprintPromise(this.registry.api, this.registry, this.abi, this.abi.info.source.wasmHash)
   }
 
   async waitFinalized(pair: KeyringPair, timeout: number = 10_000) {
@@ -117,7 +112,9 @@ export class PinkCodePromise {
       'InkCode',
       this.code
     ).withResultTransform(
-      (result: ISubmittableResult) => new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
+      (result: ISubmittableResult) => {
+        return new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
+      }
     );
   };
 }

@@ -25,6 +25,7 @@ import { pruntime_rpc as pruntimeRpc } from "../proto";
 import { signCertificate, CertificateData } from '../certificate';
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
+import { PinkContractPromise } from './PinkContract';
 
 
 interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
@@ -107,16 +108,17 @@ function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Ar
 export class PinkBlueprintSubmittableResult extends SubmittableResult {
   readonly registry: OnChainRegistry;
   readonly abi: Abi;
-  // readonly contract?: Contract<ApiType>;
+  readonly contractId?: string;
 
   #isFinalized: boolean = false;
+  #contract?: PinkContractPromise;
 
-  constructor (result: ISubmittableResult, abi: Abi, registry: OnChainRegistry) {
+  constructor (result: ISubmittableResult, abi: Abi, registry: OnChainRegistry, contractId?: string) {
     super(result);
 
     this.registry = registry;
     this.abi = abi;
-  //   this.contract = contract;
+    this.contractId = contractId;
   }
 
   async waitFinalized(timeout: number = 120_000) {
@@ -146,6 +148,10 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
           const result2 = (await this.registry.api.query.phalaRegistry.contractKeys(contractId)) as unknown as Option<any>
           if (result2.isSome) {
             this.#isFinalized = true
+            if (this.contractId) {
+              const contractKey = await this.registry.getContractKeyOrFail(this.contractId)
+              this.#contract = new PinkContractPromise(this.registry.api, this.registry, this.abi, this.contractId, contractKey)
+            }
             return
           }
         }
@@ -158,6 +164,10 @@ export class PinkBlueprintSubmittableResult extends SubmittableResult {
       }
     }
     throw new Error(`instantiate failed for ${this.abi.info.source.wasmHash.toString()}`)
+  }
+
+  get contract() {
+    return this.#contract
   }
 }
 
@@ -218,8 +228,9 @@ export class PinkBlueprintPromise {
     if (!salt) {
       salt = hex(crypto.randomBytes(4))
     }
+    const codeHash = this.abi.info.source.wasmHash.toString()
     return this.api.tx.phalaPhatContracts.instantiateContract(
-      { 'WasmCode': this.abi.info.source.wasmHash.toString() },
+      { 'WasmCode': codeHash },
       this.abi.findConstructor(constructorOrId).toU8a(params),
       salt,
       this.phatRegistry.clusterId,
@@ -227,9 +238,17 @@ export class PinkBlueprintPromise {
       gasLimit,
       storageDepositLimit,
       0
-    ).withResultTransform(
-      (result: ISubmittableResult) => new PinkBlueprintSubmittableResult(result, this.abi, this.phatRegistry)
-    );
+    ).withResultTransform((result: ISubmittableResult) => {
+      let maybeContactId: string | undefined
+      const instantiateEvent = result.events.filter(i => i.event.method === 'Instantiating')[0]
+      if (instantiateEvent) {
+        const contractId = (instantiateEvent.event.data as any).contract
+        if (contractId) {
+          maybeContactId = contractId.toString()
+        }
+      }
+      return new PinkBlueprintSubmittableResult(result, this.abi, this.phatRegistry, maybeContactId)
+    });
   };
 
   #estimateGas = (
