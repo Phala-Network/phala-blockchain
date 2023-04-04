@@ -1002,16 +1002,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 current_block_number={block_number}",
             )));
         }
-        let his_cluster = runtime_state
+        let cluster_of_the_worker = runtime_state
             .chain_storage
             .get_worker_cluster(&receiver)
             .ok_or(from_display(
                 "The destination worker is not attached to any cluster",
             ))?;
-        if his_cluster != cluster.id {
+        if cluster_of_the_worker != cluster.id {
             return Err(from_display(format!(
-                "The destination worker is attached to another cluster, his_cluster={}, our_cluster={}",
-                hex_fmt::HexFmt(&his_cluster),
+                "The destination worker is attached to another cluster, its cluster={}, our_cluster={}",
+                hex_fmt::HexFmt(&cluster_of_the_worker),
                 hex_fmt::HexFmt(&cluster.id),
             )));
         }
@@ -1103,6 +1103,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         }
         let recv_mq = &mut runtime_state.recv_mq;
         let send_mq = &mut runtime_state.send_mq;
+        // The recv_mq and send_mq are used to restore the rx/tx handles during the deserilization.
         let cluster_state: ClusterState =
             phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
                 phala_mq::checkpoint_helper::using_send_mq(send_mq, move || {
