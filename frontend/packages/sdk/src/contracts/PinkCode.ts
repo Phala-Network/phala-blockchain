@@ -1,5 +1,5 @@
 import type { bool, Result } from '@polkadot/types';
-import type { ApiTypes, DecorateMethod } from '@polkadot/api/types';
+import type { DecorateMethod } from '@polkadot/api/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import type { AbiConstructor } from '@polkadot/api-contract/types';
@@ -8,12 +8,11 @@ import type { MapConstructorExec } from '@polkadot/api-contract/base/types';
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { AbiLike, WasmLike } from '../types';
 
-import { SubmittableResult } from '@polkadot/api';
+import { SubmittableResult, toPromiseMethod } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
-import { isUndefined } from '@polkadot/util';
-import { createBluePrintTx } from '@polkadot/api-contract/base/util';
 import { Abi } from '@polkadot/api-contract/Abi';
-import { toPromiseMethod } from '@polkadot/api';
+import { createBluePrintTx } from '@polkadot/api-contract/base/util';
+import { isUndefined, isWasm, u8aToU8a } from '@polkadot/util';
 
 import { PinkBlueprintPromise } from './PinkBlueprint';
 
@@ -110,7 +109,7 @@ export class PinkCodePromise {
     return this.api.tx.phalaPhatContracts.clusterUploadResource(
       this.phatRegistry.clusterId,
       'InkCode',
-      this.code
+      this.code.toString()
     ).withResultTransform(
       (result: ISubmittableResult) => {
         return new InkCodeSubmittableResult(result, this.abi, this.phatRegistry)
