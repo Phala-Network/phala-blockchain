@@ -37,6 +37,46 @@ export interface MapMessageInkQuery<ApiType extends ApiTypes> {
   [message: string]: ContractInkQuery<ApiType>;
 }
 
+class PinkContractSubmittableResult extends ContractSubmittableResult {
+
+  readonly #registry: OnChainRegistry
+
+  #isFinalized: boolean = false
+
+  constructor(registry: OnChainRegistry, result: ISubmittableResult, contractEvents?: DecodedEvent[]) {
+    super(result, contractEvents)
+    this.#registry = registry
+  }
+
+  async waitFinalized(timeout: number = 120_000) {
+    if (this.#isFinalized) {
+      return
+    }
+
+    if (this.isInBlock || this.isFinalized) {
+      const codeHash = this.status.asInBlock.toString()
+      const block = await this.#registry.api.rpc.chain.getBlock(codeHash)
+      const chainHeight = block.block.header.number.toNumber()
+
+      const t0 = new Date().getTime();
+      while (true) {
+        const result = await this.#registry.phactory.getInfo({})
+        if (result.blocknum > chainHeight) {
+          this.#isFinalized = true
+          return
+        }
+
+        const t1 = new Date().getTime();
+        if (t1 - t0 > timeout) {
+          throw new Error('Timeout')
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    throw new Error('Contract transaction submit failed.')
+  }
+}
+
 
 function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
   return withMeta(meta, (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
@@ -259,19 +299,22 @@ export class PinkContractPromise {
       storageDepositLimit,
       this.abi.findMessage(messageOrId).toU8a(params)
     ).withResultTransform((result: ISubmittableResult) => {
-      // ContractEmitted is the current generation, ContractExecution is the previous generation
-      return new ContractSubmittableResult(result, applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) =>
-        records
-          .map(({ event: { data: [, data] } }): DecodedEvent | null => {
-            try {
-              return this.abi.decodeEvent(data as Bytes);
-            } catch (error) {
-              console.error(`Unable to decode contract event: ${(error as Error).message}`);
-              return null;
-            }
-          })
-          .filter((decoded): decoded is DecodedEvent => !!decoded)
-      ))
+      return new PinkContractSubmittableResult(
+        this.phatRegistry,
+        result,
+        applyOnEvent(result, ['ContractEmitted', 'ContractExecution'], (records: EventRecord[]) => {
+          return records
+            .map(({ event: { data: [, data] } }): DecodedEvent | null => {
+              try {
+                return this.abi.decodeEvent(data as Bytes);
+              } catch (error) {
+                console.error(`Unable to decode contract event: ${(error as Error).message}`);
+                return null;
+              }
+            })
+            .filter((decoded): decoded is DecodedEvent => !!decoded)
+        })
+      )
     });
   };
 }
