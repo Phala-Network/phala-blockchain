@@ -1,5 +1,6 @@
 SGX_SIGNER_KEY ?= ./private.dev.pem
 SGX ?= 1
+BUILD ?= release
 
 include ../config.mk
 
@@ -27,11 +28,11 @@ LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 PINK_RUNTIME_DIST_DIR = ${RUNTIME_DIR}/pink-runtime
 
 ifeq ($(USE_MUSL),1)
-BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
+BIN_FILE = ../target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
 CARGO_ARGS = --target x86_64-unknown-linux-musl
 HOST_LIBC_DIR = /lib/x86_64-linux-musl
 else
-BIN_FILE = ../target/release/${BIN_NAME}
+BIN_FILE = ../target/${BUILD}/${BIN_NAME}
 CARGO_ARGS =
 HOST_LIBC_DIR = /lib/x86_64-linux-gnu
 endif
@@ -46,14 +47,14 @@ PRUNTIME_SEAL_DIR ?= ${PRUNTIME_DATA_DIR}/protected_files
 PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 
 .PHONY: all
-all: ${BIN_NAME} ${BIN_NAME}.manifest
+all: ${BIN_NAME} ${BIN_NAME}.manifest ${LIBOS}
 ifeq ($(SGX),1)
 all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
 endif
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	make -C ..
+	make BUILD=${BUILD} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
@@ -87,7 +88,9 @@ ${LIBOS}:
 ifeq ($(USE_MUSL),0)
 	cp -rfL ${HOST_LIBC_DIR}/libgcc_s.so.1 ${RUNTIME_DIR}/lib/
 endif
+ifeq ($(SGX),1)
 	cp -rfL ${GRAMINE_DIR}/sgx ${RUNTIME_DIR}/
+endif
 	cp -rfL ${GRAMINE_LIBOS} ${RUNTIME_DIR}/
 
 ${BIN_NAME}.sig: ${BIN_NAME}.manifest.sgx
@@ -123,9 +126,9 @@ dist: all
 ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
-	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
 endif
+	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
 token-dist: token dist
