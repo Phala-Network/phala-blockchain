@@ -7,6 +7,7 @@ import type { MapConstructorExec } from '@polkadot/api-contract/base/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { AbiLike, WasmLike } from '../types';
+import type { CertificateData } from '../certificate';
 
 import { SubmittableResult, toPromiseMethod } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
@@ -15,6 +16,7 @@ import { createBluePrintTx } from '@polkadot/api-contract/base/util';
 import { isUndefined, isWasm, u8aToU8a } from '@polkadot/util';
 
 import { PinkBlueprintPromise } from './PinkBlueprint';
+import { signCertificate } from '../certificate';
 
 
 export class InkCodeSubmittableResult extends SubmittableResult {
@@ -33,17 +35,16 @@ export class InkCodeSubmittableResult extends SubmittableResult {
     this.blueprint = new PinkBlueprintPromise(this.registry.api, this.registry, this.abi, this.abi.info.source.wasmHash)
   }
 
-  async waitFinalized(pair: KeyringPair, timeout: number = 10_000) {
+  async waitFinalized(pair: KeyringPair, cert: CertificateData, timeout: number = 10_000) {
     if (this.#isFinalized) {
       return
     }
     if (this.isInBlock || this.isFinalized) {
       const system = this.registry.systemContract!;
       const codeHash = this.abi.info.source.wasmHash.toString();
-
       const t0 = new Date().getTime();
       while (true) {
-        const { output } = await system.query['system::codeExists'](pair, codeHash, 'Ink')
+        const { output } = await system.query['system::codeExists'](pair, cert, codeHash, 'Ink')
         if (output && (output as Result<bool, any>).asOk.toPrimitive()) {
           this.#isFinalized = true;
           return

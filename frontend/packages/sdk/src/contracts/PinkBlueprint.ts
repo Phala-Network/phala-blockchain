@@ -8,6 +8,7 @@ import type { KeyringPair } from '@polkadot/keyring/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { InkResponse, InkQueryError, AbiLike } from '../types';
+import type { CertificateData } from '../certificate';
 
 import { SubmittableResult } from '@polkadot/api';
 import { ApiBase } from '@polkadot/api/base';
@@ -22,7 +23,6 @@ import { toPromiseMethod } from '@polkadot/api';
 import { Option } from '@polkadot/types';
 
 import { pruntime_rpc as pruntimeRpc } from "../proto";
-import { signCertificate, CertificateData } from '../certificate';
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 import { PinkContractPromise } from './PinkContract';
@@ -99,9 +99,9 @@ async function pinkQuery(
   });
 };
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
-    fn(origin, params)
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: CertificateData, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: CertificateData, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
+    fn(origin, options, params)
   );
 }
 
@@ -207,7 +207,7 @@ export class PinkBlueprintPromise {
     this.abi.constructors.forEach((c): void => {
       if (isUndefined(this.#tx[c.method])) {
         this.#tx[c.method] = createBluePrintTx(c, (o, p) => this.#deploy(c, o, p));
-        this.#query[c.method] = createQuery(c, (f, p) => this.#estimateGas(c, p).send(f));
+        this.#query[c.method] = createQuery(c, (f, o, p) => this.#estimateGas(c, o, p).send(f));
       }
     });
   }
@@ -253,6 +253,7 @@ export class PinkBlueprintPromise {
 
   #estimateGas = (
     constructorOrId: AbiConstructor | string | number,
+    options: CertificateData,
     params: unknown[]
   ) => {
     const api = this.api as ApiPromise
@@ -269,10 +270,6 @@ export class PinkBlueprintPromise {
     );
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array) => {
-      // @ts-ignore
-      const signParams = (origin.signer) ? origin : { pair: origin }
-      // @ts-ignore
-      const cert = await signCertificate({ ...signParams, api });
       const salt = hex(crypto.randomBytes(4))
       const payload = api.createType("InkQuery", {
         head: {
@@ -289,7 +286,7 @@ export class PinkBlueprintPromise {
           },
         },
       });
-      const rawResponse = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);
+      const rawResponse = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), options);
       const response = api.createType<InkResponse>("InkResponse", rawResponse);
       if (response.result.isErr) {
         return api.createType<InkQueryError>(

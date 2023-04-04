@@ -8,6 +8,7 @@ import { Option, Map, Enum, Vec, U8aFixed, Text } from '@polkadot/types';
 import { AccountId } from '@polkadot/types/interfaces';
 
 import { createPruntimeApi } from './create';
+import { signCertificate } from './certificate';
 import { pruntime_rpc } from './proto';
 import { PinkContractPromise } from './contracts/PinkContract';
 import systemAbi from './abis/system.json';
@@ -220,8 +221,10 @@ export class OnChainRegistry {
     if (!system) {
       throw new Error('System contract not found, you might not connect to a health cluster.')
     }
-    const { output: totalBalanceOf } = await system.query['system::totalBalanceOf'](pair, address)
-    const { output: freeBalanceOf } = await system.query['system::freeBalanceOf'](pair, address)
+    const signParams: any = ((pair as any).signer) ? pair : { pair }
+    const cert = await signCertificate({ ...signParams, api: this.api })
+    const { output: totalBalanceOf } = await system.query['system::totalBalanceOf'](pair, cert, address)
+    const { output: freeBalanceOf } = await system.query['system::freeBalanceOf'](pair, cert, address)
     return {
       total: (totalBalanceOf as Result<U64, any>).asOk.toBn(),
       free: (freeBalanceOf as Result<U64, any>).asOk.toBn(),

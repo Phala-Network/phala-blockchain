@@ -12,7 +12,7 @@ import type { KeyringPair } from '@polkadot/keyring/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { AbiLike } from '../types';
-
+import type { CertificateData } from '../certificate';
 
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
@@ -24,7 +24,6 @@ import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/was
 import { from } from 'rxjs';
 
 import { pruntime_rpc as pruntimeRpc } from "../proto";
-import { signCertificate, CertificateData } from '../certificate';
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
 
@@ -78,9 +77,9 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
 }
 
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
-    fn(origin, params)
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: CertificateData, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: CertificateData, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
+    fn(origin, options, params)
   );
 }
 
@@ -173,9 +172,9 @@ export class PinkContractPromise {
     this.abi.messages.forEach((m): void => {
       if (m.isMutating) {
         this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p));
-        this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(true, m, p).send(f));
+        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(true, m, c, p).send(f));
       } else {
-        this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(false, m, p).send(f));
+        this.#query[m.method] = createQuery(m, (f, c, p) => this.#inkQuery(false, m, c, p).send(f));
       }
     });
   }
@@ -192,7 +191,7 @@ export class PinkContractPromise {
     return this.#tx;
   }
 
-  #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, params: unknown[]): ContractCallSend<'promise'> => {
+  #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, cert: CertificateData, params: unknown[]): ContractCallSend<'promise'> => {
     const message = this.abi.findMessage(messageOrId);
     const api = this.api as ApiPromise
 
@@ -208,10 +207,6 @@ export class PinkContractPromise {
     );
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
-      // @ts-ignore
-      const signParams = (origin.signer) ? origin : { pair: origin }
-      // @ts-ignore
-      const cert = await signCertificate({ ...signParams, api });
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
