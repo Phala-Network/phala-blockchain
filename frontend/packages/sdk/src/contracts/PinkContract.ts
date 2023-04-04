@@ -20,11 +20,7 @@ import { ContractSubmittableResult } from '@polkadot/api-contract/base/Contract'
 import { applyOnEvent } from '@polkadot/api-contract/util';
 import { withMeta, convertWeight } from '@polkadot/api-contract/base/util'
 import { BN, BN_ZERO, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
-import {
-  sr25519Agree,
-  sr25519KeypairFromSeed,
-  sr25519Sign,
-} from "@polkadot/wasm-crypto";
+import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
 import { from } from 'rxjs';
 
 import { pruntime_rpc as pruntimeRpc } from "../proto";
@@ -137,8 +133,10 @@ export class PinkContractPromise {
     this.abi.messages.forEach((m): void => {
       if (m.isMutating) {
         this.#tx[m.method] = createTx(m, (o, p) => this.#inkCommand(m, o, p));
+        this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(true, m, p).send(f));
+      } else {
+        this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(false, m, p).send(f));
       }
-      this.#query[m.method] = createQuery(m, (f, p) => this.#inkQuery(m, p).send(f));
     });
   }
 
@@ -154,7 +152,7 @@ export class PinkContractPromise {
     return this.#tx;
   }
 
-  #inkQuery = (messageOrId: AbiMessage | string | number, params: unknown[]): ContractCallSend<'promise'> => {
+  #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, params: unknown[]): ContractCallSend<'promise'> => {
     const message = this.abi.findMessage(messageOrId);
     const api = this.api as ApiPromise
 
@@ -180,7 +178,12 @@ export class PinkContractPromise {
           id: this.address,
         },
         data: {
-          InkMessage: message.toU8a(params),
+          InkMessage: {
+            payload: message.toU8a(params),
+            deposit: 0,
+            transfer: null,
+            estimating: isEstimating,
+          }
         },
       });
       const data = await pinkQuery(api, this.phatRegistry.phactory, pk, queryAgreementKey, payload.toHex(), cert);

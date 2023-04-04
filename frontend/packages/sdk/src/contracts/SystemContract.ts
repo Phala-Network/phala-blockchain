@@ -30,7 +30,7 @@ export class SystemContractPromise extends PinkContractPromise {
     return systemContract
   }
 
-  constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string, contractKey: string, pair?: KeyringPair) {
+  constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string | AccountId, contractKey: string, pair?: KeyringPair) {
     super(api, registry, abi, contractId, contractKey)
     if (!pair) {
       const keyring = new Keyring({ type: 'sr25519' });
@@ -118,9 +118,9 @@ export class SystemContractPromise extends PinkContractPromise {
     }
   }
 
-  // @fixme Not yet test.
   async upgradeSystemContract() {
-    await this.query['system::upgradeSystemContract'](this.#pair)
+    const { gasRequired } = await this.query['system::upgradeSystemContract'](this.#pair)
+    await this.tx['system::upgradeSystemContract']({ gasLimit: gasRequired.refTime.toBn() }, this.#pair).signAndSend(this.#pair)
   }
 
   // @fixme Not yet test.
