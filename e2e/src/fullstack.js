@@ -615,6 +615,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'instantiation failed');
 
             // ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
+            const contractKey = await registry.getContractKeyOrFail(contractId)
             ContractSystemChecker = new Phala.PinkContractPromise(api, registry, checkerMetadata, contractId, contractKey)
         });
 
