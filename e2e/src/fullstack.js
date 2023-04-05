@@ -9,6 +9,7 @@ const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 const { ContractPromise } = require('@polkadot/api-contract');
 const Phala = require('@phala/sdk');
 const { typeDefinitions } = require('@polkadot/types/bundle');
+const BN = require('bn.js');
 
 const { types, typeAlias, typeOverrides } = require('./utils/typeoverride');
 // TODO: fixit
@@ -548,7 +549,7 @@ describe('A full stack', function () {
             // ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
             const systemContractId = systemContract
             registry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId })
-            registry.clusterInfo = clusterInfo
+            registry.clusterInfo = { ...clusterInfo.toJSON(), gasPrice: new BN(1) }
             const contractKey = await registry.getContractKeyOrFail(systemContractId)
             ContractSystem = new Phala.PinkContractPromise(api, registry, systemMetadata, systemContractId, contractKey)
         });
