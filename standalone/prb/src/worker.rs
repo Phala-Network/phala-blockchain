@@ -5,13 +5,15 @@ use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
 use crate::{use_parachain_api, use_relaychain_api, with_retry};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use futures::future::join;
 use log::{debug, error, info, warn};
+use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
-use phactory_api::prpc::{HeadersToSync, PhactoryInfo};
+use phactory_api::prpc::{Attestation, GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
 use phactory_api::pruntime_client::{new_pruntime_client, PRuntimeClient};
+use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::search_suitable_genesis_for_worker;
 use pherry::types::Block;
@@ -247,6 +249,11 @@ impl WorkerContext {
 
     async fn handle_on_starting(c: WrappedWorkerContext) -> Result<()> {
         let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+
+        if !worker.enabled {
+            anyhow::bail!("Worker not enabled!");
+        }
+
         let dsm = lm.dsm.clone();
 
         let mut i = pr.get_info(()).await?;
@@ -313,6 +320,39 @@ impl WorkerContext {
 
     async fn handle_on_preparing(c: WrappedWorkerContext) -> Result<()> {
         set_worker_message!(c, "Reached latest finalized height, start preparing...");
+        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let txm = lm.txm.clone();
+
+        if worker.sync_only {
+            return Ok(());
+        }
+
+        let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
+
+        // todo: wait for mq to sync
+
+        let runtime_info = pr
+            .get_runtime_info(GetRuntimeInfoRequest::new(false, None))
+            .await?;
+        let attestation = runtime_info
+            .attestation
+            .ok_or(anyhow!("Worker has no attestation!"))?;
+        let v2 = attestation.payload.is_none();
+        let attestation = match attestation.payload {
+            Some(payload) => AttestationEnum::SgxIas {
+                ra_report: payload.report.as_bytes().to_vec(),
+                signature: payload.signature,
+                raw_signing_cert: payload.signing_cert,
+            }
+            .encode(),
+            None => attestation.encoded_report,
+        };
+
+        txm.register_worker(pid, runtime_info.encoded_runtime_info, attestation, v2)
+            .await?;
+
+        info!("test");
+
         Ok(())
     }
 

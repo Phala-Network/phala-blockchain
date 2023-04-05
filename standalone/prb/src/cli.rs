@@ -194,6 +194,31 @@ pub enum ConfigCommands {
         #[arg(short, long)]
         name: String,
     },
+
+    /// Get all pool operators
+    GetAllPoolOperators,
+
+    /// Get a pool operators by pid
+    GetPoolOperator {
+        /// PID of the pool
+        #[arg(short, long)]
+        pid: u64,
+    },
+
+    /// Set a pool operators for pool
+    SetPoolOperators {
+        /// PID of the pool
+        #[arg(short, long)]
+        pid: u64,
+
+        /// Mnemonic of the operator
+        #[arg(short, long)]
+        mnemonic: String,
+
+        /// Proxied owner account
+        #[arg(short, long)]
+        owner: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]

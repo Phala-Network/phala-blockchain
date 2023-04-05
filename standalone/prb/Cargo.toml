@@ -39,3 +39,6 @@ sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch
 rocksdb = { version = "0.19.0", default-features = false, features = ["snappy", "jemalloc"] }
 tokio-stream = "0.1.12"
 parity-scale-codec = "3.4.0"
+phala-pallets = { path = "../../pallets/phala" }
+scale-value = "0.7.0"
+subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }

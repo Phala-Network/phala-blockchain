@@ -1,21 +1,32 @@
+use self::khala::runtime_types;
+use self::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
+use self::khala::runtime_types::phala_pallets::utils::attestation_legacy;
 use crate::datasource::WrappedDataSourceManager;
 use crate::tx::TxManagerError::*;
+use crate::use_parachain_api;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use futures::future::join_all;
-use phaxt::subxt::dynamic::{self, Value};
-use phaxt::subxt::tx::DynamicTxPayload;
-use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
-use serde::{Deserialize, Serialize};
+use futures::future::{join_all, BoxFuture};
+use hex::ToHex;
+use log::{error, info};
+use parity_scale_codec::{Decode, Encode};
+use rocksdb::{DBCommon, DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+use subxt::dynamic::{self, Value};
+use subxt::tx::{DynamicTxPayload, StaticTxPayload, TxPayload};
+use subxt::utils::AccountId32;
+use subxt::Metadata;
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
-use tokio::task::JoinHandle;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
+
+#[subxt::subxt(runtime_metadata_url = "wss://khala.api.onfinality.io:443/public-ws")]
+pub mod khala {}
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
@@ -23,8 +34,6 @@ static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
 type DB = DBWithThreadMode<MultiThreaded>;
 type TxGroupMap = HashMap<u64, TxGroup>;
 type TxGroup = Vec<Transaction>;
-
-type DynamicTxPayloadStatic = DynamicTxPayload<'static>;
 
 fn get_options(max_open_files: Option<i32>) -> Options {
     // Current tuning based off of the total ordered example, flash
@@ -108,7 +117,7 @@ pub struct Transaction {
     pub pid: u64,
     pub created_at: DateTime<Utc>,
     #[serde(skip)]
-    pub tx_payload: Option<DynamicTxPayloadStatic>,
+    pub tx_payload: Option<RuntimeCall>,
     #[serde(skip)]
     pub shot: Option<oneshot::Sender<Result<()>>>,
 }
@@ -131,7 +140,7 @@ impl Transaction {
     pub fn new(
         id: usize,
         pid: u64,
-        tx_payload: DynamicTxPayloadStatic,
+        tx_payload: RuntimeCall,
         desc: String,
         shot: oneshot::Sender<Result<()>>,
     ) -> Self {
@@ -155,13 +164,15 @@ pub struct TxManager {
     pub pending_tx_count: Arc<Mutex<usize>>,
     pub running_txs: Arc<RwLock<Vec<Transaction>>>,
     pub finished_txs: Arc<RwLock<VecDeque<Transaction>>>,
+    metadata: Metadata,
 }
 
 impl TxManager {
     pub fn new(
         path_base: &str,
         dsm: WrappedDataSourceManager,
-    ) -> Result<(Arc<Self>, JoinHandle<Result<()>>)> {
+        metadata: Metadata,
+    ) -> Result<(Arc<Self>, BoxFuture<'static, Result<()>>)> {
         let opts = get_options(None);
         let path = Path::new(path_base).join("po");
         let db = DB::open(&opts, path)?;
@@ -175,8 +186,9 @@ impl TxManager {
             pending_tx_count: Arc::new(Mutex::new(0)),
             running_txs: Arc::new(RwLock::new(Vec::new())),
             finished_txs: Arc::new(RwLock::new(VecDeque::new())),
+            metadata,
         });
-        let handle = tokio::spawn(txm.clone().start_trader(rx));
+        let handle = Box::pin(txm.clone().start_trader(rx));
 
         Ok((txm, handle))
     }
@@ -210,21 +222,28 @@ impl TxManager {
             }
             join_all(
                 tx_map
-                    .into_values()
-                    .map(|g| self.clone().send_tx_group(g))
+                    .into_iter()
+                    .map(|(pid, v)| {
+                        let self_move = self.clone();
+                        async move {
+                            if let Err(e) = self_move.clone().wrap_send_tx_group(pid, v).await {
+                                error!("wrap_send_tx_group: {e}");
+                                std::process::exit(255);
+                            }
+                        }
+                    })
                     .collect::<Vec<_>>(),
             )
             .await;
         }
         Err(anyhow!("Unexpected exit of start_trader."))
     }
-
-    async fn send_tx_group(self: Arc<Self>, tx_group: TxGroup) -> Result<()> {
+    async fn wrap_send_tx_group(self: Arc<Self>, pid: u64, tx_group: TxGroup) -> Result<()> {
         if tx_group.is_empty() {
             anyhow::bail!("TxGroup can't be empty!");
         }
+        let mut shots = VecDeque::new();
         let mut payloads = Vec::new();
-        let mut shots = Vec::new();
 
         let r = self.running_txs.clone();
         let mut r = r.write().await;
@@ -235,29 +254,63 @@ impl TxManager {
         for mut t in tx_group {
             t.state = TransactionState::Running;
             r.push(t.clone());
-            shots.push(t.shot.unwrap());
+            shots.push_back(t.shot.unwrap());
             payloads.push(t.tx_payload.unwrap());
         }
         drop(r);
         drop(p);
 
+        match self.send_tx_group(pid, payloads).await {
+            Ok(ret) => {
+                for r in ret {
+                    let tx = shots
+                        .pop_front()
+                        .ok_or(anyhow!("unexpected of absence of channel shot"))?;
+                    if let Err(_) = tx.send(r) {
+                        return Err(anyhow!("shot can't be sent"));
+                    }
+                }
+            }
+            Err(e) => {
+                error!("send_tx_group: {}", &e);
+                for tx in shots {
+                    if let Err(_) = tx.send(Err(anyhow!(e.to_string()))) {
+                        return Err(anyhow!("shot can't be sent"));
+                    }
+                }
+            }
+        }
         Ok(())
+    }
+    async fn send_tx_group(
+        self: Arc<Self>,
+        pid: u64,
+        payloads: Vec<RuntimeCall>,
+    ) -> Result<Vec<Result<()>>> {
+        let api = use_parachain_api!(self.dsm, false).ok_or(NoValidSubstrateDataSource)?;
+        let tx = khala::tx().utility().force_batch(payloads);
+        let tt = api.tx().call_data(&tx)?.encode_hex::<String>();
+
+        info!("{}", &tt);
+
+        Ok(vec![Ok(())])
     }
 
     pub async fn send_to_queue(
         self: Arc<Self>,
         pid: u64,
-        tx_payload: DynamicTxPayloadStatic,
+        tx_payload: RuntimeCall,
         desc: String,
     ) -> Result<()> {
         let id = self.total_tx_count.clone();
         let mut id = id.lock().await;
         *id += 1;
-        let (tx, rx) = oneshot::channel();
+        let (shot, rx) = oneshot::channel();
+        tokio::pin!(rx);
         let c = self.pending_tx_count.clone();
         let mut c = c.lock().await;
         *c += 1;
-        let tx = Transaction::new(*id, pid, tx_payload, desc, tx);
+        let tx = Transaction::new(*id, pid, tx_payload, desc, shot);
         self.queue_tx.clone().send(tx)?;
         drop(c);
         drop(id);
@@ -269,30 +322,114 @@ impl TxManager {
     pub async fn register_worker(
         self: Arc<Self>,
         pid: u64,
-        pruntime_info: Vec<u8>,
-        attestation: Vec<u8>,
+        mut pruntime_info: Vec<u8>,
+        mut attestation: Vec<u8>,
         v2: bool,
     ) -> Result<()> {
         let tx_payload = if v2 {
-            dynamic::tx(
-                "PhalaRegistry",
-                "register_worker_v2",
-                vec![
-                    Value::from_bytes(&pruntime_info),
-                    Value::from_bytes(&attestation),
-                ],
+            let mut pruntime_info = &pruntime_info[..];
+            let pruntime_info =
+                runtime_types::phala_types::WorkerRegistrationInfoV2::decode(&mut pruntime_info)?;
+            let mut attestation = &attestation[..];
+            let attestation = Option::decode(&mut attestation)?;
+            RuntimeCall::PhalaRegistry(
+                khala::runtime_types::phala_pallets::registry::pallet::Call::register_worker_v2 {
+                    pruntime_info,
+                    attestation,
+                },
             )
         } else {
-            dynamic::tx(
-                "PhalaRegistry",
-                "register_worker",
-                vec![
-                    Value::from_bytes(&pruntime_info),
-                    Value::from_bytes(&attestation),
-                ],
+            let mut pruntime_info = &pruntime_info[..];
+            let pruntime_info =
+                runtime_types::phala_types::WorkerRegistrationInfo::decode(&mut pruntime_info)?;
+            let mut attestation = &attestation[..];
+            let attestation = attestation_legacy::Attestation::decode(&mut attestation)?;
+            RuntimeCall::PhalaRegistry(
+                khala::runtime_types::phala_pallets::registry::pallet::Call::register_worker {
+                    pruntime_info,
+                    attestation,
+                },
             )
         };
-        let desc = format!("Register worker for pool #{pid}");
+
+        let desc = format!("Register worker");
         self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
+    pub async fn update_worker_endpoint(
+        self: Arc<Self>,
+        pid: u64,
+        mut endpoint_payload: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Result<()> {
+        let mut endpoint_payload = &endpoint_payload[..];
+        let endpoint_payload =
+            runtime_types::phala_types::WorkerEndpointPayload::decode(&mut endpoint_payload)?;
+        let tx_payload = RuntimeCall::PhalaRegistry(
+            khala::runtime_types::phala_pallets::registry::pallet::Call::update_worker_endpoint {
+                endpoint_payload,
+                signature,
+            },
+        );
+        let desc = format!("Update endpoint of worker.");
+        self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
+    pub async fn sync_offchain_message(
+        self: Arc<Self>,
+        pid: u64,
+        signed_message: runtime_types::phala_mq::types::SignedMessage,
+    ) -> Result<()> {
+        let tx_payload = RuntimeCall::PhalaMq(
+            khala::runtime_types::phala_pallets::mq::pallet::Call::sync_offchain_message {
+                signed_message,
+            },
+        );
+        let desc = format!("Sync offchain message to chain.");
+        self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
+}
+
+#[derive(Clone)]
+pub struct InnerPoolOperator {
+    pub uid: u64,
+}
+
+impl Serialize for InnerPoolOperator {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        todo!()
+    }
+}
+
+impl<'de> Deserialize<'de> for InnerPoolOperator {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        todo!()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PoolOperator {}
+
+pub trait PoolOperatorAccess {
+    fn get_all(&self) -> Vec<InnerPoolOperator>;
+    fn get(&self, uid: u64) -> Result<Option<InnerPoolOperator>>;
+    fn set(&self, uid: u64, po: InnerPoolOperator) -> Result<InnerPoolOperator>;
+}
+
+impl PoolOperatorAccess for DB {
+    fn get_all(&self) -> Vec<InnerPoolOperator> {
+        todo!()
+    }
+
+    fn get(&self, uid: u64) -> Result<Option<InnerPoolOperator>> {
+        todo!()
+    }
+
+    fn set(&self, uid: u64, po: InnerPoolOperator) -> Result<InnerPoolOperator> {
+        todo!()
     }
 }

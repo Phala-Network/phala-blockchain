@@ -81,6 +81,7 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
         ConfigCommands::RemoveWorker { name } => {
             remove_worker(db, name.clone())?;
         }
+        _ => {}
     };
     Ok(())
 }

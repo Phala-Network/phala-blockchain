@@ -4,6 +4,7 @@ use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::db::{setup_inventory_db, WrappedDb};
 use crate::lifecycle::{WorkerLifecycleManager, WrappedWorkerLifecycleManager};
 use crate::tx::TxManager;
+use crate::use_parachain_api;
 use crate::wm::WorkerManagerMessage::*;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
 use anyhow::{anyhow, Result};
@@ -96,7 +97,11 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let fast_sync_enabled = !args.disable_fast_sync;
 
-    let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
+    dsm.clone().wait_until_rpc_avail(false).await;
+    let api = use_parachain_api!(dsm, false).unwrap();
+
+    let (txm, txm_handle) =
+        TxManager::new(&args.db_path, dsm.clone(), api.metadata()).expect("TxManager");
 
     let ctx = Arc::new(RwLock::new(WorkerManagerContext {
         initialized: false,
@@ -109,7 +114,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let join_handle = try_join3(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
-        txm_handle,
+        tokio::spawn(txm_handle),
         try_join_all(ds_handles),
     );
 
