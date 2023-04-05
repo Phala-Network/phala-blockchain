@@ -486,6 +486,7 @@ describe('A full stack', function () {
         let certBob;
 
         let clusterId;
+        let registry;
 
         before(async () => {
             certAlice = await Phala.signCertificate({ api, pair: alice });
@@ -545,9 +546,11 @@ describe('A full stack', function () {
                 return contractInfo.isSome;
             }, 4 * 6000), 'system contract instantiation failed');
             // ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
-            const phatRegistry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId: systemContract })
-            const contractKey = await phatRegistry.getContractKeyOrFail(systemContract)
-            ContractSystem = new Phala.PinkContractPromise(api, phatRegistry, systemMetadata, systemContract, contractKey)
+            const systemContractId = systemContract
+            registry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId })
+            registry.clusterInfo = clusterInfo
+            const contractKey = await registry.getContractKeyOrFail(systemContractId)
+            ContractSystem = new Phala.PinkContractPromise(api, registry, systemMetadata, systemContractId, contractKey)
         });
 
         it('can generate cluster key', async function () {
@@ -612,9 +615,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'instantiation failed');
 
             // ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
-            const phatRegistry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId: systemContract })
-            const contractKey = await phatRegistry.getContractKeyOrFail(contractId)
-            ContractSystemChecker = new Phala.PinkContractPromise(api, phatRegistry, checkerMetadata, contractId, contractKey)
+            ContractSystemChecker = new Phala.PinkContractPromise(api, registry, checkerMetadata, contractId, contractKey)
         });
 
         it('can not set hook without admin permission', async function () {
