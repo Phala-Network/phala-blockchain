@@ -41,6 +41,8 @@ interface CreateOptions {
   clusterId?: string
   workerId?: string
   pruntimeURL?: string
+  systemContractId?: string
+  validate?: boolean
 }
 
 
@@ -103,7 +105,7 @@ export class OnChainRegistry {
     const instance = new OnChainRegistry(api)
     await waitReady()
     if (options.autoConnect) {
-      await instance.connect(options.clusterId, options.workerId, options.pruntimeURL)
+      await instance.connect(options.clusterId, options.workerId, options.pruntimeURL, options.systemContractId, !!options.validate)
     }
     return instance
   }
@@ -139,49 +141,52 @@ export class OnChainRegistry {
     })
   }
 
-  public async connect(clusterId?: string | null, workerId?: string | null, pruntimeURL?: string | null) {
+  public async connect(clusterId?: string | null, workerId?: string | null, pruntimeURL?: string | null, systemContractId?: string | AccountId, validate: boolean = true) {
     this.#ready = false
 
     let clusterInfo
-    if (clusterId) {
-      clusterInfo = await this.getClusters(clusterId)
-      if (!clusterInfo) {
-        throw new Error(`Cluster not found: ${clusterId}`)
-      }
-    } else {
-      const clusters = await this.getClusters()
-      if (!clusters || !Array.isArray(clusters)) {
-        throw new Error('No cluster found.')
-      }
-      if (clusters.length === 0) {
-        throw new Error('No cluster found.')
-      }
-      clusterId = clusters[0][0] as string
-      clusterInfo = clusters[0][1] as ClusterInfo
-    }
 
-    const endpoints = await this.getEndpints()
-    if (!Array.isArray(endpoints) || endpoints.length === 0) {
-      throw new Error('No worker found.')
-    }
-    if (!workerId && !pruntimeURL) {
-      workerId = endpoints[0][0] as string
-      pruntimeURL = (endpoints[0][1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
-    } else if (workerId) {
-      const endpoint = endpoints.find(([id, _]) => id === workerId)
-      if (!endpoint) {
-        throw new Error(`Worker not found: ${workerId}`)
+    if (validate) {
+      if (clusterId) {
+        clusterInfo = await this.getClusters(clusterId)
+        if (!clusterInfo) {
+          throw new Error(`Cluster not found: ${clusterId}`)
+        }
+      } else {
+        const clusters = await this.getClusters()
+        if (!clusters || !Array.isArray(clusters)) {
+          throw new Error('No cluster found.')
+        }
+        if (clusters.length === 0) {
+          throw new Error('No cluster found.')
+        }
+        clusterId = clusters[0][0] as string
+        clusterInfo = clusters[0][1] as ClusterInfo
       }
-      pruntimeURL = (endpoint[1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
-    } else if (pruntimeURL) {
-      const endpoint = endpoints.find(([_, v]) => {
-        const url = (v as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
-        return url === pruntimeURL
-      })
-      if (!endpoint) {
-        throw new Error(`Worker not found: ${workerId}`)
+
+      const endpoints = await this.getEndpints()
+      if (!Array.isArray(endpoints) || endpoints.length === 0) {
+        throw new Error('No worker found.')
       }
-      workerId = endpoint[0] as string
+      if (!workerId && !pruntimeURL) {
+        workerId = endpoints[0][0] as string
+        pruntimeURL = (endpoints[0][1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+      } else if (workerId) {
+        const endpoint = endpoints.find(([id, _]) => id === workerId)
+        if (!endpoint) {
+          throw new Error(`Worker not found: ${workerId}`)
+        }
+        pruntimeURL = (endpoint[1] as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+      } else if (pruntimeURL) {
+        const endpoint = endpoints.find(([_, v]) => {
+          const url = (v as Option<VersionedEndpoints>).unwrap().asV1[0].toPrimitive() as string
+          return url === pruntimeURL
+        })
+        if (!endpoint) {
+          throw new Error(`Worker not found: ${workerId}`)
+        }
+        workerId = endpoint[0] as string
+      }
     }
 
     this.#phactory = createPruntimeApi(pruntimeURL!)
@@ -193,14 +198,16 @@ export class OnChainRegistry {
     } catch (err) {
       throw new Error('Phactory API not compatible, you might need downgrade your @phala/sdk or connect to an up-to-date endpoint.')
     }
-    this.clusterId = clusterId
-    this.clusterInfo = clusterInfo as ClusterInfo
+    this.clusterId = clusterId!
     this.remotePubkey = workerId!
     this.pruntimeURL = pruntimeURL!
+    this.clusterInfo = clusterInfo as ClusterInfo
 
     this.#ready = true
 
-    const systemContractId = this.clusterInfo.systemContract
+    if (this.clusterInfo && this.clusterInfo.systemContract) {
+      systemContractId = this.clusterInfo.systemContract
+    }
     if (systemContractId) {
       const systemContractKey = await this.getContractKey(systemContractId)
       if (systemContractKey) {

@@ -545,7 +545,7 @@ describe('A full stack', function () {
                 return contractInfo.isSome;
             }, 4 * 6000), 'system contract instantiation failed');
             // ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
-            const phatRegistry = await Phala.OnChainRegistry.create(api)
+            const phatRegistry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId: systemContract })
             const contractKey = await phatRegistry.getContractKeyOrFail(systemContract)
             ContractSystem = new Phala.PinkContractPromise(api, phatRegistry, systemMetadata, systemContract, contractKey)
         });
@@ -574,7 +574,7 @@ describe('A full stack', function () {
             );
 
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::codeExists'](certAlice, codeHash, 'Ink');
+                const { output } = await ContractSystem.query['system::codeExists'](alice, certAlice, codeHash, 'Ink');
                 return output?.eq({ Ok: true })
             }, 4 * 6000), 'Upload system checker code failed');
 
@@ -612,7 +612,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'instantiation failed');
 
             // ContractSystemChecker = await createContractApi(api, pruntime[0].uri, contractId, checkerMetadata);
-            const phatRegistry = await Phala.OnChainRegistry.create(api)
+            const phatRegistry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId: systemContract })
             const contractKey = await phatRegistry.getContractKeyOrFail(contractId)
             ContractSystemChecker = new Phala.PinkContractPromise(api, phatRegistry, checkerMetadata, contractId, contractKey)
         });
@@ -628,7 +628,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certAlice, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(alice, certAlice, {});
                 return output.asOk.valueOf();
             }, 6000 * 2), 'Set hook should not success without granting admin first');
         });
@@ -643,7 +643,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(certBob, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(bob, certBob, {});
                 return output.asOk.valueOf();
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
@@ -656,7 +656,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::codeExists'](certAlice, codeHash, 'Ink');
+                const { output } = await ContractSystem.query['system::codeExists'](alice, certAlice, codeHash, 'Ink');
                 return output?.eq({ Ok: true })
             }, 4 * 6000), 'Upload qjs code failed');
             {
@@ -668,7 +668,7 @@ describe('A full stack', function () {
                 })()
                 `;
                 const arg0 = "Powered by QuickJS in ink!";
-                const { output } = await ContractSystemChecker.query.evalJs(certAlice, codeHash, jsCode, [arg0]);
+                const { output } = await ContractSystemChecker.query.evalJs(alice, certAlice, codeHash, jsCode, [arg0]);
                 assert.isTrue(output?.eq({ Ok: { Ok: { String: arg0 } } }));
             }
 
@@ -679,7 +679,7 @@ describe('A full stack', function () {
                     return new Uint8Array([1, 2, 3]);
                 })()
                 `;
-                const { output } = await ContractSystemChecker.query.evalJs(certAlice, codeHash, jsCode, []);
+                const { output } = await ContractSystemChecker.query.evalJs(alice, certAlice, codeHash, jsCode, []);
                 assert.isTrue(output?.eq({ Ok: { Ok: { Bytes: "0x010203" } } }), "Failed to return bytes");
             }
         });
@@ -691,17 +691,17 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::codeExists'](certAlice, codeHash, 'Ink');
+                const { output } = await ContractSystem.query['system::codeExists'](alice, certAlice, codeHash, 'Ink');
                 return output?.eq({ Ok: true })
             }, 4 * 6000), 'Upload test contract code failed');
-            const { output } = await ContractSystemChecker.query.parseUsd(certAlice, codeHash, '{"usd":1.23}');
+            const { output } = await ContractSystemChecker.query.parseUsd(alice, certAlice, codeHash, '{"usd":1.23}');
             assert.isTrue(output?.asOk.unwrap()?.usd.eq(123));
         });
 
         it('tokenomic driver works', async function () {
             {
                 // Should be unable to use local cache before staking
-                const { output } = await ContractSystemChecker.query.cacheSet(certAlice, "0xdead", "0xbeef");
+                const { output } = await ContractSystemChecker.query.cacheSet(alice, certAlice, "0xdead", "0xbeef");
                 assert.isFalse(output.asOk.valueOf());
             }
             await assert.txAccepted(
@@ -720,11 +720,11 @@ describe('A full stack', function () {
             {
                 // Should be able to use local cache after staking
                 {
-                    const { output } = await ContractSystemChecker.query.cacheSet(certAlice, "0xdead", "0xbeef");
+                    const { output } = await ContractSystemChecker.query.cacheSet(alice, certAlice, "0xdead", "0xbeef");
                     assert.isTrue(output.asOk.valueOf());
                 }
                 {
-                    const { output } = await ContractSystemChecker.query.cacheGet(certAlice, "0xdead");
+                    const { output } = await ContractSystemChecker.query.cacheGet(alice, certAlice, "0xdead");
                     assert.isTrue(output.asOk.isSome);
                     assert.equal(output.asOk.unwrap(), "0xbeef");
                 }
@@ -732,7 +732,7 @@ describe('A full stack', function () {
         });
 
         it('can set the sidevm as pending state without code uploaded', async function () {
-            const { output } = await ContractSystemChecker.query.startSidevm(certAlice);
+            const { output } = await ContractSystemChecker.query.startSidevm(alice, certAlice);
             assert.isTrue(output.asOk.valueOf());
             assert.isTrue(await checkUntil(async () => {
                 const info = await pruntime[0].getContractInfo(ContractSystemChecker.address.toHex());
@@ -772,7 +772,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystem.query['system::version'](certAlice);
+                const { output } = await ContractSystem.query['system::version'](alice, certAlice);
                 return output?.eq({ Ok: [0xffff, 0, 0] })
             }, 4 * 6000), 'Upgrade system failed');
         });
