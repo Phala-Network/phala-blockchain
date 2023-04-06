@@ -475,6 +475,7 @@ impl WorkerContext {
         let dsm = dsm.clone();
         let i = pr.get_info(()).await?;
         let next_para_headernum = i.para_headernum;
+        debug!("sync_loop_round: {}", i.blocknum);
         if i.blocknum < next_para_headernum {
             tokio::spawn(Self::batch_sync_storage_changes(
                 pr.clone(),
@@ -537,12 +538,8 @@ impl WorkerContext {
         if ranges.is_empty() {
             return Ok(());
         }
-        let range_handles = ranges
-            .into_iter()
-            .map(|(from, to)| tokio::spawn(dsm.clone().fetch_storage_changes(from, to)))
-            .collect::<Vec<_>>();
-        for handle in range_handles {
-            let sc = handle.await??;
+        for (from, to) in ranges {
+            let sc = dsm.clone().fetch_storage_changes(from, to).await?;
             pr.dispatch_blocks(sc).await?;
         }
         Ok(())
