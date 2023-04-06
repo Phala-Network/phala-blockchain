@@ -238,7 +238,6 @@ impl WorkerContext {
                         &worker.name, &worker.id, &worker.endpoint, e
                     );
                     // todo: may need some cleanups
-                    std::process::exit(0x0100);
                 }
             }
 
