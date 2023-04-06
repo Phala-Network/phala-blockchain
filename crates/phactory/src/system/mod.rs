@@ -1153,7 +1153,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 for contract in self.contracts.drain() {
                     contract.destroy(&self.sidevm_spawner);
                 }
-                info!("Destroyed cluster {}", hex_fmt::HexFmt(&cluster_id));
+                warn!("The cluster {} is destroyed", hex_fmt::HexFmt(&cluster_id));
+                warn!("The worker will exit now.");
+                std::process::exit(0);
             }
             ClusterOperation::UploadResource {
                 origin,
@@ -1227,6 +1229,28 @@ impl<Platform: pal::Platform> System<Platform> {
                         return Ok(());
                     };
                 cluster.deposit(&account, amount);
+            }
+            ClusterOperation::RemoveWorker { cluster_id, worker } => {
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin");
+                }
+                if worker != self.identity_key.public() {
+                    return Ok(());
+                }
+                let Some(_cluster) = self.contract_cluster.remove_cluster(&cluster_id) else {
+                    warn!("Cluster {} is not deployed on this worker", hex_fmt::HexFmt(&cluster_id));
+                    return Ok(());
+                };
+                for contract in self.contracts.drain() {
+                    contract.destroy(&self.sidevm_spawner);
+                }
+                warn!(
+                    "This worker is removed from cluster {}.",
+                    hex_fmt::HexFmt(&cluster_id)
+                );
+                warn!("The worker will exit now.");
+                warn!("If you want to keep providing computation power to some cluster, please create a new worker.");
+                std::process::exit(0);
             }
         }
         Ok(())

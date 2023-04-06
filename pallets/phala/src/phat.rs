@@ -99,6 +99,9 @@ pub mod pallet {
 	pub type ClusterWorkers<T> =
 		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>, ValueQuery>;
 
+	#[pallet::storage]
+	pub type ClusterByWorkers<T> = StorageMap<_, Twox64Concat, WorkerPublicKey, ContractClusterId>;
+
 	/// The pink-system contract code used to deploy new clusters
 	#[pallet::storage]
 	pub type PinkSystemCode<T> = StorageValue<_, (u16, Vec<u8>), ValueQuery>;
@@ -157,6 +160,14 @@ pub mod pallet {
 			account: H256,
 			amount: BalanceOf<T>,
 		},
+		WorkerAddedToCluster {
+			worker: WorkerPublicKey,
+			cluster: ContractClusterId,
+		},
+		WorkerRemovedFromCluster {
+			worker: WorkerPublicKey,
+			cluster: ContractClusterId,
+		},
 	}
 
 	#[pallet::error]
@@ -173,6 +184,7 @@ pub mod pallet {
 		PayloadTooLarge,
 		NoPinkSystemCode,
 		ContractNotFound,
+		WorkerIsBusy,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -233,11 +245,19 @@ pub mod pallet {
 				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let cluster_id = ClusterCounter::<T>::mutate(|counter| {
-				let cluster_id = *counter;
+				// 0 is reserved for removed workers
 				*counter += 1;
-				cluster_id
+				*counter
 			});
 			let cluster = ContractClusterId::from_low_u64_be(cluster_id);
+
+			for worker in &deploy_workers {
+				ensure!(
+					ClusterByWorkers::<T>::get(worker).is_none(),
+					Error::<T>::WorkerIsBusy
+				);
+				ClusterByWorkers::<T>::insert(worker, cluster);
+			}
 
 			let system_code_hash =
 				PinkSystemCodeHash::<T>::get().ok_or(Error::<T>::NoPinkSystemCode)?;
@@ -456,6 +476,72 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			PinkRuntimeVersion::<T>::put(version);
+			Ok(())
+		}
+
+		/// Add a new worker to a cluster
+		#[pallet::call_index(8)]
+		#[pallet::weight(0)]
+		pub fn add_worker_to_cluster(
+			origin: OriginFor<T>,
+			worker_pubkey: WorkerPublicKey,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				cluster_info.owner == origin,
+				Error::<T>::ClusterPermissionDenied
+			);
+			ensure!(
+				registry::Workers::<T>::get(worker_pubkey).is_some(),
+				Error::<T>::WorkerNotFound
+			);
+			ensure!(
+				ClusterByWorkers::<T>::get(worker_pubkey).is_none(),
+				Error::<T>::WorkerIsBusy
+			);
+			// TODO: Do we need to check whether the worker agree to join the cluster?
+			ClusterByWorkers::<T>::insert(worker_pubkey, cluster_id);
+			ClusterWorkers::<T>::append(cluster_id, worker_pubkey);
+			Self::deposit_event(Event::WorkerAddedToCluster {
+				worker: worker_pubkey,
+				cluster: cluster_id,
+			});
+			Ok(())
+		}
+
+		/// Remove a new worker from a cluster
+		#[pallet::call_index(9)]
+		#[pallet::weight(0)]
+		pub fn remove_worker_from_cluster(
+			origin: OriginFor<T>,
+			worker_pubkey: WorkerPublicKey,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				cluster_info.owner == origin,
+				Error::<T>::ClusterPermissionDenied
+			);
+			ensure!(
+				ClusterByWorkers::<T>::get(worker_pubkey) == Some(cluster_id),
+				Error::<T>::WorkerNotFound
+			);
+			// Put the worker to cluster 0 to avoid it to be added to some cluster again.
+			ClusterByWorkers::<T>::insert(worker_pubkey, ContractClusterId::from_low_u64_be(0));
+			ClusterWorkers::<T>::mutate(cluster_id, |workers| {
+				workers.retain(|key| key != &worker_pubkey)
+			});
+			Self::deposit_event(Event::WorkerRemovedFromCluster {
+				worker: worker_pubkey,
+				cluster: cluster_id,
+			});
+			Self::push_message(ClusterOperation::<T::AccountId>::RemoveWorker {
+				cluster_id,
+				worker: worker_pubkey,
+			});
 			Ok(())
 		}
 	}

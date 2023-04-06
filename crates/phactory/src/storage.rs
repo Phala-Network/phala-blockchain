@@ -39,7 +39,7 @@ mod storage_ext {
     use chain::{pallet_computation, pallet_phat, pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
-    use phala_mq::{Message, MessageOrigin};
+    use phala_mq::{ContractClusterId, Message, MessageOrigin};
     use phala_trie_storage::TrieStorage;
     use phala_types::messaging::TokenomicParameters;
     use serde::{Deserialize, Serialize};
@@ -199,6 +199,13 @@ mod storage_ext {
 
         pub fn tokenomic_parameters(&self) -> Option<TokenomicParameters> {
             self.execute_with(pallet_computation::TokenomicParameters::<chain::Runtime>::get)
+        }
+
+        pub(crate) fn get_worker_cluster(
+            &self,
+            worker: &phala_types::WorkerPublicKey,
+        ) -> Option<ContractClusterId> {
+            self.execute_with(|| pallet_phat::ClusterByWorkers::<chain::Runtime>::get(worker))
         }
     }
 }

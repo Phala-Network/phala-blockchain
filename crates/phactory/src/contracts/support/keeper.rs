@@ -7,20 +7,11 @@ use crate::{contracts::Contract, im_helpers::ordmap_for_each_mut};
 
 type ContractMap = BTreeMap<AccountId, Contract>;
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct ContractsKeeper {
     contracts: ContractMap,
     #[serde(skip)]
     pub(crate) weight_changed: bool,
-}
-
-impl Clone for ContractsKeeper {
-    fn clone(&self) -> Self {
-        Self {
-            contracts: self.contracts.clone(),
-            weight_changed: self.weight_changed,
-        }
-    }
 }
 
 impl ContractsKeeper {

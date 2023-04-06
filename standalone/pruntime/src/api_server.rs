@@ -2,11 +2,12 @@ use std::str;
 
 use phactory_api::prpc::phactory_api_server::PhactoryAPIMethod;
 use rocket::data::{ByteUnit, Data, Limits, ToByteUnit};
+use rocket::fs::{FileServer, Options};
 use rocket::http::{ContentType, Method, Status};
 use rocket::response::status::Custom;
 use rocket::serde::json::{json, Json, Value as JsonValue};
-use rocket::Phase;
 use rocket::{get, post, routes};
+use rocket::{Build, Phase, Rocket};
 use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 
 use serde::{Deserialize, Serialize};
@@ -168,7 +169,6 @@ fn rpc_type(method: &str) -> RpcType {
     match PhactoryAPIMethod::from_str(method) {
         None => Private,
         Some(method) => match method {
-            // Private RPCs
             SyncHeader => Private,
             SyncParaHeader => Private,
             SyncCombinedHeaders => Private,
@@ -194,7 +194,7 @@ fn rpc_type(method: &str) -> RpcType {
             Stop => Private,
             LoadStorageProof => Private,
             TakeCheckpoint => Private,
-            // Public RPCs
+
             GetInfo => Public,
             ContractQuery => Public,
             GetContractInfo => Public,
@@ -202,6 +202,10 @@ fn rpc_type(method: &str) -> RpcType {
             UploadSidevmCode => Public,
             CalculateContractId => Public,
             Statistics => Public,
+
+            GenerateClusterStateRequest => Private,
+            SaveClusterState => Public,
+            LoadClusterState => Private,
         },
     }
 }
@@ -242,6 +246,10 @@ fn default_payload_limit_for_method(method: PhactoryAPIMethod) -> ByteUnit {
         LoadStorageProof => 10.mebibytes(),
         TakeCheckpoint => 1.kibibytes(),
         Statistics => 100.kibibytes(),
+
+        GenerateClusterStateRequest => 1.kibibytes(),
+        SaveClusterState => 1.kibibytes(),
+        LoadClusterState => 1.kibibytes(),
     }
 }
 
@@ -359,7 +367,12 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
     }
 }
 
-pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
+fn mount_static_file_server(builer: Rocket<Build>, storage_path: &str) -> Rocket<Build> {
+    let data_dir = phactory::public_data_dir(storage_path);
+    builer.mount("/download", FileServer::new(data_dir, Options::Missing))
+}
+
+pub(super) fn rocket(args: &super::Args, storage_path: &str) -> rocket::Rocket<impl Phase> {
     let mut server = rocket::build()
         .mount(
             "/",
@@ -408,11 +421,12 @@ pub(super) fn rocket(args: &super::Args) -> rocket::Rocket<impl Phase> {
             .manage(cors_options().to_cors().expect("To not fail"));
     }
     server = server.attach(TimeMeter).attach(RequestTracer);
+    server = mount_static_file_server(server, storage_path);
     server
 }
 
 /// api endpoint with access control, will be exposed to the public
-pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase>> {
+pub(super) fn rocket_acl(args: &super::Args, storage_path: &str) -> Option<rocket::Rocket<impl Phase>> {
     let public_port: u16 = if args.public_port.is_some() {
         args.public_port.expect("public_port should be set")
     } else {
@@ -442,6 +456,6 @@ pub(super) fn rocket_acl(args: &super::Args) -> Option<rocket::Rocket<impl Phase
         .attach(signer)
         .attach(RequestTracer)
         .attach(TimeMeter);
-
+    server_acl = mount_static_file_server(server_acl, storage_path);
     Some(server_acl)
 }

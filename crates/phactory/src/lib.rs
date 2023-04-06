@@ -7,7 +7,10 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use ::pink::types::AccountId;
-use contracts::pink::http_counters;
+use contracts::{
+    pink::{http_counters, Cluster},
+    ContractsKeeper,
+};
 use glob::PatternError;
 use rand::*;
 use serde::{
@@ -17,7 +20,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, str::FromStr, sync::Arc};
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 use std::{io::Write, marker::PhantomData};
 use std::{path::Path, str};
@@ -45,7 +48,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageSendQueue, MessageOrigin};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;
@@ -261,6 +264,17 @@ pub struct Phactory<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     started_at: Instant,
+
+    #[serde(skip)]
+    pub(crate) cluster_state_to_apply: Option<ClusterState<'static>>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ClusterState<'a> {
+    block_number: BlockNumber,
+    pending_messages: Vec<(MessageOrigin, ChannelState)>,
+    contracts: Cow<'a, ContractsKeeper>,
+    cluster: Cow<'a, Cluster>,
 }
 
 fn default_query_scheduler() -> RequestScheduler<AccountId> {
@@ -293,6 +307,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             rcu_dispatching: false,
             pending_effects: Vec::new(),
             started_at: Instant::now(),
+            cluster_state_to_apply: None,
         }
     }
 
@@ -822,6 +837,18 @@ fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
     sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
 }
 
+fn derive_key_for_cluster_state(identity_key: &[u8]) -> [u8; 16] {
+    sp_core::blake2_128(&(identity_key, b"/cluster_state").encode())
+}
+
 fn hex(data: impl AsRef<[u8]>) -> String {
     format!("0x{}", hex_fmt::HexFmt(data))
+}
+
+fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
+}
+
+pub fn public_data_dir(storage_path: impl AsRef<Path>) -> PathBuf {
+    storage_path.as_ref().to_path_buf().join("public")
 }

@@ -21,7 +21,7 @@ pub mod checkpoint_helper;
 #[cfg(feature = "dispatcher")]
 pub use dispatcher::{MessageDispatcher, TypedReceiveError, TypedReceiver};
 #[cfg(feature = "queue")]
-pub use send_queue::{MessageChannel, MessageSendQueue};
+pub use send_queue::{Channel as ChannelState, MessageChannel, MessageSendQueue};
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
 pub use simple_mpsc::{ReceiveError, Receiver};
 
@@ -80,13 +80,24 @@ pub mod traits {
         type Signer;
 
         /// Like push_data but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_with_data(&self, data: alloc::vec::Vec<u8>, to: impl Into<Path>) -> SigningMessage<Self::Signer>;
+        fn prepare_with_data(
+            &self,
+            data: alloc::vec::Vec<u8>,
+            to: impl Into<Path>,
+        ) -> SigningMessage<Self::Signer>;
         /// Like push_message_to but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_message_to(&self, message: &impl Encode, to: impl Into<Path>) -> SigningMessage<Self::Signer> {
+        fn prepare_message_to(
+            &self,
+            message: &impl Encode,
+            to: impl Into<Path>,
+        ) -> SigningMessage<Self::Signer> {
             self.prepare_with_data(message.encode(), to)
         }
         /// Like push_message but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_message<M: Encode + BindTopic>(&self, message: &M) -> SigningMessage<Self::Signer> {
+        fn prepare_message<M: Encode + BindTopic>(
+            &self,
+            message: &M,
+        ) -> SigningMessage<Self::Signer> {
             self.prepare_message_to(message, M::topic())
         }
     }

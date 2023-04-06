@@ -159,6 +159,10 @@ pub mod messaging {
             account: AccountId,
             amount: u128,
         },
+        RemoveWorker {
+            cluster_id: ContractClusterId,
+            worker: WorkerPublicKey,
+        },
     }
 
     impl<AccountId> ClusterOperation<AccountId> {
