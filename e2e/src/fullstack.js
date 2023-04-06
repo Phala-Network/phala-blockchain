@@ -781,7 +781,7 @@ describe('A full stack', function () {
                 ['phalaPhatContracts', 'WorkerAddedToCluster']
             ]);
             assert.isTrue(await checkUntil(async () => {
-                const workerCluster = await api.query.phalaPhatContracts.workerCluster(hex(info.system?.publicKey));
+                const workerCluster = await api.query.phalaPhatContracts.clusterByWorkers(hex(info.system?.publicKey));
                 return workerCluster.eq(clusterId);
             }, 4 * 6000), 'cluster not deployed');
             pherry[4].kill();
@@ -1118,8 +1118,8 @@ class Cluster {
 
     async _reservePorts() {
         const [wsPort, ...workerPorts] = await Promise.all([
-            portfinder.getPortPromise({ port: 9944 }),
-            ...this.workers.map((w, i) => portfinder.getPortPromise({ port: 8100 + i * 10 }))
+            portfinder.getPortPromise({ host: "127.0.0.1", port: 9944 }),
+            ...this.workers.map((w, i) => portfinder.getPortPromise({ host: "127.0.0.1", port: 8100 + i * 10 }))
         ]);
         this.wsPort = wsPort;
         this.workers.forEach((w, i) => w.port = workerPorts[i]);
@@ -1157,7 +1157,7 @@ class Cluster {
         const cluster = this.key_handover_cluster;
 
         const [...workerPorts] = await Promise.all([
-            ...cluster.workers.map((w, i) => portfinder.getPortPromise({ port: 8200 + i * 10 }))
+            ...cluster.workers.map((w, i) => portfinder.getPortPromise({ host: "127.0.0.1", port: 8200 + i * 10 }))
         ]);
         cluster.workers.forEach((w, i) => w.port = workerPorts[i]);
 
