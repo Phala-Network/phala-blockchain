@@ -30,7 +30,7 @@ pub struct WorkerManagerCliArgs {
     #[arg(short = 'c', long, env, default_value_t = 1073741824)]
     pub cache_size: usize,
 
-    /// Size of in-memory cache, default to 1 GiB
+    /// URL of webhook endpoint
     #[arg(short = 'w', long, env)]
     pub webhook_url: Option<String>,
 }
