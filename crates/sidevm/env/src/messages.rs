@@ -15,6 +15,7 @@ pub enum SystemMessage {
     PinkLog {
         block_number: u32,
         contract: AccountId,
+        entry: AccountId,
         exec_mode: String,
         timestamp_ms: u64,
         level: u8,

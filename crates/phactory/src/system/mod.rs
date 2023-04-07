@@ -1185,7 +1185,8 @@ impl<Platform: pal::Platform> System<Platform> {
                             let result = log_handler.try_send(SidevmCommand::PushSystemMessage(
                                 SystemMessage::PinkLog {
                                     block_number: block.block_number,
-                                    contract: system_contract.into(),
+                                    contract: system_contract.clone().into(),
+                                    entry: system_contract.into(),
                                     exec_mode: ExecutionMode::Transaction.display().into(),
                                     timestamp_ms: block.now_ms,
                                     level: $level as usize as u8,
@@ -1294,7 +1295,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             storage_deposit_limit,
                         };
                         let mut runtime = cluster.runtime_mut(log_handler.clone());
-                        let _result = runtime.contract_instantiate(
+                        let _result = runtime.instantiate(
                             code_hash,
                             contract_info.instantiate_data,
                             contract_info.salt,
