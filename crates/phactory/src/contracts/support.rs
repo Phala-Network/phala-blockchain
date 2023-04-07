@@ -1,8 +1,5 @@
 use anyhow::{anyhow, bail, Result};
-use pink::{
-    capi::v1::ecall::ECalls,
-    types::{AccountId, ExecutionMode, TransactionArguments},
-};
+use pink::types::{AccountId, ExecutionMode, TransactionArguments};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
@@ -214,7 +211,7 @@ impl Contract {
             gas_limit,
         };
         let mut handle = env.contract_cluster.runtime_mut(env.log_handler.clone());
-        _ = handle.contract_call(
+        _ = handle.call(
             self.address().clone(),
             input_data.to_vec(),
             ExecutionMode::Transaction,
