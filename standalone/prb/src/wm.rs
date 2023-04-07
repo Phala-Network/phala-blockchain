@@ -1,4 +1,4 @@
-use crate::api::{start_api_server, WorkerStatus, WorkerStatusMap};
+use crate::api::{start_api_server, WrappedWorkerContexts};
 use crate::cli::WorkerManagerCliArgs;
 use crate::datasource::{setup_data_source_manager, WrappedDataSourceManager};
 use crate::db::{setup_inventory_db, WrappedDb};
@@ -6,13 +6,14 @@ use crate::lifecycle::{WorkerLifecycleManager, WrappedWorkerLifecycleManager};
 use crate::tx::TxManager;
 use crate::use_parachain_api;
 use crate::wm::WorkerManagerMessage::*;
-use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
+use crate::worker::WrappedWorkerContext;
 use anyhow::{anyhow, Result};
-use futures::future::{try_join3, try_join_all};
-use log::{debug, info, trace};
-use std::collections::HashMap;
+use futures::future::{try_join, try_join3, try_join_all};
+use log::{debug, error, info};
+use moka_cht::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 pub type GlobalWorkerManagerCommandChannelPair = (
     mpsc::UnboundedSender<WorkerManagerCommand>,
@@ -31,15 +32,15 @@ pub struct WorkerManagerCommand {
 }
 
 pub struct WorkerManagerContext {
-    pub initialized: bool,
-    pub current_lifecycle_manager: Option<WrappedWorkerLifecycleManager>,
+    pub initialized: AtomicBool,
+    pub current_lifecycle_manager: AtomicPtr<Option<WrappedWorkerLifecycleManager>>,
     pub inv_db: WrappedDb,
     pub dsm: WrappedDataSourceManager,
-    pub state_map: WorkerStatusMap,
+    pub workers: WrappedWorkerContexts,
     pub txm: Arc<TxManager>,
 }
 
-pub type WrappedWorkerManagerContext = Arc<RwLock<WorkerManagerContext>>;
+pub type WrappedWorkerManagerContext = Arc<WorkerManagerContext>;
 
 pub enum WorkerManagerMessage {
     ResponseOk,
@@ -50,7 +51,6 @@ pub enum WorkerManagerMessage {
     ShouldResetLifecycleManager,
 
     ShouldStartWorkerLifecycle(WrappedWorkerContext),
-    ShouldUpdateWorkerStatus(WrappedWorkerContext),
 }
 
 pub type WrappedReloadTx = mpsc::Sender<()>;
@@ -103,14 +103,16 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     let (txm, txm_handle) =
         TxManager::new(&args.db_path, dsm.clone(), api.metadata()).expect("TxManager");
 
-    let ctx = Arc::new(RwLock::new(WorkerManagerContext {
-        initialized: false,
-        current_lifecycle_manager: None,
+    let mut current_lifecycle_manager_inner = None;
+    let current_lifecycle_manager = AtomicPtr::new(&mut current_lifecycle_manager_inner);
+    let ctx = Arc::new(WorkerManagerContext {
+        initialized: false.into(),
+        current_lifecycle_manager,
         inv_db,
         dsm: dsm.clone(),
         txm: txm.clone(),
-        state_map: HashMap::new(),
-    }));
+        workers: Arc::new(Mutex::new(Vec::new())),
+    });
 
     let join_handle = try_join3(
         tokio::spawn(start_api_server(ctx.clone(), args.clone())),
@@ -119,7 +121,9 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     );
 
     tokio::select! {
-        _ = join_handle => {}
+        ret = join_handle => {
+            info!("wm.join_handle: {:?}", ret);
+        }
         _ = async {
             loop {
                 let (reload_tx, mut reload_rx) = mpsc::channel::<()>(1);
@@ -127,7 +131,8 @@ pub async fn wm(args: WorkerManagerCliArgs) {
                     set_lifecycle_manager(ctx.clone(), reload_tx.clone(), fast_sync_enabled, args.webhook_url.clone());
 
                 tokio::select! {
-                    _ = main_handle => {
+                    ret = main_handle => {
+                        info!("main_handle finished: {:?}", ret);
                         info!("Task done, exiting!");
                         std::process::exit(0);
                     }
@@ -145,41 +150,29 @@ pub async fn set_lifecycle_manager(
     reload_tx: WrappedReloadTx,
     fast_sync_enabled: bool,
     webhook_url: Option<String>,
-) {
+) -> Result<()> {
     let (tx, rx) = mpsc::unbounded_channel::<WorkerManagerCommand>();
-
-    let ctx_read = ctx.clone();
-    let ctx_read = ctx_read.read().await;
-    let dsm = ctx_read.dsm.clone();
-    let inv_db = ctx_read.inv_db.clone();
-    let txm = ctx_read.txm.clone();
-    drop(ctx_read);
 
     let lm = WorkerLifecycleManager::create(
         tx.clone(),
         ctx.clone(),
-        dsm,
-        inv_db,
+        ctx.dsm.clone(),
+        ctx.inv_db.clone(),
         fast_sync_enabled,
         webhook_url,
-        txm,
+        ctx.txm.clone(),
     )
     .await;
+    let mut lm_inner = Some(lm.clone());
+    ctx.current_lifecycle_manager
+        .store(&mut lm_inner, Ordering::SeqCst);
 
-    let mut ctx_write = ctx.write().await;
-    ctx_write.current_lifecycle_manager = Some(lm.clone());
-    drop(ctx_write);
-
-    let _ = tokio::join!(
+    try_join(
         message_loop(ctx.clone(), tx.clone(), rx, reload_tx),
-        lm.clone().spawn_lifecycle_tasks()
-    );
-}
-
-impl WorkerManagerMessage {
-    fn discriminant(&self) -> u8 {
-        unsafe { *(self as *const Self as *const u8) }
-    }
+        lm.clone().spawn_lifecycle_tasks(),
+    )
+    .await?;
+    Ok(())
 }
 
 async fn message_loop(
@@ -187,14 +180,13 @@ async fn message_loop(
     _tx: WorkerManagerCommandTx,
     mut rx: WorkerManagerCommandRx,
     reload_tx: WrappedReloadTx,
-) {
+) -> Result<()> {
     debug!("message_loop start");
     while let Some(WorkerManagerCommand {
         message,
         response_tx,
     }) = rx.recv().await
     {
-        trace!("message_loop got {}", message.discriminant());
         match message {
             ShouldBreakMessageLoop => break,
             LifecycleManagerStarted => {
@@ -203,59 +195,20 @@ async fn message_loop(
             }
             ShouldResetLifecycleManager => {
                 // todo: do some cleanup
-                reload_tx
-                    .send(())
-                    .await
-                    .expect("ShouldResetLifecycleManager");
+                reload_tx.send(()).await?;
             }
 
             ShouldStartWorkerLifecycle(c) => {
-                let cc = c.clone();
-                let cc = cc.read().await;
-                let ctx = ctx.clone();
-                let mut ctx = ctx.write().await;
-                let map = &mut ctx.state_map;
-                let id = cc.id.clone();
-
-                map.insert(
-                    id,
-                    WorkerStatus {
-                        worker: cc.worker.clone(),
-                        state: WorkerLifecycleState::Starting,
-                        phactory_info: None,
-                        last_message: String::new(),
-                    },
-                );
-
-                match cc.pr.get_info(()).await {
-                    Ok(_) => {
-                        let _ = response_tx.unwrap().send(ResponseOk);
-                    }
-                    Err(e) => {
-                        let _ = response_tx.unwrap().send(ResponseErr(e.to_string()));
-                    }
-                }
-                drop(cc);
-                drop(ctx);
-            }
-
-            ShouldUpdateWorkerStatus(c) => {
-                let cc = c.read().await;
-                let ctx = ctx.clone();
-                let mut ctx = ctx.write().await;
-                let map = &mut ctx.state_map;
-                let id = cc.id.as_str();
-                let mut status = map.get_mut(id).unwrap();
-
-                status.state = cc.state.clone();
-                status.phactory_info = cc.info.clone();
-                status.last_message = cc.last_message.clone();
-                drop(cc);
-                drop(ctx);
+                let workers = ctx.workers.clone();
+                let mut workers = workers.lock().await;
+                workers.push(c);
+                drop(workers);
+                let _ = response_tx.unwrap().send(ResponseOk);
             }
 
             _ => {}
         }
     }
     debug!("message_loop end");
+    Ok(())
 }

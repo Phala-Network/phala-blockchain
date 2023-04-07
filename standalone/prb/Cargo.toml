@@ -42,3 +42,5 @@ parity-scale-codec = "3.4.0"
 phala-pallets = { path = "../../pallets/phala" }
 scale-value = "0.7.0"
 subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }
+moka = { version = "0.10.2", features = ["future"] }
+moka-cht = "0.5.0"

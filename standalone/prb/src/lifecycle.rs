@@ -1,3 +1,4 @@
+use crate::api::WorkerStatus;
 use crate::datasource::WrappedDataSourceManager;
 use crate::db::{get_all_workers, Worker, WrappedDb};
 use crate::tx::TxManager;
@@ -11,7 +12,6 @@ use log::{debug, info, warn};
 use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::api::WorkerStatus;
 use tokio::sync::{RwLock, Semaphore};
 use tokio::task::JoinSet;
 
@@ -83,9 +83,9 @@ impl WorkerLifecycleManager {
                         worker_context_vec.push(cc.clone());
                         drop(c)
                     }
-                    Err(e) => panic!("create_worker_contexts: {}", e),
+                    Err(e) => panic!("create_worker_contexts: {e}"),
                 },
-                Err(e) => panic!("create_worker_contexts: {}", e),
+                Err(e) => panic!("create_worker_contexts: {e}"),
             }
         }
 
@@ -136,7 +136,7 @@ impl WorkerLifecycleManager {
         Ok(())
     }
 
-    pub async fn spawn_lifecycle_tasks(self: Arc<Self>) {
+    pub async fn spawn_lifecycle_tasks(self: Arc<Self>) -> Result<()> {
         debug!("spawn_lifecycle_tasks start");
         let v = &self.clone().worker_context_map;
         let v = v.iter().map(|(_, c)| c.clone()).collect::<Vec<_>>();
@@ -147,8 +147,8 @@ impl WorkerLifecycleManager {
         while (join_set.join_next().await).is_some() {} // wait tasks to be done
         self.clone()
             .send_to_main_channel(WorkerManagerMessage::ShouldBreakMessageLoop)
-            .await
-            .expect("spawn_lifecycle_tasks -> ShouldBreakMessageLoop");
+            .await?;
+        Ok(())
     }
 
     pub async fn send_to_main_channel(

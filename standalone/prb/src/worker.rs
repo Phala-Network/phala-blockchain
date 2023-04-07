@@ -11,7 +11,7 @@ use futures::future::join;
 use log::{debug, error, info, warn};
 use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
-use phactory_api::prpc::{Attestation, GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
+use phactory_api::prpc::{GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
 use phactory_api::pruntime_client::{new_pruntime_client, PRuntimeClient};
 use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phaxt::subxt::ext::sp_runtime;
@@ -20,6 +20,7 @@ use pherry::types::Block;
 use pherry::{get_block_at, get_finalized_header, BlockSyncState};
 use serde::{Deserialize, Serialize};
 use std::cmp;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -51,6 +52,18 @@ pub type WrappedWorkerContext = Arc<RwLock<WorkerContext>>;
 pub type WorkerLifecycleStateTx = mpsc::UnboundedSender<WorkerLifecycleState>;
 pub type WorkerLifecycleStateRx = mpsc::UnboundedReceiver<WorkerLifecycleState>;
 
+macro_rules! use_lm {
+    ($ctx:expr) => {
+        unsafe {
+            let lm = $ctx
+                .clone()
+                .current_lifecycle_manager
+                .load(Ordering::SeqCst);
+            (*lm).clone().unwrap()
+        }
+    };
+}
+
 macro_rules! lifecycle_loop_state_handle_error {
     ($f:expr, $c:expr) => {{
         if let Err(e) = $f($c.clone()).await {
@@ -74,17 +87,10 @@ macro_rules! set_worker_message {
     ($c:expr, $m:expr) => {{
         let cc = $c.clone();
         let mut cc = cc.write().await;
-        let ctx = cc.ctx.clone();
-        let ctx = ctx.read().await;
-        let lm = ctx.current_lifecycle_manager.as_ref();
-        let lm = lm.unwrap().clone();
-        drop(ctx);
         cc.set_last_message($m);
+        let lm = use_lm!(cc.ctx);
         drop(cc);
         tokio::spawn(lm.clone().webhook_send($c.clone()));
-        let _ = lm
-            .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus($c.clone()))
-            .await;
     }};
 }
 
@@ -95,12 +101,8 @@ macro_rules! extract_essential_values {
         let cc = cc.read().await;
         let sm_tx = cc.sm_tx.as_ref().unwrap().clone();
         let pr = cc.pr.clone();
-        let ctx = cc.ctx.clone();
-        let ctx = ctx.read().await;
-        let lm = ctx.current_lifecycle_manager.as_ref();
-        let lm = lm.unwrap().clone();
+        let lm = use_lm!(cc.ctx);
         let worker = cc.worker.clone();
-        drop(ctx);
         drop(cc);
         (lm, worker, pr, sm_tx)
     }};
@@ -157,8 +159,8 @@ impl WorkerContext {
         let cc = c.clone();
         let cc = cc.read().await;
         let ctx = cc.ctx.clone();
-        let ctx = ctx.read().await;
-        let lm = ctx.current_lifecycle_manager.clone().unwrap().clone();
+        let lm = use_lm!(ctx);
+
         let worker = cc.worker.clone();
         drop(ctx);
         drop(cc);
@@ -168,16 +170,13 @@ impl WorkerContext {
                 WorkerManagerMessage::ShouldStartWorkerLifecycle(c.clone()),
             )
             .await
-            .unwrap_or_else(|_| panic!("Failed to start worker {}", worker.name))
+            .unwrap_or_else(|e| panic!("Failed to start worker {}: {e}", worker.name))
         {
             let cc = c.clone();
             let mut cc = cc.write().await;
             cc.state = WorkerLifecycleState::HasError(err_str);
             drop(cc);
         }
-        let _ = lm
-            .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
-            .await;
 
         let _ = join(
             tokio::spawn(Self::do_start(c.clone())),
@@ -200,26 +199,15 @@ impl WorkerContext {
         .await;
     }
 
-    async fn send_status(c: WrappedWorkerContext) {
-        let (lm, _, _pr, _) = extract_essential_values!(c);
-        let _ = lm
-            .clone()
-            .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
-            .await;
-    }
-
     async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
         let (lm, worker, _pr, sm_tx) = extract_essential_values!(c);
 
         let _ = sm_tx.clone().send(WorkerLifecycleState::Starting);
-        Self::send_status(c.clone()).await;
 
         while let Some(s) = sm_rx.recv().await {
             let mut cc = c.write().await;
             cc.state = s.clone();
             drop(cc);
-
-            Self::send_status(c.clone()).await;
 
             match s {
                 WorkerLifecycleState::Starting => {
@@ -241,7 +229,6 @@ impl WorkerContext {
                 }
             }
 
-            Self::send_status(c.clone()).await;
             tokio::spawn(lm.clone().webhook_send(c.clone()));
         }
     }
@@ -393,10 +380,6 @@ impl WorkerContext {
                     retry_count += 1;
                 }
             }
-            let _ = lm
-                .clone()
-                .send_to_main_channel(WorkerManagerMessage::ShouldUpdateWorkerStatus(c.clone()))
-                .await;
         }
     }
 

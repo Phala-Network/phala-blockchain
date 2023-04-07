@@ -2,7 +2,7 @@ use crate::api::ApiError::LifecycleManagerNotInitialized;
 use crate::cli::WorkerManagerCliArgs;
 use crate::db::Worker;
 use crate::wm::WrappedWorkerManagerContext;
-use crate::worker::WorkerLifecycleState;
+use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -13,8 +13,9 @@ use log::{info, warn};
 use phactory_api::prpc::PhactoryInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 type AppContext = State<WrappedWorkerManagerContext>;
 
@@ -63,7 +64,7 @@ impl IntoResponse for ApiError {
                 StatusCode::BAD_REQUEST,
                 Json(json!({
                     "error": true,
-                    "code": format!("{:?}", self),
+                    "code": format!("{:?}", &self),
                     "message": format!("{self}"),
                 })),
             )
@@ -78,17 +79,8 @@ impl From<anyhow::Error> for ApiError {
     }
 }
 
-pub type WorkerStatusMap = HashMap<String, WorkerStatus>;
-
-macro_rules! use_current_lm {
-    () => {{
-        let cc = ctx.clone()
-        let cc = cc.read().await;
-        let lm = cc.current_lifecycle_manager.ok_or(ApiError::LifecycleManagerNotInitialized)?.clone();
-        drop(lm);
-        lm
-    }};
-}
+pub type WorkerContexts = Vec<WrappedWorkerContext>;
+pub type WrappedWorkerContexts = Arc<Mutex<WorkerContexts>>;
 
 pub async fn start_api_server(
     ctx: WrappedWorkerManagerContext,
@@ -134,9 +126,19 @@ async fn handle_restart_wm() {
 async fn handle_get_worker_status(
     State(ctx): AppContext,
 ) -> (StatusCode, Json<WorkerStatusResponse>) {
-    let ctx = ctx.read().await;
-    let workers = &ctx.state_map;
-    let workers = workers.iter().map(|(_k, v)| v.clone()).collect::<Vec<_>>();
+    let w = ctx.workers.clone();
+    let w = w.lock().await;
+    let mut workers = Vec::new();
+    for w in w.iter() {
+        let w = w.clone();
+        let w = w.read().await;
+        workers.push(WorkerStatus {
+            worker: w.worker.clone(),
+            state: w.state.clone(),
+            phactory_info: w.info.clone(),
+            last_message: w.last_message.clone(),
+        })
+    }
     (StatusCode::OK, Json(WorkerStatusResponse { workers }))
 }
 
