@@ -1,5 +1,5 @@
 use crate::datasource::DataSourceError::*;
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{anyhow, Context, Result};
 use jsonrpsee::{
     async_client::ClientBuilder,
     client_transport::ws::{Uri, WsTransportClientBuilder},
@@ -396,8 +396,9 @@ impl DataSourceManager {
         let is_parachain_full = !parachain_full_rpc_client_ids.is_empty();
 
         let cache = Cache::builder()
-            .weigher(|key, value: &Arc<DataSourceCacheItem>| -> u32 { value.resident_size() as _ })
-            .max_capacity(cache_size as _);
+            .weigher(|_key, value: &Arc<DataSourceCacheItem>| -> u32 { value.resident_size() as _ })
+            .max_capacity(cache_size as _)
+            .time_to_idle(Duration::from_secs(15 * 60));
 
         let cache = cache.build();
 
@@ -419,7 +420,7 @@ impl DataSourceManager {
         };
         let dsm = Arc::new(dsm);
         let ret = dsm.clone();
-        let dsm_move = dsm.clone();
+        let _dsm_move = dsm.clone();
 
         if !(ret.is_relaychain_full && ret.is_parachain_full) {
             warn!("Pruned mode detected hence fast sync feature disabled.");

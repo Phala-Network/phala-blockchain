@@ -9,17 +9,17 @@ use chrono::{DateTime, Utc};
 use futures::future::{join_all, BoxFuture};
 use hex::ToHex;
 use log::{error, info};
-use parity_scale_codec::{Decode, Encode};
-use rocksdb::{DBCommon, DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
+use parity_scale_codec::{Decode};
+use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use subxt::dynamic::{self, Value};
-use subxt::tx::{DynamicTxPayload, StaticTxPayload, TxPayload};
-use subxt::utils::AccountId32;
+
+
+
 use subxt::Metadata;
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -284,7 +284,7 @@ impl TxManager {
     }
     async fn send_tx_group(
         self: Arc<Self>,
-        pid: u64,
+        _pid: u64,
         payloads: Vec<RuntimeCall>,
     ) -> Result<Vec<Result<()>>> {
         let api = use_parachain_api!(self.dsm, false).ok_or(NoValidSubstrateDataSource)?;
@@ -322,8 +322,8 @@ impl TxManager {
     pub async fn register_worker(
         self: Arc<Self>,
         pid: u64,
-        mut pruntime_info: Vec<u8>,
-        mut attestation: Vec<u8>,
+        pruntime_info: Vec<u8>,
+        attestation: Vec<u8>,
         v2: bool,
     ) -> Result<()> {
         let tx_payload = if v2 {
@@ -358,7 +358,7 @@ impl TxManager {
     pub async fn update_worker_endpoint(
         self: Arc<Self>,
         pid: u64,
-        mut endpoint_payload: Vec<u8>,
+        endpoint_payload: Vec<u8>,
         signature: Vec<u8>,
     ) -> Result<()> {
         let mut endpoint_payload = &endpoint_payload[..];
@@ -394,7 +394,7 @@ pub struct InnerPoolOperator {
 }
 
 impl Serialize for InnerPoolOperator {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, _serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -403,7 +403,7 @@ impl Serialize for InnerPoolOperator {
 }
 
 impl<'de> Deserialize<'de> for InnerPoolOperator {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(_deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -425,11 +425,11 @@ impl PoolOperatorAccess for DB {
         todo!()
     }
 
-    fn get(&self, uid: u64) -> Result<Option<InnerPoolOperator>> {
+    fn get(&self, _uid: u64) -> Result<Option<InnerPoolOperator>> {
         todo!()
     }
 
-    fn set(&self, uid: u64, po: InnerPoolOperator) -> Result<InnerPoolOperator> {
+    fn set(&self, _uid: u64, _po: InnerPoolOperator) -> Result<InnerPoolOperator> {
         todo!()
     }
 }

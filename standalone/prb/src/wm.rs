@@ -9,8 +9,8 @@ use crate::wm::WorkerManagerMessage::*;
 use crate::worker::WrappedWorkerContext;
 use anyhow::{anyhow, Result};
 use futures::future::{try_join, try_join3, try_join_all};
-use log::{debug, error, info};
-use moka_cht::HashMap;
+use log::{debug, info};
+
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};

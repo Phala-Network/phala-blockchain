@@ -5,7 +5,7 @@ use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::pruntime::PRuntimeClient;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use crate::{use_parachain_api, use_relaychain_api, with_retry};
+use crate::{use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use futures::future::join;
@@ -307,7 +307,7 @@ impl WorkerContext {
 
     async fn handle_on_preparing(c: WrappedWorkerContext) -> Result<()> {
         set_worker_message!(c, "Reached latest finalized height, start preparing...");
-        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (lm, worker, pr, _sm_tx) = extract_essential_values!(c);
         let txm = lm.txm.clone();
 
         if worker.sync_only {
@@ -344,7 +344,7 @@ impl WorkerContext {
     }
 
     async fn update_info_loop(c: WrappedWorkerContext) {
-        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (_lm, worker, pr, sm_tx) = extract_essential_values!(c);
 
         let mut retry_count: u8 = 0;
 
@@ -458,7 +458,6 @@ impl WorkerContext {
         let dsm = dsm.clone();
         let i = pr.get_info(()).await?;
         let next_para_headernum = i.para_headernum;
-        debug!("sync_loop_round: {}", i.blocknum);
         if i.blocknum < next_para_headernum {
             tokio::spawn(Self::batch_sync_storage_changes(
                 pr.clone(),
@@ -483,14 +482,19 @@ impl WorkerContext {
         let pp = pr.clone();
         let dd = dsm.clone();
         let ii = i.clone();
-        sync_state.authory_set_state = None;
-        sync_state.blocks.clear();
-        let not_done_with_hc =
-            tokio::spawn(async move { Self::sync_with_cached_headers(pp, dd, &ii).await })
-                .await??;
-        if not_done_with_hc {
-            return Ok((true, sync_state));
+
+        let hc = use_relaychain_hc!(dsm);
+        if hc.is_some() {
+            sync_state.authory_set_state = None;
+            sync_state.blocks.clear();
+            let not_done_with_hc =
+                tokio::spawn(async move { Self::sync_with_cached_headers(pp, dd, &ii).await })
+                    .await??;
+            if not_done_with_hc {
+                return Ok((true, sync_state));
+            }
         }
+
         let (not_done, sync_state) =
             tokio::spawn(async move { Self::sync(pr.clone(), dsm.clone(), &i, sync_state).await })
                 .await??;
