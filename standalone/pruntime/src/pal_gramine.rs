@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use parity_scale_codec::Encode;
-use std::alloc::System;
 use tracing::info;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
@@ -118,7 +117,8 @@ impl Machine for GraminePlatform {
 }
 
 #[global_allocator]
-static ALLOCATOR: StatSizeAllocator<System> = StatSizeAllocator::new(System);
+static ALLOCATOR: StatSizeAllocator<jemallocator::Jemalloc> =
+    StatSizeAllocator::new(jemallocator::Jemalloc);
 
 impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
@@ -182,8 +182,14 @@ pub(crate) fn print_target_info() {
             sgx_api_lite::report(&target_info, &[0; 64]).expect("Failed to get sgx report");
         println!("mr_enclave  : 0x{}", HexFmt(&report.body.mr_enclave.m));
         println!("mr_signer   : 0x{}", HexFmt(&report.body.mr_signer.m));
-        println!("isv_svn     : 0x{:?}", HexFmt(report.body.isv_svn.to_ne_bytes()));
-        println!("isv_prod_id : 0x{:?}", HexFmt(report.body.isv_prod_id.to_ne_bytes()));
+        println!(
+            "isv_svn     : 0x{:?}",
+            HexFmt(report.body.isv_svn.to_ne_bytes())
+        );
+        println!(
+            "isv_prod_id : 0x{:?}",
+            HexFmt(report.body.isv_prod_id.to_ne_bytes())
+        );
     } else {
         println!("Running in Native mode");
     }

@@ -35,6 +35,10 @@ RUST_LOG_SANITIZED = "true"
 RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
 i2p_proxy = { passthrough = true }
+{#
+Options for jemalloc
+#}
+MALLOC_CONF = "narenas:1,background_thread:false,dss:disabled,tcache:false"
 
 [[fs.mounts]]
 type = "chroot"

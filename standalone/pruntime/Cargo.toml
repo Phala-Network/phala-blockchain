@@ -41,6 +41,7 @@ phala-git-revision = { path = "../../crates/phala-git-revision" }
 sgx-api-lite = { path = "../../crates/sgx-api-lite" }
 tracing = "0.1"
 hex_fmt = "0.3.0"
+jemallocator = "0.5"
 
 [patch.crates-io]
 # TODO.kevin: Move back to crates.io once it released 1.0
