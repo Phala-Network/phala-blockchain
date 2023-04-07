@@ -44,3 +44,4 @@ scale-value = "0.7.0"
 subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }
 moka = { version = "0.10.2", features = ["future"] }
 moka-cht = "0.5.0"
+async-trait = "0.1.68"

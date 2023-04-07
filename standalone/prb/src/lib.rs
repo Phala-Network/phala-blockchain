@@ -8,6 +8,7 @@ pub mod configurator;
 pub mod datasource;
 pub mod db;
 pub mod lifecycle;
+pub mod pruntime;
 pub mod tx;
 pub mod utils;
 pub mod wm;

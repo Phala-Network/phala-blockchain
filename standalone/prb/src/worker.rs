@@ -2,6 +2,7 @@ use crate::datasource::DataSourceError::NoValidDataSource;
 use crate::datasource::WrappedDataSourceManager;
 use crate::db::Worker;
 use crate::lifecycle::WrappedWorkerLifecycleManager;
+use crate::pruntime::PRuntimeClient;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
 use crate::{use_parachain_api, use_relaychain_api, with_retry};
@@ -12,7 +13,6 @@ use log::{debug, error, info, warn};
 use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
-use phactory_api::pruntime_client::{new_pruntime_client, PRuntimeClient};
 use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::search_suitable_genesis_for_worker;
@@ -124,7 +124,8 @@ pub struct WorkerContext {
 
 impl WorkerContext {
     pub async fn create(w: Worker, ctx: WrappedWorkerManagerContext) -> Result<Self> {
-        let pr = new_pruntime_client(w.endpoint.clone());
+        let pr = crate::pruntime::create_client(w.endpoint.clone());
+        let pr = Arc::new(pr);
         let (tx, rx) = mpsc::unbounded_channel::<WorkerLifecycleCommand>();
 
         let mut ret = Self {
@@ -136,7 +137,7 @@ impl WorkerContext {
             tx,
             rx: Arc::new(Mutex::new(rx)),
             ctx,
-            pr: Arc::new(pr),
+            pr,
             info: None,
             last_message: String::new(),
         };
