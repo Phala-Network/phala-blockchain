@@ -1,4 +1,4 @@
-use crate::{phat, phat_tokenomic, mq, registry};
+use crate::{mq, phat, phat_tokenomic, registry};
 
 use crate::mock::{MockValidator, NoneAttestationEnabled};
 use frame_support::{pallet_prelude::ConstU32, parameter_types, traits::GenesisBuild};

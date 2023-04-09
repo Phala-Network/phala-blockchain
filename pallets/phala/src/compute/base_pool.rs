@@ -808,7 +808,6 @@ pub mod pallet {
 
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
-			
 			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool.pool_account_id,
@@ -817,7 +816,7 @@ pub mod pallet {
 				false,
 			)
 			.expect("transfer should not fail");
-			
+
 			if total_stake > Zero::zero() {
 				pool.total_value -= amount;
 			} else {
