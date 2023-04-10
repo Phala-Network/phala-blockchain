@@ -2,40 +2,59 @@ use self::khala::runtime_types;
 use self::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
 use self::khala::runtime_types::phala_pallets::utils::attestation_legacy;
 use crate::datasource::WrappedDataSourceManager;
+use crate::tx::khala::runtime_types::sp_runtime::DispatchError;
+use crate::tx::khala::utility::events::ItemFailed;
 use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use chrono::{DateTime, Utc};
+use crossbeam::atomic::AtomicCell;
+use crossbeam::queue::SegQueue;
 use futures::future::{join_all, BoxFuture};
-use hex::ToHex;
-use log::{error, info};
-use parity_scale_codec::{Decode};
+use lazy_static::lazy_static;
+use log::{debug, error};
+use moka_cht::HashMap;
+use parity_scale_codec::{Decode, Encode};
+use phala_types::messaging::SignedMessage;
 use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{HashMap, VecDeque};
+use schnorrkel::keys::Keypair;
+use serde::{Deserialize, Serialize};
+use sp_core::crypto::{AccountId32, Ss58AddressFormat, Ss58Codec};
+use sp_core::sr25519::Pair as Sr25519Pair;
+use sp_core::Pair;
+use std::collections::{HashMap as StdHashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
+use std::mem;
 use std::path::Path;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
-
-
-
-use subxt::Metadata;
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use subxt::error::DispatchError as SubxtDispatchError;
+use subxt::tx::PairSigner;
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_stream::StreamExt;
+use tokio_stream::{Stream, StreamExt};
 
 #[subxt::subxt(runtime_metadata_url = "wss://khala.api.onfinality.io:443/public-ws")]
 pub mod khala {}
 
+static PHALA_SS58_FORMAT_U8: u8 = 30;
+
+lazy_static! {
+    static ref PHALA_SS58_FORMAT: Ss58AddressFormat = Ss58AddressFormat::from(PHALA_SS58_FORMAT_U8);
+}
+
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
 
-type DB = DBWithThreadMode<MultiThreaded>;
-type TxGroupMap = HashMap<u64, TxGroup>;
-type TxGroup = Vec<Transaction>;
+static PO_LIST: &str = "po_list";
+static PO_BY_PID: &str = "po:pid:";
 
-fn get_options(max_open_files: Option<i32>) -> Options {
+pub type DB = DBWithThreadMode<MultiThreaded>;
+
+pub fn get_options(max_open_files: Option<i32>) -> Options {
     // Current tuning based off of the total ordered example, flash
     // storage example on
     // https://github.com/facebook/rocksdb/wiki/RocksDB-Tuning-Guide
@@ -69,11 +88,17 @@ pub enum TransactionState {
 
 #[derive(thiserror::Error, Clone, Debug, Serialize)]
 pub enum TxManagerError {
+    #[error("Unknown data mismatch, this is a bug.")]
+    UnknownDataMismatch,
+
     #[error("Operator of pool #{0} not set")]
     PoolOperatorNotSet(u64),
 
     #[error("There is no valid substrate data source")]
     NoValidSubstrateDataSource,
+
+    #[error("Invalid pool operator")]
+    InvalidPoolOperator,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -81,10 +106,27 @@ pub struct TransactionSuccess {
     pub updated_at: DateTime<Utc>,
 }
 
+impl Default for TransactionSuccess {
+    fn default() -> Self {
+        Self {
+            updated_at: Utc::now(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TransactionErrorMessage {
     pub updated_at: DateTime<Utc>,
     pub message: String,
+}
+
+impl From<&Error> for TransactionErrorMessage {
+    fn from(e: &Error) -> Self {
+        Self {
+            updated_at: Utc::now(),
+            message: e.to_string(),
+        }
+    }
 }
 
 impl Debug for Transaction {
@@ -117,23 +159,9 @@ pub struct Transaction {
     pub pid: u64,
     pub created_at: DateTime<Utc>,
     #[serde(skip)]
-    pub tx_payload: Option<RuntimeCall>,
+    pub tx_payload: AtomicCell<Option<RuntimeCall>>,
     #[serde(skip)]
-    pub shot: Option<oneshot::Sender<Result<()>>>,
-}
-
-impl Clone for Transaction {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            state: self.state.clone(),
-            desc: self.desc.clone(),
-            pid: self.pid,
-            created_at: self.created_at,
-            tx_payload: None,
-            shot: None,
-        }
-    }
+    pub shot: AtomicCell<Option<oneshot::Sender<Result<()>>>>,
 }
 
 impl Transaction {
@@ -150,69 +178,95 @@ impl Transaction {
             desc,
             pid,
             created_at: Utc::now(),
-            tx_payload: Some(tx_payload),
-            shot: Some(shot),
+            tx_payload: AtomicCell::new(Some(tx_payload)),
+            shot: AtomicCell::new(Some(shot)),
+        }
+    }
+}
+
+pub struct TxQueueStream<T> {
+    queue: SegQueue<T>,
+}
+
+impl<T> TxQueueStream<T> {
+    pub fn push(&self, i: T) {
+        self.queue.push(i)
+    }
+}
+
+impl<T: Send> Stream for TxQueueStream<T> {
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.queue.pop() {
+            Some(val) => Poll::Ready(Some(val)),
+            None => Poll::Pending,
         }
     }
 }
 
 pub struct TxManager {
     pub db: Arc<DB>,
-    pub total_tx_count: Arc<Mutex<usize>>,
     dsm: WrappedDataSourceManager,
-    queue_tx: mpsc::UnboundedSender<Transaction>,
-    pub pending_tx_count: Arc<Mutex<usize>>,
-    pub running_txs: Arc<RwLock<Vec<Transaction>>>,
-    pub finished_txs: Arc<RwLock<VecDeque<Transaction>>>,
-    metadata: Metadata,
+    tx_count: AtomicUsize,
+    tx_map: HashMap<usize, Arc<Mutex<Transaction>>>,
+    pending_txs: AtomicCell<VecDeque<usize>>,
+    running_txs: AtomicCell<Vec<usize>>,
+    past_txs: AtomicCell<VecDeque<usize>>,
+    channel_tx: mpsc::UnboundedSender<usize>,
 }
 
 impl TxManager {
     pub fn new(
         path_base: &str,
         dsm: WrappedDataSourceManager,
-        metadata: Metadata,
     ) -> Result<(Arc<Self>, BoxFuture<'static, Result<()>>)> {
         let opts = get_options(None);
         let path = Path::new(path_base).join("po");
         let db = DB::open(&opts, path)?;
-        let (tx, rx) = mpsc::unbounded_channel::<Transaction>();
+
+        let (tx, rx) = mpsc::unbounded_channel::<usize>();
 
         let txm = Arc::new(TxManager {
             db: Arc::new(db),
-            queue_tx: tx,
             dsm,
-            total_tx_count: Arc::new(Mutex::new(0)),
-            pending_tx_count: Arc::new(Mutex::new(0)),
-            running_txs: Arc::new(RwLock::new(Vec::new())),
-            finished_txs: Arc::new(RwLock::new(VecDeque::new())),
-            metadata,
+            tx_count: AtomicUsize::new(0),
+            tx_map: HashMap::new(),
+            pending_txs: AtomicCell::new(VecDeque::new()),
+            running_txs: AtomicCell::new(Vec::new()),
+            past_txs: AtomicCell::new(VecDeque::new()),
+            channel_tx: tx,
         });
         let handle = Box::pin(txm.clone().start_trader(rx));
 
         Ok((txm, handle))
     }
-    async fn start_trader(self: Arc<Self>, rx: mpsc::UnboundedReceiver<Transaction>) -> Result<()> {
+    async fn start_trader(self: Arc<Self>, rx: mpsc::UnboundedReceiver<usize>) -> Result<()> {
         let rx_stream = UnboundedReceiverStream::new(rx).chunks_timeout(
             TX_QUEUE_CHUNK_SIZE,
             Duration::from_millis(TX_QUEUE_CHUNK_TIMEOUT_IN_MS),
         );
         tokio::pin!(rx_stream);
 
-        while let Some(i) = rx_stream.next().await {
-            let rt = self.running_txs.clone();
-            let mut rt = rt.write().await;
-            let ft = self.finished_txs.clone();
-            let mut ft = ft.write().await;
-            while let Some(t) = rt.pop() {
-                ft.push_front(t);
+        while let Some(current_txs) = rx_stream.next().await {
+            let last_running_txs = self.running_txs.swap(current_txs.clone());
+            unsafe {
+                let pending_txs = self.pending_txs.as_ptr();
+                for _ in current_txs.iter() {
+                    let _ = (*pending_txs).pop_front();
+                }
+                let past_txs = self.past_txs.as_ptr();
+                for i in last_running_txs {
+                    (*past_txs).push_front(i);
+                }
             }
-            drop(rt);
-            drop(ft);
 
-            let mut tx_map: TxGroupMap = HashMap::new();
-            for i in i {
-                let pid = i.pid;
+            let mut tx_map: StdHashMap<u64, Vec<usize>> = StdHashMap::new();
+            for i in current_txs {
+                let tx = self.tx_map.get(&i).ok_or(UnknownDataMismatch)?;
+                let tx = tx.lock().await;
+                let pid = tx.pid;
+                drop(tx);
                 if let Some(group) = tx_map.get_mut(&pid) {
                     group.push(i);
                 } else {
@@ -236,64 +290,153 @@ impl TxManager {
             )
             .await;
         }
-        Err(anyhow!("Unexpected exit of start_trader."))
+        error!("Unexpected exit of start_trader!");
+        std::process::exit(255);
     }
-    async fn wrap_send_tx_group(self: Arc<Self>, pid: u64, tx_group: TxGroup) -> Result<()> {
-        if tx_group.is_empty() {
+    async fn wrap_send_tx_group(self: Arc<Self>, pid: u64, ids: Vec<usize>) -> Result<()> {
+        if ids.is_empty() {
             anyhow::bail!("TxGroup can't be empty!");
         }
-        let mut shots = VecDeque::new();
-        let mut payloads = Vec::new();
 
-        let r = self.running_txs.clone();
-        let mut r = r.write().await;
-        let p = self.pending_tx_count.clone();
-        let mut p = p.lock().await;
-        *p -= tx_group.len();
-
-        for mut t in tx_group {
-            t.state = TransactionState::Running;
-            r.push(t.clone());
-            shots.push_back(t.shot.unwrap());
-            payloads.push(t.tx_payload.unwrap());
+        for id in ids.clone() {
+            let tx = self.tx_map.get(&id).ok_or(UnknownDataMismatch)?;
+            let mut tx = tx.lock().await;
+            tx.state = TransactionState::Running;
+            drop(tx);
         }
-        drop(r);
-        drop(p);
 
-        match self.send_tx_group(pid, payloads).await {
+        match self.clone().send_tx_group(pid, ids.clone()).await {
             Ok(ret) => {
-                for r in ret {
-                    let tx = shots
-                        .pop_front()
-                        .ok_or(anyhow!("unexpected of absence of channel shot"))?;
-                    if let Err(_) = tx.send(r) {
+                for (idx, r) in ret.into_iter().enumerate() {
+                    let id = ids.get(idx).ok_or(UnknownDataMismatch)?;
+                    let tx = self.clone().tx_map.get(id).ok_or(UnknownDataMismatch)?;
+                    let mut tx = tx.lock().await;
+                    let shot = tx.shot.swap(None).ok_or(UnknownDataMismatch)?;
+                    tx.state = match &r {
+                        Ok(_) => TransactionState::Success(TransactionSuccess::default()),
+                        Err(e) => TransactionState::Error(e.into()),
+                    };
+                    if shot.send(r).is_err() {
                         return Err(anyhow!("shot can't be sent"));
                     }
+                    drop(tx);
                 }
             }
             Err(e) => {
                 error!("send_tx_group: {}", &e);
-                for tx in shots {
-                    if let Err(_) = tx.send(Err(anyhow!(e.to_string()))) {
+                for id in ids {
+                    let tx = self.clone().tx_map.get(&id).ok_or(UnknownDataMismatch)?;
+                    let mut tx = tx.lock().await;
+                    let shot = tx.shot.swap(None).ok_or(UnknownDataMismatch)?;
+                    tx.state = TransactionState::Error((&e).into());
+                    if shot.send(Err(anyhow!(e.to_string()))).is_err() {
                         return Err(anyhow!("shot can't be sent"));
                     }
+                    drop(tx);
                 }
             }
         }
         Ok(())
     }
-    async fn send_tx_group(
-        self: Arc<Self>,
-        _pid: u64,
-        payloads: Vec<RuntimeCall>,
-    ) -> Result<Vec<Result<()>>> {
+    async fn send_tx_group(self: Arc<Self>, pid: u64, ids: Vec<usize>) -> Result<Vec<Result<()>>> {
+        debug!("send_tx_group: {:?}", &ids);
+        let po = self.db.get_po(pid)?.ok_or(InvalidPoolOperator)?;
+        let proxied = po.proxied.is_some();
+
         let api = use_parachain_api!(self.dsm, false).ok_or(NoValidSubstrateDataSource)?;
-        let tx = khala::tx().utility().force_batch(payloads);
-        let tt = api.tx().call_data(&tx)?.encode_hex::<String>();
+        let mut calls = Vec::new();
+        for i in ids.iter() {
+            let tx = self.tx_map.get(i).ok_or(UnknownDataMismatch)?;
+            let tx = tx.lock().await;
+            let call = tx.tx_payload.swap(None).ok_or(UnknownDataMismatch)?;
+            calls.push(call);
+            drop(tx);
+        }
+        let signer = PairSigner::new(po.pair.clone());
+        let tx = if proxied {
+            let call =
+                RuntimeCall::Utility(runtime_types::pallet_utility::pallet::Call::force_batch {
+                    calls,
+                });
+            let call = khala::tx()
+                .proxy()
+                .proxy(po.proxied.unwrap().into(), None, call)
+                .unvalidated();
+            api.tx()
+                .sign_and_submit_then_watch_default(&call, &signer)
+                .await?
+        } else {
+            let call = khala::tx().utility().force_batch(calls).unvalidated();
+            api.tx()
+                .sign_and_submit_then_watch_default(&call, &signer)
+                .await?
+        };
+        let tx = tx.wait_for_in_block().await?;
+        let tx = tx.wait_for_success().await?;
 
-        info!("{}", &tt);
+        tx.iter().for_each(|i| {
+            let i = i.unwrap();
+            debug!("{}:{}", i.pallet_name(), i.variant_name());
+        });
 
-        Ok(vec![Ok(())])
+        if proxied {
+            let event_proxy = tx
+                .find_first::<khala::proxy::events::ProxyExecuted>()?
+                .ok_or(anyhow!("ProxyExecuted event not found!"))?;
+            if let Err(e) = event_proxy.result {
+                anyhow::bail!(format!("{:?}", e));
+            }
+        }
+        if tx
+            .find_first::<khala::utility::events::BatchCompleted>()?
+            .is_some()
+        {
+            return Ok((0..ids.len()).map(|_| Ok(())).collect::<Vec<_>>());
+        }
+        tx.find_first::<khala::utility::events::BatchCompletedWithErrors>()?
+            .ok_or(anyhow!("BatchCompletedWithErrors event not found!"))?;
+
+        let metadata = api.metadata();
+        let mut ret = Vec::new();
+        for i in tx.iter() {
+            let i = i?;
+            if i.pallet_name() == "Utility" {
+                match i.variant_name() {
+                    "ItemCompleted" => {
+                        ret.push(Ok(()));
+                    }
+                    "ItemFailed" => {
+                        let i = i
+                            .as_event::<ItemFailed>()?
+                            .ok_or(anyhow!("ItemFailed not parsed from event"))?;
+                        let i = i.error;
+                        let i_bytes = i.encode();
+                        match i {
+                            DispatchError::Module(_) => {
+                                // current code works with subxt-0.27.1, should be updated after subxt upgraded to > 0.28
+                                let e = SubxtDispatchError::decode_from(i_bytes, &metadata);
+                                match e {
+                                    SubxtDispatchError::Module(e) => ret.push(Err(anyhow!(
+                                        format!("{}", e.description.join("\n"))
+                                    ))),
+                                    SubxtDispatchError::Other(_) => {
+                                        ret.push(Err(anyhow!(format!("Error resolve failed"))))
+                                    }
+                                }
+                            }
+                            _ => {
+                                ret.push(Err(anyhow!(format!("{:?}", &i))));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if ret.len() != ids.len() {
+            anyhow::bail!("ItemCompleted or ItemFailed events incomplete!");
+        }
+        Ok(ret)
     }
 
     pub async fn send_to_queue(
@@ -302,18 +445,24 @@ impl TxManager {
         tx_payload: RuntimeCall,
         desc: String,
     ) -> Result<()> {
-        let id = self.total_tx_count.clone();
-        let mut id = id.lock().await;
-        *id += 1;
         let (shot, rx) = oneshot::channel();
         tokio::pin!(rx);
-        let c = self.pending_tx_count.clone();
-        let mut c = c.lock().await;
-        *c += 1;
-        let tx = Transaction::new(*id, pid, tx_payload, desc, shot);
-        self.queue_tx.clone().send(tx)?;
-        drop(c);
-        drop(id);
+        let mut gid = self.tx_count.load(Ordering::SeqCst);
+        let id = gid;
+        gid += 1;
+        self.tx_count.store(gid, Ordering::SeqCst);
+        debug!("send_to_queue: {:?}", &id);
+        unsafe {
+            let pending_txs = self.pending_txs.as_ptr();
+            (*pending_txs).push_back(id);
+        }
+        self.tx_map.insert(
+            id,
+            Arc::new(Mutex::new(Transaction::new(
+                id, pid, tx_payload, desc, shot,
+            ))),
+        );
+        self.channel_tx.clone().send(id)?;
         rx.await?
     }
 }
@@ -352,7 +501,7 @@ impl TxManager {
             )
         };
 
-        let desc = format!("Register worker");
+        let desc = format!("Register worker for pool #{pid}");
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn update_worker_endpoint(
@@ -370,66 +519,140 @@ impl TxManager {
                 signature,
             },
         );
-        let desc = format!("Update endpoint of worker.");
+        let desc = format!("Update endpoint of worker for pool #{pid}.");
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn sync_offchain_message(
         self: Arc<Self>,
         pid: u64,
-        signed_message: runtime_types::phala_mq::types::SignedMessage,
+        signed_message: SignedMessage,
     ) -> Result<()> {
+        let signed_message = unsafe { mem::transmute(signed_message) };
         let tx_payload = RuntimeCall::PhalaMq(
             khala::runtime_types::phala_pallets::mq::pallet::Call::sync_offchain_message {
                 signed_message,
             },
         );
-        let desc = format!("Sync offchain message to chain.");
+        let desc = format!("Sync offchain message to chain for pool #{pid}.");
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
 }
 
 #[derive(Clone)]
-pub struct InnerPoolOperator {
-    pub uid: u64,
+pub struct PoolOperator {
+    pub pid: u64,
+    pub pair: Sr25519Pair,
+    pub proxied: Option<AccountId32>,
 }
 
-impl Serialize for InnerPoolOperator {
-    fn serialize<S>(&self, _serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        todo!()
-    }
-}
-
-impl<'de> Deserialize<'de> for InnerPoolOperator {
-    fn deserialize<D>(_deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        todo!()
-    }
+#[derive(Clone, Encode, Decode)]
+pub struct PoolOperatorForEncode {
+    pub pid: u64,
+    pub pair: [u8; 96],
+    pub proxied: Option<AccountId32>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct PoolOperator {}
+pub struct PoolOperatorForSerialize {
+    pub pid: u64,
+    pub operator_account_id: String,
+    pub proxied_account_id: Option<String>,
+}
+
+impl From<&PoolOperator> for PoolOperatorForSerialize {
+    fn from(v: &PoolOperator) -> Self {
+        let operator_account_id: AccountId32 = v.pair.public().into();
+        let operator_account_id = operator_account_id.to_ss58check_with_version(*PHALA_SS58_FORMAT);
+        let proxied_account_id = v
+            .proxied
+            .as_ref()
+            .map(|a| a.to_ss58check_with_version(*PHALA_SS58_FORMAT));
+        Self {
+            pid: v.pid,
+            operator_account_id,
+            proxied_account_id,
+        }
+    }
+}
+
+impl From<&PoolOperator> for PoolOperatorForEncode {
+    fn from(v: &PoolOperator) -> Self {
+        let pair = v.pair.as_ref().to_bytes();
+        Self {
+            pid: v.pid,
+            pair,
+            proxied: v.proxied.clone(),
+        }
+    }
+}
+
+impl From<&PoolOperatorForEncode> for PoolOperator {
+    fn from(v: &PoolOperatorForEncode) -> Self {
+        let pair = Sr25519Pair::from(Keypair::from_bytes(v.pair.as_ref()).expect("parse key"));
+        Self {
+            pid: v.pid,
+            pair,
+            proxied: v.proxied.clone(),
+        }
+    }
+}
 
 pub trait PoolOperatorAccess {
-    fn get_all(&self) -> Vec<InnerPoolOperator>;
-    fn get(&self, uid: u64) -> Result<Option<InnerPoolOperator>>;
-    fn set(&self, uid: u64, po: InnerPoolOperator) -> Result<InnerPoolOperator>;
+    fn get_pid_list(&self) -> Result<Vec<u64>>;
+    fn set_pid_list(&self, new_list: Vec<u64>) -> Result<Vec<u64>>;
+    fn get_all_po(&self) -> Result<Vec<PoolOperator>>;
+    fn get_po(&self, pid: u64) -> Result<Option<PoolOperator>>;
+    fn set_po(&self, pid: u64, po: PoolOperator) -> Result<PoolOperator>;
 }
 
 impl PoolOperatorAccess for DB {
-    fn get_all(&self) -> Vec<InnerPoolOperator> {
-        todo!()
+    fn get_pid_list(&self) -> Result<Vec<u64>> {
+        let key = PO_LIST.to_string();
+        let l = self.get(key)?;
+        if l.is_none() {
+            return Ok(Vec::new());
+        }
+        let mut l = &l.unwrap()[..];
+        let l: Vec<u64> = Vec::decode(&mut l)?;
+        Ok(l)
     }
-
-    fn get(&self, _uid: u64) -> Result<Option<InnerPoolOperator>> {
-        todo!()
+    fn set_pid_list(&self, new_list: Vec<u64>) -> Result<Vec<u64>> {
+        let key = PO_LIST.to_string();
+        let b = new_list.encode();
+        self.put(key, b)?;
+        self.get_pid_list()
     }
-
-    fn set(&self, _uid: u64, _po: InnerPoolOperator) -> Result<InnerPoolOperator> {
-        todo!()
+    fn get_all_po(&self) -> Result<Vec<PoolOperator>> {
+        let curr_pid_list = self.get_pid_list()?;
+        let mut ret = Vec::new();
+        for id in curr_pid_list {
+            let i = self
+                .get_po(id)?
+                .ok_or(anyhow!(format!("po record #{id} not found!")))?;
+            ret.push(i);
+        }
+        Ok(ret)
+    }
+    fn get_po(&self, pid: u64) -> Result<Option<PoolOperator>> {
+        let key = format!("{PO_BY_PID}:{pid}");
+        let b = self.get(key)?;
+        if b.is_none() {
+            return Ok(None);
+        }
+        let mut b = &b.unwrap()[..];
+        let po = PoolOperatorForEncode::decode(&mut b)?;
+        Ok(Some((&po).into()))
+    }
+    fn set_po(&self, pid: u64, po: PoolOperator) -> Result<PoolOperator> {
+        let mut pl = self.get_pid_list()?;
+        pl.retain(|&i| i != pid);
+        pl.push(pid);
+        let key = format!("{PO_BY_PID}:{pid}");
+        let b = PoolOperatorForEncode::from(&po);
+        let b = b.encode();
+        self.put(key, b)?;
+        let r = self.get_po(pid)?;
+        let _ = self.set_pid_list(pl)?;
+        Ok(r.unwrap())
     }
 }

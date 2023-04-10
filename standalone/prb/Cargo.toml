@@ -45,3 +45,7 @@ subxt = { path = "../../subxt/subxt", features = ["jsonrpsee-ws"] }
 moka = { version = "0.10.2", features = ["future"] }
 moka-cht = "0.5.0"
 async-trait = "0.1.68"
+crossbeam = "0.8.2"
+schnorrkel = "0.9.1"
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40", default-features = false, features = [ "full_crypto" ] }
+

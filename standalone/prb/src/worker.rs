@@ -1,11 +1,12 @@
 use crate::datasource::DataSourceError::NoValidDataSource;
 use crate::datasource::WrappedDataSourceManager;
-use crate::db::Worker;
+use crate::db::{get_pool_by_pid, Worker};
 use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::pruntime::PRuntimeClient;
+use crate::tx::PoolOperatorAccess;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use crate::{use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
+use crate::{tx, use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
 use futures::future::join;
@@ -15,7 +16,7 @@ use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
 use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phaxt::subxt::ext::sp_runtime;
-use pherry::chain_client::search_suitable_genesis_for_worker;
+use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
 use pherry::types::Block;
 use pherry::{get_block_at, get_finalized_header, BlockSyncState};
 use serde::{Deserialize, Serialize};
@@ -23,7 +24,7 @@ use std::cmp;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio::time::sleep;
 
 static RELAYCHAIN_HEADER_BATCH_SIZE: u32 = 1000;
@@ -310,13 +311,34 @@ impl WorkerContext {
         let (lm, worker, pr, _sm_tx) = extract_essential_values!(c);
         let txm = lm.txm.clone();
 
-        if worker.sync_only {
+        let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
+        let pool = get_pool_by_pid(lm.inv_db.clone(), pid)?
+            .ok_or(anyhow!(format!("pool record #{pid} not found.")))?;
+        let po = txm.db.get_po(pid)?;
+
+        let mut sync_only = false;
+        if pool.sync_only {
+            set_worker_message!(
+                c,
+                format!("Sync only mode enabled for pool #{pid}").as_str()
+            );
+            sync_only = true;
+        } else if worker.sync_only {
+            set_worker_message!(c, "Sync only mode enabled for the pool.");
+            sync_only = true;
+        } else if po.is_none() {
+            set_worker_message!(
+                c,
+                "Sync only mode enabled for pool #{worker.pid} has no operator set."
+            );
+            sync_only = true;
+        }
+        if sync_only {
             return Ok(());
         }
+        let po = po.unwrap();
 
-        let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
-
-        // todo: wait for mq to sync
+        Self::start_mq_sync(c.clone(), pid).await?.await?;
 
         let runtime_info = pr
             .get_runtime_info(GetRuntimeInfoRequest::new(false, None))
@@ -356,7 +378,6 @@ impl WorkerContext {
             }
             drop(cc);
 
-            sleep(Duration::from_secs(6)).await;
             let get_info_req = pr.get_info(()).await;
             match get_info_req {
                 Ok(p) => {
@@ -381,6 +402,8 @@ impl WorkerContext {
                     retry_count += 1;
                 }
             }
+
+            sleep(Duration::from_secs(6)).await;
         }
     }
 
@@ -397,6 +420,65 @@ impl WorkerContext {
             }
         }
         drop(rx);
+    }
+}
+
+impl WorkerContext {
+    async fn start_mq_sync(c: WrappedWorkerContext, pid: u64) -> Result<oneshot::Receiver<()>> {
+        set_worker_message!(c, "Now start synchronizing message queue!");
+        let (tx, rx) = oneshot::channel::<()>();
+        tokio::spawn(Self::mq_sync_loop(c.clone(), pid, tx));
+        Ok(rx)
+    }
+    async fn mq_sync_loop(c: WrappedWorkerContext, pid: u64, first_shot: oneshot::Sender<()>) {
+        let mut first_shot = Some(first_shot);
+        loop {
+            let cc = c.clone();
+            let cc = cc.read().await;
+            if let WorkerLifecycleState::HasError(_) = &cc.state {
+                return;
+            }
+            drop(cc);
+
+            match Self::mq_sync_loop_round(c.clone(), pid).await {
+                Ok(_) => {
+                    if let Some(shot) = first_shot {
+                        shot.send(()).expect("mq_sync_loop_round send first_shot");
+                        first_shot = None;
+                    }
+                    sleep(Duration::from_secs(6)).await;
+                }
+                Err(e) => {
+                    let msg = format!("Error while synchronizing mq: {e}");
+                    warn!("{}", &msg);
+                    set_worker_message!(c, msg.as_str());
+                    sleep(Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
+    async fn mq_sync_loop_round(c: WrappedWorkerContext, pid: u64) -> Result<()> {
+        let (lm, _worker, pr, _sm_tx) = extract_essential_values!(c);
+        let txm = lm.txm.clone();
+        let messages = pr.get_egress_messages(()).await?.decode_messages()?;
+        if messages.is_empty() {
+            return Ok(());
+        }
+        let api =
+            use_parachain_api!(lm.dsm, false).ok_or(anyhow!("Substrate client not ready."))?;
+        let mut futures = Vec::new();
+        for (sender, messages) in messages {
+            if !messages.is_empty() {
+                let min_seq = mq_next_sequence(&api, &sender).await?;
+                for message in messages {
+                    if message.sequence >= min_seq {
+                        futures.push(txm.clone().sync_offchain_message(pid, message));
+                    }
+                }
+            }
+        }
+        let _ = futures::future::try_join_all(futures).await?;
+        Ok(())
     }
 }
 
@@ -517,7 +599,7 @@ impl WorkerContext {
         to: u32,
         batch_size: u8,
     ) -> Result<()> {
-        info!("batch_sync_storage_changes {from} {to}");
+        debug!("batch_sync_storage_changes {from} {to}");
         let ranges = (from..=to)
             .step_by(batch_size as _)
             .map(|from| (from, to.min(from.saturating_add((batch_size - 1) as _))))
@@ -612,7 +694,7 @@ impl WorkerContext {
         )
         .await?;
         if i.blocknum < hdr_synced_to {
-            info!("sync_with_cached_headers {}, {}", i.blocknum, hdr_synced_to);
+            debug!("sync_with_cached_headers {}, {}", i.blocknum, hdr_synced_to);
             Self::batch_sync_storage_changes(
                 pr,
                 dsm,

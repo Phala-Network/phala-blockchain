@@ -5,10 +5,17 @@ use crate::db::{
     get_pool_by_pid_with_workers, get_worker_by_name, remove_worker, setup_inventory_db,
     update_worker,
 };
-use anyhow::{Context, Result};
+use crate::tx::{get_options, PoolOperator, PoolOperatorAccess, PoolOperatorForSerialize, DB};
+use anyhow::{anyhow, Context, Result};
+use sp_core::crypto::{AccountId32, Ss58Codec};
+use sp_core::sr25519::Pair as Sr22519Pair;
+use sp_core::Pair;
+use std::path::Path;
 
 pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
     let db = setup_inventory_db(&args.db_path);
+    let po_db = get_options(None);
+    let po_db = DB::open(&po_db, Path::new(&args.db_path).join("po"))?;
 
     match &args.command {
         ConfigCommands::AddPool { pid, .. } => {
@@ -81,7 +88,44 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
         ConfigCommands::RemoveWorker { name } => {
             remove_worker(db, name.clone())?;
         }
-        _ => {}
+        ConfigCommands::GetAllPoolOperators => {
+            let l = po_db.get_all_po()?;
+            let l = l
+                .iter()
+                .map(|i| i.into())
+                .collect::<Vec<PoolOperatorForSerialize>>();
+            let l = serde_json::to_string_pretty(&l)?;
+            println!("{l}");
+        }
+        ConfigCommands::GetPoolOperator { pid } => {
+            let pid = *pid;
+            let po = po_db.get_po(pid)?;
+            if po.is_some() {
+                let po = po.unwrap();
+                let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
+                println!("{po}");
+            } else {
+                return Err(anyhow!("Record not found!"));
+            }
+        }
+        ConfigCommands::SetPoolOperator {
+            pid,
+            account,
+            proxied_account_id,
+        } => {
+            let pid = *pid;
+            let po = PoolOperator {
+                pid,
+                pair: Sr22519Pair::from_string(account, None)?,
+                proxied: match proxied_account_id.clone() {
+                    None => None,
+                    Some(i) => Some(AccountId32::from_string(&i)?),
+                },
+            };
+            let po = po_db.set_po(pid, po)?;
+            let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
+            println!("{po}");
+        }
     };
     Ok(())
 }

@@ -206,18 +206,18 @@ pub enum ConfigCommands {
     },
 
     /// Set a pool operators for pool
-    SetPoolOperators {
+    SetPoolOperator {
         /// PID of the pool
         #[arg(short, long)]
         pid: u64,
 
-        /// Mnemonic of the operator
+        /// Account string of the operator, can be either a mnemonic or a seed, learn more: https://docs.rs/sp-core/latest/sp_core/crypto/trait.Pair.html#method.from_string_with_seed
         #[arg(short, long)]
-        mnemonic: String,
+        account: String,
 
-        /// Proxied owner account
-        #[arg(short, long)]
-        owner: Option<String>,
+        /// Proxied pool owner account in SS58 format
+        #[arg(short = 'x', long)]
+        proxied_account_id: Option<String>,
     },
 }
 
