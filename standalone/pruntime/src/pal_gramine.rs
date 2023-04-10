@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use parity_scale_codec::Encode;
-use std::alloc::System;
 use tracing::info;
 
 use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
@@ -118,7 +117,7 @@ impl Machine for GraminePlatform {
 }
 
 #[global_allocator]
-static ALLOCATOR: StatSizeAllocator<System> = StatSizeAllocator::new(System);
+static ALLOCATOR: StatSizeAllocator<musl_malloc::MuslMalloc> = StatSizeAllocator::new(musl_malloc::MuslMalloc);
 
 impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {

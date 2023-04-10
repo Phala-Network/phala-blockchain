@@ -3079,6 +3079,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "musl-malloc"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+]
+
+[[package]]
 name = "nalgebra"
 version = "0.32.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5044,6 +5052,7 @@ dependencies = [
  "hex_fmt",
  "lazy_static",
  "libc",
+ "musl-malloc",
  "num_cpus",
  "parity-scale-codec",
  "phactory",

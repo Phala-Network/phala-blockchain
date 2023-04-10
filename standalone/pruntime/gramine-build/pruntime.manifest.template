@@ -16,6 +16,7 @@ insecure__use_cmdline_argv = true
 #}
 insecure__allow_eventfd = true
 stack.size = "1M"
+brk.max_size = "2M"
 
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"

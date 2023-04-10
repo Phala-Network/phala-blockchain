@@ -1,0 +1,11 @@
+[package]
+name = "musl-malloc"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.64"
+cc = "1"
