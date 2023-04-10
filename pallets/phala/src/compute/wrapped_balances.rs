@@ -294,7 +294,7 @@ pub mod pallet {
 			AccountVoteMap::<T>::insert(&user, vote_id, ());
 			let account_vote = Self::accumulate_account_vote(vote_id);
 			pallet_democracy::Pallet::<T>::vote(
-				RawOrigin::Signed(T::WrappedBalancesAccountId::get().clone()).into(),
+				RawOrigin::Signed(T::WrappedBalancesAccountId::get()).into(),
 				vote_id,
 				account_vote,
 			)?;
