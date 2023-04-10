@@ -198,6 +198,16 @@ fn test_vote() {
 		));
 		let account1_status = wrapped_balances::pallet::StakerAccounts::<Test>::get(1).unwrap();
 		assert_eq!(account1_status.locked, 30 * DOLLARS);
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			890 * DOLLARS
+		));
+		assert_ok!(PhalaWrappedBalances::vote(
+			RuntimeOrigin::signed(1),
+			700 * DOLLARS,
+			0,
+			1
+		));
 	});
 }
 
@@ -1763,11 +1773,7 @@ fn test_withdraw() {
 			2,
 			300000000100000,
 		));
-		assert_ok!(PhalaVault::withdraw(
-			RuntimeOrigin::signed(99),
-			2,
-			100000,
-		));
+		assert_ok!(PhalaVault::withdraw(RuntimeOrigin::signed(99), 2, 100000,));
 		assert_ok!(PhalaStakePoolv2::contribute(
 			RuntimeOrigin::signed(99),
 			0,

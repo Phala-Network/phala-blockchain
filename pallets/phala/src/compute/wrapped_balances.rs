@@ -19,7 +19,7 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
-	use frame_system::pallet_prelude::*;
+	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 	use scale_info::TypeInfo;
@@ -293,7 +293,11 @@ pub mod pallet {
 			VoteAccountMap::<T>::insert(vote_id, &user, (aye_amount, nay_amount));
 			AccountVoteMap::<T>::insert(&user, vote_id, ());
 			let account_vote = Self::accumulate_account_vote(vote_id);
-			pallet_democracy::Pallet::<T>::vote(origin, vote_id, account_vote)?;
+			pallet_democracy::Pallet::<T>::vote(
+				RawOrigin::Signed(T::WrappedBalancesAccountId::get()).into(),
+				vote_id,
+				account_vote,
+			)?;
 			Self::update_user_locked(user.clone())?;
 			Self::deposit_event(Event::<T>::Voted {
 				user,
@@ -387,8 +391,7 @@ pub mod pallet {
 			pid: u64,
 			cid: CollectionId,
 		) -> DispatchResult {
-			let mut account_status =
-				StakerAccounts::<T>::get(who).unwrap_or_default();
+			let mut account_status = StakerAccounts::<T>::get(who).unwrap_or_default();
 
 			if !account_status.invest_pools.contains(&(pid, cid)) {
 				account_status.invest_pools.push((pid, cid));

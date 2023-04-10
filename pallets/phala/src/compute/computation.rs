@@ -43,6 +43,8 @@ pub mod pallet {
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const COMPUTING_PALLETID: PalletId = PalletId(*b"phala/pp");
+	// Multiplier that adjust the maxbudgetlimit to compensate budget miss-caculated during the last nonce.
+	const BUDGET_SAFE_MULTIPLIER: u128 = 2;
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum WorkerState {
@@ -588,7 +590,7 @@ pub mod pallet {
 			);
 			// Double the maxbudgetlimit to compensate budget miss-caculated during the last nonce.
 			ensure!(
-				budget <= MaxBudgetLimit::<T>::get() * 2,
+				budget <= MaxBudgetLimit::<T>::get() * BUDGET_SAFE_MULTIPLIER,
 				Error::<T>::BudgetExceedMaxLimit,
 			);
 			let mut tokenomic = TokenomicParameters::<T>::get()
