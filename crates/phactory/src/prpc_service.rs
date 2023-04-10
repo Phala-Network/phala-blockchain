@@ -94,7 +94,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let system_info = self.system.as_ref().map(|s| s.get_info());
         let score = benchmark::score();
-        let m_usage = self.platform.memory_usage();
 
         // Deprecated fields
         let registered;
@@ -150,12 +149,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             score,
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
-            memory_usage: Some(pb::MemoryUsage {
-                rust_used: m_usage.rust_used as _,
-                rust_peak_used: m_usage.rust_peak_used as _,
-                total_peak_used: m_usage.total_peak_used as _,
-                free: m_usage.free as _,
-            }),
+            memory_usage: Some(self.platform.memory_usage()),
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,
             safe_mode_level: self.args.safe_mode_level as _,
