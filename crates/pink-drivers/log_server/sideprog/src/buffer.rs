@@ -10,6 +10,7 @@ pub struct Buffer {
 
 struct Record {
     contract_id: String,
+    entry_contract: String,
     message: Message,
     size: usize,
     sequence: u64,
@@ -76,6 +77,7 @@ enum SerMessage {
     Log {
         block_number: u32,
         contract: HexSer<AccountId>,
+        entry: HexSer<AccountId>,
         exec_mode: String,
         #[serde(rename = "timestamp")]
         timestamp_ms: u64,
@@ -116,7 +118,7 @@ impl SerMessage {
             }
             SerMessage::MessageOutput { nonce, output, .. } => nonce.len() * 2 + output.len() * 2,
             SerMessage::TooLarge => 0,
-            SerMessage::QueryIn{ user } => user.len() * 2,
+            SerMessage::QueryIn { user } => user.len() * 2,
         };
         128 + payload
     }
@@ -128,6 +130,7 @@ impl From<SystemMessage> for SerMessage {
             SystemMessage::PinkLog {
                 block_number,
                 contract,
+                entry,
                 exec_mode,
                 timestamp_ms,
                 level,
@@ -135,6 +138,7 @@ impl From<SystemMessage> for SerMessage {
             } => Self::Log {
                 block_number,
                 contract: contract.into(),
+                entry: entry.into(),
                 exec_mode,
                 timestamp_ms,
                 level,
@@ -164,7 +168,9 @@ impl From<SystemMessage> for SerMessage {
                 nonce: nonce.into(),
                 output: output.into(),
             },
-            SystemMessage::Metric(Metric::PinkQueryIn(user)) => Self::QueryIn { user: HexSer(user) },
+            SystemMessage::Metric(Metric::PinkQueryIn(user)) => {
+                Self::QueryIn { user: HexSer(user) }
+            }
         }
     }
 }
@@ -176,6 +182,16 @@ fn hex(data: &[u8]) -> String {
 fn contract_id_of(sysmessage: &SystemMessage) -> String {
     let id = match sysmessage {
         SystemMessage::PinkLog { contract, .. } => contract,
+        SystemMessage::PinkEvent { contract, .. } => contract,
+        SystemMessage::PinkMessageOutput { contract, .. } => contract,
+        SystemMessage::Metric(_) => return "<metric>".into(),
+    };
+    hex(id)
+}
+
+fn entry_of(sysmessage: &SystemMessage) -> String {
+    let id = match sysmessage {
+        SystemMessage::PinkLog { entry, .. } => entry,
         SystemMessage::PinkEvent { contract, .. } => contract,
         SystemMessage::PinkMessageOutput { contract, .. } => contract,
         SystemMessage::Metric(_) => return "<metric>".into(),
@@ -195,6 +211,7 @@ impl Buffer {
 
     pub fn push(&mut self, message: SystemMessage) {
         let contract_id = contract_id_of(&message);
+        let entry_contract = entry_of(&message);
         let mut message: SerMessage = message.into();
         let mut size = message.size();
         if size > self.capacity {
@@ -207,6 +224,7 @@ impl Buffer {
         self.current_size += size;
         self.records.push_back(Record {
             contract_id,
+            entry_contract,
             message: Message::Origin(message),
             size,
             sequence: self.next_sequence,
@@ -230,9 +248,10 @@ impl Buffer {
             if rec.sequence < from {
                 continue;
             }
-            if contract.is_empty() || rec.contract_id == contract {
+            if contract.is_empty() || rec.contract_id == contract || rec.entry_contract == contract
+            {
                 if n > 0 {
-                    result.push_str(",");
+                    result.push(',');
                 }
                 result.push_str(rec.encoded());
                 n += 1;
@@ -241,7 +260,7 @@ impl Buffer {
                 }
             }
         }
-        result.push_str(&format!(r#"],"next":{}}}"#, next_seq));
+        result.push_str(&format!(r#"],"next":{next_seq}}}"#));
         result
     }
 }

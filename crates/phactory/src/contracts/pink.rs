@@ -100,6 +100,38 @@ impl RuntimeHandleMut<'_> {
     fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
         using_ocalls(self, f)
     }
+
+    pub fn call(
+        &mut self,
+        contract: AccountId,
+        input_data: Vec<u8>,
+        mode: ExecutionMode,
+        tx_args: TransactionArguments,
+    ) -> Vec<u8> {
+        context::using_entry_contract(contract.clone(), move || {
+            self.contract_call(contract, input_data, mode, tx_args)
+        })
+    }
+
+    pub fn instantiate(
+        &mut self,
+        code_hash: Hash,
+        salt: Vec<u8>,
+        instantiate_data: Vec<u8>,
+        mode: ExecutionMode,
+        tx_args: TransactionArguments,
+    ) -> Vec<u8> {
+        let buf = phala_types::contract::contract_id_preimage(
+            tx_args.origin.as_ref(),
+            code_hash.as_ref(),
+            self.readonly().cluster_id().as_ref(),
+            &salt,
+        );
+        let entry = AccountId::from(blake2_256(&buf));
+        context::using_entry_contract(entry, move || {
+            self.contract_instantiate(code_hash, salt, instantiate_data, mode, tx_args)
+        })
+    }
 }
 
 pub struct RuntimeHandle<'a> {
@@ -132,7 +164,7 @@ pub(crate) mod context {
 
     use pink::{
         capi::v1::ocall::ExecContext,
-        types::{BlockNumber, ExecutionMode},
+        types::{AccountId, BlockNumber, ExecutionMode},
     };
 
     use crate::ChainStorage;
@@ -224,6 +256,21 @@ pub(crate) mod context {
         const MAX_QUERY_TIME: Duration = Duration::from_secs(10);
         MAX_QUERY_TIME.saturating_sub(call_elapsed()).as_millis() as _
     }
+
+    pub use entry::{get_entry_contract, using_entry_contract};
+    mod entry {
+        use super::*;
+
+        environmental::environmental!(entry_contract: AccountId);
+
+        pub fn get_entry_contract() -> Option<AccountId> {
+            entry_contract::with(|a| a.clone())
+        }
+
+        pub fn using_entry_contract<T>(mut contract: AccountId, f: impl FnOnce() -> T) -> T {
+            entry_contract::using(&mut contract, f)
+        }
+    }
 }
 
 impl OCalls for RuntimeHandle<'_> {
@@ -243,6 +290,10 @@ impl OCalls for RuntimeHandle<'_> {
         let Some(log_handler) = self.logger.as_ref() else {
             return;
         };
+        let Some(entry) = context::get_entry_contract() else {
+            error!("Pink log called outside of contract execution");
+            return;
+        };
         let context = self.exec_context();
         let msg = SidevmCommand::PushSystemMessage(SystemMessage::PinkLog {
             block_number: context.block_number,
@@ -252,6 +303,7 @@ impl OCalls for RuntimeHandle<'_> {
                 .as_millis() as _,
             exec_mode: context.mode.display().into(),
             contract: contract.into(),
+            entry: entry.into(),
             level,
             message,
         });
@@ -557,25 +609,26 @@ impl Cluster {
                 tokio::task::spawn_blocking(move || {
                     let _guard = span.enter();
                     context::using(&mut ctx, move || {
-                        let mut runtime = self.runtime_mut(log_handler);
-                        if deposit > 0 {
-                            runtime.deposit(origin.clone(), deposit);
-                        }
-                        let args = TransactionArguments {
-                            origin,
-                            transfer,
-                            gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
-                            gas_free: true,
-                            storage_deposit_limit: None,
-                        };
-                        let ink_result =
-                            runtime.contract_call(contract_id, input_data, mode, args);
-                        let effects = if mode.is_estimating() {
-                            None
-                        } else {
-                            runtime.effects.take().map(|e| e.into_query_only_effects())
-                        };
-                        Ok((Response::Payload(ink_result), effects))
+                        context::using_entry_contract(contract_id.clone(), || {
+                            let mut runtime = self.runtime_mut(log_handler);
+                            if deposit > 0 {
+                                runtime.deposit(origin.clone(), deposit);
+                            }
+                            let args = TransactionArguments {
+                                origin,
+                                transfer,
+                                gas_limit: WEIGHT_REF_TIME_PER_SECOND * 10,
+                                gas_free: true,
+                                storage_deposit_limit: None,
+                            };
+                            let ink_result = runtime.call(contract_id, input_data, mode, args);
+                            let effects = if mode.is_estimating() {
+                                None
+                            } else {
+                                runtime.effects.take().map(|e| e.into_query_only_effects())
+                            };
+                            Ok((Response::Payload(ink_result), effects))
+                        })
                     })
                 })
                 .await
@@ -648,7 +701,7 @@ impl Cluster {
                         gas_free: true,
                         storage_deposit_limit: None,
                     };
-                    let ink_result = runtime.contract_instantiate(
+                    let ink_result = runtime.instantiate(
                         code_hash,
                         instantiate_data,
                         salt,
@@ -698,7 +751,7 @@ impl Cluster {
                 };
 
                 let mut runtime = self.runtime_mut(context.log_handler.clone());
-                let output = runtime.contract_call(
+                let output = runtime.call(
                     contract_id.clone(),
                     message,
                     ExecutionMode::Transaction,

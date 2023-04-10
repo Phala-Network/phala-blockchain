@@ -588,6 +588,7 @@ pub mod pallet {
 				block_number > LastBugdetUpdateBlock::<T>::get(),
 				Error::<T>::BudgetUpdateBlockInvalid,
 			);
+			// Double the maxbudgetlimit to compensate budget miss-caculated during the last nonce.
 			ensure!(
 				budget <= MaxBudgetLimit::<T>::get() * BUDGET_SAFE_MULTIPLIER,
 				Error::<T>::BudgetExceedMaxLimit,
