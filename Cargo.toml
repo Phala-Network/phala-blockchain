@@ -97,10 +97,10 @@ members = [
 # TODO.kevin: Move back to crates.io once it released 1.0
 derive_more = { version = "0.99.17", git = "https://github.com/JelteF/derive_more" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
-sp-core-hashing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
+sp-core-hashing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
+sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
 
 # For pink-extension-runtime, it will introduce Substrate from crates-io which usually different with polkadot-branch
 pink-extension = { path = "crates/pink/pink-extension" }
