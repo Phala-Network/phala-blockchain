@@ -21,7 +21,6 @@ pub mod mq;
 pub mod phat;
 pub mod puppets;
 pub mod registry;
-pub mod stake_pool;
 
 use compute::{base_pool, computation, pool_proxy, stake_pool_v2, vault, wrapped_balances};
 
@@ -49,7 +48,6 @@ pub use mq as pallet_mq;
 pub use phat as pallet_phat;
 pub use phat_tokenomic as pallet_phat_tokenomic;
 pub use registry as pallet_registry;
-pub use stake_pool as pallet_stake_pool;
 pub mod phat_tokenomic;
 
 #[cfg(feature = "native")]
