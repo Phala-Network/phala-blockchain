@@ -8,7 +8,7 @@ pink-capi = { path = "../capi" }
 pink-extension-runtime = { path = "../pink-extension-runtime" }
 phala-crypto = { path = "../../phala-crypto" }
 serde = { version = "1", features = ["derive"] }
-sp-weights = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+sp-weights = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
 im = "15"
 once_cell = "1"
 libc = "0.2"
@@ -22,7 +22,7 @@ scale = { package = "parity-scale-codec", version = "3.1", default-features = fa
     "derive",
 ] }
 insta = "1"
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
-pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
+pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41" }
 env_logger = "0.10.0"
 assert_matches = "1.5.0"
