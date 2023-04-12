@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Context, Result};
 use parity_scale_codec::Encode;
 use subxt::dynamic::Value;
+use subxt::ext::frame_metadata;
 use subxt::rpc::types::{BlockNumber as SubxtBlockNumber, NumberOrHex};
-use subxt::{ext::scale_value::At, metadata::EncodeStaticType};
+use subxt::ext::scale_value::At;
 
 use crate::{BlockNumber, ChainApi, Hash};
 
@@ -13,12 +14,8 @@ impl ChainApi {
         entry_name: &str,
         key: &impl Encode,
     ) -> Result<Vec<u8>> {
-        let key = EncodeStaticType(key);
         let address = subxt::dynamic::storage(pallet_name, entry_name, vec![key]);
-        Ok(subxt::storage::utils::storage_address_bytes(
-            &address,
-            &self.metadata(),
-        )?)
+        Ok(self.0.storage().address_bytes(&address)?)
     }
 
     pub fn paras_heads_key(&self, para_id: u32) -> Result<Vec<u8>> {
@@ -35,8 +32,7 @@ impl ChainApi {
         let addr = subxt::dynamic::storage_root("ParachainSystem", "ValidationData");
         let validation_data = self
             .storage()
-            .at(hash)
-            .await?
+            .at(hash.expect("hash must not None"))
             .fetch(&addr)
             .await
             .context("Failed to fetch validation data")?
@@ -50,12 +46,11 @@ impl ChainApi {
         Ok(number as _)
     }
 
-    pub async fn current_set_id(&self, block_hash: Option<Hash>) -> Result<u64> {
+    pub async fn current_set_id(&self, block_hash: Hash) -> Result<u64> {
         let address = subxt::dynamic::storage_root("Grandpa", "CurrentSetId");
         let set_id = self
             .storage()
             .at(block_hash)
-            .await?
             .fetch(&address)
             .await
             .context("Failed to get current set_id")?
@@ -66,12 +61,11 @@ impl ChainApi {
             .ok_or_else(|| anyhow!("Invalid set id"))? as _)
     }
 
-    pub async fn get_paraid(&self, hash: Option<Hash>) -> Result<u32> {
+    pub async fn get_paraid(&self, hash: Hash) -> Result<u32> {
         let address = subxt::dynamic::storage_root("ParachainInfo", "ParachainId");
         let id = self
             .storage()
             .at(hash)
-            .await?
             .fetch(&address)
             .await
             .context("Failed to get current set_id")?
@@ -99,8 +93,7 @@ impl ChainApi {
         let address = subxt::dynamic::storage("PhalaRegistry", "Workers", vec![worker]);
         let registered = self
             .storage()
-            .at(Some(hash))
-            .await?
+            .at(hash)
             .fetch(&address)
             .await
             .context("Failed to get worker info")?
@@ -113,8 +106,7 @@ impl ChainApi {
         let address = subxt::dynamic::storage("PhalaRegistry", "WorkerAddedAt", vec![worker]);
         let Some(block) = self
             .storage()
-            .at(None)
-            .await?
+            .at_latest()
             .fetch(&address)
             .await
             .context("Failed to get worker info")? else {
