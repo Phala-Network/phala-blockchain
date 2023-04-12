@@ -5,6 +5,8 @@ use std::path::Path;
 
 use phala_types::AttestationProvider;
 
+pub use phactory_api::prpc::MemoryUsage;
+
 pub trait ErrorType: Debug + Into<anyhow::Error> {}
 impl<T: Debug + Into<anyhow::Error>> ErrorType for T {}
 
@@ -25,13 +27,6 @@ pub trait RA {
     ) -> Result<Vec<u8>, Self::Error>;
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
     fn measurement(&self) -> Option<Vec<u8>>;
-}
-
-pub struct MemoryUsage {
-    pub total_peak_used: usize,
-    pub rust_used: usize,
-    pub rust_peak_used: usize,
-    pub free: usize,
 }
 
 pub trait MemoryStats {

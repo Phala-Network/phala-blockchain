@@ -295,6 +295,7 @@ async fn prpc_proxy_inner(
         }
     };
     let json = json || content_type.map(|t| t.is_json()).unwrap_or(false);
+    info!("Payload size: {}", data.len());
     prpc_call(id, method, &data, json).await
 }
 
