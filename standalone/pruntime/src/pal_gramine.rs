@@ -188,4 +188,5 @@ pub(crate) fn print_target_info() {
     } else {
         println!("Running in Native mode");
     }
+    println!("git revision: {}", phala_git_revision::git_revision());
 }
