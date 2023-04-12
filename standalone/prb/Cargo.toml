@@ -35,7 +35,7 @@ hex = { version = "*" }
 phala-types = { path = "../../crates/phala-types" }
 rand = "0.8.5"
 memory-lru = "0.1.1"
-sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40", default-features = false }
+sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false }
 rocksdb = { version = "0.19.0", default-features = false, features = ["snappy", "jemalloc"] }
 tokio-stream = "0.1.12"
 parity-scale-codec = "3.4.0"
@@ -47,5 +47,5 @@ moka-cht = "0.5.0"
 async-trait = "0.1.68"
 crossbeam = "0.8.2"
 schnorrkel = "0.9.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.40", default-features = false, features = [ "full_crypto" ] }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false, features = [ "full_crypto" ] }
 
