@@ -645,6 +645,13 @@ async fn batch_sync_block(
 
         let mut header_batch = header_batch;
         header_batch.retain(|h| h.header.number >= next_headernum);
+        // Remove justifications for all headers except the last one to reduce data overhead
+        // and improve sync performance.
+        if let Some((_last, rest_headers)) = header_batch.split_last_mut() {
+            for header in rest_headers {
+                header.justification = None;
+            }
+        }
         let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
         next_headernum = r.synced_to + 1;
