@@ -1,6 +1,6 @@
-use crate::api::ApiError::LifecycleManagerNotInitialized;
 use crate::cli::WorkerManagerCliArgs;
 use crate::db::Worker;
+use crate::tx::Transaction;
 use crate::wm::WrappedWorkerManagerContext;
 use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
 use axum::extract::State;
@@ -41,6 +41,14 @@ pub struct WorkerStatus {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorkerStatusResponse {
     workers: Vec<WorkerStatus>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TxStatusResponse {
+    pub tx_count: usize,
+    pub running_txs: Vec<Transaction>,
+    pub pending_txs: Vec<Transaction>,
+    pub past_txs: Vec<Transaction>,
 }
 
 impl IntoResponse for ApiError {
@@ -94,7 +102,7 @@ pub async fn start_api_server(
         .route("/wm/restart", put(handle_restart_wm))
         .route("/workers/status", get(handle_get_worker_status))
         .route("/workers/restart", put(handle_restart_specific_workers))
-        .route("/tx/status", get(handle_get_status))
+        .route("/tx/status", get(handle_get_tx_status))
         .with_state(ctx);
 
     let fut_vec = args
@@ -146,6 +154,9 @@ async fn handle_restart_specific_workers() {
     todo!()
 }
 
-async fn handle_get_status() -> ApiResult<(StatusCode, ())> {
-    None.ok_or(LifecycleManagerNotInitialized)?
+async fn handle_get_tx_status(
+    State(ctx): AppContext,
+) -> ApiResult<(StatusCode, Json<TxStatusResponse>)> {
+    let txm = ctx.txm.clone();
+    Ok((StatusCode::OK, Json(txm.dump().await?)))
 }

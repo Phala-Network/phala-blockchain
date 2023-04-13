@@ -6,10 +6,10 @@ use crate::pruntime::PRuntimeClient;
 use crate::tx::PoolOperatorAccess;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
-use crate::{tx, use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
+use crate::{use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
-use futures::future::join;
+use futures::future::{join};
 use log::{debug, error, info, warn};
 use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
@@ -336,18 +336,21 @@ impl WorkerContext {
         if sync_only {
             return Ok(());
         }
-        let po = po.unwrap();
+        let _po = po.unwrap();
 
         Self::start_mq_sync(c.clone(), pid).await?.await?;
 
         let runtime_info = pr
             .get_runtime_info(GetRuntimeInfoRequest::new(false, None))
             .await?;
+
+        let _public_key = runtime_info.clone().decode_public_key()?;
+
         let attestation = runtime_info
             .attestation
             .ok_or(anyhow!("Worker has no attestation!"))?;
-        let v2 = attestation.payload.is_none();
-        let attestation = match attestation.payload {
+        let _v2 = attestation.payload.is_none();
+        let _attestation = match attestation.payload {
             Some(payload) => AttestationEnum::SgxIas {
                 ra_report: payload.report.as_bytes().to_vec(),
                 signature: payload.signature,
@@ -356,9 +359,6 @@ impl WorkerContext {
             .encode(),
             None => attestation.encoded_report,
         };
-
-        txm.register_worker(pid, runtime_info.encoded_runtime_info, attestation, v2)
-            .await?;
 
         info!("test");
 

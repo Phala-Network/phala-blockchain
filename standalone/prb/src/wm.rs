@@ -98,7 +98,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
     let fast_sync_enabled = !args.disable_fast_sync;
 
     dsm.clone().wait_until_rpc_avail(false).await;
-    let api = use_parachain_api!(dsm, false).unwrap();
+    let _api = use_parachain_api!(dsm, false).unwrap();
 
     let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
 

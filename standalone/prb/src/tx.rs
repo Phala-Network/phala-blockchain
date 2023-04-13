@@ -1,6 +1,7 @@
 use self::khala::runtime_types;
 use self::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
 use self::khala::runtime_types::phala_pallets::utils::attestation_legacy;
+use crate::api::TxStatusResponse;
 use crate::datasource::WrappedDataSourceManager;
 use crate::tx::khala::runtime_types::sp_runtime::DispatchError;
 use crate::tx::khala::utility::events::ItemFailed;
@@ -11,6 +12,7 @@ use chrono::{DateTime, Utc};
 use crossbeam::atomic::AtomicCell;
 use crossbeam::queue::SegQueue;
 use futures::future::{join_all, BoxFuture};
+use hex::ToHex;
 use lazy_static::lazy_static;
 use log::{debug, error};
 use moka_cht::HashMap;
@@ -20,8 +22,8 @@ use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
 use schnorrkel::keys::Keypair;
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::{AccountId32, Ss58AddressFormat, Ss58Codec};
-use sp_core::sr25519::Pair as Sr25519Pair;
-use sp_core::Pair;
+use sp_core::sr25519::{Pair as Sr25519Pair, Public as Sr25519Public};
+use sp_core::{Pair};
 use std::collections::{HashMap as StdHashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::mem;
@@ -151,7 +153,7 @@ impl Display for Transaction {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Transaction {
     pub id: usize,
     pub state: TransactionState,
@@ -181,6 +183,23 @@ impl Transaction {
             tx_payload: AtomicCell::new(Some(tx_payload)),
             shot: AtomicCell::new(Some(shot)),
         }
+    }
+    pub fn clone_for_serialize(&self) -> Self {
+        Self {
+            id: self.id,
+            state: self.state.clone(),
+            desc: self.desc.clone(),
+            pid: self.pid,
+            created_at: self.created_at.clone(),
+            tx_payload: AtomicCell::new(None),
+            shot: AtomicCell::new(None),
+        }
+    }
+}
+
+impl Clone for Transaction {
+    fn clone(&self) -> Self {
+        self.clone_for_serialize()
     }
 }
 
@@ -214,6 +233,43 @@ pub struct TxManager {
     running_txs: AtomicCell<Vec<usize>>,
     past_txs: AtomicCell<VecDeque<usize>>,
     channel_tx: mpsc::UnboundedSender<usize>,
+}
+
+impl TxManager {
+    pub async fn dump(self: Arc<Self>) -> Result<TxStatusResponse> {
+        let tx_count = self.tx_count.load(Ordering::Relaxed);
+        let (pending_txs, running_txs, past_txs) = unsafe {
+            let pending_txs = self.pending_txs.as_ptr();
+            let pending_txs: Vec<usize> = (*pending_txs).clone().into();
+            let running_txs = self.running_txs.as_ptr();
+            let running_txs = (*running_txs).clone();
+            let past_txs = self.past_txs.as_ptr();
+            let past_txs: Vec<usize> = (*past_txs).clone().into();
+            (pending_txs, running_txs, past_txs)
+        };
+        macro_rules! dump_tx_group {
+            ($v: ident) => {{
+                let mut r = Vec::new();
+                for id in $v {
+                    let tx = self.tx_map.get(&id).ok_or(UnknownDataMismatch)?;
+                    let tx = tx.lock().await;
+                    r.push(tx.clone_for_serialize())
+                }
+                r
+            }};
+        }
+
+        let pending_txs = dump_tx_group!(pending_txs);
+        let running_txs = dump_tx_group!(running_txs);
+        let past_txs = dump_tx_group!(past_txs);
+
+        Ok(TxStatusResponse {
+            tx_count,
+            running_txs,
+            pending_txs,
+            past_txs,
+        })
+    }
 }
 
 impl TxManager {
@@ -289,6 +345,14 @@ impl TxManager {
                     .collect::<Vec<_>>(),
             )
             .await;
+
+            let last_running_txs = self.running_txs.swap(Vec::new());
+            unsafe {
+                let past_txs = self.past_txs.as_ptr();
+                for i in last_running_txs {
+                    (*past_txs).push_front(i);
+                }
+            }
         }
         error!("Unexpected exit of start_trader!");
         std::process::exit(255);
@@ -373,11 +437,6 @@ impl TxManager {
         };
         let tx = tx.wait_for_in_block().await?;
         let tx = tx.wait_for_success().await?;
-
-        tx.iter().for_each(|i| {
-            let i = i.unwrap();
-            debug!("{}:{}", i.pallet_name(), i.variant_name());
-        });
 
         if proxied {
             let event_proxy = tx
@@ -534,6 +593,52 @@ impl TxManager {
             },
         );
         let desc = format!("Sync offchain message to chain for pool #{pid}.");
+        self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
+    pub async fn add_worker(self: Arc<Self>, pid: u64, pubkey: Sr25519Public) -> Result<()> {
+        let desc = format!(
+            "Add worker 0x{} to pool #{pid}.",
+            pubkey.encode_hex::<String>()
+        );
+        let tx_payload = RuntimeCall::PhalaStakePoolv2(
+            khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::add_worker {
+                pid,
+                pubkey: unsafe { mem::transmute(pubkey) },
+            },
+        );
+        self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
+    pub async fn start_computing(
+        self: Arc<Self>,
+        pid: u64,
+        pubkey: Sr25519Public,
+        stake: String,
+    ) -> Result<()> {
+        let desc = format!(
+            "Start computing for 0x{} with stake of {} in pool #{pid}.",
+            pubkey.encode_hex::<String>(),
+            &stake
+        );
+        let tx_payload = RuntimeCall::PhalaStakePoolv2(
+            khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::start_computing  {
+                pid,
+                worker: unsafe { mem::transmute(pubkey) },
+                stake: stake.parse::<u128>()?
+            },
+        );
+        self.clone().send_to_queue(pid, tx_payload, desc).await
+    }
+    pub async fn stop_computing(self: Arc<Self>, pid: u64, pubkey: Sr25519Public) -> Result<()> {
+        let desc = format!(
+            "Stop computing for 0x{} in pool #{pid}.",
+            pubkey.encode_hex::<String>()
+        );
+        let tx_payload = RuntimeCall::PhalaStakePoolv2(
+            khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::stop_computing  {
+                pid,
+                worker: unsafe { mem::transmute(pubkey) },
+            },
+        );
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
 }
