@@ -266,6 +266,11 @@ pub mod pallet {
 				pool_info.basepool.pid,
 			)?;
 			pool_info.owner_shares -= shares;
+			wrapped_balances::Pallet::<T>::maybe_subscribe_to_pool(
+				&who,
+				vault_pid,
+				pool_info.basepool.cid,
+			)?;
 			base_pool::pallet::Pools::<T>::insert(vault_pid, PoolProxy::Vault(pool_info));
 			Self::deposit_event(Event::<T>::OwnerSharesClaimed {
 				pid: vault_pid,
