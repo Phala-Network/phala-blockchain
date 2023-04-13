@@ -28,10 +28,11 @@ impl ClusterStorage {
         match self.kv_store.get_mut(&key) {
             Some((ref mut old_rc, ref mut old_value)) => {
                 *old_rc += rc;
+                if rc > 0 {
+                    *old_value = value;
+                }
                 if *old_rc == 0 {
                     self.kv_store.remove(&key);
-                } else {
-                    *old_value = value;
                 }
             }
             None => {
