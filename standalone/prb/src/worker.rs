@@ -3,27 +3,30 @@ use crate::datasource::WrappedDataSourceManager;
 use crate::db::{get_pool_by_pid, Worker};
 use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::pruntime::PRuntimeClient;
-use crate::tx::PoolOperatorAccess;
+use crate::tx::{khala, PoolOperatorAccess};
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
 use crate::{use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
 use anyhow::{anyhow, Result};
 use chrono::prelude::*;
-use futures::future::{join};
+use futures::future::join;
 use log::{debug, error, info, warn};
 use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
+use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
 use pherry::types::Block;
 use pherry::{get_block_at, get_finalized_header, BlockSyncState};
 use serde::{Deserialize, Serialize};
-use std::cmp;
+use sp_core::sr25519::Public as Sr25519Public;
+use sp_core::{ByteArray, Pair};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{cmp, mem};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio::time::sleep;
 
@@ -121,6 +124,7 @@ pub struct WorkerContext {
     pub pr: Arc<PRuntimeClient>,
     pub info: Option<PhactoryInfo>,
     pub last_message: String,
+    pub session_info: Option<SessionInfo>,
 }
 
 impl WorkerContext {
@@ -141,6 +145,7 @@ impl WorkerContext {
             pr,
             info: None,
             last_message: String::new(),
+            session_info: None,
         };
         ret.set_last_message("Starting lifecycle...");
         Ok(ret)
@@ -221,7 +226,9 @@ impl WorkerContext {
                 WorkerLifecycleState::Preparing => {
                     lifecycle_loop_state_handle_error!(Self::handle_on_preparing, c);
                 }
-                WorkerLifecycleState::Working => {}
+                WorkerLifecycleState::Working => {
+                    set_worker_message!(c, "Working now.")
+                }
                 WorkerLifecycleState::HasError(e) => {
                     error!(
                         "Worker {}({}, {}) stopped due to error: {}",
@@ -308,7 +315,7 @@ impl WorkerContext {
 
     async fn handle_on_preparing(c: WrappedWorkerContext) -> Result<()> {
         set_worker_message!(c, "Reached latest finalized height, start preparing...");
-        let (lm, worker, pr, _sm_tx) = extract_essential_values!(c);
+        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
         let txm = lm.txm.clone();
 
         let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
@@ -336,31 +343,83 @@ impl WorkerContext {
         if sync_only {
             return Ok(());
         }
-        let _po = po.unwrap();
 
+        let po = po.unwrap();
+        let i = pr.get_info(()).await?;
+        if !i.registered {
+            Self::register_worker(c.clone(), true).await?;
+        }
         Self::start_mq_sync(c.clone(), pid).await?.await?;
 
-        let runtime_info = pr
-            .get_runtime_info(GetRuntimeInfoRequest::new(false, None))
-            .await?;
+        if worker.gatekeeper {
+            set_worker_message!(
+                c,
+                "Gatekeeper mode detected, skipping stakepool operations."
+            );
+            return Ok(());
+        }
 
-        let _public_key = runtime_info.clone().decode_public_key()?;
+        let pubkey = i.public_key.ok_or(anyhow!("public key not found!"))?;
+        let pubkey = hex::decode(pubkey)?;
+        let pubkey = pubkey.as_slice();
+        let pubkey = Sr25519Public::from_slice(pubkey).unwrap();
 
-        let attestation = runtime_info
-            .attestation
-            .ok_or(anyhow!("Worker has no attestation!"))?;
-        let _v2 = attestation.payload.is_none();
-        let _attestation = match attestation.payload {
-            Some(payload) => AttestationEnum::SgxIas {
-                ra_report: payload.report.as_bytes().to_vec(),
-                signature: payload.signature,
-                raw_signing_cert: payload.signing_cert,
+        let api =
+            use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
+
+        let qp = unsafe { mem::transmute(pubkey) };
+        let registry_query = khala::storage().phala_registry().workers(&qp);
+        let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
+        if let Some(registry_info) = registry_info {
+            let op = unsafe { mem::transmute(po.proxied.clone()) };
+            if registry_info.operator.ne(&op) {
+                Self::register_worker(c.clone(), true).await?;
             }
-            .encode(),
-            None => attestation.encoded_report,
-        };
+        }
+        tokio::spawn(Self::update_session_loop(c.clone(), pubkey));
 
-        info!("test");
+        let pubkey = unsafe { mem::transmute(pubkey) };
+        let worker_binding_query = khala::storage()
+            .phala_computation()
+            .worker_bindings(&pubkey);
+        let worker_binding = api
+            .storage()
+            .at(None)
+            .await?
+            .fetch(&worker_binding_query)
+            .await?;
+        let pubkey = unsafe { mem::transmute(pubkey) };
+        if worker_binding.is_none() {
+            set_worker_message!(c, "Enabling worker in stakepool pallet...");
+            txm.clone().add_worker(pid, pubkey).await?;
+        }
+
+        set_worker_message!(c, "Waiting for session info to update...");
+        loop {
+            let cc = c.clone();
+            let cc = cc.read().await;
+            let session = cc.session_info.clone();
+            drop(cc);
+            if let Some(session) = session {
+                match session.state {
+                    WorkerState::Ready => {
+                        set_worker_message!(c, "Starting computing...");
+                        txm.clone()
+                            .start_computing(pid, pubkey, worker.stake)
+                            .await?;
+                        let _ = sm_tx.clone().send(WorkerLifecycleState::Working);
+                    }
+                    WorkerState::WorkerCoolingDown => {
+                        set_worker_message!(c, "Worker is cooling down!");
+                    }
+                    _ => {
+                        let _ = sm_tx.clone().send(WorkerLifecycleState::Working);
+                    }
+                }
+                break;
+            }
+            sleep(Duration::from_secs(3)).await;
+        }
 
         Ok(())
     }
@@ -403,6 +462,84 @@ impl WorkerContext {
                 }
             }
 
+            sleep(Duration::from_secs(5)).await;
+        }
+    }
+
+    async fn update_session_loop(c: WrappedWorkerContext, pubkey: Sr25519Public) {
+        loop {
+            match Self::update_session_loop_inner(c.clone(), pubkey).await {
+                Ok(_) => return,
+                Err(e) => {
+                    set_worker_message!(c.clone(), format!("{e}").as_str());
+                }
+            }
+            sleep(Duration::from_secs(6)).await;
+        }
+    }
+
+    async fn update_session_loop_inner(
+        c: WrappedWorkerContext,
+        pubkey: Sr25519Public,
+    ) -> Result<()> {
+        let (lm, _worker, _pr, _sm_tx) = extract_essential_values!(c);
+        let pubkey = unsafe { mem::transmute(pubkey) };
+        let worker_binding_query = khala::storage()
+            .phala_computation()
+            .worker_bindings(&pubkey);
+        let mut worker_binding = None;
+        let mut session_query = None;
+
+        loop {
+            let cc = c.clone();
+            let cc = cc.read().await;
+            if let WorkerLifecycleState::HasError(_) = &cc.state {
+                return Ok(());
+            }
+            drop(cc);
+
+            let api = use_parachain_api!(lm.dsm, false);
+            if api.is_none() {
+                set_worker_message!(c, "No online parachain session!");
+                sleep(Duration::from_secs(3)).await;
+                continue;
+            }
+            let api = api.unwrap();
+            if worker_binding.is_none() {
+                worker_binding = api
+                    .storage()
+                    .at(None)
+                    .await?
+                    .fetch(&worker_binding_query)
+                    .await?;
+            }
+            if worker_binding.is_none() {
+                sleep(Duration::from_secs(3)).await;
+                continue;
+            }
+            if session_query.is_none() {
+                session_query = Some(
+                    khala::storage()
+                        .phala_computation()
+                        .sessions(worker_binding.as_ref().unwrap()),
+                );
+            }
+            let session = api
+                .storage()
+                .at(None)
+                .await?
+                .fetch(session_query.as_ref().unwrap())
+                .await?;
+            if let Some(session) = session {
+                let session: SessionInfo = unsafe { mem::transmute(session) };
+                if session.state == WorkerState::WorkerUnresponsive {
+                    set_worker_message!(c, "Worker unresponsive!")
+                }
+                let cc = c.clone();
+                let mut cc = cc.write().await;
+                cc.session_info = Some(session);
+                drop(cc);
+            }
             sleep(Duration::from_secs(6)).await;
         }
     }
@@ -420,6 +557,63 @@ impl WorkerContext {
             }
         }
         drop(rx);
+    }
+
+    async fn register_worker(c: WrappedWorkerContext, force_ra: bool) -> Result<()> {
+        let (lm, worker, pr, _sm_tx) = extract_essential_values!(c);
+        let txm = lm.txm.clone();
+        let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
+        let po = txm
+            .db
+            .get_po(pid)?
+            .ok_or(anyhow!("Pool #{pid} has not operator set!"))?;
+        let operator = match po.proxied {
+            Some(o) => Some(o),
+            None => {
+                let public = po.pair.public();
+                Some(public.into())
+            }
+        };
+        set_worker_message!(c, "Registering worker...");
+        let runtime_info = pr
+            .get_runtime_info(GetRuntimeInfoRequest::new(force_ra, operator))
+            .await?;
+        let pubkey = runtime_info.decode_public_key()?;
+        let attestation = runtime_info
+            .attestation
+            .ok_or(anyhow!("Worker has no attestation!"))?;
+        let v2 = attestation.payload.is_none();
+        let attestation = match attestation.payload {
+            Some(payload) => AttestationEnum::SgxIas {
+                ra_report: payload.report.as_bytes().to_vec(),
+                signature: payload.signature,
+                raw_signing_cert: payload.signing_cert,
+            }
+            .encode(),
+            None => attestation.encoded_report,
+        };
+        txm.clone()
+            .register_worker(pid, runtime_info.encoded_runtime_info, attestation, v2)
+            .await?;
+
+        let api =
+            use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
+
+        set_worker_message!(c, "Waiting for benchmark...");
+        let qp = unsafe { mem::transmute(pubkey) };
+        let registry_query = khala::storage().phala_registry().workers(&qp);
+        loop {
+            let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
+            if let Some(registry_info) = registry_info {
+                if let Some(score) = registry_info.initial_score {
+                    if score > 0 {
+                        break;
+                    }
+                }
+            }
+            sleep(Duration::from_secs(6)).await
+        }
+        Ok(())
     }
 }
 
