@@ -346,7 +346,7 @@ pub mod pallet {
 		#[pallet::call_index(5)]
 		#[pallet::weight(0)]
 		#[frame_support::transactional]
-		pub fn update_wrappedbalance_vote_lock(origin: OriginFor<T>) -> DispatchResult {
+		pub fn backfill_vote_lock(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			base_pool::Pallet::<T>::ensure_migration_root(who)?;
 			let mut iter = VoteAccountMap::<T>::iter();
