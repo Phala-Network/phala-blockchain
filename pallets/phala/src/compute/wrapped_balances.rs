@@ -198,13 +198,15 @@ pub mod pallet {
 				KeepAlive,
 			)?;
 			Self::mint_into(&user, amount)?;
-			StakerAccounts::<T>::insert(
-				&user,
-				FinanceAccount::<BalanceOf<T>> {
-					invest_pools: vec![],
-					locked: Zero::zero(),
-				},
-			);
+			if !StakerAccounts::<T>::contains_key(&user) {
+				StakerAccounts::<T>::insert(
+					&user,
+					FinanceAccount::<BalanceOf<T>> {
+						invest_pools: vec![],
+						locked: Zero::zero(),
+					},
+				);
+			}
 			Self::deposit_event(Event::<T>::Wrapped { user, amount });
 			Ok(())
 		}
@@ -340,8 +342,26 @@ pub mod pallet {
 
 			Ok(())
 		}
-	}
 
+		#[pallet::call_index(5)]
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn backfill_vote_lock(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			let mut iter = VoteAccountMap::<T>::iter();
+			for (_, account_id, (aye_amount, nay_amount)) in iter.by_ref() {
+				let mut account_status = StakerAccounts::<T>::get(&account_id)
+					.expect("account_status should be found when it already voted; qed.");
+				let total_amount = aye_amount + nay_amount;
+				if account_status.locked < total_amount {
+					account_status.locked = total_amount;
+					StakerAccounts::<T>::insert(account_id, account_status);
+				}
+			}
+			Ok(())
+		}
+	}
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
