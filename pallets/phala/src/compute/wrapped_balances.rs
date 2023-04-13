@@ -354,7 +354,7 @@ pub mod pallet {
 				let mut account_status = StakerAccounts::<T>::get(&account_id)
 					.expect("account_status should be found when it already voted; qed.");
 				let total_amount = aye_amount + nay_amount;
-				if account_status.locked  < total_amount {
+				if account_status.locked < total_amount {
 					account_status.locked = total_amount;
 					StakerAccounts::<T>::insert(account_id, account_status);
 				}
