@@ -1,10 +1,11 @@
-use self::khala::runtime_types;
-use self::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
-use self::khala::runtime_types::phala_pallets::utils::attestation_legacy;
 use crate::api::TxStatusResponse;
 use crate::datasource::WrappedDataSourceManager;
-use crate::tx::khala::runtime_types::sp_runtime::DispatchError;
-use crate::tx::khala::utility::events::ItemFailed;
+pub use crate::khala;
+use crate::khala::runtime_types;
+use crate::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
+use crate::khala::runtime_types::phala_pallets::utils::attestation_legacy;
+use crate::khala::runtime_types::sp_runtime::DispatchError;
+use crate::khala::utility::events::ItemFailed;
 use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
 use anyhow::{anyhow, Error, Result};
@@ -23,10 +24,9 @@ use schnorrkel::keys::Keypair;
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::{AccountId32, Ss58AddressFormat, Ss58Codec};
 use sp_core::sr25519::{Pair as Sr25519Pair, Public as Sr25519Public};
-use sp_core::{Pair};
+use sp_core::Pair;
 use std::collections::{HashMap as StdHashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
-use std::mem;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -38,9 +38,6 @@ use subxt::tx::PairSigner;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::{Stream, StreamExt};
-
-#[subxt::subxt(runtime_metadata_url = "wss://khala.api.onfinality.io:443/public-ws")]
-pub mod khala {}
 
 static PHALA_SS58_FORMAT_U8: u8 = 30;
 
@@ -190,7 +187,7 @@ impl Transaction {
             state: self.state.clone(),
             desc: self.desc.clone(),
             pid: self.pid,
-            created_at: self.created_at.clone(),
+            created_at: self.created_at,
             tx_payload: AtomicCell::new(None),
             shot: AtomicCell::new(None),
         }
@@ -229,24 +226,28 @@ pub struct TxManager {
     dsm: WrappedDataSourceManager,
     tx_count: AtomicUsize,
     tx_map: HashMap<usize, Arc<Mutex<Transaction>>>,
-    pending_txs: AtomicCell<VecDeque<usize>>,
-    running_txs: AtomicCell<Vec<usize>>,
-    past_txs: AtomicCell<VecDeque<usize>>,
+    pending_txs: Arc<Mutex<VecDeque<usize>>>,
+    running_txs: Arc<Mutex<Vec<usize>>>,
+    past_txs: Arc<Mutex<VecDeque<usize>>>,
     channel_tx: mpsc::UnboundedSender<usize>,
 }
 
 impl TxManager {
     pub async fn dump(self: Arc<Self>) -> Result<TxStatusResponse> {
         let tx_count = self.tx_count.load(Ordering::Relaxed);
-        let (pending_txs, running_txs, past_txs) = unsafe {
-            let pending_txs = self.pending_txs.as_ptr();
-            let pending_txs: Vec<usize> = (*pending_txs).clone().into();
-            let running_txs = self.running_txs.as_ptr();
-            let running_txs = (*running_txs).clone();
-            let past_txs = self.past_txs.as_ptr();
-            let past_txs: Vec<usize> = (*past_txs).clone().into();
-            (pending_txs, running_txs, past_txs)
-        };
+
+        let pending_txs = self.pending_txs.clone();
+        let pending_txs = pending_txs.lock().await;
+        let pending_txs = pending_txs.clone();
+
+        let running_txs = self.running_txs.clone();
+        let running_txs = running_txs.lock().await;
+        let running_txs = running_txs.clone();
+
+        let past_txs = self.past_txs.clone();
+        let past_txs = past_txs.lock().await;
+        let past_txs = past_txs.clone();
+
         macro_rules! dump_tx_group {
             ($v: ident) => {{
                 let mut r = Vec::new();
@@ -288,9 +289,9 @@ impl TxManager {
             dsm,
             tx_count: AtomicUsize::new(0),
             tx_map: HashMap::new(),
-            pending_txs: AtomicCell::new(VecDeque::new()),
-            running_txs: AtomicCell::new(Vec::new()),
-            past_txs: AtomicCell::new(VecDeque::new()),
+            pending_txs: Arc::new(Mutex::new(VecDeque::new())),
+            running_txs: Arc::new(Mutex::new(Vec::new())),
+            past_txs: Arc::new(Mutex::new(VecDeque::new())),
             channel_tx: tx,
         });
         let handle = Box::pin(txm.clone().start_trader(rx));
@@ -305,17 +306,26 @@ impl TxManager {
         tokio::pin!(rx_stream);
 
         while let Some(current_txs) = rx_stream.next().await {
-            let last_running_txs = self.running_txs.swap(current_txs.clone());
-            unsafe {
-                let pending_txs = self.pending_txs.as_ptr();
-                for _ in current_txs.iter() {
-                    let _ = (*pending_txs).pop_front();
-                }
-                let past_txs = self.past_txs.as_ptr();
-                for i in last_running_txs {
-                    (*past_txs).push_front(i);
-                }
+            let pending_txs = self.pending_txs.clone();
+            let mut pending_txs = pending_txs.lock().await;
+            let running_txs = self.running_txs.clone();
+            let mut running_txs = running_txs.lock().await;
+            let past_txs = self.past_txs.clone();
+            let mut past_txs = past_txs.lock().await;
+
+            let last_running_txs = running_txs.clone();
+            *running_txs = current_txs.clone();
+
+            for _ in current_txs.iter() {
+                let _ = pending_txs.pop_front();
             }
+            for i in last_running_txs {
+                past_txs.push_front(i);
+            }
+
+            drop(pending_txs);
+            drop(running_txs);
+            drop(past_txs);
 
             let mut tx_map: StdHashMap<u64, Vec<usize>> = StdHashMap::new();
             for i in current_txs {
@@ -346,13 +356,18 @@ impl TxManager {
             )
             .await;
 
-            let last_running_txs = self.running_txs.swap(Vec::new());
-            unsafe {
-                let past_txs = self.past_txs.as_ptr();
-                for i in last_running_txs {
-                    (*past_txs).push_front(i);
-                }
+            let running_txs = self.running_txs.clone();
+            let mut running_txs = running_txs.lock().await;
+            let past_txs = self.past_txs.clone();
+            let mut past_txs = past_txs.lock().await;
+
+            let last_running_txs = running_txs.clone();
+            *running_txs = Vec::new();
+            for i in last_running_txs {
+                past_txs.push_front(i);
             }
+            drop(running_txs);
+            drop(past_txs);
         }
         error!("Unexpected exit of start_trader!");
         std::process::exit(255);
@@ -443,7 +458,7 @@ impl TxManager {
                 .find_first::<khala::proxy::events::ProxyExecuted>()?
                 .ok_or(anyhow!("ProxyExecuted event not found!"))?;
             if let Err(e) = event_proxy.result {
-                anyhow::bail!(format!("{:?}", e));
+                anyhow::bail!("{:?}", &e);
             }
         }
         if tx
@@ -511,10 +526,12 @@ impl TxManager {
         gid += 1;
         self.tx_count.store(gid, Ordering::SeqCst);
         debug!("send_to_queue: {:?}", &id);
-        unsafe {
-            let pending_txs = self.pending_txs.as_ptr();
-            (*pending_txs).push_back(id);
-        }
+
+        let pending_txs = self.pending_txs.clone();
+        let mut pending_txs = pending_txs.lock().await;
+        pending_txs.push_back(id);
+        drop(pending_txs);
+
         self.tx_map.insert(
             id,
             Arc::new(Mutex::new(Transaction::new(
@@ -586,7 +603,6 @@ impl TxManager {
         pid: u64,
         signed_message: SignedMessage,
     ) -> Result<()> {
-        let signed_message = unsafe { mem::transmute(signed_message) };
         let tx_payload = RuntimeCall::PhalaMq(
             khala::runtime_types::phala_pallets::mq::pallet::Call::sync_offchain_message {
                 signed_message,
@@ -603,7 +619,7 @@ impl TxManager {
         let tx_payload = RuntimeCall::PhalaStakePoolv2(
             khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::add_worker {
                 pid,
-                pubkey: unsafe { mem::transmute(pubkey) },
+                pubkey,
             },
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
@@ -611,32 +627,32 @@ impl TxManager {
     pub async fn start_computing(
         self: Arc<Self>,
         pid: u64,
-        pubkey: Sr25519Public,
+        worker: Sr25519Public,
         stake: String,
     ) -> Result<()> {
         let desc = format!(
             "Start computing for 0x{} with stake of {} in pool #{pid}.",
-            pubkey.encode_hex::<String>(),
+            worker.encode_hex::<String>(),
             &stake
         );
         let tx_payload = RuntimeCall::PhalaStakePoolv2(
             khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::start_computing  {
                 pid,
-                worker: unsafe { mem::transmute(pubkey) },
+                worker,
                 stake: stake.parse::<u128>()?
             },
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
-    pub async fn stop_computing(self: Arc<Self>, pid: u64, pubkey: Sr25519Public) -> Result<()> {
+    pub async fn stop_computing(self: Arc<Self>, pid: u64, worker: Sr25519Public) -> Result<()> {
         let desc = format!(
             "Stop computing for 0x{} in pool #{pid}.",
-            pubkey.encode_hex::<String>()
+            worker.encode_hex::<String>()
         );
         let tx_payload = RuntimeCall::PhalaStakePoolv2(
             khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::stop_computing  {
                 pid,
-                worker: unsafe { mem::transmute(pubkey) },
+                worker,
             },
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await

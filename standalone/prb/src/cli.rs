@@ -211,7 +211,7 @@ pub enum ConfigCommands {
         #[arg(short, long)]
         pid: u64,
 
-        /// Account string of the operator, can be either a mnemonic or a seed, learn more: https://docs.rs/sp-core/latest/sp_core/crypto/trait.Pair.html#method.from_string_with_seed
+        /// Account string of the operator, can be either a mnemonic or a seed, learn more: `https://docs.rs/sp-core/latest/sp_core/crypto/trait.Pair.html#method.from_string_with_seed`
         #[arg(short, long)]
         account: String,
 

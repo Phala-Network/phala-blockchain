@@ -23,10 +23,9 @@ use pherry::{get_block_at, get_finalized_header, BlockSyncState};
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519::Public as Sr25519Public;
 use sp_core::{ByteArray, Pair};
-use std::sync::atomic::Ordering;
+use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{cmp, mem};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio::time::sleep;
 
@@ -57,15 +56,21 @@ pub type WorkerLifecycleStateTx = mpsc::UnboundedSender<WorkerLifecycleState>;
 pub type WorkerLifecycleStateRx = mpsc::UnboundedReceiver<WorkerLifecycleState>;
 
 macro_rules! use_lm {
-    ($ctx:expr) => {
-        unsafe {
-            let lm = $ctx
-                .clone()
-                .current_lifecycle_manager
-                .load(Ordering::SeqCst);
-            (*lm).clone().unwrap()
-        }
-    };
+    ($ctx:expr) => {{
+        let lm = $ctx.current_lifecycle_manager.clone();
+        let lm = lm.lock().await;
+        let ret = lm.clone().unwrap();
+        drop(lm);
+        ret
+    }};
+}
+
+macro_rules! use_lm_with_ctx {
+    ($ctx:expr) => {{
+        let ctx = $ctx.clone();
+        let ret = use_lm!(ctx);
+        ret
+    }};
 }
 
 macro_rules! lifecycle_loop_state_handle_error {
@@ -105,7 +110,7 @@ macro_rules! extract_essential_values {
         let cc = cc.read().await;
         let sm_tx = cc.sm_tx.as_ref().unwrap().clone();
         let pr = cc.pr.clone();
-        let lm = use_lm!(cc.ctx);
+        let lm = use_lm_with_ctx!(cc.ctx);
         let worker = cc.worker.clone();
         drop(cc);
         (lm, worker, pr, sm_tx)
@@ -166,7 +171,7 @@ impl WorkerContext {
         let cc = c.clone();
         let cc = cc.read().await;
         let ctx = cc.ctx.clone();
-        let lm = use_lm!(ctx);
+        let lm = use_lm_with_ctx!(ctx);
 
         let worker = cc.worker.clone();
         drop(ctx);
@@ -367,18 +372,19 @@ impl WorkerContext {
         let api =
             use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
 
-        let qp = unsafe { mem::transmute(pubkey) };
-        let registry_query = khala::storage().phala_registry().workers(&qp);
+        let registry_query = khala::storage().phala_registry().workers(&pubkey);
         let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
         if let Some(registry_info) = registry_info {
-            let op = unsafe { mem::transmute(po.proxied.clone()) };
-            if registry_info.operator.ne(&op) {
+            let po = match &po.proxied {
+                Some(po) => Some(subxt::utils::AccountId32(*po.as_ref())),
+                None => None,
+            };
+            if registry_info.operator.ne(&po) {
                 Self::register_worker(c.clone(), true).await?;
             }
         }
         tokio::spawn(Self::update_session_loop(c.clone(), pubkey));
 
-        let pubkey = unsafe { mem::transmute(pubkey) };
         let worker_binding_query = khala::storage()
             .phala_computation()
             .worker_bindings(&pubkey);
@@ -388,7 +394,6 @@ impl WorkerContext {
             .await?
             .fetch(&worker_binding_query)
             .await?;
-        let pubkey = unsafe { mem::transmute(pubkey) };
         if worker_binding.is_none() {
             set_worker_message!(c, "Enabling worker in stakepool pallet...");
             txm.clone().add_worker(pid, pubkey).await?;
@@ -483,7 +488,6 @@ impl WorkerContext {
         pubkey: Sr25519Public,
     ) -> Result<()> {
         let (lm, _worker, _pr, _sm_tx) = extract_essential_values!(c);
-        let pubkey = unsafe { mem::transmute(pubkey) };
         let worker_binding_query = khala::storage()
             .phala_computation()
             .worker_bindings(&pubkey);
@@ -531,7 +535,6 @@ impl WorkerContext {
                 .fetch(session_query.as_ref().unwrap())
                 .await?;
             if let Some(session) = session {
-                let session: SessionInfo = unsafe { mem::transmute(session) };
                 if session.state == WorkerState::WorkerUnresponsive {
                     set_worker_message!(c, "Worker unresponsive!")
                 }
@@ -600,8 +603,7 @@ impl WorkerContext {
             use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
 
         set_worker_message!(c, "Waiting for benchmark...");
-        let qp = unsafe { mem::transmute(pubkey) };
-        let registry_query = khala::storage().phala_registry().workers(&qp);
+        let registry_query = khala::storage().phala_registry().workers(&pubkey);
         loop {
             let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
             if let Some(registry_info) = registry_info {

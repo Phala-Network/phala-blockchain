@@ -10,8 +10,7 @@ use crate::worker::WrappedWorkerContext;
 use anyhow::{anyhow, Result};
 use futures::future::{try_join, try_join3, try_join_all};
 use log::{debug, info};
-
-use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
@@ -33,7 +32,7 @@ pub struct WorkerManagerCommand {
 
 pub struct WorkerManagerContext {
     pub initialized: AtomicBool,
-    pub current_lifecycle_manager: AtomicPtr<Option<WrappedWorkerLifecycleManager>>,
+    pub current_lifecycle_manager: Arc<Mutex<Option<WrappedWorkerLifecycleManager>>>,
     pub inv_db: WrappedDb,
     pub dsm: WrappedDataSourceManager,
     pub workers: WrappedWorkerContexts,
@@ -102,8 +101,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
 
     let (txm, txm_handle) = TxManager::new(&args.db_path, dsm.clone()).expect("TxManager");
 
-    let mut current_lifecycle_manager_inner = None;
-    let current_lifecycle_manager = AtomicPtr::new(&mut current_lifecycle_manager_inner);
+    let current_lifecycle_manager = Arc::new(Mutex::new(None));
     let ctx = Arc::new(WorkerManagerContext {
         initialized: false.into(),
         current_lifecycle_manager,
@@ -162,9 +160,11 @@ pub async fn set_lifecycle_manager(
         ctx.txm.clone(),
     )
     .await;
-    let mut lm_inner = Some(lm.clone());
-    ctx.current_lifecycle_manager
-        .store(&mut lm_inner, Ordering::SeqCst);
+    let lm_inner = Some(lm.clone());
+    let clm = ctx.current_lifecycle_manager.clone();
+    let mut clm = clm.lock().await;
+    *clm = lm_inner;
+    drop(clm);
 
     try_join(
         message_loop(ctx.clone(), tx.clone(), rx, reload_tx),
