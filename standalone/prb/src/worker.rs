@@ -341,7 +341,7 @@ impl WorkerContext {
         } else if po.is_none() {
             set_worker_message!(
                 c,
-                "Sync only mode enabled for pool #{worker.pid} has no operator set."
+                format!("Sync only mode enabled for pool #{pid} has no operator set.").as_str()
             );
             sync_only = true;
         }
