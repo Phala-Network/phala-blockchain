@@ -198,14 +198,14 @@ pub enum ConfigCommands {
     /// Get all pool operators
     GetAllPoolOperators,
 
-    /// Get a pool operators by pid
+    /// Get a pool operator by pid
     GetPoolOperator {
         /// PID of the pool
         #[arg(short, long)]
         pid: u64,
     },
 
-    /// Set a pool operators for pool
+    /// Set operator for a pool
     SetPoolOperator {
         /// PID of the pool
         #[arg(short, long)]
