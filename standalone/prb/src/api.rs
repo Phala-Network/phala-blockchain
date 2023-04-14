@@ -133,7 +133,7 @@ async fn handle_restart_wm() {
 
 async fn handle_get_worker_status(
     State(ctx): AppContext,
-) -> (StatusCode, Json<WorkerStatusResponse>) {
+) -> ApiResult<(StatusCode, Json<WorkerStatusResponse>)> {
     let w = ctx.workers.clone();
     let w = w.lock().await;
     let mut workers = Vec::new();
@@ -147,7 +147,7 @@ async fn handle_get_worker_status(
             last_message: w.last_message.clone(),
         })
     }
-    (StatusCode::OK, Json(WorkerStatusResponse { workers }))
+    Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))
 }
 
 async fn handle_restart_specific_workers() {

@@ -12,11 +12,12 @@ use futures::future::{try_join, try_join3, try_join_all};
 use log::{debug, info};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use std::sync::Mutex;
+use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex};
 
 pub type GlobalWorkerManagerCommandChannelPair = (
     mpsc::UnboundedSender<WorkerManagerCommand>,
-    Arc<Mutex<mpsc::UnboundedReceiver<WorkerManagerCommand>>>,
+    Arc<TokioMutex<mpsc::UnboundedReceiver<WorkerManagerCommand>>>,
 );
 
 pub type WorkerManagerCommandTx = mpsc::UnboundedSender<WorkerManagerCommand>;
@@ -108,7 +109,7 @@ pub async fn wm(args: WorkerManagerCliArgs) {
         inv_db,
         dsm: dsm.clone(),
         txm: txm.clone(),
-        workers: Arc::new(Mutex::new(Vec::new())),
+        workers: Arc::new(TokioMutex::new(Vec::new())),
     });
 
     let join_handle = try_join3(
@@ -162,7 +163,7 @@ pub async fn set_lifecycle_manager(
     .await;
     let lm_inner = Some(lm.clone());
     let clm = ctx.current_lifecycle_manager.clone();
-    let mut clm = clm.lock().await;
+    let mut clm = clm.lock().unwrap();
     *clm = lm_inner;
     drop(clm);
 

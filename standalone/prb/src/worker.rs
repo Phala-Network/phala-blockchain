@@ -26,7 +26,7 @@ use sp_core::{ByteArray, Pair};
 use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::time::sleep;
 
 static RELAYCHAIN_HEADER_BATCH_SIZE: u32 = 1000;
@@ -58,7 +58,7 @@ pub type WorkerLifecycleStateRx = mpsc::UnboundedReceiver<WorkerLifecycleState>;
 macro_rules! use_lm {
     ($ctx:expr) => {{
         let lm = $ctx.current_lifecycle_manager.clone();
-        let lm = lm.lock().await;
+        let lm = lm.lock().unwrap();
         let ret = lm.clone().unwrap();
         drop(lm);
         ret
@@ -124,7 +124,7 @@ pub struct WorkerContext {
     pub worker: Worker,
     pub state: WorkerLifecycleState,
     pub tx: WorkerLifecycleCommandTx,
-    pub rx: Arc<Mutex<WorkerLifecycleCommandRx>>,
+    pub rx: Arc<TokioMutex<WorkerLifecycleCommandRx>>,
     pub ctx: WrappedWorkerManagerContext,
     pub pr: Arc<PRuntimeClient>,
     pub info: Option<PhactoryInfo>,
@@ -145,7 +145,7 @@ impl WorkerContext {
             worker: w,
             state: WorkerLifecycleState::Starting,
             tx,
-            rx: Arc::new(Mutex::new(rx)),
+            rx: Arc::new(TokioMutex::new(rx)),
             ctx,
             pr,
             info: None,
