@@ -398,7 +398,7 @@ impl DataSourceManager {
         let cache = Cache::builder()
             .weigher(|_key, value: &Arc<DataSourceCacheItem>| -> u32 { value.resident_size() as _ })
             .max_capacity(cache_size as _)
-            .time_to_idle(Duration::from_secs(15 * 60));
+            .time_to_idle(Duration::from_secs(2 * 60));
 
         let cache = cache.build();
 
