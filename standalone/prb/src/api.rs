@@ -103,6 +103,7 @@ pub async fn start_api_server(
         .route("/workers/status", get(handle_get_worker_status))
         .route("/workers/restart", put(handle_restart_specific_workers))
         .route("/tx/status", get(handle_get_tx_status))
+        .fallback(handle_get_root)
         .with_state(ctx);
 
     let fut_vec = args
