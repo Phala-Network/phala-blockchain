@@ -351,10 +351,12 @@ impl WorkerContext {
 
         let po = po.unwrap();
         let i = pr.get_info(()).await?;
+        let mq_rx = Self::start_mq_sync(c.clone(), pid).await?;
+        tokio::pin!(mq_rx);
+
         if !i.registered {
             Self::register_worker(c.clone(), true).await?;
         }
-        Self::start_mq_sync(c.clone(), pid).await?.await?;
 
         if worker.gatekeeper {
             set_worker_message!(
@@ -408,6 +410,7 @@ impl WorkerContext {
             if let Some(session) = session {
                 match session.state {
                     WorkerState::Ready => {
+                        mq_rx.await?;
                         set_worker_message!(c, "Starting computing...");
                         txm.clone()
                             .start_computing(pid, pubkey, worker.stake)
@@ -416,8 +419,10 @@ impl WorkerContext {
                     }
                     WorkerState::WorkerCoolingDown => {
                         set_worker_message!(c, "Worker is cooling down!");
+                        drop(mq_rx);
                     }
                     _ => {
+                        drop(mq_rx);
                         let _ = sm_tx.clone().send(WorkerLifecycleState::Working);
                     }
                 }
@@ -609,6 +614,7 @@ impl WorkerContext {
             if let Some(registry_info) = registry_info {
                 if let Some(score) = registry_info.initial_score {
                     if score > 0 {
+                        set_worker_message!(c, "Got valid benchmark score!");
                         break;
                     }
                 }
@@ -657,6 +663,7 @@ impl WorkerContext {
         let (lm, _worker, pr, _sm_tx) = extract_essential_values!(c);
         let txm = lm.txm.clone();
         let messages = pr.get_egress_messages(()).await?.decode_messages()?;
+        debug!("mq_sync_loop_round: {:?}", &messages);
         if messages.is_empty() {
             return Ok(());
         }
