@@ -20,7 +20,7 @@ pub async fn join_handles(handles: Vec<JoinHandle<()>>) {
 #[macro_export]
 macro_rules! with_retry {
     ($f:expr, $c:expr, $s:expr) => {{
-        let mut retry_count: u8 = 0;
+        let mut retry_count: u64 = 0;
         loop {
             let r = $f.await;
             match r {

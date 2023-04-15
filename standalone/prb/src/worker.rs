@@ -816,12 +816,12 @@ impl WorkerContext {
         to: u32,
         last_header_proof: Vec<Vec<u8>>,
     ) -> Result<u32> {
-        if from > to {
+        if from >= to {
             debug!("from: {from}, to: {to}");
             return Ok(to - 1);
         }
 
-        let mut headers = with_retry!(dsm.clone().get_para_headers(from, to), 3, 1500)?;
+        let mut headers = with_retry!(dsm.clone().get_para_headers(from, to), u64::MAX, 1500)?;
         headers.proof = last_header_proof;
         let res = pr.sync_para_header(headers).await?;
 
