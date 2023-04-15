@@ -113,6 +113,8 @@ pub mod ecall {
         ) -> Vec<u8>;
         #[xcall(id = 21)]
         fn git_revision(&self) -> String;
+        #[xcall(id = 22)]
+        fn check_child_storage(&self, account: AccountId);
     }
 }
 

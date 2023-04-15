@@ -6,7 +6,7 @@ extern crate log;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use ::pink::types::AccountId;
+use ::pink::{types::AccountId, capi::v1::ecall::ECallsRo};
 use contracts::{
     pink::{http_counters, Cluster},
     ContractsKeeper,
@@ -479,6 +479,15 @@ impl<P: pal::Platform> Phactory<P> {
                 "Please update to the latest version."
             );
             std::process::abort();
+        }
+        let system = &self
+            .system
+            .as_ref()
+            .expect("BUG: no system");
+        if let Some(cluster) = &system.contract_cluster {
+            for contract in system.contracts.keys() {
+                cluster.default_runtime().check_child_storage(contract.clone());
+            }
         }
     }
 

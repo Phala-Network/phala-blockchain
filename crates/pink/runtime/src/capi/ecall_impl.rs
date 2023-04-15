@@ -10,7 +10,7 @@ use pink_capi::{
         Executing,
     },
 };
-use scale::Encode;
+use scale::{Encode, Decode};
 
 use crate::{
     contract::check_instantiate_result,
@@ -134,8 +134,8 @@ impl ecall::ECalls for ECallImpl {
              = 78MB
         If we allow 8 concurrent calls, the total memory cost would be 78MB * 8 = 624MB.
         */
-        let info = phala_wasm_checker::wasm_info(&code)
-            .map_err(|err| format!("Invalid wasm: {err:?}"))?;
+        let info =
+            phala_wasm_checker::wasm_info(&code).map_err(|err| format!("Invalid wasm: {err:?}"))?;
         let max_wasmi_cost = crate::runtime::MaxCodeLen::get() as usize * 4;
         if info.estimate_wasmi_memory_cost() > max_wasmi_cost {
             return Err("DecompressedCodeTooLarge".into());
@@ -270,6 +270,22 @@ impl ecall::ECalls for ECallImpl {
     fn git_revision(&self) -> String {
         phala_git_revision::git_revision().to_string()
     }
+    fn check_child_storage(&self, account: AccountId) {
+        #[derive(Encode, Decode)]
+        struct ContractInfo {
+            trie_id: Vec<u8>,
+        }
+        // The pallet-contracts doesn't export an API the get the code hash. So we dig it out from the storage.
+        let key = storage_map_prefix_twox_64_concat(b"Contracts", b"ContractInfoOf", &account);
+        let value = sp_io::storage::get(&key).unwrap();
+        let info = ContractInfo::decode(&mut &value[..]).unwrap();
+        let mut child_key = sp_io::default_child_storage::next_key(&info.trie_id, &[]);
+        println!("Checking child storage keys");
+        while let Some(key) = &child_key {
+            let value = sp_io::default_child_storage::get(&info.trie_id, key);
+            child_key = sp_io::default_child_storage::next_key(&info.trie_id, key);
+        }
+    }
 }
 
 /// Clip gas limit to 0.5 second for tx, 10 seconds for query
@@ -280,4 +296,18 @@ fn sanitize_args(mut args: TransactionArguments, mode: ExecutionMode) -> Transac
     };
     args.gas_limit = args.gas_limit.min(gas_limit);
     args
+}
+
+/// Calculates the Substrate storage key prefix for a StorageMap
+pub fn storage_map_prefix_twox_64_concat(
+    module: &[u8],
+    storage_item: &[u8],
+    key: &(impl Encode + ?Sized),
+) -> Vec<u8> {
+    let mut bytes = sp_core::twox_128(module).to_vec();
+    bytes.extend(&sp_core::twox_128(storage_item)[..]);
+    let encoded = key.encode();
+    bytes.extend(sp_core::twox_64(&encoded));
+    bytes.extend(&encoded);
+    bytes
 }
