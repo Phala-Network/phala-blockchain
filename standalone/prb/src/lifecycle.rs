@@ -73,8 +73,7 @@ impl WorkerLifecycleManager {
         let mut worker_context_map: WorkerContextMap = HashMap::new();
         while let Some(c) = join_set.join_next().await {
             match c {
-                Ok(c) => match c {
-                    Ok(c) => {
+                Ok(Ok(c)) => {
                         let cc = Arc::new(RwLock::new(c));
                         let c = cc.clone();
                         let mut c = c.write().await;
@@ -82,9 +81,8 @@ impl WorkerLifecycleManager {
                         worker_context_map.insert(c.id.clone(), cc.clone());
                         worker_context_vec.push(cc.clone());
                         drop(c)
-                    }
-                    Err(e) => panic!("create_worker_contexts: {e}"),
-                },
+                }
+                Ok(Err(e)) => panic!("create_worker_contexts: {e}"),
                 Err(e) => panic!("create_worker_contexts: {e}"),
             }
         }
@@ -113,9 +111,9 @@ impl WorkerLifecycleManager {
     }
 
     pub async fn webhook_send(self: Arc<Self>, c: WrappedWorkerContext) -> Result<()> {
-        if self.webhook_url.is_none() {
+        let Some(webhook_url) = &self.webhook_url else {
             return Ok(());
-        }
+        };
         let cc = c.read().await;
         let s = WorkerStatus {
             worker: cc.worker.clone(),
@@ -126,7 +124,7 @@ impl WorkerLifecycleManager {
         let body = serde_json::to_string(&s)?;
         if let Err(e) = self
             .reqwest
-            .post(self.webhook_url.as_ref().unwrap())
+            .post(webhook_url)
             .body(body)
             .send()
             .await
@@ -136,25 +134,19 @@ impl WorkerLifecycleManager {
         Ok(())
     }
 
-    pub async fn spawn_lifecycle_tasks(self: Arc<Self>) -> Result<()> {
+    pub async fn spawn_lifecycle_tasks(&self) -> Result<()> {
         debug!("spawn_lifecycle_tasks start");
-        let v = &self.clone().worker_context_map;
-        let v = v.iter().map(|(_, c)| c.clone()).collect::<Vec<_>>();
         let mut join_set = JoinSet::new();
-        for c in v {
-            join_set.spawn(WorkerContext::start(c));
+        for (_, c) in self.worker_context_map.iter() {
+            join_set.spawn(WorkerContext::start(c.clone()));
         }
         while (join_set.join_next().await).is_some() {} // wait tasks to be done
-        self.clone()
-            .send_to_main_channel(WorkerManagerMessage::ShouldBreakMessageLoop)
+        self.send_to_main_channel(WorkerManagerMessage::ShouldBreakMessageLoop)
             .await?;
         Ok(())
     }
 
-    pub async fn send_to_main_channel(
-        self: Arc<Self>,
-        message: WorkerManagerMessage,
-    ) -> Result<()> {
+    pub async fn send_to_main_channel(&self, message: WorkerManagerMessage) -> Result<()> {
         send_to_main_channel(self.main_tx.clone(), message).await
     }
 

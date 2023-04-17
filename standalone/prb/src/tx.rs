@@ -226,9 +226,9 @@ pub struct TxManager {
     dsm: WrappedDataSourceManager,
     tx_count: AtomicUsize,
     tx_map: HashMap<usize, Arc<Mutex<Transaction>>>,
-    pending_txs: Arc<Mutex<VecDeque<usize>>>,
-    running_txs: Arc<Mutex<Vec<usize>>>,
-    past_txs: Arc<Mutex<VecDeque<usize>>>,
+    pending_txs: Mutex<VecDeque<usize>>,
+    running_txs: Mutex<Vec<usize>>,
+    past_txs: Mutex<VecDeque<usize>>,
     channel_tx: mpsc::UnboundedSender<usize>,
 }
 
@@ -313,8 +313,7 @@ impl TxManager {
             let past_txs = self.past_txs.clone();
             let mut past_txs = past_txs.lock().await;
 
-            let last_running_txs = running_txs.clone();
-            *running_txs = current_txs.clone();
+            let last_running_txs = std::mem::take(&mut *running_txs);
 
             for _ in current_txs.iter() {
                 let _ = pending_txs.pop_front();
@@ -323,16 +322,14 @@ impl TxManager {
                 past_txs.push_front(i);
             }
 
-            drop(pending_txs);
-            drop(running_txs);
             drop(past_txs);
+            drop(running_txs);
+            drop(pending_txs);
 
             let mut tx_map: StdHashMap<u64, Vec<usize>> = StdHashMap::new();
             for i in current_txs {
                 let tx = self.tx_map.get(&i).ok_or(UnknownDataMismatch)?;
-                let tx = tx.lock().await;
-                let pid = tx.pid;
-                drop(tx);
+                let pid = tx.lock().await.pid;
                 if let Some(group) = tx_map.get_mut(&pid) {
                     group.push(i);
                 } else {
