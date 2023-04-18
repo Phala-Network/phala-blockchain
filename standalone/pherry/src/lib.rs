@@ -12,7 +12,8 @@ use phaxt::{
     dynamic::storage_key,
     rpc::ExtraRpcExt as _,
     sp_core::{crypto::Pair, sr25519},
-    subxt, RpcClient,
+    subxt::{self, tx::TxPayload},
+    RpcClient,
 };
 use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use subxt::config::{substrate::Era, Header as _};
@@ -46,7 +47,6 @@ use notify_client::NotifyClient;
 use phala_types::AttestationProvider;
 
 pub use phaxt::connect as subxt_connect;
-use phaxt::subxt::tx::TxPayload;
 
 #[derive(Parser, Debug)]
 #[clap(
@@ -559,8 +559,12 @@ async fn batch_sync_block(
                 .header
                 .number
                 .saturating_sub(1);
-            let hash = api.rpc().block_hash(Some(number.into())).await?;
-            let set_id = api.current_set_id(hash).await?;
+            let hash = api
+                .rpc()
+                .block_hash(Some(number.into()))
+                .await?
+                .ok_or_else(|| anyhow!("Failed to get block hash for block number {}", number))?;
+            let set_id = api.current_set_id(Some(hash)).await?;
             let set = (number, set_id);
             sync_state.authory_set_state = Some(set);
             set
@@ -962,7 +966,9 @@ async fn register_worker(
     };
     let tx = phaxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
 
-    let encoded_call_data = tx.encode_call_data(&para_api.metadata()).expect("should encoded");
+    let encoded_call_data = tx
+        .encode_call_data(&para_api.metadata())
+        .expect("should encoded");
     debug!("register_worker call: 0x{}", hex::encode(encoded_call_data));
 
     let ret = para_api
