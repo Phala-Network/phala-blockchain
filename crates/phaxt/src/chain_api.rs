@@ -1,18 +1,26 @@
 use anyhow::{anyhow, Context, Result};
-use parity_scale_codec::Encode;
 use subxt::dynamic::Value;
-use subxt::ext::frame_metadata;
-use subxt::rpc::types::{BlockNumber as SubxtBlockNumber, NumberOrHex};
+use subxt::ext::scale_encode::EncodeAsType;
 use subxt::ext::scale_value::At;
+use subxt::rpc::types::{BlockNumber as SubxtBlockNumber, NumberOrHex};
+use subxt::storage::Storage;
 
-use crate::{BlockNumber, ChainApi, Hash};
+use crate::{BlockNumber, ChainApi, Config, Hash, RpcClient};
 
 impl ChainApi {
+    async fn storage_at(&self, hash: Option<Hash>) -> Result<Storage<Config, RpcClient>> {
+        let snap = match hash {
+            Some(hash) => self.storage().at(hash),
+            None => self.storage().at_latest().await?,
+        };
+        Ok(snap)
+    }
+
     pub fn storage_key(
         &self,
         pallet_name: &str,
         entry_name: &str,
-        key: &impl Encode,
+        key: &impl EncodeAsType,
     ) -> Result<Vec<u8>> {
         let address = subxt::dynamic::storage(pallet_name, entry_name, vec![key]);
         Ok(self.0.storage().address_bytes(&address)?)
@@ -46,11 +54,11 @@ impl ChainApi {
         Ok(number as _)
     }
 
-    pub async fn current_set_id(&self, block_hash: Hash) -> Result<u64> {
+    pub async fn current_set_id(&self, block_hash: Option<Hash>) -> Result<u64> {
         let address = subxt::dynamic::storage_root("Grandpa", "CurrentSetId");
         let set_id = self
-            .storage()
-            .at(block_hash)
+            .storage_at(block_hash)
+            .await?
             .fetch(&address)
             .await
             .context("Failed to get current set_id")?
@@ -61,11 +69,11 @@ impl ChainApi {
             .ok_or_else(|| anyhow!("Invalid set id"))? as _)
     }
 
-    pub async fn get_paraid(&self, hash: Hash) -> Result<u32> {
+    pub async fn get_paraid(&self, hash: Option<Hash>) -> Result<u32> {
         let address = subxt::dynamic::storage_root("ParachainInfo", "ParachainId");
         let id = self
-            .storage()
-            .at(hash)
+            .storage_at(hash)
+            .await?
             .fetch(&address)
             .await
             .context("Failed to get current set_id")?
@@ -107,6 +115,7 @@ impl ChainApi {
         let Some(block) = self
             .storage()
             .at_latest()
+            .await?
             .fetch(&address)
             .await
             .context("Failed to get worker info")? else {

@@ -1,6 +1,5 @@
 use codec::Decode;
 use phala_types::VersionedWorkerEndpoints;
-use phaxt::sp_core::sr25519::Public;
 use phaxt::ParachainApi;
 
 use phactory_api::endpoints::EndpointType;
@@ -11,7 +10,7 @@ pub async fn get_endpoint_info_by_pubkey(
     endpoint_type: EndpointType,
 ) -> Option<String> {
     let address = api
-        .storage_key("PhalaRegistry", "Endpoints", &Public(pubkey))
+        .storage_key("PhalaRegistry", "Endpoints", &pubkey)
         .ok()?;
     let storage_data = api.rpc().storage(&address, None).await.ok().flatten()?;
     let VersionedWorkerEndpoints::V1(endpoints_info) = Decode::decode(&mut &storage_data.0[..]).ok()?;

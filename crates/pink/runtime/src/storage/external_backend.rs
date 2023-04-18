@@ -46,23 +46,19 @@ impl ExternalStorage {
 
 pub mod helper {
     use crate::types::Hash;
-    use subxt::{
-        metadata::DecodeStaticType,
-        storage::{
-            address::{StorageHasher, StorageMapKey},
-            StaticStorageAddress,
-        },
-    };
+    use scale::Encode;
+    use sp_core::hashing::twox_128;
 
     pub fn code_exists(code_hash: &Hash) -> bool {
-        let map_key = StorageMapKey::new(code_hash, StorageHasher::Identity);
-        let address = StaticStorageAddress::<DecodeStaticType<()>, (), (), ()>::new(
-            "Contracts",
-            "OwnerInfoOf",
-            vec![map_key],
-            [0; 32],
-        );
-        let key = address.to_bytes();
+        let key = code_owner_key(code_hash);
         super::ExternalStorage::instantiate().get(&key).is_some()
+    }
+
+    fn code_owner_key(code_hash: &Hash) -> Vec<u8> {
+        let mut key = Vec::new();
+        key.extend(twox_128("Contracts".as_bytes()));
+        key.extend(twox_128("OwnerInfoOf".as_bytes()));
+        key.extend(&code_hash.encode());
+        key
     }
 }
