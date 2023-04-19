@@ -607,20 +607,23 @@ impl WorkerContext {
         let api =
             use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
 
-        set_worker_message!(c, "Waiting for benchmark...");
-        let registry_query = khala::storage().phala_registry().workers(&pubkey);
-        loop {
-            let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
-            if let Some(registry_info) = registry_info {
-                if let Some(score) = registry_info.initial_score {
-                    if score > 0 {
-                        set_worker_message!(c, "Got valid benchmark score!");
-                        break;
+        if !worker.gatekeeper {
+            set_worker_message!(c, "Waiting for benchmark...");
+            let registry_query = khala::storage().phala_registry().workers(&pubkey);
+            loop {
+                let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
+                if let Some(registry_info) = registry_info {
+                    if let Some(score) = registry_info.initial_score {
+                        if score > 0 {
+                            set_worker_message!(c, "Got valid benchmark score!");
+                            break;
+                        }
                     }
                 }
+                sleep(Duration::from_secs(6)).await
             }
-            sleep(Duration::from_secs(6)).await
         }
+
         Ok(())
     }
 }
