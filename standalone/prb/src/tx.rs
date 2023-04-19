@@ -47,6 +47,7 @@ lazy_static! {
 
 static TX_QUEUE_CHUNK_SIZE: usize = 30;
 static TX_QUEUE_CHUNK_TIMEOUT_IN_MS: u64 = 1000;
+static TX_TIMEOUT: u64 = 30000;
 
 static PO_LIST: &str = "po_list";
 static PO_BY_PID: &str = "po:pid:";
@@ -236,16 +237,13 @@ impl TxManager {
     pub async fn dump(self: Arc<Self>) -> Result<TxStatusResponse> {
         let tx_count = self.tx_count.load(Ordering::Relaxed);
 
-        let pending_txs = self.pending_txs.clone();
-        let pending_txs = pending_txs.lock().await;
+        let pending_txs = self.pending_txs.lock().await;
         let pending_txs = pending_txs.clone();
 
-        let running_txs = self.running_txs.clone();
-        let running_txs = running_txs.lock().await;
+        let running_txs = self.running_txs.lock().await;
         let running_txs = running_txs.clone();
 
-        let past_txs = self.past_txs.clone();
-        let past_txs = past_txs.lock().await;
+        let past_txs = self.past_txs.lock().await;
         let past_txs = past_txs.clone();
 
         macro_rules! dump_tx_group {
@@ -289,9 +287,9 @@ impl TxManager {
             dsm,
             tx_count: AtomicUsize::new(0),
             tx_map: HashMap::new(),
-            pending_txs: Arc::new(Mutex::new(VecDeque::new())),
-            running_txs: Arc::new(Mutex::new(Vec::new())),
-            past_txs: Arc::new(Mutex::new(VecDeque::new())),
+            pending_txs: Mutex::new(VecDeque::new()),
+            running_txs: Mutex::new(Vec::new()),
+            past_txs: Mutex::new(VecDeque::new()),
             channel_tx: tx,
         });
         let handle = Box::pin(txm.clone().start_trader(rx));
@@ -306,12 +304,9 @@ impl TxManager {
         tokio::pin!(rx_stream);
 
         while let Some(current_txs) = rx_stream.next().await {
-            let pending_txs = self.pending_txs.clone();
-            let mut pending_txs = pending_txs.lock().await;
-            let running_txs = self.running_txs.clone();
-            let mut running_txs = running_txs.lock().await;
-            let past_txs = self.past_txs.clone();
-            let mut past_txs = past_txs.lock().await;
+            let mut pending_txs = self.pending_txs.lock().await;
+            let mut running_txs = self.running_txs.lock().await;
+            let mut past_txs = self.past_txs.lock().await;
 
             let last_running_txs = std::mem::take(&mut *running_txs);
 
@@ -353,10 +348,8 @@ impl TxManager {
             )
             .await;
 
-            let running_txs = self.running_txs.clone();
-            let mut running_txs = running_txs.lock().await;
-            let past_txs = self.past_txs.clone();
-            let mut past_txs = past_txs.lock().await;
+            let mut running_txs = self.running_txs.lock().await;
+            let mut past_txs = self.past_txs.lock().await;
 
             let last_running_txs = running_txs.clone();
             *running_txs = Vec::new();
@@ -447,7 +440,21 @@ impl TxManager {
                 .sign_and_submit_then_watch_default(&call, &signer)
                 .await?
         };
-        let tx = tx.wait_for_in_block().await?;
+
+        let tx = tokio::select! {
+            t = tx.wait_for_in_block() => {
+                Some(t?)
+            }
+            _ = tokio::time::sleep(Duration::from_millis(TX_TIMEOUT)) => {
+                None
+            }
+        };
+
+        let tx = if let Some(tx) = tx {
+            tx
+        } else {
+            anyhow::bail!("Tx timed out!");
+        };
         let tx = tx.wait_for_success().await?;
 
         if proxied {
@@ -511,7 +518,7 @@ impl TxManager {
     }
 
     pub async fn send_to_queue(
-        self: Arc<Self>,
+        &self,
         pid: u64,
         tx_payload: RuntimeCall,
         desc: String,
@@ -524,8 +531,7 @@ impl TxManager {
         self.tx_count.store(gid, Ordering::SeqCst);
         debug!("send_to_queue: {:?}", &id);
 
-        let pending_txs = self.pending_txs.clone();
-        let mut pending_txs = pending_txs.lock().await;
+        let mut pending_txs = self.pending_txs.lock().await;
         pending_txs.push_back(id);
         drop(pending_txs);
 
