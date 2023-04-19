@@ -53,7 +53,6 @@ pub struct TxStatusResponse {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        warn!("{}", &self);
         match self {
             ApiError::ServerError(e) => {
                 let backtrace = e.backtrace().to_string();

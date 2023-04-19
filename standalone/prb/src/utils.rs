@@ -27,7 +27,7 @@ macro_rules! with_retry {
                 Err(e) => {
                     warn!("Attempt #{retry_count}({}): {}", stringify!($f), &e);
                     retry_count += 1;
-                    if retry_count == ($c + 1) {
+                    if (retry_count - 1) == $c {
                         break Err(e);
                     }
                     tokio::time::sleep(std::time::Duration::from_millis($s)).await;
