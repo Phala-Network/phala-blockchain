@@ -22,6 +22,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
   libssl-dev \
+  ca-certificates \
   && apt-get clean \
   && rm -rf /tmp/* /var/tmp/*
 
