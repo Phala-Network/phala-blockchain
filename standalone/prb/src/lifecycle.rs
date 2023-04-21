@@ -74,13 +74,13 @@ impl WorkerLifecycleManager {
         while let Some(c) = join_set.join_next().await {
             match c {
                 Ok(Ok(c)) => {
-                        let cc = Arc::new(RwLock::new(c));
-                        let c = cc.clone();
-                        let mut c = c.write().await;
-                        c.self_ref = Some(cc.clone());
-                        worker_context_map.insert(c.id.clone(), cc.clone());
-                        worker_context_vec.push(cc.clone());
-                        drop(c)
+                    let cc = Arc::new(RwLock::new(c));
+                    let c = cc.clone();
+                    let mut c = c.write().await;
+                    c.self_ref = Some(cc.clone());
+                    worker_context_map.insert(c.id.clone(), cc.clone());
+                    worker_context_vec.push(cc.clone());
+                    drop(c)
                 }
                 Ok(Err(e)) => panic!("create_worker_contexts: {e}"),
                 Err(e) => panic!("create_worker_contexts: {e}"),
@@ -126,6 +126,7 @@ impl WorkerLifecycleManager {
             .reqwest
             .post(webhook_url)
             .body(body)
+            .header("Content-Type", "application/json")
             .send()
             .await
         {
