@@ -40,3 +40,11 @@ export const currentUrlAtom__worker_status = atom((get) => {
     }
     return wm.proxied ? wm.urlBase + 'workers/status' : new URL('./workers/status', wm.urlBase);
 });
+
+export const currentUrlAtom__tx_status = atom((get) => {
+    const wm = get(currentWmAtom);
+    if (!wm) {
+        return '';
+    }
+    return wm.proxied ? wm.urlBase + 'tx/status' : new URL('./tx/status', wm.urlBase);
+});

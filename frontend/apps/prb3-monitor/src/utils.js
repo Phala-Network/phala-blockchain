@@ -1,9 +1,8 @@
 import {matchesQuery, splitByQuery} from 'baseui/data-table/text-search';
-import {useStyletron} from 'baseui';
+import {styled, useStyletron} from 'baseui';
 
 export function StringCell(props) {
     const [css] = useStyletron();
-    console.log(props);
     return (
         <div
             className={css({
@@ -43,3 +42,10 @@ export const HighlightCellText = (props) => {
         </>
     );
 };
+
+export const PageWrapper = styled('div', () => ({
+    width: '100%',
+    display: 'flex',
+    flex: 1,
+    flexFlow: 'column nowrap',
+}));

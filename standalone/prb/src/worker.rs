@@ -377,10 +377,10 @@ impl WorkerContext {
         let registry_query = khala::storage().phala_registry().workers(&pubkey);
         let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
         if let Some(registry_info) = registry_info {
-            let po = match &po.proxied {
-                Some(po) => Some(subxt::utils::AccountId32(*po.as_ref())),
-                None => None,
-            };
+            let po = po
+                .proxied
+                .as_ref()
+                .map(|po| subxt::utils::AccountId32(*po.as_ref()));
             if registry_info.operator.ne(&po) {
                 Self::register_worker(c.clone(), true).await?;
             }
@@ -645,10 +645,13 @@ impl WorkerContext {
             }
             drop(cc);
 
+            debug!("mq_sync_loop new round");
             match Self::mq_sync_loop_round(c.clone(), pid).await {
                 Ok(_) => {
                     if let Some(shot) = first_shot {
-                        shot.send(()).expect("mq_sync_loop_round send first_shot");
+                        if let Err(_) = shot.send(()) {
+                            warn!("mq_sync_loop_round send first_shot returned Err");
+                        };
                         first_shot = None;
                     }
                     sleep(Duration::from_secs(6)).await;

@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {styled, useStyletron} from 'baseui';
 import {
     StatefulDataTable,
@@ -11,7 +11,7 @@ import {
     NUMERICAL_FORMATS,
 } from 'baseui/data-table';
 import {MobileHeader} from 'baseui/mobile-header';
-import {TbAnalyze} from 'react-icons/tb';
+import {TbAnalyze, TbCloudUpload, TbRefresh} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
 import {currentUrlAtom__worker_status, currentWmAtom} from '@/state';
@@ -19,6 +19,8 @@ import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import Column from 'baseui/data-table/column';
 import {StringCell} from '@/utils';
+import {Check} from 'baseui/icon';
+import {Button} from 'baseui/button';
 const columns = [
     StringColumn({
         title: 'Name',
@@ -127,7 +129,33 @@ export default function WorkerStatusPage() {
     const [css] = useStyletron();
     const currWm = useAtomValue(currentWmAtom);
     const url = useAtomValue(currentUrlAtom__worker_status);
-    const {data, isLoading} = useSWR(url, fetcher, {refreshInterval: 6000});
+    const {data, isLoading, mutate} = useSWR(url, fetcher, {refreshInterval: 6000});
+
+    const actions = useMemo(() => {
+        return [
+            {
+                label: 'Restart',
+                onClick: ({row}) => alert('todo'),
+                renderIcon: () => (
+                    <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
+                        <TbRefresh className={css({marginRight: '3px'})} size={16} />
+                        Restart
+                    </span>
+                ),
+            },
+
+            {
+                label: 'Re-register',
+                onClick: ({row}) => alert('todo'),
+                renderIcon: () => (
+                    <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
+                        <TbCloudUpload className={css({marginRight: '3px'})} size={16} />
+                        Re-register
+                    </span>
+                ),
+            },
+        ];
+    }, []);
     return (
         <>
             <Head>
@@ -138,10 +166,12 @@ export default function WorkerStatusPage() {
                     className={css({
                         width: '100%',
                         flex: 1,
+                        marginRight: '24px',
+                        display: 'flex',
                     })}
                 >
                     <MobileHeader
-                        title="Worker Status"
+                        title={`Workers (${data ? data.length : 0})`}
                         navButton={
                             isLoading
                                 ? {
@@ -152,15 +182,28 @@ export default function WorkerStatusPage() {
                                 : {
                                       renderIcon: () => <TbAnalyze size={24} />,
                                       onClick: () => {
-                                          toaster.positive('Reloaded');
+                                          mutate().then(() => toaster.positive('Reloaded'));
                                       },
                                       label: 'Reload',
                                   }
                         }
+                        actionButtons={[
+                            {
+                                onClick: () => {},
+                                label: 'Restart All',
+                            },
+                        ]}
                     />
+                    <div className={css({width: '12px'})} />
                 </div>
                 <div className={css({height: '100%', margin: '0 20px 20px'})}>
-                    <StatefulDataTable resizableColumnWidths columns={columns} rows={data || []} />
+                    <StatefulDataTable
+                        resizableColumnWidths
+                        columns={columns}
+                        rows={data || []}
+                        batchActions={actions}
+                        rowActions={actions}
+                    />
                 </div>
             </PageWrapper>
         </>

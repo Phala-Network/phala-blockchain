@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::*;
 use axum::{Json, Router};
 use futures::future::try_join_all;
-use log::{info, warn};
+use log::info;
 use phactory_api::prpc::PhactoryInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::json;

@@ -308,7 +308,8 @@ impl TxManager {
             let mut running_txs = self.running_txs.lock().await;
             let mut past_txs = self.past_txs.lock().await;
 
-            let last_running_txs = std::mem::take(&mut *running_txs);
+            let ct_clone = current_txs.clone();
+            let last_running_txs = std::mem::replace(&mut *running_txs, ct_clone);
 
             for _ in current_txs.iter() {
                 let _ = pending_txs.pop_front();
@@ -351,8 +352,8 @@ impl TxManager {
             let mut running_txs = self.running_txs.lock().await;
             let mut past_txs = self.past_txs.lock().await;
 
-            let last_running_txs = running_txs.clone();
-            *running_txs = Vec::new();
+            let last_running_txs = std::mem::take(&mut *running_txs);
+
             for i in last_running_txs {
                 past_txs.push_front(i);
             }
