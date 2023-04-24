@@ -2,5 +2,5 @@
   endpoint: http://127.0.0.1:3001
   proxied: false
 - name: Default WM w/ Proxy
-  endpoint: http://10.96.89.83:3001
+  endpoint: http://127.0.0.1:3001
   proxied: true
