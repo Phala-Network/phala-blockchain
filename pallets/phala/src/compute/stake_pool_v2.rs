@@ -66,9 +66,6 @@ pub mod pallet {
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
-
-		/// The origin that can turn on or off computing
-		type ComputingSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);

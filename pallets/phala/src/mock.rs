@@ -381,7 +381,6 @@ impl stake_pool_v2::Config for Test {
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type ComputingSwitchOrigin = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {
