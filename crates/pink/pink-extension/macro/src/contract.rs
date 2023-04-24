@@ -32,7 +32,7 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
 
     let attrs = std::mem::take(&mut module.attrs);
     for attr in attrs.into_iter() {
-        if !attr.path.is_ident("pink") {
+        if !attr.path().is_ident("pink") {
             module.attrs.push(attr);
             continue;
         }

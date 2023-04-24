@@ -45,7 +45,7 @@ fn patch_or_err(
     let mut call_fns = vec![];
 
     for item in the_trait.items.iter() {
-        if let syn::TraitItem::Method(method) = item {
+        if let syn::TraitItem::Fn(method) = item {
             let method_ident = &method.sig.ident;
             associated_types_t.push({
                 let assoc_t = format!(
