@@ -96,16 +96,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
 
-	/// Switch to enable the stake pool pallet (disabled by default)
-	#[pallet::storage]
-	#[pallet::getter(fn working_enabled)]
-	pub type WorkingEnabled<T> = StorageValue<_, bool, ValueQuery, ComputingEnabledByDefault<T>>;
-
-	#[pallet::type_value]
-	pub fn ComputingEnabledByDefault<T: Config>() -> bool {
-		T::ComputingEnabledByDefault::get()
-	}
-
 	/// Helper storage to track the preimage of the computing sub-accounts. Not used in consensus.
 	#[pallet::storage]
 	pub type SubAccountPreimages<T: Config> =
@@ -960,15 +950,6 @@ pub mod pallet {
 			Self::do_reclaim(pid, sub_account, worker, true).map(|_| ())
 		}
 
-		/// Enables or disables computing. Must be called with the council or root permission.
-		#[pallet::call_index(16)]
-		#[pallet::weight(0)]
-		pub fn set_working_enabled(origin: OriginFor<T>, enable: bool) -> DispatchResult {
-			T::ComputingSwitchOrigin::ensure_origin(origin)?;
-			WorkingEnabled::<T>::put(enable);
-			Ok(())
-		}
-
 		/// Restarts the worker with a higher stake
 		#[pallet::call_index(17)]
 		#[pallet::weight(195_000_000)]
@@ -1049,7 +1030,6 @@ pub mod pallet {
 			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure!(Self::working_enabled(), Error::<T>::FeatureNotEnabled);
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			// origin must be owner of pool
 			ensure!(
