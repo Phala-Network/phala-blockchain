@@ -71,7 +71,6 @@ parameter_types! {
 	pub const MinContribution: Balance = CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
-	pub const ComputingEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
@@ -381,9 +380,7 @@ impl stake_pool_v2::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
-	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type ComputingSwitchOrigin = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {

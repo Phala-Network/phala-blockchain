@@ -1304,7 +1304,6 @@ parameter_types! {
     pub const MinContribution: Balance = 1 * CENTS;
     pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
     pub const MinInitP: u32 = 50;
-    pub const ComputingEnabledByDefault: bool = false;
     pub const MaxPoolWorkers: u32 = 200;
     pub const NoneAttestationEnabled: bool = true;
     pub const VerifyPRuntime: bool = false;
@@ -1353,9 +1352,7 @@ impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MinContribution = MinContribution;
     type GracePeriod = WorkingGracePeriod;
-    type ComputingEnabledByDefault = ComputingEnabledByDefault;
     type MaxPoolWorkers = MaxPoolWorkers;
-    type ComputingSwitchOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_stake_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;

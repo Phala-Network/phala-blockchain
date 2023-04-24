@@ -63,16 +63,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type GracePeriod: Get<u64>;
 
-		/// If computing is enabled by default.
-		#[pallet::constant]
-		type ComputingEnabledByDefault: Get<bool>;
-
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
-
-		/// The origin that can turn on or off computing
-		type ComputingSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -95,16 +88,6 @@ pub mod pallet {
 	// TODO: remove it
 	#[pallet::storage]
 	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
-
-	/// Switch to enable the stake pool pallet (disabled by default)
-	#[pallet::storage]
-	#[pallet::getter(fn working_enabled)]
-	pub type WorkingEnabled<T> = StorageValue<_, bool, ValueQuery, ComputingEnabledByDefault<T>>;
-
-	#[pallet::type_value]
-	pub fn ComputingEnabledByDefault<T: Config>() -> bool {
-		T::ComputingEnabledByDefault::get()
-	}
 
 	/// Helper storage to track the preimage of the computing sub-accounts. Not used in consensus.
 	#[pallet::storage]
@@ -960,15 +943,6 @@ pub mod pallet {
 			Self::do_reclaim(pid, sub_account, worker, true).map(|_| ())
 		}
 
-		/// Enables or disables computing. Must be called with the council or root permission.
-		#[pallet::call_index(16)]
-		#[pallet::weight(0)]
-		pub fn set_working_enabled(origin: OriginFor<T>, enable: bool) -> DispatchResult {
-			T::ComputingSwitchOrigin::ensure_origin(origin)?;
-			WorkingEnabled::<T>::put(enable);
-			Ok(())
-		}
-
 		/// Restarts the worker with a higher stake
 		#[pallet::call_index(17)]
 		#[pallet::weight(195_000_000)]
@@ -1049,7 +1023,6 @@ pub mod pallet {
 			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure!(Self::working_enabled(), Error::<T>::FeatureNotEnabled);
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			// origin must be owner of pool
 			ensure!(
