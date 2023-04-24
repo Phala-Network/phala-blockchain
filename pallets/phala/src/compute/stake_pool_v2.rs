@@ -63,10 +63,6 @@ pub mod pallet {
 		#[pallet::constant]
 		type GracePeriod: Get<u64>;
 
-		/// If computing is enabled by default.
-		#[pallet::constant]
-		type ComputingEnabledByDefault: Get<bool>;
-
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
