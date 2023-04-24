@@ -490,7 +490,7 @@ dependencies = [
  "proc-macro2 1.0.56",
  "quote 1.0.26",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
@@ -502,7 +502,7 @@ dependencies = [
  "proc-macro2 1.0.56",
  "quote 1.0.26",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
@@ -4243,9 +4243,9 @@ checksum = "8e04e2fd2b8188ea827b32ef11de88377086d690286ab35747ef7f9bf3ccb590"
 
 [[package]]
 name = "ink"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c0b81ae699fab87b67c4312430e234c1e5b99533aa830dab16cddc9da65cd7a"
+checksum = "b374fcb3c9b91f8293bdc93d69292e2ec6ea19e97e00725806d79bf563fa5e55"
 dependencies = [
  "derive_more",
  "ink_env",
@@ -4259,18 +4259,18 @@ dependencies = [
 
 [[package]]
 name = "ink_allocator"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "121758652007d56209c7f79af5cc8562b7e869df7ebb72456da79f2a9e72aeea"
+checksum = "1cdc9dbbc38d0e0cd7b053068112ca8ab8140b8ece33b9e197af5544ed3d97e1"
 dependencies = [
  "cfg-if",
 ]
 
 [[package]]
 name = "ink_codegen"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0da21ea8189beef99f92fcea3f07018e3278a0e084b86705d3b5e58c3ee38645"
+checksum = "251e64f2dd74e98329a05812f067f34e2b494a7b1325e538165e481378a72747"
 dependencies = [
  "blake2",
  "derive_more",
@@ -4287,14 +4287,14 @@ dependencies = [
  "quote 1.0.26",
  "serde",
  "serde_json",
- "syn 1.0.109",
+ "syn 2.0.8",
 ]
 
 [[package]]
 name = "ink_engine"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4ec97173506ba6f3cf966a42c0d5f776c2ef843da15854fa1f57d23d2be4ee4"
+checksum = "77c4af49e092a93e65d1161ce31d23c2e57d724462c96a8944acd647a52787f0"
 dependencies = [
  "blake2",
  "derive_more",
@@ -4307,9 +4307,9 @@ dependencies = [
 
 [[package]]
 name = "ink_env"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "639a8172a9911fc6f7384623d25ff6f0834d48b16f5c21e4b0eb656b3de1f877"
+checksum = "5d5e1505c5deb7280743e4d7df72a91f52bbf4cb063f464c73f89dce00c70f92"
 dependencies = [
  "arrayref",
  "blake2",
@@ -4317,7 +4317,6 @@ dependencies = [
  "derive_more",
  "ink_allocator",
  "ink_engine",
- "ink_metadata",
  "ink_prelude",
  "ink_primitives",
  "ink_storage_traits",
@@ -4325,6 +4324,8 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "rlibc",
+ "scale-decode",
+ "scale-encode",
  "scale-info",
  "secp256k1 0.27.0",
  "sha2 0.10.2",
@@ -4334,23 +4335,23 @@ dependencies = [
 
 [[package]]
 name = "ink_ir"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8aeb30e90744ebf9cce7300a1d013ab91e1b84ebc9887ddabd9b7688c6ac20c1"
+checksum = "1c0e2d96fc6e5b5cb1696b8057e72958315076dbe3f427e8f7722a346344f27a"
 dependencies = [
  "blake2",
  "either",
  "itertools",
  "proc-macro2 1.0.56",
  "quote 1.0.26",
- "syn 1.0.109",
+ "syn 2.0.8",
 ]
 
 [[package]]
 name = "ink_macro"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "968f443cf4f177c2cc9d147e33336de19700c8f7e01a6ad5942d9a324e9d3a6c"
+checksum = "15abf802e89909c65b6c15d0c655beb3c7ab86309626effb5d9b330d97308114"
 dependencies = [
  "ink_codegen",
  "ink_ir",
@@ -4358,15 +4359,15 @@ dependencies = [
  "parity-scale-codec",
  "proc-macro2 1.0.56",
  "quote 1.0.26",
- "syn 1.0.109",
- "synstructure",
+ "syn 2.0.8",
+ "synstructure 0.13.0",
 ]
 
 [[package]]
 name = "ink_metadata"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a8bb193f81ddda8329568ae05786e12a901ea1684c444f780440ecac2bd57b1"
+checksum = "4af082b4c2eb246d27b358411ef950811f851c1099aa507ba4bcdd7214d40ccd"
 dependencies = [
  "derive_more",
  "impl-serde",
@@ -4378,31 +4379,33 @@ dependencies = [
 
 [[package]]
 name = "ink_prelude"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "050dcae91877df7def5fe4426df22c35d116bb24560e3e40d5650b09c7854061"
+checksum = "6d0662ba1d4aa26f0fea36ce6ef9ef1e510e24c900597d703b148c8c23b675b9"
 dependencies = [
  "cfg-if",
 ]
 
 [[package]]
 name = "ink_primitives"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55850e661a97f3158fad3309e0188d6f2dcd5fc7de4c19b969c4c66988886f21"
+checksum = "52693c5e74600f5bd4c0f6d447ba9c4e491e4edf685eaf9f9f347a3cb1cde66b"
 dependencies = [
  "derive_more",
  "ink_prelude",
  "parity-scale-codec",
+ "scale-decode",
+ "scale-encode",
  "scale-info",
  "xxhash-rust",
 ]
 
 [[package]]
 name = "ink_storage"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f376d6fd2137ea2a42a9f08a83b29e309862a020a0841c0cb9a78c40f1e2e6e5"
+checksum = "e02d898d2ff85c88126d284854e1198771be94282d44a5d77fdc8a9bce43e398"
 dependencies = [
  "array-init",
  "cfg-if",
@@ -4418,9 +4421,9 @@ dependencies = [
 
 [[package]]
 name = "ink_storage_traits"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a1ff58a3db0bb76b92981236172a3c4d02823996354006f07032e0d3b091024"
+checksum = "4ec58d70937c1e1490a00b84e2eb9a799f1a5331dd0e5cc68d550de1dbf6a8f4"
 dependencies = [
  "ink_metadata",
  "ink_prelude",
@@ -5817,7 +5820,7 @@ dependencies = [
  "proc-macro2 1.0.56",
  "quote 1.0.26",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
@@ -8221,7 +8224,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "dlmalloc",
  "ink",
@@ -8234,7 +8237,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension-macro"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "heck 0.4.1",
  "ink_ir",
@@ -8243,7 +8246,7 @@ dependencies = [
  "proc-macro2 1.0.56",
  "quote 1.0.26",
  "rustfmt-snippet 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "syn 1.0.109",
+ "syn 2.0.8",
  "unzip3",
 ]
 
@@ -12985,6 +12988,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "synstructure"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "285ba80e733fac80aa4270fbcdf83772a79b80aa35c97075320abfee4a915b06"
+dependencies = [
+ "proc-macro2 1.0.56",
+ "quote 1.0.26",
+ "syn 2.0.8",
+ "unicode-xid 0.2.3",
+]
+
+[[package]]
 name = "system-configuration"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13701,7 +13716,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.3",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 
@@ -15475,7 +15490,7 @@ dependencies = [
  "proc-macro2 1.0.56",
  "quote 1.0.26",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
