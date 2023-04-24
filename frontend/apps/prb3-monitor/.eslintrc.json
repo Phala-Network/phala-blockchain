@@ -1,0 +1,13 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:prettier/recommended"
+  ],
+  "plugins": [
+    "baseui"
+  ],
+  "rules": {
+    "baseui/deprecated-theme-api": "warn",
+    "baseui/deprecated-component-api": "warn"
+  }
+}

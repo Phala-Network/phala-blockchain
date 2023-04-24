@@ -94,5 +94,6 @@ yarn-error.log
 .yarnrc.yml
 .yarn
 .eslintcache
+node_modules
 
 prb-wm-data

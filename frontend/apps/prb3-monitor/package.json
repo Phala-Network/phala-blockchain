@@ -1,0 +1,35 @@
+{
+  "name": "prb3-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "baseui": "0.0.0-next-2992a67",
+    "eslint": "8.39.0",
+    "eslint-config-next": "13.3.1",
+    "immer": "^10.0.1",
+    "jotai": "^2.0.4",
+    "jotai-cache": "^0.3.0",
+    "jotai-immer": "^0.2.0",
+    "next": "13.3.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-icons": "^4.8.0",
+    "styletron-engine-atomic": "^1.5.0",
+    "styletron-react": "^6.1.0",
+    "swr": "^2.1.4",
+    "yaml": "^2.2.1"
+  },
+  "devDependencies": {
+    "@swc-jotai/react-refresh": "^0.0.7",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-baseui": "^12.2.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "^2.8.8"
+  }
+}
