@@ -964,6 +964,7 @@ pub mod pallet {
 							Self::push_message(GatekeeperLaunch::master_pubkey_on_chain(
 								master_pubkey,
 							));
+							Self::on_gatekeeper_launched();
 						}
 					}
 				}
@@ -1004,20 +1005,11 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_gk_launch_message_received(
-			message: DecodedMessage<GatekeeperLaunch>,
-		) -> DispatchResult {
-			if !message.sender.is_gatekeeper() {
-				return Err(Error::<T>::InvalidSender.into());
-			}
-
-			if let GatekeeperLaunch::MasterPubkeyOnChain(_) = message.payload {
-				let block_number = frame_system::Pallet::<T>::block_number();
-				let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-				GatekeeperLaunchedAt::<T>::put((block_number, now));
-				Self::deposit_event(Event::<T>::GatekeeperLaunched);
-			}
-			Ok(())
+		fn on_gatekeeper_launched() {
+			let block_number = frame_system::Pallet::<T>::block_number();
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			GatekeeperLaunchedAt::<T>::put((block_number, now));
+			Self::deposit_event(Event::<T>::GatekeeperLaunched);
 		}
 
 		pub fn is_worker_registered_after_gk_launched(worker: &WorkerPublicKey) -> bool {

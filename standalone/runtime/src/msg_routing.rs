@@ -32,7 +32,6 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
         route_handlers! {
             PhalaRegistry::on_message_received,
             PhalaRegistry::on_gk_message_received,
-            PhalaRegistry::on_gk_launch_message_received,
             PhalaComputation::on_gk_message_received,
             PhalaComputation::on_working_message_received,
             PhalaPhatContracts::on_worker_cluster_message_received,
