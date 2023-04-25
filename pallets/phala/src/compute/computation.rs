@@ -464,6 +464,8 @@ pub mod pallet {
 		NonceIndexInvalid,
 		BudgetUpdateBlockInvalid,
 		BudgetExceedMaxLimit,
+		/// The worker need to be re-registered to be added to a pool.
+		WorkerReregisterNeeded,
 	}
 
 	#[pallet::call]
@@ -862,13 +864,17 @@ pub mod pallet {
 		/// and the worker is unbound.
 		///
 		/// Requires:
-		/// 1. The worker is already registered
+		/// 1. The worker is already (re)registered after the gatekeeper launched
 		/// 2. The worker has an initial benchmark
 		/// 3. Both the worker and the worker are not bound
 		/// 4. There's no stake in CD associated with the worker
 		pub fn bind(session: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let worker =
 				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+			ensure!(
+				registry::Pallet::<T>::is_worker_registered_after_gk_launched(&pubkey),
+				Error::<T>::WorkerReregisterNeeded
+			);
 			// Check the worker has finished the benchmark
 			ensure!(worker.initial_score != None, Error::<T>::BenchmarkMissing);
 			// Check worker and worker not bound
