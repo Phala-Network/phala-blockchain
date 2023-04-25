@@ -159,6 +159,8 @@ describe('A full stack', function () {
                 const masterPubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
                 return masterPubkey.isSome;
             }, 4 * 6000), 'master pubkey not uploaded');
+            const launchedAt = await api.query.phalaRegistry.gatekeeperLaunchedAt();
+            assert.isTrue(launchedAt.isSome);
         });
     });
 
