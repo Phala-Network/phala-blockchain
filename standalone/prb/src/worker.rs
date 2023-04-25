@@ -1029,7 +1029,7 @@ impl WorkerContext {
                 header_idx -= 1;
             }
             if header_idx < 0 {
-                warn!(
+                debug!(
                     "Cannot find justification within window (from: {}, to: {})",
                     first_block_number,
                     block_buf.last().unwrap().block.header.number,

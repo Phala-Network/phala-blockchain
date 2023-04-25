@@ -10,8 +10,6 @@ use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
 use anyhow::{anyhow, Error, Result};
 use chrono::{DateTime, Utc};
-use crossbeam::atomic::AtomicCell;
-use crossbeam::queue::SegQueue;
 use futures::future::{join_all, BoxFuture};
 use hex::ToHex;
 use lazy_static::lazy_static;
@@ -28,16 +26,14 @@ use sp_core::Pair;
 use std::collections::{HashMap as StdHashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::{Context, Poll};
 use std::time::Duration;
 use subxt::error::DispatchError as SubxtDispatchError;
 use subxt::tx::PairSigner;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_stream::{Stream, StreamExt};
+use tokio_stream::StreamExt;
 
 static PHALA_SS58_FORMAT_U8: u8 = 30;
 
@@ -159,9 +155,9 @@ pub struct Transaction {
     pub pid: u64,
     pub created_at: DateTime<Utc>,
     #[serde(skip)]
-    pub tx_payload: AtomicCell<Option<RuntimeCall>>,
+    pub tx_payload: Option<RuntimeCall>,
     #[serde(skip)]
-    pub shot: AtomicCell<Option<oneshot::Sender<Result<()>>>>,
+    pub shot: Option<oneshot::Sender<Result<()>>>,
 }
 
 impl Transaction {
@@ -178,8 +174,8 @@ impl Transaction {
             desc,
             pid,
             created_at: Utc::now(),
-            tx_payload: AtomicCell::new(Some(tx_payload)),
-            shot: AtomicCell::new(Some(shot)),
+            tx_payload: Some(tx_payload),
+            shot: Some(shot),
         }
     }
     pub fn clone_for_serialize(&self) -> Self {
@@ -189,8 +185,8 @@ impl Transaction {
             desc: self.desc.clone(),
             pid: self.pid,
             created_at: self.created_at,
-            tx_payload: AtomicCell::new(None),
-            shot: AtomicCell::new(None),
+            tx_payload: None,
+            shot: None,
         }
     }
 }
@@ -198,27 +194,6 @@ impl Transaction {
 impl Clone for Transaction {
     fn clone(&self) -> Self {
         self.clone_for_serialize()
-    }
-}
-
-pub struct TxQueueStream<T> {
-    queue: SegQueue<T>,
-}
-
-impl<T> TxQueueStream<T> {
-    pub fn push(&self, i: T) {
-        self.queue.push(i)
-    }
-}
-
-impl<T: Send> Stream for TxQueueStream<T> {
-    type Item = T;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.queue.pop() {
-            Some(val) => Poll::Ready(Some(val)),
-            None => Poll::Pending,
-        }
     }
 }
 
@@ -381,7 +356,7 @@ impl TxManager {
                     let id = ids.get(idx).ok_or(UnknownDataMismatch)?;
                     let tx = self.clone().tx_map.get(id).ok_or(UnknownDataMismatch)?;
                     let mut tx = tx.lock().await;
-                    let shot = tx.shot.swap(None).ok_or(UnknownDataMismatch)?;
+                    let shot = std::mem::replace(&mut tx.shot, None).ok_or(UnknownDataMismatch)?;
                     tx.state = match &r {
                         Ok(_) => TransactionState::Success(TransactionSuccess::default()),
                         Err(e) => TransactionState::Error(e.into()),
@@ -397,7 +372,7 @@ impl TxManager {
                 for id in ids {
                     let tx = self.clone().tx_map.get(&id).ok_or(UnknownDataMismatch)?;
                     let mut tx = tx.lock().await;
-                    let shot = tx.shot.swap(None).ok_or(UnknownDataMismatch)?;
+                    let shot = std::mem::replace(&mut tx.shot, None).ok_or(UnknownDataMismatch)?;
                     tx.state = TransactionState::Error((&e).into());
                     if shot.send(Err(anyhow!(e.to_string()))).is_err() {
                         return Err(anyhow!("shot can't be sent"));
@@ -417,8 +392,8 @@ impl TxManager {
         let mut calls = Vec::new();
         for i in ids.iter() {
             let tx = self.tx_map.get(i).ok_or(UnknownDataMismatch)?;
-            let tx = tx.lock().await;
-            let call = tx.tx_payload.swap(None).ok_or(UnknownDataMismatch)?;
+            let mut tx = tx.lock().await;
+            let call = std::mem::replace(&mut tx.tx_payload, None).ok_or(UnknownDataMismatch)?;
             calls.push(call);
             drop(tx);
         }
