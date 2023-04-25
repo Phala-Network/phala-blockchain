@@ -323,7 +323,7 @@ pub mod pallet {
 				pubkey,
 				ecdh_pubkey,
 				runtime_version: 0,
-				last_updated: 0,
+				last_updated: 1,
 				operator,
 				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
@@ -1037,6 +1037,11 @@ pub mod pallet {
 					w.initial_score = score;
 				}
 			});
+		}
+
+		#[cfg(test)]
+		pub(crate) fn internal_set_gk_launched_at(block: T::BlockNumber, ts: u64) {
+			GatekeeperLaunchedAt::<T>::put((block, ts));
 		}
 	}
 

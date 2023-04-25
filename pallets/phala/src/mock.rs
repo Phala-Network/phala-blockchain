@@ -458,6 +458,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
 pub fn set_block_1() {
 	System::set_block_number(1);
+	Timestamp::set_timestamp(1);
+	PhalaRegistry::internal_set_gk_launched_at(0, 0);
 }
 
 pub fn take_events() -> Vec<RuntimeEvent> {
