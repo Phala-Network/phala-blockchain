@@ -53,17 +53,17 @@ impl WorkerLifecycleManager {
             .collect::<Vec<_>>();
         let count_enabled = workers.len();
         if count_enabled == 0 {
-            info!("Got {} worker(s) from local database.", count);
-            panic!("There are no worker enabled!");
+            warn!("There are no worker enabled!");
+        } else {
+            debug!(
+                "Got workers:\n{}",
+                serde_json::to_string_pretty(&workers).unwrap()
+            );
+            info!(
+                "Starting lifecycle for {} of {} worker(s).",
+                count_enabled, count
+            );
         }
-        debug!(
-            "Got workers:\n{}",
-            serde_json::to_string_pretty(&workers).unwrap()
-        );
-        info!(
-            "Starting lifecycle for {} of {} worker(s).",
-            count_enabled, count
-        );
 
         let mut join_set = JoinSet::new();
         for w in workers.clone() {
@@ -137,13 +137,15 @@ impl WorkerLifecycleManager {
 
     pub async fn spawn_lifecycle_tasks(&self) -> Result<()> {
         debug!("spawn_lifecycle_tasks start");
-        let mut join_set = JoinSet::new();
-        for (_, c) in self.worker_context_map.iter() {
-            join_set.spawn(WorkerContext::start(c.clone()));
+        if self.worker_context_vec.len() > 0 {
+            let mut join_set = JoinSet::new();
+            for (_, c) in self.worker_context_map.iter() {
+                join_set.spawn(WorkerContext::start(c.clone()));
+            }
+            while (join_set.join_next().await).is_some() {} // wait tasks to be done
+            self.send_to_main_channel(WorkerManagerMessage::ShouldBreakMessageLoop)
+                .await?;
         }
-        while (join_set.join_next().await).is_some() {} // wait tasks to be done
-        self.send_to_main_channel(WorkerManagerMessage::ShouldBreakMessageLoop)
-            .await?;
         Ok(())
     }
 
