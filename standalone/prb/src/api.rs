@@ -1,5 +1,6 @@
 use crate::api::ApiError::{LifecycleManagerNotInitialized, WorkerNotFound};
-use crate::cli::WorkerManagerCliArgs;
+use crate::cli::{ConfigCommands, WorkerManagerCliArgs};
+use crate::configurator::api_handler;
 use crate::db::Worker;
 use crate::tx::Transaction;
 use crate::wm::WorkerManagerMessage::ShouldResetLifecycleManager;
@@ -32,6 +33,12 @@ pub enum ApiError {
 
     #[error("worker not found: {0}")]
     WorkerNotFound(String),
+
+    #[error("pool not found: {0}")]
+    PoolNotFound(u64),
+
+    #[error("db write failed")]
+    WriteFailed,
 }
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -120,6 +127,7 @@ pub async fn start_api_server(
         .route("/", get(handle_get_root))
         .route("/wm/status", get(handle_get_wm_status))
         .route("/wm/restart", put(handle_restart_wm))
+        .route("/wm/config", post(handle_config_wm))
         .route("/workers/status", get(handle_get_worker_status))
         .route("/workers/restart", put(handle_restart_specific_workers))
         .route("/tx/status", get(handle_get_tx_status))
@@ -213,4 +221,14 @@ async fn handle_get_tx_status(
 ) -> ApiResult<(StatusCode, Json<TxStatusResponse>)> {
     let txm = ctx.txm.clone();
     Ok((StatusCode::OK, Json(txm.dump().await?)))
+}
+
+async fn handle_config_wm(
+    State(ctx): State<WrappedWorkerManagerContext>,
+    Json(payload): Json<ConfigCommands>,
+) -> ApiResult<String> {
+    let po_db = ctx.txm.db.clone();
+    let inv_db = ctx.inv_db.clone();
+    let ret = api_handler(inv_db, po_db, payload).await?;
+    Ok(ret)
 }

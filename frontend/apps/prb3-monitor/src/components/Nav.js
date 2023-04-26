@@ -110,7 +110,7 @@ export default function Nav() {
                     url: '/inv/worker',
                   },
                   {label: 'Pools', url: '/inv/pool'},
-                  {label: 'Pool Operators', url: '/inv/op'},
+                  {label: 'Pool Operators', url: '/inv/po'},
                 ]}
                 onItemSelect={({item: i}) => router.push(i.url)}
               />

@@ -64,3 +64,30 @@ export const currentUrlAtom__tx_status = atom((get) => {
   }
   return wm.proxied ? wm.urlBase + 'tx/status' : new URL('./tx/status', wm.urlBase);
 });
+
+export const currentUrlAtom__wm_config = atom((get) => {
+  const wm = get(currentWmAtom);
+  if (!wm) {
+    return '';
+  }
+  return wm.proxied ? wm.urlBase + 'wm/config' : new URL('./wm/config', wm.urlBase);
+});
+
+export const configFetcherWmAtom = atom((get) => {
+  return async ([url, req]) => {
+    if (!url) {
+      return null;
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(req),
+    }).then((r) => r.json());
+    if (res.error) {
+      throw res;
+    }
+    return res;
+  };
+});

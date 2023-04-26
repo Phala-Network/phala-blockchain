@@ -1,9 +1,11 @@
+use crate::api::ApiError::{PoolNotFound, WriteFailed};
+use crate::api::OkResponse;
 use crate::cli::{ConfigCliArgs, ConfigCommands};
 use crate::db;
 use crate::db::{
     add_worker, get_all_pools, get_all_pools_with_workers, get_pool_by_pid,
     get_pool_by_pid_with_workers, get_worker_by_name, remove_worker, setup_inventory_db,
-    update_worker,
+    update_worker, WrappedDb,
 };
 use crate::tx::{get_options, PoolOperator, PoolOperatorAccess, PoolOperatorForSerialize, DB};
 use anyhow::{anyhow, Context, Result};
@@ -11,6 +13,7 @@ use sp_core::crypto::{AccountId32, Ss58Codec};
 use sp_core::sr25519::Pair as Sr22519Pair;
 use sp_core::Pair;
 use std::path::Path;
+use std::sync::Arc;
 
 pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
     let db = setup_inventory_db(&args.db_path);
@@ -128,4 +131,121 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
         }
     };
     Ok(())
+}
+
+pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands) -> Result<String> {
+    let ok = OkResponse::default();
+    match command.clone() {
+        ConfigCommands::AddPool { pid, .. } => {
+            db::add_pool(db.clone(), command)?;
+            let p = get_pool_by_pid(db.clone(), pid)?;
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                return Ok(p);
+            }
+            anyhow::bail!(WriteFailed);
+        }
+        ConfigCommands::RemovePool { pid } => {
+            db::remove_pool(db.clone(), pid)?;
+            return Ok(serde_json::to_string_pretty(&ok)?);
+        }
+        ConfigCommands::UpdatePool { pid, .. } => {
+            db::update_pool(db.clone(), command)?;
+            let p = get_pool_by_pid(db.clone(), pid)?;
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                return Ok(p);
+            }
+            anyhow::bail!(WriteFailed);
+        }
+        ConfigCommands::GetPool { pid } => {
+            let p = get_pool_by_pid(db, pid)?;
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                return Ok(p);
+            }
+            anyhow::bail!(PoolNotFound(pid))
+        }
+        ConfigCommands::GetPoolWithWorkers { pid } => {
+            let p = get_pool_by_pid_with_workers(db, pid)?;
+            if let Some(p) = p {
+                let p = serde_json::to_string_pretty(&p)?;
+                return Ok(p);
+            }
+            anyhow::bail!(PoolNotFound(pid))
+        }
+        ConfigCommands::GetAllPools => {
+            let v = get_all_pools(db)?;
+            let v = serde_json::to_string_pretty(&v)?;
+            return Ok(v);
+        }
+        ConfigCommands::GetAllPoolsWithWorkers => {
+            let v = get_all_pools_with_workers(db)?;
+            let v = serde_json::to_string_pretty(&v)?;
+            return Ok(v);
+        }
+        ConfigCommands::AddWorker { name, pid, .. } => {
+            add_worker(db.clone(), command)?;
+            let mut v = get_worker_by_name(db.clone(), name)?.context("Failed to add!")?;
+            v.pid = Some(pid);
+            let v = serde_json::to_string_pretty(&v)?;
+            return Ok(v);
+        }
+        ConfigCommands::UpdateWorker {
+            name,
+            new_name,
+            pid,
+            ..
+        } => {
+            update_worker(db.clone(), command)?;
+            let new_name = match new_name {
+                None => name,
+                Some(nn) => nn,
+            };
+            let mut v = get_worker_by_name(db.clone(), new_name)?.context("Failed to add!")?;
+            v.pid = Some(pid);
+            let v = serde_json::to_string_pretty(&v)?;
+            return Ok(v);
+        }
+        ConfigCommands::RemoveWorker { name } => {
+            remove_worker(db, name)?;
+            return Ok(serde_json::to_string_pretty(&ok)?);
+        }
+        ConfigCommands::GetAllPoolOperators => {
+            let l = po_db.get_all_po()?;
+            let l = l
+                .iter()
+                .map(|i| i.into())
+                .collect::<Vec<PoolOperatorForSerialize>>();
+            let l = serde_json::to_string_pretty(&l)?;
+            return Ok(l);
+        }
+        ConfigCommands::GetPoolOperator { pid } => {
+            let po = po_db.get_po(pid)?;
+            if po.is_some() {
+                let po = po.unwrap();
+                let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
+                return Ok(po);
+            } else {
+                return Err(anyhow!("Record not found!"));
+            }
+        }
+        ConfigCommands::SetPoolOperator {
+            pid,
+            account,
+            proxied_account_id,
+        } => {
+            let po = PoolOperator {
+                pid,
+                pair: Sr22519Pair::from_string(account.as_str(), None)?,
+                proxied: match proxied_account_id {
+                    None => None,
+                    Some(i) => Some(AccountId32::from_string(&i)?),
+                },
+            };
+            let po = po_db.set_po(pid, po)?;
+            let po = serde_json::to_string_pretty::<PoolOperatorForSerialize>(&(&po).into())?;
+            return Ok(po);
+        }
+    };
 }

@@ -44,7 +44,7 @@ pub async fn start_wm() {
     wm(WorkerManagerCliArgs::parse()).await
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Deserialize, Serialize)]
 #[command(name="prb", version, about="Phala Runtime Bridge Worker Manager", long_about = None)]
 pub struct ConfigCliArgs {
     /// Path to the local database
@@ -55,7 +55,7 @@ pub struct ConfigCliArgs {
     pub(crate) command: ConfigCommands,
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Subcommand, Debug, Clone, Deserialize, Serialize)]
 pub enum ConfigCommands {
     /// Add a pool
     AddPool {
