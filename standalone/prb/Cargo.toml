@@ -27,16 +27,16 @@ serde_yaml = "0.9.19"
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phaxt = { path = "../../crates/phaxt" }
 pherry = { path = "../pherry" }
-jsonrpsee = { version = "0.16.2", features = ["full"] }
+jsonrpsee = { version = "^0.16", features = ["full"] }
 paste = "1.0.12"
-axum = "0.6.11"
+axum = { version = "0.6.17", features = ["macros"] }
 chrono = "0.4.24"
 hex = { version = "*" }
 phala-types = { path = "../../crates/phala-types" }
 rand = "0.8.5"
 memory-lru = "0.1.1"
 sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false }
-rocksdb = { version = "0.19.0", default-features = false, features = ["snappy", "jemalloc"] }
+rocksdb = { version = "^0.19", default-features = false, features = ["snappy", "jemalloc"] }
 tokio-stream = "0.1.12"
 parity-scale-codec = "3.4.0"
 phala-pallets = { path = "../../pallets/phala" }
@@ -46,6 +46,6 @@ moka = { version = "0.10.2", features = ["future"] }
 moka-cht = "0.5.0"
 async-trait = "0.1.68"
 crossbeam = "0.8.2"
-schnorrkel = "0.9.1"
+schnorrkel = "^0.9"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false, features = [ "full_crypto" ] }
 

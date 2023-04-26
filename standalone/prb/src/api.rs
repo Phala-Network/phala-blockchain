@@ -1,8 +1,11 @@
+use crate::api::ApiError::{LifecycleManagerNotInitialized, WorkerNotFound};
 use crate::cli::WorkerManagerCliArgs;
 use crate::db::Worker;
 use crate::tx::Transaction;
-use crate::wm::WrappedWorkerManagerContext;
-use crate::worker::{WorkerLifecycleState, WrappedWorkerContext};
+use crate::wm::WorkerManagerMessage::ShouldResetLifecycleManager;
+use crate::wm::{send_to_main_channel, WrappedWorkerManagerContext};
+use crate::worker::{WorkerLifecycleCommand, WorkerLifecycleState, WrappedWorkerContext};
+use anyhow::anyhow;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -26,6 +29,9 @@ pub enum ApiError {
 
     #[error("lifecycle manager not initialized yet")]
     LifecycleManagerNotInitialized,
+
+    #[error("worker not found: {0}")]
+    WorkerNotFound(String),
 }
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -49,6 +55,21 @@ pub struct TxStatusResponse {
     pub running_txs: Vec<Transaction>,
     pub pending_txs: Vec<Transaction>,
     pub past_txs: Vec<Transaction>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OkResponse {
+    pub ok: bool,
+}
+impl Default for OkResponse {
+    fn default() -> Self {
+        Self { ok: true }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IdsRequest {
+    pub ids: Vec<String>,
 }
 
 impl IntoResponse for ApiError {
@@ -127,8 +148,13 @@ async fn handle_get_wm_status() {
     todo!()
 }
 
-async fn handle_restart_wm() {
-    todo!()
+async fn handle_restart_wm(State(ctx): AppContext) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+    let tx = ctx.current_lifecycle_tx.clone();
+    let tx = tx.lock().await;
+    let tx_move = tx.as_ref().ok_or(LifecycleManagerNotInitialized)?.clone();
+    drop(tx);
+    send_to_main_channel(tx_move, ShouldResetLifecycleManager).await?;
+    Ok((StatusCode::OK, Json(OkResponse::default())))
 }
 
 async fn handle_get_worker_status(
@@ -150,8 +176,36 @@ async fn handle_get_worker_status(
     Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))
 }
 
-async fn handle_restart_specific_workers() {
-    todo!()
+async fn handle_restart_specific_workers(
+    State(ctx): State<WrappedWorkerManagerContext>,
+    Json(payload): Json<IdsRequest>,
+) -> ApiResult<(StatusCode, Json<OkResponse>)> {
+    let worker_map = ctx.worker_map.clone();
+    let worker_map = worker_map.lock().await;
+    let mut c: Vec<WrappedWorkerContext> = vec![];
+
+    for id in payload.ids {
+        c.push(
+            worker_map
+                .get(id.as_str())
+                .ok_or(WorkerNotFound(id))?
+                .clone(),
+        )
+    }
+    for c in c {
+        let c = c.read().await;
+        match &c.state {
+            WorkerLifecycleState::Restarting => drop(c),
+            _ => {
+                let tx = c.tx.clone();
+                drop(c);
+                tx.send(WorkerLifecycleCommand::ShouldRestart)
+                    .map_err(|e| anyhow!(e.to_string()))?;
+            }
+        }
+    }
+
+    Ok((StatusCode::OK, Json(OkResponse::default())))
 }
 
 async fn handle_get_tx_status(

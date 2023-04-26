@@ -38,7 +38,6 @@ pub type WorkerLifecycleCommandRx = mpsc::UnboundedReceiver<WorkerLifecycleComma
 
 pub enum WorkerLifecycleCommand {
     ShouldRestart,
-    ShouldStart,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +48,8 @@ pub enum WorkerLifecycleState {
     Working,
 
     HasError(String),
+
+    Restarting,
 }
 
 pub type WrappedWorkerContext = Arc<RwLock<WorkerContext>>;
@@ -76,7 +77,7 @@ macro_rules! use_lm_with_ctx {
 macro_rules! lifecycle_loop_state_handle_error {
     ($f:expr, $c:expr) => {{
         if let Err(e) = $f($c.clone()).await {
-            let (_, worker, _, sm_tx) = extract_essential_values!($c);
+            let (_, worker, _) = extract_essential_values!($c);
             let cc = $c.clone();
             let mut cc = cc.write().await;
             cc.set_last_message(&e.to_string());
@@ -85,9 +86,7 @@ macro_rules! lifecycle_loop_state_handle_error {
                 "Worker {}({}, {}) stopped.",
                 &worker.name, &worker.id, &worker.endpoint
             );
-            let _ = sm_tx
-                .clone()
-                .send(WorkerLifecycleState::HasError(e.to_string()));
+            Self::set_state($c.clone(), WorkerLifecycleState::HasError(e.to_string())).await;
         }
     }};
 }
@@ -108,12 +107,42 @@ macro_rules! extract_essential_values {
     ($c:expr) => {{
         let cc = $c.clone();
         let cc = cc.read().await;
-        let sm_tx = cc.sm_tx.as_ref().unwrap().clone();
         let pr = cc.pr.clone();
         let lm = use_lm_with_ctx!(cc.ctx);
         let worker = cc.worker.clone();
         drop(cc);
-        (lm, worker, pr, sm_tx)
+        (lm, worker, pr)
+    }};
+}
+
+macro_rules! return_if_error_or_restarting {
+    ($c:expr, $r: expr) => {{
+        let cc = $c.clone();
+        let cc = cc.read().await;
+        match &cc.state {
+            WorkerLifecycleState::HasError(_) => {
+                return $r;
+            }
+            WorkerLifecycleState::Restarting => {
+                return $r;
+            }
+            _ => {}
+        }
+        drop(cc);
+    }};
+    ($c:expr) => {{
+        let cc = $c.clone();
+        let cc = cc.read().await;
+        match &cc.state {
+            WorkerLifecycleState::HasError(_) => {
+                return;
+            }
+            WorkerLifecycleState::Restarting => {
+                return;
+            }
+            _ => {}
+        }
+        drop(cc);
     }};
 }
 
@@ -168,36 +197,61 @@ impl WorkerContext {
 
     pub async fn start(c: WrappedWorkerContext) {
         debug!("WorkerContext::start");
-        let cc = c.clone();
-        let cc = cc.read().await;
-        let ctx = cc.ctx.clone();
-        let lm = use_lm_with_ctx!(ctx);
-
-        let worker = cc.worker.clone();
-        drop(ctx);
-        drop(cc);
-        if let WorkerManagerMessage::ResponseErr(err_str) = lm
-            .clone()
-            .send_to_main_channel_and_wait_for_response(
-                WorkerManagerMessage::ShouldStartWorkerLifecycle(c.clone()),
-            )
-            .await
-            .unwrap_or_else(|e| panic!("Failed to start worker {}: {e}", worker.name))
-        {
+        loop {
             let cc = c.clone();
             let mut cc = cc.write().await;
-            cc.state = WorkerLifecycleState::HasError(err_str);
-            drop(cc);
-        }
+            let ctx = cc.ctx.clone();
+            let lm = use_lm_with_ctx!(ctx);
+            cc.state = WorkerLifecycleState::Starting;
 
-        let _ = join(
-            tokio::spawn(Self::do_start(c.clone())),
-            Self::message_loop(c.clone()),
-        )
-        .await;
+            let worker = cc.worker.clone();
+            drop(ctx);
+            drop(cc);
+            if let WorkerManagerMessage::ResponseErr(err_str) = lm
+                .clone()
+                .send_to_main_channel_and_wait_for_response(
+                    WorkerManagerMessage::ShouldStartWorkerLifecycle(c.clone()),
+                )
+                .await
+                .unwrap_or_else(|e| panic!("Failed to start worker {}: {e}", worker.name))
+            {
+                let cc = c.clone();
+                let mut cc = cc.write().await;
+                cc.state = WorkerLifecycleState::HasError(err_str);
+                drop(cc);
+            }
+
+            let _ = join(
+                tokio::spawn(Self::do_start(c.clone())),
+                Self::message_loop(c.clone()),
+            )
+            .await;
+            sleep(Duration::from_secs(6)).await;
+            info!(
+                "Worker {}({}, {}) restarted!",
+                worker.name, worker.endpoint, worker.id
+            );
+        }
     }
 
-    async fn restart(_c: WrappedWorkerContext) {}
+    async fn restart(c: WrappedWorkerContext) -> Result<()> {
+        let cc = c.clone();
+        let cc = cc.read().await;
+        match cc.state {
+            WorkerLifecycleState::Restarting => {
+                warn!(
+                    "Attempting to restart a worker which is not started!({}, {}, {})",
+                    &cc.worker.name, &cc.worker.endpoint, &cc.worker.id
+                );
+            }
+            _ => {
+                let sm_tx = cc.sm_tx.as_ref().unwrap().clone();
+                sm_tx.send(WorkerLifecycleState::Restarting)?;
+            }
+        }
+        drop(cc);
+        Ok(())
+    }
 
     async fn do_start(c: WrappedWorkerContext) {
         let (tx, rx) = mpsc::unbounded_channel::<WorkerLifecycleState>();
@@ -211,10 +265,21 @@ impl WorkerContext {
         .await;
     }
 
-    async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
-        let (lm, worker, _pr, sm_tx) = extract_essential_values!(c);
+    async fn set_state(c: WrappedWorkerContext, state: WorkerLifecycleState) {
+        let c = c.read().await;
+        match &c.state {
+            WorkerLifecycleState::Restarting => {}
+            _ => {
+                let sm_tx = c.sm_tx.as_ref().unwrap().clone();
+                sm_tx.send(state).expect("should update sm state");
+            }
+        }
+    }
 
-        let _ = sm_tx.clone().send(WorkerLifecycleState::Starting);
+    async fn lifecycle_loop(c: WrappedWorkerContext, mut sm_rx: WorkerLifecycleStateRx) {
+        let (lm, worker, _pr) = extract_essential_values!(c);
+
+        Self::set_state(c.clone(), WorkerLifecycleState::Starting).await;
 
         while let Some(s) = sm_rx.recv().await {
             let mut cc = c.write().await;
@@ -239,7 +304,13 @@ impl WorkerContext {
                         "Worker {}({}, {}) stopped due to error: {}",
                         &worker.name, &worker.id, &worker.endpoint, e
                     );
-                    // todo: may need some cleanups
+                }
+                WorkerLifecycleState::Restarting => {
+                    warn!(
+                        "Worker {}({}, {}) is restarting, it may take some time...",
+                        &worker.name, &worker.id, &worker.endpoint
+                    );
+                    return;
                 }
             }
 
@@ -248,7 +319,7 @@ impl WorkerContext {
     }
 
     async fn handle_on_starting(c: WrappedWorkerContext) -> Result<()> {
-        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (lm, worker, pr) = extract_essential_values!(c);
 
         if !worker.enabled {
             anyhow::bail!("Worker not enabled!");
@@ -309,7 +380,7 @@ impl WorkerContext {
             }
         }
 
-        let _ = sm_tx.clone().send(WorkerLifecycleState::Synchronizing);
+        Self::set_state(c.clone(), WorkerLifecycleState::Synchronizing).await;
         Ok(())
     }
 
@@ -320,7 +391,7 @@ impl WorkerContext {
 
     async fn handle_on_preparing(c: WrappedWorkerContext) -> Result<()> {
         set_worker_message!(c, "Reached latest finalized height, start preparing...");
-        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (lm, worker, pr) = extract_essential_values!(c);
         let txm = lm.txm.clone();
 
         let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
@@ -415,15 +486,13 @@ impl WorkerContext {
                         txm.clone()
                             .start_computing(pid, pubkey, worker.stake)
                             .await?;
-                        let _ = sm_tx.clone().send(WorkerLifecycleState::Working);
+                        Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
                     }
                     WorkerState::WorkerCoolingDown => {
                         set_worker_message!(c, "Worker is cooling down!");
-                        drop(mq_rx);
                     }
                     _ => {
-                        drop(mq_rx);
-                        let _ = sm_tx.clone().send(WorkerLifecycleState::Working);
+                        Self::set_state(c.clone(), WorkerLifecycleState::Working).await;
                     }
                 }
                 break;
@@ -435,17 +504,12 @@ impl WorkerContext {
     }
 
     async fn update_info_loop(c: WrappedWorkerContext) {
-        let (_lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (_lm, worker, pr) = extract_essential_values!(c);
 
         let mut retry_count: u8 = 0;
 
         loop {
-            let cc = c.clone();
-            let cc = cc.read().await;
-            if let WorkerLifecycleState::HasError(_) = &cc.state {
-                return;
-            }
-            drop(cc);
+            return_if_error_or_restarting!(c);
 
             let get_info_req = pr.get_info(()).await;
             match get_info_req {
@@ -464,9 +528,8 @@ impl WorkerContext {
                         let m = format!("Failed to get_info from {}: {}", &worker.endpoint, &e);
                         cc.set_last_message(m.as_str());
                         drop(cc);
-                        let _ = sm_tx
-                            .clone()
-                            .send(WorkerLifecycleState::HasError(e.to_string()));
+                        Self::set_state(c.clone(), WorkerLifecycleState::HasError(e.to_string()))
+                            .await;
                     }
                     retry_count += 1;
                 }
@@ -492,7 +555,7 @@ impl WorkerContext {
         c: WrappedWorkerContext,
         pubkey: Sr25519Public,
     ) -> Result<()> {
-        let (lm, _worker, _pr, _sm_tx) = extract_essential_values!(c);
+        let (lm, _worker, _pr) = extract_essential_values!(c);
         let worker_binding_query = khala::storage()
             .phala_computation()
             .worker_bindings(&pubkey);
@@ -500,12 +563,7 @@ impl WorkerContext {
         let mut session_query = None;
 
         loop {
-            let cc = c.clone();
-            let cc = cc.read().await;
-            if let WorkerLifecycleState::HasError(_) = &cc.state {
-                return Ok(());
-            }
-            drop(cc);
+            return_if_error_or_restarting!(c, Ok(()));
 
             let api = use_parachain_api!(lm.dsm, false);
             if api.is_none() {
@@ -560,15 +618,20 @@ impl WorkerContext {
         let mut rx = rx.lock().await;
         while let Some(cmd) = rx.recv().await {
             match cmd {
-                ShouldRestart => {}
-                ShouldStart => {}
+                ShouldRestart => {
+                    if let Err(e) = Self::restart(c.clone()).await {
+                        error!("ShouldRestart: {}", e);
+                        std::process::exit(255);
+                    }
+                    return;
+                }
             }
         }
         drop(rx);
     }
 
     async fn register_worker(c: WrappedWorkerContext, force_ra: bool) -> Result<()> {
-        let (lm, worker, pr, _sm_tx) = extract_essential_values!(c);
+        let (lm, worker, pr) = extract_essential_values!(c);
         let txm = lm.txm.clone();
         let pid = worker.pid.ok_or(anyhow!("Worker belongs to no pool!"))?;
         let po = txm
@@ -638,18 +701,13 @@ impl WorkerContext {
     async fn mq_sync_loop(c: WrappedWorkerContext, pid: u64, first_shot: oneshot::Sender<()>) {
         let mut first_shot = Some(first_shot);
         loop {
-            let cc = c.clone();
-            let cc = cc.read().await;
-            if let WorkerLifecycleState::HasError(_) = &cc.state {
-                return;
-            }
-            drop(cc);
+            return_if_error_or_restarting!(c);
 
             debug!("mq_sync_loop new round");
             match Self::mq_sync_loop_round(c.clone(), pid).await {
                 Ok(_) => {
                     if let Some(shot) = first_shot {
-                        if let Err(_) = shot.send(()) {
+                        if shot.send(()).is_err() {
                             warn!("mq_sync_loop_round send first_shot returned Err");
                         };
                         first_shot = None;
@@ -666,7 +724,7 @@ impl WorkerContext {
         }
     }
     async fn mq_sync_loop_round(c: WrappedWorkerContext, pid: u64) -> Result<()> {
-        let (lm, _worker, pr, _sm_tx) = extract_essential_values!(c);
+        let (lm, _worker, pr) = extract_essential_values!(c);
         let txm = lm.txm.clone();
         let messages = pr.get_egress_messages(()).await?.decode_messages()?;
         debug!("mq_sync_loop_round: {:?}", &messages);
@@ -694,7 +752,7 @@ impl WorkerContext {
 impl WorkerContext {
     async fn sync_loop(c: WrappedWorkerContext) {
         set_worker_message!(c, "Now start synchronizing!");
-        let (lm, worker, pr, sm_tx) = extract_essential_values!(c);
+        let (lm, worker, pr) = extract_essential_values!(c);
         let dsm = lm.dsm.clone();
 
         let mut sync_state = BlockSyncState {
@@ -703,19 +761,13 @@ impl WorkerContext {
         };
 
         loop {
-            let cc = c.clone();
-            let cc = cc.read().await;
-            if let WorkerLifecycleState::HasError(_) = &cc.state {
-                return;
-            }
-            drop(cc);
+            return_if_error_or_restarting!(c);
 
             match Self::sync_loop_round(
                 c.clone(),
                 lm.clone(),
                 worker.clone(),
                 pr.clone(),
-                sm_tx.clone(),
                 dsm.clone(),
                 sync_state,
             )
@@ -730,7 +782,7 @@ impl WorkerContext {
                     }
                 }
                 Err(e) => {
-                    let _ = sm_tx.send(WorkerLifecycleState::HasError(e.to_string()));
+                    Self::set_state(c.clone(), WorkerLifecycleState::HasError(e.to_string())).await;
                     return;
                 }
             }
@@ -742,7 +794,6 @@ impl WorkerContext {
         _lm: WrappedWorkerLifecycleManager,
         _worker: Worker,
         pr: Arc<PRuntimeClient>,
-        sm_tx: WorkerLifecycleStateTx,
         dsm: WrappedDataSourceManager,
         mut sync_state: BlockSyncState,
     ) -> Result<(bool, BlockSyncState)> {
@@ -770,6 +821,8 @@ impl WorkerContext {
             .await??;
         }
 
+        return_if_error_or_restarting!(c, Ok((false, sync_state)));
+
         let pp = pr.clone();
         let dd = dsm.clone();
         let ii = i.clone();
@@ -791,11 +844,12 @@ impl WorkerContext {
                 .await??;
 
         if !not_done {
-            let c = c.write().await;
-            let state = c.state.clone();
-            drop(c);
+            let cc = c.clone();
+            let cc = cc.write().await;
+            let state = cc.state.clone();
+            drop(cc);
             if let WorkerLifecycleState::Synchronizing = state {
-                let _ = sm_tx.clone().send(WorkerLifecycleState::Preparing);
+                Self::set_state(c, WorkerLifecycleState::Preparing).await;
             }
         }
         Ok((not_done, sync_state))

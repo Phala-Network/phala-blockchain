@@ -41,6 +41,22 @@ export const currentUrlAtom__worker_status = atom((get) => {
   return wm.proxied ? wm.urlBase + 'workers/status' : new URL('./workers/status', wm.urlBase);
 });
 
+export const currentUrlAtom__restart_wm = atom((get) => {
+  const wm = get(currentWmAtom);
+  if (!wm) {
+    return '';
+  }
+  return wm.proxied ? wm.urlBase + 'wm/restart' : new URL('./wm/restart', wm.urlBase);
+});
+
+export const currentUrlAtom__restart_worker = atom((get) => {
+  const wm = get(currentWmAtom);
+  if (!wm) {
+    return '';
+  }
+  return wm.proxied ? wm.urlBase + 'workers/restart' : new URL('./workers/restart', wm.urlBase);
+});
+
 export const currentUrlAtom__tx_status = atom((get) => {
   const wm = get(currentWmAtom);
   if (!wm) {

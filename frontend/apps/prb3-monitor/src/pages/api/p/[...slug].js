@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     method: req.method,
     cache: 'no-cache',
     headers: req.headers,
-    body: req.body ? req.body : undefined,
+    body: req.body ? (typeof req.body === 'object' ? JSON.stringify(req.body) : req.body) : undefined,
   });
   res.status(r.status);
   res.end(await r.text());

@@ -1,11 +1,16 @@
-import React, {useMemo} from 'react';
+import React, {useCallback, useMemo} from 'react';
 import {styled, useStyletron} from 'baseui';
 import {StatefulDataTable, CategoricalColumn, NumericalColumn, StringColumn, COLUMNS} from 'baseui/data-table';
 import {MobileHeader} from 'baseui/mobile-header';
 import {TbAnalyze, TbCloudUpload, TbRefresh} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
-import {currentUrlAtom__worker_status, currentWmAtom} from '@/state';
+import {
+  currentUrlAtom__restart_wm,
+  currentUrlAtom__restart_worker,
+  currentUrlAtom__worker_status,
+  currentWmAtom,
+} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import Column from 'baseui/data-table/column';
@@ -120,12 +125,33 @@ export default function WorkerStatusPage() {
   const currWm = useAtomValue(currentWmAtom);
   const url = useAtomValue(currentUrlAtom__worker_status);
   const {data, isLoading, mutate} = useSWR(url, fetcher, {refreshInterval: 6000});
+  const currentUrl__restart_wm = useAtomValue(currentUrlAtom__restart_wm);
+  const currentUrl__restart_worker = useAtomValue(currentUrlAtom__restart_worker);
 
-  const actions = useMemo(() => {
+  const batchActions = useMemo(() => {
     return [
       {
         label: 'Restart',
-        onClick: ({row}) => alert('todo'),
+        onClick: async ({selection}) => {
+          if (!confirm('Are you sure?')) {
+            return;
+          }
+          try {
+            const r = await fetch(currentUrl__restart_worker, {
+              method: 'PUT',
+              headers: {
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({ids: selection.map((i) => i.id)}),
+            });
+            await r.json();
+            toaster.positive('Restarted.');
+          } catch (e) {
+            toaster.negative(e.toString());
+          } finally {
+            await mutate();
+          }
+        },
         renderIcon: () => (
           <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
             <TbRefresh className={css({marginRight: '3px'})} size={16} />
@@ -136,7 +162,7 @@ export default function WorkerStatusPage() {
 
       {
         label: 'Re-register',
-        onClick: ({row}) => alert('todo'),
+        onClick: ({selection}) => alert('Not implemented yet.'),
         renderIcon: () => (
           <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
             <TbCloudUpload className={css({marginRight: '3px'})} size={16} />
@@ -145,7 +171,67 @@ export default function WorkerStatusPage() {
         ),
       },
     ];
-  }, [css]);
+  }, [css, currentUrl__restart_worker, mutate]);
+  const rowActions = useMemo(() => {
+    return [
+      {
+        label: 'Restart',
+        onClick: async ({row}) => {
+          if (!confirm('Are you sure?')) {
+            return;
+          }
+          try {
+            const r = await fetch(currentUrl__restart_worker, {
+              method: 'PUT',
+              headers: {
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({ids: [row.id]}),
+            });
+            await r.json();
+            toaster.positive('Restarted.');
+          } catch (e) {
+            toaster.negative(e.toString());
+          } finally {
+            await mutate();
+          }
+        },
+        renderIcon: () => (
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0'})}>
+            <TbRefresh className={css({marginRight: '3px'})} size={16} />
+            Restart
+          </span>
+        ),
+      },
+
+      {
+        label: 'Re-register',
+        onClick: ({row}) => alert('Not implemented yet.'),
+        renderIcon: () => (
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0'})}>
+            <TbCloudUpload className={css({marginRight: '3px'})} size={16} />
+            Re-register
+          </span>
+        ),
+      },
+    ];
+  }, [css, currentUrl__restart_worker, mutate]);
+
+  const reloadWm = useCallback(async () => {
+    if (!confirm('Are you sure?')) {
+      return;
+    }
+    try {
+      const r = await fetch(currentUrl__restart_wm, {method: 'PUT'});
+      await r.json();
+      toaster.positive('Restarted WM!');
+    } catch (e) {
+      toaster.negative(e.toString());
+    } finally {
+      await mutate();
+    }
+  }, [mutate, currentUrl__restart_wm]);
+
   return (
     <>
       <Head>
@@ -179,7 +265,7 @@ export default function WorkerStatusPage() {
             }
             actionButtons={[
               {
-                onClick: () => {},
+                onClick: reloadWm,
                 label: 'Restart All',
               },
             ]}
@@ -191,8 +277,8 @@ export default function WorkerStatusPage() {
             resizableColumnWidths
             columns={columns}
             rows={data || []}
-            batchActions={actions}
-            rowActions={actions}
+            batchActions={batchActions}
+            rowActions={rowActions}
           />
         </div>
       </PageWrapper>
