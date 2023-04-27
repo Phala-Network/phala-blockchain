@@ -6,6 +6,7 @@ import {TbAnalyze, TbCloudUpload, TbRefresh} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
 import {
+  currentFetcherAtom,
   currentUrlAtom__restart_wm,
   currentUrlAtom__restart_worker,
   currentUrlAtom__worker_status,
@@ -64,15 +65,15 @@ const columns = [
   }),
   NumericalColumn({
     title: 'Para Height',
-    mapDataToValue: (data) => data.phactory_info?.blocknum,
+    mapDataToValue: (data) => data.phactory_info?.blocknum || 0,
   }),
   NumericalColumn({
     title: 'Para Hd. Height',
-    mapDataToValue: (data) => data.phactory_info?.para_headernum,
+    mapDataToValue: (data) => data.phactory_info?.para_headernum || 0,
   }),
   NumericalColumn({
     title: 'Relay Hd. Height',
-    mapDataToValue: (data) => data.phactory_info?.headernum,
+    mapDataToValue: (data) => data.phactory_info?.headernum || 0,
   }),
   StringColumn({
     title: 'Public Key',
@@ -88,15 +89,15 @@ const columns = [
   }),
   NumericalColumn({
     title: 'rust_peak_used',
-    mapDataToValue: (data) => data.phactory_info?.memory_usage.rust_peak_used,
+    mapDataToValue: (data) => data.phactory_info?.memory_usage.rust_peak_used || 0,
   }),
   NumericalColumn({
     title: 'rust_used',
-    mapDataToValue: (data) => data.phactory_info?.memory_usage.rust_used,
+    mapDataToValue: (data) => data.phactory_info?.memory_usage.rust_used || 0,
   }),
   NumericalColumn({
     title: 'total_peak_used',
-    mapDataToValue: (data) => data.phactory_info?.memory_usage.total_peak_used,
+    mapDataToValue: (data) => data.phactory_info?.memory_usage.total_peak_used || 0,
   }),
   StringColumn({
     title: 'UUID',
@@ -111,22 +112,21 @@ const PageWrapper = styled('div', () => ({
   flexFlow: 'column nowrap',
 }));
 
-const fetcher = async (url) => {
-  if (!url) {
-    return [];
-  }
-  return (await fetch(url).then((r) => r.json())).workers.map((data) => ({
-    data,
-    id: data.worker.id,
-  }));
-};
 export default function WorkerStatusPage() {
   const [css] = useStyletron();
   const currWm = useAtomValue(currentWmAtom);
-  const url = useAtomValue(currentUrlAtom__worker_status);
-  const {data, isLoading, mutate} = useSWR(url, fetcher, {refreshInterval: 6000});
-  const currentUrl__restart_wm = useAtomValue(currentUrlAtom__restart_wm);
-  const currentUrl__restart_worker = useAtomValue(currentUrlAtom__restart_worker);
+  const rawFetcher = useAtomValue(currentFetcherAtom);
+  const fetcher = useCallback(async () => {
+    const req = {
+      url: '/workers/status',
+    };
+    const res = await rawFetcher(req);
+    return res.data.workers.map((data) => ({
+      data,
+      id: data.worker.id,
+    }));
+  }, [rawFetcher]);
+  const {data, isLoading, mutate} = useSWR(`worker_status_${currWm?.name}`, fetcher, {refreshInterval: 6000});
 
   const batchActions = useMemo(() => {
     return [
@@ -137,16 +137,14 @@ export default function WorkerStatusPage() {
             return;
           }
           try {
-            const r = await fetch(currentUrl__restart_worker, {
+            await rawFetcher({
+              url: '/workers/restart',
               method: 'PUT',
-              headers: {
-                'content-type': 'application/json',
-              },
-              body: JSON.stringify({ids: selection.map((i) => i.id)}),
+              data: {ids: selection.map((i) => i.id)},
             });
-            await r.json();
             toaster.positive('Restarted.');
           } catch (e) {
+            console.error(e);
             toaster.negative(e.toString());
           } finally {
             await mutate();
@@ -171,7 +169,7 @@ export default function WorkerStatusPage() {
         ),
       },
     ];
-  }, [css, currentUrl__restart_worker, mutate]);
+  }, [css, mutate, rawFetcher]);
   const rowActions = useMemo(() => {
     return [
       {
@@ -181,16 +179,14 @@ export default function WorkerStatusPage() {
             return;
           }
           try {
-            const r = await fetch(currentUrl__restart_worker, {
+            await rawFetcher({
+              url: '/workers/restart',
               method: 'PUT',
-              headers: {
-                'content-type': 'application/json',
-              },
-              body: JSON.stringify({ids: [row.id]}),
+              data: {ids: [row.id]},
             });
-            await r.json();
             toaster.positive('Restarted.');
           } catch (e) {
+            console.error(e);
             toaster.negative(e.toString());
           } finally {
             await mutate();
@@ -215,22 +211,24 @@ export default function WorkerStatusPage() {
         ),
       },
     ];
-  }, [css, currentUrl__restart_worker, mutate]);
+  }, [css, mutate, rawFetcher]);
 
   const reloadWm = useCallback(async () => {
     if (!confirm('Are you sure?')) {
       return;
     }
     try {
-      const r = await fetch(currentUrl__restart_wm, {method: 'PUT'});
-      await r.json();
+      await rawFetcher({
+        url: '/wm/restart',
+        method: 'PUT',
+      });
       toaster.positive('Restarted WM!');
     } catch (e) {
       toaster.negative(e.toString());
     } finally {
       await mutate();
     }
-  }, [mutate, currentUrl__restart_wm]);
+  }, [mutate, rawFetcher]);
 
   return (
     <>
@@ -266,7 +264,7 @@ export default function WorkerStatusPage() {
             actionButtons={[
               {
                 onClick: reloadWm,
-                label: 'Restart All',
+                label: 'Restart WM',
               },
             ]}
           />

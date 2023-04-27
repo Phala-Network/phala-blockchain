@@ -39,7 +39,7 @@ const AppWrapper = ({children}) => {
     <>
       {state === 'hasData' ? (
         <Wrapper>
-          <ToasterContainer autoHideDuration={15000} placement={PLACEMENT.topRight}></ToasterContainer>
+          <ToasterContainer autoHideDuration={9000} placement={PLACEMENT.topRight}></ToasterContainer>
           <SWRConfig
             value={{
               onError: (error, key) => {

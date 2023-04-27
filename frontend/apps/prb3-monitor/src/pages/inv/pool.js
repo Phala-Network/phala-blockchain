@@ -5,7 +5,7 @@ import {MobileHeader} from 'baseui/mobile-header';
 import {TbAnalyze} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
-import {configFetcherWmAtom, currentUrlAtom__wm_config, currentWmAtom} from '@/state';
+import {currentFetcherAtom, currentWmAtom} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper} from '@/utils';
@@ -32,17 +32,25 @@ const columns = [
   }),
 ];
 
-const reqGetAllPools = '"GetAllPools"';
-
 export default function PoolInvPage() {
   const [css] = useStyletron();
   const currWm = useAtomValue(currentWmAtom);
-  const rawFetcher = useAtomValue(configFetcherWmAtom);
-  const url = useAtomValue(currentUrlAtom__wm_config);
-  const fetcher = useCallback((f) => rawFetcher(f).then((r) => r.map((data) => ({id: data.id, data}))), [rawFetcher]);
-  const {data, isLoading, mutate} = useSWR([url, reqGetAllPools], fetcher, {refreshInterval: 15000});
+  const rawFetcher = useAtomValue(currentFetcherAtom);
+  const fetcher = useCallback(async () => {
+    const req = {
+      url: '/wm/config',
+      method: 'POST',
+      data: {GetAllPools: null},
+    };
+    const res = await rawFetcher(req);
+    return res.data.map((data) => ({
+      data,
+      id: data.id,
+    }));
+  }, [rawFetcher]);
+  const {data, isLoading, mutate} = useSWR(`inv_pool_${currWm?.name}`, fetcher, {refreshInterval: 6000});
   const [currModalItem, setCurrModalItem] = useState(null);
-  const [isModalOpen, setModalOpen] = useState(true);
+  const [isModalOpen, setModalOpen] = useState(false);
   const onModalClose = (reset) => {
     setModalOpen(false);
     setCurrModalItem(null);
@@ -115,7 +123,7 @@ const InputModal = ({initialValue, isOpen, onClose}) => {
   return (
     <Modal isOpen={isOpen} closeable={false} autoFocus onClose={close}>
       <ModalHeader>{initialValue ? `Edit Pool(${initialValue.id})` : 'New Pool'}</ModalHeader>
-      <ModalBody>111</ModalBody>
+      <ModalBody></ModalBody>
       <ModalFooter>
         <ModalButton disabled={loading} kind="tertiary" onClick={close}>
           Cancel

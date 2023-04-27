@@ -1,10 +1,13 @@
 import {atom} from 'jotai';
 import {atomWithStorage, loadable} from 'jotai/utils';
 import {parse} from 'yaml';
+import axios from 'axios';
+
+const isDev = process.env.NODE_ENV === 'development';
 
 export const allWmAtomRaw = loadable(
   atom(async () => {
-    const res = await fetch('/wm.yml');
+    const res = await fetch(isDev ? '/wm.dev.yml' : '/wm.yml');
     const yml = await res.text();
     return parse(yml) || [];
   }),
@@ -28,66 +31,29 @@ export const currentWmIdAtom = atomWithStorage('currentWmIdAtom', '');
 export const currentWmAtom = atom((get) => {
   const currentWmId = get(currentWmIdAtom);
   const o = get(allWmAtomInObject);
-  const ret = currentWmId?.length ? o[currentWmId] : get(allWmAtom)[0];
-  ret.urlBase = ret.proxied ? `/api/p/${encodeURIComponent(ret.endpoint)}/` : new URL('./', ret.endpoint).href;
-  return ret;
+  return currentWmId?.length ? o[currentWmId] : get(allWmAtom)[0];
 });
 
-export const currentUrlAtom__worker_status = atom((get) => {
+export const currentAxios = atom((get) => {
   const wm = get(currentWmAtom);
   if (!wm) {
-    return '';
+    return null;
   }
-  return wm.proxied ? wm.urlBase + 'workers/status' : new URL('./workers/status', wm.urlBase);
+  return axios.create({
+    baseURL: wm.proxied ? `/api/p/${encodeURIComponent(wm.endpoint)}/` : wm.endpoint,
+    timeout: 12000,
+  });
 });
 
-export const currentUrlAtom__restart_wm = atom((get) => {
-  const wm = get(currentWmAtom);
-  if (!wm) {
-    return '';
-  }
-  return wm.proxied ? wm.urlBase + 'wm/restart' : new URL('./wm/restart', wm.urlBase);
-});
-
-export const currentUrlAtom__restart_worker = atom((get) => {
-  const wm = get(currentWmAtom);
-  if (!wm) {
-    return '';
-  }
-  return wm.proxied ? wm.urlBase + 'workers/restart' : new URL('./workers/restart', wm.urlBase);
-});
-
-export const currentUrlAtom__tx_status = atom((get) => {
-  const wm = get(currentWmAtom);
-  if (!wm) {
-    return '';
-  }
-  return wm.proxied ? wm.urlBase + 'tx/status' : new URL('./tx/status', wm.urlBase);
-});
-
-export const currentUrlAtom__wm_config = atom((get) => {
-  const wm = get(currentWmAtom);
-  if (!wm) {
-    return '';
-  }
-  return wm.proxied ? wm.urlBase + 'wm/config' : new URL('./wm/config', wm.urlBase);
-});
-
-export const configFetcherWmAtom = atom((get) => {
-  return async ([url, req]) => {
-    if (!url) {
+export const currentFetcherAtom = atom((get) => {
+  return async (req) => {
+    if (!req) {
       return null;
     }
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(req),
-    }).then((r) => r.json());
-    if (res.error) {
-      throw res;
+    const axios = get(currentAxios);
+    if (!axios) {
+      return null;
     }
-    return res;
+    return axios.request(req);
   };
 });

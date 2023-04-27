@@ -1,11 +1,11 @@
-import React from 'react';
+import React, {useCallback} from 'react';
 import {useStyletron} from 'baseui';
 import {StatefulDataTable, CategoricalColumn, NumericalColumn, StringColumn, COLUMNS} from 'baseui/data-table';
 import {MobileHeader} from 'baseui/mobile-header';
 import {TbAnalyze} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
-import {currentUrlAtom__tx_status, currentWmAtom} from '@/state';
+import {currentFetcherAtom, currentUrlAtom__tx_status, currentWmAtom} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper, StringCell} from '@/utils';
@@ -79,19 +79,20 @@ const columns = [
   }),
 ];
 
-const fetcher = async (url) => {
-  if (!url) {
-    return [];
-  }
-  const ret = await fetch(url).then((r) => r.json());
-  ret.txs = [...ret.running_txs, ...ret.pending_txs, ...ret.past_txs].map((data) => ({data, id: data.id}));
-  return ret;
-};
 export default function WorkerStatusPage() {
   const [css] = useStyletron();
   const currWm = useAtomValue(currentWmAtom);
-  const url = useAtomValue(currentUrlAtom__tx_status);
-  const {data, isLoading, mutate} = useSWR(url, fetcher, {refreshInterval: 6000});
+  const rawFetcher = useAtomValue(currentFetcherAtom);
+  const fetcher = useCallback(async () => {
+    const req = {
+      url: '/tx/status',
+    };
+    const res = await rawFetcher(req);
+    const ret = res.data;
+    ret.txs = [...ret.running_txs, ...ret.pending_txs, ...ret.past_txs].map((data) => ({data, id: data.id}));
+    return ret;
+  }, [rawFetcher]);
+  const {data, isLoading, mutate} = useSWR(`tx_status_${currWm?.name}`, fetcher, {refreshInterval: 6000});
 
   return (
     <>

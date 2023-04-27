@@ -5,7 +5,7 @@ import {MobileHeader} from 'baseui/mobile-header';
 import {TbAnalyze} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
-import {configFetcherWmAtom, currentUrlAtom__wm_config, currentWmAtom} from '@/state';
+import {currentFetcherAtom, currentWmAtom} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper} from '@/utils';
@@ -46,24 +46,24 @@ const columns = [
   }),
 ];
 
-const reqGetAllPools = '"GetAllPoolsWithWorkers"';
-
 export default function WorkerInvPage() {
   const [css] = useStyletron();
+
   const currWm = useAtomValue(currentWmAtom);
-  const rawFetcher = useAtomValue(configFetcherWmAtom);
-  const url = useAtomValue(currentUrlAtom__wm_config);
-  const fetcher = useCallback(
-    (f) =>
-      rawFetcher(f).then((r) =>
-        r
-          .map((i) => i.workers)
-          .flat()
-          .map((data) => ({id: data.id, data})),
-      ),
-    [rawFetcher],
-  );
-  const {data, isLoading, mutate} = useSWR([url, reqGetAllPools], fetcher, {refreshInterval: 15000});
+  const rawFetcher = useAtomValue(currentFetcherAtom);
+  const fetcher = useCallback(async () => {
+    const req = {
+      url: '/wm/config',
+      method: 'POST',
+      data: {GetAllPoolsWithWorkers: null},
+    };
+    const res = await rawFetcher(req);
+    return res.data
+      .map((i) => i.workers)
+      .flat()
+      .map((data) => ({id: data.id, data}));
+  }, [rawFetcher]);
+  const {data, isLoading, mutate} = useSWR(`inv_workers_${currWm?.name}`, fetcher, {refreshInterval: 6000});
 
   return (
     <>
