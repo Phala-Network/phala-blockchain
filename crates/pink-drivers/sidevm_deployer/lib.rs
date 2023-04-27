@@ -29,6 +29,12 @@ mod sidevm_deployer {
                 whitelist: Default::default(),
             }
         }
+
+        #[ink(message)]
+        pub fn owner(&self) -> AccountId {
+            self.owner
+        }
+
         #[ink(message)]
         pub fn allow(&mut self, contract: AccountId) -> Result<()> {
             if self.env().caller() != self.owner {

@@ -36,6 +36,11 @@ mod system {
                 drivers: Default::default(),
             }
         }
+
+        #[ink(message)]
+        pub fn owner(&self) -> AccountId {
+            self.owner
+        }
     }
 
     impl System {

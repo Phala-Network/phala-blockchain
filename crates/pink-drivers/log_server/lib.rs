@@ -7,8 +7,15 @@ use pink_extension as pink;
 #[pink::contract]
 mod contract {
     use super::pink;
+
+    use pink::system::DriverError as Error;
+
+    type Result<T> = core::result::Result<T, Error>;
+
     #[ink(storage)]
-    pub struct Contract {}
+    pub struct Contract {
+        owner: AccountId,
+    }
 
     fn start_sidevm() {
         let code_hash = *include_bytes!("./sideprog.wasm.hash");
@@ -19,7 +26,9 @@ mod contract {
         #[ink(constructor)]
         pub fn default() -> Self {
             start_sidevm();
-            Self {}
+            Self {
+                owner: Self::env().caller(),
+            }
         }
 
         #[ink(message)]
@@ -28,13 +37,26 @@ mod contract {
         }
 
         #[ink(message)]
-        pub fn start(&self) {
-            start_sidevm();
+        pub fn owner(&self) -> AccountId {
+            self.owner
         }
 
         #[ink(message)]
-        pub fn stop(&self) {
+        pub fn start(&self) -> Result<()> {
+            if self.env().caller() != self.owner {
+                return Err(Error::BadOrigin);
+            }
+            start_sidevm();
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn stop(&self) -> Result<()> {
+            if self.env().caller() != self.owner {
+                return Err(Error::BadOrigin);
+            }
             pink::force_stop_sidevm();
+            Ok(())
         }
 
         #[ink(message)]
