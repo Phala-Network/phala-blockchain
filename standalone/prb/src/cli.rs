@@ -1,6 +1,6 @@
 use crate::configurator;
 use crate::wm::wm;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use log::debug;
 use serde::{Deserialize, Serialize};
 
@@ -215,10 +215,22 @@ pub enum ConfigCommands {
         #[arg(short, long)]
         account: String,
 
+        /// Account type
+        #[arg(short = 't', long, value_enum, default_value_t = AccountType::Seed)]
+        account_type: AccountType,
+
         /// Proxied pool owner account in SS58 format
         #[arg(short = 'x', long)]
         proxied_account_id: Option<String>,
     },
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum AccountType {
+    /// a mnemonic or a seed
+    Seed,
+    /// a SecretKey
+    SecretKey,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

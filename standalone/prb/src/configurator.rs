@@ -1,6 +1,6 @@
 use crate::api::ApiError::{PoolNotFound, WriteFailed};
 use crate::api::OkResponse;
-use crate::cli::{ConfigCliArgs, ConfigCommands};
+use crate::cli::{AccountType, ConfigCliArgs, ConfigCommands};
 use crate::db;
 use crate::db::{
     add_worker, get_all_pools, get_all_pools_with_workers, get_pool_by_pid,
@@ -9,6 +9,7 @@ use crate::db::{
 };
 use crate::tx::{get_options, PoolOperator, PoolOperatorAccess, PoolOperatorForSerialize, DB};
 use anyhow::{anyhow, Context, Result};
+use schnorrkel::SecretKey;
 use sp_core::crypto::{AccountId32, Ss58Codec};
 use sp_core::sr25519::Pair as Sr22519Pair;
 use sp_core::Pair;
@@ -115,11 +116,21 @@ pub async fn cli_main(args: ConfigCliArgs) -> Result<()> {
             pid,
             account,
             proxied_account_id,
+            account_type,
         } => {
             let pid = *pid;
             let po = PoolOperator {
                 pid,
-                pair: Sr22519Pair::from_string(account, None)?,
+                pair: match account_type {
+                    AccountType::Seed => Sr22519Pair::from_string(account, None)?,
+                    AccountType::SecretKey => {
+                        let bytes = hex::decode(account)?;
+                        let bytes = bytes.as_slice();
+                        let key = SecretKey::from_ed25519_bytes(bytes)
+                            .map_err(|e| anyhow!(e.to_string()))?;
+                        Sr22519Pair::from(key)
+                    }
+                },
                 proxied: match proxied_account_id.clone() {
                     None => None,
                     Some(i) => Some(AccountId32::from_string(&i)?),
@@ -234,10 +245,20 @@ pub async fn api_handler(db: WrappedDb, po_db: Arc<DB>, command: ConfigCommands)
             pid,
             account,
             proxied_account_id,
+            account_type,
         } => {
             let po = PoolOperator {
                 pid,
-                pair: Sr22519Pair::from_string(account.as_str(), None)?,
+                pair: match account_type {
+                    AccountType::Seed => Sr22519Pair::from_string(account.as_str(), None)?,
+                    AccountType::SecretKey => {
+                        let bytes = hex::decode(account)?;
+                        let bytes = bytes.as_slice();
+                        let key = SecretKey::from_ed25519_bytes(bytes)
+                            .map_err(|e| anyhow!(e.to_string()))?;
+                        Sr22519Pair::from(key)
+                    }
+                },
                 proxied: match proxied_account_id {
                     None => None,
                     Some(i) => Some(AccountId32::from_string(&i)?),

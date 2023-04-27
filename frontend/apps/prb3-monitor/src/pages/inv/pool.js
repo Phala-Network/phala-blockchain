@@ -1,4 +1,4 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useState} from 'react';
 import {useStyletron} from 'baseui';
 import {StatefulDataTable, CategoricalColumn, StringColumn, BooleanColumn} from 'baseui/data-table';
 import {MobileHeader} from 'baseui/mobile-header';
@@ -10,6 +10,7 @@ import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper} from '@/utils';
 import {FiTrash2} from 'react-icons/fi';
+import {Modal, ModalBody, ModalButton, ModalFooter, ModalHeader} from 'baseui/modal';
 
 const columns = [
   CategoricalColumn({
@@ -40,9 +41,18 @@ export default function PoolInvPage() {
   const url = useAtomValue(currentUrlAtom__wm_config);
   const fetcher = useCallback((f) => rawFetcher(f).then((r) => r.map((data) => ({id: data.id, data}))), [rawFetcher]);
   const {data, isLoading, mutate} = useSWR([url, reqGetAllPools], fetcher, {refreshInterval: 15000});
+  const [currModalItem, setCurrModalItem] = useState(null);
+  const [isModalOpen, setModalOpen] = useState(true);
+  const onModalClose = (reset) => {
+    setModalOpen(false);
+    setCurrModalItem(null);
+    reset();
+    mutate();
+  };
 
   return (
     <>
+      <InputModal onClose={onModalClose} isOpen={isModalOpen} initialValue={currModalItem} />
       <Head>
         <title>{currWm ? currWm.name + ' - ' : ''}Pool Config</title>
       </Head>
@@ -96,3 +106,24 @@ export default function PoolInvPage() {
     </>
   );
 }
+
+const InputModal = ({initialValue, isOpen, onClose}) => {
+  const [loading, setLoading] = useState(false);
+  const reset = () => {};
+  const close = () => onClose(reset);
+  const submit = () => {};
+  return (
+    <Modal isOpen={isOpen} closeable={false} autoFocus onClose={close}>
+      <ModalHeader>{initialValue ? `Edit Pool(${initialValue.id})` : 'New Pool'}</ModalHeader>
+      <ModalBody>111</ModalBody>
+      <ModalFooter>
+        <ModalButton disabled={loading} kind="tertiary" onClick={close}>
+          Cancel
+        </ModalButton>
+        <ModalButton isLoading={loading} onClick={submit()}>
+          Submit
+        </ModalButton>
+      </ModalFooter>
+    </Modal>
+  );
+};
