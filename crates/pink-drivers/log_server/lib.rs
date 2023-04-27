@@ -10,12 +10,31 @@ mod contract {
     #[ink(storage)]
     pub struct Contract {}
 
+    fn start_sidevm() {
+        let code_hash = *include_bytes!("./sideprog.wasm.hash");
+        pink::start_sidevm(code_hash).expect("Failed to start sidevm");
+    }
+
     impl Contract {
         #[ink(constructor)]
         pub fn default() -> Self {
-            let code_hash = *include_bytes!("./sideprog.wasm.hash");
-            pink::start_sidevm(code_hash).expect("Failed to start sidevm");
+            start_sidevm();
             Self {}
+        }
+
+        #[ink(message)]
+        pub fn version(&self) -> this_crate::VersionTuple {
+            this_crate::version_tuple!()
+        }
+
+        #[ink(message)]
+        pub fn start(&self) {
+            start_sidevm();
+        }
+
+        #[ink(message)]
+        pub fn stop(&self) {
+            pink::force_stop_sidevm();
         }
 
         #[ink(message)]

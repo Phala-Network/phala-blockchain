@@ -87,6 +87,7 @@ members = [
 	"crates/rustfmt-snippet",
 	"crates/reqwest-env-proxy",
 	"crates/phala-scheduler",
+	"crates/this-crate",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/offchain-rollup",

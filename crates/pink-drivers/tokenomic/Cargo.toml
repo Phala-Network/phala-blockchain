@@ -16,6 +16,7 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.4", default-features = false, path = "../../../crates/pink/pink-extension" }
+this-crate = { path = "../../this-crate" }
 
 [build-dependencies]
 sp-core = "7"

@@ -26,6 +26,11 @@ mod tokenomic {
             }
             Err(Error::BadOrigin)
         }
+
+        #[ink(message)]
+        pub fn version(&self) -> this_crate::VersionTuple {
+            this_crate::version_tuple!()
+        }
     }
 
     impl ContractDeposit for PhatTokenomic {

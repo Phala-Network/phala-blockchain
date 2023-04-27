@@ -14,6 +14,8 @@ mod system {
     use pink::system::{CodeType, ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
+    use this_crate::{version_tuple, VersionTuple};
+
     /// Pink's system contract.
     #[ink(storage)]
     pub struct System {
@@ -75,14 +77,14 @@ mod system {
             }
         }
 
-        fn version(&self) -> (u16, u16) {
-            (1, 0)
+        fn version(&self) -> VersionTuple {
+            version_tuple!()
         }
     }
 
     impl pink::system::System for System {
         #[ink(message)]
-        fn version(&self) -> (u16, u16) {
+        fn version(&self) -> VersionTuple {
             self.version()
         }
 
@@ -177,8 +179,7 @@ mod system {
                 return Ok(());
             }
             // Call the `do_upgrade` from the new version of system contract.
-            ink::env::set_code_hash(&code_hash)
-                .expect("System code should exists here");
+            ink::env::set_code_hash(&code_hash).expect("System code should exists here");
             let flags = ink::env::CallFlags::default().set_allow_reentry(true);
             pink::system::SystemRef::instance_with_call_flags(flags)
                 .do_upgrade(self.version())
@@ -189,7 +190,7 @@ mod system {
         }
 
         #[ink(message)]
-        fn do_upgrade(&self, from_version: (u16, u16)) -> Result<()> {
+        fn do_upgrade(&self, from_version: VersionTuple) -> Result<()> {
             self.ensure_self()?;
             self.ensure_min_runtime_version((1, 0))?;
             if from_version >= self.version() {
