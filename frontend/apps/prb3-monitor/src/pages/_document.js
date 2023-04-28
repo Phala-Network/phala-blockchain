@@ -6,11 +6,13 @@ import {styletron} from '@/styletron';
 class MyDocument extends Document {
   static async getInitialProps(props) {
     // eslint-disable-next-line react/display-name
-    const page = await props.renderPage((App) => (props) => (
-      <StyletronProvider value={styletron}>
-        <App {...props} />
-      </StyletronProvider>
-    ));
+    const page = await props.renderPage((App) => (props) => {
+      return (
+        <StyletronProvider value={styletron}>
+          <App {...props} />
+        </StyletronProvider>
+      );
+    });
     const stylesheets = styletron.getStylesheets() || [];
     return {...page, stylesheets};
   }

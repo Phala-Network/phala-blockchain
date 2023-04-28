@@ -74,6 +74,13 @@ export default function PoolInvPage() {
           })}
         >
           <MobileHeader
+            overrides={{
+              Root: {
+                style: () => ({
+                  backgroundColor: 'transparent',
+                }),
+              },
+            }}
             title={`Inventory - Pools (${data?.length || 0})`}
             navButton={
               isLoading

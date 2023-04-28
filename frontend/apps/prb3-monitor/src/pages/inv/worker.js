@@ -80,6 +80,13 @@ export default function WorkerInvPage() {
           })}
         >
           <MobileHeader
+            overrides={{
+              Root: {
+                style: () => ({
+                  backgroundColor: 'transparent',
+                }),
+              },
+            }}
             title={`Inventory - Workers (${data?.length || 0})`}
             navButton={
               isLoading

@@ -5,13 +5,7 @@ import {MobileHeader} from 'baseui/mobile-header';
 import {TbAnalyze, TbCloudUpload, TbRefresh} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
-import {
-  currentFetcherAtom,
-  currentUrlAtom__restart_wm,
-  currentUrlAtom__restart_worker,
-  currentUrlAtom__worker_status,
-  currentWmAtom,
-} from '@/state';
+import {currentFetcherAtom, currentWmAtom} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import Column from 'baseui/data-table/column';
@@ -245,6 +239,13 @@ export default function WorkerStatusPage() {
           })}
         >
           <MobileHeader
+            overrides={{
+              Root: {
+                style: () => ({
+                  backgroundColor: 'transparent',
+                }),
+              },
+            }}
             title={`Workers (${data ? data.length : 0})`}
             navButton={
               isLoading

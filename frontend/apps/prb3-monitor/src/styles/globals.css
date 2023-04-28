@@ -29,7 +29,7 @@
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
+  /*color: rgb(var(--foreground-rgb));*/
   padding: 0;
   margin: 0;
 }

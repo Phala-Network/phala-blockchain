@@ -1,7 +1,7 @@
 import React, {useEffect} from 'react';
 import App from 'next/app';
 import {Provider as StyletronProvider} from 'styletron-react';
-import {LightTheme, BaseProvider, styled, useStyletron} from 'baseui';
+import {LightTheme, BaseProvider, styled, useStyletron, DarkTheme} from 'baseui';
 import {styletron} from '@/styletron';
 import Nav from '@/components/Nav';
 import '@/styles/globals.css';
@@ -88,22 +88,41 @@ const AppWrapper = ({children}) => {
     </>
   );
 };
+
+const match = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+const initialTheme = match ? (match.matches ? DarkTheme : LightTheme) : LightTheme;
+const AppInner = ({Component, pageProps}) => {
+  const [theme, setTheme] = React.useState(initialTheme);
+  useEffect(() => {
+    if (!window) {
+      return;
+    }
+    const match = window.matchMedia('(prefers-color-scheme: dark)');
+    setTheme(match.matches ? DarkTheme : LightTheme);
+    const listener = (event) => {
+      setTheme(event.matches ? DarkTheme : LightTheme);
+    };
+    match.addEventListener('change', listener);
+    return () => match.removeEventListener('change', listener);
+  }, [setTheme]);
+  return (
+    <StyletronProvider value={styletron}>
+      <BaseProvider theme={theme}>
+        <Provider>
+          <AppWrapper>
+            <Nav />
+            <Inner>
+              <Component {...pageProps} />
+            </Inner>
+          </AppWrapper>
+        </Provider>
+      </BaseProvider>
+    </StyletronProvider>
+  );
+};
 export default class MyApp extends App {
   render() {
     const {Component, pageProps} = this.props;
-    return (
-      <StyletronProvider value={styletron}>
-        <BaseProvider theme={LightTheme}>
-          <Provider>
-            <AppWrapper>
-              <Nav />
-              <Inner>
-                <Component {...pageProps} />
-              </Inner>
-            </AppWrapper>
-          </Provider>
-        </BaseProvider>
-      </StyletronProvider>
-    );
+    return <AppInner pageProps={pageProps} Component={Component} />;
   }
 }

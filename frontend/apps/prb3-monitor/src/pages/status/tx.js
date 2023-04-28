@@ -5,7 +5,7 @@ import {MobileHeader} from 'baseui/mobile-header';
 import {TbAnalyze} from 'react-icons/tb';
 import Head from 'next/head';
 import {useAtomValue} from 'jotai';
-import {currentFetcherAtom, currentUrlAtom__tx_status, currentWmAtom} from '@/state';
+import {currentFetcherAtom, currentWmAtom} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper, StringCell} from '@/utils';
@@ -109,6 +109,13 @@ export default function WorkerStatusPage() {
           })}
         >
           <MobileHeader
+            overrides={{
+              Root: {
+                style: () => ({
+                  backgroundColor: 'transparent',
+                }),
+              },
+            }}
             title={`Transactions (${data?.tx_count || 0})`}
             navButton={
               isLoading
