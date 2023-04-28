@@ -410,10 +410,17 @@ impl TxManager {
                 .sign_and_submit_then_watch_default(&call, &signer)
                 .await?
         } else {
-            let call = khala::tx().utility().force_batch(calls).unvalidated();
-            api.tx()
-                .sign_and_submit_then_watch_default(&call, &signer)
-                .await?
+            if ids.len() == 1 {
+                let call = calls.into_iter().next().ok_or(anyhow!("no call found"))?;
+                api.tx()
+                    .sign_and_submit_then_watch_default(call.into(), &signer)
+                    .await?
+            } else {
+                let call = khala::tx().utility().force_batch(calls).unvalidated();
+                api.tx()
+                    .sign_and_submit_then_watch_default(&call, &signer)
+                    .await?
+            }
         };
 
         let tx = tokio::select! {
@@ -431,6 +438,10 @@ impl TxManager {
             anyhow::bail!("Tx timed out!");
         };
         let tx = tx.wait_for_success().await?;
+
+        if ids.len() == 1 {
+            return Ok(vec![Ok(())]);
+        }
 
         if proxied {
             let event_proxy = tx
