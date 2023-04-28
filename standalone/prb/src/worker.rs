@@ -46,9 +46,9 @@ pub enum WorkerLifecycleState {
     Synchronizing,
     Preparing,
     Working,
+    GatekeeperWorking,
 
     HasError(String),
-
     Restarting,
 }
 
@@ -314,6 +314,12 @@ impl WorkerContext {
                 WorkerLifecycleState::Working => {
                     set_worker_message!(c, "Working now.")
                 }
+                WorkerLifecycleState::GatekeeperWorking => {
+                    set_worker_message!(
+                        c,
+                        "Gatekeeper mode detected, skipping stakepool operations."
+                    );
+                }
                 WorkerLifecycleState::HasError(e) => {
                     error!(
                         "Worker {}({}, {}) stopped due to error: {}",
@@ -445,10 +451,11 @@ impl WorkerContext {
         }
 
         if worker.gatekeeper {
-            set_worker_message!(
-                c,
-                "Gatekeeper mode detected, skipping stakepool operations."
-            );
+            let cc = c.clone();
+            let cc = cc.read().await;
+            let sm_tx = cc.sm_tx.as_ref().unwrap().clone();
+            drop(cc);
+            sm_tx.send(WorkerLifecycleState::GatekeeperWorking)?;
             return Ok(());
         }
 
