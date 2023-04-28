@@ -49,7 +49,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         });
 
         for item in item_trait.items.iter_mut() {
-            if let syn::TraitItem::Method(item_method) = item {
+            if let syn::TraitItem::Fn(item_method) = item {
                 item_method.attrs.clear();
 
                 // Turn &[u8] into Cow<[u8]>

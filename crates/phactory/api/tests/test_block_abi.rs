@@ -4,7 +4,7 @@ use scale_info::{IntoPortable, PortableRegistry, TypeInfo};
 fn travel_types<T: TypeInfo>() -> String {
     let mut registry = Default::default();
     let _ = T::type_info().into_portable(&mut registry);
-    serde_json::to_string_pretty(PortableRegistry::from(registry).types()).unwrap()
+    serde_json::to_string_pretty(&PortableRegistry::from(registry).types).unwrap()
 }
 
 #[test]

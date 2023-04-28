@@ -1170,6 +1170,7 @@ fn restart_computing_should_work() {
 			RuntimeOrigin::signed(2),
 			500 * DOLLARS
 		));
+		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid=0
 		assert_ok!(PhalaStakePoolv2::contribute(
