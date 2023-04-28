@@ -26,7 +26,7 @@ use sp_core::{ByteArray, Pair};
 use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex, RwLock};
+use tokio::sync::{mpsc, Mutex as TokioMutex, RwLock};
 use tokio::time::sleep;
 
 static RELAYCHAIN_HEADER_BATCH_SIZE: u32 = 1000;
@@ -226,7 +226,22 @@ impl WorkerContext {
                 Self::message_loop(c.clone()),
             )
             .await;
-            sleep(Duration::from_secs(6)).await;
+            let cc = c.clone();
+            let cc = cc.read().await;
+            let state = cc.state.clone();
+            drop(cc);
+            set_worker_message!(c, format!("Stopped in state: {:?}", state).as_str());
+            loop {
+                let cc = c.clone();
+                let cc = cc.read().await;
+                let state = cc.state.clone();
+                drop(cc);
+                if let WorkerLifecycleState::Restarting = state {
+                    break;
+                }
+                sleep(Duration::from_secs(6)).await;
+            }
+            sleep(Duration::from_secs(3)).await;
             info!(
                 "Worker {}({}, {}) restarted!",
                 worker.name, worker.endpoint, worker.id
@@ -422,8 +437,8 @@ impl WorkerContext {
 
         let po = po.unwrap();
         let i = pr.get_info(()).await?;
-        let mq_rx = Self::start_mq_sync(c.clone(), pid).await?;
-        tokio::pin!(mq_rx);
+        // let mq_rx = Self::start_mq_sync(c.clone(), pid).await?;
+        // tokio::pin!(mq_rx);
 
         if !i.registered {
             Self::register_worker(c.clone(), true).await?;
@@ -481,7 +496,7 @@ impl WorkerContext {
             if let Some(session) = session {
                 match session.state {
                     WorkerState::Ready => {
-                        mq_rx.await?;
+                        // mq_rx.await?;
                         set_worker_message!(c, "Starting computing...");
                         txm.clone()
                             .start_computing(pid, pubkey, worker.stake)
@@ -692,37 +707,37 @@ impl WorkerContext {
 }
 
 impl WorkerContext {
-    async fn start_mq_sync(c: WrappedWorkerContext, pid: u64) -> Result<oneshot::Receiver<()>> {
-        set_worker_message!(c, "Now start synchronizing message queue!");
-        let (tx, rx) = oneshot::channel::<()>();
-        tokio::spawn(Self::mq_sync_loop(c.clone(), pid, tx));
-        Ok(rx)
-    }
-    async fn mq_sync_loop(c: WrappedWorkerContext, pid: u64, first_shot: oneshot::Sender<()>) {
-        let mut first_shot = Some(first_shot);
-        loop {
-            return_if_error_or_restarting!(c);
-
-            debug!("mq_sync_loop new round");
-            match Self::mq_sync_loop_round(c.clone(), pid).await {
-                Ok(_) => {
-                    if let Some(shot) = first_shot {
-                        if shot.send(()).is_err() {
-                            warn!("mq_sync_loop_round send first_shot returned Err");
-                        };
-                        first_shot = None;
-                    }
-                    sleep(Duration::from_secs(6)).await;
-                }
-                Err(e) => {
-                    let msg = format!("Error while synchronizing mq: {e}");
-                    warn!("{}", &msg);
-                    set_worker_message!(c, msg.as_str());
-                    sleep(Duration::from_secs(2)).await;
-                }
-            }
-        }
-    }
+    // async fn start_mq_sync(c: WrappedWorkerContext, pid: u64) -> Result<oneshot::Receiver<()>> {
+    //     set_worker_message!(c, "Now start synchronizing message queue!");
+    //     let (tx, rx) = oneshot::channel::<()>();
+    //     tokio::spawn(Self::mq_sync_loop(c.clone(), pid, tx));
+    //     Ok(rx)
+    // }
+    // async fn mq_sync_loop(c: WrappedWorkerContext, pid: u64, first_shot: oneshot::Sender<()>) {
+    //     let mut first_shot = Some(first_shot);
+    //     loop {
+    //         return_if_error_or_restarting!(c);
+    //
+    //         debug!("mq_sync_loop new round");
+    //         match Self::mq_sync_loop_round(c.clone(), pid).await {
+    //             Ok(_) => {
+    //                 if let Some(shot) = first_shot {
+    //                     if shot.send(()).is_err() {
+    //                         warn!("mq_sync_loop_round send first_shot returned Err");
+    //                     };
+    //                     first_shot = None;
+    //                 }
+    //                 sleep(Duration::from_secs(6)).await;
+    //             }
+    //             Err(e) => {
+    //                 let msg = format!("Error while synchronizing mq: {e}");
+    //                 warn!("{}", &msg);
+    //                 set_worker_message!(c, msg.as_str());
+    //                 sleep(Duration::from_secs(2)).await;
+    //             }
+    //         }
+    //     }
+    // }
     async fn mq_sync_loop_round(c: WrappedWorkerContext, pid: u64) -> Result<()> {
         let (lm, _worker, pr) = extract_essential_values!(c);
         let txm = lm.txm.clone();
@@ -754,6 +769,7 @@ impl WorkerContext {
         set_worker_message!(c, "Now start synchronizing!");
         let (lm, worker, pr) = extract_essential_values!(c);
         let dsm = lm.dsm.clone();
+        let pid = worker.pid.expect("PID not found!");
 
         let mut sync_state = BlockSyncState {
             blocks: Vec::new(),
@@ -778,6 +794,14 @@ impl WorkerContext {
                     if !dont_wait {
                         sync_state.authory_set_state = None;
                         sync_state.blocks.clear();
+                        match Self::mq_sync_loop_round(c.clone(), pid).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                let msg = format!("Error while synchronizing mq: {e}");
+                                warn!("{}", &msg);
+                                set_worker_message!(c, msg.as_str());
+                            }
+                        }
                         sleep(Duration::from_secs(3)).await;
                     }
                 }

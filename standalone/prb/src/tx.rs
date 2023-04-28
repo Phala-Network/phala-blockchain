@@ -4,7 +4,6 @@ pub use crate::khala;
 use crate::khala::runtime_types;
 use crate::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
 use crate::khala::runtime_types::phala_pallets::utils::attestation_legacy;
-use crate::khala::runtime_types::sp_runtime::DispatchError;
 use crate::khala::utility::events::ItemFailed;
 use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
@@ -465,21 +464,12 @@ impl TxManager {
                             .ok_or(anyhow!("ItemFailed not parsed from event"))?;
                         let i = i.error;
                         let i_bytes = i.encode();
-                        match i {
-                            DispatchError::Module(_) => {
-                                // current code works with subxt-0.27.1, should be updated after subxt upgraded to > 0.28
-                                let e = SubxtDispatchError::decode_from(i_bytes, &metadata);
-                                match e {
-                                    SubxtDispatchError::Module(e) => ret.push(Err(anyhow!(
-                                        format!("{}", e.description.join("\n"))
-                                    ))),
-                                    SubxtDispatchError::Other(_) => {
-                                        ret.push(Err(anyhow!(format!("Error resolve failed"))))
-                                    }
-                                }
+                        match SubxtDispatchError::decode_from(i_bytes, &metadata) {
+                            SubxtDispatchError::Module(e) => {
+                                ret.push(Err(anyhow!(format!("{}", e.description.join("\n")))))
                             }
-                            _ => {
-                                ret.push(Err(anyhow!(format!("{:?}", &i))));
+                            SubxtDispatchError::Other(_) => {
+                                ret.push(Err(anyhow!(format!("NotADispatchError: {:?}", &i))));
                             }
                         }
                     }
@@ -501,13 +491,15 @@ impl TxManager {
     ) -> Result<()> {
         let (shot, rx) = oneshot::channel();
         tokio::pin!(rx);
+
+        let mut pending_txs = self.pending_txs.lock().await;
+
         let mut gid = self.tx_count.load(Ordering::SeqCst);
         let id = gid;
         gid += 1;
         self.tx_count.store(gid, Ordering::SeqCst);
         debug!("send_to_queue: {:?}", &id);
 
-        let mut pending_txs = self.pending_txs.lock().await;
         pending_txs.push_back(id);
         drop(pending_txs);
 
