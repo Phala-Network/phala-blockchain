@@ -3,7 +3,8 @@ use crate::datasource::WrappedDataSourceManager;
 use crate::db::{get_pool_by_pid, Worker};
 use crate::lifecycle::WrappedWorkerLifecycleManager;
 use crate::pruntime::PRuntimeClient;
-use crate::tx::{khala, PoolOperatorAccess};
+use crate::tx::PoolOperatorAccess;
+use crate::utils::fetch_storage_bytes;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
 use crate::worker::WorkerLifecycleCommand::*;
 use crate::{use_parachain_api, use_relaychain_api, use_relaychain_hc, with_retry};
@@ -16,6 +17,7 @@ use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
 use phactory_api::prpc::{GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::pallet_registry::Attestation as AttestationEnum;
+use phala_pallets::registry::WorkerInfoV2;
 use phaxt::subxt::ext::sp_runtime;
 use pherry::chain_client::{mq_next_sequence, search_suitable_genesis_for_worker};
 use pherry::types::Block;
@@ -26,6 +28,7 @@ use sp_core::{ByteArray, Pair};
 use std::cmp;
 use std::sync::Arc;
 use std::time::Duration;
+use subxt::dynamic::{storage, Value};
 use tokio::sync::{mpsc, oneshot, Mutex as TokioMutex, RwLock};
 use tokio::time::sleep;
 
@@ -467,8 +470,9 @@ impl WorkerContext {
         let api =
             use_parachain_api!(lm.dsm, false).ok_or(anyhow!("no online substrate session"))?;
 
-        let registry_query = khala::storage().phala_registry().workers(&pubkey);
-        let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
+        let registry_query = storage("PhalaRegistry", "Workers", vec![Value::from_bytes(&pubkey)]);
+        let registry_info: Option<WorkerInfoV2<subxt::utils::AccountId32>> =
+            fetch_storage_bytes(&api, &registry_query).await?;
         if let Some(registry_info) = registry_info {
             let po = po
                 .proxied
@@ -480,15 +484,13 @@ impl WorkerContext {
         }
         tokio::spawn(Self::update_session_loop(c.clone(), pubkey));
 
-        let worker_binding_query = khala::storage()
-            .phala_computation()
-            .worker_bindings(&pubkey);
-        let worker_binding = api
-            .storage()
-            .at(None)
-            .await?
-            .fetch(&worker_binding_query)
-            .await?;
+        let worker_binding_query = storage(
+            "PhalaComputation",
+            "WorkerBindings",
+            vec![Value::from_bytes(&pubkey)],
+        );
+        let worker_binding: Option<subxt::utils::AccountId32> =
+            fetch_storage_bytes(&api, &worker_binding_query).await?;
         if worker_binding.is_none() {
             set_worker_message!(c, "Enabling worker in stakepool pallet...");
             txm.clone().add_worker(pid, pubkey).await?;
@@ -578,10 +580,12 @@ impl WorkerContext {
         pubkey: Sr25519Public,
     ) -> Result<()> {
         let (lm, _worker, _pr) = extract_essential_values!(c);
-        let worker_binding_query = khala::storage()
-            .phala_computation()
-            .worker_bindings(&pubkey);
-        let mut worker_binding = None;
+        let worker_binding_query = storage(
+            "PhalaComputation",
+            "WorkerBindings",
+            vec![Value::from_bytes(&pubkey)],
+        );
+        let mut worker_binding: Option<subxt::utils::AccountId32> = None;
         let mut session_query = None;
 
         loop {
@@ -595,30 +599,21 @@ impl WorkerContext {
             }
             let api = api.unwrap();
             if worker_binding.is_none() {
-                worker_binding = api
-                    .storage()
-                    .at(None)
-                    .await?
-                    .fetch(&worker_binding_query)
-                    .await?;
+                worker_binding = fetch_storage_bytes(&api, &worker_binding_query).await?;
             }
             if worker_binding.is_none() {
                 sleep(Duration::from_secs(3)).await;
                 continue;
             }
             if session_query.is_none() {
-                session_query = Some(
-                    khala::storage()
-                        .phala_computation()
-                        .sessions(worker_binding.as_ref().unwrap()),
-                );
+                session_query = Some(storage(
+                    "PhalaComputation",
+                    "Sessions",
+                    vec![Value::from_bytes(&worker_binding.as_ref().unwrap())],
+                ));
             }
-            let session = api
-                .storage()
-                .at(None)
-                .await?
-                .fetch(session_query.as_ref().unwrap())
-                .await?;
+            let session: Option<SessionInfo> =
+                fetch_storage_bytes(&api, session_query.as_ref().unwrap()).await?;
             if let Some(session) = session {
                 if session.state == WorkerState::WorkerUnresponsive {
                     set_worker_message!(c, "Worker unresponsive!")
@@ -694,9 +689,11 @@ impl WorkerContext {
 
         if !worker.gatekeeper {
             set_worker_message!(c, "Waiting for benchmark...");
-            let registry_query = khala::storage().phala_registry().workers(&pubkey);
+            let registry_query =
+                storage("PhalaRegistry", "Workers", vec![Value::from_bytes(&pubkey)]);
             loop {
-                let registry_info = api.storage().at(None).await?.fetch(&registry_query).await?;
+                let registry_info: Option<WorkerInfoV2<subxt::utils::AccountId32>> =
+                    fetch_storage_bytes(&api, &registry_query).await?;
                 if let Some(registry_info) = registry_info {
                     if let Some(score) = registry_info.initial_score {
                         if score > 0 {

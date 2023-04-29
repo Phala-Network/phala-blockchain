@@ -4585,7 +4585,7 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "rlibc",
- "scale-decode 0.5.0",
+ "scale-decode",
  "scale-encode",
  "scale-info",
  "secp256k1 0.27.0",
@@ -4656,7 +4656,7 @@ dependencies = [
  "derive_more",
  "ink_prelude",
  "parity-scale-codec",
- "scale-decode 0.5.0",
+ "scale-decode",
  "scale-encode",
  "scale-info",
  "xxhash-rust",
@@ -8901,7 +8901,7 @@ dependencies = [
  "reqwest",
  "rocksdb",
  "rust-fsm",
- "scale-value 0.7.0",
+ "scale-value",
  "schnorrkel",
  "serde",
  "serde_json",
@@ -11384,23 +11384,12 @@ dependencies = [
 
 [[package]]
 name = "scale-decode"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d823d4be477fc33321f93d08fb6c2698273d044f01362dc27573a750deb7c233"
-dependencies = [
- "parity-scale-codec",
- "scale-bits",
- "scale-info",
- "thiserror",
-]
-
-[[package]]
-name = "scale-decode"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7e5527e4b3bf079d4c0b2f253418598c380722ba37ef20fac9088081407f2b6"
 dependencies = [
  "parity-scale-codec",
+ "primitive-types",
  "scale-bits",
  "scale-decode-derive",
  "scale-info",
@@ -11475,23 +11464,6 @@ dependencies = [
 
 [[package]]
 name = "scale-value"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16a5e7810815bd295da73e4216d1dfbced3c7c7c7054d70fa5f6e4c58123fff4"
-dependencies = [
- "either",
- "frame-metadata",
- "parity-scale-codec",
- "scale-bits",
- "scale-decode 0.4.0",
- "scale-info",
- "serde",
- "thiserror",
- "yap 0.7.2",
-]
-
-[[package]]
-name = "scale-value"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11f549769261561e6764218f847e500588f9a79a289de49ce92f9e26642a3574"
@@ -11500,12 +11472,12 @@ dependencies = [
  "frame-metadata",
  "parity-scale-codec",
  "scale-bits",
- "scale-decode 0.5.0",
+ "scale-decode",
  "scale-encode",
  "scale-info",
  "serde",
  "thiserror",
- "yap 0.10.0",
+ "yap",
 ]
 
 [[package]]
@@ -13463,11 +13435,12 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "subxt"
-version = "0.27.1"
+version = "0.28.0"
 dependencies = [
  "base58",
  "blake2",
  "derivative",
+ "either",
  "frame-metadata",
  "futures",
  "getrandom 0.2.7",
@@ -13478,9 +13451,10 @@ dependencies = [
  "parking_lot 0.12.1",
  "primitive-types",
  "scale-bits",
- "scale-decode 0.4.0",
+ "scale-decode",
+ "scale-encode",
  "scale-info",
- "scale-value 0.6.0",
+ "scale-value",
  "serde",
  "serde_json",
  "sp-core",
@@ -13494,7 +13468,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-codegen"
-version = "0.27.1"
+version = "0.28.0"
 dependencies = [
  "darling 0.14.4",
  "frame-metadata",
@@ -13513,7 +13487,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-macro"
-version = "0.27.1"
+version = "0.28.0"
 dependencies = [
  "darling 0.14.4",
  "proc-macro-error",
@@ -13523,7 +13497,7 @@ dependencies = [
 
 [[package]]
 name = "subxt-metadata"
-version = "0.27.1"
+version = "0.28.0"
 dependencies = [
  "frame-metadata",
  "parity-scale-codec",
@@ -16168,12 +16142,6 @@ name = "yansi"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
-
-[[package]]
-name = "yap"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fc77f52dc9e9b10d55d3f4462c3b7fc393c4f17975d641542833ab2d3bc26ef"
 
 [[package]]
 name = "yap"

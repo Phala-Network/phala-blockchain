@@ -1,9 +1,7 @@
 use crate::api::TxStatusResponse;
 use crate::datasource::WrappedDataSourceManager;
 pub use crate::khala;
-use crate::khala::runtime_types;
-use crate::khala::runtime_types::khala_parachain_runtime::RuntimeCall;
-use crate::khala::runtime_types::phala_pallets::utils::attestation_legacy;
+use crate::khala::runtime_types::khala_parachain_runtime::ProxyType;
 use crate::khala::utility::events::ItemFailed;
 use crate::tx::TxManagerError::*;
 use crate::use_parachain_api;
@@ -16,6 +14,7 @@ use log::{debug, error};
 use moka_cht::HashMap;
 use parity_scale_codec::{Decode, Encode};
 use phala_types::messaging::SignedMessage;
+use phaxt::dynamic::tx::EncodedPayload;
 use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
 use schnorrkel::keys::Keypair;
 use serde::{Deserialize, Serialize};
@@ -29,7 +28,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use subxt::error::DispatchError as SubxtDispatchError;
-use subxt::tx::PairSigner;
+use subxt::tx::{PairSigner, TxPayload};
+use subxt::utils::{Encoded, MultiAddress};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
@@ -154,7 +154,7 @@ pub struct Transaction {
     pub pid: u64,
     pub created_at: DateTime<Utc>,
     #[serde(skip)]
-    pub tx_payload: Option<RuntimeCall>,
+    pub tx_payload: Option<EncodedPayload>,
     #[serde(skip)]
     pub shot: Option<oneshot::Sender<Result<()>>>,
 }
@@ -163,7 +163,7 @@ impl Transaction {
     pub fn new(
         id: usize,
         pid: u64,
-        tx_payload: RuntimeCall,
+        tx_payload: EncodedPayload,
         desc: String,
         shot: oneshot::Sender<Result<()>>,
     ) -> Self {
@@ -388,6 +388,7 @@ impl TxManager {
         let proxied = po.proxied.is_some();
 
         let api = use_parachain_api!(self.dsm, false).ok_or(NoValidSubstrateDataSource)?;
+        let metadata = api.metadata();
         let mut calls = Vec::new();
         for i in ids.iter() {
             let tx = self.tx_map.get(i).ok_or(UnknownDataMismatch)?;
@@ -397,31 +398,47 @@ impl TxManager {
             drop(tx);
         }
         let signer = PairSigner::new(po.pair.clone());
-        let tx = if proxied {
-            let call =
-                RuntimeCall::Utility(runtime_types::pallet_utility::pallet::Call::force_batch {
-                    calls,
-                });
-            let call = khala::tx()
-                .proxy()
-                .proxy(po.proxied.unwrap().into(), None, call)
-                .unvalidated();
-            api.tx()
-                .sign_and_submit_then_watch_default(&call, &signer)
-                .await?
+        // let call = if ids.len() == 1 {
+        //     calls.into_iter().next().unwrap()
+        // } else {
+        let mut inner_txs = Vec::new();
+        for c in calls.iter() {
+            let mut b = Vec::new();
+            c.encode_call_data_to(&metadata, &mut b)?;
+            inner_txs.push(Encoded(b));
+        }
+        let inner_txs = inner_txs.encode();
+        // EncodedPayload::new("Utility", "force_batch", inner_txs)
+        let call = EncodedPayload::new("Utility", "force_batch", inner_txs);
+        // };
+
+        let call = if proxied {
+            let mut b = Vec::new();
+            call.encode_call_data_to(&metadata, &mut b)?;
+            let proxy_account: MultiAddress<AccountId32, u32> =
+                MultiAddress::Id(po.proxied.as_ref().unwrap().clone());
+            EncodedPayload::new(
+                "Proxy",
+                "proxy",
+                (
+                    Encoded(proxy_account.encode()),
+                    None::<ProxyType>,
+                    Encoded(b),
+                )
+                    .encode(),
+            )
         } else {
-            if ids.len() == 1 {
-                let call = calls.into_iter().next().ok_or(anyhow!("no call found"))?;
-                api.tx()
-                    .sign_and_submit_then_watch_default(call.into(), &signer)
-                    .await?
-            } else {
-                let call = khala::tx().utility().force_batch(calls).unvalidated();
-                api.tx()
-                    .sign_and_submit_then_watch_default(&call, &signer)
-                    .await?
-            }
+            call
         };
+
+        let mut encoded = Vec::new();
+        call.encode_call_data_to(&metadata, &mut encoded)?;
+        debug!("sending tx: 0x{}", hex::encode(&encoded));
+
+        let tx = api
+            .tx()
+            .sign_and_submit_then_watch_default(&call, &signer)
+            .await?;
 
         let tx = tokio::select! {
             t = tx.wait_for_in_block() => {
@@ -439,10 +456,6 @@ impl TxManager {
         };
         let tx = tx.wait_for_success().await?;
 
-        if ids.len() == 1 {
-            return Ok(vec![Ok(())]);
-        }
-
         if proxied {
             let event_proxy = tx
                 .find_first::<khala::proxy::events::ProxyExecuted>()?
@@ -451,6 +464,11 @@ impl TxManager {
                 anyhow::bail!("{:?}", &e);
             }
         }
+
+        // if ids.len() == 1 {
+        //     return Ok(vec![Ok(())]);
+        // }
+
         if tx
             .find_first::<khala::utility::events::BatchCompleted>()?
             .is_some()
@@ -460,7 +478,7 @@ impl TxManager {
         tx.find_first::<khala::utility::events::BatchCompletedWithErrors>()?
             .ok_or(anyhow!("BatchCompletedWithErrors event not found!"))?;
 
-        let metadata = api.metadata();
+        // let metadata = api.metadata();
         let mut ret = Vec::new();
         for i in tx.iter() {
             let i = i?;
@@ -475,12 +493,12 @@ impl TxManager {
                             .ok_or(anyhow!("ItemFailed not parsed from event"))?;
                         let i = i.error;
                         let i_bytes = i.encode();
-                        match SubxtDispatchError::decode_from(i_bytes, &metadata) {
+                        match SubxtDispatchError::decode_from(i_bytes, api.metadata())? {
                             SubxtDispatchError::Module(e) => {
-                                ret.push(Err(anyhow!(format!("{}", e.description.join("\n")))))
+                                ret.push(Err(anyhow!(format!("{}", e))))
                             }
-                            SubxtDispatchError::Other(_) => {
-                                ret.push(Err(anyhow!(format!("NotADispatchError: {:?}", &i))));
+                            _ => {
+                                ret.push(Err(anyhow!(format!("NotAModuleError: {:?}", &i))));
                             }
                         }
                     }
@@ -497,7 +515,7 @@ impl TxManager {
     pub async fn send_to_queue(
         &self,
         pid: u64,
-        tx_payload: RuntimeCall,
+        tx_payload: EncodedPayload,
         desc: String,
     ) -> Result<()> {
         let (shot, rx) = oneshot::channel();
@@ -533,30 +551,11 @@ impl TxManager {
         attestation: Vec<u8>,
         v2: bool,
     ) -> Result<()> {
+        let encoded = (Encoded(pruntime_info), Encoded(attestation)).encode();
         let tx_payload = if v2 {
-            let mut pruntime_info = &pruntime_info[..];
-            let pruntime_info =
-                runtime_types::phala_types::WorkerRegistrationInfoV2::decode(&mut pruntime_info)?;
-            let mut attestation = &attestation[..];
-            let attestation = Option::decode(&mut attestation)?;
-            RuntimeCall::PhalaRegistry(
-                khala::runtime_types::phala_pallets::registry::pallet::Call::register_worker_v2 {
-                    pruntime_info,
-                    attestation,
-                },
-            )
+            EncodedPayload::new("PhalaRegistry", "register_worker_v2", encoded)
         } else {
-            let mut pruntime_info = &pruntime_info[..];
-            let pruntime_info =
-                runtime_types::phala_types::WorkerRegistrationInfo::decode(&mut pruntime_info)?;
-            let mut attestation = &attestation[..];
-            let attestation = attestation_legacy::Attestation::decode(&mut attestation)?;
-            RuntimeCall::PhalaRegistry(
-                khala::runtime_types::phala_pallets::registry::pallet::Call::register_worker {
-                    pruntime_info,
-                    attestation,
-                },
-            )
+            EncodedPayload::new("PhalaRegistry", "register_worker", encoded)
         };
 
         let desc = format!("Register worker for pool #{pid}");
@@ -568,15 +567,12 @@ impl TxManager {
         endpoint_payload: Vec<u8>,
         signature: Vec<u8>,
     ) -> Result<()> {
-        let mut endpoint_payload = &endpoint_payload[..];
-        let endpoint_payload =
-            runtime_types::phala_types::WorkerEndpointPayload::decode(&mut endpoint_payload)?;
-        let tx_payload = RuntimeCall::PhalaRegistry(
-            khala::runtime_types::phala_pallets::registry::pallet::Call::update_worker_endpoint {
-                endpoint_payload,
-                signature,
-            },
+        let tx_payload = EncodedPayload::new(
+            "PhalaRegistry",
+            "update_worker_endpoint",
+            (Encoded(endpoint_payload), signature).encode(),
         );
+
         let desc = format!("Update endpoint of worker for pool #{pid}.");
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
@@ -585,11 +581,8 @@ impl TxManager {
         pid: u64,
         signed_message: SignedMessage,
     ) -> Result<()> {
-        let tx_payload = RuntimeCall::PhalaMq(
-            khala::runtime_types::phala_pallets::mq::pallet::Call::sync_offchain_message {
-                signed_message,
-            },
-        );
+        let encoded = signed_message.encode();
+        let tx_payload = EncodedPayload::new("PhalaMq", "sync_offchain_message", encoded);
         let desc = format!("Sync offchain message to chain for pool #{pid}.");
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
@@ -598,11 +591,10 @@ impl TxManager {
             "Add worker 0x{} to pool #{pid}.",
             pubkey.encode_hex::<String>()
         );
-        let tx_payload = RuntimeCall::PhalaStakePoolv2(
-            khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::add_worker {
-                pid,
-                pubkey,
-            },
+        let tx_payload = EncodedPayload::new(
+            "PhalaStakePoolv2",
+            "add_worker",
+            (pid, Encoded(pubkey.encode())).encode(),
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
@@ -617,12 +609,10 @@ impl TxManager {
             worker.encode_hex::<String>(),
             &stake
         );
-        let tx_payload = RuntimeCall::PhalaStakePoolv2(
-            khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::start_computing  {
-                pid,
-                worker,
-                stake: stake.parse::<u128>()?
-            },
+        let tx_payload = EncodedPayload::new(
+            "PhalaStakePoolv2",
+            "start_computing",
+            (pid, Encoded(worker.encode()), stake.parse::<u128>()?).encode(),
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
@@ -631,11 +621,10 @@ impl TxManager {
             "Stop computing for 0x{} in pool #{pid}.",
             worker.encode_hex::<String>()
         );
-        let tx_payload = RuntimeCall::PhalaStakePoolv2(
-            khala::runtime_types::phala_pallets::compute::stake_pool_v2::pallet::Call::stop_computing  {
-                pid,
-                worker,
-            },
+        let tx_payload = EncodedPayload::new(
+            "PhalaStakePoolv2",
+            "stop_computing",
+            (pid, Encoded(worker.encode())).encode(),
         );
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
