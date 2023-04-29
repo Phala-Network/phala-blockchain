@@ -731,13 +731,18 @@ impl WorkerContext {
                         };
                         first_shot = None;
                     }
-                    sleep(Duration::from_secs(12)).await;
+                    sleep(Duration::from_secs(18)).await;
                 }
                 Err(e) => {
                     let msg = format!("Error while synchronizing mq: {e}");
                     warn!("{}", &msg);
                     set_worker_message!(c, msg.as_str());
-                    sleep(Duration::from_secs(6)).await;
+                    sleep(Duration::from_secs(if msg.contains("BadSequence") {
+                        18
+                    } else {
+                        6
+                    }))
+                    .await;
                 }
             }
         }
