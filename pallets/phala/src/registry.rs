@@ -933,7 +933,7 @@ pub mod pallet {
 					Workers::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.initial_score = Some(score);
-							val.last_updated = now;
+							val.last_updated = now / 1000;
 						}
 					});
 
