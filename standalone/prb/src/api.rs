@@ -15,6 +15,7 @@ use axum::{Json, Router};
 use futures::future::try_join_all;
 use log::info;
 use phactory_api::prpc::PhactoryInfo;
+use phala_pallets::pallet_computation::SessionInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::SocketAddr;
@@ -49,6 +50,7 @@ pub struct WorkerStatus {
     pub state: WorkerLifecycleState,
     pub phactory_info: Option<PhactoryInfo>,
     pub last_message: String,
+    pub session_info: Option<SessionInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -179,6 +181,7 @@ async fn handle_get_worker_status(
             state: w.state.clone(),
             phactory_info: w.info.clone(),
             last_message: w.last_message.clone(),
+            session_info: w.session_info.clone(),
         })
     }
     Ok((StatusCode::OK, Json(WorkerStatusResponse { workers })))

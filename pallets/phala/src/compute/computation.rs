@@ -41,11 +41,15 @@ pub mod pallet {
 	use fixed_macro::types::U64F64 as fp;
 	use fixed_sqrt::FixedSqrt;
 
+	#[cfg(feature = "std")]
+	use serde::{Serialize, Deserialize};
+
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const COMPUTING_PALLETID: PalletId = PalletId(*b"phala/pp");
 	// Multiplier that adjust the maxbudgetlimit to compensate budget miss-caculated during the last nonce.
 	const BUDGET_SAFE_MULTIPLIER: u128 = 2;
 
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum WorkerState {
 		Ready,
@@ -83,6 +87,7 @@ pub mod pallet {
 	}
 
 	/// The benchmark information of a worker
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
 		/// The initial performance score copied from the registry pallet
@@ -128,6 +133,7 @@ pub mod pallet {
 	}
 
 	/// The state of a worker
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct SessionInfo {
 		/// The current state of the worker bounded with session
@@ -180,6 +186,7 @@ pub mod pallet {
 	}
 
 	/// The stats of a computing session
+	#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct SessionStats {
 		/// The total received reward in this computing session, in `U32F32` bits
