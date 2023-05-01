@@ -474,10 +474,15 @@ impl WorkerContext {
         let registry_info: Option<WorkerInfoV2<subxt::utils::AccountId32>> =
             fetch_storage_bytes(&api, &registry_query).await?;
         if let Some(registry_info) = registry_info {
-            let po = po
-                .proxied
-                .as_ref()
-                .map(|po| subxt::utils::AccountId32(*po.as_ref()));
+            let po = if po.proxied.is_some() {
+                po.proxied
+                    .as_ref()
+                    .map(|po| subxt::utils::AccountId32(*po.as_ref()))
+            } else {
+                Some(subxt::utils::AccountId32(
+                    po.pair.public().as_slice().try_into()?,
+                ))
+            };
             if registry_info.operator.ne(&po) {
                 Self::register_worker(c.clone(), true).await?;
             }
