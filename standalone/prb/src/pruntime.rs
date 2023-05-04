@@ -4,12 +4,32 @@ use phactory_api::prpc::phactory_api_client::PhactoryApiClient;
 use phactory_api::prpc::server::ProtoError as ServerError;
 use phactory_api::prpc::Message;
 use reqwest::Client;
+use std::future::Future;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 pub type PRuntimeClient = PhactoryApiClient<RpcRequest>;
 
 pub struct RpcRequest {
     base_url: String,
     client: Client,
+    semaphore: Arc<Semaphore>,
+}
+
+#[async_trait::async_trait]
+pub trait PRuntimeClientWithSemaphore {
+    async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> R;
+}
+
+#[async_trait::async_trait]
+impl PRuntimeClientWithSemaphore for PRuntimeClient {
+    async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> R {
+        let s = self.client.semaphore.clone();
+        let s = s.acquire().await;
+        let ret = f.await;
+        drop(s);
+        ret
+    }
 }
 
 impl RpcRequest {
@@ -18,7 +38,11 @@ impl RpcRequest {
             .tcp_keepalive(Some(core::time::Duration::from_secs(10)))
             .build()
             .unwrap();
-        Self { base_url, client }
+        Self {
+            base_url,
+            client,
+            semaphore: Arc::new(Semaphore::new(1)),
+        }
     }
 }
 

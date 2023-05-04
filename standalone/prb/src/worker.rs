@@ -2,7 +2,7 @@ use crate::datasource::DataSourceError::NoValidDataSource;
 use crate::datasource::WrappedDataSourceManager;
 use crate::db::{get_pool_by_pid, Worker};
 use crate::lifecycle::WrappedWorkerLifecycleManager;
-use crate::pruntime::PRuntimeClient;
+use crate::pruntime::{PRuntimeClient, PRuntimeClientWithSemaphore};
 use crate::tx::PoolOperatorAccess;
 use crate::utils::fetch_storage_bytes;
 use crate::wm::{WorkerManagerMessage, WrappedWorkerManagerContext};
@@ -390,8 +390,11 @@ impl WorkerContext {
             drop(lock);
             match search {
                 Ok((block_number, state)) => {
-                    pr.load_chain_state(phactory_api::prpc::ChainState::new(block_number, state))
-                        .await?;
+                    pr.with_lock(pr.load_chain_state(phactory_api::prpc::ChainState::new(
+                        block_number,
+                        state,
+                    )))
+                    .await?;
                     set_worker_message!(c, "Loaded chain state!");
                 }
                 Err(e) => {
@@ -755,7 +758,10 @@ impl WorkerContext {
     async fn mq_sync_loop_round(c: WrappedWorkerContext, pid: u64) -> Result<()> {
         let (lm, _worker, pr) = extract_essential_values!(c);
         let txm = lm.txm.clone();
-        let messages = pr.get_egress_messages(()).await?.decode_messages()?;
+        let messages = pr
+            .with_lock(pr.get_egress_messages(()))
+            .await?
+            .decode_messages()?;
         debug!("mq_sync_loop_round: {:?}", &messages);
         if messages.is_empty() {
             return Ok(());
@@ -910,7 +916,7 @@ impl WorkerContext {
         }
         for (from, to) in ranges {
             let sc = dsm.clone().fetch_storage_changes(from, to).await?;
-            pr.dispatch_blocks(sc).await?;
+            pr.with_lock(pr.dispatch_blocks(sc)).await?;
         }
         Ok(())
     }
@@ -928,7 +934,7 @@ impl WorkerContext {
 
         let mut headers = with_retry!(dsm.clone().get_para_headers(from, to), u64::MAX, 1500)?;
         headers.proof = last_header_proof;
-        let res = pr.sync_para_header(headers).await?;
+        let res = pr.with_lock(pr.sync_para_header(headers)).await?;
 
         Ok(res.synced_to)
     }
@@ -979,7 +985,7 @@ impl WorkerContext {
                 None => return Ok(false),
                 Some(relay_headers) => relay_headers,
             };
-        pr.sync_header(relay_headers).await?;
+        pr.with_lock(pr.sync_header(relay_headers)).await?;
         if last_para_num.is_none() || last_para_proof.is_none() {
             return Ok(true);
         }

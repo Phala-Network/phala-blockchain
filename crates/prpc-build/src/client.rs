@@ -39,7 +39,7 @@ pub fn generate<T: Service>(
             #(#struct_attributes)*
             #[derive(Debug)]
             pub struct #service_ident<Client> {
-                client: Client,
+                pub client: Client,
             }
 
             impl<Client> #service_ident<Client>
