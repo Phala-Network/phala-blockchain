@@ -53,12 +53,15 @@ pub(crate) fn try_decode_message(topic: &[u8], payload: &[u8]) -> String {
 }
 
 pub(crate) fn is_gk_launch(msg: &Message) -> bool {
+    if !msg.sender.is_pallet() {
+        return false;
+    }
     if msg.destination.path() != &GatekeeperLaunch::topic() {
         return false;
     }
     let mut data = &msg.payload[..];
     match GatekeeperLaunch::decode(&mut data) {
-        Ok(event) => matches!(event, GatekeeperLaunch::FirstGatekeeper(_)),
+        Ok(event) => matches!(event, GatekeeperLaunch::MasterPubkeyOnChain(_)),
         Err(_) => false,
     }
 }
