@@ -8894,6 +8894,7 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "phactory-api",
+ "phala-git-revision",
  "phala-pallets",
  "phala-types",
  "phaxt",

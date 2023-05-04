@@ -15,6 +15,7 @@ use axum::{Json, Router};
 use futures::future::try_join_all;
 use log::info;
 use phactory_api::prpc::PhactoryInfo;
+use phala_git_revision::git_revision_with_ts;
 use phala_pallets::pallet_computation::SessionInfo;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -64,6 +65,11 @@ pub struct TxStatusResponse {
     pub running_txs: Vec<Transaction>,
     pub pending_txs: Vec<Transaction>,
     pub past_txs: Vec<Transaction>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WmStatusResponse {
+    pub git_revision: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -154,8 +160,10 @@ async fn handle_get_root() -> (StatusCode, ()) {
     (StatusCode::IM_A_TEAPOT, ())
 }
 
-async fn handle_get_wm_status() {
-    todo!()
+async fn handle_get_wm_status() -> Json<WmStatusResponse> {
+    Json(WmStatusResponse {
+        git_revision: git_revision_with_ts().to_string(),
+    })
 }
 
 async fn handle_restart_wm(State(ctx): AppContext) -> ApiResult<(StatusCode, Json<OkResponse>)> {

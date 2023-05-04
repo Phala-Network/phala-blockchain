@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {useStyletron} from 'baseui';
 import {StatefulDataTable, CategoricalColumn, StringColumn, BooleanColumn} from 'baseui/data-table';
 import {MobileHeader} from 'baseui/mobile-header';
@@ -9,8 +9,13 @@ import {currentFetcherAtom, currentWmAtom} from '@/state';
 import useSWR from 'swr';
 import {toaster} from 'baseui/toast';
 import {PageWrapper} from '@/utils';
-import {FiTrash2} from 'react-icons/fi';
+import {FiEdit, FiTrash2} from 'react-icons/fi';
 import {Modal, ModalBody, ModalButton, ModalFooter, ModalHeader} from 'baseui/modal';
+import {FormControl} from 'baseui/form-control';
+import {Input} from 'baseui/input';
+import * as yup from 'yup';
+import {Checkbox} from 'baseui/checkbox';
+import {useFormik} from 'formik';
 
 const columns = [
   CategoricalColumn({
@@ -25,6 +30,10 @@ const columns = [
   BooleanColumn({
     title: 'Sync only mode',
     mapDataToValue: (data) => data.sync_only,
+  }),
+  BooleanColumn({
+    title: 'Enabled',
+    mapDataToValue: (data) => data.enabled,
   }),
   StringColumn({
     title: 'UUID',
@@ -54,7 +63,7 @@ export default function PoolInvPage() {
   const onModalClose = (reset) => {
     setModalOpen(false);
     setCurrModalItem(null);
-    reset();
+    reset?.();
     mutate();
   };
 
@@ -100,6 +109,10 @@ export default function PoolInvPage() {
             actionButtons={[
               {
                 label: 'Add',
+                onClick: () => {
+                  setModalOpen(true);
+                  setCurrModalItem(null);
+                },
               },
             ]}
           />
@@ -109,7 +122,36 @@ export default function PoolInvPage() {
           <StatefulDataTable
             rowActions={[
               {
+                renderIcon: () => <FiEdit />,
+                onClick: ({row: {data}}) => {
+                  setCurrModalItem({
+                    ...data,
+                    disabled: !data.enabled,
+                  });
+                  setModalOpen(true);
+                },
+              },
+              {
                 renderIcon: () => <FiTrash2 />,
+                onClick: async ({
+                  row: {
+                    data: {pid},
+                  },
+                }) => {
+                  if (confirm('Are you sure?')) {
+                    try {
+                      await rawFetcher({
+                        url: '/wm/config',
+                        method: 'POST',
+                        data: {RemovePool: {pid}},
+                      });
+                    } catch (e) {
+                      toaster.negative(e.response?.data?.message || e?.toString());
+                    } finally {
+                      await mutate();
+                    }
+                  }
+                },
               },
             ]}
             resizableColumnWidths
@@ -122,23 +164,88 @@ export default function PoolInvPage() {
   );
 }
 
+const validationSchema = yup
+  .object({
+    pid: yup.number().positive().integer().required(),
+    name: yup.string().required(),
+    sync_only: yup.boolean(),
+    disabled: yup.boolean(),
+  })
+  .required();
+
 const InputModal = ({initialValue, isOpen, onClose}) => {
-  const [loading, setLoading] = useState(false);
-  const reset = () => {};
-  const close = () => onClose(reset);
-  const submit = () => {};
+  const isEdit = !!initialValue;
+  const rawFetcher = useAtomValue(currentFetcherAtom);
+  const formik = useFormik({
+    validationSchema,
+    initialValues: {
+      pid: undefined,
+      name: '',
+      sync_only: false,
+      disabled: false,
+    },
+    onSubmit: async (values) => {
+      try {
+        await rawFetcher({
+          url: '/wm/config',
+          method: 'POST',
+          data: isEdit ? {UpdatePool: values} : {AddPool: values},
+        });
+        toaster.positive('Success');
+        onClose(formik.resetForm);
+      } catch (e) {
+        toaster.negative(e.response?.data?.message || e?.toString());
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (!initialValue) {
+      return;
+    }
+    formik.setValues({
+      pid: initialValue.pid,
+      name: initialValue.name,
+      sync_only: initialValue.sync_only,
+      disabled: initialValue.disabled,
+    });
+  }, [initialValue]);
+  const close = () => onClose(formik.resetForm);
+
   return (
     <Modal isOpen={isOpen} closeable={false} autoFocus onClose={close}>
-      <ModalHeader>{initialValue ? `Edit Pool(${initialValue.id})` : 'New Pool'}</ModalHeader>
-      <ModalBody></ModalBody>
-      <ModalFooter>
-        <ModalButton disabled={loading} kind="tertiary" onClick={close}>
-          Cancel
-        </ModalButton>
-        <ModalButton isLoading={loading} onClick={submit()}>
-          Submit
-        </ModalButton>
-      </ModalFooter>
+      <form onSubmit={formik.handleSubmit}>
+        <ModalHeader>{isEdit ? 'Edit Pool' : 'New Pool'}</ModalHeader>
+        <ModalBody>
+          <FormControl label="PID" error={formik.errors.pid || null}>
+            <Input
+              size="mini"
+              name="pid"
+              disabled={isEdit}
+              onChange={formik.handleChange}
+              value={formik.values.pid}
+              type="number"
+            />
+          </FormControl>
+          <FormControl label="Name" error={formik.errors.name || null}>
+            <Input size="mini" name="name" onChange={formik.handleChange} value={formik.values.name} type="text" />
+          </FormControl>
+          <Checkbox name="disabled" onChange={formik.handleChange} checked={formik.values.disabled}>
+            Disabled
+          </Checkbox>
+          <Checkbox name="sync_only" onChange={formik.handleChange} checked={formik.values.sync_only}>
+            Sync Only
+          </Checkbox>
+        </ModalBody>
+        <ModalFooter>
+          <ModalButton disabled={formik.isSubmitting} kind="tertiary" onClick={close}>
+            Cancel
+          </ModalButton>
+          <ModalButton isLoading={formik.isSubmitting} disabled={formik.isSubmitting} type="submit">
+            Submit
+          </ModalButton>
+        </ModalFooter>
+      </form>
     </Modal>
   );
 };

@@ -33,6 +33,7 @@ axum = { version = "0.6.17", features = ["macros"] }
 chrono = "0.4.24"
 hex = { version = "*" }
 phala-types = { path = "../../crates/phala-types" }
+phala-git-revision = { path = "../../crates/phala-git-revision" }
 rand = "0.8.5"
 memory-lru = "0.1.1"
 sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false }
@@ -48,4 +49,3 @@ async-trait = "0.1.68"
 crossbeam = "0.8.2"
 schnorrkel = "^0.9"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false, features = [ "full_crypto" ] }
-
