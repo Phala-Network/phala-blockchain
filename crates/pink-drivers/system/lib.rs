@@ -168,7 +168,7 @@ mod system {
         }
 
         #[ink(message)]
-        fn upgrade_system_contract(&self) -> Result<()> {
+        fn upgrade_system_contract(&mut self) -> Result<()> {
             let caller = self.ensure_owner()?;
             pink::info!("Upgrading system contract...");
             let Some(code_hash) = pink::ext().import_latest_system_code(caller) else {

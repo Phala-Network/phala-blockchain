@@ -34,7 +34,7 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn set_hook(&self, gas_limit: u64) {
+        pub fn set_hook(&mut self, gas_limit: u64) -> Result<()> {
             let mut system = pink::system::SystemRef::instance();
             _ = system.set_hook(
                 pink::HookPoint::OnBlockEnd,
@@ -42,6 +42,7 @@ mod check_system {
                 0x01,
                 gas_limit,
             );
+            Ok(())
         }
 
         #[ink(message, selector = 0x01)]
