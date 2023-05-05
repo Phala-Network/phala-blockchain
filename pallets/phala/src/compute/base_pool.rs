@@ -1063,6 +1063,12 @@ pub mod pallet {
 						Self::get_nft_attr_guard(pool_info.cid, withdraw.nft_id)
 							.expect("get nftattr should always success; qed.");
 					let mut withdraw_nft = withdraw_nft_guard.attr.clone();
+					if Self::maybe_remove_dust(pool_info, &withdraw_nft) {
+						pool_info.withdraw_queue.pop_front();
+						Self::burn_nft(&pallet_id(), pool_info.cid, withdraw.nft_id)
+							.expect("burn nft should always success");
+						continue;
+					}
 					// Try to fulfill the withdraw requests as much as possible
 					let free_shares = if price == fp!(0) {
 						withdraw_nft.shares // 100% slashed
