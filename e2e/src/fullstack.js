@@ -631,7 +631,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isFalse(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(alice, certAlice, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(alice, certAlice);
                 return output.asOk.valueOf();
             }, 6000 * 2), 'Set hook should not success without granting admin first');
         });
@@ -646,7 +646,7 @@ describe('A full stack', function () {
                 alice,
             );
             assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query.onBlockEndCalled(bob, certBob, {});
+                const { output } = await ContractSystemChecker.query.onBlockEndCalled(bob, certBob);
                 return output.asOk.valueOf();
             }, 2 * 6000), 'Set hook should success after granted admin');
         });
