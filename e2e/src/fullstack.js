@@ -548,7 +548,7 @@ describe('A full stack', function () {
             }, 4 * 6000), 'system contract instantiation failed');
             // ContractSystem = await createContractApi(api, pruntime[0].uri, systemContract, systemMetadata);
             const systemContractId = systemContract
-            registry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId })
+            registry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId, workerId: runtime0.system.publicKey })
             registry.clusterInfo = { ...clusterInfo.toJSON(), gasPrice: new BN(1) }
             const contractKey = await registry.getContractKeyOrFail(systemContractId)
             ContractSystem = new Phala.PinkContractPromise(api, registry, systemMetadata, systemContractId, contractKey)
