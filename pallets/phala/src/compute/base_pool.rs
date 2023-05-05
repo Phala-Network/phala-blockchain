@@ -20,13 +20,14 @@ pub mod pallet {
 		Nft, Property,
 	};
 
-	use super::{extract_dust, is_nondust_balance, balance_less_than_min_balance};
+	use super::{extract_dust, is_nondust_balance};
 
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, StorageVersion,
-			UnixTime,
+			tokens::fungibles::{Inspect, Transfer},
+			tokens::nonfungibles::InspectEnumerable,
+			StorageVersion, UnixTime,
 		},
 	};
 
@@ -1020,7 +1021,16 @@ pub mod pallet {
 			pool_info: &mut BasePool<T::AccountId, BalanceOf<T>>,
 			nft: &NftAttr<BalanceOf<T>>,
 		) -> bool {
-			if !balance_less_than_min_balance(nft.shares) {
+			let price = match pool_info.share_price() {
+				Some(price) => price,
+				None => return false,
+			};
+			let current_balance = bmul(nft.shares, &price);
+			let min_balance =
+				<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::minimum_balance(
+					<T as wrapped_balances::Config>::WPhaAssetId::get(),
+				);
+			if current_balance > min_balance {
 				return false;
 			}
 			pool_info.total_shares -= nft.shares;
@@ -1132,10 +1142,6 @@ pub mod pallet {
 /// Returns true if `n` is close to zero (1000 pico, or 1e-8).
 pub fn balance_close_to_zero<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
 	n <= B::from(1000u32)
-}
-
-pub fn balance_less_than_min_balance<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
-	n <= B::from(100000000u32)
 }
 
 /// Returns true if `n` is a non-trivial positive balance
