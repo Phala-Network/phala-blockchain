@@ -9,7 +9,6 @@ export * from "./certificate";
 export * from "./contracts/PinkCode";
 export * from "./contracts/PinkContract";
 export * from './contracts/PinkBlueprint';
-export * from "./contracts/SystemContract";
 export * from "./contracts/PinkLoggerContract";
 export * from './OnChainRegistry';
 

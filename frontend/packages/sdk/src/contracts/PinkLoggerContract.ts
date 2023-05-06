@@ -10,7 +10,6 @@ import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 
 import { PinkContractPromise, pinkQuery } from './PinkContract'
 import { ContractInitialError } from './Errors'
-import { SystemContractPromise } from './SystemContract'
 import logServerAbi from '../abis/log_server.json'
 import { signCertificate } from '../certificate'
 import { randomHex } from '../lib/hex'
@@ -20,9 +19,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
 
   #pair: KeyringPair
 
-  static async create(api: ApiPromise, registry: OnChainRegistry, systemContract?: SystemContractPromise): Promise<PinkLoggerContractPromise> {
-    if (!systemContract) {
-      systemContract = await SystemContractPromise.create(api, registry)
+  static async create(api: ApiPromise, registry: OnChainRegistry, systemContract: PinkContractPromise, pair?: KeyringPair): Promise<PinkLoggerContractPromise> {
     }
     const contractId = await systemContract.getDriver('PinkLogger')
     if (!contractId) {
