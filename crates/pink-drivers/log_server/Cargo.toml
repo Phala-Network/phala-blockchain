@@ -12,6 +12,7 @@ scale = { package = "parity-scale-codec", version = "3.3", default-features = fa
 scale-info = { version = "2.3", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension", features = ["ink-as-dependency"] }
+this-crate = { path = "../../this-crate" }
 
 [build-dependencies]
 run_shell = "0.1"
@@ -31,5 +32,6 @@ std = [
     "ink/std",
     "scale/std",
     "scale-info/std",
+    "pink-extension/std",
 ]
 ink-as-dependency = []

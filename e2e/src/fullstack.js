@@ -767,7 +767,7 @@ describe('A full stack', function () {
             );
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystem.query['system::version'](certAlice, {});
-                return output?.eq({ Ok: [1, 0xffff] })
+                return output?.eq({ Ok: [0xffff, 0, 0] })
             }, 4 * 6000), 'Upgrade system failed');
         });
 

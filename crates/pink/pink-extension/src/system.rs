@@ -36,6 +36,7 @@ impl CodeType {
 
 /// Result type for the system contract messages
 pub type Result<T, E = Error> = core::result::Result<T, E>;
+pub use this_crate::VersionTuple;
 
 /// The pink system contract interface.
 ///
@@ -45,7 +46,7 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 pub trait System {
     /// The version of the system. Can be used to determine the api ability.
     #[ink(message, selector = 0x87c98a8d)]
-    fn version(&self) -> (u16, u16);
+    fn version(&self) -> VersionTuple;
     /// Grant an address the administrator role.
     ///
     /// The caller must be the owner of the cluster.
@@ -115,7 +116,7 @@ pub trait System {
     /// This function is called by the system contract itself on the new version
     /// of code in the upgrading process.
     #[ink(message)]
-    fn do_upgrade(&self, from_version: (u16, u16)) -> Result<()>;
+    fn do_upgrade(&self, from_version: VersionTuple) -> Result<()>;
 
     /// Upgrade the contract runtime
     #[ink(message)]
