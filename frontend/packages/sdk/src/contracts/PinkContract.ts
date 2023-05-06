@@ -225,7 +225,7 @@ export class PinkContractPromise {
       const { debugMessage, gasConsumed, gasRequired, result, storageDeposit } = api.createType<ContractExecResult>(
         "ContractExecResult",
         (
-          api.createType("InkResponse", hexAddPrefix(data)).toJSON() as {
+          api.createType("InkResponse", data).toJSON() as {
             result: { ok: { inkMessageReturn: string } };
           }
         ).result.ok.inkMessageReturn
