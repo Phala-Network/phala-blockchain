@@ -20,7 +20,7 @@ import { from } from 'rxjs';
 
 import { Abi } from '@polkadot/api-contract/Abi';
 import { toPromiseMethod } from '@polkadot/api';
-import { Option } from '@polkadot/types';
+import { CodecMap, Option } from '@polkadot/types';
 
 import { pruntime_rpc as pruntimeRpc } from "../proto";
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
@@ -38,6 +38,11 @@ interface MapMessageInkQuery<ApiType extends ApiTypes> {
 
 interface PinkContractInstantiateResult extends ContractInstantiateResult {
   salt: string;
+}
+
+interface IEncryptedData extends CodecMap {
+  data: Uint8Array
+  iv: Uint8Array
 }
 
 function hex(b: string | Uint8Array) {
@@ -88,13 +93,8 @@ async function pinkQuery(
   };
   return pruntimeApi.contractQuery(requestData).then((res) => {
     const { encodedEncryptedData } = res;
-    const { data: encryptedData, iv } = api
-      .createType("EncryptedData", encodedEncryptedData)
-      .toJSON() as {
-      iv: string;
-      data: string;
-    };
-    const data = decrypt(encryptedData, queryAgreementKey, iv);
+    const encryptedData = api.createType<IEncryptedData>("EncryptedData", encodedEncryptedData)
+    const data = decrypt(encryptedData.data.toString(), queryAgreementKey, encryptedData.iv);
     return hexAddPrefix(data);
   });
 };
