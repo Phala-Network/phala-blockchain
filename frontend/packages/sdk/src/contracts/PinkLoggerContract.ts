@@ -1,4 +1,6 @@
 import type { ApiPromise } from '@polkadot/api'
+import type { Text } from '@polkadot/types'
+import type { Result } from '@polkadot/types-codec'
 import type { KeyringPair } from '@polkadot/keyring/types'
 import type { AccountId } from '@polkadot/types/interfaces'
 import type { OnChainRegistry } from '../OnChainRegistry'
@@ -20,8 +22,14 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
   #pair: KeyringPair
 
   static async create(api: ApiPromise, registry: OnChainRegistry, systemContract: PinkContractPromise, pair?: KeyringPair): Promise<PinkLoggerContractPromise> {
+    let _pair: KeyringPair | undefined = pair
+    if (!_pair) {
+      const keyring = new Keyring({ type: 'sr25519' });
+      _pair = keyring.addFromUri('//Alice')
     }
-    const contractId = await systemContract.getDriver('PinkLogger')
+    const cert = await signCertificate({ api, pair: _pair })
+    const { output } = await systemContract.query['system::getDriver'](_pair, cert, 'PinkLogger')
+    const contractId = (output as Result<Text, any>).asOk.toHex()
     if (!contractId) {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')
     }
@@ -29,7 +37,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
     if (!contractKey) {
       throw new ContractInitialError('PinkLogger contract ID is incorrect and not found in the cluster.')
     }
-    return new PinkLoggerContractPromise(api, registry, logServerAbi, contractId, contractKey)
+    return new PinkLoggerContractPromise(api, registry, logServerAbi, contractId, contractKey, pair)
   }
 
   constructor(api: ApiPromise, registry: OnChainRegistry, abi: any, contractId: string, contractKey: string, pair?: KeyringPair) {
