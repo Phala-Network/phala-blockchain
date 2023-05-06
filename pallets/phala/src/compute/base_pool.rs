@@ -1026,11 +1026,7 @@ pub mod pallet {
 				None => return false,
 			};
 			let current_balance = bmul(nft.shares, &price);
-			let min_balance =
-				<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::minimum_balance(
-					<T as wrapped_balances::Config>::WPhaAssetId::get(),
-				);
-			if current_balance > min_balance {
+			if current_balance > T::WPhaMinBalance::get() {
 				return false;
 			}
 			pool_info.total_shares -= nft.shares;

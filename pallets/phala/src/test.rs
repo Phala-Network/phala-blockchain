@@ -9,7 +9,7 @@ use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
 	traits::{
-		tokens::fungibles::{Create, Inspect},
+		tokens::fungibles::{Create, Inspect, Transfer},
 		StorePreimage,
 	},
 };
@@ -31,6 +31,29 @@ use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 use rmrk_traits::primitives::NftId;
 use sp_runtime::Permill;
 use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
+
+#[test]
+fn test_min_transfer() {
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			999999999999
+		));
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(2),
+			0,
+		));
+		assert_ok!(<pallet_assets::pallet::Pallet<Test> as Transfer<u64>>::transfer(
+			<Test as wrapped_balances::Config>::WPhaAssetId::get(),
+			&1,
+			&2,
+			100000000,
+			false
+		));
+
+	});
+}
 
 #[test]
 fn test_pool_subaccount() {
@@ -2002,7 +2025,7 @@ fn mock_asset_id() {
 		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
 		1,
 		true,
-		1000000000,
+		100000000,
 	)
 	.expect("create should success .qed");
 }
