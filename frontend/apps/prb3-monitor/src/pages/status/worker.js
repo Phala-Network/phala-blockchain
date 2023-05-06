@@ -1,15 +1,15 @@
-import React, { useCallback, useMemo } from 'react';
-import { styled, useStyletron } from 'baseui';
-import { StatefulDataTable, CategoricalColumn, NumericalColumn, StringColumn, COLUMNS } from 'baseui/data-table';
-import { MobileHeader } from 'baseui/mobile-header';
-import { TbAnalyze, TbCloudUpload, TbRefresh } from 'react-icons/tb';
+import React, {useCallback, useMemo} from 'react';
+import {styled, useStyletron} from 'baseui';
+import {StatefulDataTable, CategoricalColumn, NumericalColumn, StringColumn, COLUMNS} from 'baseui/data-table';
+import {MobileHeader} from 'baseui/mobile-header';
+import {TbAnalyze, TbCloudUpload, TbRefresh} from 'react-icons/tb';
 import Head from 'next/head';
-import { useAtomValue } from 'jotai';
-import { currentFetcherAtom, currentWmAtom } from '@/state';
+import {useAtomValue} from 'jotai';
+import {currentFetcherAtom, currentWmAtom} from '@/state';
 import useSWR from 'swr';
-import { toaster } from 'baseui/toast';
+import {toaster} from 'baseui/toast';
 import Column from 'baseui/data-table/column';
-import { StringCell } from '@/utils';
+import {StringCell} from '@/utils';
 
 const columns = [
   StringColumn({
@@ -44,20 +44,20 @@ const columns = [
     title: 'Last Message',
     maxWidth: 720,
     minWidth: 450,
-    buildFilter: function(params) {
-      return function(data) {
+    buildFilter: function (params) {
+      return function (data) {
         return true;
       };
     },
     renderCell: (props) => {
-      return <StringCell {...props} style={{ cursor: 'zoom-in' }} onClick={() => alert(props.value)} />;
+      return <StringCell {...props} style={{cursor: 'zoom-in'}} onClick={() => alert(props.value)} />;
     },
     mapDataToValue: (data) => {
       const s = data?.state;
       const e = s?.HasError;
       return (e ? `(From error state) ${e}` : '') + '\n' + data.last_message;
     },
-    textQueryFilter: function(textQuery, data) {
+    textQueryFilter: function (textQuery, data) {
       return data.toLowerCase().includes(textQuery.toLowerCase());
     },
     sortable: false,
@@ -134,13 +134,13 @@ export default function WorkerStatusPage() {
       id: data.worker.id,
     }));
   }, [rawFetcher]);
-  const { data, isLoading, mutate } = useSWR(`worker_status_${currWm?.name}`, fetcher, { refreshInterval: 6000 });
+  const {data, isLoading, mutate} = useSWR(`worker_status_${currWm?.name}`, fetcher, {refreshInterval: 6000});
 
   const batchActions = useMemo(() => {
     return [
       {
         label: 'Restart',
-        onClick: async ({ selection }) => {
+        onClick: async ({selection}) => {
           if (!confirm('Are you sure?')) {
             return;
           }
@@ -148,7 +148,7 @@ export default function WorkerStatusPage() {
             await rawFetcher({
               url: '/workers/restart',
               method: 'PUT',
-              data: { ids: selection.map((i) => i.id) },
+              data: {ids: selection.map((i) => i.id)},
             });
             toaster.positive('Restarted.');
           } catch (e) {
@@ -159,20 +159,37 @@ export default function WorkerStatusPage() {
           }
         },
         renderIcon: () => (
-          <span className={css({ display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0' })}>
-            <TbRefresh className={css({ marginRight: '3px' })} size={16} />
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
+            <TbRefresh className={css({marginRight: '3px'})} size={16} />
             Restart
           </span>
         ),
       },
 
       {
-        label: 'Re-register',
-        onClick: ({ selection }) => alert('Not implemented yet.'),
+        label: 'Force Register',
+        onClick: async ({selection}) => {
+          if (!confirm('Are you sure?')) {
+            return;
+          }
+          try {
+            await rawFetcher({
+              url: '/workers/force_register',
+              method: 'PUT',
+              data: {ids: selection.map((i) => i.id)},
+            });
+            toaster.positive('Requested, check transaction status for progress.');
+          } catch (e) {
+            console.error(e);
+            toaster.negative(e.toString());
+          } finally {
+            await mutate();
+          }
+        },
         renderIcon: () => (
-          <span className={css({ display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0' })}>
-            <TbCloudUpload className={css({ marginRight: '3px' })} size={16} />
-            Re-register
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '12px', lineHeight: '0'})}>
+            <TbCloudUpload className={css({marginRight: '3px'})} size={16} />
+            Force Register
           </span>
         ),
       },
@@ -182,7 +199,7 @@ export default function WorkerStatusPage() {
     return [
       {
         label: 'Restart',
-        onClick: async ({ row }) => {
+        onClick: async ({row}) => {
           if (!confirm('Are you sure?')) {
             return;
           }
@@ -190,7 +207,7 @@ export default function WorkerStatusPage() {
             await rawFetcher({
               url: '/workers/restart',
               method: 'PUT',
-              data: { ids: [row.id] },
+              data: {ids: [row.id]},
             });
             toaster.positive('Restarted.');
           } catch (e) {
@@ -201,20 +218,37 @@ export default function WorkerStatusPage() {
           }
         },
         renderIcon: () => (
-          <span className={css({ display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0' })}>
-            <TbRefresh className={css({ marginRight: '3px' })} size={16} />
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0'})}>
+            <TbRefresh className={css({marginRight: '3px'})} size={16} />
             Restart
           </span>
         ),
       },
 
       {
-        label: 'Re-register',
-        onClick: ({ row }) => alert('Not implemented yet.'),
+        label: 'Force Register',
+        onClick: async ({row}) => {
+          if (!confirm('Are you sure?')) {
+            return;
+          }
+          try {
+            await rawFetcher({
+              url: '/workers/force_register',
+              method: 'PUT',
+              data: {ids: [row.id]},
+            });
+            toaster.positive('Requested, check transaction status for progress.');
+          } catch (e) {
+            console.error(e);
+            toaster.negative(e.toString());
+          } finally {
+            await mutate();
+          }
+        },
         renderIcon: () => (
-          <span className={css({ display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0' })}>
-            <TbCloudUpload className={css({ marginRight: '3px' })} size={16} />
-            Re-register
+          <span className={css({display: 'flex', alignItems: 'center', fontSize: '15px', lineHeight: '0'})}>
+            <TbCloudUpload className={css({marginRight: '3px'})} size={16} />
+            Force Register
           </span>
         ),
       },
@@ -264,17 +298,17 @@ export default function WorkerStatusPage() {
             navButton={
               isLoading
                 ? {
-                  renderIcon: () => <TbAnalyze size={24} className="spin" />,
-                  onClick: () => { },
-                  label: 'Loading',
-                }
+                    renderIcon: () => <TbAnalyze size={24} className="spin" />,
+                    onClick: () => {},
+                    label: 'Loading',
+                  }
                 : {
-                  renderIcon: () => <TbAnalyze size={24} />,
-                  onClick: () => {
-                    mutate().then(() => toaster.positive('Reloaded'));
-                  },
-                  label: 'Reload',
-                }
+                    renderIcon: () => <TbAnalyze size={24} />,
+                    onClick: () => {
+                      mutate().then(() => toaster.positive('Reloaded'));
+                    },
+                    label: 'Reload',
+                  }
             }
             actionButtons={[
               {
@@ -283,9 +317,9 @@ export default function WorkerStatusPage() {
               },
             ]}
           />
-          <div className={css({ width: '12px' })} />
+          <div className={css({width: '12px'})} />
         </div>
-        <div className={css({ height: '100%', margin: '0 20px 20px' })}>
+        <div className={css({height: '100%', margin: '0 20px 20px'})}>
           <StatefulDataTable
             resizableColumnWidths
             columns={columns}

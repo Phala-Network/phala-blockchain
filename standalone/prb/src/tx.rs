@@ -13,6 +13,7 @@ use lazy_static::lazy_static;
 use log::{debug, error};
 use moka_cht::HashMap;
 use parity_scale_codec::{Decode, Encode};
+use phactory_api::prpc::GetEndpointResponse;
 use phala_types::messaging::SignedMessage;
 use phaxt::dynamic::tx::EncodedPayload;
 use rocksdb::{DBCompactionStyle, DBWithThreadMode, MultiThreaded, Options};
@@ -564,16 +565,18 @@ impl TxManager {
     pub async fn update_worker_endpoint(
         self: Arc<Self>,
         pid: u64,
-        endpoint_payload: Vec<u8>,
-        signature: Vec<u8>,
+        signed: GetEndpointResponse,
     ) -> Result<()> {
+        let endpoint_payload = signed
+            .encoded_endpoint_payload
+            .ok_or(anyhow!("Missing field endpoint_payload"))?;
+        let signature = signed.signature.ok_or(anyhow!("Missing field signature"))?;
         let tx_payload = EncodedPayload::new(
             "PhalaRegistry",
             "update_worker_endpoint",
             (Encoded(endpoint_payload), signature).encode(),
         );
-
-        let desc = format!("Update endpoint of worker for pool #{pid}.");
+        let desc = format!("Update endpoint of worker.");
         self.clone().send_to_queue(pid, tx_payload, desc).await
     }
     pub async fn sync_offchain_message(

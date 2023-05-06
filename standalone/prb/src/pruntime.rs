@@ -1,3 +1,4 @@
+use anyhow::Result;
 use log::debug;
 use phactory_api::prpc::client::{Error as ClientError, RequestClient};
 use phactory_api::prpc::phactory_api_client::PhactoryApiClient;
@@ -18,17 +19,17 @@ pub struct RpcRequest {
 
 #[async_trait::async_trait]
 pub trait PRuntimeClientWithSemaphore {
-    async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> R;
+    async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> Result<R>;
 }
 
 #[async_trait::async_trait]
 impl PRuntimeClientWithSemaphore for PRuntimeClient {
-    async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> R {
+    async fn with_lock<'a, R>(&'a self, f: (impl Future<Output = R> + Send + 'a)) -> Result<R> {
         let s = self.client.semaphore.clone();
-        let s = s.acquire().await;
+        let s = s.acquire().await?;
         let ret = f.await;
         drop(s);
-        ret
+        Ok(ret)
     }
 }
 

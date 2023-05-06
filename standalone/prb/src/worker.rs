@@ -14,7 +14,9 @@ use futures::future::join;
 use log::{debug, error, info, warn};
 use parity_scale_codec::Encode;
 use phactory_api::blocks::{AuthoritySetChange, HeaderToSync};
-use phactory_api::prpc::{GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo};
+use phactory_api::prpc::{
+    GetRuntimeInfoRequest, HeadersToSync, PhactoryInfo, SignEndpointsRequest,
+};
 use phala_pallets::pallet_computation::{SessionInfo, WorkerState};
 use phala_pallets::pallet_registry::Attestation as AttestationEnum;
 use phala_pallets::registry::WorkerInfoV2;
@@ -41,6 +43,8 @@ pub type WorkerLifecycleCommandRx = mpsc::UnboundedReceiver<WorkerLifecycleComma
 
 pub enum WorkerLifecycleCommand {
     ShouldRestart,
+    ShouldForceRegister,
+    ShouldUpdateEndpoint(Vec<String>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,13 +192,14 @@ impl WorkerContext {
         Ok(ret)
     }
 
-    pub fn set_last_message(&mut self, m: &str) {
+    pub fn set_last_message<M: Into<String>>(&mut self, m: M) {
         let time: DateTime<Local> = Local::now();
         let worker = &self.worker;
-        self.last_message = format!("[{time}] {m}");
+        let m = m.into();
+        self.last_message = format!("[{time}] {}", &m);
         info!(
             "Worker {}({}, {}): {}",
-            &worker.name, &worker.id, &worker.endpoint, &m
+            &worker.name, &worker.id, &worker.endpoint, m
         );
     }
 
@@ -394,7 +399,7 @@ impl WorkerContext {
                         block_number,
                         state,
                     )))
-                    .await?;
+                    .await??;
                     set_worker_message!(c, "Loaded chain state!");
                 }
                 Err(e) => {
@@ -650,9 +655,32 @@ impl WorkerContext {
                     }
                     return;
                 }
+                ShouldUpdateEndpoint(endpoints) => {
+                    if let Err(e) = Self::update_endpoint(c.clone(), endpoints).await {
+                        set_worker_message!(c, format!("ShouldUpdateEndpoint: {}", e));
+                    }
+                }
+                ShouldForceRegister => {
+                    if let Err(e) = Self::register_worker(c.clone(), true).await {
+                        set_worker_message!(c, format!("ShouldForceRegister: {}", e));
+                    }
+                }
             }
         }
         drop(rx);
+    }
+
+    async fn update_endpoint(c: WrappedWorkerContext, endpoints: Vec<String>) -> Result<()> {
+        let (lm, worker, pr) = extract_essential_values!(c);
+        let pid = worker.pid.ok_or(anyhow!("missing pid"))?;
+        let txm = lm.txm.clone();
+        set_worker_message!(c, "Attempt to update endpoints...");
+        let signed = pr
+            .sign_endpoint_info(SignEndpointsRequest::new(endpoints))
+            .await?;
+        txm.update_worker_endpoint(pid, signed).await?;
+        set_worker_message!(c, "Updated endpoints.");
+        Ok(())
     }
 
     async fn register_worker(c: WrappedWorkerContext, force_ra: bool) -> Result<()> {
@@ -672,8 +700,8 @@ impl WorkerContext {
         };
         set_worker_message!(c, "Registering worker...");
         let runtime_info = pr
-            .get_runtime_info(GetRuntimeInfoRequest::new(force_ra, operator))
-            .await?;
+            .with_lock(pr.get_runtime_info(GetRuntimeInfoRequest::new(force_ra, operator)))
+            .await??;
         let pubkey = runtime_info.decode_public_key()?;
         let attestation = runtime_info
             .attestation
@@ -714,6 +742,7 @@ impl WorkerContext {
             }
         }
 
+        set_worker_message!(c, "Register done.");
         Ok(())
     }
 }
@@ -760,7 +789,7 @@ impl WorkerContext {
         let txm = lm.txm.clone();
         let messages = pr
             .with_lock(pr.get_egress_messages(()))
-            .await?
+            .await??
             .decode_messages()?;
         debug!("mq_sync_loop_round: {:?}", &messages);
         if messages.is_empty() {
@@ -916,7 +945,7 @@ impl WorkerContext {
         }
         for (from, to) in ranges {
             let sc = dsm.clone().fetch_storage_changes(from, to).await?;
-            pr.with_lock(pr.dispatch_blocks(sc)).await?;
+            pr.with_lock(pr.dispatch_blocks(sc)).await??;
         }
         Ok(())
     }
@@ -934,7 +963,7 @@ impl WorkerContext {
 
         let mut headers = with_retry!(dsm.clone().get_para_headers(from, to), u64::MAX, 1500)?;
         headers.proof = last_header_proof;
-        let res = pr.with_lock(pr.sync_para_header(headers)).await?;
+        let res = pr.with_lock(pr.sync_para_header(headers)).await??;
 
         Ok(res.synced_to)
     }
@@ -985,7 +1014,7 @@ impl WorkerContext {
                 None => return Ok(false),
                 Some(relay_headers) => relay_headers,
             };
-        pr.with_lock(pr.sync_header(relay_headers)).await?;
+        pr.with_lock(pr.sync_header(relay_headers)).await??;
         if last_para_num.is_none() || last_para_proof.is_none() {
             return Ok(true);
         }
