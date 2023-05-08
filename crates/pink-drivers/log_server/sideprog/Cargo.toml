@@ -1,5 +1,8 @@
 [workspace]
 
+[profile.release]
+strip = true
+
 [package]
 edition = "2021"
 name = "sideprog"
