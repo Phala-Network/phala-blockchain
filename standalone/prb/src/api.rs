@@ -13,7 +13,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::*;
 use axum::{Json, Router};
 use futures::future::try_join_all;
-use log::info;
+use log::{error, info};
 use phactory_api::prpc::PhactoryInfo;
 use phala_git_revision::git_revision_with_ts;
 use phala_pallets::pallet_computation::SessionInfo;
@@ -95,6 +95,7 @@ impl IntoResponse for ApiError {
         match self {
             ApiError::ServerError(e) => {
                 let backtrace = e.backtrace().to_string();
+                error!("{}:\n{}", &e, &backtrace);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(json!({
@@ -106,15 +107,18 @@ impl IntoResponse for ApiError {
                 )
             }
             .into_response(),
-            _ => (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": true,
-                    "code": format!("{:?}", &self),
-                    "message": format!("{self}"),
-                })),
-            )
-                .into_response(),
+            _ => {
+                error!("{}", &self);
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "error": true,
+                        "code": format!("{:?}", &self),
+                        "message": format!("{self}"),
+                    })),
+                )
+                    .into_response()
+            }
         }
     }
 }
