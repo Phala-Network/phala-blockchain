@@ -14,7 +14,7 @@ import Column from 'baseui/data-table/column';
 const columns = [
   NumericalColumn({
     title: 'ID',
-    mapDataToValue: (data) => data.id,
+    mapDataToValue: (data) => data.id || '',
   }),
   CategoricalColumn({
     title: 'PID',
