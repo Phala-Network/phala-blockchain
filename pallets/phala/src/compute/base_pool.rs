@@ -431,7 +431,7 @@ pub mod pallet {
 		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
 		/// The whitelist has a lmit len of 100 stakers.
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_staker_to_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -470,7 +470,7 @@ pub mod pallet {
 		///
 		/// The caller must be the owner of the pool.
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pool_description(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -490,7 +490,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn reset_lock_iter_pos(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -500,7 +500,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_unused_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
@@ -543,7 +543,7 @@ pub mod pallet {
 		/// The caller must be the owner of the pool.
 		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_staker_from_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
