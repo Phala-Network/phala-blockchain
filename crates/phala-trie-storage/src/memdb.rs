@@ -65,8 +65,8 @@ where
     KF: KeyFunction<H>,
 {
     data: Map<KF::Key, (T, i32)>,
-    hashed_null_node: H::Out,
-    null_node_data: T,
+    pub(crate) hashed_null_node: H::Out,
+    pub(crate) null_node_data: T,
     _kf: PhantomData<KF>,
 }
 
