@@ -19,6 +19,7 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -379,7 +380,7 @@ pub mod pallet {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
 				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::WPhaAssetId::get(), who, dust)
+					pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), who, dust, Precision::BestEffort, Fortitude::Force)
 						.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
@@ -401,7 +402,13 @@ pub mod pallet {
 
 		/// Burns some W-PHA
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), target, amount)?;
+			pallet_assets::Pallet::<T>::burn_from(
+				T::WPhaAssetId::get(),
+				target,
+				amount,
+				Precision::BestEffort,
+				Fortitude::Force
+			)?;
 			Ok(())
 		}
 

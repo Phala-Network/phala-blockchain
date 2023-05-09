@@ -25,7 +25,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, StorageVersion,
+			tokens::fungibles::Mutate, tokens::nonfungibles::InspectEnumerable, StorageVersion,
 			UnixTime,
 		},
 	};
@@ -33,6 +33,7 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
+	use frame_support::traits::tokens::Preservation;
 	use sp_runtime::{
 		traits::{CheckedSub, Member, TrailingZeroInput, Zero},
 		SaturatedConversion,
@@ -783,12 +784,12 @@ pub mod pallet {
 				.expect("mint should always success; qed.");
 			pool.total_shares += shares;
 			pool.total_value += amount;
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&account_id,
 				&pool.pool_account_id,
 				amount,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 			shares
@@ -814,12 +815,12 @@ pub mod pallet {
 
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool.pool_account_id,
 				userid,
 				amount,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 

@@ -25,7 +25,10 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::{Inspect, Transfer},
+			tokens::{
+				fungibles::{Inspect, Mutate},
+				Preservation,
+			},
 			StorageVersion, UnixTime,
 		},
 	};
@@ -590,12 +593,12 @@ pub mod pallet {
 			);
 			let rewards = pool_info.get_owner_stakes::<T>();
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.owner_reward_account,
 				&target,
 				rewards,
-				false,
+				Preservation::Expendable,
 			)?;
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
 				pid,
@@ -1007,12 +1010,12 @@ pub mod pallet {
 			);
 			let session: T::AccountId = pool_sub_account(pid, &worker);
 			computation::pallet::Pallet::<T>::start_computing(session, stake)?;
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.basepool.pool_account_id,
 				&pool_info.lock_account,
 				stake,
-				false,
+				Preservation::Expendable,
 			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 			Self::deposit_event(Event::<T>::WorkingStarted {
@@ -1140,12 +1143,12 @@ pub mod pallet {
 			}
 
 			// With the worker being cleaned, those stake now are free
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.lock_account,
 				&pool_info.basepool.pool_account_id,
 				returned,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 
