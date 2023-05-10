@@ -1324,10 +1324,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             // the singleton phactory. This way, we can avoid blocking the RPC server.
             info!("Cloning Phactory to do RCU dispatch...");
             let cloned = phactory.clone();
+            // Because the underlying KVDB of the cloned phactory is readonly, so we use the original
+            // phactory to dispatch the blocks.
+            let origin = std::mem::replace(&mut **phactory, cloned);
             // We set rcu_dispatching = true to avoid a reentrant call to dispatch_blocks which
             // would cause a state inconsistency.
             phactory.rcu_dispatching = true;
-            cloned
+            origin
         };
         // Start to dispatch the blocks with the cloned phactory without locking the singleton phactory.
         info!("Unlocked Phactory, dispatching blocks...");
