@@ -58,6 +58,7 @@ pub mod ecall {
         pub gas_price: Balance,
         pub deposit_per_item: Balance,
         pub deposit_per_byte: Balance,
+        pub default_deposit_limit: Balance,
         pub treasury_account: AccountId,
         pub system_code: Vec<u8>,
     }

@@ -51,6 +51,10 @@ pub mod pallet {
     pub(crate) type DepositPerItem<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     #[pallet::storage]
+    #[pallet::getter(fn default_deposit_limit)]
+    pub(crate) type DefaultDepositLimit<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+    #[pallet::storage]
     pub(crate) type TreasuryAccount<T: Config> = StorageValue<_, T::AccountId>;
 
     /// The priviate key of the cluster
@@ -162,6 +166,10 @@ pub mod pallet {
 
         pub fn set_deposit_per_byte(value: BalanceOf<T>) {
             <DepositPerByte<T>>::put(value);
+        }
+
+        pub fn set_default_deposit_limit(value: BalanceOf<T>) {
+            <DefaultDepositLimit<T>>::put(value);
         }
 
         pub fn set_treasury_account(account: &T::AccountId) {

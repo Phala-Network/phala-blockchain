@@ -61,6 +61,10 @@ impl pallet_balances::Config for PinkRuntime {
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
+    type HoldIdentifier = ();
+    type FreezeIdentifier = ();
+    type MaxHolds = ();
+    type MaxFreezes = ();
 }
 
 impl frame_system::Config for PinkRuntime {
@@ -113,8 +117,7 @@ const MAX_CODE_LEN: u32 = 2 * 1024 * 1024;
 parameter_types! {
     pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
     pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
-    pub const DeletionQueueDepth: u32 = 1024;
-    pub const DeletionWeightLimit: Weight = Weight::from_parts(500_000_000_000, 0);
+    pub DefaultDepositLimit: Balance = Pink::default_deposit_limit();
     pub const MaxCodeLen: u32 = MAX_CODE_LEN;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;
@@ -141,11 +144,10 @@ impl Config for PinkRuntime {
     type WeightPrice = Pink;
     type WeightInfo = weights::PinkWeights<Self>;
     type ChainExtension = extension::PinkExtension;
-    type DeletionQueueDepth = DeletionQueueDepth;
-    type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
     type DepositPerByte = DepositPerStorageByte;
     type DepositPerItem = DepositPerStorageItem;
+    type DefaultDepositLimit = DefaultDepositLimit;
     type AddressGenerator = Pink;
     type MaxCodeLen = MaxCodeLen;
     type MaxStorageKeyLen = MaxStorageKeyLen;
@@ -158,8 +160,7 @@ fn detect_parameter_changes() {
     insta::assert_debug_snapshot!((
         <PinkRuntime as frame_system::Config>::BlockWeights::get(),
         <PinkRuntime as Config>::Schedule::get(),
-        <PinkRuntime as Config>::DeletionQueueDepth::get(),
-        <PinkRuntime as Config>::DeletionWeightLimit::get(),
+        <PinkRuntime as Config>::DefaultDepositLimit::get(),
         <PinkRuntime as Config>::MaxCodeLen::get(),
         <PinkRuntime as Config>::MaxStorageKeyLen::get(),
     ));
