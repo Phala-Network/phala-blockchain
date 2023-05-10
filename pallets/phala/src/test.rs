@@ -2002,7 +2002,7 @@ fn mock_asset_id() {
 		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
 		1,
 		true,
-		1000000000,
+		100000000,
 	)
 	.expect("create should success .qed");
 }

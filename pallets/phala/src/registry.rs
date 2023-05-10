@@ -933,7 +933,7 @@ pub mod pallet {
 					Workers::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.initial_score = Some(score);
-							val.last_updated = now;
+							val.last_updated = now / 1000;
 						}
 					});
 
@@ -1013,13 +1013,13 @@ pub mod pallet {
 		}
 
 		pub fn is_worker_registered_after_gk_launched(worker: &WorkerPublicKey) -> bool {
-			let Some(worker) = Workers::<T>::get(worker) else {
+			let Some(worker_added_at) = WorkerAddedAt::<T>::get(worker) else {
 				return false;
 			};
-			let Some((_, gk_launched_at)) = GatekeeperLaunchedAt::<T>::get() else {
+			let Some((gk_launched_at, _)) = GatekeeperLaunchedAt::<T>::get() else {
 				return false;
 			};
-			worker.last_updated > gk_launched_at
+			worker_added_at > gk_launched_at
 		}
 
 		#[cfg(test)]
