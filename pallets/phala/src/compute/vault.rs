@@ -44,6 +44,8 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		#[pallet::constant]
 		type InitialPriceCheckPoint: Get<BalanceOf<Self>>;
+		#[pallet::constant]
+		type VaultQueuePeriod: Get<u64>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -377,6 +379,7 @@ pub mod pallet {
 				&vault.basepool,
 				now,
 				grace_period,
+				Some(T::VaultQueuePeriod::get()),
 				releasing_stake,
 			) {
 				for pid in vault.invest_pools.iter() {
@@ -537,6 +540,16 @@ pub mod pallet {
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::Vault(pool_info));
 
 			Ok(())
+		}
+
+		#[pallet::call_index(7)]
+		#[pallet::weight(0)]
+		#[frame_support::transactional]
+		pub fn refresh_vault_lock_and_check(origin: OriginFor<T>, pid: u64) -> DispatchResult {
+			let who = ensure_signed(origin.clone())?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			VaultLocks::<T>::remove(pid);
+			Self::check_and_maybe_force_withdraw(origin, pid)
 		}
 	}
 }
