@@ -14,7 +14,7 @@ use sp_core::Hasher;
 use sp_state_machine::{Backend, IterArgs, TrieBackend, TrieBackendBuilder};
 use sp_trie::{trie_types::TrieDBMutBuilderV0 as TrieDBMutBuilder, TrieMut};
 
-pub use kvdb::{RocksHashDB, RocksDB};
+pub use kvdb::{RocksDB, RocksHashDB};
 pub use memdb::GenericMemoryDB as MemoryDB;
 
 /// Storage key.

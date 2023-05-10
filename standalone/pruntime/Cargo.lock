@@ -4797,6 +4797,7 @@ dependencies = [
  "log",
  "once_cell",
  "phala-crypto",
+ "phala-trie-storage",
  "pink-capi",
  "pink-extension-runtime",
  "serde",
