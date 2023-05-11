@@ -1,4 +1,6 @@
 {% set pink_runtime_mount_dir = "/pink-runtime" %}
+{% set protected_dir = "/data/protected_files" %}
+{% set trie_cache_dir = protected_dir + "/caches" %}
 
 [libos]
 entrypoint = "pruntime"
@@ -30,6 +32,7 @@ serving the async tasks.
 #}
 ROCKET_WORKERS = "8"
 PINK_RUNTIME_PATH = "{{ pink_runtime_mount_dir }}"
+PRUNTIME_TRIE_CACHE_PATH = "{{ trie_cache_dir }}"
 {#
 When enable, the pruntime will only logs with targets in the hardcoded whitelist.
 So, log from thirdparty crates will be ignored to avoid unexpected information leaks.
@@ -45,7 +48,7 @@ path = "/lib"
 uri = "file:{{ libdir }}"
 
 [[fs.mounts]]
-path = "/data/protected_files"
+path = "{{ protected_dir }}"
 uri = "file:{{ seal_dir }}"
 type = "encrypted"
 key_name = "_sgx_mrenclave"
