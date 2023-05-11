@@ -152,7 +152,7 @@ pub fn create_full<C, P, SC, B>(
 	)?;
 
 	io.merge(
-		SyncState::new(chain_spec, client.clone(), shared_authority_set, babe_worker_handle)?
+		SyncState::new(chain_spec, client, shared_authority_set, babe_worker_handle)?
 			.into_rpc(),
 	)?;
 

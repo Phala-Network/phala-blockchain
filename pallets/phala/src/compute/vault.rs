@@ -543,7 +543,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(7)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn refresh_vault_lock_and_check(origin: OriginFor<T>, pid: u64) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;
