@@ -635,6 +635,7 @@ pub mod pallet {
 				&pool.basepool,
 				now,
 				grace_period,
+				None,
 				releasing_stake,
 			) {
 				for worker in pool.workers.iter() {
@@ -673,6 +674,10 @@ pub mod pallet {
 			let mut maybe_vault = None;
 			if let Some(vault_pid) = as_vault {
 				let vault_info = ensure_vault::<T>(vault_pid)?;
+				ensure!(
+					!vault::pallet::VaultLocks::<T>::contains_key(vault_pid),
+					Error::<T>::VaultIsLocked
+				);
 				ensure!(
 					who == vault_info.basepool.owner,
 					Error::<T>::UnauthorizedPoolOwner

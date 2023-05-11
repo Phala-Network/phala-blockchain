@@ -1303,6 +1303,7 @@ parameter_types! {
     pub const MinWorkingStaking: Balance = 1 * DOLLARS;
     pub const MinContribution: Balance = 1 * CENTS;
     pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
+    pub const VaultQueuePeriod: u64 = 21 * 24 * 3600;
     pub const MinInitP: u32 = 50;
     pub const MaxPoolWorkers: u32 = 200;
     pub const NoneAttestationEnabled: bool = true;
@@ -1366,6 +1367,7 @@ parameter_types! {
 impl pallet_vault::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type InitialPriceCheckPoint = InitialPriceCheckPoint;
+    type VaultQueuePeriod = VaultQueuePeriod;
 }
 parameter_types! {
     pub const CollectionDeposit: Balance = 0; // 1 UNIT deposit to create collection

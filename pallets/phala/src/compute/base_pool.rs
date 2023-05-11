@@ -738,6 +738,7 @@ pub mod pallet {
 			pool: &BasePool<T::AccountId, BalanceOf<T>>,
 			now: u64,
 			grace_period: u64,
+			maybe_vault_queue_period: Option<u64>,
 			releasing_stake: BalanceOf<T>,
 		) -> bool {
 			// If the pool is bankrupt, or there's no share, we just skip this pool.
@@ -747,6 +748,11 @@ pub mod pallet {
 			};
 			let mut budget = pool.get_free_stakes::<T>() + releasing_stake;
 			for request in &pool.withdraw_queue {
+				if let Some(vault_period) = maybe_vault_queue_period {
+					if now - request.start_time > vault_period {
+						return true;
+					}
+				}
 				let nft_guard = Self::get_nft_attr_guard(pool.cid, request.nft_id)
 					.expect("get nftattr should always success; qed.");
 				let withdraw_nft = nft_guard.attr.clone();

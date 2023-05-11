@@ -70,6 +70,7 @@ parameter_types! {
 	pub const MinWorkingStaking: Balance = DOLLARS;
 	pub const MinContribution: Balance = CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
+	pub const VaultQueuePeriod: u64 = 21 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const NoneAttestationEnabled: bool = true;
@@ -391,6 +392,7 @@ parameter_types! {
 impl vault::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type InitialPriceCheckPoint = InitialPriceCheckPoint;
+	type VaultQueuePeriod = VaultQueuePeriod;
 }
 
 impl base_pool::Config for Test {
