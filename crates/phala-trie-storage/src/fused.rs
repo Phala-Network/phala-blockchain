@@ -2,13 +2,13 @@ use sp_state_machine::{DefaultError, TrieBackendStorage};
 
 use super::*;
 
-pub enum RocksOrMemoryDB<H: Hasher> {
+pub enum DatabaseAdapter<H: Hasher> {
     Rocks(RocksHashDB<H>),
     /// The memory is only for unittest
     Memory(MemoryDB<H>),
 }
 
-impl<H: Hasher> RocksOrMemoryDB<H> {
+impl<H: Hasher> DatabaseAdapter<H> {
     pub fn default_rocksdb() -> Self {
         Self::Rocks(RocksHashDB::new())
     }
@@ -19,20 +19,20 @@ impl<H: Hasher> RocksOrMemoryDB<H> {
 
     pub fn snapshot(&self) -> Self {
         match self {
-            RocksOrMemoryDB::Rocks(kvdb) => RocksOrMemoryDB::Rocks(kvdb.snapshot()),
-            RocksOrMemoryDB::Memory(mdb) => RocksOrMemoryDB::Memory(mdb.clone()),
+            DatabaseAdapter::Rocks(kvdb) => DatabaseAdapter::Rocks(kvdb.snapshot()),
+            DatabaseAdapter::Memory(mdb) => DatabaseAdapter::Memory(mdb.clone()),
         }
     }
 
     pub fn consolidate_mdb(&mut self, other: MemoryDB<H>) {
         match self {
-            RocksOrMemoryDB::Rocks(kvdb) => kvdb.consolidate_mdb(other),
-            RocksOrMemoryDB::Memory(mdb) => mdb.consolidate(other),
+            DatabaseAdapter::Rocks(kvdb) => kvdb.consolidate_mdb(other),
+            DatabaseAdapter::Memory(mdb) => mdb.consolidate(other),
         }
     }
 }
 
-impl<H: Hasher> TrieBackendStorage<H> for RocksOrMemoryDB<H> {
+impl<H: Hasher> TrieBackendStorage<H> for DatabaseAdapter<H> {
     type Overlay = MemoryDB<H>;
 
     fn get(
@@ -41,8 +41,8 @@ impl<H: Hasher> TrieBackendStorage<H> for RocksOrMemoryDB<H> {
         prefix: hash_db::Prefix,
     ) -> Result<Option<sp_state_machine::DBValue>, DefaultError> {
         match self {
-            RocksOrMemoryDB::Rocks(kvdb) => kvdb.get(key, prefix),
-            RocksOrMemoryDB::Memory(mdb) => mdb.get(key, prefix),
+            DatabaseAdapter::Rocks(kvdb) => kvdb.get(key, prefix),
+            DatabaseAdapter::Memory(mdb) => mdb.get(key, prefix),
         }
     }
 }

@@ -5,7 +5,10 @@ mod fused;
 mod kvdb;
 mod memdb;
 
-use fused::RocksOrMemoryDB;
+#[cfg(test)]
+mod tests;
+
+use fused::DatabaseAdapter;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::iter::FromIterator;
@@ -32,7 +35,7 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
-pub type KvdbBackend<H> = TrieBackend<fused::RocksOrMemoryDB<H>, H>;
+pub type KvdbBackend<H> = TrieBackend<fused::DatabaseAdapter<H>, H>;
 
 pub struct TrieStorage<H: Hasher>(KvdbBackend<H>)
 where
@@ -44,7 +47,7 @@ where
 {
     fn default() -> Self {
         Self(
-            TrieBackendBuilder::new(RocksOrMemoryDB::default_rocksdb(), Default::default()).build(),
+            TrieBackendBuilder::new(DatabaseAdapter::default_rocksdb(), Default::default()).build(),
         )
     }
 }
@@ -53,6 +56,10 @@ impl<H: Hasher> TrieStorage<H>
 where
     H::Out: Codec + Ord,
 {
+    pub fn default_memdb() -> Self {
+        Self(TrieBackendBuilder::new(DatabaseAdapter::default_memdb(), Default::default()).build())
+    }
+
     pub fn snapshot(&self) -> Self {
         Self(clone_trie_backend(&self.0))
     }
@@ -74,7 +81,7 @@ where
             }
         }
     }
-    TrieBackendBuilder::new(RocksOrMemoryDB::Rocks(RocksHashDB::load(mdb)), root).build()
+    TrieBackendBuilder::new(DatabaseAdapter::Rocks(RocksHashDB::load(mdb)), root).build()
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -95,8 +102,8 @@ where
     let root = trie.root();
     let db = trie.backend_storage();
     match db {
-        RocksOrMemoryDB::Rocks(db) => (root, db).serialize(serializer),
-        RocksOrMemoryDB::Memory(_) => Err(serde::ser::Error::custom(format!(
+        DatabaseAdapter::Rocks(db) => (root, db).serialize(serializer),
+        DatabaseAdapter::Memory(_) => Err(serde::ser::Error::custom(format!(
             "Cannot serialize memory DB. It's only for unit test only",
         ))),
     }
@@ -111,7 +118,7 @@ where
     De: Deserializer<'de>,
 {
     let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
-    let db = RocksOrMemoryDB::Rocks(db);
+    let db = DatabaseAdapter::Rocks(db);
     let backend = TrieBackendBuilder::new(db, root).build();
     Ok(backend)
 }
@@ -219,7 +226,7 @@ where
             let hash = storage.insert(hash_db::EMPTY_PREFIX, &value);
             log::debug!("Loaded proof {:?}", hash);
         }
-        let storage = RocksOrMemoryDB::Memory(storage);
+        let storage = DatabaseAdapter::Memory(storage);
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }
 }
