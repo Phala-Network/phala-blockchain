@@ -7691,7 +7691,6 @@ dependencies = [
  "sp-runtime-interface",
  "sp-state-machine",
  "sp-trie",
- "tempfile",
  "thiserror",
  "tokio",
  "tracing",
