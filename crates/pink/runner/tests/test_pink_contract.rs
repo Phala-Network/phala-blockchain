@@ -296,7 +296,7 @@ mod test_cluster {
 
     impl TestCluster {
         pub fn for_test() -> Self {
-            let storage = ClusterStorage::default();
+            let storage = ClusterStorage::default_memdb();
             let context = ExecContext {
                 mode: ExecutionMode::Transaction,
                 block_number: 1,

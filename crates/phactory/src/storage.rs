@@ -36,7 +36,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_computation, pallet_phat, pallet_mq, pallet_registry};
+    use chain::{pallet_computation, pallet_mq, pallet_phat, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::{ContractClusterId, Message, MessageOrigin};
@@ -67,6 +67,12 @@ mod storage_ext {
     }
 
     impl ChainStorage {
+        pub fn default_memdb() -> Self {
+            Self {
+                trie_storage: TrieStorage::default_memdb(),
+            }
+        }
+
         fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
             self.trie_storage.get(key)
         }

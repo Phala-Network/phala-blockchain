@@ -7,6 +7,9 @@ pub use database::RocksDB;
 pub use hashdb::RocksHashDB;
 pub use snapshot::Snapshot;
 
+#[cfg(test)]
+pub(crate) use database::with_cache_dir;
+
 type Database = Arc<TransactionDB<MultiThreaded>>;
 
 mod database;
