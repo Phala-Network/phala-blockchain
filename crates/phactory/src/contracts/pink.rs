@@ -388,7 +388,7 @@ impl OCalls for RuntimeHandleMut<'_> {
         if !context::get().mode.is_transaction() {
             return;
         }
-        warn!("commit state root: {:?}", root);
+        info!("commit state root: {:?}", root);
         self.cluster.storage.commit(root, changes);
     }
 

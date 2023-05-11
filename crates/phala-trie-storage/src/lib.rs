@@ -173,7 +173,9 @@ where
 
     /// Apply storage changes calculated from `calc_root_if_changes`.
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
-        let mut storage = core::mem::take(self).0.into_storage();
+        let mut storage = core::mem::replace(self, Self::default_memdb())
+            .0
+            .into_storage();
         storage.consolidate_mdb(transaction);
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }
@@ -214,7 +216,9 @@ where
     }
 
     pub fn set_root(&mut self, root: H::Out) {
-        let storage = core::mem::take(self).0.into_storage();
+        let storage = core::mem::replace(self, Self::default_memdb())
+            .0
+            .into_storage();
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }
 
