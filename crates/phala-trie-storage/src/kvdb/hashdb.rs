@@ -58,7 +58,7 @@ impl<H: Hasher> RocksHashDB<H> {
     pub fn snapshot(&self) -> Self {
         Self {
             inner: self.inner.snapshot(),
-            hashed_null_node: self.hashed_null_node.clone(),
+            hashed_null_node: self.hashed_null_node,
             null_node_data: self.null_node_data.clone(),
         }
     }
@@ -95,7 +95,7 @@ impl<'de, H: Hasher> Deserialize<'de> for RocksHashDB<H> {
                 while let Some((value, rc)) = seq.next_element::<(Vec<u8>, i32)>()? {
                     let key = H::hash(&value);
                     transaction
-                        .put(&key, (value, rc).encode())
+                        .put(key, (value, rc).encode())
                         .expect("Failed to put key in transaction");
                 }
                 transaction.commit().expect("Failed to commit transaction");

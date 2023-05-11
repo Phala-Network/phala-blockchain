@@ -276,7 +276,7 @@ impl OCalls for RuntimeHandle<'_> {
     }
 
     fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
-        self.cluster.storage.get(&key).map(|(_rc, val)| val.clone())
+        self.cluster.storage.get(&key).map(|(_rc, val)| val)
     }
 
     fn storage_commit(&mut self, _root: Hash, _changes: StorageChanges) {

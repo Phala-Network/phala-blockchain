@@ -4628,6 +4628,7 @@ dependencies = [
 name = "phala-trie-storage"
 version = "0.1.0"
 dependencies = [
+ "environmental",
  "hash-db",
  "im",
  "log",

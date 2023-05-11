@@ -413,7 +413,7 @@ mod test_cluster {
         }
 
         fn storage_get(&self, key: Vec<u8>) -> Option<Vec<u8>> {
-            self.storage.get(&key).map(|(_rc, val)| val.clone())
+            self.storage.get(&key).map(|(_rc, val)| val)
         }
 
         fn storage_commit(&mut self, root: Hash, changes: StorageChanges) {

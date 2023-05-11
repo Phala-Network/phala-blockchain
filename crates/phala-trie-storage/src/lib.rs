@@ -103,9 +103,9 @@ where
     let db = trie.backend_storage();
     match db {
         DatabaseAdapter::Rocks(db) => (root, db).serialize(serializer),
-        DatabaseAdapter::Memory(_) => Err(serde::ser::Error::custom(format!(
+        DatabaseAdapter::Memory(_) => Err(serde::ser::Error::custom(
             "Cannot serialize memory DB. It's only for unit test only",
-        ))),
+        )),
     }
 }
 

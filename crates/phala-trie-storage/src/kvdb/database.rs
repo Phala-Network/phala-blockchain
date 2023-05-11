@@ -66,7 +66,7 @@ impl RocksDB {
 
                     if orc == 0 {
                         transaction
-                            .delete(&key)
+                            .delete(key)
                             .expect("Failed to delete key from transaction");
                         continue;
                     }
@@ -74,7 +74,7 @@ impl RocksDB {
                 }
             };
             transaction
-                .put(&key, raw_value.encode())
+                .put(key, raw_value.encode())
                 .expect("Failed to put key in transaction");
         }
         transaction.commit().expect("Failed to commit transaction");
@@ -85,7 +85,7 @@ impl RocksDB {
         let Self::Database { db, .. } = self else {
             panic!("Put on a snapshot")
         };
-        Ok(db.put(key, value)?)
+        db.put(key, value)
     }
 
     #[cfg(test)]
@@ -93,7 +93,7 @@ impl RocksDB {
         let Self::Database { db, .. } = self else {
             panic!("Delete on a snapshot")
         };
-        Ok(db.delete(key)?)
+        db.delete(key)
     }
 
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
@@ -128,26 +128,21 @@ pub(crate) fn with_cache_dir<T>(cache_dir: &str, f: impl FnOnce() -> T) -> T {
 
 pub(crate) fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
     let test_path = test_cached_path::with(|path| path.clone());
-    if test_path.is_none() {
-        panic!("empty test path");
-    }
     let cache_path = &test_path
         .or_else(|| std::env::var("PHALA_TRIE_CACHE_PATH").ok())
         .unwrap_or_else(|| "data/protected_files/caches".to_string());
     static NEXT_SN: AtomicUsize = AtomicUsize::new(0);
     let sn = NEXT_SN.fetch_add(1, Ordering::SeqCst);
-    if sn == 0 {
-        if std::path::Path::new(cache_path).exists() {
-            info!("Removing cache folder: {}", cache_path);
-            std::fs::remove_dir_all(cache_path).expect("Failed to remove cache folder");
-        }
+    if sn == 0 && std::path::Path::new(cache_path).exists() {
+        info!("Removing cache folder: {}", cache_path);
+        std::fs::remove_dir_all(cache_path).expect("Failed to remove cache folder");
     }
     let mut options = Options::default();
     options.set_max_open_files(256);
     options.create_if_missing(true);
     options.set_error_if_exists(true);
     let path = format!("{cache_path}/cache_{sn}",);
-    let db = TransactionDB::open(&options, &Default::default(), &path).expect("Faile to open KVDB");
+    let db = TransactionDB::open(&options, &Default::default(), path).expect("Faile to open KVDB");
     (db, sn)
 }
 
@@ -212,9 +207,9 @@ impl<'de> Deserialize<'de> for RocksDB {
 fn decode_value<E: Display>(
     value: Result<Option<Vec<u8>>, E>,
 ) -> Result<Option<(sp_state_machine::DBValue, i32)>, DefaultError> {
-    let value = value.map_err(|err| format!("{}", err))?;
+    let value = value.map_err(|err| err.to_string())?;
     match value {
-        None => return Ok(None),
+        None => Ok(None),
         Some(value) => {
             let (d, rc): (Vec<u8>, i32) =
                 Decode::decode(&mut &value[..]).or(Err("Decode db value failed"))?;
