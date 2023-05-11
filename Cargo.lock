@@ -7691,6 +7691,7 @@ dependencies = [
  "sp-runtime-interface",
  "sp-state-machine",
  "sp-trie",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -8083,6 +8084,7 @@ dependencies = [
 name = "phala-trie-storage"
 version = "0.1.0"
 dependencies = [
+ "environmental",
  "hash-db",
  "hash256-std-hasher",
  "hex",
@@ -8093,12 +8095,14 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "serde_cbor",
  "serde_json",
  "sp-application-crypto",
  "sp-core",
  "sp-runtime",
  "sp-state-machine",
  "sp-trie",
+ "tempfile",
  "trie-db",
 ]
 
