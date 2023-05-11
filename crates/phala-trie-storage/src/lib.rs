@@ -1,9 +1,11 @@
 #[cfg(feature = "serde")]
 pub mod ser;
 
+mod fused;
 mod kvdb;
 mod memdb;
 
+use fused::RocksOrMemoryDB;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::iter::FromIterator;
@@ -30,8 +32,9 @@ pub type StorageCollection = Vec<(StorageKey, Option<StorageValue>)>;
 pub type ChildStorageCollection = Vec<(StorageKey, StorageCollection)>;
 
 pub type InMemoryBackend<H> = TrieBackend<MemoryDB<H>, H>;
-pub type RocksDBBackend<H> = TrieBackend<RocksHashDB<H>, H>;
-pub struct TrieStorage<H: Hasher>(RocksDBBackend<H>)
+pub type KvdbBackend<H> = TrieBackend<fused::RocksOrMemoryDB<H>, H>;
+
+pub struct TrieStorage<H: Hasher>(KvdbBackend<H>)
 where
     H::Out: Ord;
 
@@ -40,7 +43,9 @@ where
     H::Out: Codec + Ord,
 {
     fn default() -> Self {
-        Self(TrieBackendBuilder::new(RocksHashDB::new(), Default::default()).build())
+        Self(
+            TrieBackendBuilder::new(RocksOrMemoryDB::default_rocksdb(), Default::default()).build(),
+        )
     }
 }
 
@@ -55,7 +60,7 @@ where
 
 pub fn load_trie_backend<H: Hasher>(
     pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
-) -> TrieBackend<RocksHashDB<H>, H>
+) -> KvdbBackend<H>
 where
     H::Out: Codec + Ord,
 {
@@ -69,7 +74,7 @@ where
             }
         }
     }
-    TrieBackendBuilder::new(RocksHashDB::load(mdb), root).build()
+    TrieBackendBuilder::new(RocksOrMemoryDB::Rocks(RocksHashDB::load(mdb)), root).build()
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -80,7 +85,7 @@ enum TrieState<V0, V1> {
 
 #[cfg(feature = "serde")]
 pub fn serialize_trie_backend<H: Hasher, S>(
-    trie: &TrieBackend<RocksHashDB<H>, H>,
+    trie: &KvdbBackend<H>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
@@ -89,25 +94,29 @@ where
 {
     let root = trie.root();
     let db = trie.backend_storage();
-    (root, db).serialize(serializer)
+    match db {
+        RocksOrMemoryDB::Rocks(db) => (root, db).serialize(serializer),
+        RocksOrMemoryDB::Memory(_) => Err(serde::ser::Error::custom(format!(
+            "Cannot serialize memory DB. It's only for unit test only",
+        ))),
+    }
 }
 
 #[cfg(feature = "serde")]
 pub fn deserialize_trie_backend<'de, H: Hasher, De>(
     deserializer: De,
-) -> Result<TrieBackend<RocksHashDB<H>, H>, De::Error>
+) -> Result<KvdbBackend<H>, De::Error>
 where
     H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
     let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
+    let db = RocksOrMemoryDB::Rocks(db);
     let backend = TrieBackendBuilder::new(db, root).build();
     Ok(backend)
 }
 
-pub fn clone_trie_backend<H: Hasher>(
-    trie: &TrieBackend<RocksHashDB<H>, H>,
-) -> TrieBackend<RocksHashDB<H>, H>
+pub fn clone_trie_backend<H: Hasher>(trie: &KvdbBackend<H>) -> KvdbBackend<H>
 where
     H::Out: Codec + Ord,
 {
@@ -157,7 +166,7 @@ where
 
     /// Apply storage changes calculated from `calc_root_if_changes`.
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
-        let storage = core::mem::take(self).0.into_storage();
+        let mut storage = core::mem::take(self).0.into_storage();
         storage.consolidate_mdb(transaction);
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }
@@ -193,7 +202,7 @@ where
             .collect()
     }
 
-    pub fn as_trie_backend(&self) -> &RocksDBBackend<H> {
+    pub fn as_trie_backend(&self) -> &KvdbBackend<H> {
         &self.0
     }
 
@@ -210,7 +219,7 @@ where
             let hash = storage.insert(hash_db::EMPTY_PREFIX, &value);
             log::debug!("Loaded proof {:?}", hash);
         }
-        let storage = RocksHashDB::load(storage);
+        let storage = RocksOrMemoryDB::Memory(storage);
         let _ = core::mem::replace(&mut self.0, TrieBackendBuilder::new(storage, root).build());
     }
 }

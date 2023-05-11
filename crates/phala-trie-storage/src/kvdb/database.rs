@@ -117,7 +117,7 @@ impl Default for RocksDB {
     }
 }
 
-/// The global cache dir for unit tests.
+// The global cache dir for unit tests.
 environmental::environmental!(test_cached_path: String);
 
 #[cfg(test)]
