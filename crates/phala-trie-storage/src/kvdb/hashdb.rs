@@ -13,7 +13,7 @@ use sp_state_machine::{DBValue, DefaultError, TrieBackendStorage};
 use rocksdb::IteratorMode;
 
 use crate::{
-    kvdb::database::new_db,
+    kvdb::database::create_db,
     memdb::{HashKey, KeyFunction},
     MemoryDB,
 };
@@ -90,7 +90,7 @@ impl<'de, H: Hasher> Deserialize<'de> for RocksHashDB<H> {
             where
                 A: SeqAccess<'de>,
             {
-                let (db, sn) = new_db();
+                let (db, sn) = create_db();
                 let transaction = db.transaction();
                 while let Some((value, rc)) = seq.next_element::<(Vec<u8>, i32)>()? {
                     let key = H::hash(&value);
@@ -164,4 +164,20 @@ impl<H: Hasher> TrieBackendStorage<H> for RocksHashDB<H> {
             }
         }
     }
+}
+
+#[test]
+fn serde_hashdb_works() {
+    use hash_db::HashDB;
+    use sp_core::Blake2Hasher;
+
+    let cache_dir = tempfile::tempdir().unwrap();
+    crate::kvdb::database::with_cache_dir(cache_dir.path().to_str().unwrap(), || {
+        let mut mdb = MemoryDB::default();
+        mdb.insert((&[], None), &(b"foo".to_vec(), 2).encode());
+        let db = RocksHashDB::<Blake2Hasher>::new();
+        db.consolidate_mdb(mdb);
+        let cobr = serde_cbor::to_vec(&db).unwrap();
+        let _: RocksHashDB<Blake2Hasher> = serde_cbor::from_slice(&cobr).unwrap();
+    });
 }

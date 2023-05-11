@@ -22,6 +22,7 @@ parity-util-mem = "0.11.0"
 rocksdb = "0.19"
 librocksdb-sys = "0.8.0"
 log = "0.4"
+environmental = "1"
 
 [dev-dependencies]
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
@@ -31,6 +32,8 @@ hex = "0.4"
 serde_json = "1.0"
 impl-serde = "0.4.0"
 keccak-hasher = "0.16.0"
+serde_cbor = "0.11.2"
+tempfile = "3"
 
 [features]
 default = ["serde"]
