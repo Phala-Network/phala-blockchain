@@ -1,15 +1,16 @@
 ---
 source: crates/pink/runner/tests/test_pink_contract.rs
+assertion_line: 115
 expression: result
 ---
 ContractResult {
     gas_consumed: Weight {
-        ref_time: 1670460672,
-        proof_size: 201180,
+        ref_time: 1902834726,
+        proof_size: 45015,
     },
     gas_required: Weight {
-        ref_time: 66475808693,
-        proof_size: 10546826,
+        ref_time: 79195633637,
+        proof_size: 2113745,
     },
     storage_deposit: StorageDeposit::Charge(
         4,
