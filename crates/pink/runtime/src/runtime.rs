@@ -117,7 +117,7 @@ const MAX_CODE_LEN: u32 = 2 * 1024 * 1024;
 parameter_types! {
     pub DepositPerStorageByte: Balance = Pink::deposit_per_byte();
     pub DepositPerStorageItem: Balance = Pink::deposit_per_item();
-    pub DefaultDepositLimit: Balance = Pink::default_deposit_limit();
+    pub const DefaultDepositLimit: Balance = Balance::max_value();
     pub const MaxCodeLen: u32 = MAX_CODE_LEN;
     pub const MaxStorageKeyLen: u32 = 128;
     pub const MaxDebugBufferLen: u32 = 128 * 1024;

@@ -32,6 +32,7 @@ use phala_types::{
     WorkerEndpointPayload, WorkerPublicKey, WorkerRegistrationInfoV2,
 };
 use sp_application_crypto::UncheckedFrom;
+use sp_core::ByteArray;
 use tracing::{error, info};
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -1944,10 +1945,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
             signature,
         } = req;
         let receiver = try_decode_hex(&receiver).map_err(|_| from_display("Invalid receiver"))?;
+        let receiver = sr25519::Public::from_slice(&receiver).map_err(|_| from_display("Invalid receiver"))?;
         let signature =
             try_decode_hex(&signature).map_err(|_| from_display("Invalid signature"))?;
+        let signature = sr25519::Signature::from_slice(&signature).ok_or(from_display("Invalid signature"))?;
+
         // Check the validity of the state request with the remote public key
-        if !sr25519::Pair::verify_weak(
+        if !sr25519::Pair::verify(
             &signature,
             wrap_content_to_sign(
                 &min_block_number.to_be_bytes(),

@@ -64,7 +64,6 @@ impl ecall::ECalls for ECallImpl {
             gas_price,
             deposit_per_item,
             deposit_per_byte,
-            default_deposit_limit,
             treasury_account,
             system_code,
         } = config;
@@ -72,7 +71,6 @@ impl ecall::ECalls for ECallImpl {
         PalletPink::set_gas_price(gas_price);
         PalletPink::set_deposit_per_item(deposit_per_item);
         PalletPink::set_deposit_per_byte(deposit_per_byte);
-        PalletPink::set_default_deposit_limit(default_deposit_limit);
         PalletPink::set_treasury_account(&treasury_account);
 
         self.deposit(owner.clone(), deposit);
