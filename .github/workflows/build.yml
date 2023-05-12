@@ -14,6 +14,15 @@ jobs:
     name: Build core
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -22,6 +31,15 @@ jobs:
     name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -30,6 +48,15 @@ jobs:
     name: Build prouter
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -38,6 +65,15 @@ jobs:
     name: Build contracts
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -46,6 +82,15 @@ jobs:
     name: Run E2E tests
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -94,6 +139,15 @@ jobs:
     name: Run cargo tests
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
@@ -105,6 +159,15 @@ jobs:
     name: Run cargo clippy
     runs-on: ubuntu-20.04
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master # https://github.com/easimon/maximize-build-space
+        with:
+          root-reserve-mb: 4096
+          temp-reserve-mb: 1024
+          swap-size-mb: 8192
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
