@@ -109,7 +109,7 @@ pub trait System {
 
     /// Upgrade the system contract to the latest version.
     #[ink(message)]
-    fn upgrade_system_contract(&self) -> Result<()>;
+    fn upgrade_system_contract(&mut self) -> Result<()>;
 
     /// Do the upgrade condition checks and state migration if necessary.
     ///
