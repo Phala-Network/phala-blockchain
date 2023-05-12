@@ -107,11 +107,6 @@ impl pallet_timestamp::Config for PinkRuntime {
     type WeightInfo = ();
 }
 
-// Workaround for the test failure in runtime_integrity_tests
-// https://github.com/paritytech/substrate/pull/12993/files#diff-67684005af418e25ff88c2ae5b520f0c040371f1d817e03a3652e76b9485224aR1217
-#[cfg(test)]
-const MAX_CODE_LEN: u32 = 64 * 1024;
-#[cfg(not(test))]
 const MAX_CODE_LEN: u32 = 2 * 1024 * 1024;
 
 parameter_types! {
@@ -129,6 +124,7 @@ parameter_types! {
         // allocate too much here.
         schedule.limits.memory_pages = 4 * MB;
         schedule.instruction_weights.fallback = 8000;
+        schedule.limits.runtime_memory = 2048 * 1024 * 1024; // For unittests
         schedule
     };
 }
