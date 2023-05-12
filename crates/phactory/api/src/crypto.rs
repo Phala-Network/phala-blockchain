@@ -1,7 +1,8 @@
+use std::convert::TryFrom;
+
 use alloc::vec;
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
-use sp_core::ByteArray as _;
 
 use crate::prpc::{Signature, SignatureType};
 pub use phala_crypto::{aead, ecdh, CryptoError};
@@ -40,7 +41,6 @@ impl EncryptedData {
 
 #[derive(Clone, Debug)]
 pub enum SignatureVerifyError {
-    InvalidPublic,
     InvalidSignatureType,
     InvalidSignature,
     CertificateMissing,
@@ -99,11 +99,19 @@ impl Signature {
     }
 }
 
-fn verify<T>(pubkey: &T::Public, sig: &T::Signature, msg: &[u8]) -> bool
+pub fn verify<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> bool
 where
     T: sp_core::crypto::Pair,
+    T::Public: for<'a> TryFrom<&'a [u8]>,
+    T::Signature: for<'a> TryFrom<&'a [u8]>,
 {
-    T::verify(sig, msg, pubkey)
+    let Ok(public) = T::Public::try_from(pubkey) else {
+        return false;
+    };
+    let Ok(signature) = T::Signature::try_from(sig) else {
+        return false;
+    };
+    T::verify(&signature, msg, &public)
 }
 
 /// Wraps the message in the same format as it defined in Polkadot.js extension:
@@ -132,37 +140,23 @@ impl CertificateBody {
     ) -> Result<(), SignatureVerifyError> {
         let valid = match sig_type {
             SignatureType::Ed25519 => {
-                let public = sp_core::ed25519::Public::from_slice(&self.pubkey).map_err(|_| SignatureVerifyError::InvalidPublic)?;
-                let signature = sp_core::ed25519::Signature::from_slice(signature).ok_or(SignatureVerifyError::InvalidSignature)?;
-                verify::<sp_core::ed25519::Pair>(&public, &signature, msg)
+                verify::<sp_core::ed25519::Pair>(&self.pubkey, signature, msg)
             }
             SignatureType::Sr25519 => {
-                let public = sp_core::sr25519::Public::from_slice(&self.pubkey).map_err(|_| SignatureVerifyError::InvalidPublic)?;
-                let signature = sp_core::sr25519::Signature::from_slice(signature).ok_or(SignatureVerifyError::InvalidSignature)?;
-                verify::<sp_core::sr25519::Pair>(&public, &signature, msg)
+                verify::<sp_core::sr25519::Pair>(&self.pubkey, signature, msg)
             }
-            SignatureType::Ecdsa => {
-                let public = sp_core::ecdsa::Public::from_slice(&self.pubkey).map_err(|_| SignatureVerifyError::InvalidPublic)?;
-                let signature = sp_core::ecdsa::Signature::from_slice(signature).ok_or(SignatureVerifyError::InvalidSignature)?;
-                verify::<sp_core::ecdsa::Pair>(&public, &signature, msg)
-            },
+            SignatureType::Ecdsa => verify::<sp_core::ecdsa::Pair>(&self.pubkey, signature, msg),
             SignatureType::Ed25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                let public = sp_core::ed25519::Public::from_slice(&self.pubkey).map_err(|_| SignatureVerifyError::InvalidPublic)?;
-                let signature = sp_core::ed25519::Signature::from_slice(signature).ok_or(SignatureVerifyError::InvalidSignature)?;
-                verify::<sp_core::ed25519::Pair>(&public, &signature, &wrapped)
+                verify::<sp_core::ed25519::Pair>(&self.pubkey, signature, &wrapped)
             }
             SignatureType::Sr25519WrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                let public = sp_core::sr25519::Public::from_slice(&self.pubkey).map_err(|_| SignatureVerifyError::InvalidPublic)?;
-                let signature = sp_core::sr25519::Signature::from_slice(signature).ok_or(SignatureVerifyError::InvalidSignature)?;
-                verify::<sp_core::sr25519::Pair>(&public, &signature, &wrapped)
+                verify::<sp_core::sr25519::Pair>(&self.pubkey, signature, &wrapped)
             }
             SignatureType::EcdsaWrapBytes => {
                 let wrapped = wrap_bytes(msg);
-                let public = sp_core::ecdsa::Public::from_slice(&self.pubkey).map_err(|_| SignatureVerifyError::InvalidPublic)?;
-                let signature = sp_core::ecdsa::Signature::from_slice(signature).ok_or(SignatureVerifyError::InvalidSignature)?;
-                verify::<sp_core::ecdsa::Pair>(&public, &signature, &wrapped)
+                verify::<sp_core::ecdsa::Pair>(&self.pubkey, signature, &wrapped)
             }
         };
         if valid {
