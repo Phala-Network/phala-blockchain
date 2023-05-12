@@ -1946,14 +1946,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let receiver = try_decode_hex(&receiver).map_err(|_| from_display("Invalid receiver"))?;
         let signature =
             try_decode_hex(&signature).map_err(|_| from_display("Invalid signature"))?;
+
         // Check the validity of the state request with the remote public key
-        if !sr25519::Pair::verify_weak(
+        if !crypto::verify::<sr25519::Pair>(
+            &receiver,
             &signature,
-            wrap_content_to_sign(
+            &wrap_content_to_sign(
                 &min_block_number.to_be_bytes(),
                 SignedContentType::ClusterStateRequest,
             ),
-            &receiver,
         ) {
             return Err(from_display("Invalid signature"));
         }

@@ -25,7 +25,7 @@ pub mod pallet {
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer, tokens::nonfungibles::InspectEnumerable, StorageVersion,
+			tokens::fungibles::Mutate, tokens::nonfungibles::InspectEnumerable, StorageVersion,
 			UnixTime,
 		},
 	};
@@ -33,6 +33,7 @@ pub mod pallet {
 	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
+	use frame_support::traits::tokens::Preservation;
 	use sp_runtime::{
 		traits::{CheckedSub, Member, TrailingZeroInput, Zero},
 		SaturatedConversion,
@@ -431,7 +432,7 @@ pub mod pallet {
 		/// If a pool hasn't registed in the wihtelist map, any staker could contribute as what they use to do.
 		/// The whitelist has a lmit len of 100 stakers.
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_staker_to_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -470,7 +471,7 @@ pub mod pallet {
 		///
 		/// The caller must be the owner of the pool.
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pool_description(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -490,7 +491,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn reset_lock_iter_pos(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -500,7 +501,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_unused_lock(origin: OriginFor<T>, max_iterations: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::ensure_migration_root(who)?;
@@ -543,7 +544,7 @@ pub mod pallet {
 		/// The caller must be the owner of the pool.
 		/// If the last staker in the whitelist is removed, the pool will return back to a normal pool that allow anyone to contribute.
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_staker_from_whitelist(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -783,12 +784,12 @@ pub mod pallet {
 				.expect("mint should always success; qed.");
 			pool.total_shares += shares;
 			pool.total_value += amount;
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&account_id,
 				&pool.pool_account_id,
 				amount,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 			shares
@@ -814,12 +815,12 @@ pub mod pallet {
 
 			let (total_stake, _) = extract_dust(pool.total_value - amount);
 
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool.pool_account_id,
 				userid,
 				amount,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 

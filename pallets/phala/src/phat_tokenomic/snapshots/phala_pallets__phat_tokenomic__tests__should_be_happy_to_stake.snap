@@ -19,7 +19,6 @@ expression: events
         Event::BalanceSet {
             who: 0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
             free: 100000000000000,
-            reserved: 0,
         },
     ),
     RuntimeEvent::System(
@@ -37,7 +36,6 @@ expression: events
         Event::BalanceSet {
             who: 0202020202020202020202020202020202020202020202020202020202020202 (5C7LYpP2...),
             free: 100000000000000,
-            reserved: 0,
         },
     ),
     RuntimeEvent::System(

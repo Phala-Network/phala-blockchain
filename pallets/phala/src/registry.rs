@@ -482,7 +482,7 @@ pub mod pallet {
 		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
 		/// anyone on behalf of a worker.
 		#[pallet::call_index(6)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn register_worker(
 			origin: OriginFor<T>,
 			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
@@ -582,7 +582,7 @@ pub mod pallet {
 		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
 		/// anyone on behalf of a worker.
 		#[pallet::call_index(7)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
 			pruntime_info: WorkerRegistrationInfoV2<T::AccountId>,
@@ -696,7 +696,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(8)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
 			endpoint_payload: WorkerEndpointPayload,
@@ -743,7 +743,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(9)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
@@ -766,7 +766,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(10)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
@@ -788,7 +788,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(11)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
 			genesis_block_hash: H256,
@@ -811,7 +811,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(12)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
 			genesis_block_hash: H256,
@@ -834,7 +834,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(13)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_minimum_pruntime_version(
 			origin: OriginFor<T>,
 			major: u32,
@@ -854,7 +854,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(14)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pruntime_consensus_version(
 			origin: OriginFor<T>,
 			version: u32,

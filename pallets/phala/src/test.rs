@@ -2034,10 +2034,9 @@ fn setup_vault(owner: u64) -> u64 {
 }
 
 fn set_balance_proposal(value: u128) -> BoundedCallOf<Test> {
-	let inner = pallet_balances::Call::set_balance {
+	let inner = pallet_balances::Call::force_set_balance {
 		who: 42,
 		new_free: value,
-		new_reserved: 0,
 	};
 	let outer = RuntimeCall::Balances(inner);
 	Preimage::bound(outer).unwrap()

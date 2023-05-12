@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.41", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 phala-mq = { path = "../../../crates/phala-mq", default-features = false }
 
 [features]

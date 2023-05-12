@@ -292,7 +292,7 @@ impl PinkExtBackend for CallInQuery {
                 payer.convert_to(),
                 system_code,
                 None,
-                pallet_contracts::Determinism::Deterministic,
+                pallet_contracts::Determinism::Enforced,
             )?;
         };
         Ok(Some(code_hash))

@@ -217,7 +217,7 @@ pub mod pallet {
 		/// - `deposit_per_byte` - Price for contract storage per byte.
 		/// - `treasury_account` - The treasury account used to collect the gas and storage fee.
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_cluster(
 			origin: OriginFor<T>,
 			owner: T::AccountId,
@@ -307,7 +307,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn cluster_upload_resource(
 			origin: OriginFor<T>,
 			cluster_id: ContractClusterId,
@@ -342,7 +342,7 @@ pub mod pallet {
 
 		/// Transfer `amount` of on-chain token to the `dest_account` in the cluster of id `cluster_id`.
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn transfer_to_cluster(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
@@ -388,7 +388,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn instantiate_contract(
 			origin: OriginFor<T>,
 			code_index: CodeIndex<CodeHash<T>>,
@@ -447,7 +447,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(5)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn cluster_destroy(origin: OriginFor<T>, cluster: ContractClusterId) -> DispatchResult {
 			ensure_root(origin)?;
 
@@ -458,7 +458,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(6)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pink_system_code(
 			origin: OriginFor<T>,
 			code: BoundedVec<u8, T::InkCodeSizeLimit>,
@@ -469,7 +469,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(7)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pink_runtime_version(
 			origin: OriginFor<T>,
 			version: (u32, u32),
@@ -481,7 +481,7 @@ pub mod pallet {
 
 		/// Add a new worker to a cluster
 		#[pallet::call_index(8)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_worker_to_cluster(
 			origin: OriginFor<T>,
 			worker_pubkey: WorkerPublicKey,
@@ -513,7 +513,7 @@ pub mod pallet {
 
 		/// Remove a new worker from a cluster
 		#[pallet::call_index(9)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_worker_from_cluster(
 			origin: OriginFor<T>,
 			worker_pubkey: WorkerPublicKey,

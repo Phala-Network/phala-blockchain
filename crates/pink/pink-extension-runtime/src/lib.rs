@@ -158,14 +158,16 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     ) -> Result<bool, Self::Error> {
         macro_rules! verify_with {
             ($sigtype:ident) => {{
-                sp_core::$sigtype::Pair::verify_weak(&signature, &message, &pubkey)
+                let pubkey = sp_core::$sigtype::Public::from_slice(&pubkey).map_err(|_| "Invalid public key")?;
+                let signature = sp_core::$sigtype::Signature::from_slice(&signature).ok_or("Invalid signature")?;
+                Ok(sp_core::$sigtype::Pair::verify(&signature, message, &pubkey))
             }};
         }
-        Ok(match sigtype {
+        match sigtype {
             SigType::Sr25519 => verify_with!(sr25519),
             SigType::Ed25519 => verify_with!(ed25519),
             SigType::Ecdsa => verify_with!(ecdsa),
-        })
+        }
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {

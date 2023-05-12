@@ -19,6 +19,7 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -187,7 +188,7 @@ pub mod pallet {
 		///
 		/// The wrapped pha is stored in `WrappedBalancesAccountId`'s wallet and can not be taken away
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn wrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -215,7 +216,7 @@ pub mod pallet {
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unwrap_all(origin: OriginFor<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -240,7 +241,7 @@ pub mod pallet {
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unwrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -274,7 +275,7 @@ pub mod pallet {
 		/// Can both approve and oppose a vote at the same time
 		/// The W-PHA used in vote will be locked until the vote is finished or canceled
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn vote(
 			origin: OriginFor<T>,
@@ -314,7 +315,7 @@ pub mod pallet {
 		///
 		/// Must assign the max iterations to avoid computing complexity overwhelm
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unlock(
 			origin: OriginFor<T>,
@@ -344,7 +345,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(5)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn backfill_vote_lock(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -379,7 +380,7 @@ pub mod pallet {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
 				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::WPhaAssetId::get(), who, dust)
+					pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), who, dust, Precision::BestEffort, Fortitude::Force)
 						.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
@@ -401,7 +402,13 @@ pub mod pallet {
 
 		/// Burns some W-PHA
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), target, amount)?;
+			pallet_assets::Pallet::<T>::burn_from(
+				T::WPhaAssetId::get(),
+				target,
+				amount,
+				Precision::BestEffort,
+				Fortitude::Force
+			)?;
 			Ok(())
 		}
 

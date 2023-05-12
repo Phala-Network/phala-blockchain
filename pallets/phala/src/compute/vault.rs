@@ -150,7 +150,7 @@ pub mod pallet {
 	{
 		/// Creates a new vault
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
@@ -207,7 +207,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_payout_pref(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -238,7 +238,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn claim_owner_shares(
 			origin: OriginFor<T>,
 			vault_pid: u64,
@@ -290,7 +290,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn maybe_gain_owner_shares(origin: OriginFor<T>, vault_pid: u64) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(vault_pid)?;
@@ -336,7 +336,7 @@ pub mod pallet {
 		/// Note: This function doesn't guarantee no-op when there's error.
 		/// TODO(mingxuan): add more detail comment later.
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn check_and_maybe_force_withdraw(
 			origin: OriginFor<T>,
@@ -442,7 +442,7 @@ pub mod pallet {
 		/// 1. The pool exists
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::call_index(5)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -496,7 +496,7 @@ pub mod pallet {
 		/// Afer the withdrawal is queued, The withdraw queue will be automaticly consumed util there are not enough free stakes to fullfill withdrawals.
 		/// Everytime the free stakes in the pools increases, the withdraw queue will be consumed as it describes above.
 		#[pallet::call_index(6)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -554,7 +554,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(7)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn refresh_vault_lock_and_check(origin: OriginFor<T>, pid: u64) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;

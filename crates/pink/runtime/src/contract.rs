@@ -190,9 +190,9 @@ pub fn bare_call(
     } = tx_args;
     let gas_limit = Weight::from_parts(gas_limit, 0).set_proof_size(u64::MAX);
     let determinism = if mode.deterministic_required() {
-        Determinism::Deterministic
+        Determinism::Enforced
     } else {
-        Determinism::AllowIndeterminism
+        Determinism::Relaxed
     };
     let result = contract_tx(origin.clone(), gas_limit, gas_free, move || {
         Contracts::bare_call(
