@@ -39,6 +39,9 @@ type NegativeImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::tr
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
+type PositiveImbalanceOf<T> = <<T as PhalaConfig>::Currency as frame_support::traits::Currency<
+	<T as frame_system::Config>::AccountId,
+>>::PositiveImbalance;
 // Alias
 pub use compute::base_pool as pallet_base_pool;
 pub use compute::computation as pallet_computation;
