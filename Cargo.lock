@@ -4030,9 +4030,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hex-literal"
-version = "0.3.4"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
+checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hex_fmt"
@@ -7367,9 +7367,9 @@ dependencies = [
 
 [[package]]
 name = "parity-db"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00bfb81cf5c90a222db2fb7b3a7cbf8cc7f38dfb6647aca4d98edf8281f56ed5"
+checksum = "bd4572a52711e2ccff02b4973ec7e4a5b5c23387ebbfbd6cd42b34755714cefc"
 dependencies = [
  "blake2",
  "crc32fast",
@@ -7387,9 +7387,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.4.0"
+version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "637935964ff85a605d114591d4d2c13c5d1ba2806dae97cea6bf180238a749ac"
+checksum = "5ddb756ca205bd108aee3c62c6d3c994e1df84a59b9d6d4a5ea42ee1fd5a9a28"
 dependencies = [
  "arrayvec 0.7.2",
  "bitvec",
@@ -11075,9 +11075,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info"
-version = "2.5.0"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cfdffd972d76b22f3d7f81c8be34b2296afd3a25e0a547bd9abe340a4dbbe97"
+checksum = "dfdef77228a4c05dc94211441595746732131ad7f6530c6c18f045da7b7ab937"
 dependencies = [
  "bitvec",
  "cfg-if",
@@ -11089,9 +11089,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-derive"
-version = "2.5.0"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61fa974aea2d63dd18a4ec3a49d59af9f34178c73a4f56d2f18205628d00681e"
+checksum = "53012eae69e5aa5c14671942a5dd47de59d4cdcff8532a6dd0e081faf1119482"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2 1.0.56",
@@ -13952,7 +13952,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.6",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 

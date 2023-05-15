@@ -63,4 +63,4 @@ phala-wasm-checker = { path = "../../phala-wasm-checker" }
 
 [dev-dependencies]
 insta = "1.7.2"
-hex-literal = "0.3.3"
+hex-literal = "0.4.1"
