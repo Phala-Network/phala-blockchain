@@ -4327,6 +4327,7 @@ dependencies = [
  "hex_fmt",
  "im",
  "itertools",
+ "libc",
  "log",
  "num-bigint",
  "num-traits",

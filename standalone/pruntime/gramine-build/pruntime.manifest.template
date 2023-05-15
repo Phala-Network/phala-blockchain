@@ -16,11 +16,14 @@ insecure__use_cmdline_argv = true
 #}
 insecure__allow_eventfd = true
 stack.size = "1M"
+brk.max_size = "256M"
 
 [loader.env]
 LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 {# Without this, Glibc would allocate a 64MB ARENA for each thread. #}
 MALLOC_ARENA_MAX = "1"
+{# Chunks over 256K would alloc with mmap. #}
+MALLOC_MMAP_THRESHOLD_ = "262144"
 {#
 The size of the thread pool for the tokio runtime created by rocket that
 serving the async tasks.
