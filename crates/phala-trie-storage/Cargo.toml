@@ -19,8 +19,8 @@ hash-db = "0.16.0"
 trie-db = "0.27.1"
 im = { version = "15", features = ["serde"] }
 parity-util-mem = "0.11.0"
-rocksdb = "0.19"
-librocksdb-sys = "0.8.0"
+rocksdb = "0.20"
+librocksdb-sys = "0.10.0"
 log = "0.4"
 environmental = "1"
 
