@@ -128,9 +128,9 @@ pub(crate) fn with_cache_dir<T>(cache_dir: &str, f: impl FnOnce() -> T) -> T {
 
 pub(crate) fn create_db() -> (TransactionDB<MultiThreaded>, usize) {
     let test_path = test_cached_path::with(|path| path.clone());
-    // The PRUNTIME_TRIE_CACHE_PATH would be hardcoded in the manifest when running in gramine.
+    // The PHACTORY_TRIE_CACHE_PATH would be hardcoded in the manifest when running in gramine.
     let cache_path = &test_path
-        .or_else(|| std::env::var("PRUNTIME_TRIE_CACHE_PATH").ok())
+        .or_else(|| std::env::var("PHACTORY_TRIE_CACHE_PATH").ok())
         .unwrap_or_else(|| "data/protected_files/caches".to_string());
     static NEXT_SN: AtomicUsize = AtomicUsize::new(0);
     let sn = NEXT_SN.fetch_add(1, Ordering::SeqCst);

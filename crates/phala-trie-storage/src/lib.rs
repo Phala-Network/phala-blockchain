@@ -84,12 +84,6 @@ where
     TrieBackendBuilder::new(DatabaseAdapter::Rocks(RocksHashDB::load(mdb)), root).build()
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-enum TrieState<V0, V1> {
-    V0(V0),
-    V1(V1),
-}
-
 #[cfg(feature = "serde")]
 pub fn serialize_trie_backend<H: Hasher, S>(
     trie: &KvdbBackend<H>,

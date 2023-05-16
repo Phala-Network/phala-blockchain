@@ -32,7 +32,7 @@ serving the async tasks.
 #}
 ROCKET_WORKERS = "8"
 PINK_RUNTIME_PATH = "{{ pink_runtime_mount_dir }}"
-PRUNTIME_TRIE_CACHE_PATH = "{{ trie_cache_dir }}"
+PHACTORY_TRIE_CACHE_PATH = "{{ trie_cache_dir }}"
 {#
 When enable, the pruntime will only logs with targets in the hardcoded whitelist.
 So, log from thirdparty crates will be ignored to avoid unexpected information leaks.
