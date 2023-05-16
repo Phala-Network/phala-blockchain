@@ -38,6 +38,7 @@ async function useApi() {
     const api = await ApiPromise.create({
         provider: wsProvider,
         throwOnConnect: !substrateNoRetry,
+        noInitWarn: true,
     });
     if (at) {
         if (!at.startsWith('0x') && !isNaN(at)) {
@@ -102,6 +103,19 @@ function printObject(obj, depth=3, getter=true) {
         console.log(JSON.stringify(obj, undefined, 2));
     } else {
         console.dir(obj, {depth, getter});
+    }
+}
+
+function hexOrFile(arg) {
+    if (arg.startsWith('0x')) {
+        return arg;
+    } else {
+        const data = fs.readFileSync(arg, { encoding: 'utf-8' }).trim();
+        if (!data.startsWith('0x')) {
+            console.error('File must be hex encoded.', arg);
+            process.exit(-1);
+        }
+        return data;
     }
 }
 
@@ -222,14 +236,14 @@ chain
         const api = await useApi();
         let [workerInfo, miner, pid] = await Promise.all([
             api.query.phalaRegistry.workers(workerKey),
-            api.query.phalaMining.workerBindings(workerKey),
+            api.query.phalaComputation.workerBindings(workerKey),
             api.query.phalaStakePool.workerAssignments(workerKey),
         ]);
         workerInfo = workerInfo.unwrapOr();
         miner = miner.unwrapOr();
         pid = pid.unwrapOr();
 
-        const minerInfo = miner ? await api.query.phalaMining.miners(miner) : undefined;
+        const minerInfo = miner ? await api.query.phalaComputation.miners(miner) : undefined;
         const poolInfo = pid ? await api.query.phalaStakePool.stakePools(pid) : undefined;
 
         const toObj = x => x ? (x.unwrapOr ? x.unwrapOr(undefined) : x).toJSON() : undefined;
@@ -324,6 +338,7 @@ chain
     .action(run(async (thresholdStr, callHex) => {
         const api = await useApi();
         const threshold = parseInt(thresholdStr);
+        callHex = hexOrFile(callHex);
         const call = createMotion(api, threshold, callHex);
         console.log(call.toHex());
     }))
@@ -335,6 +350,7 @@ chain
     .action(run(async (callHex) => {
         const api = await useApi();
         // Examine
+        callHex = hexOrFile(callHex);
         console.log('Building majority external proposal for:');
         console.dir(api.createType('Call', callHex).toHuman(), {depth: 10})
         // Calculate the threshold
@@ -342,15 +358,9 @@ chain
         const totalMembers = members.length;
         const threshold = Math.ceil(totalMembers * 0.75);
         // Build motion
-        const hash = blake2AsHex(callHex);
-        const legacy = api.createType('FrameSupportPreimagesBounded', {Legacy: hash});
-        const external = api.tx.democracy.externalProposeMajority(legacy).method.toHex();
-        const motionCall = createMotion(api, threshold, external);
-        const call = api.tx.utility.batchAll([
-            api.tx.preimage.notePreimage(callHex),
-            motionCall,
-        ]);
-        console.log(call.toHex());
+        const externalCall = api.tx.democracy.externalProposeMajority({ Inline: callHex });
+        const motionCall = createMotion(api, threshold, externalCall);
+        console.log(motionCall.toHex(false));
     }))
 
 // pRuntime operations
