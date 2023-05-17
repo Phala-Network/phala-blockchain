@@ -26,6 +26,7 @@ import { from } from 'rxjs';
 import { pruntime_rpc as pruntimeRpc } from "../proto";
 import { decrypt, encrypt } from "../lib/aes-256-gcm";
 import { randomHex } from "../lib/hex";
+import assert from '../lib/assert';
 
 
 export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
@@ -34,6 +35,10 @@ export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta 
 
 export interface MapMessageInkQuery<ApiType extends ApiTypes> {
   [message: string]: ContractInkQuery<ApiType>;
+}
+
+export interface PinkContractQueryOptions {
+    cert: CertificateData
 }
 
 class PinkContractSubmittableResult extends ContractSubmittableResult {
@@ -77,8 +82,8 @@ class PinkContractSubmittableResult extends ContractSubmittableResult {
 }
 
 
-function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: CertificateData, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
-  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: CertificateData, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
+function createQuery(meta: AbiMessage, fn: (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, params: unknown[]) => ContractCallResult<'promise', ContractCallOutcome>): ContractInkQuery<'promise'> {
+  return withMeta(meta, (origin: string | AccountId | Uint8Array, options: PinkContractQueryOptions, ...params: unknown[]): ContractCallResult<'promise', ContractCallOutcome> =>
     fn(origin, options, params)
   );
 }
@@ -191,9 +196,11 @@ export class PinkContractPromise {
     return this.#tx;
   }
 
-  #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, cert: CertificateData, params: unknown[]): ContractCallSend<'promise'> => {
+  #inkQuery = (isEstimating: boolean, messageOrId: AbiMessage | string | number, options: PinkContractQueryOptions, params: unknown[]): ContractCallSend<'promise'> => {
     const message = this.abi.findMessage(messageOrId);
     const api = this.api as ApiPromise
+
+    const { cert } = options
 
     // Generate a keypair for encryption
     // NOTE: each instance only has a pre-generated pair now, it maybe better to generate a new keypair every time encrypting
@@ -207,6 +214,11 @@ export class PinkContractPromise {
     );
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
+      if (typeof origin === 'string') {
+        assert(origin === cert.address, 'origin must be the same as the certificate address')
+      } else {
+        assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
+      }
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
