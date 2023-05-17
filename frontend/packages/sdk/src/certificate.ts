@@ -10,6 +10,7 @@ import { randomHex } from "./lib/hex";
 import { pruntime_rpc as pruntimeRpc } from "./proto";
 
 export type CertificateData = {
+  address: string;
   certificate: pruntimeRpc.ICertificate;
   pubkey: Uint8Array;
   secret: Uint8Array;
@@ -61,9 +62,10 @@ export const signCertificate = async (
   let signerPubkey: string;
   let signatureType = params.signatureType;
   let signature: Uint8Array;
+  let address: string;
   if (isUsingSigner(params)) {
     const { account, signer } = params;
-    const address = account.address;
+    address = account.address;
     signerPubkey = u8aToHex(decodeAddress(address));
     if (!signatureType) {
       signatureType = getSignatureTypeFromAccount(account);
@@ -80,6 +82,7 @@ export const signCertificate = async (
     }
   } else {
     const { pair } = params;
+    address = pair.address;
     signerPubkey = u8aToHex(pair.publicKey);
     if (!signatureType) {
       signatureType = getSignatureTypeFromPair(pair);
@@ -106,6 +109,7 @@ export const signCertificate = async (
   };
 
   return {
+    address,
     certificate,
     pubkey,
     secret,
