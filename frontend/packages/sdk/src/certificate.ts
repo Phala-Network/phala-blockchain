@@ -5,9 +5,17 @@ import type { Signer } from "@polkadot/types/types";
 
 import { hexAddPrefix, hexToU8a, u8aToHex } from "@polkadot/util";
 import { decodeAddress } from "@polkadot/util-crypto";
+import { KeypairType } from "@polkadot/util-crypto/types";
 import { sr25519KeypairFromSeed, waitReady } from "@polkadot/wasm-crypto";
 import { randomHex } from "./lib/hex";
 import { pruntime_rpc as pruntimeRpc } from "./proto";
+
+interface InjectedAccount {
+  address: string;
+  genesisHash?: string | null;
+  name?: string
+  type?: KeypairType;
+}
 
 export type CertificateData = {
   address: string;
@@ -23,7 +31,7 @@ interface CertificateBaseParams {
 
 interface CertificateParamsWithSigner extends CertificateBaseParams {
   signer: Signer | InjectedSigner;
-  account: KeyringPair;
+  account: InjectedAccount;
 }
 
 interface CertificateParamsWithPair extends CertificateBaseParams {
@@ -116,7 +124,7 @@ export const signCertificate = async (
   };
 };
 
-const getSignatureTypeFromAccount = (account: KeyringPair) => {
+const getSignatureTypeFromAccount = (account: KeyringPair | InjectedAccount) => {
   const keypairType = account.type || "sr25519";
   switch (keypairType) {
     case "sr25519":
