@@ -9,6 +9,7 @@ pruntime:
 e2e:
 	make -C e2e/res
 	cd e2e && yarn build:proto
+	cd frontend/packages/sdk && yarn && yarn build && rm -rf node_modules
 test:
 	cargo test --workspace --exclude node-executor --exclude phala-node
 
