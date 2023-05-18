@@ -28,7 +28,7 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       _pair = keyring.addFromUri('//Alice')
     }
     const cert = await signCertificate({ api, pair: _pair })
-    const { output } = await systemContract.query['system::getDriver'](_pair, cert, 'PinkLogger')
+    const { output } = await systemContract.query['system::getDriver'](_pair.address, cert, 'PinkLogger')
     const contractId = (output as Result<Text, any>).asOk.toHex()
     if (!contractId) {
       throw new ContractInitialError('No PinkLogger contract registered in the cluster.')

@@ -30,7 +30,7 @@ import assert from '../lib/assert';
 
 
 export interface ContractInkQuery<ApiType extends ApiTypes> extends MessageMeta {
-  (origin: KeyringPair, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
+  (origin: string | AccountId | Uint8Array, ...params: unknown[]): ContractCallResult<ApiType, ContractCallOutcome>;
 }
 
 export interface MapMessageInkQuery<ApiType extends ApiTypes> {
@@ -38,7 +38,7 @@ export interface MapMessageInkQuery<ApiType extends ApiTypes> {
 }
 
 export interface PinkContractQueryOptions {
-    cert: CertificateData
+  cert: CertificateData
 }
 
 class PinkContractSubmittableResult extends ContractSubmittableResult {
@@ -214,11 +214,15 @@ export class PinkContractPromise {
     );
 
     const inkQueryInternal = async (origin: string | AccountId | Uint8Array): Promise<ContractCallOutcome> => {
+
       if (typeof origin === 'string') {
         assert(origin === cert.address, 'origin must be the same as the certificate address')
+      } else if (origin.hasOwnProperty('verify') && origin.hasOwnProperty('adddress')) {
+        throw new Error('Contract query expected AccountId as first parameter but since we got signer object here.')
       } else {
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
+
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
