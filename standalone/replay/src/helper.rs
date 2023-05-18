@@ -13,11 +13,15 @@ use phala_types::{
     },
 };
 
-fn try_decode<T: Debug + Decode + BindTopic>(topic: &[u8], mut payload: &[u8]) -> Option<String> {
+pub(crate) fn try_decode<T: Debug + Decode + BindTopic>(topic: &[u8], mut payload: &[u8]) -> Option<T> {
     if T::topic() != topic {
         return None;
     }
-    let decoded = T::decode(&mut payload).ok()?;
+    T::decode(&mut payload).ok()
+}
+
+fn try_decode_to_str<T: Debug + Decode + BindTopic>(topic: &[u8], payload: &[u8]) -> Option<String> {
+    let decoded = try_decode::<T>(topic, payload)?;
     Some(format!("{decoded:?}"))
 }
 
@@ -25,7 +29,7 @@ pub(crate) fn try_decode_message(topic: &[u8], payload: &[u8]) -> String {
     macro_rules! try_decode {
         ($($t:ty),*) => {
             $(
-                if let Some(decoded) = try_decode::<$t>(topic, payload) {
+                if let Some(decoded) = try_decode_to_str::<$t>(topic, payload) {
                     return decoded;
                 }
             )*

@@ -81,8 +81,34 @@ impl ReplayFactory {
         self.storage
             .inner_mut()
             .apply_changes(state_root, transaction);
+        log::info!(
+            "active tokenomic parameters: {:?}",
+            &self.gk.tokenomic_params
+        );
+        let mut params = Some(self.gk.tokenomic_params.clone());
+        params = self.storage.tokenomic_parameters().map(Into::into);
+        log::info!("on-chain tokenomic parameters: {:?}", &params);
         self.handle_inbound_messages(header.number, event_tx)
             .await?;
+        {
+            let mut working_workers = 0;
+            let mut unresponsive_workers = 0;
+            for (_, worker) in self.gk.workers.iter() {
+                if worker.state.working_state.is_some() {
+                    working_workers += 1;
+                    if worker.unresponsive {
+                        unresponsive_workers += 1;
+                    }
+                }
+            }
+            log::info!(
+                "block={}, workers={}, working={}, unresponsive={}",
+                header.number,
+                self.gk.workers.len(),
+                working_workers,
+                unresponsive_workers
+            );
+        }
         self.current_block = header.number;
         Ok(())
     }
@@ -210,7 +236,43 @@ impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
             topic,
             crate::helper::try_decode_message(topic.path(), &data)
         );
+        log::info!(
+            target: "gk_egress",
+            "gk egress: to={:?}, payload=0x{}",
+            topic,
+            hex_fmt::HexFmt(&data)
+        );
+        if let Some(event) = crate::helper::try_decode::<
+            phala_types::messaging::WorkingInfoUpdateEvent<u32>,
+        >(topic.path(), &data)
+        {
+            let total_paid = event
+                .settle
+                .iter()
+                .map(|info| gk::FixedPoint::from_bits(info.payout))
+                .sum::<gk::FixedPoint>();
+            let total_treasury = event
+                .settle
+                .iter()
+                .map(|info| gk::FixedPoint::from_bits(info.treasury))
+                .sum::<gk::FixedPoint>();
+            log::info!(
+                "WorkingInfoUpdateEvent: block={}, total_paid={}, total_treasury={}, total={}",
+                event.block_number,
+                total_paid,
+                total_treasury,
+                total_paid + total_treasury,
+            );
+        }
     }
+}
+
+#[test]
+fn testit() {
+    let encoded = hex::decode("0x012001000030162700e4cdbd2c880100009de33305000000000100000001000000").unwrap();
+    let decoded: phala_types::messaging::WorkingInfoUpdateEvent<u32> =
+        parity_scale_codec::Decode::decode(&mut &encoded[..]).unwrap();
+    println!("{:#?}", decoded);
 }
 
 pub async fn fetch_genesis_storage(
