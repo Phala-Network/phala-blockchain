@@ -76,6 +76,7 @@ parameter_types! {
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
+	pub const CheckWorkerRegisterTime: bool = true;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -257,6 +258,7 @@ impl computation::Config for Test {
 	type UpdateTokenomicOrigin = EnsureRoot<Self::AccountId>;
 	type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, Self::AccountId>;
 	type SetContractRootOrigins = EnsureRoot<Self::AccountId>;
+	type CheckWorkerRegisterTime = CheckWorkerRegisterTime;
 }
 
 parameter_types! {
