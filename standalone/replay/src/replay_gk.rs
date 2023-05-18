@@ -24,6 +24,7 @@ use crate::Args;
 
 type RecordSender = mpsc::Sender<EventRecord>;
 
+#[derive(Debug)]
 struct EventRecord {
     sequence: i64,
     pubkey: WorkerPublicKey,
@@ -139,6 +140,7 @@ impl ReplayFactory {
                 if !crate::helper::is_gk_launch(&message) {
                     continue;
                 }
+                log::info!("GK launched");
                 if let Some(params) = self.storage.tokenomic_parameters() {
                     self.gk.update_tokenomic_parameters(params);
                 }
@@ -299,8 +301,17 @@ pub async fn replay(args: Args) -> Result<()> {
         last_checkpoint_block + 1
     };
 
+    let cache = args
+        .cache_uri
+        .as_ref()
+        .map(|uri| pherry::headers_cache::Client::new(uri));
+
     loop {
         loop {
+            if block_number >= args.stop_at.unwrap_or(std::u32::MAX) {
+                log::info!("Replay finished");
+                wait_forever().await;
+            }
             if let Err(err) = wait_for_block(&api, block_number, assume_finalized).await {
                 log::error!("{}", err);
                 if restart_required(&err) {
@@ -308,7 +319,9 @@ pub async fn replay(args: Args) -> Result<()> {
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::fetch_storage_changes(&api, None, block_number, block_number).await {
+            match pherry::fetch_storage_changes(&api, cache.as_ref(), block_number, block_number)
+                .await
+            {
                 Ok(mut blocks) => {
                     let mut block = blocks.pop().expect("Expected one block");
                     let (header, _hash) = pherry::get_header_at(&api, Some(block_number)).await?;
@@ -358,6 +371,12 @@ pub async fn replay(args: Args) -> Result<()> {
             };
             break api;
         }
+    }
+}
+
+async fn wait_forever() {
+    loop {
+        tokio::time::sleep(Duration::from_secs(1000)).await;
     }
 }
 
