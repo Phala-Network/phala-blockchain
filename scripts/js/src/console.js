@@ -311,7 +311,8 @@ chain
         while (true) {
             const hash = await api.rpc.chain.getBlockHash(blockNumber);
             const singedBlock = await api.rpc.chain.getBlock(hash);
-            singedBlock.block.extrinsics.forEach(({method: { args, method, section }}) => {
+            function processExtrinsic(extrinsic) {
+                const { args, method, section } = extrinsic;
                 if (method === 'syncOffchainMessage' && section === 'phalaMq') {
                     const message = args[0].message;
                     const sender = message.sender.toString();
@@ -322,6 +323,14 @@ chain
                         console.log(`block=${blockNumber}, seq=${sequence}, to=${destination}, payload_hash=${payloadHash}`);
                     }
                 }
+                if (method === 'forceBatch' && section === 'utility') {
+                    args[0].forEach((method) => {
+                        processExtrinsic(method);
+                    });
+                }
+            }
+            singedBlock.block.extrinsics.forEach(({ method }) => {
+                processExtrinsic(method);
             });
             blockNumber += 1;
             if (opt.to && blockNumber > opt.to) {

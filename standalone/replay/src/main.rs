@@ -14,11 +14,23 @@ pub struct Args {
     node_uri: String,
 
     #[arg(
+        long,
+        help = "Headers cache endpoint."
+    )]
+    cache_uri: Option<String>,
+
+    #[arg(
         default_value = "413895",
         long,
         help = "The block number to start to replay at."
     )]
     start_at: u32,
+
+    #[arg(
+        long,
+        help = "The block number to stop at."
+    )]
+    stop_at: Option<u32>,
 
     #[arg(
         default_value = "127.0.0.1:8080",
