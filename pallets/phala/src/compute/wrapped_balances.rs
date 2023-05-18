@@ -161,10 +161,7 @@ pub mod pallet {
 		type PositiveImbalance = PositiveImbalanceOf<T>;
 		type NegativeImbalance = NegativeImbalanceOf<T>;
 		fn total_balance(who: &T::AccountId) -> Self::Balance {
-			<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::total_balance(
-				T::WPhaAssetId::get(),
-				who,
-			)
+			Self::get_net_value(who.clone()).expect("Get net value should success; qed.")
 		}
 
 		fn free_balance(who: &T::AccountId) -> Self::Balance {
@@ -284,13 +281,13 @@ pub mod pallet {
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		fn can_reserve(who: &T::AccountId, value: Self::Balance) -> bool {
-			Self::free_balance(who) >= value
+			Self::total_balance(who) >= value
 		}
 		fn reserved_balance(who: &T::AccountId) -> Self::Balance {
 			ElectionReserves::<T>::get(who).unwrap_or_default()
 		}
 		fn reserve(who: &T::AccountId, value: Self::Balance) -> DispatchResult {
-			let actual = value.min(Self::free_balance(who));
+			let actual = value.min(Self::total_balance(who));
 			ElectionReserves::<T>::mutate(who, |reserve| {
 				*reserve = Some(reserve.unwrap_or_default() + actual);
 			});
@@ -346,7 +343,7 @@ pub mod pallet {
 			amount: Self::Balance,
 			_reasons: WithdrawReasons,
 		) {
-			let actual = amount.min(Self::free_balance(who));
+			let actual = amount.min(Self::total_balance(who));
 			ElectionLocks::<T>::insert(who, actual);
 		}
 		fn extend_lock(
@@ -356,7 +353,7 @@ pub mod pallet {
 			_reasons: WithdrawReasons,
 		) {
 			let current_lock = ElectionLocks::<T>::get(who).unwrap_or_default();
-			let actual = (current_lock + amount).min(Self::free_balance(who));
+			let actual = (current_lock + amount).min(Self::total_balance(who));
 			ElectionLocks::<T>::mutate(who, |locks| {
 				*locks = Some(locks.unwrap_or_default() + actual);
 			});
