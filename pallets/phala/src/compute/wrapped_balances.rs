@@ -26,7 +26,7 @@ pub mod pallet {
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
 	use scale_info::TypeInfo;
-	use sp_runtime::traits::{CheckedSub, Zero};
+	use sp_runtime::traits::Zero;
 	use sp_std::{fmt::Display, prelude::*, result::Result};
 
 	#[pallet::config]
@@ -154,7 +154,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config,
+		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		type Balance = BalanceOf<T>;
@@ -187,9 +187,13 @@ pub mod pallet {
 			)
 		}
 
-		fn deactivate(_amount: Self::Balance) {}
+		fn deactivate(_amount: Self::Balance) {
+			unimplemented!()
+		}
 
-		fn reactivate(_amount: Self::Balance) {}
+		fn reactivate(_amount: Self::Balance) {
+			unimplemented!()
+		}
 
 		fn minimum_balance() -> Self::Balance {
 			<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::minimum_balance(
@@ -198,11 +202,11 @@ pub mod pallet {
 		}
 
 		fn burn(mut _amount: Self::Balance) -> Self::PositiveImbalance {
-			Self::PositiveImbalance::zero()
+			unimplemented!()
 		}
 
 		fn issue(mut _amount: Self::Balance) -> Self::NegativeImbalance {
-			Self::NegativeImbalance::zero()
+			unimplemented!()
 		}
 
 		fn ensure_can_withdraw(
@@ -214,11 +218,7 @@ pub mod pallet {
 			if amount.is_zero() {
 				return Ok(());
 			}
-			let mut lock =
-				StakerAccounts::<T>::get(who).map_or(Zero::zero(), |status| status.locked);
-			let election_lock = ElectionLocks::<T>::get(who).unwrap_or_default();
-			let election_reserve = ElectionReserves::<T>::get(who).unwrap_or_default();
-			lock = lock.max(election_lock).max(election_reserve);
+			let lock = Self::get_election_lock(who);
 			ensure!(new_balance >= lock, Error::<T>::LiquidityRestrictions);
 			Ok(())
 		}
@@ -229,25 +229,25 @@ pub mod pallet {
 			_value: Self::Balance,
 			_existence_requirement: ExistenceRequirement,
 		) -> DispatchResult {
-			Ok(())
+			unimplemented!()
 		}
 
 		fn slash(
-			who: &T::AccountId,
+			_who: &T::AccountId,
 			_value: Self::Balance,
 		) -> (Self::NegativeImbalance, Self::Balance) {
-			(Self::NegativeImbalance::zero(), Self::total_balance(who))
+			unimplemented!()
 		}
 
 		fn deposit_into_existing(
 			_who: &T::AccountId,
 			_value: Self::Balance,
 		) -> Result<Self::PositiveImbalance, DispatchError> {
-			Ok(Self::PositiveImbalance::zero())
+			unimplemented!()
 		}
 
 		fn deposit_creating(_who: &T::AccountId, _value: Self::Balance) -> Self::PositiveImbalance {
-			Self::PositiveImbalance::zero()
+			unimplemented!()
 		}
 
 		fn withdraw(
@@ -256,14 +256,14 @@ pub mod pallet {
 			_reasons: WithdrawReasons,
 			_liveness: ExistenceRequirement,
 		) -> Result<Self::NegativeImbalance, DispatchError> {
-			Ok(Self::NegativeImbalance::zero())
+			unimplemented!()
 		}
 
 		fn make_free_balance_be(
 			_who: &T::AccountId,
 			_value: Self::Balance,
 		) -> SignedImbalance<Self::Balance, Self::PositiveImbalance> {
-			SignedImbalance::Positive(Self::PositiveImbalance::zero())
+			unimplemented!()
 		}
 	}
 
@@ -271,7 +271,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config,
+		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		fn can_reserve(who: &T::AccountId, value: Self::Balance) -> bool {
@@ -298,6 +298,9 @@ pub mod pallet {
 			who: &T::AccountId,
 			value: Self::Balance,
 		) -> (Self::NegativeImbalance, Self::Balance) {
+			if value == Zero::zero() {
+				return (NegativeImbalanceOf::<T>::zero(), Zero::zero());
+			}
 			let actual = value.min(ElectionReserves::<T>::get(who).unwrap_or_default());
 			ElectionReserves::<T>::mutate(who, |reserve| {
 				*reserve = Some(reserve.unwrap_or_default() - actual);
@@ -319,24 +322,29 @@ pub mod pallet {
 			_value: Self::Balance,
 			_status: BalanceStatus,
 		) -> Result<Self::Balance, DispatchError> {
-			Ok(Zero::zero())
+			unimplemented!()
 		}
 	}
 	impl<T: Config> LockableCurrency<T::AccountId> for Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config,
+		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		type Moment = T::BlockNumber;
 		type MaxLocks = T::MaxLocks;
 		fn set_lock(
-			_id: LockIdentifier,
+			id: LockIdentifier,
 			who: &T::AccountId,
 			amount: Self::Balance,
 			_reasons: WithdrawReasons,
 		) {
+			if amount == Zero::zero()
+				|| id != <T as pallet_elections_phragmen::Config>::PalletId::get()
+			{
+				return;
+			}
 			let actual = amount.min(Self::total_balance(who));
 			ElectionLocks::<T>::insert(who, actual);
 		}
@@ -446,11 +454,7 @@ pub mod pallet {
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
 			>>::balance(T::WPhaAssetId::get(), &user);
-			let mut locked =
-				StakerAccounts::<T>::get(&user).map_or(Zero::zero(), |status| status.locked);
-			let election_lock = ElectionLocks::<T>::get(&user).unwrap_or_default();
-			let election_reserve = ElectionReserves::<T>::get(&user).unwrap_or_default();
-			locked = locked.max(election_lock).max(election_reserve);
+			let locked = Self::get_election_lock(&user);
 			let withdraw_amount = (active_stakes - locked).min(free_stakes);
 			<T as PhalaConfig>::Currency::transfer(
 				&T::WrappedBalancesAccountId::get(),
@@ -478,11 +482,7 @@ pub mod pallet {
 				Error::<T>::UnwrapAmountExceedsAvaliableStake
 			);
 			let active_stakes = Self::get_net_value(user.clone())?;
-			let mut locked =
-				StakerAccounts::<T>::get(&user).map_or(Zero::zero(), |status| status.locked);
-			let election_lock = ElectionLocks::<T>::get(&user).unwrap_or_default();
-			let election_reserve = ElectionReserves::<T>::get(&user).unwrap_or_default();
-			locked = locked.max(election_lock).max(election_reserve);
+			let locked = Self::get_election_lock(&user);
 			ensure!(
 				amount + locked <= active_stakes,
 				Error::<T>::UnwrapAmountExceedsAvaliableStake,
@@ -731,6 +731,13 @@ pub mod pallet {
 		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
 			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id);
 			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
+		}
+
+		fn get_election_lock(who: &T::AccountId) -> BalanceOf<T> {
+			let lock = StakerAccounts::<T>::get(who).map_or(Zero::zero(), |status| status.locked);
+			let election_lock = ElectionLocks::<T>::get(who).unwrap_or_default();
+			let election_reserve = ElectionReserves::<T>::get(who).unwrap_or_default();
+			lock.max(election_lock).max(election_reserve)
 		}
 	}
 }
