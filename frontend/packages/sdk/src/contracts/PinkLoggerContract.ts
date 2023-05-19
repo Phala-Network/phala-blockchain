@@ -7,7 +7,7 @@ import type { OnChainRegistry } from '../OnChainRegistry'
 import type { InkResponse } from '../types'
 
 import { Keyring } from '@polkadot/api'
-import { hexAddPrefix, hexToU8a, stringToHex } from '@polkadot/util'
+import { hexAddPrefix, hexToU8a, stringToHex, hexToString } from '@polkadot/util'
 import { sr25519Agree, sr25519KeypairFromSeed } from "@polkadot/wasm-crypto";
 
 import { PinkContractPromise, pinkQuery } from './PinkContract'
@@ -90,7 +90,10 @@ export class PinkLoggerContractPromise extends PinkContractPromise {
       }
       throw new Error(error)
     }
-    const payload = inkResponse.result.asOk.asInkMessageReturn.toHuman() as string
+    const payload = inkResponse.result.asOk.asInkMessageReturn.toString()
+    if (payload.substring(0, 2) === '0x') {
+      return JSON.parse(hexToString(payload))
+    }
     return JSON.parse(payload)
   }
 }
