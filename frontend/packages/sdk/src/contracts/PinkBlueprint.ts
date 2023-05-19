@@ -4,7 +4,6 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import type { AbiMessage, AbiConstructor, BlueprintOptions, ContractCallOutcome } from '@polkadot/api-contract/types';
 import type { ContractCallResult, MessageMeta, MapConstructorExec } from '@polkadot/api-contract/base/types';
 import type { ApiPromise } from '@polkadot/api';
-import type { KeyringPair } from '@polkadot/keyring/types';
 
 import type { OnChainRegistry } from '../OnChainRegistry';
 import type { InkResponse, InkQueryError, AbiLike } from '../types';
@@ -15,7 +14,6 @@ import { ApiBase } from '@polkadot/api/base';
 import { BN_ZERO, isUndefined, hexAddPrefix, u8aToHex, hexToU8a } from '@polkadot/util';
 import { createBluePrintTx, withMeta } from '@polkadot/api-contract/base/util';
 import { sr25519Agree, sr25519KeypairFromSeed, sr25519Sign } from "@polkadot/wasm-crypto";
-import crypto from 'crypto';
 import { from } from 'rxjs';
 
 import { Abi } from '@polkadot/api-contract/Abi';
@@ -227,7 +225,7 @@ export class PinkBlueprintPromise {
     params: unknown[]
   ) => {
     if (!salt) {
-      salt = hex(crypto.randomBytes(4))
+      salt = randomHex(4)
     }
     const codeHash = this.abi.info.source.wasmHash.toString()
     return this.api.tx.phalaPhatContracts.instantiateContract(
@@ -279,7 +277,7 @@ export class PinkBlueprintPromise {
       } else {
         assert(origin.toString() === cert.address, 'origin must be the same as the certificate address')
       }
-      const salt = hex(crypto.randomBytes(4))
+      const salt = randomHex(4)
       const payload = api.createType("InkQuery", {
         head: {
           nonce: hexAddPrefix(randomHex(32)),
