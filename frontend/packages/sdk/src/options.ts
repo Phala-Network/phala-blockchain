@@ -4,11 +4,12 @@ import { typeDefinitions } from '@polkadot/types';
 import { types } from './lib/types';
 
 export function options(options: ApiOptions = {}): ApiOptions {
-    return {
-        types: {
-          ...types,
-          ...typeDefinitions,
-        } as unknown as ApiOptions['types'],
-        ...options
-    }
+  return {
+    ...options,
+    types: {
+      ...types,
+      ...typeDefinitions,
+      ...options.types || {},
+    } as unknown as ApiOptions['types'],
+  }
 }
