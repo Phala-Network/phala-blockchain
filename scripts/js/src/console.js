@@ -39,6 +39,17 @@ async function useApi() {
         provider: wsProvider,
         throwOnConnect: !substrateNoRetry,
         noInitWarn: true,
+        types: {
+            WorkingInfoUpdateEvent: {
+                blockNumber: "u32",
+            },
+            GatekeeperEvent: {
+                _enum: {
+                    NewRandomNumber: "WorkingInfoUpdateEvent",
+                    TokenomicParametersChanged: null,
+                }
+            }
+        }
     });
     if (at) {
         if (!at.startsWith('0x') && !isNaN(at)) {
@@ -304,12 +315,22 @@ chain
     .description('get the stake pool info')
     .option('--from <start_block>', 'Start block', '0')
     .option('--to <end_block>', 'End block', null)
+    .option('-f, --follow', 'Follow updates')
     .action(run(async (opt) => {
         const api = await useApi();
         var blockNumber = parseInt(opt.from);
 
         while (true) {
+            console.log(`Scanning block ${blockNumber}`);
             const hash = await api.rpc.chain.getBlockHash(blockNumber);
+            if (hash == '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                if (opt.follow) {
+                    await new Promise(resolve => setTimeout(resolve, 12000));
+                    continue;
+                } else {
+                    break;
+                }
+            }
             const singedBlock = await api.rpc.chain.getBlock(hash);
             function processExtrinsic(extrinsic) {
                 const { args, method, section } = extrinsic;
@@ -320,7 +341,15 @@ chain
                         const destination = message.destination.toHuman();
                         const sequence = args[0].sequence;
                         const payloadHash = blake2AsHex(message.payload);
-                        console.log(`block=${blockNumber}, seq=${sequence}, to=${destination}, payload_hash=${payloadHash}`);
+                        let srcBlock = "unknown";
+                        if (destination == '^phala/mining/update') {
+                            const msg = api.createType('WorkingInfoUpdateEvent', message.payload);
+                            srcBlock = msg.toJSON().blockNumber;
+                        } else if (destination == 'phala/gatekeeper/event') {
+                            const msg = api.createType('GatekeeperEvent', message.payload);
+                            srcBlock = msg.toJSON().newRandomNumber.blockNumber;
+                        }
+                        console.log(`block=${blockNumber}, src_block=${srcBlock}, seq=${sequence}, payload_hash=${payloadHash}, to=${destination}`);
                     }
                 }
                 if (method === 'forceBatch' && section === 'utility') {
