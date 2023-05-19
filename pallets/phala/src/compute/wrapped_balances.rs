@@ -165,13 +165,7 @@ pub mod pallet {
 		}
 
 		fn free_balance(who: &T::AccountId) -> Self::Balance {
-			let total_balance = Self::total_balance(who);
-			let lock = StakerAccounts::<T>::get(who).map_or(Zero::zero(), |status| status.locked);
-			let election_lock = ElectionLocks::<T>::get(who).unwrap_or_default();
-			let election_reserve = ElectionReserves::<T>::get(who).unwrap_or_default();
-			total_balance
-				.checked_sub(&lock.max(election_lock).max(election_reserve))
-				.unwrap_or_default()
+			Self::total_balance(who)
 		}
 
 		fn can_slash(who: &T::AccountId, value: Self::Balance) -> bool {
