@@ -4,10 +4,7 @@ use anyhow::{Context as _, Result};
 use log::{error, info};
 use scale::Encode;
 
-use pherry::{
-    headers_cache as cache,
-    types::{phaxt::ChainApi, rpc::ExtraRpcExt},
-};
+use pherry::{headers_cache as cache, types::phaxt::ChainApi};
 
 use crate::{
     db::{CacheDB, Metadata},
@@ -102,20 +99,21 @@ impl<'c> Crawler<'c> {
         .await
     }
 
+    async fn finalized_header_number(&self, para: bool) -> Result<BlockNumber> {
+        let api = if para { &self.para_api } else { &self.api };
+        let hash = api.rpc().finalized_head().await?;
+        let header = api.rpc().header(Some(hash)).await?;
+        let header_number = header.map(|h| h.number).unwrap_or_default();
+        Ok(header_number)
+    }
+
     async fn grab_headers(&mut self) -> Result<()> {
+        let latest_finalized = self.finalized_header_number(false).await?;
         let Some(next_header) = self.next_header.as_deref_mut() else {
             return Ok(());
         };
-        let state = self
-            .api
-            .extra_rpc()
-            .system_sync_state()
-            .await
-            .context("Failed to get sync state")?;
-
-        info!("Relaychain node state: {state:?}");
-        if (state.current_block as BlockNumber) < *next_header + self.config.justification_interval
-        {
+        info!("Relaychain finalized: {latest_finalized}");
+        if latest_finalized < *next_header + self.config.justification_interval {
             info!("No enough relaychain headers in node");
             return Ok(());
         }
@@ -149,11 +147,16 @@ impl<'c> Crawler<'c> {
     }
 
     async fn grab_para_headers(&mut self) -> Result<()> {
+        let latest_finalized = self.finalized_header_number(true).await?;
         let Some(next_para_header) = self.next_para_header.as_deref_mut() else {
             return Ok(());
         };
-        info!("Grabbing parachain headers start from {next_para_header}...");
-        cache::grab_para_headers(&self.para_api, *next_para_header, u32::MAX, |info| {
+        if latest_finalized < *next_para_header {
+            return Ok(());
+        }
+        let count = latest_finalized - *next_para_header + 1;
+        info!("Grabbing {count} parachain headers start from {next_para_header}...");
+        cache::grab_para_headers(&self.para_api, *next_para_header, count, |info| {
             self.db
                 .put_para_header(info.number, &info.encode())
                 .context("Failed to put record to DB")?;
@@ -170,14 +173,19 @@ impl<'c> Crawler<'c> {
     }
 
     async fn grab_storage_changes(&mut self) -> Result<()> {
+        let latest_finalized = self.finalized_header_number(true).await?;
         let Some(next_delta) = self.next_delta.as_deref_mut() else {
             return Ok(());
         };
-        info!("Grabbing storage changes start from {}...", next_delta);
+        if latest_finalized < *next_delta {
+            return Ok(());
+        }
+        let count = latest_finalized - *next_delta + 1;
+        info!("Grabbing {count} storage changes start from {next_delta}...",);
         cache::grab_storage_changes(
             &self.para_api,
             *next_delta,
-            u32::MAX,
+            count,
             self.config.grab_storage_changes_batch,
             |info| {
                 self.db
