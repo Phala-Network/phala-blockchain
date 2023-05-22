@@ -59,7 +59,8 @@ ${BIN_FILE}:
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
 	mkdir -p ${PINK_RUNTIME_DIST_DIR}
-	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}
+	cp ../pink-runtimes/* ${PINK_RUNTIME_DIST_DIR}/
+	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}/
 
 ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 	gramine-manifest \
