@@ -482,6 +482,11 @@ impl Client {
         self.request(&url).await
     }
 
+    pub async fn get_header(&self, block_number: BlockNumber) -> Result<BlockInfo> {
+        let url = format!("{}/header/{block_number}", self.base_uri);
+        self.request(&url).await
+    }
+
     pub async fn get_parachain_headers(
         &self,
         start_number: BlockNumber,
@@ -503,5 +508,33 @@ impl Client {
     pub async fn get_genesis(&self, block_number: BlockNumber) -> Result<GenesisBlockInfo> {
         let url = format!("{}/genesis/{block_number}", self.base_uri);
         self.request(&url).await
+    }
+}
+
+#[tokio::test]
+async fn cache_headers_ok() {
+    let client = Client::new("http://10.96.89.50:8002");
+    let mut next_number = 3000000;
+    let mut prev_header = client.get_parachain_headers(next_number, 1).await.unwrap()[0].clone();
+    next_number += 1;
+    loop {
+        print!("next_number: {}\r", next_number);
+        let headers = client.get_parachain_headers(next_number, 20).await.unwrap();
+        for header in headers {
+            if header.number != next_number {
+                println!("expected {}, got {}", next_number, header.number);
+                // println!("prev_header: {:?}", prev_header.header);
+                // println!("header: {:?}", header.header);
+                // break;
+            }
+            if header.parent_hash != prev_header.hash() {
+                println!("hash mismatch at {}", next_number);
+                // println!("prev_header: {:?}, just={}", prev_header.header, prev_header.justification.is_some());
+                // println!("header: {:?}, just={}", header.header, header.justification.is_some());
+                // break;
+            }
+            prev_header = header;
+            next_number += 1;
+        }
     }
 }
