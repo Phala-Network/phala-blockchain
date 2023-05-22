@@ -272,7 +272,11 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn on_genesis(&mut self) {
-        crate::runtime::on_genesis();
+        on_genesis();
+    }
+
+    fn on_runtime_upgrade(&mut self) {
+        on_runtime_upgrade();
     }
 }
 

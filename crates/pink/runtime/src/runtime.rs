@@ -8,7 +8,7 @@ use frame_support::{
     traits::ConstBool,
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
-use pallet_contracts::{Config, Frame, Schedule};
+use pallet_contracts::{Config, Frame, Migration, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
 pub use extension::get_side_effects;
@@ -166,4 +166,11 @@ fn detect_parameter_changes() {
 /// the frame_support::StorageVersion.
 pub fn on_genesis() {
     <AllPalletsWithSystem as frame_support::traits::OnGenesis>::on_genesis();
+}
+
+/// Call on_runtime_upgrade for all pallets
+pub fn on_runtime_upgrade() {
+    use frame_support::traits::OnRuntimeUpgrade;
+    type Migrations = (Migration<PinkRuntime>, AllPalletsWithSystem);
+    Migrations::on_runtime_upgrade();
 }
