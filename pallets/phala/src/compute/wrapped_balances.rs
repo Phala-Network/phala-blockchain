@@ -375,11 +375,16 @@ pub mod pallet {
 			ElectionLocks::<T>::insert(who, actual);
 		}
 		fn extend_lock(
-			_id: LockIdentifier,
+			id: LockIdentifier,
 			who: &T::AccountId,
 			amount: Self::Balance,
 			_reasons: WithdrawReasons,
 		) {
+			if amount == Zero::zero()
+			|| id != <T as pallet_elections_phragmen::Config>::PalletId::get()
+		{
+			return;
+		}
 			let current_lock = ElectionLocks::<T>::get(who);
 			let actual = (current_lock + amount).min(Self::total_balance(who));
 			ElectionLocks::<T>::mutate(who, |locks| {
