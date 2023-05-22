@@ -94,11 +94,15 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn election_locks)]
-	pub type ElectionLocks<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+	pub type ElectionLocks<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn slash_debts)]
+	pub type SlashDebts<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn election_reserves)]
-	pub type ElectionReserves<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+	pub type ElectionReserves<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -128,6 +132,10 @@ pub mod pallet {
 			aye_amount: BalanceOf<T>,
 			nay_amount: BalanceOf<T>,
 		},
+		ReserveSlashed {
+			user: T::AccountId,
+			slash: BalanceOf<T>,
+		}
 	}
 
 	#[pallet::error]
@@ -148,6 +156,8 @@ pub mod pallet {
 		LockLargerThanTotalBalance,
 
 		LiquidityRestrictions,
+
+		WphaNotSettled,
 	}
 
 	impl<T: Config> Currency<T::AccountId> for Pallet<T>
@@ -278,19 +288,19 @@ pub mod pallet {
 			Self::total_balance(who) >= value
 		}
 		fn reserved_balance(who: &T::AccountId) -> Self::Balance {
-			ElectionReserves::<T>::get(who).unwrap_or_default()
+			ElectionReserves::<T>::get(who)
 		}
 		fn reserve(who: &T::AccountId, value: Self::Balance) -> DispatchResult {
 			let actual = value.min(Self::total_balance(who));
 			ElectionReserves::<T>::mutate(who, |reserve| {
-				*reserve = Some(reserve.unwrap_or_default() + actual);
+				*reserve += actual;
 			});
 			Ok(())
 		}
 		fn unreserve(who: &T::AccountId, value: Self::Balance) -> Self::Balance {
-			let actual = value.min(ElectionReserves::<T>::get(who).unwrap_or_default());
+			let actual = value.min(ElectionReserves::<T>::get(who));
 			ElectionReserves::<T>::mutate(who, |reserve| {
-				*reserve = Some(reserve.unwrap_or_default() - actual);
+				*reserve -= actual;
 			});
 			value - actual
 		}
@@ -301,9 +311,21 @@ pub mod pallet {
 			if value == Zero::zero() {
 				return (NegativeImbalanceOf::<T>::zero(), Zero::zero());
 			}
-			let actual = value.min(ElectionReserves::<T>::get(who).unwrap_or_default());
+			let mut actual = value.min(ElectionReserves::<T>::get(who));
+			let free_wpha: BalanceOf<T> =
+			<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
+				T::WPhaAssetId::get(),
+				who,
+			);
+			if free_wpha < actual {
+				let new_debt = actual - free_wpha;
+				actual = free_wpha;
+				SlashDebts::<T>::mutate(who, |debt| {
+					*debt += new_debt;
+				});
+			}
 			ElectionReserves::<T>::mutate(who, |reserve| {
-				*reserve = Some(reserve.unwrap_or_default() - actual);
+				*reserve -= actual;
 			});
 			Self::burn_from(who, actual)
 				.expect("burn nft when slash reserved should success; qed.");
@@ -314,6 +336,10 @@ pub mod pallet {
 				ExistenceRequirement::AllowDeath,
 			)
 			.expect("slash imbalance should success; qed.");
+			Self::deposit_event(Event::<T>::ReserveSlashed{
+				user: who.clone(),
+				slash: actual,
+			});
 			(imbalance, value - actual)
 		}
 		fn repatriate_reserved(
@@ -354,10 +380,10 @@ pub mod pallet {
 			amount: Self::Balance,
 			_reasons: WithdrawReasons,
 		) {
-			let current_lock = ElectionLocks::<T>::get(who).unwrap_or_default();
+			let current_lock = ElectionLocks::<T>::get(who);
 			let actual = (current_lock + amount).min(Self::total_balance(who));
 			ElectionLocks::<T>::mutate(who, |locks| {
-				*locks = Some(locks.unwrap_or_default() + actual);
+				*locks += actual;
 			});
 		}
 		fn remove_lock(_id: LockIdentifier, who: &T::AccountId) {
@@ -412,7 +438,8 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
-		T: Config + vault::Config,
+		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
+		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		/// Wraps some pha and gain equal amount of W-PHA
 		///
@@ -422,6 +449,10 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn wrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
+			ensure!(
+				!SlashDebts::<T>::contains_key(&user),
+				Error::<T>::WphaNotSettled,
+			);
 			<T as PhalaConfig>::Currency::transfer(
 				&user,
 				&T::WrappedBalancesAccountId::get(),
@@ -450,6 +481,10 @@ pub mod pallet {
 		#[frame_support::transactional]
 		pub fn unwrap_all(origin: OriginFor<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
+			ensure!(
+				!SlashDebts::<T>::contains_key(&user),
+				Error::<T>::WphaNotSettled,
+			);
 			let active_stakes = Self::get_net_value(user.clone())?;
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
@@ -587,6 +622,33 @@ pub mod pallet {
 					account_status.locked = total_amount;
 					StakerAccounts::<T>::insert(account_id, account_status);
 				}
+			}
+			Ok(())
+		}
+		#[pallet::call_index(6)]
+		#[pallet::weight({0})]
+		#[frame_support::transactional]
+		pub fn settle_balance_debt(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let debt = SlashDebts::<T>::get(&who);
+			if debt == Zero::zero() {
+				return Ok(());
+			}
+			let free_wpha = <pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
+				T::WPhaAssetId::get(),
+				&who,
+			);
+			let slash = debt.min(free_wpha);
+			let mut new_debt = Zero::zero();
+			if debt > free_wpha {
+				new_debt = debt - free_wpha;
+			} 
+			let (imbalance, _) = Self::slash_reserved(&who, slash);
+			T::OnSlashed::on_unbalanced(imbalance);
+			if new_debt != Zero::zero() {
+				SlashDebts::<T>::insert(&who, new_debt);
+			} else {
+				SlashDebts::<T>::remove(&who);
 			}
 			Ok(())
 		}
@@ -735,8 +797,8 @@ pub mod pallet {
 
 		fn get_election_lock(who: &T::AccountId) -> BalanceOf<T> {
 			let lock = StakerAccounts::<T>::get(who).map_or(Zero::zero(), |status| status.locked);
-			let election_lock = ElectionLocks::<T>::get(who).unwrap_or_default();
-			let election_reserve = ElectionReserves::<T>::get(who).unwrap_or_default();
+			let election_lock = ElectionLocks::<T>::get(who);
+			let election_reserve = ElectionReserves::<T>::get(who);
 			lock.max(election_lock).max(election_reserve)
 		}
 	}
