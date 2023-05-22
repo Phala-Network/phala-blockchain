@@ -51,14 +51,11 @@ function humanToTyped(api, data) {
 }
 
 function createUpdateCall(api, data) {
-    return api.tx.phalaMining.updateTokenomic(data)
+    return api.tx.phalaComputation.updateTokenomic(data)
 }
 
-async function readFromChain(api, hash) {
-    const params = await (hash
-        ? api.query.phalaMining.tokenomicParameters.at(hash)
-        : api.query.phalaMining.tokenomicParameters()
-    );
+async function readFromChain(api) {
+    const params = await api.query.phalaComputation.tokenomicParameters();
     return toHuman(params.unwrap());
 }
 

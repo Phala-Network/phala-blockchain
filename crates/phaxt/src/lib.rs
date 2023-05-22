@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use scale_encode::EncodeAsType;
 use std::{ops::Deref, sync::Arc};
 
 use parity_scale_codec::{Decode, Encode};
@@ -11,7 +12,7 @@ pub mod rpc;
 
 pub use sp_core;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, PartialOrd, Ord, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, TypeInfo, PartialOrd, Ord, Debug, EncodeAsType)]
 pub struct ParaId(pub u32);
 
 pub type StorageProof = Vec<Vec<u8>>;

@@ -94,7 +94,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         let system_info = self.system.as_ref().map(|s| s.get_info());
         let score = benchmark::score();
-        let m_usage = self.platform.memory_usage();
 
         // Deprecated fields
         let registered;
@@ -150,12 +149,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             score,
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
-            memory_usage: Some(pb::MemoryUsage {
-                rust_used: m_usage.rust_used as _,
-                rust_peak_used: m_usage.rust_peak_used as _,
-                total_peak_used: m_usage.total_peak_used as _,
-                free: m_usage.free as _,
-            }),
+            memory_usage: Some(self.platform.memory_usage()),
             system: system_info,
             can_load_chain_state: self.can_load_chain_state,
             safe_mode_level: self.args.safe_mode_level as _,
@@ -1275,7 +1269,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     /// Get basic information about Phactory state.
     async fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         let info = self.lock_phactory(true, true)?.get_info();
-        info!("Got info: {:?}", info.debug_info());
+        info!("Got info: {:?} mallinfo: {:?}", info.debug_info(), unsafe {
+            libc::mallinfo()
+        });
         Ok(info)
     }
 
@@ -1952,14 +1948,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
         let receiver = try_decode_hex(&receiver).map_err(|_| from_display("Invalid receiver"))?;
         let signature =
             try_decode_hex(&signature).map_err(|_| from_display("Invalid signature"))?;
+
         // Check the validity of the state request with the remote public key
-        if !sr25519::Pair::verify_weak(
+        if !crypto::verify::<sr25519::Pair>(
+            &receiver,
             &signature,
-            wrap_content_to_sign(
+            &wrap_content_to_sign(
                 &min_block_number.to_be_bytes(),
                 SignedContentType::ClusterStateRequest,
             ),
-            &receiver,
         ) {
             return Err(from_display("Invalid signature"));
         }

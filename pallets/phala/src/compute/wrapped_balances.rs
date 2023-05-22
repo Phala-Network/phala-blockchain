@@ -19,6 +19,7 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -179,6 +180,7 @@ pub mod pallet {
 					}
 				}
 			};
+			pallet_rmrk_core::pallet::Lock::<T>::remove((collection_id, nft_id));
 			true
 		}
 		fn post_transfer(
@@ -212,7 +214,7 @@ pub mod pallet {
 		///
 		/// The wrapped pha is stored in `WrappedBalancesAccountId`'s wallet and can not be taken away
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn wrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -223,13 +225,15 @@ pub mod pallet {
 				KeepAlive,
 			)?;
 			Self::mint_into(&user, amount)?;
-			StakerAccounts::<T>::insert(
-				&user,
-				FinanceAccount::<BalanceOf<T>> {
-					invest_pools: vec![],
-					locked: Zero::zero(),
-				},
-			);
+			if !StakerAccounts::<T>::contains_key(&user) {
+				StakerAccounts::<T>::insert(
+					&user,
+					FinanceAccount::<BalanceOf<T>> {
+						invest_pools: vec![],
+						locked: Zero::zero(),
+					},
+				);
+			}
 			Self::deposit_event(Event::<T>::Wrapped { user, amount });
 			Ok(())
 		}
@@ -238,7 +242,7 @@ pub mod pallet {
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unwrap_all(origin: OriginFor<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -263,7 +267,7 @@ pub mod pallet {
 		///
 		/// The unwrapped pha is transfered from `WrappedBalancesAccountId` to the user's wallet
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unwrap(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			let user = ensure_signed(origin)?;
@@ -297,7 +301,7 @@ pub mod pallet {
 		/// Can both approve and oppose a vote at the same time
 		/// The W-PHA used in vote will be locked until the vote is finished or canceled
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn vote(
 			origin: OriginFor<T>,
@@ -337,7 +341,7 @@ pub mod pallet {
 		///
 		/// Must assign the max iterations to avoid computing complexity overwhelm
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn unlock(
 			origin: OriginFor<T>,
@@ -365,8 +369,26 @@ pub mod pallet {
 
 			Ok(())
 		}
-	}
 
+		#[pallet::call_index(5)]
+		#[pallet::weight({0})]
+		#[frame_support::transactional]
+		pub fn backfill_vote_lock(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			base_pool::Pallet::<T>::ensure_migration_root(who)?;
+			let mut iter = VoteAccountMap::<T>::iter();
+			for (_, account_id, (aye_amount, nay_amount)) in iter.by_ref() {
+				let mut account_status = StakerAccounts::<T>::get(&account_id)
+					.expect("account_status should be found when it already voted; qed.");
+				let total_amount = aye_amount + nay_amount;
+				if account_status.locked < total_amount {
+					account_status.locked = total_amount;
+					StakerAccounts::<T>::insert(account_id, account_status);
+				}
+			}
+			Ok(())
+		}
+	}
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
@@ -384,7 +406,7 @@ pub mod pallet {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
 				let actual_removed =
-					pallet_assets::Pallet::<T>::slash(T::WPhaAssetId::get(), who, dust)
+					pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), who, dust, Precision::BestEffort, Fortitude::Force)
 						.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
@@ -406,7 +428,13 @@ pub mod pallet {
 
 		/// Burns some W-PHA
 		pub fn burn_from(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), target, amount)?;
+			pallet_assets::Pallet::<T>::burn_from(
+				T::WPhaAssetId::get(),
+				target,
+				amount,
+				Precision::BestEffort,
+				Fortitude::Force
+			)?;
 			Ok(())
 		}
 

@@ -26,15 +26,37 @@ mod sidevm_deployer {
         pub fn default() -> Self {
             Self {
                 owner: Self::env().caller(),
-                whitelist: Default::default()
+                whitelist: Default::default(),
             }
         }
+
+        #[ink(message)]
+        pub fn owner(&self) -> AccountId {
+            self.owner
+        }
+
         #[ink(message)]
         pub fn allow(&mut self, contract: AccountId) -> Result<()> {
             if self.env().caller() != self.owner {
                 return Err(Error::BadOrigin);
             }
             self.whitelist.insert(contract, &());
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn version(&self) -> this_crate::VersionTuple {
+            this_crate::version_tuple!()
+        }
+
+        /// For self upgrade.
+        #[ink(message)]
+        pub fn set_code(&self, code_hash: pink::Hash) -> Result<()> {
+            if self.env().caller() != self.owner {
+                return Err(Error::BadOrigin);
+            }
+            ink::env::set_code_hash(&code_hash).expect("Failed to set code hash");
+            pink::info!("Switched code hash to {:?}.", code_hash);
             Ok(())
         }
     }

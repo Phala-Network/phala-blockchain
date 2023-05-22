@@ -1006,6 +1006,7 @@ impl<MsgChan: MessageChannel<Signer = Sr25519Signer>> ComputingEconomics<MsgChan
             event: WorkerEvent::Registered(_),
         }) = &event
         {
+            trace!(target: "gk_computing", "Creating worker state for: {}",  hex_fmt::HexFmt(pubkey));
             let _ = self
                 .workers
                 .entry(*pubkey)

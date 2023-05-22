@@ -1170,6 +1170,7 @@ fn restart_computing_should_work() {
 			RuntimeOrigin::signed(2),
 			500 * DOLLARS
 		));
+		set_block_1();
 		setup_workers(1);
 		setup_stake_pool_with_workers(1, &[1]); // pid=0
 		assert_ok!(PhalaStakePoolv2::contribute(
@@ -2001,7 +2002,7 @@ fn mock_asset_id() {
 		<Test as wrapped_balances::Config>::WPhaAssetId::get(),
 		1,
 		true,
-		1000000000,
+		100000000,
 	)
 	.expect("create should success .qed");
 }
@@ -2033,10 +2034,9 @@ fn setup_vault(owner: u64) -> u64 {
 }
 
 fn set_balance_proposal(value: u128) -> BoundedCallOf<Test> {
-	let inner = pallet_balances::Call::set_balance {
+	let inner = pallet_balances::Call::force_set_balance {
 		who: 42,
 		new_free: value,
-		new_reserved: 0,
 	};
 	let outer = RuntimeCall::Balances(inner);
 	Preimage::bound(outer).unwrap()

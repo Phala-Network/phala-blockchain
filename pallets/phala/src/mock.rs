@@ -71,12 +71,13 @@ parameter_types! {
 	pub const MinWorkingStaking: Balance = DOLLARS;
 	pub const MinContribution: Balance = CENTS;
 	pub const WorkingGracePeriod: u64 = 7 * 24 * 3600;
+	pub const VaultQueuePeriod: u64 = 21 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
-	pub const ComputingEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const NoneAttestationEnabled: bool = true;
 	pub const VerifyPRuntime: bool = false;
 	pub const VerifyRelaychainGenesisBlockHash: bool = true;
+	pub const CheckWorkerRegisterTime: bool = true;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -128,6 +129,10 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<1>;
+	type MaxFreezes = ConstU32<1>;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -269,6 +274,7 @@ impl computation::Config for Test {
 	type UpdateTokenomicOrigin = EnsureRoot<Self::AccountId>;
 	type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, Self::AccountId>;
 	type SetContractRootOrigins = EnsureRoot<Self::AccountId>;
+	type CheckWorkerRegisterTime = CheckWorkerRegisterTime;
 }
 
 parameter_types! {
@@ -397,9 +403,7 @@ impl stake_pool_v2::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MinContribution = MinContribution;
 	type GracePeriod = WorkingGracePeriod;
-	type ComputingEnabledByDefault = ComputingEnabledByDefault;
 	type MaxPoolWorkers = MaxPoolWorkers;
-	type ComputingSwitchOrigin = EnsureRoot<Self::AccountId>;
 }
 
 parameter_types! {
@@ -410,6 +414,7 @@ parameter_types! {
 impl vault::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type InitialPriceCheckPoint = InitialPriceCheckPoint;
+	type VaultQueuePeriod = VaultQueuePeriod;
 }
 
 impl base_pool::Config for Test {
@@ -472,6 +477,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
 pub fn set_block_1() {
 	System::set_block_number(1);
+	Timestamp::set_timestamp(1);
+	PhalaRegistry::internal_set_gk_launched_at(0, 0);
 }
 
 pub fn take_events() -> Vec<RuntimeEvent> {

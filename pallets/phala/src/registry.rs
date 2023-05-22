@@ -117,6 +117,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
+	/// The block number and unix timestamp when the gatekeeper is launched
+	#[pallet::storage]
+	pub type GatekeeperLaunchedAt<T: Config> = StorageValue<_, (T::BlockNumber, u64)>;
+
 	/// The rotation counter starting from 1, it always equals to the latest rotation id.
 	/// The totation id 0 is reserved for the first master key before we introduce the rotation.
 	#[pallet::storage]
@@ -234,6 +238,7 @@ pub mod pallet {
 		},
 		MinimumPRuntimeVersionChangedTo(u32, u32, u32),
 		PRuntimeConsensusVersionChangedTo(u32),
+		GatekeeperLaunched,
 	}
 
 	#[pallet::error]
@@ -318,7 +323,7 @@ pub mod pallet {
 				pubkey,
 				ecdh_pubkey,
 				runtime_version: 0,
-				last_updated: 0,
+				last_updated: 1,
 				operator,
 				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
@@ -477,7 +482,7 @@ pub mod pallet {
 		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
 		/// anyone on behalf of a worker.
 		#[pallet::call_index(6)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn register_worker(
 			origin: OriginFor<T>,
 			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
@@ -577,7 +582,7 @@ pub mod pallet {
 		/// Usually called by a bridging relayer program (`pherry` and `prb`). Can be called by
 		/// anyone on behalf of a worker.
 		#[pallet::call_index(7)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn register_worker_v2(
 			origin: OriginFor<T>,
 			pruntime_info: WorkerRegistrationInfoV2<T::AccountId>,
@@ -691,7 +696,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(8)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
 			endpoint_payload: WorkerEndpointPayload,
@@ -738,7 +743,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(9)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
@@ -761,7 +766,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(10)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
@@ -783,7 +788,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(11)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
 			genesis_block_hash: H256,
@@ -806,7 +811,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(12)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_relaychain_genesis_block_hash(
 			origin: OriginFor<T>,
 			genesis_block_hash: H256,
@@ -829,7 +834,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(13)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_minimum_pruntime_version(
 			origin: OriginFor<T>,
 			major: u32,
@@ -849,7 +854,7 @@ pub mod pallet {
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(14)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_pruntime_consensus_version(
 			origin: OriginFor<T>,
 			version: u32,
@@ -928,7 +933,7 @@ pub mod pallet {
 					Workers::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.initial_score = Some(score);
-							val.last_updated = now;
+							val.last_updated = now / 1000;
 						}
 					});
 
@@ -959,6 +964,7 @@ pub mod pallet {
 							Self::push_message(GatekeeperLaunch::master_pubkey_on_chain(
 								master_pubkey,
 							));
+							Self::on_gatekeeper_launched();
 						}
 					}
 				}
@@ -999,6 +1005,23 @@ pub mod pallet {
 			Ok(())
 		}
 
+		fn on_gatekeeper_launched() {
+			let block_number = frame_system::Pallet::<T>::block_number();
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			GatekeeperLaunchedAt::<T>::put((block_number, now));
+			Self::deposit_event(Event::<T>::GatekeeperLaunched);
+		}
+
+		pub fn is_worker_registered_after_gk_launched(worker: &WorkerPublicKey) -> bool {
+			let Some(worker_added_at) = WorkerAddedAt::<T>::get(worker) else {
+				return false;
+			};
+			let Some((gk_launched_at, _)) = GatekeeperLaunchedAt::<T>::get() else {
+				return false;
+			};
+			worker_added_at > gk_launched_at
+		}
+
 		#[cfg(test)]
 		pub(crate) fn internal_set_benchmark(worker: &WorkerPublicKey, score: Option<u32>) {
 			Workers::<T>::mutate(worker, |w| {
@@ -1006,6 +1029,11 @@ pub mod pallet {
 					w.initial_score = score;
 				}
 			});
+		}
+
+		#[cfg(test)]
+		pub(crate) fn internal_set_gk_launched_at(block: T::BlockNumber, ts: u64) {
+			GatekeeperLaunchedAt::<T>::put((block, ts));
 		}
 	}
 

@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use alloc::vec;
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
@@ -97,11 +99,19 @@ impl Signature {
     }
 }
 
-fn verify<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> bool
+pub fn verify<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> bool
 where
     T: sp_core::crypto::Pair,
+    T::Public: for<'a> TryFrom<&'a [u8]>,
+    T::Signature: for<'a> TryFrom<&'a [u8]>,
 {
-    T::verify_weak(sig, msg, pubkey)
+    let Ok(public) = T::Public::try_from(pubkey) else {
+        return false;
+    };
+    let Ok(signature) = T::Signature::try_from(sig) else {
+        return false;
+    };
+    T::verify(&signature, msg, &public)
 }
 
 /// Wraps the message in the same format as it defined in Polkadot.js extension:

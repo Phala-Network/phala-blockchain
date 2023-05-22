@@ -1,6 +1,6 @@
 [package]
 name = "system"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["[your_name] <[your_email]>"]
 edition = "2021"
 
@@ -10,6 +10,7 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.4", default-features = false, path = "../../pink/pink-extension" }
+this-crate = { path = "../../this-crate" }
 
 [lib]
 name = "system"

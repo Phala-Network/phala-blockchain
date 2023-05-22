@@ -24,7 +24,10 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			tokens::fungibles::Transfer,
+			tokens::{
+				fungibles::Mutate,
+				Preservation,
+			},
 			StorageVersion, UnixTime,
 		},
 	};
@@ -62,16 +65,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type GracePeriod: Get<u64>;
 
-		/// If computing is enabled by default.
-		#[pallet::constant]
-		type ComputingEnabledByDefault: Get<bool>;
-
 		/// The max allowed workers in a pool
 		#[pallet::constant]
 		type MaxPoolWorkers: Get<u32>;
-
-		/// The origin that can turn on or off computing
-		type ComputingSwitchOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -94,16 +90,6 @@ pub mod pallet {
 	// TODO: remove it
 	#[pallet::storage]
 	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
-
-	/// Switch to enable the stake pool pallet (disabled by default)
-	#[pallet::storage]
-	#[pallet::getter(fn working_enabled)]
-	pub type WorkingEnabled<T> = StorageValue<_, bool, ValueQuery, ComputingEnabledByDefault<T>>;
-
-	#[pallet::type_value]
-	pub fn ComputingEnabledByDefault<T: Config>() -> bool {
-		T::ComputingEnabledByDefault::get()
-	}
 
 	/// Helper storage to track the preimage of the computing sub-accounts. Not used in consensus.
 	#[pallet::storage]
@@ -320,10 +306,10 @@ pub mod pallet {
 	{
 		/// Creates a new stake pool
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
+			let owner = ensure_signed(origin.clone())?;
 			let pid = base_pool::Pallet::<T>::consume_new_pid();
 			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
@@ -340,6 +326,7 @@ pub mod pallet {
 				None,
 				symbol,
 			)?;
+			let _ = pallet_uniques::Pallet::<T>::thaw_collection(Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(), collection_id)?;
 			let account_id =
 				base_pool::pallet::generate_staker_account::<T::AccountId>(pid, owner.clone());
 			let (owner_reward_account, lock_account) =
@@ -385,7 +372,7 @@ pub mod pallet {
 		/// 1. The worker is registered and benchmarked
 		/// 2. The worker is not bound a pool
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn add_worker(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -454,7 +441,7 @@ pub mod pallet {
 		/// 2. The worker is associated with a pool
 		/// 3. The worker is removable (not in computing)
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn remove_worker(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -494,7 +481,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_cap(origin: OriginFor<T>, pid: u64, cap: BalanceOf<T>) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
@@ -522,7 +509,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn set_payout_pref(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -548,7 +535,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(5)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn claim_legacy_rewards(
 			origin: OriginFor<T>,
@@ -570,7 +557,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The sender is a pool owner
 		#[pallet::call_index(6)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn claim_owner_rewards(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -585,12 +572,12 @@ pub mod pallet {
 			);
 			let rewards = pool_info.get_owner_stakes::<T>();
 			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.owner_reward_account,
 				&target,
 				rewards,
-				false,
+				Preservation::Expendable,
 			)?;
 			Self::deposit_event(Event::<T>::OwnerRewardsWithdrawn {
 				pid,
@@ -607,7 +594,7 @@ pub mod pallet {
 		/// Note: This function doesn't guarantee no-op when there's error.
 		/// TODO(mingxuan): add more detail comment later.
 		#[pallet::call_index(7)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -630,6 +617,7 @@ pub mod pallet {
 				&pool.basepool,
 				now,
 				grace_period,
+				None,
 				releasing_stake,
 			) {
 				for worker in pool.workers.iter() {
@@ -656,7 +644,7 @@ pub mod pallet {
 		/// 1. The pool exists
 		/// 2. After the deposit, the pool doesn't reach the cap
 		#[pallet::call_index(8)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn contribute(
 			origin: OriginFor<T>,
@@ -668,6 +656,10 @@ pub mod pallet {
 			let mut maybe_vault = None;
 			if let Some(vault_pid) = as_vault {
 				let vault_info = ensure_vault::<T>(vault_pid)?;
+				ensure!(
+					!vault::pallet::VaultLocks::<T>::contains_key(vault_pid),
+					Error::<T>::VaultIsLocked
+				);
 				ensure!(
 					who == vault_info.basepool.owner,
 					Error::<T>::UnauthorizedPoolOwner
@@ -753,7 +745,7 @@ pub mod pallet {
 		/// Afer the withdrawal is queued, The withdraw queue will be automaticly consumed util there are not enough free stakes to fullfill withdrawals.
 		/// Everytime the free stakes in the pools increases (except for rewards distributing), the withdraw queue will be consumed as it describes above.
 		#[pallet::call_index(9)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn withdraw(
 			origin: OriginFor<T>,
@@ -836,7 +828,7 @@ pub mod pallet {
 		/// 1. The worker is bound to the pool and is in Ready state
 		/// 2. The remaining stake in the pool can cover the minimal stake required
 		#[pallet::call_index(10)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn start_computing(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -853,7 +845,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. There worker is bound to the pool and is in a stoppable state
 		#[pallet::call_index(11)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn stop_computing(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -865,7 +857,7 @@ pub mod pallet {
 
 		/// Reclaims the releasing stake of a worker in a pool.
 		#[pallet::call_index(12)]
-		#[pallet::weight(0)]
+		#[pallet::weight({0})]
 		pub fn reclaim_pool_worker(
 			origin: OriginFor<T>,
 			pid: u64,
@@ -877,18 +869,9 @@ pub mod pallet {
 			Self::do_reclaim(pid, sub_account, worker, true).map(|_| ())
 		}
 
-		/// Enables or disables computing. Must be called with the council or root permission.
-		#[pallet::call_index(13)]
-		#[pallet::weight(0)]
-		pub fn set_working_enabled(origin: OriginFor<T>, enable: bool) -> DispatchResult {
-			T::ComputingSwitchOrigin::ensure_origin(origin)?;
-			WorkingEnabled::<T>::put(enable);
-			Ok(())
-		}
-
 		/// Restarts the worker with a higher stake
-		#[pallet::call_index(14)]
-		#[pallet::weight(195_000_000)]
+		#[pallet::call_index(13)]
+		#[pallet::weight(Weight::from_parts(195_000_000, 0))]
 		#[frame_support::transactional]
 		pub fn restart_computing(
 			origin: OriginFor<T>,
@@ -945,12 +928,12 @@ pub mod pallet {
 			);
 			let session: T::AccountId = pool_sub_account(pid, &worker);
 			computation::pallet::Pallet::<T>::start_computing(session, stake)?;
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.basepool.pool_account_id,
 				&pool_info.lock_account,
 				stake,
-				false,
+				Preservation::Expendable,
 			)?;
 			base_pool::pallet::Pools::<T>::insert(pid, PoolProxy::StakePool(pool_info));
 			Self::deposit_event(Event::<T>::WorkingStarted {
@@ -966,7 +949,6 @@ pub mod pallet {
 			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure!(Self::working_enabled(), Error::<T>::FeatureNotEnabled);
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			// origin must be owner of pool
 			ensure!(
@@ -1079,12 +1061,12 @@ pub mod pallet {
 			}
 
 			// With the worker being cleaned, those stake now are free
-			<pallet_assets::pallet::Pallet<T> as Transfer<T::AccountId>>::transfer(
+			<pallet_assets::pallet::Pallet<T> as Mutate<T::AccountId>>::transfer(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
 				&pool_info.lock_account,
 				&pool_info.basepool.pool_account_id,
 				returned,
-				false,
+				Preservation::Expendable,
 			)
 			.expect("transfer should not fail");
 
@@ -1131,7 +1113,7 @@ pub mod pallet {
 							worker: info.pubkey,
 							amount: reward,
 						});
-						return;
+						continue;
 					}
 				};
 				let mut pool_info =

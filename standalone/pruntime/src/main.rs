@@ -94,6 +94,8 @@ async fn main() -> Result<(), rocket::Error> {
 
 #[tracing::instrument(name = "main", skip_all)]
 async fn serve(sgx: bool) -> Result<(), rocket::Error> {
+    let args = Args::parse();
+
     info!(sgx, "Starting pruntime...");
 
     let sealing_path;
@@ -116,8 +118,6 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
         mkdir(sealing_path);
         mkdir(storage_path);
     }
-
-    let args = Args::parse();
 
     if let Some(address) = &args.address {
         env::set_var("ROCKET_ADDRESS", address);

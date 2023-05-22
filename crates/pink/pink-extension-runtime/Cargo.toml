@@ -3,13 +3,13 @@ description = "Mock pink chain extension for Phala pink contract"
 homepage = "https://github.com/Phala-Network/phala-blockchain"
 license = "Apache-2.0"
 name = "pink-extension-runtime"
-version = "0.4.0"
+version = "0.4.2"
 edition = "2021"
 
 [dependencies]
-pink-extension = { version = "0.4.0", path = "../pink-extension" }
+pink-extension = { version = "0.4.2", path = "../pink-extension" }
 reqwest-env-proxy = { version = "0.1", path = "../../reqwest-env-proxy" }
-sp-core = { version = "7" }
+sp-core = { version = "7", features = ["full_crypto"] }
 sp-runtime-interface = { version = "7", features = ["disable_target_static_assertions"] }
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks", "blocking"] }
 log = "0.4"

@@ -45,10 +45,13 @@ function calculateReturnSlash(minerInfo, origStake) {
 }
 
 function createMotion(api, threshold, call) {
-    const callHex = (typeof call == 'string') ? call : u8aToHex(call);
-    const lengthBound = ((callHex.length / 2) | 0) + 10;
-    const bareCall = api.createType('Call', callHex);
-    return api.tx.council.propose(threshold, bareCall, lengthBound);
+    let bareCall;
+    if (typeof call == 'string' && call.startsWith('0x')) {
+        bareCall = api.createType('Call', call);
+    } else {
+        bareCall = call;
+    }
+    return api.tx.council.propose(threshold, bareCall, bareCall.toU8a().length + 50);
 }
 
 module.exports = {

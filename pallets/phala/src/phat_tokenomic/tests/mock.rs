@@ -78,6 +78,10 @@ impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<1>;
+	type MaxFreezes = ConstU32<1>;
 }
 
 impl pallet_timestamp::Config for Test {

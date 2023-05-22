@@ -145,9 +145,9 @@ impl ecall::ECalls for ECallImpl {
             code,
             None,
             if deterministic {
-                Determinism::Deterministic
+                Determinism::Enforced
             } else {
-                Determinism::AllowIndeterminism
+                Determinism::Relaxed
             },
         )
         .map(|v| v.code_hash)

@@ -124,10 +124,11 @@ impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
         let stats = ALLOCATOR.stats();
         MemoryUsage {
-            total_peak_used: vm_peak().unwrap_or_default() * 1024,
-            rust_used: stats.current_used,
-            rust_peak_used: stats.peak_used,
-            free: mem_free().unwrap_or_default() * 1024,
+            total_peak_used: (vm_peak().unwrap_or_default() * 1024) as _,
+            rust_used: stats.current as _,
+            rust_peak_used: stats.peak as _,
+            free: (mem_free().unwrap_or_default() * 1024) as _,
+            rust_spike: stats.spike as _,
         }
     }
 }
@@ -187,4 +188,5 @@ pub(crate) fn print_target_info() {
     } else {
         println!("Running in Native mode");
     }
+    println!("git revision: {}", phala_git_revision::git_revision());
 }
