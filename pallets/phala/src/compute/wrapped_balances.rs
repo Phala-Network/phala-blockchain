@@ -228,7 +228,7 @@ pub mod pallet {
 			if amount.is_zero() {
 				return Ok(());
 			}
-			let lock = Self::get_election_lock(who);
+			let lock = Self::get_lock(who);
 			ensure!(new_balance >= lock, Error::<T>::LiquidityRestrictions);
 			Ok(())
 		}
@@ -494,7 +494,7 @@ pub mod pallet {
 			let free_stakes: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
 			>>::balance(T::WPhaAssetId::get(), &user);
-			let locked = Self::get_election_lock(&user);
+			let locked = Self::get_lock(&user);
 			let withdraw_amount = (active_stakes - locked).min(free_stakes);
 			<T as PhalaConfig>::Currency::transfer(
 				&T::WrappedBalancesAccountId::get(),
@@ -522,7 +522,7 @@ pub mod pallet {
 				Error::<T>::UnwrapAmountExceedsAvaliableStake
 			);
 			let active_stakes = Self::get_net_value(user.clone())?;
-			let locked = Self::get_election_lock(&user);
+			let locked = Self::get_lock(&user);
 			ensure!(
 				amount + locked <= active_stakes,
 				Error::<T>::UnwrapAmountExceedsAvaliableStake,
@@ -800,7 +800,7 @@ pub mod pallet {
 			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
 		}
 
-		fn get_election_lock(who: &T::AccountId) -> BalanceOf<T> {
+		fn get_lock(who: &T::AccountId) -> BalanceOf<T> {
 			let lock = StakerAccounts::<T>::get(who).map_or(Zero::zero(), |status| status.locked);
 			let election_lock = ElectionLocks::<T>::get(who);
 			let election_reserve = ElectionReserves::<T>::get(who);
