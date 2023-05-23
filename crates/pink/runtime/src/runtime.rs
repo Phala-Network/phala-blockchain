@@ -8,6 +8,7 @@ use frame_support::{
     traits::ConstBool,
     weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
+use log::info;
 use pallet_contracts::{Config, Frame, Migration, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
@@ -173,4 +174,5 @@ pub fn on_runtime_upgrade() {
     use frame_support::traits::OnRuntimeUpgrade;
     type Migrations = (Migration<PinkRuntime>, AllPalletsWithSystem);
     Migrations::on_runtime_upgrade();
+    info!("Runtime database migration done");
 }
