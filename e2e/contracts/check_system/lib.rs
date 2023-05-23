@@ -108,6 +108,11 @@ mod check_system {
         ) -> Result<js::Output, String> {
             js::eval_bytecode(delegate, script, args)
         }
+
+        #[ink(message)]
+        pub fn runtime_version(&self) -> (u32, u32) {
+            pink::ext().runtime_version()
+        }
     }
 
     impl ContractDeposit for CheckSystem {

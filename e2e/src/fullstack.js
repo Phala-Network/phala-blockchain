@@ -769,6 +769,17 @@ describe('A full stack', function () {
             }, 4 * 6000), 'upload system code failed');
         });
 
+        it('can upgrade runtime', async function () {
+            await assert.txAccepted(
+                ContractSystem.tx['system::upgradeRuntime'](txConfig, [1, 1]),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query['runtimeVersion'](alice, certAlice);
+                return output?.eq({ Ok: [1, 1] })
+            }, 4 * 6000), 'Upgrade runtime failed');
+        });
+
         it('can upgrade system contract', async function () {
             await assert.txAccepted(
                 ContractSystem.tx['system::upgradeSystemContract'](txConfig),
