@@ -161,3 +161,9 @@ fn detect_parameter_changes() {
         <PinkRuntime as Config>::MaxStorageKeyLen::get(),
     ));
 }
+
+/// Call on_genesis for all pallets. This would put the each pallet's storage version into
+/// the frame_support::StorageVersion.
+pub fn on_genesis() {
+    <AllPalletsWithSystem as frame_support::traits::OnGenesis>::on_genesis();
+}
