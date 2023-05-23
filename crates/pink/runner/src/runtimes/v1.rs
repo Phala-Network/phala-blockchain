@@ -25,7 +25,7 @@ pub fn get_runtime(version: (u32, u32)) -> &'static Runtime {
     match version {
         (1, 0) => &RUNTIME_1_0,
         (1, 1) => &RUNTIME_1_1,
-        _ => panic!("Unsupported runtime version: {:?}", version),
+        _ => panic!("Unsupported runtime version: {version:?}"),
     }
 }
 
