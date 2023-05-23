@@ -18,11 +18,11 @@ serde = { version = "1.0", default-features = false, features = ["derive", "allo
 hash-db = "0.16.0"
 trie-db = "0.27.1"
 im = { version = "15", features = ["serde"] }
-parity-util-mem = "0.11.0"
 rocksdb = "0.20"
 librocksdb-sys = "0.10.0"
 log = "0.4"
 environmental = "1"
+immutable_env = { version = "0.1.0", path = "../immutable_env" }
 
 [dev-dependencies]
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }

@@ -54,6 +54,7 @@ members = [
 	"crates/phala-types",
 	"crates/phala-git-revision",
 	"crates/prpc",
+	"crates/immutable_env",
 	"crates/prpc-build",
 	"crates/phactory",
 	"crates/phactory/api",

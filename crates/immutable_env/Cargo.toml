@@ -1,0 +1,11 @@
+[package]
+name = "immutable_env"
+version = "0.1.0"
+edition = "2021"
+description = "Immutable environment variables which are taken from the environment when the program starts and never change."
+license = "MIT"
+repository = "https://github.com/Phala-Network/phala-blockchain"
+authors = ["Kevin Wang <wy721@qq.com>"]
+
+[dependencies]
+ctor = "0.2"
