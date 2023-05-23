@@ -120,7 +120,7 @@ pub trait System {
 
     /// Upgrade the contract runtime
     #[ink(message)]
-    fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()>;
+    fn upgrade_runtime(&mut self, version: (u32, u32)) -> Result<()>;
 
     /// Check if the code is already uploaded to the cluster with given code hash.
     #[ink(message)]
