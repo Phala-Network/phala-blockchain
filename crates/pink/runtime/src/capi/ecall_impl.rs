@@ -14,7 +14,10 @@ use scale::Encode;
 
 use crate::{
     contract::check_instantiate_result,
-    runtime::{Balances as PalletBalances, Contracts as PalletContracts, Pink as PalletPink},
+    runtime::{
+        on_genesis, on_runtime_upgrade, Balances as PalletBalances, Contracts as PalletContracts,
+        Pink as PalletPink,
+    },
 };
 
 use super::OCallImpl;
@@ -57,6 +60,7 @@ impl ecall::ECalls for ECallImpl {
         PalletPink::cluster_id()
     }
     fn setup(&mut self, config: ClusterSetupConfig) -> Result<(), String> {
+        on_genesis();
         let ClusterSetupConfig {
             cluster_id,
             owner,
