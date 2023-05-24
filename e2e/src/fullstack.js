@@ -620,6 +620,19 @@ describe('A full stack', function () {
             ContractSystemChecker = new Phala.PinkContractPromise(api, registry, checkerMetadata, contractId, contractKey)
         });
 
+        it('can upgrade runtime', async function () {
+            const info = await pruntime[0].getInfo();
+            const maxVersion = info.maxSupportedPinkRuntimeVersion.split('.').map(Number);
+            await assert.txAccepted(
+                ContractSystem.tx['system::upgradeRuntime'](txConfig, maxVersion),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query['runtimeVersion'](alice, certAlice);
+                return output?.eq({ Ok: maxVersion })
+            }, 4 * 6000), 'Upgrade runtime failed');
+        });
+
         it('can not set hook without admin permission', async function () {
             // Give some money to the ContractSystemChecker to run the on_block_end
             await assert.txAccepted(
@@ -767,17 +780,6 @@ describe('A full stack', function () {
                 let code = await api.query.phalaPhatContracts.pinkSystemCode();
                 return code[1] == systemCode;
             }, 4 * 6000), 'upload system code failed');
-        });
-
-        it('can upgrade runtime', async function () {
-            await assert.txAccepted(
-                ContractSystem.tx['system::upgradeRuntime'](txConfig, [1, 1]),
-                alice,
-            );
-            assert.isTrue(await checkUntil(async () => {
-                const { output } = await ContractSystemChecker.query['runtimeVersion'](alice, certAlice);
-                return output?.eq({ Ok: [1, 1] })
-            }, 4 * 6000), 'Upgrade runtime failed');
         });
 
         it('can upgrade system contract', async function () {
