@@ -192,5 +192,12 @@ pub mod ocall {
             contract: AccountId,
             request: HttpRequest,
         ) -> Result<HttpResponse, HttpRequestError>;
+        #[xcall(id = 15)]
+        fn http_batch_request(
+            &self,
+            contract: AccountId,
+            requests: Vec<HttpRequest>,
+            timeout_ms: u64,
+        ) -> Vec<Result<HttpResponse, HttpRequestError>>;
     }
 }

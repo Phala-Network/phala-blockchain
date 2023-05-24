@@ -2,7 +2,7 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 
-pub use http_request::{HttpRequest, HttpResponse, HttpRequestError};
+pub use http_request::{HttpRequest, HttpRequestError, HttpResponse};
 pub use ink::primitives::AccountId;
 pub use signing::SigType;
 
@@ -199,6 +199,13 @@ pub trait PinkExt {
     /// Get the version of the current contract runtime in this cluster.
     #[ink(extension = 21, handle_status = false)]
     fn runtime_version() -> (u32, u32);
+
+    /// Batch http request
+    #[ink(extension = 22, handle_status = true)]
+    fn http_batch_request(
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> Vec<Result<HttpResponse, HttpRequestError>>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

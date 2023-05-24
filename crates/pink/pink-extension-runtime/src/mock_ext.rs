@@ -26,6 +26,14 @@ impl ext::PinkExtBackend for MockExtension {
         super::DefaultPinkExtension::new(self).http_request(request)
     }
 
+    fn http_batch_request(
+        &self,
+        requests: Vec<ext::HttpRequest>,
+        timeout_ms: u64,
+    ) -> Result<Vec<Result<ext::HttpResponse, ext::HttpRequestError>>, Self::Error> {
+        super::DefaultPinkExtension::new(self).http_batch_request(requests, timeout_ms)
+    }
+
     fn sign(
         &self,
         sigtype: SigType,

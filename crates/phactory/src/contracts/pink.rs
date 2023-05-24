@@ -372,6 +372,29 @@ impl OCalls for RuntimeHandle<'_> {
         }
         result
     }
+
+    fn http_batch_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> Vec<Result<HttpResponse, HttpRequestError>> {
+        let results = pink_extension_runtime::http_batch_request(
+            requests,
+            context::time_remaining().min(timeout_ms),
+        );
+        for result in &results {
+            match result {
+                Ok(r) => {
+                    http_counters::add(contract.clone(), r.status_code);
+                }
+                Err(_) => {
+                    http_counters::add(contract.clone(), 0);
+                }
+            }
+        }
+        results
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -435,6 +458,16 @@ impl OCalls for RuntimeHandleMut<'_> {
         request: HttpRequest,
     ) -> Result<HttpResponse, HttpRequestError> {
         self.readonly().http_request(contract, request)
+    }
+
+    fn http_batch_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> Vec<Result<HttpResponse, HttpRequestError>> {
+        self.readonly()
+            .http_batch_request(contract, requests, timeout_ms)
     }
 }
 
