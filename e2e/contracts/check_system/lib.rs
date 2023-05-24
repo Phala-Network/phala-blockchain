@@ -113,6 +113,32 @@ mod check_system {
         pub fn runtime_version(&self) -> (u32, u32) {
             pink::ext().runtime_version()
         }
+
+        #[ink(message)]
+        pub fn http_batch_get(&self, urls: Vec<String>, timeout_ms: u64) -> Vec<(u16, String)> {
+            pink::ext()
+                .http_batch_request(
+                    urls.into_iter()
+                        .map(|url| pink::chain_extension::HttpRequest {
+                            url,
+                            method: "GET".into(),
+                            headers: Default::default(),
+                            body: Default::default(),
+                        })
+                        .collect(),
+                    timeout_ms,
+                )
+                .unwrap()
+                .into_iter()
+                .map(|result| match result {
+                    Ok(response) => (
+                        response.status_code,
+                        String::from_utf8(response.body).unwrap_or_default(),
+                    ),
+                    Err(err) => (524, alloc::format!("Error: {err:?}")),
+                })
+                .collect()
+        }
     }
 
     impl ContractDeposit for CheckSystem {

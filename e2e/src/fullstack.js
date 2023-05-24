@@ -762,6 +762,19 @@ describe('A full stack', function () {
             assert.equal(info?.sidevm?.state, 'running');
         });
 
+        it('can send batch http request', async function () {
+            const info = await pruntime[0].getInfo();
+            const url = `${pruntime[0].uri}/info`;
+            const urls = [url, url];
+            const { output } = await ContractSystemChecker.query.httpBatchGet(alice, certAlice, urls, 1000);
+            const responses = output.asOk.valueOf();
+            assert.equal(responses.length, urls.length);
+            responses.forEach(([code, body]) => {
+                assert.equal(code, 200);
+                assert.equal(JSON.parse(body).system.public_key, info.system.publicKey);
+            });
+        });
+
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(

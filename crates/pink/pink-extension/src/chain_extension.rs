@@ -84,7 +84,7 @@ impl<T: scale::Encode> EncodeOutputFallbask for EncodeOutput<T> {
     }
 }
 
-#[derive(scale::Encode, scale::Decode)]
+#[derive(scale::Encode, scale::Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ErrorCode(u32);
 
