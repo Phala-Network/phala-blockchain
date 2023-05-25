@@ -23,6 +23,7 @@ pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "p
 # RMRK dependencies
 pallet-rmrk-core = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.42", default-features = false }
 rmrk-traits = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-rmrk-market = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.42", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
@@ -86,6 +87,7 @@ std = [
 	"phala-types/enable_serde",
 	"pallet-rmrk-core/std",
 	"rmrk-traits/std",
+	"pallet-rmrk-market/std",
 	"pallet-collective/std",
 	"pallet-insecure-randomness-collective-flip/std",
 	"pallet-preimage/std",

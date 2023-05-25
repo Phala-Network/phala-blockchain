@@ -35,6 +35,7 @@ pub mod pallet {
 		+ registry::Config
 		+ computation::Config
 		+ pallet_rmrk_core::Config
+		+ pallet_rmrk_market::Config
 		+ base_pool::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
@@ -139,6 +140,8 @@ pub mod pallet {
 		VaultBankrupt,
 		/// The caller has no nft to withdraw
 		NoNftToWithdraw,
+		/// The pool's delegation nft is on sell.
+		UserNftListed,
 	}
 
 	#[pallet::call]
@@ -247,6 +250,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			let who = ensure_signed(origin.clone())?;
 			let mut pool_info = ensure_vault::<T>(vault_pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
+				Error::<T>::UserNftListed
+			);
 			ensure!(
 				who == pool_info.basepool.owner,
 				Error::<T>::UnauthorizedPoolOwner
@@ -447,6 +457,13 @@ pub mod pallet {
 		pub fn contribute(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
+				Error::<T>::UserNftListed
+			);
 			let a = amount; // Alias to reduce confusion in the code below
 
 			ensure!(
@@ -501,6 +518,13 @@ pub mod pallet {
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
+				Error::<T>::UserNftListed
+			);
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),

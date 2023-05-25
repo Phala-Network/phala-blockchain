@@ -1,5 +1,5 @@
 use crate::{
-	base_pool, computation, mq, registry, stake_pool, stake_pool_v2,
+	base_pool, computation, mq, registry, stake_pool_v2,
 	utils::attestation_legacy::{
 		Attestation, AttestationValidator, Error as AttestationError, IasFields,
 	},
@@ -21,6 +21,7 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	Permill,
 };
 
 pub(crate) type Balance = u128;
@@ -41,6 +42,7 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
 		RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
+		RmrkMarket: pallet_rmrk_market::{Pallet, Call, Event<T>},
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Assets: pallet_assets::{Pallet, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
@@ -52,7 +54,6 @@ frame_support::construct_runtime!(
 		PhalaVault: vault::{Pallet, Event<T>},
 		PhalaWrappedBalances: wrapped_balances::{Pallet, Event<T>},
 		PhalaBasePool: base_pool::{Pallet, Event<T>},
-		PhalaStakePool: stake_pool::{Event<T>},
 		Preimage: pallet_preimage::{Event<T>},
 	}
 );
@@ -236,6 +237,21 @@ impl pallet_rmrk_core::Config for Test {
 	type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
 
+parameter_types! {
+	pub const MinimumOfferAmount: Balance = DOLLARS / 10_000;
+	pub const MarketFee: Permill = Permill::from_parts(5_000);
+}
+
+impl pallet_rmrk_market::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
+	type Currency = Balances;
+	type MinimumOfferAmount = MinimumOfferAmount;
+	type WeightInfo = pallet_rmrk_market::weights::SubstrateWeight<Test>;
+	type MarketplaceHooks = ();
+	type MarketFee = MarketFee;
+}
+
 pub struct SetBudgetMembers;
 
 impl SortedMembers<u64> for SetBudgetMembers {
@@ -405,11 +421,6 @@ impl base_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MigrationAccountId = ConstU64<1234>;
 	type WPhaMinBalance = WPhaMinBalance;
-}
-
-impl stake_pool::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
 }
 
 pub struct MockValidator;

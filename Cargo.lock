@@ -7106,6 +7106,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-rmrk-market"
+version = "0.0.1"
+source = "git+https://github.com/Phala-Network/rmrk-substrate?branch=polkadot-v0.9.42#73b59c92b81bb0b495c29d30b73700fe278fc982"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "pallet-rmrk-core",
+ "pallet-uniques",
+ "parity-scale-codec",
+ "rmrk-traits",
+ "scale-info",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.42#3bb3882ce094ac211dea93fabfdcd4f902f5a7fd"
@@ -7957,6 +7976,7 @@ dependencies = [
  "pallet-proxy",
  "pallet-recovery",
  "pallet-rmrk-core",
+ "pallet-rmrk-market",
  "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",
@@ -8022,6 +8042,7 @@ dependencies = [
  "pallet-insecure-randomness-collective-flip",
  "pallet-preimage",
  "pallet-rmrk-core",
+ "pallet-rmrk-market",
  "pallet-scheduler",
  "pallet-timestamp",
  "pallet-uniques",

@@ -107,7 +107,7 @@ mod voter_bags;
 
 pub use phala_pallets::{
     pallet_base_pool, pallet_computation, pallet_phat, pallet_phat_tokenomic, pallet_mq,
-    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
+    pallet_registry, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
     puppets,
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
@@ -1364,10 +1364,6 @@ impl pallet_stake_pool_v2::Config for Runtime {
     type GracePeriod = WorkingGracePeriod;
     type MaxPoolWorkers = MaxPoolWorkers;
 }
-impl pallet_stake_pool::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type Currency = Balances;
-}
 
 parameter_types! {
     pub const InitialPriceCheckPoint: Balance = 1 * DOLLARS;
@@ -1432,6 +1428,23 @@ impl pallet_rmrk_core::Config for Runtime {
     #[cfg(feature = "runtime-benchmarks")]
     type Helper = pallet_rmrk_core::RmrkBenchmark;
 }
+
+parameter_types! {
+    pub const MinimumOfferAmount: Balance = DOLLARS / 10_000;
+    pub const MarketFee: Permill = Permill::from_parts(5_000);
+}
+
+
+impl pallet_rmrk_market::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type ProtocolOrigin = EnsureRoot<AccountId>;
+    type Currency = Balances;
+    type MinimumOfferAmount = MinimumOfferAmount;
+    type WeightInfo = pallet_rmrk_market::weights::SubstrateWeight<Runtime>;
+    type MarketplaceHooks = ();
+    type MarketFee = MarketFee;
+}
+
 impl pallet_phat::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type InkCodeSizeLimit = ConstU32<{ 1024 * 1024 * 2 }>;
@@ -1580,7 +1593,6 @@ construct_runtime!(
         PhalaRegistry: pallet_registry,
         PhalaComputation: pallet_computation,
         PhalaStakePoolv2: pallet_stake_pool_v2,
-        PhalaStakePool: pallet_stake_pool,
         PhalaVault: pallet_vault,
         PhalaWrappedBalances: pallet_wrapped_balances,
         PhalaBasePool: pallet_base_pool,
@@ -1598,6 +1610,7 @@ construct_runtime!(
         // NFT
         Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
         RmrkCore: pallet_rmrk_core::{Pallet, Call, Event<T>},
+        RmrkMarket: pallet_rmrk_market::{Pallet, Call, Event<T>},
     }
 );
 

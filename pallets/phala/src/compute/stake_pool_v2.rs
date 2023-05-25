@@ -14,7 +14,6 @@ pub mod pallet {
 	use crate::computation;
 	use crate::pool_proxy::{ensure_stake_pool, ensure_vault, PoolProxy, StakePool};
 	use crate::registry;
-	use crate::stake_pool;
 	use crate::vault;
 	use crate::wrapped_balances;
 
@@ -25,10 +24,7 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			tokens::{
-				fungibles::{Inspect, Mutate},
-				Preservation,
-			},
+			tokens::{fungibles::Mutate, Preservation},
 			StorageVersion, UnixTime,
 		},
 	};
@@ -51,11 +47,11 @@ pub mod pallet {
 		+ registry::Config
 		+ computation::Config
 		+ pallet_rmrk_core::Config
+		+ pallet_rmrk_market::Config
 		+ base_pool::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
 		+ wrapped_balances::Config
-		+ stake_pool::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
@@ -96,14 +92,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type SubAccountPreimages<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
-
-	#[pallet::type_value]
-	pub fn StakepoolIterateStartPosByDefault<T: Config>() -> Option<u64> {
-		None
-	}
-	#[pallet::storage]
-	pub type StakepoolIterateStartPos<T> =
-		StorageValue<_, Option<u64>, ValueQuery, StakepoolIterateStartPosByDefault<T>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -301,6 +289,8 @@ pub mod pallet {
 		LockAccountStakeError,
 
 		NoLegacyRewardToClaim,
+		/// The pool's delegation nft is on sell.
+		UserNftListed,
 	}
 
 	#[pallet::call]
@@ -316,7 +306,7 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
+			let owner = ensure_signed(origin.clone())?;
 			let pid = base_pool::Pallet::<T>::consume_new_pid();
 			let collection_id: CollectionId = base_pool::Pallet::<T>::consume_new_cid();
 			// Create a NFT collection related to the new stake pool
@@ -332,6 +322,10 @@ pub mod pallet {
 				Default::default(),
 				None,
 				symbol,
+			)?;
+			pallet_uniques::Pallet::<T>::thaw_collection(
+				Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(),
+				collection_id,
 			)?;
 			let account_id =
 				base_pool::pallet::generate_staker_account::<T::AccountId>(pid, owner.clone());
@@ -556,28 +550,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(6)]
-		#[pallet::weight({0})]
-		pub fn backfill_add_missing_reward(
-			origin: OriginFor<T>,
-			input: Vec<(T::AccountId, u64, BalanceOf<T>)>,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-
-			for (account_id, pid, balance) in input.iter() {
-				LegacyRewards::<T>::insert((account_id.clone(), *pid), *balance);
-			}
-			Ok(())
-		}
-
 		/// Claims pool-owner's pending rewards of the sender and send to the `target`
 		///
 		/// The rewards associate to sender's "staker role" will not be claimed
 		///
 		/// Requires:
 		/// 1. The sender is a pool owner
-		#[pallet::call_index(7)]
+		#[pallet::call_index(6)]
 		#[pallet::weight({0})]
 		pub fn claim_owner_rewards(
 			origin: OriginFor<T>,
@@ -614,7 +593,7 @@ pub mod pallet {
 		/// If the shutdown condition is met, all workers in the pool will be forced shutdown.
 		/// Note: This function doesn't guarantee no-op when there's error.
 		/// TODO(mingxuan): add more detail comment later.
-		#[pallet::call_index(8)]
+		#[pallet::call_index(7)]
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn check_and_maybe_force_withdraw(origin: OriginFor<T>, pid: u64) -> DispatchResult {
@@ -664,7 +643,7 @@ pub mod pallet {
 		/// Requires:
 		/// 1. The pool exists
 		/// 2. After the deposit, the pool doesn't reach the cap
-		#[pallet::call_index(9)]
+		#[pallet::call_index(8)]
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn contribute(
@@ -689,6 +668,13 @@ pub mod pallet {
 				maybe_vault = Some((vault_pid, vault_info));
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
+				Error::<T>::UserNftListed
+			);
 			let a = amount; // Alias to reduce confusion in the code below
 				// If the pool has a contribution whitelist in storages, check if the origin is authorized to contribute
 			ensure!(
@@ -761,7 +747,7 @@ pub mod pallet {
 		/// Once a withdraw request is proceeded successfully, The withdrawal would be queued and waiting to be dealed.
 		/// Afer the withdrawal is queued, The withdraw queue will be automaticly consumed util there are not enough free stakes to fullfill withdrawals.
 		/// Everytime the free stakes in the pools increases (except for rewards distributing), the withdraw queue will be consumed as it describes above.
-		#[pallet::call_index(10)]
+		#[pallet::call_index(9)]
 		#[pallet::weight({0})]
 		#[frame_support::transactional]
 		pub fn withdraw(
@@ -784,6 +770,13 @@ pub mod pallet {
 				who = vault_info.basepool.pool_account_id;
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
+			ensure!(
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
+				Error::<T>::UserNftListed
+			);
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
 				pool_info.basepool.cid,
 				who.clone(),
@@ -835,81 +828,12 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(11)]
-		#[pallet::weight({0})]
-		#[frame_support::transactional]
-		pub fn reset_iter_pos(origin: OriginFor<T>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-			StakepoolIterateStartPos::<T>::put(None::<u64>);
-			Ok(())
-		}
-
-		#[pallet::call_index(12)]
-		#[pallet::weight({0})]
-		#[frame_support::transactional]
-		pub fn fix_missing_worker_lock(
-			origin: OriginFor<T>,
-			max_iterations: u32,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			base_pool::Pallet::<T>::ensure_migration_root(who)?;
-			let mut last_pid = StakepoolIterateStartPos::<T>::get();
-			let mut iter = match last_pid {
-				Some(pid) => {
-					let key: Vec<u8> = base_pool::pallet::Pools::<T>::hashed_key_for(pid);
-					base_pool::pallet::Pools::<T>::iter_from(key)
-				}
-				None => base_pool::pallet::Pools::<T>::iter(),
-			};
-			let asset_id = <T as wrapped_balances::Config>::WPhaAssetId::get();
-			let mut i = 0;
-			for (pid, pool_proxy) in iter.by_ref() {
-				match pool_proxy {
-					PoolProxy::StakePool(pool_info) => {
-						let mut total_lock = Zero::zero();
-						pool_info.workers.into_iter().for_each(|pubkey| {
-							let session: T::AccountId = pool_sub_account(pid, &pubkey);
-							total_lock +=
-								computation::Stakes::<T>::get(&session).unwrap_or_default();
-						});
-						pool_info.cd_workers.into_iter().for_each(|pubkey| {
-							let session: T::AccountId = pool_sub_account(pid, &pubkey);
-							total_lock +=
-								computation::Stakes::<T>::get(&session).unwrap_or_default();
-						});
-						let curr_lock: BalanceOf<T> =
-							<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::balance(
-								asset_id,
-								&pool_info.lock_account,
-							);
-						ensure!(curr_lock <= total_lock, Error::<T>::LockAccountStakeError);
-						if curr_lock < total_lock {
-							wrapped_balances::Pallet::<T>::mint_into(
-								&pool_info.lock_account,
-								total_lock - curr_lock,
-							)?;
-						}
-					}
-					PoolProxy::Vault(_) => (),
-				}
-				i += 1;
-				last_pid = Some(pid);
-				if i >= max_iterations {
-					break;
-				}
-			}
-			StakepoolIterateStartPos::<T>::put(last_pid);
-
-			Ok(())
-		}
-
 		/// Starts a worker on behalf of the stake pool
 		///
 		/// Requires:
 		/// 1. The worker is bound to the pool and is in Ready state
 		/// 2. The remaining stake in the pool can cover the minimal stake required
-		#[pallet::call_index(13)]
+		#[pallet::call_index(10)]
 		#[pallet::weight({0})]
 		pub fn start_computing(
 			origin: OriginFor<T>,
@@ -926,7 +850,7 @@ pub mod pallet {
 		///
 		/// Requires:
 		/// 1. There worker is bound to the pool and is in a stoppable state
-		#[pallet::call_index(14)]
+		#[pallet::call_index(11)]
 		#[pallet::weight({0})]
 		pub fn stop_computing(
 			origin: OriginFor<T>,
@@ -938,7 +862,7 @@ pub mod pallet {
 		}
 
 		/// Reclaims the releasing stake of a worker in a pool.
-		#[pallet::call_index(15)]
+		#[pallet::call_index(12)]
 		#[pallet::weight({0})]
 		pub fn reclaim_pool_worker(
 			origin: OriginFor<T>,
@@ -952,7 +876,7 @@ pub mod pallet {
 		}
 
 		/// Restarts the worker with a higher stake
-		#[pallet::call_index(17)]
+		#[pallet::call_index(13)]
 		#[pallet::weight(Weight::from_parts(195_000_000, 0))]
 		#[frame_support::transactional]
 		pub fn restart_computing(
@@ -1195,7 +1119,7 @@ pub mod pallet {
 							worker: info.pubkey,
 							amount: reward,
 						});
-						return;
+						continue;
 					}
 				};
 				let mut pool_info =

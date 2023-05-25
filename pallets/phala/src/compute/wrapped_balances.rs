@@ -9,6 +9,7 @@ pub mod pallet {
 	use crate::registry;
 	use crate::vault;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
@@ -19,7 +20,6 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
-	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -32,6 +32,7 @@ pub mod pallet {
 		+ crate::PhalaConfig
 		+ registry::Config
 		+ pallet_rmrk_core::Config
+		+ pallet_rmrk_market::Config
 		+ computation::Config
 		+ pallet_assets::Config
 		+ pallet_democracy::Config
@@ -144,17 +145,42 @@ pub mod pallet {
 		T: Config + vault::Config,
 	{
 		fn pre_check(
-			_sender: &T::AccountId,
-			_recipient: &T::AccountId,
+			sender: &T::AccountId,
+			recipient: &T::AccountId,
 			collection_id: &CollectionId,
-			_nft_id: &NftId,
+			nft_id: &NftId,
 		) -> bool {
-			if base_pool::pallet::PoolCollections::<T>::get(collection_id).is_some() {
-				// Forbid any delegation transfer before delegation nft transfer and sell is fully prepared.
-				// TODO(mingxuan): reopen pre_check function.
-				return false;
-			}
-
+			if let Some(pid) = base_pool::pallet::PoolCollections::<T>::get(collection_id) {
+				if pallet_rmrk_market::ListedNfts::<T>::contains_key(collection_id, nft_id) {
+					return false;
+				}
+				if Self::have_nft_on_list(recipient, collection_id) {
+					return false;
+				}
+				if let Ok(net_value) = Pallet::<T>::get_net_value((*sender).clone()) {
+					let property_guard =
+						base_pool::Pallet::<T>::get_nft_attr_guard(*collection_id, *nft_id)
+							.expect("get nft should not fail: qed.");
+					let property = &property_guard.attr;
+					let account_status = match StakerAccounts::<T>::get(sender) {
+						Some(account_status) => account_status,
+						None => unreachable!(),
+					};
+					let pool_proxy = base_pool::Pallet::<T>::pool_collection(pid)
+						.expect("get pool should not fail: qed.");
+					let basepool = &match pool_proxy {
+						PoolProxy::Vault(p) => p.basepool,
+						PoolProxy::StakePool(p) => p.basepool,
+					};
+					if let Some(price) = basepool.share_price() {
+						let nft_value = bmul(property.shares, &price);
+						if account_status.locked + nft_value > net_value {
+							return false;
+						}
+					}
+				}
+			};
+			pallet_rmrk_core::pallet::Lock::<T>::remove((collection_id, nft_id));
 			true
 		}
 		fn post_transfer(
@@ -170,6 +196,7 @@ pub mod pallet {
 					pid,
 				)
 				.expect("mrege or init should not fail");
+				let _ = Self::maybe_subscribe_to_pool(recipient, pid, *collection_id);
 			}
 			true
 		}
@@ -379,9 +406,14 @@ pub mod pallet {
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let actual_removed =
-					pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), who, dust, Precision::BestEffort, Fortitude::Force)
-						.expect("slash should success with correct amount: qed.");
+				let actual_removed = pallet_assets::Pallet::<T>::burn_from(
+					T::WPhaAssetId::get(),
+					who,
+					dust,
+					Precision::BestEffort,
+					Fortitude::Force,
+				)
+				.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
 					dust,
@@ -407,7 +439,7 @@ pub mod pallet {
 				target,
 				amount,
 				Precision::BestEffort,
-				Fortitude::Force
+				Fortitude::Force,
 			)?;
 			Ok(())
 		}
@@ -476,6 +508,18 @@ pub mod pallet {
 				aye: total_aye_amount,
 				nay: total_nay_amount,
 			}
+		}
+
+		/// Check if recipient has Nft listing in a specific collection.
+		pub fn have_nft_on_list(recipient: &T::AccountId, collection_id: &CollectionId) -> bool {
+			let iter = pallet_uniques::Pallet::<T>::owned_in_collection(collection_id, recipient)
+				.take_while(|nftid| {
+					pallet_rmrk_market::ListedNfts::<T>::contains_key(collection_id, nftid)
+				});
+			if iter.count() > 0 {
+				return true;
+			}
+			false
 		}
 
 		/// Tries to update locked W-PHA amount of the user

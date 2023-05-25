@@ -99,6 +99,7 @@ phat-offchain-rollup = { path = "../../pallets/offchain-rollup", default-feature
 # RMRK dependencies
 pallet-rmrk-core = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.42", default-features = false }
 rmrk-traits = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-rmrk-market = { git = "https://github.com/Phala-Network/rmrk-substrate", branch = "polkadot-v0.9.42", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", optional = true }
@@ -182,6 +183,7 @@ std = [
 	"pallet-uniques/std",
 	"pallet-rmrk-core/std",
 	"rmrk-traits/std",
+	"pallet-rmrk-market/std",
 	"phat-offchain-rollup/std",
 ]
 runtime-benchmarks = [
