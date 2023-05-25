@@ -373,13 +373,13 @@ impl OCalls for RuntimeHandle<'_> {
         result
     }
 
-    fn http_batch_request(
+    fn batch_http_request(
         &self,
         contract: AccountId,
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
     ) -> Vec<Result<HttpResponse, HttpRequestError>> {
-        let results = pink_extension_runtime::http_batch_request(
+        let results = pink_extension_runtime::batch_http_request(
             requests,
             context::time_remaining().min(timeout_ms),
         );
@@ -460,14 +460,14 @@ impl OCalls for RuntimeHandleMut<'_> {
         self.readonly().http_request(contract, request)
     }
 
-    fn http_batch_request(
+    fn batch_http_request(
         &self,
         contract: AccountId,
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
     ) -> Vec<Result<HttpResponse, HttpRequestError>> {
         self.readonly()
-            .http_batch_request(contract, requests, timeout_ms)
+            .batch_http_request(contract, requests, timeout_ms)
     }
 }
 

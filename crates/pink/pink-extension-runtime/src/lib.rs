@@ -43,7 +43,7 @@ impl<'a, T, E> DefaultPinkExtension<'a, T, E> {
     }
 }
 
-pub fn http_batch_request(
+pub fn batch_http_request(
     requests: Vec<HttpRequest>,
     timeout_ms: u64,
 ) -> Vec<Result<HttpResponse, HttpRequestError>> {
@@ -150,12 +150,12 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         http_request(request, 10 * 1000).map_err(|err| err.display().into())
     }
 
-    fn http_batch_request(
+    fn batch_http_request(
         &self,
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
     ) -> Result<Vec<Result<HttpResponse, HttpRequestError>>, Self::Error> {
-        Ok(http_batch_request(requests, timeout_ms))
+        Ok(batch_http_request(requests, timeout_ms))
     }
 
     fn sign(

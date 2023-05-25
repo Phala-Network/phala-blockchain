@@ -202,7 +202,7 @@ pub trait PinkExt {
 
     /// Batch http request
     #[ink(extension = 22, handle_status = true)]
-    fn http_batch_request(
+    fn batch_http_request(
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
     ) -> Vec<Result<HttpResponse, HttpRequestError>>;

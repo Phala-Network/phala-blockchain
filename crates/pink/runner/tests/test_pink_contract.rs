@@ -480,6 +480,15 @@ mod test_cluster {
         ) -> Result<HttpResponse, HttpRequestError> {
             pink_extension_runtime::http_request(request, 10 * 1000)
         }
+
+        fn batch_http_request(
+            &self,
+            _: AccountId,
+            requests: Vec<HttpRequest>,
+            timeout_ms: u64,
+        ) -> Vec<Result<HttpResponse, HttpRequestError>> {
+            pink_extension_runtime::batch_http_request(requests, timeout_ms)
+        }
     }
 
     impl CrossCall for TestCluster {

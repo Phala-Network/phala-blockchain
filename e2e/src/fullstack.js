@@ -766,7 +766,7 @@ describe('A full stack', function () {
             const info = await pruntime[0].getInfo();
             const url = `${pruntime[0].uri}/info`;
             const urls = [url, url];
-            const { output } = await ContractSystemChecker.query.httpBatchGet(alice, certAlice, urls, 1000);
+            const { output } = await ContractSystemChecker.query.batchHttpGet(alice, certAlice, urls, 1000);
             const responses = output.asOk.valueOf();
             assert.equal(responses.length, urls.length);
             responses.forEach(([code, body]) => {

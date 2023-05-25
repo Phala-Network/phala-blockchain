@@ -115,9 +115,9 @@ mod check_system {
         }
 
         #[ink(message)]
-        pub fn http_batch_get(&self, urls: Vec<String>, timeout_ms: u64) -> Vec<(u16, String)> {
+        pub fn batch_http_get(&self, urls: Vec<String>, timeout_ms: u64) -> Vec<(u16, String)> {
             pink::ext()
-                .http_batch_request(
+                .batch_http_request(
                     urls.into_iter()
                         .map(|url| pink::chain_extension::HttpRequest {
                             url,

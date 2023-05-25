@@ -193,7 +193,7 @@ pub mod ocall {
             request: HttpRequest,
         ) -> Result<HttpResponse, HttpRequestError>;
         #[xcall(id = 15)]
-        fn http_batch_request(
+        fn batch_http_request(
             &self,
             contract: AccountId,
             requests: Vec<HttpRequest>,
