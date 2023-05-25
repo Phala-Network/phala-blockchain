@@ -196,6 +196,7 @@ pub mod pallet {
 					pid,
 				)
 				.expect("mrege or init should not fail");
+				let _ = Self::maybe_subscribe_to_pool(who, pid, *collection_id)?;
 			}
 			true
 		}
