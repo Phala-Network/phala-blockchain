@@ -9,7 +9,7 @@ debug-assertions = false
 overflow-checks = false
 
 [dependencies]
-ink = { version = "4", default-features = false }
+ink = { version = "4", default-features = false, features = ["static-buffer-1M"] }
 
 scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
@@ -43,3 +43,6 @@ std = [
     "indeterministic_functions/std",
 ]
 ink-as-dependency = []
+
+[patch.crates-io]
+ink = { git = "https://github.com/kvinwang/ink.git", branch = "config-buffer" }

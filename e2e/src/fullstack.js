@@ -762,6 +762,18 @@ describe('A full stack', function () {
             assert.equal(info?.sidevm?.state, 'running');
         });
 
+        it('can get big http response', async function () {
+            const urls = ["https://files.kvin.wang:8443/512k.txt"];
+            const { output } = await ContractSystemChecker.query.batchHttpGet(alice, certAlice, urls, 1000);
+            // console.log(`output`, output.toHuman());
+            const [code, body] = output.asOk.valueOf()[0];
+            console.log(`status code: ${code}`);
+            console.log(`body length: ${body.length}`);
+            if (code != 200) {
+                console.log(`body: ${body}`);
+            }
+        });
+
         it('can send batch http request', async function () {
             const info = await pruntime[0].getInfo();
             const url = `${pruntime[0].uri}/info`;
