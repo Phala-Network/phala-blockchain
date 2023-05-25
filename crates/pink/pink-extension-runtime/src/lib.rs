@@ -43,6 +43,13 @@ impl<'a, T, E> DefaultPinkExtension<'a, T, E> {
     }
 }
 
+fn block_on<F: core::future::Future>(f: F) -> F::Output {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => handle.block_on(f),
+        Err(_) => tokio::runtime::Runtime::new().unwrap().block_on(f),
+    }
+}
+
 pub fn batch_http_request(
     requests: Vec<HttpRequest>,
     timeout_ms: u64,
@@ -54,14 +61,14 @@ pub fn batch_http_request(
     let futs = requests
         .into_iter()
         .map(|request| async_http_request(request, timeout_ms));
-    futures::executor::block_on(futures::future::join_all(futs))
+    block_on(futures::future::join_all(futs))
 }
 
 pub fn http_request(
     request: HttpRequest,
     timeout_ms: u64,
 ) -> Result<HttpResponse, HttpRequestError> {
-    futures::executor::block_on(async_http_request(request, timeout_ms))
+    block_on(async_http_request(request, timeout_ms))
 }
 
 async fn async_http_request(
