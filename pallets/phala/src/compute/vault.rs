@@ -251,7 +251,10 @@ pub mod pallet {
 			let who = ensure_signed(origin.clone())?;
 			let mut pool_info = ensure_vault::<T>(vault_pid)?;
 			ensure!(
-				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
 				Error::<T>::UserNftListed
 			);
 			ensure!(
@@ -455,7 +458,10 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
 			ensure!(
-				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
 				Error::<T>::UserNftListed
 			);
 			let a = amount; // Alias to reduce confusion in the code below
@@ -513,7 +519,10 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 			let mut pool_info = ensure_vault::<T>(pid)?;
 			ensure!(
-				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
 				Error::<T>::UserNftListed
 			);
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(

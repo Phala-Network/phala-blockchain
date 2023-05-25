@@ -238,18 +238,18 @@ impl pallet_rmrk_core::Config for Test {
 }
 
 parameter_types! {
-    pub const MinimumOfferAmount: Balance = DOLLARS / 10_000;
+	pub const MinimumOfferAmount: Balance = DOLLARS / 10_000;
 	pub const MarketFee: Permill = Permill::from_parts(5_000);
 }
 
 impl pallet_rmrk_market::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type ProtocolOrigin = EnsureRoot<Self::AccountId>;
-    type Currency = Balances;
-    type MinimumOfferAmount = MinimumOfferAmount;
+	type RuntimeEvent = RuntimeEvent;
+	type ProtocolOrigin = EnsureRoot<Self::AccountId>;
+	type Currency = Balances;
+	type MinimumOfferAmount = MinimumOfferAmount;
 	type WeightInfo = pallet_rmrk_market::weights::SubstrateWeight<Test>;
-    type MarketplaceHooks = ();
-    type MarketFee = MarketFee;
+	type MarketplaceHooks = ();
+	type MarketFee = MarketFee;
 }
 
 pub struct SetBudgetMembers;

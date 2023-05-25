@@ -9,6 +9,7 @@ pub mod pallet {
 	use crate::registry;
 	use crate::vault;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
@@ -19,7 +20,6 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
-	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -196,7 +196,7 @@ pub mod pallet {
 					pid,
 				)
 				.expect("mrege or init should not fail");
-				let _ = Self::maybe_subscribe_to_pool(who, pid, *collection_id)?;
+				let _ = Self::maybe_subscribe_to_pool(recipient, pid, *collection_id);
 			}
 			true
 		}
@@ -406,9 +406,14 @@ pub mod pallet {
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let actual_removed =
-					pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), who, dust, Precision::BestEffort, Fortitude::Force)
-						.expect("slash should success with correct amount: qed.");
+				let actual_removed = pallet_assets::Pallet::<T>::burn_from(
+					T::WPhaAssetId::get(),
+					who,
+					dust,
+					Precision::BestEffort,
+					Fortitude::Force,
+				)
+				.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
 					dust,
@@ -434,7 +439,7 @@ pub mod pallet {
 				target,
 				amount,
 				Precision::BestEffort,
-				Fortitude::Force
+				Fortitude::Force,
 			)?;
 			Ok(())
 		}

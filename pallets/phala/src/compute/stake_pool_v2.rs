@@ -24,10 +24,7 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			tokens::{
-				fungibles::Mutate,
-				Preservation,
-			},
+			tokens::{fungibles::Mutate, Preservation},
 			StorageVersion, UnixTime,
 		},
 	};
@@ -326,7 +323,10 @@ pub mod pallet {
 				None,
 				symbol,
 			)?;
-			let _ = pallet_uniques::Pallet::<T>::thaw_collection(Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(), collection_id)?;
+			pallet_uniques::Pallet::<T>::thaw_collection(
+				Origin::<T>::Signed(base_pool::pallet_id::<T::AccountId>()).into(),
+				collection_id,
+			)?;
 			let account_id =
 				base_pool::pallet::generate_staker_account::<T::AccountId>(pid, owner.clone());
 			let (owner_reward_account, lock_account) =
@@ -669,7 +669,10 @@ pub mod pallet {
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			ensure!(
-				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
 				Error::<T>::UserNftListed
 			);
 			let a = amount; // Alias to reduce confusion in the code below
@@ -768,7 +771,10 @@ pub mod pallet {
 			}
 			let mut pool_info = ensure_stake_pool::<T>(pid)?;
 			ensure!(
-				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(&who, &pool_info.basepool.cid),
+				!wrapped_balances::pallet::Pallet::<T>::have_nft_on_list(
+					&who,
+					&pool_info.basepool.cid
+				),
 				Error::<T>::UserNftListed
 			);
 			let maybe_nft_id = base_pool::Pallet::<T>::merge_nft_for_staker(
