@@ -818,7 +818,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.identity_key,
                 &self.platform,
             );
-            crate::maybe_remove_checkpoints(&self.sealing_path);
+            crate::maybe_remove_checkpoints(&self.storage_path);
             panic!("Received master key, please restart pRuntime and pherry to sync as Gatekeeper");
         }
 

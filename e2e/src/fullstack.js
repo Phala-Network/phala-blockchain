@@ -1291,6 +1291,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     }
     const args = [
         '--cores=0',  // Disable benchmark
+        '--checkpoint-interval=1',
         '--port', teePort.toString(),
     ];
     let bin = pRuntimeBin;
