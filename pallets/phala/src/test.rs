@@ -5,6 +5,7 @@ use crate::stake_pool_v2;
 use crate::vault;
 use crate::wrapped_balances;
 use fixed::types::U64F64 as FixedPoint;
+use fixed_macro::types::U64F64 as fp;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Get,
@@ -18,7 +19,8 @@ use sp_runtime::AccountId32;
 
 use crate::mock::{
 	ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1, setup_workers,
-	setup_workers_linked_operators, worker_pubkey, Balance, RuntimeOrigin, Test, DOLLARS,
+	setup_workers_linked_operators, take_events, worker_pubkey, Balance, RuntimeEvent,
+	RuntimeOrigin, Test, DOLLARS,
 };
 // Pallets
 use crate::mock::{
@@ -895,6 +897,7 @@ fn test_add_worker() {
 		);
 	});
 }
+
 #[test]
 fn test_start_computing() {
 	new_test_ext().execute_with(|| {
@@ -1280,6 +1283,67 @@ fn test_for_cdworkers() {
 		));
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert_eq!(pool.cd_workers, []);
+	});
+}
+
+#[test]
+fn test_on_reward_dust() {
+	use crate::computation::pallet::OnReward;
+	new_test_ext().execute_with(|| {
+		mock_asset_id();
+		assert_ok!(PhalaWrappedBalances::wrap(
+			RuntimeOrigin::signed(1),
+			500 * DOLLARS
+		));
+		set_block_1();
+		setup_workers(1);
+		setup_stake_pool_with_workers(1, &[1]);
+		assert_ok!(PhalaStakePoolv2::set_payout_pref(
+			RuntimeOrigin::signed(1),
+			0,
+			Some(Permill::from_percent(50))
+		));
+		assert_ok!(PhalaStakePoolv2::contribute(
+			RuntimeOrigin::signed(1),
+			0,
+			100 * DOLLARS,
+			None
+		));
+		assert_ok!(PhalaStakePoolv2::start_computing(
+			RuntimeOrigin::signed(1),
+			0,
+			worker_pubkey(1),
+			100 * DOLLARS
+		));
+		let _ = take_events();
+		PhalaStakePoolv2::on_reward(&[SettleInfo {
+			pubkey: worker_pubkey(1),
+			v: FixedPoint::from_num(1u32).to_bits(),
+			payout: fp!(0.000010000000).to_bits(), // below 1e8
+			treasury: 0,
+		}]);
+		let events = take_events();
+		assert_eq!(
+			events[1],
+			RuntimeEvent::PhalaStakePoolv2(
+				stake_pool_v2::Event::<Test>::RewardToOwnerDismissedDust {
+					pid: 0,
+					amount: 4999999
+				}
+			)
+		);
+		assert_eq!(
+			events[2],
+			RuntimeEvent::PhalaStakePoolv2(
+				stake_pool_v2::Event::<Test>::RewardToDistributionDismissedDust {
+					pid: 0,
+					amount: 5000000
+				}
+			)
+		);
+		let pool = ensure_stake_pool::<Test>(0).unwrap();
+		assert_eq!(get_balance(pool.owner_reward_account), 0);
+		assert_eq!(get_balance(pool.basepool.pool_account_id), 0);
 	});
 }
 
