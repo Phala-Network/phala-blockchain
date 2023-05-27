@@ -150,8 +150,9 @@ fn maybe_remove_checkpoints(basedir: &str) {
         Err(err) => error!("Error globbing checkpoints: {:?}", err),
         Ok(iter) => {
             for filename in iter {
+                info!("Removing {}", filename.display());
                 if let Err(e) = std::fs::remove_file(&filename) {
-                    error!("failed to remove {}: {}", filename.display(), e);
+                    error!("Failed to remove {}: {}", filename.display(), e);
                 }
             }
         }

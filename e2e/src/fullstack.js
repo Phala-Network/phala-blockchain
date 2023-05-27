@@ -794,12 +794,26 @@ describe('A full stack', function () {
             assert.isTrue(await checkUntil(async () => {
                 const workerCluster = await api.query.phalaPhatContracts.clusterByWorkers(hex(info.system?.publicKey));
                 return workerCluster.eq(clusterId);
-            }, 4 * 6000), 'cluster not deployed');
+            }, 4 * 6000), 'Failed to add worker to cluster');
             pherry[4].kill();
             const req = await pruntime[4].rpc.generateClusterStateRequest({});
             await sleep(5000);
             console.log(`Saving cluster state`);
-            const state = await pruntime[0].rpc.saveClusterState(req);
+            let state;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    state = await pruntime[0].rpc.saveClusterState(req);
+                    break;
+                } catch (e) {
+                    if (e.message?.includes('RCU in progress')) {
+                        console.log(`RCU in progress, retrying...`);
+                        await sleep(500);
+                    } else {
+                        console.error(e);
+                        break;
+                    }
+                }
+            }
             assert.isTrue(state.filename.startsWith('cluster-'));
             const url = `${pruntime[0].uri}/download/${state.filename}`;
             const destDir = cluster.workers[4].dirs.storageDir;
@@ -1291,6 +1305,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     }
     const args = [
         '--cores=0',  // Disable benchmark
+        '--checkpoint-interval=5',
         '--port', teePort.toString(),
     ];
     let bin = pRuntimeBin;

@@ -946,7 +946,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     pub fn stop(&self, remove_checkpoints: bool) -> RpcResult<()> {
         info!("Requested to stop remove_checkpoints={remove_checkpoints}");
         if remove_checkpoints {
-            crate::maybe_remove_checkpoints(&self.args.sealing_path);
+            crate::maybe_remove_checkpoints(&self.args.storage_path);
         }
         std::process::abort()
     }
