@@ -404,7 +404,6 @@ impl vault::Config for Test {
 impl base_pool::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type MigrationAccountId = ConstU64<1234>;
-	type WPhaMinBalance = WPhaMinBalance;
 }
 
 impl stake_pool::Config for Test {
@@ -475,14 +474,12 @@ pub fn take_events() -> Vec<RuntimeEvent> {
 		.into_iter()
 		.map(|evt| evt.event)
 		.collect::<Vec<_>>();
-	println!("event(): {evt:?}");
 	System::reset_events();
 	evt
 }
 
 pub fn take_messages() -> Vec<Message> {
 	let messages = PhalaMq::messages();
-	println!("messages(): {messages:?}");
 	mq::OutboundMessages::<Test>::kill();
 	messages
 }

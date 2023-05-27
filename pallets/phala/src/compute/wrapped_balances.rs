@@ -9,6 +9,7 @@ pub mod pallet {
 	use crate::registry;
 	use crate::vault;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig};
+	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
@@ -19,7 +20,6 @@ pub mod pallet {
 			OnUnbalanced, StorageVersion,
 		},
 	};
-	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_system::{pallet_prelude::*, RawOrigin};
 	use pallet_democracy::{AccountVote, ReferendumIndex, ReferendumInfo};
 	pub use rmrk_traits::primitives::{CollectionId, NftId};
@@ -85,9 +85,13 @@ pub mod pallet {
 
 	/// Mapping for users to their asset status proxys
 	#[pallet::storage]
-	#[pallet::getter(fn staker_account)]
 	pub type StakerAccounts<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, FinanceAccount<BalanceOf<T>>>;
+
+	/// Collect the unmintable dust
+	// TODO: since this is the imbalance, consider to mint it in the future.
+	#[pallet::storage]
+	pub type UnmintableDust<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -379,9 +383,14 @@ pub mod pallet {
 		pub fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
 			debug_assert!(dust != Zero::zero());
 			if dust != Zero::zero() {
-				let actual_removed =
-					pallet_assets::Pallet::<T>::burn_from(T::WPhaAssetId::get(), who, dust, Precision::BestEffort, Fortitude::Force)
-						.expect("slash should success with correct amount: qed.");
+				let actual_removed = pallet_assets::Pallet::<T>::burn_from(
+					T::WPhaAssetId::get(),
+					who,
+					dust,
+					Precision::BestEffort,
+					Fortitude::Force,
+				)
+				.expect("slash should success with correct amount: qed.");
 				let (imbalance, _remaining) = <T as PhalaConfig>::Currency::slash(
 					&<computation::pallet::Pallet<T>>::account_id(),
 					dust,
@@ -394,10 +403,19 @@ pub mod pallet {
 			}
 		}
 
-		/// Mints some W-PHA
-		pub fn mint_into(target: &T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			pallet_assets::Pallet::<T>::mint_into(T::WPhaAssetId::get(), target, amount)?;
-			Ok(())
+		/// Mints some W-PHA. If the amount is below ED, it returns Ok(false) and adds the dust
+		/// to `UnmintableDust`.
+		pub fn mint_into(
+			target: &T::AccountId,
+			amount: BalanceOf<T>,
+		) -> Result<bool, DispatchError> {
+			let wpha = T::WPhaAssetId::get();
+			let result = pallet_assets::Pallet::<T>::mint_into(wpha, target, amount);
+			if result == Err(sp_runtime::TokenError::BelowMinimum.into()) {
+				UnmintableDust::<T>::mutate(|value| *value += amount);
+				return Ok(false);
+			}
+			result.and(Ok(true))
 		}
 
 		/// Burns some W-PHA
@@ -407,7 +425,7 @@ pub mod pallet {
 				target,
 				amount,
 				Precision::BestEffort,
-				Fortitude::Force
+				Fortitude::Force,
 			)?;
 			Ok(())
 		}
@@ -498,6 +516,18 @@ pub mod pallet {
 		fn is_ongoing(vote_id: ReferendumIndex) -> bool {
 			let vote_info = pallet_democracy::Pallet::<T>::referendum_info(vote_id);
 			matches!(vote_info, Some(ReferendumInfo::Ongoing(_)))
+		}
+
+		/// Returns the minimum balance of WPHA
+		pub fn min_balance() -> BalanceOf<T> {
+			if !<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::asset_exists(
+				T::WPhaAssetId::get(),
+			) {
+				panic!("WPHA does not exist");
+			}
+			<pallet_assets::pallet::Pallet<T> as Inspect<T::AccountId>>::minimum_balance(
+				T::WPhaAssetId::get(),
+			)
 		}
 	}
 }
