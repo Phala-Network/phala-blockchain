@@ -12,7 +12,7 @@ use log::info;
 use pallet_contracts::{Config, Frame, Migration, Schedule};
 use sp_runtime::{generic::Header, traits::IdentityLookup, Perbill};
 
-pub use extension::get_side_effects;
+pub use extension::get_events;
 pub use pink_capi::types::ExecSideEffects;
 pub use pink_extension::{EcdhPublicKey, HookPoint, Message, OspMessage, PinkEvent};
 

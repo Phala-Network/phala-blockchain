@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{ExecSideEffects, System, Timestamp},
+    runtime::{ExecSideEffects, Pink, System, Timestamp},
     types::{Hash, Hashing},
 };
 use pink_capi::v1::ocall::ExecContext;
@@ -43,7 +43,10 @@ where
             Timestamp::set_timestamp(exec_context.now_ms);
             System::set_block_number(exec_context.block_number);
             System::reset_events();
-            (f(), crate::runtime::get_side_effects())
+            let result = f();
+            let events = crate::runtime::get_events();
+            Pink::apply_code_changes(&events.code_changes);
+            (result, events.side_effects)
         });
         overlay
             .commit_transaction()

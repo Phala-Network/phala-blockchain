@@ -69,6 +69,12 @@ pub mod pallet {
     #[pallet::getter(fn system_contract)]
     pub(crate) type SystemContract<T: Config> = StorageValue<_, T::AccountId, OptionQuery>;
 
+    /// The code history of contracts
+    #[pallet::storage]
+    #[pallet::getter(fn code_history)]
+    pub(crate) type CodeHistory<T: Config> =
+        StorageMap<_, Twox64Concat, T::AccountId, Vec<T::Hash>, ValueQuery>;
+
     #[pallet::pallet]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
@@ -166,6 +172,21 @@ pub mod pallet {
 
         pub fn set_treasury_account(account: &T::AccountId) {
             <TreasuryAccount<T>>::put(account);
+        }
+
+        pub fn push_code_history(account: &T::AccountId, code_hash: &T::Hash) {
+            <CodeHistory<T>>::mutate(account, |value| {
+                value.push(*code_hash);
+            });
+        }
+
+        pub fn apply_code_changes(changes: &[(T::AccountId, T::Hash, T::Hash)]) {
+            for (account, old_code_hash, new_code_hash) in changes {
+                if old_code_hash == new_code_hash {
+                    continue;
+                }
+                Self::push_code_history(account, old_code_hash);
+            }
         }
     }
 

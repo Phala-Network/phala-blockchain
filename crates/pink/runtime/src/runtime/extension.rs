@@ -30,10 +30,16 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     super::System::deposit_event_indexed(&topics[..], event);
 }
 
-pub fn get_side_effects() -> ExecSideEffects {
+pub struct ContractEvents {
+    pub side_effects: ExecSideEffects,
+    pub code_changes: Vec<(AccountId, crate::types::Hash, crate::types::Hash)>,
+}
+
+pub fn get_events() -> ContractEvents {
     let mut pink_events = Vec::default();
     let mut ink_events = Vec::default();
     let mut instantiated = Vec::default();
+    let mut code_changes = Vec::default();
     for event in super::System::events() {
         if let super::RuntimeEvent::Contracts(ink_event) = event.event {
             use pallet_contracts::Event as ContractEvent;
@@ -61,14 +67,24 @@ pub fn get_side_effects() -> ExecSideEffects {
                         ink_events.push((address, event.topics, data));
                     }
                 }
+                ContractEvent::ContractCodeUpdated {
+                    contract,
+                    new_code_hash,
+                    old_code_hash,
+                } => {
+                    code_changes.push((contract, old_code_hash, new_code_hash));
+                }
                 _ => (),
             }
         }
     }
-    ExecSideEffects::V1 {
-        pink_events,
-        ink_events,
-        instantiated,
+    ContractEvents {
+        side_effects: ExecSideEffects::V1 {
+            pink_events,
+            ink_events,
+            instantiated,
+        },
+        code_changes,
     }
 }
 
