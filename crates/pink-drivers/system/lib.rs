@@ -10,6 +10,7 @@ pub use system::System;
 mod system {
     use super::pink;
     use alloc::string::String;
+    use alloc::vec::Vec;
     use ink::{codegen::Env, storage::Mapping};
     use pink::system::{CodeType, ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
@@ -221,6 +222,16 @@ mod system {
         #[ink(message)]
         fn code_exists(&self, code_hash: [u8; 32], code_type: CodeType) -> bool {
             pink::ext().code_exists(code_hash.into(), code_type.is_sidevm())
+        }
+
+        #[ink(message)]
+        fn code_hash(&self, account: AccountId) -> Option<pink::InkHash> {
+            self.env().code_hash(&account).ok()
+        }
+
+        #[ink(message)]
+        fn code_history(&self, account: AccountId) -> Vec<pink::InkHash> {
+            pink::ext().code_history(account)
         }
     }
 

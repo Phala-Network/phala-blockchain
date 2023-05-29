@@ -24,12 +24,17 @@ pub use logger::ResultExt;
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
 pub type EcdhPublicKey = [u8; 32];
+// We define the hash as [u8; 32] here because ink::primitive::Hash is unable to be converted
+// to [u8; 32]. This make it inconvenient to use ink::primitive::Hash in the runtime.
+// TODO.kevin:
+//   switch to ink::primitive::Hash when https://github.com/paritytech/ink/pull/1791 landed.
 pub type Hash = [u8; 32];
 pub type EcdsaPublicKey = [u8; 33];
 pub type EcdsaSignature = [u8; 65];
 pub type AccountId = <PinkEnvironment as Environment>::AccountId;
 pub type Balance = <PinkEnvironment as Environment>::Balance;
 pub type BlockNumber = <PinkEnvironment as Environment>::BlockNumber;
+pub type InkHash = <PinkEnvironment as Environment>::Hash;
 
 pub trait ConvertTo<To> {
     fn convert_to(&self) -> To;

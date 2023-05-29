@@ -3,9 +3,10 @@
 use pink_extension_macro as pink;
 
 use alloc::string::String;
+use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
-use crate::{AccountId, Balance, Hash};
+use crate::{AccountId, Balance, Hash, InkHash};
 
 /// Errors that can occur upon calling the system contract.
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
@@ -125,6 +126,14 @@ pub trait System {
     /// Check if the code is already uploaded to the cluster with given code hash.
     #[ink(message)]
     fn code_exists(&self, code_hash: Hash, code_type: CodeType) -> bool;
+
+    /// Get the current code hash of given contract.
+    #[ink(message)]
+    fn code_hash(&self, account: AccountId) -> Option<InkHash>;
+
+    /// Get the code history of given contract.
+    #[ink(message)]
+    fn code_history(&self, account: AccountId) -> Vec<InkHash>;
 }
 
 /// Errors that can occur upon calling a driver contract.

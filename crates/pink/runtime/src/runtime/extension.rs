@@ -11,7 +11,8 @@ use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
     },
-    dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
+    dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, InkHash,
+    PinkEvent,
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
@@ -326,11 +327,11 @@ impl PinkExtBackend for CallInQuery {
         Ok(crate::version())
     }
 
-    fn code_history(&self, account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+    fn code_history(&self, account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
         let account: AccountId32 = account.convert_to();
         Ok(crate::runtime::Pink::code_history(&account)
             .into_iter()
-            .map(Into::into)
+            .map(|hash| hash.0.into())
             .collect())
     }
 }
@@ -494,7 +495,7 @@ impl PinkExtBackend for CallInCommand {
         self.as_in_query.runtime_version()
     }
 
-    fn code_history(&self, account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+    fn code_history(&self, account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
         self.as_in_query.code_history(account)
     }
 }

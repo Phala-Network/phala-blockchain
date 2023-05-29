@@ -11,7 +11,7 @@ use pink_extension::{
         self as ext, HttpRequest, HttpRequestError, HttpResponse, PinkExtBackend, SigType,
         StorageQuotaExceeded,
     },
-    Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
+    Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, InkHash,
 };
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
@@ -345,7 +345,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok((1, 0))
     }
 
-    fn code_history(&self, _account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+    fn code_history(&self, _account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
         Ok(vec![])
     }
 }

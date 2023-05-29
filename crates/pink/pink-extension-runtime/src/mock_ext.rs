@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use pink_extension::chain_extension::mock::mock_all_with;
 use pink_extension::chain_extension::SigType;
-use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
+use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash, InkHash};
 use sp_core::crypto::AccountId32;
 
 use crate::local_cache;
@@ -149,7 +149,7 @@ impl ext::PinkExtBackend for MockExtension {
         Ok((1, 0))
     }
 
-    fn code_history(&self, _account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+    fn code_history(&self, _account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
         Ok(vec![])
     }
 }

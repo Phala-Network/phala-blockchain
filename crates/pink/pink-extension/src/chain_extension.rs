@@ -208,7 +208,7 @@ pub trait PinkExt {
 
     /// Get the code history of given contract.
     #[ink(extension = 23, handle_status = false)]
-    fn code_history(account: AccountId) -> Vec<Hash>;
+    fn code_history(account: AccountId) -> Vec<crate::InkHash>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
