@@ -205,6 +205,10 @@ pub trait PinkExt {
     /// Batch http request
     #[ink(extension = 22, handle_status = true)]
     fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
+
+    /// Get the code history of given contract.
+    #[ink(extension = 23, handle_status = false)]
+    fn code_history(account: AccountId) -> Vec<Hash>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

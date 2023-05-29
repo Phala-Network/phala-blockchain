@@ -344,6 +344,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok((1, 0))
     }
+
+    fn code_history(&self, _account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+        Ok(vec![])
+    }
 }
 
 struct LimitedWriter<W> {

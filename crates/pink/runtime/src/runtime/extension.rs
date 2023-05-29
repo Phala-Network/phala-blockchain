@@ -325,6 +325,14 @@ impl PinkExtBackend for CallInQuery {
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok(crate::version())
     }
+
+    fn code_history(&self, account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+        let account: AccountId32 = account.convert_to();
+        Ok(crate::runtime::Pink::code_history(&account)
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
 }
 
 struct CallInCommand {
@@ -484,5 +492,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         self.as_in_query.runtime_version()
+    }
+
+    fn code_history(&self, account: ext::AccountId) -> Result<Vec<Hash>, Self::Error> {
+        self.as_in_query.code_history(account)
     }
 }
