@@ -470,8 +470,8 @@ describe('A full stack', function () {
     });
 
     describe('Cluster & Contract', () => {
-        const systemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
-        const system2Metadata = JSON.parse(fs.readFileSync('./res/prebuilt/system-v0xffff.contract'));
+        const oldSystemMetadata = JSON.parse(fs.readFileSync('./res/prebuilt/system-v1.0.0.contract'));
+        const newSystemMetadata = JSON.parse(fs.readFileSync('./res/system.contract'));
         const checkerMetadata = JSON.parse(fs.readFileSync('./res/check_system.contract'));
         const indeterminMetadata = JSON.parse(fs.readFileSync('./res/indeterministic_functions.contract'));
         const quickjsMetadata = JSON.parse(fs.readFileSync('./res/prebuilt/qjs.contract'));
@@ -503,7 +503,7 @@ describe('A full stack', function () {
         });
 
         it('can upload system code', async function () {
-            const systemCode = systemMetadata.source.wasm;
+            const systemCode = oldSystemMetadata.source.wasm;
             await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
@@ -551,7 +551,7 @@ describe('A full stack', function () {
             registry = await Phala.OnChainRegistry.create(api, { clusterId, pruntimeURL: pruntime[0].uri, systemContractId, workerId: runtime0.system.publicKey, skipCheck: true })
             registry.clusterInfo = { ...clusterInfo.toJSON(), gasPrice: new BN(1) }
             const contractKey = await registry.getContractKeyOrFail(systemContractId)
-            ContractSystem = new Phala.PinkContractPromise(api, registry, systemMetadata, systemContractId, contractKey)
+            ContractSystem = new Phala.PinkContractPromise(api, registry, newSystemMetadata, systemContractId, contractKey)
         });
 
         it('can generate cluster key', async function () {
@@ -784,7 +784,7 @@ describe('A full stack', function () {
         });
 
         it('can upload the second system contract', async function () {
-            const systemCode = system2Metadata.source.wasm;
+            const systemCode = newSystemMetadata.source.wasm;
             await assert.txAccepted(
                 api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkSystemCode(systemCode)),
                 alice,
@@ -800,10 +800,19 @@ describe('A full stack', function () {
                 ContractSystem.tx['system::upgradeSystemContract'](txConfig),
                 alice,
             );
+            const newVersion = newSystemMetadata.contract.version.split('.').map(Number);
             assert.isTrue(await checkUntil(async () => {
                 const { output } = await ContractSystem.query['system::version'](alice, certAlice);
-                return output?.eq({ Ok: [0xffff, 0, 0] })
+                return output?.eq({ Ok: newVersion })
             }, 4 * 6000), 'Upgrade system failed');
+            {
+                const { output } = await ContractSystem.query['system::codeHash'](alice, certAlice, ContractSystem.address);
+                assert.isTrue(output?.eq({ Ok: newSystemMetadata.source.hash }));
+            }
+            {
+                const { output } = await ContractSystem.query['system::codeHistory'](alice, certAlice, ContractSystem.address);
+                assert.isTrue(output?.eq({ Ok: [oldSystemMetadata.source.hash] }));
+            }
         });
 
 

@@ -198,7 +198,7 @@ mod system {
         #[ink(message)]
         fn do_upgrade(&self, from_version: VersionTuple) -> Result<()> {
             self.ensure_self()?;
-            self.ensure_min_runtime_version((1, 0))?;
+            self.ensure_min_runtime_version((1, 1))?;
             if from_version >= self.version() {
                 pink::error!("The system contract is already upgraded.");
                 return Err(Error::ConditionNotMet);
