@@ -270,6 +270,10 @@ impl ecall::ECalls for ECallImpl {
     fn git_revision(&self) -> String {
         phala_git_revision::git_revision().to_string()
     }
+
+    fn on_genesis(&mut self) {
+        crate::runtime::on_genesis();
+    }
 }
 
 /// Clip gas limit to 0.5 second for tx, 10 seconds for query
