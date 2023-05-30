@@ -306,7 +306,7 @@ mod test_cluster {
             let runtime = Runtime::from_fn(
                 pink::capi::__pink_runtime_init,
                 std::ptr::null_mut(),
-                (1, 0),
+                pink::version(),
             );
             let mut me = Self {
                 storage,

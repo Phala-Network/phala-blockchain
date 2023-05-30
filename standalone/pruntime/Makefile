@@ -15,6 +15,7 @@ run:
 	./bin/app -c 0
 
 ${PINK_RUNTIME_DIST}: ${PINK_RUNTIME}
+	cp pink-runtimes/* bin/
 	cp $? $@
 	cp $@ target/${BUILD}/
 	strip --strip-all --keep-symbol=__pink_runtime_init $@

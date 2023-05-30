@@ -18,7 +18,29 @@ pub struct Runtime {
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
-pub static RUNTIME: Lazy<Runtime> = Lazy::new(Default::default);
+macro_rules! define_runtimes {
+    ($(($major: expr, $minor: expr),)*) => {
+        pub fn get_runtime(version: (u32, u32)) -> &'static Runtime {
+            match version {
+                $(
+                    ($major, $minor) => {
+                        static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::load_by_version(($major, $minor)));
+                        &RUNTIME
+                    },
+                )*
+                _ => panic!("Unsupported runtime version: {version:?}"),
+            }
+        }
+        pub fn runtime_versions() -> &'static [(u32, u32)] {
+            &[$(($major, $minor)),*]
+        }
+    };
+}
+
+define_runtimes! {
+    (1, 0),
+    (1, 1),
+}
 
 impl Default for Runtime {
     fn default() -> Self {
@@ -125,7 +147,7 @@ where
     current_ocalls::using(ocalls, f)
 }
 
-#[tracing::instrument(name="ocall", skip_all)]
+#[tracing::instrument(name = "ocall", skip_all)]
 unsafe extern "C" fn handle_ocall(
     call_id: u32,
     data: *const u8,

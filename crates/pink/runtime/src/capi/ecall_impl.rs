@@ -14,7 +14,10 @@ use scale::Encode;
 
 use crate::{
     contract::check_instantiate_result,
-    runtime::{Balances as PalletBalances, Contracts as PalletContracts, Pink as PalletPink},
+    runtime::{
+        on_genesis, on_runtime_upgrade, Balances as PalletBalances, Contracts as PalletContracts,
+        Pink as PalletPink,
+    },
 };
 
 use super::OCallImpl;
@@ -57,6 +60,7 @@ impl ecall::ECalls for ECallImpl {
         PalletPink::cluster_id()
     }
     fn setup(&mut self, config: ClusterSetupConfig) -> Result<(), String> {
+        on_genesis();
         let ClusterSetupConfig {
             cluster_id,
             owner,
@@ -134,8 +138,8 @@ impl ecall::ECalls for ECallImpl {
              = 78MB
         If we allow 8 concurrent calls, the total memory cost would be 78MB * 8 = 624MB.
         */
-        let info = phala_wasm_checker::wasm_info(&code)
-            .map_err(|err| format!("Invalid wasm: {err:?}"))?;
+        let info =
+            phala_wasm_checker::wasm_info(&code).map_err(|err| format!("Invalid wasm: {err:?}"))?;
         let max_wasmi_cost = crate::runtime::MaxCodeLen::get() as usize * 4;
         if info.estimate_wasmi_memory_cost() > max_wasmi_cost {
             return Err("DecompressedCodeTooLarge".into());
@@ -269,6 +273,14 @@ impl ecall::ECalls for ECallImpl {
 
     fn git_revision(&self) -> String {
         phala_git_revision::git_revision().to_string()
+    }
+
+    fn on_genesis(&mut self) {
+        on_genesis();
+    }
+
+    fn on_runtime_upgrade(&mut self) {
+        on_runtime_upgrade();
     }
 }
 
