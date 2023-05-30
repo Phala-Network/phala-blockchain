@@ -550,9 +550,9 @@ where
         let expect_random =
             next_random_number(&master_key, event.block_number, event.last_random_number);
         // instead of checking the origin, we directly verify the random to avoid access storage
+        #[cfg(not(feature = "shadow-gk"))]
         if expect_random != event.random_number {
             error!("Fatal error: Expect random number {:?}", expect_random);
-            #[cfg(not(feature = "shadow-gk"))]
             panic!("GK state poisoned");
         }
     }
