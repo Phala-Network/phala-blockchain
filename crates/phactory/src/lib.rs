@@ -287,6 +287,8 @@ fn default_query_scheduler() -> RequestScheduler<AccountId> {
 impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn new(platform: Platform) -> Self {
         let machine_id = platform.machine_id();
+        #[cfg(feature = "shadow-gk")]
+        info!("Shadow GK mode enabled");
         Phactory {
             platform,
             args: Default::default(),

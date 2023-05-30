@@ -1269,7 +1269,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
     /// Get basic information about Phactory state.
     async fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         let info = self.lock_phactory(true, true)?.get_info();
-        info!("Got info: {:?}", info.debug_info());
+        info!("Got info: {:?} mallinfo: {:?}", info.debug_info(), unsafe { libc::mallinfo() });
         Ok(info)
     }
 
