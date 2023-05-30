@@ -163,7 +163,7 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn get_sidevm_code(&self, hash: Hash) -> Option<Vec<u8>> {
-        PalletPink::sidevm_codes(&hash).map(|v| v.code)
+        PalletPink::sidevm_codes(hash).map(|v| v.code)
     }
 
     fn system_contract(&self) -> Option<AccountId> {
@@ -171,7 +171,7 @@ impl ecall::ECalls for ECallImpl {
     }
 
     fn free_balance(&self, account: AccountId) -> Balance {
-        PalletBalances::free_balance(&account)
+        PalletBalances::free_balance(account)
     }
 
     fn total_balance(&self, account: AccountId) -> Balance {

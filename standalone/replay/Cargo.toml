@@ -15,7 +15,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkad
 
 log = "0.4.14"
 anyhow = "1.0.69"
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4.0.32", features = ["derive"] }
 tokio = { version = "1.24.2", features = ["full"] }
 sqlx = { version = "0.5.13", features = ["postgres", "decimal", "chrono", "runtime-tokio-rustls"] }
 chrono = { version = "0.4.22" }
