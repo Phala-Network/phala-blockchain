@@ -514,6 +514,19 @@ describe('A full stack', function () {
             }, 4 * 6000), 'upload system code failed');
         });
 
+        it.skip('can set pink runtime', async function () {
+            const info = await pruntime[0].getInfo();
+            const maxVersion = info.maxSupportedPinkRuntimeVersion.split('.').map(Number);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(api.tx.phalaPhatContracts.setPinkRuntimeVersion(maxVersion)),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                let version = await api.query.phalaPhatContracts.pinkRuntimeVersion();
+                return version.eq(maxVersion);
+            }, 4 * 6000), 'Set pink runtime version failed');
+        });
+
         it('can create cluster', async function () {
             const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
             const runtime0 = await pruntime[0].getInfo();
@@ -811,7 +824,8 @@ describe('A full stack', function () {
             }
             {
                 const { output } = await ContractSystem.query['system::codeHistory'](alice, certAlice, ContractSystem.address);
-                assert.isTrue(output?.eq({ Ok: [oldSystemMetadata.source.hash] }));
+                const history = output?.asOk.toJSON().map(h => h[1]);
+                assert.equal(JSON.stringify(history), JSON.stringify([oldSystemMetadata.source.hash]));
             }
         });
 

@@ -73,7 +73,7 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn code_history)]
     pub(crate) type CodeHistory<T: Config> =
-        StorageMap<_, Twox64Concat, T::AccountId, Vec<T::Hash>, ValueQuery>;
+        StorageMap<_, Twox64Concat, T::AccountId, Vec<(T::BlockNumber, T::Hash)>, ValueQuery>;
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
@@ -174,18 +174,25 @@ pub mod pallet {
             <TreasuryAccount<T>>::put(account);
         }
 
-        pub fn push_code_history(account: &T::AccountId, code_hash: &T::Hash) {
+        pub fn push_code_history(
+            account: &T::AccountId,
+            block_number: T::BlockNumber,
+            code_hash: &T::Hash,
+        ) {
             <CodeHistory<T>>::mutate(account, |value| {
-                value.push(*code_hash);
+                value.push((block_number, *code_hash));
             });
         }
 
-        pub fn apply_code_changes(changes: &[(T::AccountId, T::Hash, T::Hash)]) {
+        pub fn apply_code_changes(
+            block_number: T::BlockNumber,
+            changes: &[(T::AccountId, T::Hash, T::Hash)],
+        ) {
             for (account, old_code_hash, new_code_hash) in changes {
                 if old_code_hash == new_code_hash {
                     continue;
                 }
-                Self::push_code_history(account, old_code_hash);
+                Self::push_code_history(account, block_number, old_code_hash);
             }
         }
     }

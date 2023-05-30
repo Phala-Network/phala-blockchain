@@ -230,7 +230,7 @@ mod system {
         }
 
         #[ink(message)]
-        fn code_history(&self, account: AccountId) -> Vec<pink::InkHash> {
+        fn code_history(&self, account: AccountId) -> Vec<(BlockNumber, pink::InkHash)> {
             pink::ext().code_history(account)
         }
     }

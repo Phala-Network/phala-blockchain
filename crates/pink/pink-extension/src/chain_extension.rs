@@ -206,9 +206,30 @@ pub trait PinkExt {
     #[ink(extension = 22, handle_status = true)]
     fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
 
-    /// Get the code history of given contract.
+    /// Retrieves the code history of a given contract.
+    ///
+    /// Returns a vector of tuples, each containing a block number and a code
+    /// hash. The block number refers to the specific block at which the code
+    /// was changed, and the code hash represents the hash of the previous code
+    /// version. A code hash of all zeros indicates that the contract was
+    /// instantiated at that particular block.
+    ///
+    /// If the returned vector is empty, it signifies either that the contract
+    /// has not been instantiated yet, or that it was instantiated prior to
+    /// the runtime's support for tracking code history.
+    ///
+    /// # Parameters
+    ///
+    /// * `account`: The `AccountId` of the contract for which to retrieve
+    ///   the code history.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tuples, each containing a block number and the
+    /// corresponding code hash.
+    ///
     #[ink(extension = 23, handle_status = false)]
-    fn code_history(account: AccountId) -> Vec<crate::InkHash>;
+    fn code_history(account: AccountId) -> Vec<(crate::BlockNumber, crate::InkHash)>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

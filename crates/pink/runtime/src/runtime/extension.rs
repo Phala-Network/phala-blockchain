@@ -16,9 +16,12 @@ use pink_extension::{
 };
 use pink_extension_runtime::{DefaultPinkExtension, PinkRuntimeEnv};
 use scale::{Decode, Encode};
-use sp_runtime::{AccountId32, DispatchError};
+use sp_runtime::{traits::Clear, AccountId32, DispatchError};
 
-use crate::{capi::OCallImpl, types::AccountId};
+use crate::{
+    capi::OCallImpl,
+    types::{AccountId, BlockNumber},
+};
 
 use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
@@ -31,12 +34,12 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     super::System::deposit_event_indexed(&topics[..], event);
 }
 
-pub struct ContractEvents {
+pub(crate) struct ContractEvents {
     pub side_effects: ExecSideEffects,
     pub code_changes: Vec<(AccountId, crate::types::Hash, crate::types::Hash)>,
 }
 
-pub fn get_events() -> ContractEvents {
+pub(crate) fn get_events() -> ContractEvents {
     let mut pink_events = Vec::default();
     let mut ink_events = Vec::default();
     let mut instantiated = Vec::default();
@@ -48,7 +51,12 @@ pub fn get_events() -> ContractEvents {
                 ContractEvent::Instantiated {
                     deployer,
                     contract: address,
-                } => instantiated.push((deployer, address)),
+                } => {
+                    instantiated.push((deployer, address.clone()));
+                    if let Some(code_hash) = crate::runtime::Contracts::code_hash(&address) {
+                        code_changes.push((address, Clear::clear(), code_hash));
+                    }
+                }
                 ContractEvent::ContractEmitted {
                     contract: address,
                     data,
@@ -327,11 +335,14 @@ impl PinkExtBackend for CallInQuery {
         Ok(crate::version())
     }
 
-    fn code_history(&self, account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
+    fn code_history(
+        &self,
+        account: ext::AccountId,
+    ) -> Result<Vec<(BlockNumber, InkHash)>, Self::Error> {
         let account: AccountId32 = account.convert_to();
         Ok(crate::runtime::Pink::code_history(&account)
             .into_iter()
-            .map(|hash| hash.0.into())
+            .map(|(blk, hash)| (blk, hash.0.into()))
             .collect())
     }
 }
@@ -495,7 +506,10 @@ impl PinkExtBackend for CallInCommand {
         self.as_in_query.runtime_version()
     }
 
-    fn code_history(&self, account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
+    fn code_history(
+        &self,
+        account: ext::AccountId,
+    ) -> Result<Vec<(BlockNumber, InkHash)>, Self::Error> {
         self.as_in_query.code_history(account)
     }
 }

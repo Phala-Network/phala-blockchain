@@ -45,7 +45,7 @@ where
             System::reset_events();
             let result = f();
             let events = crate::runtime::get_events();
-            Pink::apply_code_changes(&events.code_changes);
+            Pink::apply_code_changes(exec_context.block_number, &events.code_changes);
             (result, events.side_effects)
         });
         overlay

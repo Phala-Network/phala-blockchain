@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
-use crate::{AccountId, Balance, Hash, InkHash};
+use crate::{AccountId, Balance, Hash, InkHash, BlockNumber};
 
 /// Errors that can occur upon calling the system contract.
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
@@ -133,7 +133,7 @@ pub trait System {
 
     /// Get the code history of given contract.
     #[ink(message)]
-    fn code_history(&self, account: AccountId) -> Vec<InkHash>;
+    fn code_history(&self, account: AccountId) -> Vec<(BlockNumber, InkHash)>;
 }
 
 /// Errors that can occur upon calling a driver contract.

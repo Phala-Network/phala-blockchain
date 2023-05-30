@@ -6,6 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use pink_extension::BlockNumber;
 use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpRequestError, HttpResponse, PinkExtBackend, SigType,
@@ -345,7 +346,10 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         Ok((1, 0))
     }
 
-    fn code_history(&self, _account: ext::AccountId) -> Result<Vec<InkHash>, Self::Error> {
+    fn code_history(
+        &self,
+        _account: ext::AccountId,
+    ) -> Result<Vec<(BlockNumber, InkHash)>, Self::Error> {
         Ok(vec![])
     }
 }
