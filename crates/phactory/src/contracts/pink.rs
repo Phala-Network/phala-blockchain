@@ -12,7 +12,10 @@ use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
-        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+        ocall::{
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
+            StorageChanges,
+        },
     },
     local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::{get_runtime, using_ocalls},
@@ -372,6 +375,29 @@ impl OCalls for RuntimeHandle<'_> {
         }
         result
     }
+
+    fn batch_http_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> BatchHttpResult {
+        let results = pink_extension_runtime::batch_http_request(
+            requests,
+            context::time_remaining().min(timeout_ms),
+        )?;
+        for result in &results {
+            match result {
+                Ok(r) => {
+                    http_counters::add(contract.clone(), r.status_code);
+                }
+                Err(_) => {
+                    http_counters::add(contract.clone(), 0);
+                }
+            }
+        }
+        Ok(results)
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -435,6 +461,16 @@ impl OCalls for RuntimeHandleMut<'_> {
         request: HttpRequest,
     ) -> Result<HttpResponse, HttpRequestError> {
         self.readonly().http_request(contract, request)
+    }
+
+    fn batch_http_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> BatchHttpResult {
+        self.readonly()
+            .batch_http_request(contract, requests, timeout_ms)
     }
 }
 
