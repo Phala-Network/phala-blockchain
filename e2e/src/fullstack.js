@@ -1321,6 +1321,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
         '--cores=0',  // Disable benchmark
         '--checkpoint-interval=5',
         '--port', teePort.toString(),
+        '--use-kvdb',
     ];
     let bin = pRuntimeBin;
     if (inSgx) {

@@ -81,6 +81,10 @@ struct Args {
     /// Disable the RCU policy to update the Phactory state.
     #[arg(long)]
     no_rcu: bool,
+
+    /// Put the chain and contract state to disk.
+    #[arg(long)]
+    use_kvdb: bool,
 }
 
 #[rocket::main]
@@ -96,7 +100,10 @@ async fn main() -> Result<(), rocket::Error> {
 async fn serve(sgx: bool) -> Result<(), rocket::Error> {
     let args = Args::parse();
 
-    info!(sgx, "Starting pruntime...");
+    info!(sgx, ?args, "Starting pruntime...");
+
+    phala_trie_storage::set_use_rocksdb(args.use_kvdb);
+    pink_runner::storage::set_use_rocksdb(args.use_kvdb);
 
     let sealing_path;
     let storage_path;
