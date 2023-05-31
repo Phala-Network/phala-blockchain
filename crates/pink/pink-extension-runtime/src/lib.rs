@@ -158,9 +158,13 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     ) -> Result<bool, Self::Error> {
         macro_rules! verify_with {
             ($sigtype:ident) => {{
-                let pubkey = sp_core::$sigtype::Public::from_slice(&pubkey).map_err(|_| "Invalid public key")?;
-                let signature = sp_core::$sigtype::Signature::from_slice(&signature).ok_or("Invalid signature")?;
-                Ok(sp_core::$sigtype::Pair::verify(&signature, message, &pubkey))
+                let pubkey = sp_core::$sigtype::Public::from_slice(&pubkey)
+                    .map_err(|_| "Invalid public key")?;
+                let signature = sp_core::$sigtype::Signature::from_slice(&signature)
+                    .ok_or("Invalid signature")?;
+                Ok(sp_core::$sigtype::Pair::verify(
+                    &signature, message, &pubkey,
+                ))
             }};
         }
         match sigtype {

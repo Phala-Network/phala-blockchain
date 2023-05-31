@@ -66,7 +66,7 @@ fn get_versions<T: PhalaPallets>() -> Versions {
 }
 
 #[allow(dead_code)]
-fn unified_versions<T: PhalaPallets>(version: u16) -> Versions {
+fn unified_versions(version: u16) -> Versions {
 	(
 		StorageVersion::new(version),
 		StorageVersion::new(version),

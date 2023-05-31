@@ -138,8 +138,8 @@ mod tests {
 	#[test]
 	fn test_check_mq_seq_works() {
 		new_test_ext().execute_with(|| {
-			OffchainIngress::<Test>::insert(&MessageOrigin::Worker(worker_pubkey(1)), 1);
-			OffchainIngress::<Test>::insert(&MessageOrigin::Worker(worker_pubkey(2)), 2);
+			OffchainIngress::<Test>::insert(MessageOrigin::Worker(worker_pubkey(1)), 1);
+			OffchainIngress::<Test>::insert(MessageOrigin::Worker(worker_pubkey(2)), 2);
 			let info = DispatchInfo::default();
 			let len = 0_usize;
 			// stale

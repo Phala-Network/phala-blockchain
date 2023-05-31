@@ -21,9 +21,9 @@ pub use sidevm_macro::main;
 pub use tasks::spawn;
 
 mod args_stack;
+pub mod messages;
 mod ocall_def;
 pub mod tasks;
-pub mod messages;
 pub mod tls;
 
 cfg_if::cfg_if! {

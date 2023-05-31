@@ -26,9 +26,7 @@ use std::{
 
 use finality_grandpa::{voter_set::VoterSet, Error as GrandpaError};
 use parity_scale_codec::{Decode, Encode};
-use sp_runtime::{
-    traits::{Block as BlockT, Header as HeaderT, NumberFor},
-};
+use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 
 /// A GRANDPA justification for block finality, it includes a commit message and
 /// an ancestry proof including all headers routing all precommit target blocks

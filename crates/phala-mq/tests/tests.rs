@@ -1,5 +1,5 @@
-use phala_mq::MessageOrigin;
 use phala_mq::traits::MessageChannel;
+use phala_mq::MessageOrigin;
 
 #[cfg(feature = "queue")]
 #[test]

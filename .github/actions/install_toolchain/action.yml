@@ -3,13 +3,13 @@ description: "Install toolchains"
 runs:
   using: "composite"
   steps:
-    - name: Install latest nightly
+    - name: Install latest stable
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly-2023-02-03
+        toolchain: stable
         override: true
         target: wasm32-unknown-unknown
-        components: rustfmt
+        components: cargo, clippy, rust-analyzer, rust-src, rust-std, rustc-dev, rustc, rustfmt
     - run: sudo apt update
       shell: bash
     - run: sudo apt -y install build-essential cmake pkg-config libssl-dev git llvm clang libclang-dev protobuf-compiler

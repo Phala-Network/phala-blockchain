@@ -1,5 +1,5 @@
 use either::Either;
-use heck::{ToUpperCamelCase, ToSnakeCase};
+use heck::{ToSnakeCase, ToUpperCamelCase};
 use itertools::Itertools;
 use log::debug;
 use multimap::MultiMap;

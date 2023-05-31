@@ -37,7 +37,6 @@ fn patch_or_err(
     let crate_ink_lang = crate::find_crate_name("ink")?;
     let crate_ink_env = quote!(#crate_ink_lang::env);
 
-
     let mut associated_types_t = vec![];
     let mut associated_types_v = vec![];
     let mut method_sigs = vec![];

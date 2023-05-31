@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 rocket = "0.5.0-rc.3"
 phala-scheduler = { path = "../../crates/phala-scheduler" }
-clap = { version = "4.0.19", features = ["derive"] }
+clap = { version = "4.0.32", features = ["derive"] }

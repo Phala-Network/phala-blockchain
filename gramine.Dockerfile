@@ -15,7 +15,7 @@ ARG CODENAME='focal'
 ADD ./dockerfile.d/04_psw.sh /root
 RUN bash /root/04_psw.sh
 
-ARG RUST_TOOLCHAIN='nightly-2023-02-03'
+ARG RUST_TOOLCHAIN='stable'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 

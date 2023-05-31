@@ -48,9 +48,8 @@ fn test_pool_subaccount() {
 fn test_wrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 0);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
@@ -58,9 +57,7 @@ fn test_wrap() {
 			RuntimeOrigin::signed(1),
 			100 * DOLLARS
 		));
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 100 * DOLLARS);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
@@ -73,6 +70,7 @@ fn test_wrap() {
 fn test_unwrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
+		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
 		assert_ok!(PhalaWrappedBalances::wrap(
 			RuntimeOrigin::signed(1),
 			100 * DOLLARS
@@ -83,9 +81,7 @@ fn test_unwrap() {
 		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 50 * DOLLARS);
 		let wpha_free = get_balance(1);
 		assert_eq!(wpha_free, 50 * DOLLARS);
@@ -1011,7 +1007,7 @@ fn test_force_unbind() {
 		let pool = ensure_stake_pool::<Test>(0).unwrap();
 		assert!(!pool.workers.contains(&worker_pubkey(1)));
 		// Check the computing is ready
-		let worker = PhalaComputation::sessions(&sub_account).unwrap();
+		let worker = PhalaComputation::sessions(sub_account).unwrap();
 		assert_eq!(worker.state, computation::WorkerState::Ready);
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		let balance = get_balance(pool.basepool.pool_account_id);
@@ -1046,7 +1042,7 @@ fn test_force_unbind() {
 		let pool = ensure_stake_pool::<Test>(1).unwrap();
 		assert!(!pool.workers.contains(&worker_pubkey(2)));
 		// Check the computing is stopped
-		let worker = PhalaComputation::sessions(&sub_account).unwrap();
+		let worker = PhalaComputation::sessions(sub_account).unwrap();
 		assert_eq!(worker.state, computation::WorkerState::WorkerCoolingDown);
 	});
 }
@@ -1415,9 +1411,8 @@ fn test_on_reward_for_vault() {
 			50 * DOLLARS
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
-		let free = Balances::free_balance(
-			&<Test as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-		);
+		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }

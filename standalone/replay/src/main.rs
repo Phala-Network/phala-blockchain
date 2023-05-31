@@ -13,10 +13,7 @@ pub struct Args {
     )]
     node_uri: String,
 
-    #[arg(
-        long,
-        help = "Headers cache endpoint."
-    )]
+    #[arg(long, help = "Headers cache endpoint.")]
     cache_uri: Option<String>,
 
     #[arg(
@@ -26,10 +23,7 @@ pub struct Args {
     )]
     start_at: u32,
 
-    #[arg(
-        long,
-        help = "The block number to stop at."
-    )]
+    #[arg(long, help = "The block number to stop at.")]
     stop_at: Option<u32>,
 
     #[arg(

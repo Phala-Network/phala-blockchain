@@ -88,10 +88,7 @@ impl MessageOrigin {
 
     /// Returns if we can trust the origin to not send us non-well-formed messages
     pub fn always_well_formed(&self) -> bool {
-        matches!(
-            self,
-            Self::Pallet(_) | Self::Worker(_) | Self::Gatekeeper
-        )
+        matches!(self, Self::Pallet(_) | Self::Worker(_) | Self::Gatekeeper)
     }
 
     /// Returns if the origin is from a Gatekeeper

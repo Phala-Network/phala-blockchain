@@ -49,7 +49,7 @@ pub fn init_subscriber(sanitized: bool) {
     let filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env_lossy();
-    let ansi = crate::get_env("RUST_LOG_ANSI_COLOR",false);
+    let ansi = crate::get_env("RUST_LOG_ANSI_COLOR", false);
     let sanitized = crate::get_env("RUST_LOG_SANITIZED", sanitized);
     let builder = builder
         .with_env_filter(filter)

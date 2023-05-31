@@ -6,7 +6,7 @@ use jsonrpsee::{
     core::{async_trait, Error as JsonRpseeError, RpcResult},
     proc_macros::rpc,
     types::error::{CallError, ErrorObject},
-    RpcModule
+    RpcModule,
 };
 use pallet_mq_runtime_api::MqApi;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
@@ -142,12 +142,6 @@ pub fn extend_rpc<Client, BE, Block, P>(
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
     P: TransactionPool + 'static,
 {
-    io.merge(
-        NodeRpcExt::new(
-            client,
-            backend,
-            is_archive_mode,
-            pool,
-        ).into_rpc(),
-    ).expect("Initialize Phala node RPC ext failed.");
+    io.merge(NodeRpcExt::new(client, backend, is_archive_mode, pool).into_rpc())
+        .expect("Initialize Phala node RPC ext failed.");
 }
