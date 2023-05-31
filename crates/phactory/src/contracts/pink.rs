@@ -12,7 +12,10 @@ use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
-        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+        ocall::{
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
+            StorageChanges,
+        },
     },
     local_cache::{self, StorageQuotaExceeded},
     runtimes::v1::{get_runtime, using_ocalls},
@@ -378,11 +381,11 @@ impl OCalls for RuntimeHandle<'_> {
         contract: AccountId,
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
-    ) -> Vec<Result<HttpResponse, HttpRequestError>> {
+    ) -> BatchHttpResult {
         let results = pink_extension_runtime::batch_http_request(
             requests,
             context::time_remaining().min(timeout_ms),
-        );
+        )?;
         for result in &results {
             match result {
                 Ok(r) => {
@@ -393,7 +396,7 @@ impl OCalls for RuntimeHandle<'_> {
                 }
             }
         }
-        results
+        Ok(results)
     }
 }
 
@@ -465,7 +468,7 @@ impl OCalls for RuntimeHandleMut<'_> {
         contract: AccountId,
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
-    ) -> Vec<Result<HttpResponse, HttpRequestError>> {
+    ) -> BatchHttpResult {
         self.readonly()
             .batch_http_request(contract, requests, timeout_ms)
     }

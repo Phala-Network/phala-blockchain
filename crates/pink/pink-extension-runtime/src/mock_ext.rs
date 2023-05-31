@@ -30,7 +30,7 @@ impl ext::PinkExtBackend for MockExtension {
         &self,
         requests: Vec<ext::HttpRequest>,
         timeout_ms: u64,
-    ) -> Result<Vec<Result<ext::HttpResponse, ext::HttpRequestError>>, Self::Error> {
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
         super::DefaultPinkExtension::new(self).batch_http_request(requests, timeout_ms)
     }
 

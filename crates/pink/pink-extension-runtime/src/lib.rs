@@ -52,18 +52,15 @@ fn block_on<F: core::future::Future>(f: F) -> F::Output {
     }
 }
 
-pub fn batch_http_request(
-    requests: Vec<HttpRequest>,
-    timeout_ms: u64,
-) -> Vec<Result<HttpResponse, HttpRequestError>> {
+pub fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> ext::BatchHttpResult {
     const MAX_CONCURRENT_REQUESTS: usize = 5;
     if requests.len() > MAX_CONCURRENT_REQUESTS {
-        return vec![];
+        return Err(ext::HttpRequestError::TooManyRequests);
     }
     let futs = requests
         .into_iter()
         .map(|request| async_http_request(request, timeout_ms));
-    block_on(futures::future::join_all(futs))
+    Ok(block_on(futures::future::join_all(futs)))
 }
 
 pub fn http_request(
@@ -163,7 +160,7 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
         &self,
         requests: Vec<HttpRequest>,
         timeout_ms: u64,
-    ) -> Result<Vec<Result<HttpResponse, HttpRequestError>>, Self::Error> {
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
         Ok(batch_http_request(requests, timeout_ms))
     }
 

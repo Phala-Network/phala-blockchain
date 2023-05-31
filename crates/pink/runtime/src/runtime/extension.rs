@@ -159,7 +159,7 @@ impl PinkExtBackend for CallInQuery {
         &self,
         requests: Vec<ext::HttpRequest>,
         timeout_ms: u64,
-    ) -> Result<Vec<Result<HttpResponse, ext::HttpRequestError>>, Self::Error> {
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
         Ok(OCallImpl.batch_http_request(self.address.clone(), requests, timeout_ms))
     }
 
@@ -333,8 +333,8 @@ impl PinkExtBackend for CallInCommand {
         &self,
         _requests: Vec<ext::HttpRequest>,
         _timeout_ms: u64,
-    ) -> Result<Vec<Result<HttpResponse, ext::HttpRequestError>>, Self::Error> {
-        Ok(vec![])
+    ) -> Result<ext::BatchHttpResult, Self::Error> {
+        Ok(Err(ext::HttpRequestError::NotAllowed))
     }
     fn sign(
         &self,

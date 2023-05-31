@@ -127,7 +127,7 @@ pub mod ocall {
     use scale::{Decode, Encode};
 
     pub use pink_extension::chain_extension::{
-        HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
+        BatchHttpResult, HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
     };
     pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
 
@@ -198,6 +198,6 @@ pub mod ocall {
             contract: AccountId,
             requests: Vec<HttpRequest>,
             timeout_ms: u64,
-        ) -> Vec<Result<HttpResponse, HttpRequestError>>;
+        ) -> BatchHttpResult;
     }
 }

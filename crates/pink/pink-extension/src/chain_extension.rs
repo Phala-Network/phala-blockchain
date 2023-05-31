@@ -97,6 +97,8 @@ impl ink::env::chain_extension::FromStatusCode for ErrorCode {
     }
 }
 
+pub type BatchHttpResult = Result<Vec<Result<HttpResponse, HttpRequestError>>, HttpRequestError>;
+
 /// Extensions for the ink runtime defined by phat contract.
 #[pink_extension_macro::chain_extension]
 pub trait PinkExt {
@@ -202,10 +204,7 @@ pub trait PinkExt {
 
     /// Batch http request
     #[ink(extension = 22, handle_status = true)]
-    fn batch_http_request(
-        requests: Vec<HttpRequest>,
-        timeout_ms: u64,
-    ) -> Vec<Result<HttpResponse, HttpRequestError>>;
+    fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

@@ -254,7 +254,10 @@ fn test_qjs() {
 mod test_cluster {
     use pink_capi::v1::{
         ecall::ECalls,
-        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+        ocall::{
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
+            StorageChanges,
+        },
         CrossCall, CrossCallMut, ECall,
     };
     use pink_runner::{
@@ -486,7 +489,7 @@ mod test_cluster {
             _: AccountId,
             requests: Vec<HttpRequest>,
             timeout_ms: u64,
-        ) -> Vec<Result<HttpResponse, HttpRequestError>> {
+        ) -> BatchHttpResult {
             pink_extension_runtime::batch_http_request(requests, timeout_ms)
         }
     }
