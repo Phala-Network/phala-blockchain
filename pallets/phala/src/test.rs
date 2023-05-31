@@ -49,9 +49,7 @@ fn test_wrap() {
 	new_test_ext().execute_with(|| {
 		mock_asset_id();
 		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
-		let free = Balances::free_balance(
-			who,
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 0);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 1000 * DOLLARS);
@@ -59,9 +57,7 @@ fn test_wrap() {
 			RuntimeOrigin::signed(1),
 			100 * DOLLARS
 		));
-		let free = Balances::free_balance(
-			who,
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 100 * DOLLARS);
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 900 * DOLLARS);
@@ -85,9 +81,7 @@ fn test_unwrap() {
 		));
 		let free = Balances::free_balance(1);
 		assert_eq!(free, 950 * DOLLARS);
-		let free = Balances::free_balance(
-			who,
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 50 * DOLLARS);
 		let wpha_free = get_balance(1);
 		assert_eq!(wpha_free, 50 * DOLLARS);
@@ -1418,9 +1412,7 @@ fn test_on_reward_for_vault() {
 		);
 		assert_eq!(vault_info.basepool.total_shares, 100 * DOLLARS);
 		let who: u64 = <Test as wrapped_balances::Config>::WrappedBalancesAccountId::get();
-		let free = Balances::free_balance(
-			who,
-		);
+		let free = Balances::free_balance(who);
 		assert_eq!(free, 1600 * DOLLARS);
 	});
 }

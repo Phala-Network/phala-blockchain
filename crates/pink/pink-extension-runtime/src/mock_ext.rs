@@ -130,7 +130,10 @@ impl ext::PinkExtBackend for MockExtension {
         Ok(false)
     }
 
-    fn import_latest_system_code(&self, _payer: ext::AccountId) -> Result<Option<Hash>, Self::Error> {
+    fn import_latest_system_code(
+        &self,
+        _payer: ext::AccountId,
+    ) -> Result<Option<Hash>, Self::Error> {
         Ok(None)
     }
 

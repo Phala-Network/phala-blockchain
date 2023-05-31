@@ -1,4 +1,4 @@
-#[cfg(all(target_arch="x86_64", target_os = "linux"))]
+#[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 #[test]
 fn test_ocall() {
     let stream = crate::macro_ocall::patch(syn::parse_quote! {

@@ -92,8 +92,7 @@ impl Future for WasmRun {
         let _guard = futures::ready!(self.scheduler.poll_resume(cx, &self.id, self.env.weight()));
         let run = self.get_mut();
         run.env.reset_gas_to_breath(&mut run.store);
-        match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store))
-        {
+        match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store)) {
             Ok(rv) => {
                 if rv == 0 {
                     if run.env.has_more_ready() {

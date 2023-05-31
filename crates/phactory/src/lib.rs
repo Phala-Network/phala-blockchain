@@ -48,7 +48,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageSendQueue, MessageOrigin};
+use phala_mq::{BindTopic, ChannelState, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_scheduler::RequestScheduler;
 use phala_serde_more as more;
 use std::time::Instant;

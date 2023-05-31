@@ -26,15 +26,15 @@ pub mod common;
 
 #[tokio::test]
 async fn check_block_works() {
-	let base_path = tempdir().expect("could not create a temp dir");
+    let base_path = tempdir().expect("could not create a temp dir");
 
-	common::run_node_for_a_while(base_path.path(), &["--dev", "--no-hardware-benchmarks"]).await;
+    common::run_node_for_a_while(base_path.path(), &["--dev", "--no-hardware-benchmarks"]).await;
 
-	let status = Command::new(cargo_bin("phala-node"))
-		.args(["check-block", "--dev", "-d"])
-		.arg(base_path.path())
-		.arg("1")
-		.status()
-		.unwrap();
-	assert!(status.success());
+    let status = Command::new(cargo_bin("phala-node"))
+        .args(["check-block", "--dev", "-d"])
+        .arg(base_path.path())
+        .arg("1")
+        .status()
+        .unwrap();
+    assert!(status.success());
 }

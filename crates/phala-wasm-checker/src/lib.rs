@@ -11,7 +11,6 @@ pub struct WasmInfo {
     pub const_data_size: usize,
 }
 
-
 impl WasmInfo {
     pub fn estimate_wasmi_memory_cost(&self) -> usize {
         // Each instruction takes 16 bytes in wasmi's memory

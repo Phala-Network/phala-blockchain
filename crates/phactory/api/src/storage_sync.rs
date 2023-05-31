@@ -2,11 +2,11 @@ use super::blocks::{
     AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, RuntimeHasher, StorageProof,
 };
 
-use im::Vector as VecDeque;
 use alloc::string::String;
 use alloc::vec::Vec;
 use chain::Hash;
 use derive_more::Display;
+use im::Vector as VecDeque;
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
 
@@ -35,9 +35,7 @@ pub enum Error {
     /// No state root to validate the storage changes
     NoStateRoot,
     /// Invalid storage changes that cause the state root mismatch
-    #[display(
-        fmt = "StateRootMismatch block={block:?} expected={expected:?} actual={actual:?}"
-    )]
+    #[display(fmt = "StateRootMismatch block={block:?} expected={expected:?} actual={actual:?}")]
     StateRootMismatch {
         block: chain::BlockNumber,
         expected: chain::Hash,

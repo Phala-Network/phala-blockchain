@@ -25,19 +25,19 @@ pub mod common;
 #[tokio::test]
 #[cfg(unix)]
 async fn purge_chain_works() {
-	let base_path = tempdir().expect("could not create a temp dir");
+    let base_path = tempdir().expect("could not create a temp dir");
 
-	common::run_node_for_a_while(base_path.path(), &["--dev"]).await;
+    common::run_node_for_a_while(base_path.path(), &["--dev"]).await;
 
-	let status = Command::new(cargo_bin("phala-node"))
-		.args(["purge-chain", "--dev", "-d"])
-		.arg(base_path.path())
-		.arg("-y")
-		.status()
-		.unwrap();
-	assert!(status.success());
+    let status = Command::new(cargo_bin("phala-node"))
+        .args(["purge-chain", "--dev", "-d"])
+        .arg(base_path.path())
+        .arg("-y")
+        .status()
+        .unwrap();
+    assert!(status.success());
 
-	// Make sure that the `dev` chain folder exists, but the `db` is deleted.
-	assert!(base_path.path().join("chains/phala_dev/").exists());
-	assert!(!base_path.path().join("chains/phala_dev/db/full").exists());
+    // Make sure that the `dev` chain folder exists, but the `db` is deleted.
+    assert!(base_path.path().join("chains/phala_dev/").exists());
+    assert!(!base_path.path().join("chains/phala_dev/db/full").exists());
 }

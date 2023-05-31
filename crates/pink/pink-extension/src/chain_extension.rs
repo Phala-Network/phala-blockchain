@@ -2,7 +2,7 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 
-pub use http_request::{HttpRequest, HttpResponse, HttpRequestError};
+pub use http_request::{HttpRequest, HttpRequestError, HttpResponse};
 pub use ink::primitives::AccountId;
 pub use signing::SigType;
 

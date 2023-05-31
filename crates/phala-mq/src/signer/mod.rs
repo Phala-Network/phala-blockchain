@@ -13,9 +13,9 @@ pub trait MessageVerifier {
 pub mod signers {
     use super::MessageSigner;
     use alloc::vec::Vec;
-    use sp_core::{crypto::Pair as PairTrait, sr25519};
-    use serde::{Serialize, Deserialize};
     use phala_serde_more as more;
+    use serde::{Deserialize, Serialize};
+    use sp_core::{crypto::Pair as PairTrait, sr25519};
 
     #[derive(Serialize, Deserialize, Clone)]
     pub struct Sr25519Signer {
