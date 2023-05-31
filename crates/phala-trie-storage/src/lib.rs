@@ -12,6 +12,7 @@ use fused::DatabaseAdapter;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::iter::FromIterator;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use parity_scale_codec::Codec;
 use sp_core::storage::ChildInfo;
@@ -41,14 +42,27 @@ pub struct TrieStorage<H: Hasher>(KvdbBackend<H>)
 where
     H::Out: Ord;
 
+static USE_ROCKSDB: AtomicBool = AtomicBool::new(true);
+
+fn use_rocksdb() -> bool {
+    USE_ROCKSDB.load(Ordering::Relaxed)
+}
+
+pub fn set_use_rocksdb(use_rocksdb: bool) {
+    USE_ROCKSDB.store(use_rocksdb, Ordering::Relaxed);
+}
+
 impl<H: Hasher> Default for TrieStorage<H>
 where
     H::Out: Codec + Ord,
 {
     fn default() -> Self {
-        Self(
-            TrieBackendBuilder::new(DatabaseAdapter::default_rocksdb(), Default::default()).build(),
-        )
+        let backend = if use_rocksdb() {
+            DatabaseAdapter::default_rocksdb()
+        } else {
+            DatabaseAdapter::default_memdb()
+        };
+        Self(TrieBackendBuilder::new(backend, Default::default()).build())
     }
 }
 
@@ -81,7 +95,12 @@ where
             }
         }
     }
-    TrieBackendBuilder::new(DatabaseAdapter::Rocks(RocksHashDB::load(mdb)), root).build()
+    let storage = if use_rocksdb() {
+        DatabaseAdapter::Rocks(RocksHashDB::load(mdb))
+    } else {
+        DatabaseAdapter::Memory(mdb)
+    };
+    TrieBackendBuilder::new(storage, root).build()
 }
 
 #[cfg(feature = "serde")]
@@ -97,9 +116,7 @@ where
     let db = trie.backend_storage();
     match db {
         DatabaseAdapter::Rocks(db) => (root, db).serialize(serializer),
-        DatabaseAdapter::Memory(_) => Err(serde::ser::Error::custom(
-            "Cannot serialize memory DB. It's only for unit test only",
-        )),
+        DatabaseAdapter::Memory(mdb) => (root, ser::SerAsSeq(mdb)).serialize(serializer),
     }
 }
 
@@ -111,10 +128,19 @@ where
     H::Out: Codec + Deserialize<'de> + Ord,
     De: Deserializer<'de>,
 {
-    let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
-    let db = DatabaseAdapter::Rocks(db);
-    let backend = TrieBackendBuilder::new(db, root).build();
-    Ok(backend)
+    let (root, db) = if use_rocksdb() {
+        let (root, db): (H::Out, RocksHashDB<H>) = Deserialize::deserialize(deserializer)?;
+        (root, DatabaseAdapter::Rocks(db))
+    } else {
+        let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
+        let mdb = MemoryDB::from_inner(
+            kvs.into_iter()
+                .map(|(data, rc)| (H::hash(data.as_ref()), (data, rc)))
+                .collect(),
+        );
+        (root, DatabaseAdapter::Memory(mdb))
+    };
+    Ok(TrieBackendBuilder::new(db, root).build())
 }
 
 pub fn clone_trie_backend<H: Hasher>(trie: &KvdbBackend<H>) -> KvdbBackend<H>

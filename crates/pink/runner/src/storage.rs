@@ -2,15 +2,30 @@ use im::OrdMap;
 use phala_trie_storage::RocksDB;
 use pink_capi::{types::Hash, v1::ocall::StorageChanges};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static USE_ROCKSDB: AtomicBool = AtomicBool::new(true);
+
+fn use_rocksdb() -> bool {
+    USE_ROCKSDB.load(Ordering::Relaxed)
+}
+
+pub fn set_use_rocksdb(use_rocksdb: bool) {
+    USE_ROCKSDB.store(use_rocksdb, Ordering::Relaxed);
+}
 
 enum StorageAdapter {
     RocksDB(RocksDB),
-    Memory(OrdMap<Vec<u8>, (Vec<u8>, i32)>),
+    Memory(OrdMap<Vec<u8>, (i32, Vec<u8>)>),
 }
 
 impl Default for StorageAdapter {
     fn default() -> Self {
-        StorageAdapter::RocksDB(RocksDB::default())
+        if use_rocksdb() {
+            StorageAdapter::RocksDB(Default::default())
+        } else {
+            StorageAdapter::Memory(Default::default())
+        }
     }
 }
 
@@ -21,7 +36,7 @@ impl Serialize for StorageAdapter {
     {
         match self {
             StorageAdapter::RocksDB(db) => db.serialize(serializer),
-            StorageAdapter::Memory(_) => unimplemented!("InMemory storage is for testing only"),
+            StorageAdapter::Memory(mdb) => mdb.serialize(serializer),
         }
     }
 }
@@ -31,7 +46,11 @@ impl<'de> Deserialize<'de> for StorageAdapter {
     where
         D: Deserializer<'de>,
     {
-        RocksDB::deserialize(deserializer).map(StorageAdapter::RocksDB)
+        if use_rocksdb() {
+            Deserialize::deserialize(deserializer).map(StorageAdapter::RocksDB)
+        } else {
+            Deserialize::deserialize(deserializer).map(StorageAdapter::Memory)
+        }
     }
 }
 
@@ -50,7 +69,10 @@ impl StorageAdapter {
             StorageAdapter::RocksDB(kvdb) => {
                 kvdb.get_r(key).expect("Failed to get key from RocksDB")
             }
-            StorageAdapter::Memory(mdb) => mdb.get(key).cloned(),
+            StorageAdapter::Memory(mdb) => {
+                let (rc, v) = mdb.get(key).cloned()?;
+                Some((v, rc))
+            },
         }
     }
 
@@ -68,8 +90,8 @@ impl StorageAdapter {
                     let pv = mdb.get(key).cloned();
 
                     let raw_value = match pv {
-                        None => (value, rc),
-                        Some((mut d, mut orc)) => {
+                        None => (rc, value),
+                        Some((mut orc, mut d)) => {
                             if orc <= 0 {
                                 d = value;
                             }
@@ -80,7 +102,7 @@ impl StorageAdapter {
                                 mdb.remove(key);
                                 continue;
                             }
-                            (d, orc)
+                            (orc, d)
                         }
                     };
                     mdb.insert(key.to_vec(), raw_value);
