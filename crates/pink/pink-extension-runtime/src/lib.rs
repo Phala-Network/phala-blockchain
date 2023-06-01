@@ -60,7 +60,11 @@ pub fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> ext::B
     let futs = requests
         .into_iter()
         .map(|request| async_http_request(request, timeout_ms));
-    Ok(block_on(futures::future::join_all(futs)))
+    block_on(tokio::time::timeout(
+        Duration::from_millis(timeout_ms + 200),
+        futures::future::join_all(futs),
+    ))
+    .or(Err(ext::HttpRequestError::Timeout))
 }
 
 pub fn http_request(
