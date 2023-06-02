@@ -1,6 +1,6 @@
 use crate::{
     args::{parse_hash, RunArgs},
-    contracts::{SELECTOR_GET_USER_PROFILES, SELECTOR_POLL},
+    contracts::{SELECTOR_GET_USER_PROFILES, SELECTOR_POLL, SELECTOR_WORKFLOW_COUNT},
     instant::Instant,
     query::pink_query,
 };
@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use phaxt::AccountId;
 use sp_core::H256;
 use tokio::task::JoinHandle;
@@ -359,7 +359,7 @@ impl App {
                     r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
                     worker.pubkey
                 ),
-                self.config.poll_timeout,
+                self.config.poll_timeout.saturating_mul(2),
                 poll_contract(worker.clone(), profile, self.weak_self.clone()),
             );
             poll_handles.push(handle);
@@ -375,7 +375,7 @@ impl App {
 async fn poll_contract(worker: Worker, profile: ContractId, weak_app: Weak<App>) -> Result<()> {
     let pubkey = worker.pubkey;
     let start_time = Instant::now();
-    let result = poll_contract_inner(worker, profile).await;
+    let result = poll_contract_inner(worker, profile, weak_app.clone()).await;
     if let Some(app) = weak_app.upgrade() {
         let result = match &result {
             Ok(_) => Ok(()),
@@ -394,17 +394,63 @@ async fn poll_contract(worker: Worker, profile: ContractId, weak_app: Weak<App>)
     result
 }
 
-async fn poll_contract_inner(worker: Worker, profile: ContractId) -> Result<()> {
-    pink_query::<_, crate::contracts::PollResponse>(
+async fn poll_contract_inner(
+    worker: Worker,
+    profile: ContractId,
+    weak_app: Weak<App>,
+) -> Result<()> {
+    let count = pink_query::<(), u64>(
+        &worker.pubkey,
+        &worker.uri,
+        profile,
+        SELECTOR_WORKFLOW_COUNT,
+        (),
+    )
+    .await?;
+
+    let app = weak_app
+        .upgrade()
+        .ok_or_else(|| anyhow::anyhow!("app gone"))?;
+    let mut handles = vec![];
+    for i in 0..count {
+        let handle = app.spawn(
+            "workflow",
+            &format!(
+                r#"{{"worker":"{}","contract":"{profile:?}"}}"#,
+                worker.pubkey
+            ),
+            app.config.poll_timeout,
+            poll_workflow(worker.clone(), profile, i),
+        );
+        handles.push(handle);
+    }
+    info!(count = handles.len(), ?profile, "polling workflows");
+    let results = futures::future::join_all(handles).await;
+    let errors = results
+        .into_iter()
+        .enumerate()
+        .filter(|(_, r)| !matches!(r, Ok(Ok(_))))
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Failed flows: {:?}", errors))
+    }
+}
+
+#[instrument(skip(worker, profile), name = "wf")]
+async fn poll_workflow(worker: Worker, profile: ContractId, flow_id: u64) -> Result<()> {
+    debug!("polling workflow");
+    let result = pink_query::<_, crate::contracts::PollResponse>(
         &worker.pubkey,
         &worker.uri,
         profile,
         SELECTOR_POLL,
-        (),
+        (flow_id,),
     )
-    .await?
-    .map_err(|err| anyhow::anyhow!("{err:?}"))?;
-    Ok(())
+    .await;
+    debug!("result: {result:?}");
+    result?.map_err(|e| anyhow!("{e:?}"))
 }
 
 impl App {
