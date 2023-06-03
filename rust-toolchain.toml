@@ -1,5 +1,5 @@
 [toolchain]
-channel = "stable"
+channel = "1.69.0"
 components = [
     "cargo",
     "clippy",
@@ -10,5 +10,5 @@ components = [
     "rustc",
     "rustfmt",
 ]
-targets = ["wasm32-unknown-unknown"]
+targets = ["wasm32-unknown-unknown", "wasm32-wasi"]
 profile = "minimal"
