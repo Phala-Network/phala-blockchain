@@ -94,7 +94,7 @@ pub async fn pink_query_raw(
 ) -> Result<Result<Vec<u8>, QueryError>> {
     let query = Query::InkMessage {
         payload: call_data,
-        deposit: 0,
+        deposit: 1_000_000_000_000_000_u128,
         transfer: 0,
         estimating: false,
     };
