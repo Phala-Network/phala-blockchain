@@ -1,6 +1,5 @@
-
 use clap::{Parser, Subcommand};
-use sp_core::H256;
+use sp_core::{crypto::SecretStringError, Pair, H256};
 use std::time::Duration;
 
 #[derive(Parser)]
@@ -10,13 +9,13 @@ pub struct AppArgs {
     pub action: Action,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand)]
 pub enum Action {
     /// Run
     Run(RunArgs),
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 pub struct RunArgs {
     /// The URI of a phala-node
     #[arg(long, default_value = "ws://localhost:9944")]
@@ -57,6 +56,10 @@ pub struct RunArgs {
     /// Contract ID for the BricksProfileFactory to poll
     #[arg(long, value_parser = parse_hash)]
     pub factory_contract: H256,
+
+    /// Contract caller SR25519 private key mnemonic, private key seed, or derive path
+    #[arg(long, value_parser = parse_sr25519, default_value = "//Alice")]
+    pub caller: sp_core::sr25519::Pair,
 }
 
 #[derive(Debug)]
@@ -69,6 +72,10 @@ impl std::fmt::Display for InvalidDuration {
 }
 
 impl std::error::Error for InvalidDuration {}
+
+fn parse_sr25519(s: &str) -> Result<sp_core::sr25519::Pair, SecretStringError> {
+    <sp_core::sr25519::Pair as Pair>::from_string(s, None)
+}
 
 fn parse_duration(s: &str) -> Result<Duration, InvalidDuration> {
     let mut num_str = s;

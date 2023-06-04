@@ -14,7 +14,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use phaxt::AccountId;
-use sp_core::H256;
+use sp_core::{sr25519::Pair as KeyPair, H256};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, instrument, warn, Instrument};
 
@@ -339,6 +339,7 @@ impl App {
                 self.config.factory_contract,
                 SELECTOR_GET_USER_PROFILES,
                 (),
+                &self.config.caller,
             )
             .await?
             .or(Err(anyhow::anyhow!("query failed")))?;
@@ -360,7 +361,12 @@ impl App {
                     worker.pubkey
                 ),
                 self.config.poll_timeout.saturating_mul(2),
-                poll_contract(worker.clone(), profile, self.weak_self.clone()),
+                poll_contract(
+                    worker.clone(),
+                    profile,
+                    self.weak_self.clone(),
+                    self.config.caller.clone(),
+                ),
             );
             poll_handles.push(handle);
             worker_index = (worker_index + 1) % top_workers.len();
@@ -372,10 +378,15 @@ impl App {
     }
 }
 
-async fn poll_contract(worker: Worker, profile: ContractId, weak_app: Weak<App>) -> Result<()> {
+async fn poll_contract(
+    worker: Worker,
+    profile: ContractId,
+    weak_app: Weak<App>,
+    caller: KeyPair,
+) -> Result<()> {
     let pubkey = worker.pubkey;
     let start_time = Instant::now();
-    let result = poll_contract_inner(worker, profile, weak_app.clone()).await;
+    let result = poll_contract_inner(worker, profile, weak_app.clone(), caller).await;
     if let Some(app) = weak_app.upgrade() {
         let result = match &result {
             Ok(_) => Ok(()),
@@ -398,6 +409,7 @@ async fn poll_contract_inner(
     worker: Worker,
     profile: ContractId,
     weak_app: Weak<App>,
+    caller: KeyPair,
 ) -> Result<()> {
     let count = pink_query::<(), u64>(
         &worker.pubkey,
@@ -405,6 +417,7 @@ async fn poll_contract_inner(
         profile,
         SELECTOR_WORKFLOW_COUNT,
         (),
+        &caller,
     )
     .await?;
 
@@ -420,7 +433,7 @@ async fn poll_contract_inner(
                 worker.pubkey
             ),
             app.config.poll_timeout,
-            poll_workflow(worker.clone(), profile, i),
+            poll_workflow(worker.clone(), profile, i, caller.clone()),
         );
         handles.push(handle);
     }
@@ -438,8 +451,13 @@ async fn poll_contract_inner(
     }
 }
 
-#[instrument(skip(worker, profile), name = "flow")]
-async fn poll_workflow(worker: Worker, profile: ContractId, id: u64) -> Result<()> {
+#[instrument(skip(worker, profile, caller), name = "flow")]
+async fn poll_workflow(
+    worker: Worker,
+    profile: ContractId,
+    id: u64,
+    caller: KeyPair,
+) -> Result<()> {
     debug!("polling workflow");
     let result = pink_query::<_, crate::contracts::PollResponse>(
         &worker.pubkey,
@@ -447,6 +465,7 @@ async fn poll_workflow(worker: Worker, profile: ContractId, id: u64) -> Result<(
         profile,
         SELECTOR_POLL,
         (id,),
+        &caller,
     )
     .await;
     debug!("result: {result:?}");

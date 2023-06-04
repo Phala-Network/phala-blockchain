@@ -72,9 +72,10 @@ pub async fn pink_query<I: Encode, O: Decode>(
     id: ContractId,
     selector: u32,
     args: I,
+    key: &sp_core::sr25519::Pair,
 ) -> Result<O> {
     let call_data = (selector.to_be_bytes(), args).encode();
-    let payload = pink_query_raw(worker_pubkey, url, id, call_data).await??;
+    let payload = pink_query_raw(worker_pubkey, url, id, call_data, key).await??;
     let output =
         pallet_contracts_primitives::ContractExecResult::<u128>::decode(&mut &payload[..])?
             .result
@@ -91,6 +92,7 @@ pub async fn pink_query_raw(
     url: &str,
     id: ContractId,
     call_data: Vec<u8>,
+    key: &sp_core::sr25519::Pair,
 ) -> Result<Result<Vec<u8>, QueryError>> {
     let query = Query::InkMessage {
         payload: call_data,
@@ -99,7 +101,7 @@ pub async fn pink_query_raw(
         estimating: false,
     };
     let result: Result<Response, QueryError> =
-        contract_query(worker_pubkey, url, id, query).await?;
+        contract_query(worker_pubkey, url, id, query, key).await?;
     Ok(result.map(|r| {
         let Response::Payload(payload) = r;
         payload
@@ -111,6 +113,7 @@ pub async fn contract_query<Request: Encode, Response: Decode>(
     url: &str,
     id: ContractId,
     data: Request,
+    key: &sp_core::sr25519::Pair,
 ) -> Result<Response> {
     // 2. Make ContractQuery
     let nonce = rand::random::<[u8; 32]>();
@@ -132,34 +135,16 @@ pub async fn contract_query<Request: Encode, Response: Decode>(
     let encrypted_data = EncryptedData::encrypt(&ecdh_key, &remote_pubkey, iv, &query.encode())
         .map_err(|_| anyhow!("Encrypt data failed"))?;
 
-    // 4. Sign the encrypted data.
-    // 4.1 Make the root certificate.
-    let (root_key, _) = sp_core::sr25519::Pair::generate();
-    let root_cert_body = CertificateBody {
-        pubkey: root_key.public().to_vec(),
-        ttl: u32::MAX,
-        config_bits: 0,
-    };
-    let root_cert = prpc::Certificate::new(root_cert_body, None);
-
-    // 4.2 Generate a temporary key pair and sign it with root key.
-    let (key_g, _) = sp_core::sr25519::Pair::generate();
-
     let data_cert_body = CertificateBody {
-        pubkey: key_g.public().to_vec(),
+        pubkey: key.public().to_vec(),
         ttl: u32::MAX,
         config_bits: 0,
     };
-    let cert_signature = prpc::Signature {
-        signed_by: Some(Box::new(root_cert)),
-        signature_type: prpc::SignatureType::Sr25519 as _,
-        signature: root_key.sign(&data_cert_body.encode()).0.to_vec(),
-    };
-    let data_cert = prpc::Certificate::new(data_cert_body, Some(Box::new(cert_signature)));
+    let data_cert = prpc::Certificate::new(data_cert_body, None);
     let data_signature = prpc::Signature {
         signed_by: Some(Box::new(data_cert)),
         signature_type: prpc::SignatureType::Sr25519 as _,
-        signature: key_g.sign(&encrypted_data.encode()).0.to_vec(),
+        signature: key.sign(&encrypted_data.encode()).0.to_vec(),
     };
 
     let request = prpc::ContractQueryRequest::new(encrypted_data, Some(data_signature));
