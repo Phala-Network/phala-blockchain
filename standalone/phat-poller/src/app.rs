@@ -438,15 +438,15 @@ async fn poll_contract_inner(
     }
 }
 
-#[instrument(skip(worker, profile), name = "wf")]
-async fn poll_workflow(worker: Worker, profile: ContractId, flow_id: u64) -> Result<()> {
+#[instrument(skip(worker, profile), name = "flow")]
+async fn poll_workflow(worker: Worker, profile: ContractId, id: u64) -> Result<()> {
     debug!("polling workflow");
     let result = pink_query::<_, crate::contracts::PollResponse>(
         &worker.pubkey,
         &worker.uri,
         profile,
         SELECTOR_POLL,
-        (flow_id,),
+        (id,),
     )
     .await;
     debug!("result: {result:?}");
