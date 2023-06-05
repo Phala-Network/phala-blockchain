@@ -1,5 +1,6 @@
+//! Utilities to create and verify off-chain attestation
+
 use alloc::vec::Vec;
-///! Utilities to create and verify off-chain attestation
 use core::fmt;
 use pink::chain_extension::{signing, SigType};
 use pink_extension as pink;

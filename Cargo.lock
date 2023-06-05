@@ -8229,6 +8229,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "phat-poller"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap 4.3.0",
+ "futures",
+ "hex",
+ "pallet-contracts-primitives",
+ "parity-scale-codec",
+ "phactory-api",
+ "phala-crypto",
+ "phala-types",
+ "phaxt",
+ "rand 0.8.5",
+ "reqwest",
+ "rocket",
+ "serde",
+ "serde_json",
+ "sp-core",
+ "sp-runtime",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.14",
+]
+
+[[package]]
 name = "phaxt"
 version = "0.1.0"
 dependencies = [
