@@ -131,7 +131,7 @@ pub async fn contract_query<Request: Encode, Response: Decode>(
         .derive_ecdh_key()
         .map_err(|_| anyhow!("Derive ecdh key failed"))?;
 
-    let iv = [1; 12];
+    let iv = rand::random();
     let encrypted_data = EncryptedData::encrypt(&ecdh_key, &remote_pubkey, iv, &query.encode())
         .map_err(|_| anyhow!("Encrypt data failed"))?;
 
