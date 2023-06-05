@@ -5,6 +5,7 @@ use phactory_api::{
 };
 use phala_crypto::ecdh::EcdhPublicKey;
 use phala_crypto::sr25519::KDF;
+use phala_crypto::aead;
 use phala_types::contract;
 use phala_types::contract::ContractId;
 use scale::{Decode, Encode};
@@ -131,7 +132,7 @@ pub async fn contract_query<Request: Encode, Response: Decode>(
         .derive_ecdh_key()
         .map_err(|_| anyhow!("Derive ecdh key failed"))?;
 
-    let iv = [1; 12];
+    let iv = aead::generate_iv(&nonce);
     let encrypted_data = EncryptedData::encrypt(&ecdh_key, &remote_pubkey, iv, &query.encode())
         .map_err(|_| anyhow!("Encrypt data failed"))?;
 
