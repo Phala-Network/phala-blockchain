@@ -8301,7 +8301,7 @@ dependencies = [
  "phala-pallets",
  "phala-types",
  "primitive-types",
- "scale-encode 0.1.2",
+ "scale-encode 0.3.0",
  "scale-info",
  "serde",
  "serde_json",
@@ -11227,8 +11227,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15546e5efbb45f0fc2291f7e202dee8623274c5d8bbfdf9c6886cc8b44a7ced3"
 dependencies = [
  "parity-scale-codec",
- "primitive-types",
- "scale-bits",
  "scale-encode-derive 0.1.2",
  "scale-info",
  "thiserror",
