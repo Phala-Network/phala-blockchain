@@ -49,6 +49,10 @@ pub struct RunArgs {
     #[arg(long, value_parser = parse_duration, default_value = "10s")]
     pub poll_timeout: Duration,
 
+    /// Contract poll timeout over all contracts
+    #[arg(long, value_parser = parse_duration, default_value = "20s")]
+    pub poll_timeout_overall: Duration,
+
     /// Top n workers to be used to poll
     #[arg(long, default_value_t = 5)]
     pub use_top_workers: usize,

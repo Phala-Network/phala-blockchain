@@ -17,7 +17,7 @@ RUN mkdir -p build-out/
 RUN cp target/x86_64-unknown-linux-musl/release/phat-poller build-out/
 RUN strip build-out/phat-poller
 
-FROM scratch
+FROM alpine
 WORKDIR /app
 COPY --from=builder /root/build-out/phat-poller .
 USER 1000:1000
