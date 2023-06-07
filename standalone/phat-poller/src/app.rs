@@ -297,8 +297,16 @@ impl App {
             info!("poll contracts begin");
             let start = Instant::now();
             self.state.lock().unwrap().last_poll_time = Some(start);
-            if let Err(err) = self.poll_contracts().await {
-                warn!("failed to poll contracts: {err}");
+            let result =
+                tokio::time::timeout(self.config.poll_interval, self.poll_contracts()).await;
+            match result {
+                Err(_) => {
+                    warn!("poll contracts timeout");
+                }
+                Ok(Err(err)) => {
+                    warn!("failed to poll contracts: {err}");
+                }
+                Ok(Ok(())) => {}
             }
             let rest_time = self.config.poll_interval.saturating_sub(start.elapsed());
             info!("{}ms elapsed", start.elapsed().as_millis());
