@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use phaxt::AccountId;
 use sp_core::{sr25519::Pair as KeyPair, H256};
 use tokio::task::JoinHandle;
@@ -298,7 +298,7 @@ impl App {
             let start = Instant::now();
             self.state.lock().unwrap().last_poll_time = Some(start);
             let result =
-                tokio::time::timeout(self.config.poll_interval, self.poll_contracts()).await;
+                tokio::time::timeout(self.config.poll_timeout_overall, self.poll_contracts()).await;
             match result {
                 Err(_) => {
                     warn!("poll contracts timeout");
@@ -340,7 +340,8 @@ impl App {
             info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.pubkey);
         }
         let worker = &top_workers[0];
-        let contracts: Vec<(AccountId, ContractId)> =
+        let contracts: Vec<(AccountId, ContractId)> = tokio::time::timeout(
+            self.config.poll_timeout,
             pink_query::<_, crate::contracts::UserProfilesResponse>(
                 &worker.pubkey,
                 &worker.uri,
@@ -348,9 +349,11 @@ impl App {
                 SELECTOR_GET_USER_PROFILES,
                 (),
                 &self.config.caller,
-            )
-            .await?
-            .or(Err(anyhow::anyhow!("query failed")))?;
+            ),
+        )
+        .await
+        .context("Get profiles timeout")??
+        .or(Err(anyhow::anyhow!("query failed")))?;
 
         let mut poll_handles = Vec::with_capacity(contracts.len());
 
