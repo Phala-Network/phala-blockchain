@@ -18,7 +18,7 @@ To tackle the aforementioned problem, we propose a new kind of message queue sub
 
 This API functions by requiring messages to contain a list of signatures derived from the hash of the message, obtained from N workers within the cluster. Here, N is a configurable parameter that can be set according to the specific requirements of each cluster.
 
-In addition to the message itself, the signed content includes a Serial Number (SN) and the hash of the previous message. The SN is monotonically increasing to ensure a consistent order. 
+In addition to the message itself, the signed content includes a Serial Number (SN), the hash of the previous message and `the current cluster state root hash`. The SN is monotonically increasing to ensure a consistent order.
 
 Upon receiving a message, the chain will validate the contents with each of the signatures. If any of the verifications fail, the message will be rejected and the SN will not increment.
 
