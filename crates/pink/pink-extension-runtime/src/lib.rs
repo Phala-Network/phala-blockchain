@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::io::Write;
+use std::io::{Cursor, Write};
 use std::{
     fmt::Display,
     str::FromStr,
@@ -9,7 +9,7 @@ use std::{
 use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpRequestError, HttpResponse, PinkExtBackend, SigType,
-        StorageQuotaExceeded,
+        StorageQuotaExceeded, ZipFileError,
     },
     Balance, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash,
 };
@@ -19,6 +19,8 @@ use reqwest::{
 };
 use reqwest_env_proxy::EnvProxyBuilder;
 use sp_core::{ByteArray as _, Pair};
+
+const MAX_INK_IO_BUFFER_SIZE: usize = 1024 * 1024 * 2; // 2MB
 
 pub mod local_cache;
 pub mod mock_ext;
@@ -126,10 +128,8 @@ async fn async_http_request(
         .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().into()))
         .collect();
 
-    const MAX_BODY_SIZE: usize = 1024 * 1024 * 2; // 2MB
-
     let mut body = Vec::new();
-    let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+    let mut writer = BoundedWriter::new(&mut body, MAX_INK_IO_BUFFER_SIZE);
 
     while let Some(chunk) = response
         .chunk()
@@ -344,27 +344,65 @@ impl<T: PinkRuntimeEnv, E: From<&'static str>> PinkExtBackend for DefaultPinkExt
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok((1, 0))
     }
+
+    fn zip_read_file(
+        &self,
+        zipfile: Vec<u8>,
+        path: String,
+    ) -> Result<Result<Vec<u8>, ZipFileError>, Self::Error> {
+        let Ok(mut archive) =
+            zip::ZipArchive::new(Cursor::new(zipfile)) else {
+            return Ok(Err(ZipFileError::InvalidZipFile));
+        };
+        let Ok(mut file) = archive.by_name(&path) else {
+            return Ok(Err(ZipFileError::FileNotFound));
+        };
+        let mut buf = vec![];
+        let mut writer = BoundedWriter::new(&mut buf, MAX_INK_IO_BUFFER_SIZE);
+        let Ok(_) = std::io::copy(&mut file, &mut writer) else {
+            return Ok(Err(ZipFileError::DecompressedFileTooLarge));
+        };
+        Ok(Ok(buf))
+    }
+
+    fn zip_list_files(
+        &self,
+        zipfile: Vec<u8>,
+    ) -> Result<Result<Vec<String>, ZipFileError>, Self::Error> {
+        let Ok(mut archive) =
+            zip::ZipArchive::new(Cursor::new(zipfile)) else {
+            return Ok(Err(ZipFileError::InvalidZipFile));
+        };
+        let mut files = Vec::new();
+        for i in 0..archive.len() {
+            let Ok(file) = archive.by_index(i) else {
+                return Ok(Err(ZipFileError::InvalidZipFile));
+            };
+            files.push(file.name().to_string());
+        }
+        Ok(Ok(files))
+    }
 }
 
-struct LimitedWriter<W> {
+struct BoundedWriter<W> {
     writer: W,
     written: usize,
-    limit: usize,
+    bound: usize,
 }
 
-impl<W> LimitedWriter<W> {
-    fn new(writer: W, limit: usize) -> Self {
+impl<W> BoundedWriter<W> {
+    fn new(writer: W, bound: usize) -> Self {
         Self {
             writer,
             written: 0,
-            limit,
+            bound,
         }
     }
 }
 
-impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
+impl<W: std::io::Write> std::io::Write for BoundedWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if self.written + buf.len() > self.limit {
+        if self.written + buf.len() > self.bound {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Buffer limit exceeded",

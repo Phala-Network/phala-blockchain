@@ -10,6 +10,7 @@ use phala_types::contract::ConvertTo;
 use pink_extension::{
     chain_extension::{
         self as ext, HttpRequest, HttpResponse, PinkExtBackend, SigType, StorageQuotaExceeded,
+        ZipFileError,
     },
     dispatch_ext_call, CacheOp, EcdhPublicKey, EcdsaPublicKey, EcdsaSignature, Hash, PinkEvent,
 };
@@ -309,6 +310,21 @@ impl PinkExtBackend for CallInQuery {
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok(crate::version())
     }
+
+    fn zip_read_file(
+        &self,
+        zipfile: Vec<u8>,
+        path: String,
+    ) -> Result<Result<Vec<u8>, ZipFileError>, Self::Error> {
+        DefaultPinkExtension::new(self).zip_read_file(zipfile, path)
+    }
+
+    fn zip_list_files(
+        &self,
+        zipfile: Vec<u8>,
+    ) -> Result<Result<Vec<String>, ZipFileError>, Self::Error> {
+        DefaultPinkExtension::new(self).zip_list_files(zipfile)
+    }
 }
 
 struct CallInCommand {
@@ -468,5 +484,20 @@ impl PinkExtBackend for CallInCommand {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         self.as_in_query.runtime_version()
+    }
+
+    fn zip_read_file(
+        &self,
+        _zipfile: Vec<u8>,
+        _path: String,
+    ) -> Result<Result<Vec<u8>, ZipFileError>, Self::Error> {
+        Ok(Err(ZipFileError::NotAllowed))
+    }
+
+    fn zip_list_files(
+        &self,
+        _zipfile: Vec<u8>,
+    ) -> Result<Result<Vec<String>, ZipFileError>, Self::Error> {
+        Ok(Err(ZipFileError::NotAllowed))
     }
 }

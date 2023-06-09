@@ -1,5 +1,6 @@
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
+use alloc::string::String;
 use ink::ChainExtensionInstance;
 
 pub use http_request::{HttpRequest, HttpRequestError, HttpResponse};
@@ -7,6 +8,7 @@ pub use ink::primitives::AccountId;
 pub use signing::SigType;
 
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
+use num_enum::TryFromPrimitive;
 
 mod http_request;
 pub mod signing;
@@ -18,6 +20,16 @@ pub mod test;
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct StorageQuotaExceeded;
 
+#[derive(scale::Encode, scale::Decode, Debug, TryFromPrimitive, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[repr(u32)]
+pub enum ZipFileError {
+    InvalidZipFile,
+    FileNotFound,
+    DecompressedFileTooLarge,
+    NotAllowed,
+}
+
 mod sealed {
     pub trait Sealed {}
 }
@@ -26,6 +38,24 @@ pub trait CodableError: sealed::Sealed {
     fn decode(code: u32) -> Option<Self>
     where
         Self: Sized;
+}
+
+macro_rules! impl_from_error_code_for {
+    ($t: path) => {
+        impl From<ErrorCode> for $t {
+            fn from(value: ErrorCode) -> Self {
+                match <Self as CodableError>::decode(value.0) {
+                    None => crate::panic!("chain extension: invalid output"),
+                    Some(err) => err,
+                }
+            }
+        }
+        impl From<scale::Error> for $t {
+            fn from(_value: scale::Error) -> Self {
+                crate::panic!("chain_ext: failed to decocde output")
+            }
+        }
+    };
 }
 
 macro_rules! impl_codable_error_for {
@@ -44,24 +74,29 @@ macro_rules! impl_codable_error_for {
                 }
             }
         }
-
-        impl From<ErrorCode> for $t {
-            fn from(value: ErrorCode) -> Self {
-                match <Self as CodableError>::decode(value.0) {
-                    None => crate::panic!("chain extension: invalid output"),
-                    Some(err) => err,
-                }
-            }
-        }
-
-        impl From<scale::Error> for $t {
-            fn from(_value: scale::Error) -> Self {
-                crate::panic!("chain_ext: failed to decocde output")
-            }
-        }
+        impl_from_error_code_for!($t);
     };
 }
 impl_codable_error_for!(StorageQuotaExceeded);
+
+macro_rules! impl_codable_error_for_enum {
+    ($t: path) => {
+        impl sealed::Sealed for $t {}
+        impl CodableError for $t {
+            fn encode(&self) -> u32 {
+                *self as u32 + 1
+            }
+
+            fn decode(code: u32) -> Option<Self> {
+                let v = code.checked_sub(1)?;
+                Self::try_from_primitive(v).ok()
+            }
+        }
+        impl_from_error_code_for!($t);
+    };
+}
+impl_codable_error_for_enum!(ZipFileError);
+impl_codable_error_for_enum!(HttpRequestError);
 
 pub struct EncodeOutput<T>(pub T);
 
@@ -205,6 +240,14 @@ pub trait PinkExt {
     /// Batch http request
     #[ink(extension = 22, handle_status = true)]
     fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
+
+    /// Read the content of a file inside a zip file. For query only.
+    #[ink(extension = 23, handle_status = true)]
+    fn zip_read_file(zipfile: Vec<u8>, path: String) -> Result<Vec<u8>, ZipFileError>;
+
+    /// List filenames inside a zip file. For query only.
+    #[ink(extension = 24, handle_status = true)]
+    fn zip_list_files(zipfile: Vec<u8>) -> Result<Vec<String>, ZipFileError>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

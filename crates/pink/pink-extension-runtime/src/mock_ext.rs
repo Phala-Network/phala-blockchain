@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use pink_extension::chain_extension::mock::mock_all_with;
-use pink_extension::chain_extension::SigType;
+use pink_extension::chain_extension::{SigType, ZipFileError};
 use pink_extension::{chain_extension as ext, EcdsaPublicKey, EcdsaSignature, Hash};
 use sp_core::crypto::AccountId32;
 
@@ -147,6 +147,21 @@ impl ext::PinkExtBackend for MockExtension {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok((1, 0))
+    }
+
+    fn zip_read_file(
+        &self,
+        zipfile: Vec<u8>,
+        path: String,
+    ) -> Result<Result<Vec<u8>, ZipFileError>, Self::Error> {
+        super::DefaultPinkExtension::new(self).zip_read_file(zipfile, path)
+    }
+
+    fn zip_list_files(
+        &self,
+        zipfile: Vec<u8>,
+    ) -> Result<Result<Vec<String>, ZipFileError>, Self::Error> {
+        super::DefaultPinkExtension::new(self).zip_list_files(zipfile)
     }
 }
 

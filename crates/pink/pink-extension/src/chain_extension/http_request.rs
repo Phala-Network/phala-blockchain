@@ -1,8 +1,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+use num_enum::TryFromPrimitive;
 
-use super::ErrorCode;
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct HttpRequest {
@@ -21,7 +20,7 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
-#[derive(scale::Encode, scale::Decode, TryFromPrimitive, IntoPrimitive, Clone, Copy, Debug)]
+#[derive(scale::Encode, scale::Decode, TryFromPrimitive, Clone, Copy, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[repr(u32)]
 pub enum HttpRequestError {
@@ -35,36 +34,6 @@ pub enum HttpRequestError {
     TooManyRequests,
     NetworkError,
     ResponseTooLarge,
-}
-
-impl super::sealed::Sealed for HttpRequestError {}
-impl super::CodableError for HttpRequestError {
-    fn encode(&self) -> u32 {
-        let code: u32 = (*self).into();
-        code + 1
-    }
-
-    fn decode(code: u32) -> Option<Self> {
-        if code == 0 {
-            return None;
-        }
-        core::convert::TryFrom::try_from(code - 1).ok()
-    }
-}
-
-impl From<ErrorCode> for HttpRequestError {
-    fn from(value: ErrorCode) -> Self {
-        match <Self as super::CodableError>::decode(value.0) {
-            None => crate::panic!("chain extension: invalid HttpRequestError"),
-            Some(err) => err,
-        }
-    }
-}
-
-impl From<scale::Error> for HttpRequestError {
-    fn from(_value: scale::Error) -> Self {
-        crate::panic!("chain_ext: failed to decocde HttpRequestError")
-    }
 }
 
 impl HttpRequestError {
