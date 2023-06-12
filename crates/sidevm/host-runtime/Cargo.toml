@@ -15,7 +15,7 @@ sidevm-env = { path = "../env", features = ["host"] }
 thread_local = "1.1"
 tokio = { version = "1.24.2", features = ["full"] }
 wasmer = "3"
-wasmer-wasi-types = "3"
+wasmer-wasix-types = "0.4.0"
 wasmer-compiler-singlepass = "3"
 wasmer-compiler-cranelift = { version = "3", optional = true }
 wasmer-compiler-llvm = { version = "3", optional = true }

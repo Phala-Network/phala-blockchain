@@ -5,9 +5,9 @@ use thiserror::Error;
 use wasmer::{
     namespace, AsStoreMut, Exports, Function, FunctionEnv, FunctionEnvMut, Memory32, WasmPtr,
 };
-use wasmer_wasi_types::{
+use wasmer_wasix_types::{
     types::*,
-    wasi::{self, Errno},
+    wasi::{self, Errno, ExitCode},
 };
 
 /// This is returned in `RuntimeError`.
@@ -15,7 +15,7 @@ use wasmer_wasi_types::{
 #[derive(Error, Debug)]
 pub enum WasiError {
     #[error("WASI exited with code: {0}")]
-    Exited(__wasi_exitcode_t),
+    Exited(ExitCode),
 }
 
 macro_rules! wasi_try {
@@ -105,9 +105,11 @@ pub fn clock_res_get(
     clock_id: wasi::Clockid,
     resolution: WasmPtr<wasi::Timestamp>,
 ) -> Errno {
+    use wasi::Clockid::*;
     let unix_clock_id = match clock_id {
-        wasi::Clockid::Realtime => CLOCK_REALTIME,
-        wasi::Clockid::Monotonic => CLOCK_MONOTONIC,
+        Realtime => CLOCK_REALTIME,
+        Monotonic => CLOCK_MONOTONIC,
+        ProcessCputimeId | ThreadCputimeId => return Errno::Notsup,
     };
 
     let (_output, timespec_out) = unsafe {
@@ -137,9 +139,11 @@ pub fn clock_time_get(
     _precision: wasi::Timestamp,
     time: WasmPtr<wasi::Timestamp>,
 ) -> Errno {
+    use wasi::Clockid::*;
     let unix_clock_id = match clock_id {
-        wasi::Clockid::Realtime => CLOCK_REALTIME,
-        wasi::Clockid::Monotonic => CLOCK_MONOTONIC,
+        Realtime => CLOCK_REALTIME,
+        Monotonic => CLOCK_MONOTONIC,
+        ProcessCputimeId | ThreadCputimeId => return Errno::Notsup,
     };
 
     let (_output, timespec_out) = unsafe {
@@ -486,7 +490,7 @@ pub fn poll_oneoff(
     Errno::Nosys
 }
 
-pub fn proc_exit(_env: FunctionEnvMut<WasiEnv>, code: __wasi_exitcode_t) -> Result<(), WasiError> {
+pub fn proc_exit(_env: FunctionEnvMut<WasiEnv>, code: ExitCode) -> Result<(), WasiError> {
     Err(WasiError::Exited(code))
 }
 

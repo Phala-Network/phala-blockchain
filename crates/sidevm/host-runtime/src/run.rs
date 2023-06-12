@@ -44,7 +44,7 @@ impl WasmRun {
             .map(AsRef::as_ref)
             .unwrap_or("singlepass");
 
-        let engine: Engine = match compiler_env {
+        let mut engine: Engine = match compiler_env {
             "singlepass" => metering(Singlepass::default()).into(),
             #[cfg(feature = "wasmer-compiler-cranelift")]
             "cranelift" => metering(Cranelift::default()).into(),
@@ -59,7 +59,8 @@ impl WasmRun {
             dynamic_memory_offset_guard_size: page_size::get() as _,
         };
         let tunables = LimitingTunables::new(base, Pages(max_pages));
-        let mut store = Store::new_with_tunables(&engine, tunables);
+        engine.set_tunables(tunables);
+        let mut store = Store::new(engine);
         let module = Module::new(&store, code)?;
         let (env, import_object) = env::create_env(id, &mut store, cache_ops);
         let instance = Instance::new(&mut store, &module, &import_object)?;
