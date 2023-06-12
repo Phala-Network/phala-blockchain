@@ -24,10 +24,6 @@ sp-core = "7"
 [lib]
 name = "tokenomic"
 path = "lib.rs"
-crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib",
-]
 
 [features]
 default = ["std"]
