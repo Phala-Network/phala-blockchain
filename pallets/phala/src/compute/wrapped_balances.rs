@@ -329,7 +329,7 @@ pub mod pallet {
 				*reserve -= actual;
 			});
 			Self::burn_from(who, actual)
-				.expect("burn nft when slash reserved should success; qed.");
+				.expect("there are enough WPHA to burn; qed.");
 			let imbalance = <T as PhalaConfig>::Currency::withdraw(
 				&T::WrappedBalancesAccountId::get(),
 				actual,
