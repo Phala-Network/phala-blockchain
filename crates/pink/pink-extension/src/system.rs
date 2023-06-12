@@ -134,6 +134,10 @@ pub trait System {
     /// Get the code history of given contract.
     #[ink(message)]
     fn code_history(&self, account: AccountId) -> Vec<(BlockNumber, InkHash)>;
+
+    /// Get the history of given driver.
+    #[ink(message)]
+    fn driver_history(&self, name: String) -> Option<Vec<AccountId>>;
 }
 
 /// Errors that can occur upon calling a driver contract.

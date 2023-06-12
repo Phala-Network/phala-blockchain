@@ -26,6 +26,8 @@ mod system {
         administrators: Mapping<AccountId, ()>,
         /// The drivers
         drivers: Mapping<String, AccountId>,
+        /// The history of drivers
+        driver_history: Mapping<String, Vec<AccountId>>,
     }
 
     impl System {
@@ -35,6 +37,7 @@ mod system {
                 owner: Self::env().caller(),
                 administrators: Default::default(),
                 drivers: Default::default(),
+                driver_history: Default::default(),
             }
         }
 
@@ -109,6 +112,16 @@ mod system {
                     pink::set_log_handler(contract_id);
                 }
                 _ => {}
+            }
+
+            let previous = self.drivers.get(&name);
+            if let Some(previous) = previous {
+                if previous == contract_id {
+                    return Ok(());
+                }
+                let mut history = self.driver_history.get(&name).unwrap_or_default();
+                history.push(previous);
+                self.driver_history.insert(&name, &history);
             }
             self.drivers.insert(name, &contract_id);
             Ok(())
@@ -232,6 +245,11 @@ mod system {
         #[ink(message)]
         fn code_history(&self, account: AccountId) -> Vec<(BlockNumber, pink::InkHash)> {
             pink::ext().code_history(account)
+        }
+
+        #[ink(message)]
+        fn driver_history(&self, name: String) -> Option<Vec<AccountId>> {
+            self.driver_history.get(&name)
         }
     }
 
