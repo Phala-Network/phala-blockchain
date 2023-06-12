@@ -340,7 +340,7 @@ impl PinkExtBackend for CallInQuery {
         account: ext::AccountId,
     ) -> Result<Vec<(BlockNumber, InkHash)>, Self::Error> {
         let account: AccountId32 = account.convert_to();
-        Ok(crate::runtime::Pink::code_history(&account)
+        Ok(crate::runtime::Pink::code_history(account)
             .into_iter()
             .map(|(blk, hash)| (blk, hash.0.into()))
             .collect())
