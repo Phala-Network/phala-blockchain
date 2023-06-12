@@ -96,6 +96,7 @@ pub mod pallet {
 	#[pallet::getter(fn election_locks)]
 	pub type ElectionLocks<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
 
+	/// The WPHA a user owes the system because of a lack of liquid token. Wills be settled by `slash_reserved()` in the future.
 	#[pallet::storage]
 	#[pallet::getter(fn slash_debts)]
 	pub type SlashDebts<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>, ValueQuery>;
