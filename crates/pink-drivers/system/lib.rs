@@ -10,6 +10,7 @@ pub use system::System;
 mod system {
     use super::pink;
     use alloc::string::String;
+    use alloc::vec::Vec;
     use ink::{codegen::Env, storage::Mapping};
     use pink::system::{CodeType, ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};

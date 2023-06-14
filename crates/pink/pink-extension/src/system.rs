@@ -3,6 +3,7 @@
 use pink_extension_macro as pink;
 
 use alloc::string::String;
+use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
 use crate::{AccountId, Balance, Hash};
