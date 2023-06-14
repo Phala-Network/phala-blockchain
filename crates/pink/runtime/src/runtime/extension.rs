@@ -21,6 +21,8 @@ use crate::{capi::OCallImpl, types::AccountId};
 
 use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
+use super::SystemEvents;
+
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
     let event = super::RuntimeEvent::Contracts(pallet_contracts::Event::ContractEmitted {
@@ -30,18 +32,19 @@ fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     super::System::deposit_event_indexed(&topics[..], event);
 }
 
-pub fn get_side_effects() -> ExecSideEffects {
+pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
     let mut pink_events = Vec::default();
     let mut ink_events = Vec::default();
     let mut instantiated = Vec::default();
-    for event in super::System::events() {
-        if let super::RuntimeEvent::Contracts(ink_event) = event.event {
+    let system_events = super::System::events();
+    for event in &system_events {
+        if let super::RuntimeEvent::Contracts(ink_event) = &event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
                 ContractEvent::Instantiated {
                     deployer,
                     contract: address,
-                } => instantiated.push((deployer, address)),
+                } => instantiated.push((deployer.clone(), address.clone())),
                 ContractEvent::ContractEmitted {
                     contract: address,
                     data,
@@ -51,25 +54,28 @@ pub fn get_side_effects() -> ExecSideEffects {
                     {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
-                                pink_events.push((address, event));
+                                pink_events.push((address.clone(), event.clone()));
                             }
                             Err(_) => {
                                 error!("Contract emitted an invalid pink event");
                             }
                         }
                     } else {
-                        ink_events.push((address, event.topics, data));
+                        ink_events.push((address.clone(), event.topics.clone(), data.clone()));
                     }
                 }
                 _ => (),
             }
         }
     }
-    ExecSideEffects::V1 {
-        pink_events,
-        ink_events,
-        instantiated,
-    }
+    (
+        system_events,
+        ExecSideEffects::V1 {
+            pink_events,
+            ink_events,
+            instantiated,
+        },
+    )
 }
 
 /// Contract extension for `pink contracts`

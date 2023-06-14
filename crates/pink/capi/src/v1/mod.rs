@@ -199,5 +199,7 @@ pub mod ocall {
             requests: Vec<HttpRequest>,
             timeout_ms: u64,
         ) -> BatchHttpResult;
+        #[xcall(id = 16)]
+        fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>);
     }
 }

@@ -30,6 +30,7 @@ use ::pink::{
     constants::WEIGHT_REF_TIME_PER_SECOND,
     types::{AccountId, Balance, ExecSideEffects, Hash, TransactionArguments},
 };
+use tracing::info;
 
 pub use phala_types::contract::InkCommand;
 
@@ -398,6 +399,10 @@ impl OCalls for RuntimeHandle<'_> {
         }
         Ok(results)
     }
+
+    fn emit_system_event_block(&self, _number: u64, _encoded_block: Vec<u8>) {
+        error!("emit_system_event_block called on readonly calls");
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -471,6 +476,10 @@ impl OCalls for RuntimeHandleMut<'_> {
     ) -> BatchHttpResult {
         self.readonly()
             .batch_http_request(contract, requests, timeout_ms)
+    }
+
+    fn emit_system_event_block(&self, number: u64, encoded_block: Vec<u8>) {
+        info!(target: "phactory::event_chain", number, payload=%hex_fmt::HexFmt(encoded_block));
     }
 }
 
