@@ -262,6 +262,11 @@ mod system {
         }
 
         #[ink(message)]
+        fn code_hash(&self, account: AccountId) -> Option<ink::primitives::Hash> {
+            self.env().code_hash(&account).ok()
+        }
+
+        #[ink(message)]
         fn driver_history(&self, name: String) -> Option<Vec<(BlockNumber, AccountId)>> {
             self.drivers_history.get(&name)
         }

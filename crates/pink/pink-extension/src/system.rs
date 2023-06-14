@@ -128,6 +128,10 @@ pub trait System {
     #[ink(message)]
     fn code_exists(&self, code_hash: Hash, code_type: CodeType) -> bool;
 
+    /// Get the current code hash of given contract.
+    #[ink(message)]
+    fn code_hash(&self, account: AccountId) -> Option<ink::primitives::Hash>;
+
     /// Get the history of given driver.
     #[ink(message)]
     fn driver_history(&self, name: String) -> Option<Vec<(crate::BlockNumber, AccountId)>>;
