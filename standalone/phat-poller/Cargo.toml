@@ -10,9 +10,9 @@ phala-crypto = { path = "../../crates/phala-crypto" }
 phala-types = { path = "../../crates/phala-types" }
 phala-clap-parsers = { path = "../../crates/phala-clap-parsers" }
 
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
-pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+pallet-contracts-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks"] }
 tracing = "0.1"
