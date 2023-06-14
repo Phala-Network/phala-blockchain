@@ -13,11 +13,17 @@ pub type BlockNumber = u32;
 pub type Index = u64;
 
 #[derive(Encode, Decode, Clone)]
-pub struct EventsBlock {
+pub struct EventsBlockHeader {
     pub parent_hash: Hash,
     pub number: u64,
     pub phala_block_number: BlockNumber,
     pub runtime_version: (u32, u32),
+    pub events_hash: Hash,
+}
+
+#[derive(Encode, Decode, Clone)]
+pub struct EventsBlock {
+    pub header: EventsBlockHeader,
     // The fields below may be changed in the future. They should be decoded as types determined by
     // runtime_version.
     pub events: SystemEvents,
