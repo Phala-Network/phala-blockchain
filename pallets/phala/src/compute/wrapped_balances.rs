@@ -139,7 +139,6 @@ pub mod pallet {
 		ReserveSlashed {
 			user: T::AccountId,
 			slash: BalanceOf<T>,
-			debt: BalanceOf<T>,
 		},
 	}
 
@@ -318,13 +317,11 @@ pub mod pallet {
 			let free_wpha: BalanceOf<T> = <pallet_assets::pallet::Pallet<T> as Inspect<
 				T::AccountId,
 			>>::balance(T::WPhaAssetId::get(), who);
-			let mut total_debt = SlashDebts::<T>::get(who);
 			if free_wpha < actual {
 				let new_debt = actual - free_wpha;
 				actual = free_wpha;
 				SlashDebts::<T>::mutate(who, |debt| {
 					*debt += new_debt;
-					total_debt = *debt;
 				});
 			}
 			ElectionReserves::<T>::mutate(who, |reserve| {
@@ -341,7 +338,6 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::ReserveSlashed {
 				user: who.clone(),
 				slash: actual,
-				debt: total_debt,
 			});
 			(imbalance, value - actual)
 		}
