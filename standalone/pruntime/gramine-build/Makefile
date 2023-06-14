@@ -26,6 +26,7 @@ RUNTIME_DIR = cruntime
 LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
 LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 PINK_RUNTIME_DIST_DIR = ${RUNTIME_DIR}/pink-runtime
+PREBUILT_PINK_RUNTIMES_PROFILE ?= development
 
 ifeq ($(USE_MUSL),1)
 BIN_FILE = ../target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
@@ -54,16 +55,16 @@ signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	make BUILD=${BUILD} -C ..
+	make BUILD=${BUILD} PREBUILT_PINK_RUNTIMES_PROFILE=${PREBUILT_PINK_RUNTIMES_PROFILE} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
 	mkdir -p ${PINK_RUNTIME_DIST_DIR}
 ifeq ($(PREFER_PREBUILT_PINK_LIBS),1)
 	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}/
-	cp ../pink-runtimes/* ${PINK_RUNTIME_DIST_DIR}/
+	cp ../pink-runtimes/${PREBUILT_PINK_RUNTIMES_PROFILE}/* ${PINK_RUNTIME_DIST_DIR}/
 else
-	cp ../pink-runtimes/* ${PINK_RUNTIME_DIST_DIR}/
+	cp ../pink-runtimes/${PREBUILT_PINK_RUNTIMES_PROFILE}/* ${PINK_RUNTIME_DIST_DIR}/
 	cp ${PINK_RUNTIME_DIST} ${PINK_RUNTIME_DIST_DIR}/
 endif
 
