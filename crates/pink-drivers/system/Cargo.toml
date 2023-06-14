@@ -15,10 +15,6 @@ this-crate = { path = "../../this-crate" }
 [lib]
 name = "system"
 path = "lib.rs"
-crate-type = [
-	"cdylib",
-	"rlib",
-]
 
 [features]
 default = ["std"]

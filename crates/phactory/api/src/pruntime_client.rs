@@ -1,8 +1,8 @@
-use anyhow::Result;
-use log::info;
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use alloc::boxed::Box;
+use anyhow::Result;
+use log::info;
 
 use crate::prpc::{
     client::{Error as ClientError, RequestClient},
@@ -17,13 +17,26 @@ pub fn new_pruntime_client(base_url: String) -> PhactoryApiClient<RpcRequest> {
     PhactoryApiClient::new(RpcRequest::new(base_url))
 }
 
+pub fn new_pruntime_client_no_log(base_url: String) -> PhactoryApiClient<RpcRequest> {
+    PhactoryApiClient::new(RpcRequest::new(base_url).disable_log())
+}
+
 pub struct RpcRequest {
     base_url: String,
+    disable_log: bool,
 }
 
 impl RpcRequest {
     pub fn new(base_url: String) -> Self {
-        Self { base_url }
+        Self {
+            base_url,
+            disable_log: false,
+        }
+    }
+
+    pub fn disable_log(mut self) -> Self {
+        self.disable_log = true;
+        self
     }
 }
 
@@ -43,7 +56,9 @@ impl RequestClient for RpcRequest {
             .await
             .map_err(from_display)?;
 
-        info!("{path}: {}", res.status());
+        if !self.disable_log {
+            info!("{path}: {}", res.status());
+        }
         let status = res.status();
         let body = res.bytes().await.map_err(from_display)?;
         if status.is_success() {

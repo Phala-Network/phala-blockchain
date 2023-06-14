@@ -620,6 +620,19 @@ describe('A full stack', function () {
             ContractSystemChecker = new Phala.PinkContractPromise(api, registry, checkerMetadata, contractId, contractKey)
         });
 
+        it('can upgrade runtime', async function () {
+            const info = await pruntime[0].getInfo();
+            const maxVersion = info.maxSupportedPinkRuntimeVersion.split('.').map(Number);
+            await assert.txAccepted(
+                ContractSystem.tx['system::upgradeRuntime'](txConfig, maxVersion),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const { output } = await ContractSystemChecker.query['runtimeVersion'](alice, certAlice);
+                return output?.eq({ Ok: maxVersion })
+            }, 4 * 6000), 'Upgrade runtime failed');
+        });
+
         it('can not set hook without admin permission', async function () {
             // Give some money to the ContractSystemChecker to run the on_block_end
             await assert.txAccepted(
@@ -749,6 +762,19 @@ describe('A full stack', function () {
             assert.equal(info?.sidevm?.state, 'running');
         });
 
+        it('can send batch http request', async function () {
+            const info = await pruntime[0].getInfo();
+            const url = `${pruntime[0].uri}/info`;
+            const urls = [url, url];
+            const { output } = await ContractSystemChecker.query.batchHttpGet(alice, certAlice, urls, 1000);
+            const responses = output.asOk.valueOf();
+            assert.equal(responses.length, urls.length);
+            responses.forEach(([code, body]) => {
+                assert.equal(code, 200);
+                assert.equal(JSON.parse(body).system.public_key, info.system.publicKey);
+            });
+        });
+
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
             await assert.txFailed(
@@ -794,12 +820,26 @@ describe('A full stack', function () {
             assert.isTrue(await checkUntil(async () => {
                 const workerCluster = await api.query.phalaPhatContracts.clusterByWorkers(hex(info.system?.publicKey));
                 return workerCluster.eq(clusterId);
-            }, 4 * 6000), 'cluster not deployed');
+            }, 4 * 6000), 'Failed to add worker to cluster');
             pherry[4].kill();
             const req = await pruntime[4].rpc.generateClusterStateRequest({});
             await sleep(5000);
             console.log(`Saving cluster state`);
-            const state = await pruntime[0].rpc.saveClusterState(req);
+            let state;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    state = await pruntime[0].rpc.saveClusterState(req);
+                    break;
+                } catch (e) {
+                    if (e.message?.includes('RCU in progress')) {
+                        console.log(`RCU in progress, retrying...`);
+                        await sleep(500);
+                    } else {
+                        console.error(e);
+                        break;
+                    }
+                }
+            }
             assert.isTrue(state.filename.startsWith('cluster-'));
             const url = `${pruntime[0].uri}/download/${state.filename}`;
             const destDir = cluster.workers[4].dirs.storageDir;
@@ -1291,6 +1331,7 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
     }
     const args = [
         '--cores=0',  // Disable benchmark
+        '--checkpoint-interval=5',
         '--port', teePort.toString(),
     ];
     let bin = pRuntimeBin;

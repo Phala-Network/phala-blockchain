@@ -12,10 +12,13 @@ use phala_types::contract::messaging::ResourceType;
 use pink::{
     capi::v1::{
         ecall::{ECalls, ECallsRo},
-        ocall::{ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls, StorageChanges},
+        ocall::{
+            BatchHttpResult, ExecContext, HttpRequest, HttpRequestError, HttpResponse, OCalls,
+            StorageChanges,
+        },
     },
     local_cache::{self, StorageQuotaExceeded},
-    runtimes::v1::using_ocalls,
+    runtimes::v1::{get_runtime, using_ocalls},
     types::ExecutionMode,
 };
 use serde::{Deserialize, Serialize};
@@ -97,8 +100,9 @@ impl RuntimeHandleMut<'_> {
             logger: self.logger.clone(),
         }
     }
-    fn execute_mut<T>(&mut self, f: impl FnOnce() -> T) -> T {
-        using_ocalls(self, f)
+    fn execute_mut<T>(&mut self, f: impl FnOnce((u32, u32)) -> T) -> T {
+        let ver = self.readonly().runtime_version();
+        using_ocalls(self, || f(ver))
     }
 
     pub fn call(
@@ -146,16 +150,12 @@ impl RuntimeHandle<'_> {
             logger: self.logger.clone(),
         }
     }
-    fn execute<T>(&self, f: impl FnOnce() -> T) -> T {
-        using_ocalls(&mut self.dup(), f)
+    fn execute<T>(&self, f: impl FnOnce((u32, u32)) -> T) -> T {
+        using_ocalls(&mut self.dup(), || f(self.runtime_version()))
     }
-    fn ensure_version(&self, version: (u32, u32)) {
-        if self.cluster.config.runtime_version != version {
-            panic!(
-                "Cross call {version:?} is not supported in runtime version {:?}",
-                self.cluster.config.runtime_version
-            );
-        }
+
+    fn runtime_version(&self) -> (u32, u32) {
+        self.cluster.config.runtime_version
     }
 }
 
@@ -375,6 +375,29 @@ impl OCalls for RuntimeHandle<'_> {
         }
         result
     }
+
+    fn batch_http_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> BatchHttpResult {
+        let results = pink_extension_runtime::batch_http_request(
+            requests,
+            context::time_remaining().min(timeout_ms),
+        )?;
+        for result in &results {
+            match result {
+                Ok(r) => {
+                    http_counters::add(contract.clone(), r.status_code);
+                }
+                Err(_) => {
+                    http_counters::add(contract.clone(), 0);
+                }
+            }
+        }
+        Ok(results)
+    }
 }
 
 impl OCalls for RuntimeHandleMut<'_> {
@@ -439,27 +462,34 @@ impl OCalls for RuntimeHandleMut<'_> {
     ) -> Result<HttpResponse, HttpRequestError> {
         self.readonly().http_request(contract, request)
     }
+
+    fn batch_http_request(
+        &self,
+        contract: AccountId,
+        requests: Vec<HttpRequest>,
+        timeout_ms: u64,
+    ) -> BatchHttpResult {
+        self.readonly()
+            .batch_http_request(contract, requests, timeout_ms)
+    }
 }
 
 impl v1::CrossCall for RuntimeHandle<'_> {
     fn cross_call(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        self.ensure_version((1, 0));
-        self.execute(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+        self.execute(move |version| get_runtime(version).ecall(call_id, data))
     }
 }
 
 impl v1::CrossCall for RuntimeHandleMut<'_> {
     fn cross_call(&self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        self.readonly().ensure_version((1, 0));
         self.readonly()
-            .execute(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+            .execute(move |version| get_runtime(version).ecall(call_id, data))
     }
 }
 
 impl v1::CrossCallMut for RuntimeHandleMut<'_> {
     fn cross_call_mut(&mut self, call_id: u32, data: &[u8]) -> Vec<u8> {
-        self.readonly().ensure_version((1, 0));
-        self.execute_mut(move || ::pink::runtimes::v1::RUNTIME.ecall(call_id, data))
+        self.execute_mut(move |version| get_runtime(version).ecall(call_id, data))
     }
 }
 

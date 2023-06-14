@@ -18,8 +18,8 @@
 
 use anyhow::Result;
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
-use sp_trie::{trie_types::TrieDB, MemoryDB, Trie};
 use sp_trie::trie_types::TrieDBBuilder;
+use sp_trie::{trie_types::TrieDB, MemoryDB, Trie};
 
 use super::Error;
 

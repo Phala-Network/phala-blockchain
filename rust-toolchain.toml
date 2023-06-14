@@ -1,0 +1,14 @@
+[toolchain]
+channel = "1.69.0"
+components = [
+    "cargo",
+    "clippy",
+    "rust-analyzer",
+    "rust-src",
+    "rust-std",
+    "rustc-dev",
+    "rustc",
+    "rustfmt",
+]
+targets = ["wasm32-unknown-unknown", "wasm32-wasi"]
+profile = "minimal"

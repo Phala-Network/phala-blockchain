@@ -34,15 +34,11 @@ impl Error {
 
 impl From<Error> for JsonRpseeError {
     fn from(e: Error) -> Self {
-        JsonRpseeError::Call(
-            CallError::Custom(
-                ErrorObject::owned(
-                    CUSTOM_RPC_ERROR,
-                    e.to_string(),
-                    Option::<()>::None
-                )
-            )
-        )
+        JsonRpseeError::Call(CallError::Custom(ErrorObject::owned(
+            CUSTOM_RPC_ERROR,
+            e.to_string(),
+            Option::<()>::None,
+        )))
     }
 }
 
@@ -109,7 +105,9 @@ where
         .into_iter()
         .map(|(id, mut header)| -> Result<_, Error> {
             let api = client.runtime_api();
-            let hash = client.expect_block_hash_from_id(&id).expect("Should get the block hash");
+            let hash = client
+                .expect_block_hash_from_id(&id)
+                .expect("Should get the block hash");
             if (*header.number()).into() == 0u64 {
                 let state = backend
                     .state_at(hash)

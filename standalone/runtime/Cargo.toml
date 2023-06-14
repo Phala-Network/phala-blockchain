@@ -16,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.3", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.3", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 log = { version = "0.4.14", default-features = false }
 phala-types = { path = "../../crates/phala-types", default-features = false }
 

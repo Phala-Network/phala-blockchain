@@ -47,6 +47,7 @@ members = [
 	"standalone/headers-cache",
 	"standalone/justification-validate",
 	"standalone/sfq-test",
+	"standalone/phat-poller",
 	"crates/phala-trie-storage",
 	"crates/phala-mq",
 	"crates/phala-crypto",

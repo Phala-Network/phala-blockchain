@@ -106,9 +106,9 @@ use sp_runtime::generic::Era;
 mod voter_bags;
 
 pub use phala_pallets::{
-    pallet_base_pool, pallet_computation, pallet_phat, pallet_phat_tokenomic, pallet_mq,
-    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault, pallet_wrapped_balances,
-    puppets,
+    pallet_base_pool, pallet_computation, pallet_mq, pallet_phat, pallet_phat_tokenomic,
+    pallet_registry, pallet_stake_pool, pallet_stake_pool_v2, pallet_vault,
+    pallet_wrapped_balances, puppets,
 };
 use phat_offchain_rollup::{anchor as pallet_anchor, oracle as pallet_oracle};
 
@@ -1030,7 +1030,8 @@ impl pallet_treasury::Config for Runtime {
             EnsureRoot<AccountId>,
             pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
         >,
-        AccountId, MaxBalance,
+        AccountId,
+        MaxBalance,
     >;
 }
 
@@ -1317,6 +1318,7 @@ parameter_types! {
     pub const VerifyPRuntime: bool = false;
     pub const VerifyRelaychainGenesisBlockHash: bool = false;
     pub ParachainId: u32 = ParachainInfo::parachain_id().0;
+    pub const CheckWorkerRegisterTime: bool = true;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1355,6 +1357,7 @@ impl pallet_computation::Config for Runtime {
     type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
     type SetBudgetOrigins = EnsureSignedBy<SetBudgetMembers, AccountId>;
     type SetContractRootOrigins = EnsureRootOrHalfCouncil;
+    type CheckWorkerRegisterTime = CheckWorkerRegisterTime;
 }
 impl pallet_stake_pool_v2::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1413,7 +1416,6 @@ parameter_types! {
     pub const PropertiesLimit: u32 = 15;
     pub const CollectionSymbolLimit: u32 = 100;
     pub const MaxResourcesOnMint: u32 = 100;
-    pub const WPhaMinBalance: Balance = CENTS;
 }
 impl pallet_rmrk_core::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1467,7 +1469,6 @@ impl Get<AccountId32> for MigrationAccount {
 impl pallet_base_pool::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MigrationAccountId = MigrationAccount;
-    type WPhaMinBalance = WPhaMinBalance;
 }
 
 parameter_types! {

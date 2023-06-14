@@ -227,6 +227,16 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 			amount: BalanceOf<T>,
 		},
+
+		/// Some to-distribute reward is dismissed because the amount is too tiny (dust)
+		///
+		/// There's no affected state.
+		RewardToOwnerDismissedDust { pid: u64, amount: BalanceOf<T> },
+
+		/// Some to-distribute reward is dismissed because the amount is too tiny (dust)
+		///
+		/// There's no affected state.
+		RewardToDistributionDismissedDust { pid: u64, amount: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -1074,37 +1084,56 @@ pub mod pallet {
 			pool_info: &mut StakePool<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
 		) {
-			if rewards > Zero::zero() {
-				computation::Pallet::<T>::withdraw_subsidy_pool(
-					&<T as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
-					rewards,
-				)
-				.expect("this should not happen");
-				if base_pool::balance_close_to_zero(pool_info.basepool.total_shares) {
-					Self::deposit_event(Event::<T>::RewardDismissedNoShare {
-						pid: pool_info.basepool.pid,
-						amount: rewards,
-					});
-					return;
-				}
-				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
-
-				wrapped_balances::Pallet::<T>::mint_into(
-					&pool_info.owner_reward_account,
-					commission,
-				)
-				.expect("mint into should be success");
-				let to_distribute = rewards - commission;
-				wrapped_balances::Pallet::<T>::mint_into(
-					&pool_info.basepool.pool_account_id,
-					to_distribute,
-				)
-				.expect("mint into should be success");
-				let distributed = if base_pool::is_nondust_balance(to_distribute) {
+			if rewards == Zero::zero() {
+				return;
+			}
+			// Dismiss if the reward is dust
+			if base_pool::balance_close_to_zero(rewards) {
+				Self::deposit_event(Event::<T>::RewardDismissedDust {
+					pid: pool_info.basepool.pid,
+					amount: rewards,
+				});
+				return;
+			}
+			// Dismiss if the share is dust (pool is frozen)
+			if base_pool::balance_close_to_zero(pool_info.basepool.total_shares) {
+				Self::deposit_event(Event::<T>::RewardDismissedNoShare {
+					pid: pool_info.basepool.pid,
+					amount: rewards,
+				});
+				return;
+			}
+			computation::Pallet::<T>::withdraw_subsidy_pool(
+				&<T as wrapped_balances::Config>::WrappedBalancesAccountId::get(),
+				rewards,
+			)
+			.expect("withdrawal from the subsidy pool should always success; qed.");
+			// Handle the owner commission. Be careful about minting as it may fail (dust)
+			let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
+			let owner_minted = wrapped_balances::Pallet::<T>::mint_into(
+				&pool_info.owner_reward_account,
+				commission,
+			)
+			.expect("mint owner reward should succeed; qed.");
+			if !owner_minted {
+				Self::deposit_event(Event::<T>::RewardToOwnerDismissedDust {
+					pid: pool_info.basepool.pid,
+					amount: commission,
+				});
+			}
+			// Handle the to-distribute commission. Be careful about minting as it may fail (dust).
+			let to_distribute = rewards - commission;
+			let to_distribute_minted = wrapped_balances::Pallet::<T>::mint_into(
+				&pool_info.basepool.pool_account_id,
+				to_distribute,
+			)
+			.expect("mint to_distribute should succeed; qed.");
+			let distributed =
+				if to_distribute_minted && base_pool::is_nondust_balance(to_distribute) {
 					pool_info.basepool.distribute_reward::<T>(to_distribute);
 					true
 				} else if to_distribute > Zero::zero() {
-					Self::deposit_event(Event::<T>::RewardDismissedDust {
+					Self::deposit_event(Event::<T>::RewardToDistributionDismissedDust {
 						pid: pool_info.basepool.pid,
 						amount: to_distribute,
 					});
@@ -1112,13 +1141,12 @@ pub mod pallet {
 				} else {
 					false
 				};
-				if distributed || commission > Zero::zero() {
-					Self::deposit_event(Event::<T>::RewardReceived {
-						pid: pool_info.basepool.pid,
-						to_owner: commission,
-						to_stakers: to_distribute,
-					});
-				}
+			if distributed || owner_minted {
+				Self::deposit_event(Event::<T>::RewardReceived {
+					pid: pool_info.basepool.pid,
+					to_owner: commission,
+					to_stakers: to_distribute,
+				});
 			}
 		}
 
@@ -1195,7 +1223,7 @@ pub mod pallet {
 							worker: info.pubkey,
 							amount: reward,
 						});
-						return;
+						continue;
 					}
 				};
 				let mut pool_info =

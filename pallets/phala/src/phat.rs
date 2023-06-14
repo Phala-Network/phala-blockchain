@@ -282,7 +282,7 @@ pub mod pallet {
 				deposit_per_byte: deposit_per_byte.unique_saturated_into(),
 			};
 
-			Clusters::<T>::insert(cluster, &cluster_info);
+			Clusters::<T>::insert(cluster, cluster_info);
 			Self::deposit_event(Event::ClusterCreated {
 				cluster,
 				system_contract,
@@ -425,7 +425,7 @@ pub mod pallet {
 			);
 			Contracts::<T>::insert(
 				contract_id,
-				&BasicContractInfo {
+				BasicContractInfo {
 					deployer: contract_info.deployer.clone(),
 					cluster: contract_info.cluster_id,
 				},

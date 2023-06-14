@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 extern crate alloc;
 
@@ -210,7 +210,7 @@ mod system {
         /// Be careful when using this function, it would panic the worker if the
         /// runtime version is not supported.
         #[ink(message)]
-        fn upgrade_runtime(&self, version: (u32, u32)) -> Result<()> {
+        fn upgrade_runtime(&mut self, version: (u32, u32)) -> Result<()> {
             let _ = self.ensure_owner()?;
             pink::info!("Upgrading pink contract runtime...");
             pink::upgrade_runtime(version);

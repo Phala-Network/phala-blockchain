@@ -465,7 +465,7 @@ mod tests {
     #[ignore = "this is very expensive so we don't test it often"]
     fn can_call_xtransfer() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-        use xcm::v2::{AssetId, Fungibility, Junction, Junctions, MultiLocation, MultiAsset};
+        use xcm::v2::{AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
         let rpc_node = "https://rhala-api.phala.network/api";
         let signer: [u8; 32] =

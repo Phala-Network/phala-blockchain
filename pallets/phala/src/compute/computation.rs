@@ -210,6 +210,16 @@ pub mod pallet {
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		type SetBudgetOrigins: EnsureOrigin<Self::RuntimeOrigin>;
 		type SetContractRootOrigins: EnsureOrigin<Self::RuntimeOrigin>;
+
+		/// Enable worker register time checking when trying to add it to a pool.
+		///
+		/// The chain requires that workers must be registered after the Gatekeeper is launched
+		/// in order to be added to a stakepool. This makes sure the Gatekeeper tracks all events
+		/// for all workers being computing. However, on Khala network, workers registered earlier
+		/// didn't record there register time, so we need to disable this checking for Khala.
+		///
+		/// DISABLE THIS FOR KHALA ONLY.
+		type CheckWorkerRegisterTime: Get<bool>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(7);
@@ -871,10 +881,12 @@ pub mod pallet {
 		pub fn bind(session: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let worker =
 				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
-			ensure!(
-				registry::Pallet::<T>::is_worker_registered_after_gk_launched(&pubkey),
-				Error::<T>::WorkerReregisterNeeded
-			);
+			if T::CheckWorkerRegisterTime::get() {
+				ensure!(
+					registry::Pallet::<T>::is_worker_registered_after_gk_launched(&pubkey),
+					Error::<T>::WorkerReregisterNeeded
+				);
+			}
 			// Check the worker has finished the benchmark
 			ensure!(worker.initial_score != None, Error::<T>::BenchmarkMissing);
 			// Check worker and worker not bound

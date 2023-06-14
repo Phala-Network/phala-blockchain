@@ -151,7 +151,7 @@ mod tests {
                     Vec::with_capacity(128),
                     &mut ciphertext,
                 )
-                    .unwrap();
+                .unwrap();
                 writer.write_all(plaintext).unwrap();
                 writer.flush().unwrap();
             }

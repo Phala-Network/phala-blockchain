@@ -38,6 +38,18 @@ async function useApi() {
     const api = await ApiPromise.create({
         provider: wsProvider,
         throwOnConnect: !substrateNoRetry,
+        noInitWarn: true,
+        types: {
+            WorkingInfoUpdateEvent: {
+                blockNumber: "u32",
+            },
+            GatekeeperEvent: {
+                _enum: {
+                    NewRandomNumber: "WorkingInfoUpdateEvent",
+                    TokenomicParametersChanged: null,
+                }
+            }
+        }
     });
     if (at) {
         if (!at.startsWith('0x') && !isNaN(at)) {
@@ -102,6 +114,19 @@ function printObject(obj, depth=3, getter=true) {
         console.log(JSON.stringify(obj, undefined, 2));
     } else {
         console.dir(obj, {depth, getter});
+    }
+}
+
+function hexOrFile(arg) {
+    if (arg.startsWith('0x')) {
+        return arg;
+    } else {
+        const data = fs.readFileSync(arg, { encoding: 'utf-8' }).trim();
+        if (!data.startsWith('0x')) {
+            console.error('File must be hex encoded.', arg);
+            process.exit(-1);
+        }
+        return data;
     }
 }
 
@@ -222,14 +247,14 @@ chain
         const api = await useApi();
         let [workerInfo, miner, pid] = await Promise.all([
             api.query.phalaRegistry.workers(workerKey),
-            api.query.phalaMining.workerBindings(workerKey),
+            api.query.phalaComputation.workerBindings(workerKey),
             api.query.phalaStakePool.workerAssignments(workerKey),
         ]);
         workerInfo = workerInfo.unwrapOr();
         miner = miner.unwrapOr();
         pid = pid.unwrapOr();
 
-        const minerInfo = miner ? await api.query.phalaMining.miners(miner) : undefined;
+        const minerInfo = miner ? await api.query.phalaComputation.miners(miner) : undefined;
         const poolInfo = pid ? await api.query.phalaStakePool.stakePools(pid) : undefined;
 
         const toObj = x => x ? (x.unwrapOr ? x.unwrapOr(undefined) : x).toJSON() : undefined;
@@ -290,14 +315,25 @@ chain
     .description('get the stake pool info')
     .option('--from <start_block>', 'Start block', '0')
     .option('--to <end_block>', 'End block', null)
+    .option('-f, --follow', 'Follow updates')
     .action(run(async (opt) => {
         const api = await useApi();
         var blockNumber = parseInt(opt.from);
 
         while (true) {
+            console.log(`Scanning block ${blockNumber}`);
             const hash = await api.rpc.chain.getBlockHash(blockNumber);
+            if (hash == '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                if (opt.follow) {
+                    await new Promise(resolve => setTimeout(resolve, 12000));
+                    continue;
+                } else {
+                    break;
+                }
+            }
             const singedBlock = await api.rpc.chain.getBlock(hash);
-            singedBlock.block.extrinsics.forEach(({method: { args, method, section }}) => {
+            function processExtrinsic(extrinsic) {
+                const { args, method, section } = extrinsic;
                 if (method === 'syncOffchainMessage' && section === 'phalaMq') {
                     const message = args[0].message;
                     const sender = message.sender.toString();
@@ -305,9 +341,25 @@ chain
                         const destination = message.destination.toHuman();
                         const sequence = args[0].sequence;
                         const payloadHash = blake2AsHex(message.payload);
-                        console.log(`block=${blockNumber}, seq=${sequence}, to=${destination}, payload_hash=${payloadHash}`);
+                        let srcBlock = "unknown";
+                        if (destination == '^phala/mining/update') {
+                            const msg = api.createType('WorkingInfoUpdateEvent', message.payload);
+                            srcBlock = msg.toJSON().blockNumber;
+                        } else if (destination == 'phala/gatekeeper/event') {
+                            const msg = api.createType('GatekeeperEvent', message.payload);
+                            srcBlock = msg.toJSON().newRandomNumber.blockNumber;
+                        }
+                        console.log(`block=${blockNumber}, src_block=${srcBlock}, seq=${sequence}, payload_hash=${payloadHash}, to=${destination}`);
                     }
                 }
+                if (method === 'forceBatch' && section === 'utility') {
+                    args[0].forEach((method) => {
+                        processExtrinsic(method);
+                    });
+                }
+            }
+            singedBlock.block.extrinsics.forEach(({ method }) => {
+                processExtrinsic(method);
             });
             blockNumber += 1;
             if (opt.to && blockNumber > opt.to) {
@@ -324,6 +376,7 @@ chain
     .action(run(async (thresholdStr, callHex) => {
         const api = await useApi();
         const threshold = parseInt(thresholdStr);
+        callHex = hexOrFile(callHex);
         const call = createMotion(api, threshold, callHex);
         console.log(call.toHex());
     }))
@@ -335,6 +388,7 @@ chain
     .action(run(async (callHex) => {
         const api = await useApi();
         // Examine
+        callHex = hexOrFile(callHex);
         console.log('Building majority external proposal for:');
         console.dir(api.createType('Call', callHex).toHuman(), {depth: 10})
         // Calculate the threshold
@@ -342,15 +396,9 @@ chain
         const totalMembers = members.length;
         const threshold = Math.ceil(totalMembers * 0.75);
         // Build motion
-        const hash = blake2AsHex(callHex);
-        const legacy = api.createType('FrameSupportPreimagesBounded', {Legacy: hash});
-        const external = api.tx.democracy.externalProposeMajority(legacy).method.toHex();
-        const motionCall = createMotion(api, threshold, external);
-        const call = api.tx.utility.batchAll([
-            api.tx.preimage.notePreimage(callHex),
-            motionCall,
-        ]);
-        console.log(call.toHex());
+        const externalCall = api.tx.democracy.externalProposeMajority({ Inline: callHex });
+        const motionCall = createMotion(api, threshold, externalCall);
+        console.log(motionCall.toHex(false));
     }))
 
 // pRuntime operations

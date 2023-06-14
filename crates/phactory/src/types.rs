@@ -1,7 +1,7 @@
-use std::fmt::Debug;
 use anyhow::Result;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use phala_types::contract::ContractQueryError;
+use std::fmt::Debug;
 use thiserror::Error;
 
 extern crate runtime as chain;

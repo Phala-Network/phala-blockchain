@@ -2,7 +2,7 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use ink::ChainExtensionInstance;
 
-pub use http_request::{HttpRequest, HttpResponse, HttpRequestError};
+pub use http_request::{HttpRequest, HttpRequestError, HttpResponse};
 pub use ink::primitives::AccountId;
 pub use signing::SigType;
 
@@ -84,7 +84,7 @@ impl<T: scale::Encode> EncodeOutputFallbask for EncodeOutput<T> {
     }
 }
 
-#[derive(scale::Encode, scale::Decode)]
+#[derive(scale::Encode, scale::Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ErrorCode(u32);
 
@@ -96,6 +96,8 @@ impl ink::env::chain_extension::FromStatusCode for ErrorCode {
         }
     }
 }
+
+pub type BatchHttpResult = Result<Vec<Result<HttpResponse, HttpRequestError>>, HttpRequestError>;
 
 /// Extensions for the ink runtime defined by phat contract.
 #[pink_extension_macro::chain_extension]
@@ -199,6 +201,10 @@ pub trait PinkExt {
     /// Get the version of the current contract runtime in this cluster.
     #[ink(extension = 21, handle_status = false)]
     fn runtime_version() -> (u32, u32);
+
+    /// Batch http request
+    #[ink(extension = 22, handle_status = true)]
+    fn batch_http_request(requests: Vec<HttpRequest>, timeout_ms: u64) -> BatchHttpResult;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

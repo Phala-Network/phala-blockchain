@@ -72,7 +72,6 @@ pub mod pallet {
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type MigrationAccountId: Get<Self::AccountId>;
-		type WPhaMinBalance: Get<BalanceOf<Self>>;
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -294,7 +293,10 @@ pub mod pallet {
 			BalanceOf<T>:
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-			T: Config + wrapped_balances::Config + vault::Config,
+			T: Config
+				+ wrapped_balances::Config
+				+ vault::Config
+				+ pallet_elections_phragmen::Config,
 		{
 			Pallet::<T>::set_nft_attr(self.cid, self.nftid, &self.attr)?;
 			Ok(())
@@ -337,7 +339,10 @@ pub mod pallet {
 		where
 			T: pallet_assets::Config<AssetId = u32, Balance = Balance>,
 			T: Config<AccountId = AccountId>,
-			T: Config + wrapped_balances::Config + vault::Config,
+			T: Config
+				+ wrapped_balances::Config
+				+ vault::Config
+				+ pallet_elections_phragmen::Config,
 		{
 			pallet_assets::Pallet::<T>::balance(
 				<T as wrapped_balances::Config>::WPhaAssetId::get(),
@@ -360,7 +365,10 @@ pub mod pallet {
 				sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 			T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 			T: Config<AccountId = AccountId>,
-			T: Config + wrapped_balances::Config + vault::Config,
+			T: Config
+				+ wrapped_balances::Config
+				+ vault::Config
+				+ pallet_elections_phragmen::Config,
 		{
 			self.total_value += rewards;
 			for vault_staker in &self.value_subscribers {
@@ -423,7 +431,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: Config + vault::Config + pallet_elections_phragmen::Config,
 	{
 		/// Adds a staker accountid to contribution whitelist.
 		///
@@ -589,7 +597,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + wrapped_balances::Config + vault::Config,
+		T: Config + wrapped_balances::Config + vault::Config + pallet_elections_phragmen::Config,
 	{
 		/// Returns a [`NftGuard`] object that can read or write to the nft attributes
 		///
@@ -1032,7 +1040,8 @@ pub mod pallet {
 				None => return false,
 			};
 			let current_balance = bmul(nft.shares, &price);
-			if current_balance > T::WPhaMinBalance::get() {
+			let wpha_min = wrapped_balances::Pallet::<T>::min_balance();
+			if current_balance > wpha_min {
 				return false;
 			}
 			pool_info.total_shares -= nft.shares;
@@ -1068,7 +1077,8 @@ pub mod pallet {
 				None => return,
 			};
 
-			while pool_info.get_free_stakes::<T>() > T::WPhaMinBalance::get() {
+			let wpha_min = wrapped_balances::Pallet::<T>::min_balance();
+			while pool_info.get_free_stakes::<T>() > wpha_min {
 				if let Some(withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let mut withdraw_nft_guard =

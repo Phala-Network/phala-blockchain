@@ -818,7 +818,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.identity_key,
                 &self.platform,
             );
-            crate::maybe_remove_checkpoints(&self.sealing_path);
+            crate::maybe_remove_checkpoints(&self.storage_path);
             panic!("Received master key, please restart pRuntime and pherry to sync as Gatekeeper");
         }
 
@@ -1865,14 +1865,18 @@ pub(crate) fn apply_pink_events(
             PinkEvent::UpgradeRuntimeTo { version } => {
                 ensure_system!();
                 info!("Try to upgrade runtime to {version:?}");
-                if version == cluster.config.runtime_version {
+                if version <= cluster.config.runtime_version {
                     info!("Runtime version is already {version:?}");
                     continue;
                 }
-                panic!(
-                    "The runtime version {:?} is not supported by this pruntime yet, please upgrade pruntime",
-                    version
-                );
+                if cluster.config.runtime_version == (1, 0) {
+                    // The 1.0 runtime didn't call on_genesis on cluster setup, so we need to call it
+                    // manually to make sure the storage_versions are correct before migration.
+                    cluster.default_runtime_mut().on_genesis();
+                }
+                cluster.config.runtime_version = version;
+                cluster.default_runtime_mut().on_runtime_upgrade();
+                info!("Runtime upgraded to {version:?}");
             }
         }
     }

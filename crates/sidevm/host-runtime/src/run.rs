@@ -44,7 +44,7 @@ impl WasmRun {
             .map(AsRef::as_ref)
             .unwrap_or("singlepass");
 
-        let engine: Engine = match compiler_env {
+        let mut engine: Engine = match compiler_env {
             "singlepass" => metering(Singlepass::default()).into(),
             #[cfg(feature = "wasmer-compiler-cranelift")]
             "cranelift" => metering(Cranelift::default()).into(),
@@ -59,7 +59,8 @@ impl WasmRun {
             dynamic_memory_offset_guard_size: page_size::get() as _,
         };
         let tunables = LimitingTunables::new(base, Pages(max_pages));
-        let mut store = Store::new_with_tunables(&engine, tunables);
+        engine.set_tunables(tunables);
+        let mut store = Store::new(engine);
         let module = Module::new(&store, code)?;
         let (env, import_object) = env::create_env(id, &mut store, cache_ops);
         let instance = Instance::new(&mut store, &module, &import_object)?;
@@ -92,8 +93,7 @@ impl Future for WasmRun {
         let _guard = futures::ready!(self.scheduler.poll_resume(cx, &self.id, self.env.weight()));
         let run = self.get_mut();
         run.env.reset_gas_to_breath(&mut run.store);
-        match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store))
-        {
+        match async_context::set_task_cx(cx, || run.wasm_poll_entry.call(&mut run.store)) {
             Ok(rv) => {
                 if rv == 0 {
                     if run.env.has_more_ready() {

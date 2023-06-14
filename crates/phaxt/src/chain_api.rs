@@ -5,6 +5,9 @@ use subxt::ext::scale_value::At;
 use subxt::rpc::types::{BlockNumber as SubxtBlockNumber, NumberOrHex};
 use subxt::storage::Storage;
 
+use parity_scale_codec::{Decode, Encode};
+use phala_types::{VersionedWorkerEndpoints, WorkerPublicKey};
+
 use crate::{BlockNumber, ChainApi, Config, Hash, RpcClient};
 
 impl ChainApi {
@@ -126,5 +129,46 @@ impl ChainApi {
             .as_u128()
             .ok_or_else(|| anyhow!("Invalid block number in WorkerAddedAt"))?;
         Ok(Some(block_number as _))
+    }
+
+    async fn fetch<K: Encode, V: Decode>(
+        &self,
+        pallet: &str,
+        name: &str,
+        key: Option<K>,
+    ) -> Result<Option<V>> {
+        let mut args = vec![];
+        if let Some(key) = key {
+            let key = Value::from_bytes(key.encode());
+            args.push(key);
+        }
+        let address = subxt::dynamic::storage(pallet, name, args);
+        let Some(data) = self
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&address)
+            .await
+            .context("Failed to get worker endpoints")? else {
+                return Ok(None);
+            };
+        Ok(Some(Decode::decode(&mut &data.encoded()[..])?))
+    }
+
+    pub async fn get_workers(&self, cluster_id: Hash) -> Result<Vec<WorkerPublicKey>> {
+        let result = self
+            .fetch("PhalaPhatContracts", "ClusterWorkers", Some(&cluster_id))
+            .await?;
+        Ok(result.unwrap_or_default())
+    }
+
+    pub async fn get_endpoints(&self, worker: &WorkerPublicKey) -> Result<Vec<String>> {
+        let result = self
+            .fetch("PhalaRegistry", "Endpoints", Some(worker))
+            .await?;
+        let Some(VersionedWorkerEndpoints::V1(endpoints)) = result else {
+            return Ok(vec![])
+        };
+        Ok(endpoints)
     }
 }

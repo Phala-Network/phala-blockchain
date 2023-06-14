@@ -22,7 +22,7 @@ mod send_mq {
 }
 
 mod dispatcher {
-    use crate::{Message, MessageDispatcher, Path, dispatcher::Receiver};
+    use crate::{dispatcher::Receiver, Message, MessageDispatcher, Path};
 
     environmental::environmental!(global_dispatcher: MessageDispatcher);
 

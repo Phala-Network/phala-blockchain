@@ -133,7 +133,18 @@ impl<TaskId: TaskIdType> SchedulerInner<TaskId> {
                 self.schedule();
                 task::Poll::Pending
             }
-            TaskState::Ready => task::Poll::Pending,
+            TaskState::Ready => {
+                for task in self.ready_tasks.values_mut() {
+                    if task.id == *id {
+                        let waker = cx.waker();
+                        if !task.waker.will_wake(waker) {
+                            task.waker = waker.clone();
+                        }
+                        break;
+                    }
+                }
+                task::Poll::Pending
+            }
             TaskState::ToRun => {
                 let guard = RunningGuard {
                     queue: self.weak_self.clone(),

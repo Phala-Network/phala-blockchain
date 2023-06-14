@@ -20,14 +20,14 @@
 
 use assert_cmd::cargo::cargo_bin;
 use nix::{
-	sys::signal::{kill, Signal::SIGINT},
-	unistd::Pid,
+    sys::signal::{kill, Signal::SIGINT},
+    unistd::Pid,
 };
 use regex::Regex;
 use std::{
-	io::Read,
-	path::PathBuf,
-	process::{Command, Stdio},
+    io::Read,
+    path::PathBuf,
+    process::{Command, Stdio},
 };
 
 pub mod common;
@@ -35,30 +35,37 @@ pub mod common;
 #[ignore = "this test is flaky and has rewritten in newer Substrate"]
 #[tokio::test]
 async fn temp_base_path_works() {
-	let mut cmd = Command::new(cargo_bin("phala-node"));
-	let mut child = common::KillChildOnDrop(
-		cmd.args(["--dev", "--tmp", "--no-hardware-benchmarks"])
-			.stdout(Stdio::piped())
-			.stderr(Stdio::piped())
-			.spawn()
-			.unwrap(),
-	);
+    let mut cmd = Command::new(cargo_bin("phala-node"));
+    let mut child = common::KillChildOnDrop(
+        cmd.args(["--dev", "--tmp", "--no-hardware-benchmarks"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
 
-	let mut stderr = child.stderr.take().unwrap();
-	let (ws_url, mut data) = common::find_ws_url_from_output(&mut stderr);
+    let mut stderr = child.stderr.take().unwrap();
+    let (ws_url, mut data) = common::find_ws_url_from_output(&mut stderr);
 
-	// Let it produce some blocks.
-	common::wait_n_finalized_blocks(3, 30, &ws_url).await.unwrap();
-	assert!(child.try_wait().unwrap().is_none(), "the process should still be running");
+    // Let it produce some blocks.
+    common::wait_n_finalized_blocks(3, 30, &ws_url)
+        .await
+        .unwrap();
+    assert!(
+        child.try_wait().unwrap().is_none(),
+        "the process should still be running"
+    );
 
-	// Stop the process
-	kill(Pid::from_raw(child.id().try_into().unwrap()), SIGINT).unwrap();
-	assert!(common::wait_for(&mut child, 40).map(|x| x.success()).unwrap_or_default());
+    // Stop the process
+    kill(Pid::from_raw(child.id().try_into().unwrap()), SIGINT).unwrap();
+    assert!(common::wait_for(&mut child, 40)
+        .map(|x| x.success())
+        .unwrap_or_default());
 
-	// Ensure the database has been deleted
-	stderr.read_to_string(&mut data).unwrap();
-	let re = Regex::new(r"Database: .+ at (\S+)").unwrap();
-	let db_path = PathBuf::from(re.captures(data.as_str()).unwrap().get(1).unwrap().as_str());
+    // Ensure the database has been deleted
+    stderr.read_to_string(&mut data).unwrap();
+    let re = Regex::new(r"Database: .+ at (\S+)").unwrap();
+    let db_path = PathBuf::from(re.captures(data.as_str()).unwrap().get(1).unwrap().as_str());
 
-	assert!(!db_path.exists());
+    assert!(!db_path.exists());
 }

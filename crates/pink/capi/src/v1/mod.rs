@@ -113,6 +113,10 @@ pub mod ecall {
         ) -> Vec<u8>;
         #[xcall(id = 21)]
         fn git_revision(&self) -> String;
+        #[xcall(id = 22)]
+        fn on_genesis(&mut self);
+        #[xcall(id = 23)]
+        fn on_runtime_upgrade(&mut self);
     }
 }
 
@@ -123,7 +127,7 @@ pub mod ocall {
     use scale::{Decode, Encode};
 
     pub use pink_extension::chain_extension::{
-        HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
+        BatchHttpResult, HttpRequest, HttpRequestError, HttpResponse, StorageQuotaExceeded,
     };
     pub type StorageChanges = Vec<(Vec<u8>, (Vec<u8>, i32))>;
 
@@ -188,5 +192,12 @@ pub mod ocall {
             contract: AccountId,
             request: HttpRequest,
         ) -> Result<HttpResponse, HttpRequestError>;
+        #[xcall(id = 15)]
+        fn batch_http_request(
+            &self,
+            contract: AccountId,
+            requests: Vec<HttpRequest>,
+            timeout_ms: u64,
+        ) -> BatchHttpResult;
     }
 }
