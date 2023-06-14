@@ -64,10 +64,12 @@ pub trait System {
     fn set_driver(&mut self, name: String, contract_id: AccountId) -> Result<()>;
 
     /// Get driver contract id for `name`.
-    ///
-    /// The caller must be the owner of the cluster or an administrator.
     #[ink(message)]
     fn get_driver(&self, name: String) -> Option<AccountId>;
+
+    /// Get driver contract id for `name` and the set block number.
+    #[ink(message)]
+    fn get_driver2(&self, name: String) -> Option<(crate::BlockNumber, AccountId)>;
 
     /// Deploy a sidevm instance attached to a given contract.
     ///
@@ -125,6 +127,10 @@ pub trait System {
     /// Check if the code is already uploaded to the cluster with given code hash.
     #[ink(message)]
     fn code_exists(&self, code_hash: Hash, code_type: CodeType) -> bool;
+
+    /// Get the history of given driver.
+    #[ink(message)]
+    fn driver_history(&self, name: String) -> Option<Vec<(crate::BlockNumber, AccountId)>>;
 }
 
 /// Errors that can occur upon calling a driver contract.
