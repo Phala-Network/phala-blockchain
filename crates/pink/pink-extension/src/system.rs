@@ -125,6 +125,12 @@ pub trait System {
     /// Check if the code is already uploaded to the cluster with given code hash.
     #[ink(message)]
     fn code_exists(&self, code_hash: Hash, code_type: CodeType) -> bool;
+
+    /// Get current event chain head info
+    ///
+    /// Returns (next event block number, last_event_block_hash)
+    #[ink(message)]
+    fn current_event_chain_head(&self) -> (u64, Hash);
 }
 
 /// Errors that can occur upon calling a driver contract.

@@ -22,6 +22,7 @@ use crate::{capi::OCallImpl, types::AccountId};
 use pink_capi::{types::ExecSideEffects, v1::ocall::OCallsRo};
 
 use super::SystemEvents;
+use crate::runtime::Pink as PalletPink;
 
 fn deposit_pink_event(contract: AccountId, event: PinkEvent) {
     let topics = [pink_extension::PinkEvent::event_topic().into()];
@@ -142,7 +143,7 @@ impl PinkRuntimeEnv for CallInQuery {
 impl CallInQuery {
     fn ensure_system(&self) -> Result<(), DispatchError> {
         let contract: AccountId32 = self.address.convert_to();
-        if Some(contract) != crate::runtime::Pink::system_contract() {
+        if Some(contract) != PalletPink::system_contract() {
             return Err(DispatchError::BadOrigin);
         }
         Ok(())
@@ -189,8 +190,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
-        let privkey =
-            crate::runtime::Pink::key().ok_or(DispatchError::Other("Key seed missing"))?;
+        let privkey = PalletPink::key().ok_or(DispatchError::Other("Key seed missing"))?;
         let privkey = sp_core::sr25519::Pair::restore_from_secret_key(&privkey);
         let contract_address: &[u8] = self.address.as_ref();
         let derived_pair = privkey
@@ -257,7 +257,7 @@ impl PinkExtBackend for CallInQuery {
     }
 
     fn system_contract_id(&self) -> Result<ext::AccountId, Self::Error> {
-        crate::runtime::Pink::system_contract()
+        PalletPink::system_contract()
             .map(|address| address.convert_to())
             .ok_or(DispatchError::Other("No system contract installed"))
     }
@@ -283,7 +283,7 @@ impl PinkExtBackend for CallInQuery {
 
     fn code_exists(&self, code_hash: Hash, sidevm: bool) -> Result<bool, Self::Error> {
         if sidevm {
-            Ok(crate::runtime::Pink::sidevm_code_exists(&code_hash.into()))
+            Ok(PalletPink::sidevm_code_exists(&code_hash.into()))
         } else {
             Ok(crate::storage::external_backend::code_exists(
                 &code_hash.into(),
@@ -314,6 +314,13 @@ impl PinkExtBackend for CallInQuery {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         Ok(crate::version())
+    }
+
+    fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
+        Ok((
+            PalletPink::next_event_block_number(),
+            PalletPink::last_event_block_hash().into(),
+        ))
     }
 }
 
@@ -474,5 +481,9 @@ impl PinkExtBackend for CallInCommand {
 
     fn runtime_version(&self) -> Result<(u32, u32), Self::Error> {
         self.as_in_query.runtime_version()
+    }
+
+    fn current_event_chain_head(&self) -> Result<(u64, Hash), Self::Error> {
+        self.as_in_query.current_event_chain_head()
     }
 }

@@ -222,6 +222,11 @@ mod system {
         fn code_exists(&self, code_hash: [u8; 32], code_type: CodeType) -> bool {
             pink::ext().code_exists(code_hash.into(), code_type.is_sidevm())
         }
+
+        #[ink(message)]
+        fn current_event_chain_head(&self) -> (u64, pink::Hash) {
+            pink::ext().current_event_chain_head()
+        }
     }
 
     impl ContractDeposit for System {
