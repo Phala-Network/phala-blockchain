@@ -37,8 +37,9 @@ pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
     let mut pink_events = Vec::default();
     let mut ink_events = Vec::default();
     let mut instantiated = Vec::default();
-    let system_events = super::System::events();
-    for event in &system_events {
+    let mut system_events = vec![];
+    for event in super::System::events() {
+        let mut is_private_event = false;
         if let super::RuntimeEvent::Contracts(ink_event) = &event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
@@ -56,6 +57,7 @@ pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
                         match pink_extension::PinkEvent::decode(&mut &data[..]) {
                             Ok(event) => {
                                 pink_events.push((address.clone(), event.clone()));
+                                is_private_event = event.is_private();
                             }
                             Err(_) => {
                                 error!("Contract emitted an invalid pink event");
@@ -67,6 +69,9 @@ pub fn get_side_effects() -> (SystemEvents, ExecSideEffects) {
                 }
                 _ => (),
             }
+        }
+        if !is_private_event {
+            system_events.push(event);
         }
     }
     (
