@@ -25,6 +25,12 @@ mod system {
         current: AccountId,
     }
 
+    /// A new administrator is added.
+    #[ink(event)]
+    pub struct AdministratorAdded {
+        user: AccountId,
+    }
+
     /// Pink's system contract.
     #[ink(storage)]
     pub struct System {
@@ -111,7 +117,9 @@ mod system {
         #[ink(message)]
         fn grant_admin(&mut self, contract_id: AccountId) -> Result<()> {
             self.ensure_owner()?;
-            self.administrators.insert(contract_id, &());
+            self.administrators.insert(&contract_id, &());
+            self.env()
+                .emit_event(AdministratorAdded { user: contract_id });
             Ok(())
         }
 
