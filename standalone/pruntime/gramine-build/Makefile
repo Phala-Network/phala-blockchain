@@ -47,10 +47,10 @@ PRUNTIME_SEAL_DIR ?= ${PRUNTIME_DATA_DIR}/protected_files
 PRUNTIME_STORAGE_DIR ?= ${PRUNTIME_DATA_DIR}/storage_files
 
 .PHONY: all
-all: ${BIN_NAME} ${BIN_NAME}.manifest ${LIBOS}
-ifeq ($(SGX),1)
-all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
-endif
+all: ${BIN_NAME} ${LIBOS}
+
+.PHONY: signed-sgx-artifacts
+signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
@@ -124,18 +124,24 @@ clean:
 .PHONY: distclean
 distclean: clean
 
-.PHONY: dist
-dist: all
+.PHONY: pre-dist
+pre-dist: all
 	mkdir -p ${PREFIX}/data
 	cp ${BIN_NAME} ${PREFIX}/
 	cp Rocket.toml ${PREFIX}/
+	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
+
+.PHONY: dist
 ifeq ($(SGX),1)
+dist: pre-dist ${BIN_NAME}.manifest signed-sgx-artifacts
+	cp ${BIN_NAME}.manifest ${PREFIX}/
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
 	cp gramine-sgx ${PREFIX}/
-endif
-	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
+else
+dist: pre-dist ${BIN_NAME}.manifest
 	cp ${BIN_NAME}.manifest ${PREFIX}/
+endif
 
 token-dist: token dist
 	cp ${BIN_NAME}.token ${PREFIX}/
