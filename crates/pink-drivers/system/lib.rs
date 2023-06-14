@@ -24,10 +24,12 @@ mod system {
         owner: AccountId,
         /// The administrators
         administrators: Mapping<AccountId, ()>,
-        /// The drivers
+        /// The drivers (deprecated)
         drivers: Mapping<String, AccountId>,
+        /// The drivers
+        drivers2: Mapping<String, (BlockNumber, AccountId)>,
         /// The history of drivers
-        driver_history: Mapping<String, Vec<AccountId>>,
+        drivers_history: Mapping<String, Vec<(BlockNumber, AccountId)>>,
     }
 
     impl System {
@@ -37,7 +39,8 @@ mod system {
                 owner: Self::env().caller(),
                 administrators: Default::default(),
                 drivers: Default::default(),
-                driver_history: Default::default(),
+                drivers2: Default::default(),
+                drivers_history: Default::default(),
             }
         }
 
@@ -114,22 +117,30 @@ mod system {
                 _ => {}
             }
 
-            let previous = self.drivers.get(&name);
-            if let Some(previous) = previous {
+            let previous = self.get_driver2(name.clone());
+            if let Some((block, previous)) = previous {
                 if previous == contract_id {
                     return Ok(());
                 }
-                let mut history = self.driver_history.get(&name).unwrap_or_default();
-                history.push(previous);
-                self.driver_history.insert(&name, &history);
+                let mut history = self.drivers_history.get(&name).unwrap_or_default();
+                history.push((block, previous));
+                self.drivers_history.insert(&name, &history);
             }
-            self.drivers.insert(name, &contract_id);
+            self.drivers2
+                .insert(name, &(self.env().block_number(), contract_id));
             Ok(())
         }
 
         #[ink(message)]
         fn get_driver(&self, name: String) -> Option<AccountId> {
-            self.drivers.get(&name)
+            self.get_driver2(name).map(|(_, id)| id)
+        }
+
+        #[ink(message)]
+        fn get_driver2(&self, name: String) -> Option<(BlockNumber, AccountId)> {
+            self.drivers2
+                .get(&name)
+                .or_else(|| self.drivers.get(&name).map(|id| (0, id)))
         }
 
         #[ink(message)]
@@ -248,8 +259,8 @@ mod system {
         }
 
         #[ink(message)]
-        fn driver_history(&self, name: String) -> Option<Vec<AccountId>> {
-            self.driver_history.get(&name)
+        fn driver_history(&self, name: String) -> Option<Vec<(BlockNumber, AccountId)>> {
+            self.drivers_history.get(&name)
         }
     }
 
