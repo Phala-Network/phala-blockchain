@@ -492,6 +492,10 @@ mod test_cluster {
         ) -> BatchHttpResult {
             pink_extension_runtime::batch_http_request(requests, timeout_ms)
         }
+
+        fn emit_system_event_block(&self, number: u64, _encoded_block: Vec<u8>) {
+            log::info!("emit_system_event_block: number={}", number,);
+        }
     }
 
     impl CrossCall for TestCluster {
