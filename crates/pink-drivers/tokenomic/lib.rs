@@ -10,13 +10,6 @@ mod tokenomic {
 
     type Result<T> = core::result::Result<T, Error>;
 
-    #[ink(event)]
-    pub struct WeightChanged {
-        #[ink(topic)]
-        contract_id: AccountId,
-        weight: u32,
-    }
-
     #[ink(storage)]
     pub struct PhatTokenomic {}
 
@@ -47,12 +40,7 @@ mod tokenomic {
             const CENTS: Balance = 10_000_000_000;
             let system = SystemRef::instance();
             let weight = deposit / CENTS;
-            let weight = weight.try_into().unwrap_or(u32::MAX);
-            system.set_contract_weight(contract_id.clone(), weight)?;
-            self.env().emit_event(WeightChanged {
-                contract_id,
-                weight
-            });
+            system.set_contract_weight(contract_id, weight.try_into().unwrap_or(u32::MAX))?;
             Ok(())
         }
     }
