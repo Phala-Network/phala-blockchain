@@ -1,7 +1,7 @@
 use crate::{
     capi::OCallImpl,
     runtime::{ExecSideEffects, Pink as PalletPink, System, SystemEvents, Timestamp},
-    types::{EventsBlock, EventsBlockHeader, Hash, Hashing},
+    types::{EventsBlock, EventsBlockBody, EventsBlockHeader, Hash, Hashing},
 };
 use pink_capi::v1::ocall::ExecContext;
 use scale::Encode;
@@ -104,17 +104,19 @@ pub fn maybe_emit_system_event_block(events: SystemEvents) {
     if !OCallImpl.exec_context().mode.is_transaction() {
         return;
     }
+    let body = EventsBlockBody {
+        phala_block_number: System::block_number(),
+        events,
+    };
     let number = PalletPink::next_event_block_number();
     let header = EventsBlockHeader {
         parent_hash: PalletPink::last_event_block_hash(),
         number,
-        phala_block_number: System::block_number(),
         runtime_version: crate::version(),
-        events_hash: events.using_encoded(sp_core::hashing::blake2_256).into(),
+        body_hash: body.using_encoded(sp_core::hashing::blake2_256).into(),
     };
     let header_hash = sp_core::hashing::blake2_256(&header.encode()).into();
     PalletPink::set_last_event_block_hash(header_hash);
-
-    let block = EventsBlock { header, events };
+    let block = EventsBlock { header, body };
     OCallImpl.emit_system_event_block(number, block.encode());
 }

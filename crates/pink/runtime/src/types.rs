@@ -12,19 +12,55 @@ pub type Balance = u128;
 pub type BlockNumber = u32;
 pub type Index = u64;
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug)]
 pub struct EventsBlockHeader {
-    pub parent_hash: Hash,
     pub number: u64,
-    pub phala_block_number: BlockNumber,
     pub runtime_version: (u32, u32),
-    pub events_hash: Hash,
+    pub parent_hash: Hash,
+    pub body_hash: Hash,
+}
+
+// The body layout may change in the future. They should be decoded as type determined by
+// header.runtime_version.
+#[derive(Encode, Decode, Clone)]
+pub struct EventsBlockBody {
+    pub phala_block_number: BlockNumber,
+    pub events: SystemEvents,
 }
 
 #[derive(Encode, Decode, Clone)]
 pub struct EventsBlock {
     pub header: EventsBlockHeader,
-    // The fields below may be changed in the future. They should be decoded as types determined by
-    // runtime_version.
-    pub events: SystemEvents,
+    pub body: EventsBlockBody,
+}
+
+#[test]
+fn test_decode_and_verify_event_chain() {
+    // The log file is greped from the pruntime log in e2e with `grep 'event_chain' pruntime0.log > events.log`
+    // If this test fails, it means the event chain layout changed, consider to regenerate the log file if the
+    // change is expected.
+    let blocks_file = include_str!("../assets/events.log");
+    let mut parent_hash = Hash::default();
+
+    fn extract_payload(log_line: &str) -> Option<&str> {
+        let payload_marker = "payload=";
+        log_line
+            .find(payload_marker)
+            .and_then(|index| log_line[index..].strip_prefix(payload_marker))
+    }
+
+    for line in blocks_file.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let payload = extract_payload(line).expect("Invalid log line");
+        let bytes = hex::decode(payload).unwrap();
+        let event: EventsBlock = Decode::decode(&mut &bytes[..]).unwrap();
+        let header_hash: Hash = sp_core::blake2_256(&event.header.encode()).into();
+        let body_hash: Hash = sp_core::blake2_256(&event.body.encode()).into();
+        assert!(event.header.parent_hash == parent_hash);
+        assert!(event.header.body_hash == body_hash);
+        parent_hash = header_hash;
+    }
 }
