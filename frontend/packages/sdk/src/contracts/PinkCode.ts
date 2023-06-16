@@ -105,6 +105,10 @@ export class PinkCodePromise {
     return this.#tx;
   }
 
+  public upload() {
+    return this.#instantiate(0, [])
+  }
+
   #instantiate = (_constructorOrId: AbiConstructor | string | number, _params: unknown[]) => {
     return this.api.tx.phalaPhatContracts.clusterUploadResource(
       this.phatRegistry.clusterId,
