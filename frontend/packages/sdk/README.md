@@ -1,142 +1,102 @@
 # @phala/sdk
 
-> ⚠️ This package is under developing, and some features might change in the future.
+## Quickstart
 
-## Install
+Here is a glance of how to use @phala/sdk with code snippets. We don't cover too much detail here, but it can be a cheatsheet when you working with it.
 
-Minimum node version: v16.
+We recommend not install @polkadot packages directly, @phala/sdk will handle that with correlative dependencies.
 
-```sh
-npm install @phala/sdk
-# or
-yarn add @phala/sdk
+```shell
+npm install --save @phala/sdk
+# Or yarn
+yarn install @phala/sdk
 ```
 
-To work with Phat Contracts, you should also install the following dependencies:
-
-```
-@polkadot/api @polkadot/api-contract
-```
-
-## Usage
-
-To start using the SDK, you will need to create a [Polkadot.js](https://polkadot.js.org/docs/api/start/create) API object connecting to the blockchain, and then construct a "decorated" Phat Contract object with the API object.
+You need create the `apiPromise` instance first, also the `OnChainRegistry` instance for the next:
 
 ```js
-// Imports
-// ....
+import { ApiPromise, WsProvider, Keyring } from '@polkadot/api';
+import { options, OnChainRegistry, signCertificate, PinkContractPromise } from '@phala/sdk';
 
-// Create a Polkadot.js ApiPromise object connecting to a Phala node (assuming the default port).
-const wsProvider = new WsProvider('ws://localhost:9944');
-const api = await ApiPromise.create({
-    provider: wsProvider,
-    types
-});
+const RPC_MAINNET_URL = 'wss://api.phala.network/ws'
+const RPC_TESTNET_URL = 'wss://poc5.phala.network/ws'
 
-// Create a contract object with the metadata and the contract id.
-const pruntimeURL = 'http://127.0.0.1:8000';  // assuming the default port
-const contractId = '0xa5ef1d6cb746b21a481c937870ba491d6fe120747bbeb5304c17de132e8d0392';  // your contract id
-const metadata = /* load the metadata.json... */;
-const contract = new ContractPromise(
-    await create({api, baseURL: pruntimeURL, contractId}),
-    JSON.parse(metadata),
-    contractId
-);
+async function main() {
+    const api = await ApiPromise.create(options({
+        provider: new WsProvider(RPC_TESTNET_URL),
+        noInitWarn: true,
+    })
+    const phatRegistry = await OnChainRegistry.create(api)
+}
+
+main().then(() => process.exit(0)).catch(err => {
+  console.error(err)
+  process.exit(1)
+})
 ```
 
-## The contract object
+You might already upload and instantiate your Phat Contract, and you need prepare 3 things before go next:
 
-Phat Contract is an extension to [Parity ink!](https://paritytech.github.io/ink-docs/) smart contract. Phala SDK allows you to create the contract object compatible to the ink! contract object. In the above sample code, the `contract` object is a [`ContractPromise`](https://polkadot.js.org/docs/api-contract/start/contract.read) which share the same interface with the original Polkadot.js contract APIs.
+- The ABI file. It names `metadata.json` in general, and you can found it along with your `.contract` file.
+- `ContractId`. You can get this after upload & instantiate your Phat Contract.
+- Your account. You can learn more from the [Keyring](https://polkadot.js.org/docs/api/start/keyring/) section in polkadot.js documentation.
 
-However, in Phat Contract the intreaction under the hood is different from the original ink. In Phat Contract, the read and write operations (query and command) are end-to-end encrypted. In addition, the queries are sent to the Secure Enclave workers directly, rather than the blockchain node. Phala SDK takes care of the encryption and transport of the data. Therefore when creating the `ContractPromise` object, we pass an `ApiPromise` _deocrated_ by the Phala SDK's `create()` function as the first argument.
+> Tips
+> You can found the information mentioned above in our web based UI tools [Phat Contract UI](https://phat.phala.network/)
 
-You can learn more about how to interact with a contract object from the official Polkadot.js docs:
+We continue with `//Alice` in follow up code snippets, so all 3 things can be ready like:
 
-- [Contract](https://polkadot.js.org/docs/api-contract/start/contract.read): queries (actions without mutating the contract states)
-- [Contract Tx](https://polkadot.js.org/docs/api-contract/start/contract.tx): commands (actions mutating the contrast states)
-
-> This is the manual constructoin of the contract object. For a higher level usage in the Phala SDK UI scaffold, please refer to `ContractLoader`.
-
-## Send commands
-
-Commands are carried by signed transactions. You will need to sign the transaction. Usually you connect to a browser extension ([Polkadot.js Extension](https://polkadot.js.org/docs/extension)) or an in-memory [keyring](https://polkadot.js.org/docs/keyring). The former one is often used in DApps, while the latter one is often used in node.
-
-To work with Polkadot.js Extension, you need to get the injected `Signer` object, and then call with the method name.
-
-```js
-const r = await contract.tx.methodName({}, arg1, arg2, ...)
-    .signAndSend(address, {signer});
+```javascript
+const keyring = new Keyring({ type: 'sr25519' });
+const pair = keyring.addFromUri('//Alice');
+const contractId = '';
+const abi = JSON.parse(fs.readFileSync('./your_local_path/target/ink/metadata.json'));
 ```
 
-To work with `Keyring`, you need to pass a key pair.
+Now let's initializing the `PinkContractPromise` instance first.
 
-```js
-const r = await contract.tx.methodName({}, arg1, arg2, ...)
-    .signAndSend(keypair);
+```javascript
+const contractKey = await phatRegistry.getContractKey(contractId);
+const contract = new PinkContractPromise(api, phatRegistry, abi, contractId, contractKey);
 ```
 
-Please note that the snake_case name defined in the ink! contract is automatically converted to camelCase in Polkadot.js. The first argument of the method is the calling option, followed by the arguments to the method.
+In the original version of polkadot.js, `tx` refer to the `write` operation and `query` refer to the `read` operation. But in Phat Contract, they got different concepts. **`tx` means on-chain operations, `query` means off-chain operations**. We recommended you put your computation logic in off-chain codes as much as possible.
 
-The options you can specify are `value` and `gasLimit`. However the weight system is not used in Phat Contract so far. We always give a sufficient large weight to the executor.
+We also need sign a certificate when using Phat Contract. Unlike signing for a transaction, the certificate is reusable. We recommended you cache it for a period of time.
 
-Commands are always encrypted by the Phala SDK. It generates an ephemeral key to establish an end-to-end encryption channel to the worker (via ECDH) every time it sends a command.
-
-## Send queries
-
-Queries are sent to the Secure Enclave worker directly via a RPC call. Unlike the original ink! contract where the read calls are not authenticated, Phat Contract queries are usually signed and encrypted. This enables Access Control in Phat Contracts.
-
-To send a query, you need to create a `Certificate` object and use it to sign the query. With Polkadot.js Extension, you can create it with the account and the signer object:
-
-```js
-// Imports
-const {signCertificate, CertificateData} = require('@phala/sdk');
-
-// Create the certiciate object
-const account = /* ... your account address in the signer .. */;
-const certificate = await signCertificate({
-    api,
-    account,
-    signer,
-});
+```javascript
+const cert = await signCertificate({ pair, api });
 ```
 
-With `Keyring`, you can create it with a keypair:
+For off-chain computations (or `query` calls), we don't need set `gasLimit` and `storageDepositLimit` like what we did in the original polkadot contract, we use `cert` instead:
 
-```js
-const certificateData = await signCertificate({
-  api,
-  pair: keypair,
-});
+```javascript
+// (We perform the send from an account, here using Alice's address)
+const { gasRequired, storageDeposit, result, output } = await contract.query.get(pair.address, { cert });
 ```
 
-Send a query with the certificate.
+For on-chain computations (or `tx` calls), you need estimate gas fee first. It's same as the original polkadot.js API Contract:
 
-```js
-// Send the query
-const outcome = await contract.query.methodName(certificate, {}, arg0, arg1, ...);
+```javascript
+const incValue = 1;
+
+const { gasRequired, storageDeposit } = await contract.query.inc(pair.address, { cert }, incValue)
+const options = {
+  gasLimit: gasRequired.refTime,
+  storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+}
+await contract.tx.inc(options, incValue).signAndSend(pair, { nonce: -1 })
 ```
 
-Similar to a command, you can send a query via the generated methods. The first two arguments are the certificate object and the call option. Then the arguments to the method follow.
+And that is basic workaround with Phat Contract, it may cover almost all of your use scenarios.
 
-The return value `outcome` is a `ContractCallOutcome` object. It includes the following fields:
 
-- `output`: - The return value of the call
-- `result`: ContractExecResultResult - The execution result indicating if it's successful or not
-- `debugMessage`: Text - Debug message
-- `gasConsumed`: u64 - Consumed gas (not used in Phat Contract)
-- `gasRequired`: u64 - Required gas (not used in Phat Contract)
-- `storageDeposit`: StorageDeposit - not used in Phat Contract
+## Adavantage Topics
 
-### The certificate object
+TODO
 
-A certificate represents the ownership of an on-chain account. Instead of using the wallet to sign the query directly, Phat Contract adopts a chain of certificates to sign the query.
+### Upload & Instantiate Contracts
 
-Interactive wallets like Polkadot.js Extension triggers a popup every time when signing a message. This becomes annoying for frequent queries in Phat Contracts. To overcome the limitation, we can make an one-time grant by signing a certificate chain, and use the leaf certificate to sign the queries. Some additional advantages are fine-grained permission and TTL control on the authentication.
+### Use specified Cluster & Worker
 
-Although non-interactive wallets like `Keyring` doesn't require user interaction, we still make certificate object as a unified interface.
-
-## Development
-
-### TODO
-
-1. More configurable options such as certificate ttl.
+### Cluster tokenomics & staking for computations
