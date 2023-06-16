@@ -12,7 +12,8 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Result, Context};
+use anyhow::{anyhow, Context, Result};
+use phactory_api::{prpc::PhactoryInfo, pruntime_client::new_pruntime_client_no_log};
 use phaxt::AccountId;
 use sp_core::{sr25519::Pair as KeyPair, H256};
 use tokio::task::JoinHandle;
@@ -271,13 +272,19 @@ async fn track_task_result<T>(
     result
 }
 
+async fn get_info(uri: &str) -> Result<PhactoryInfo> {
+    let prpc = new_pruntime_client_no_log(uri.into());
+    let info = prpc.get_info(()).await?;
+    debug!("info: {:?}", info.debug_info());
+    Ok(info)
+}
+
 async fn probe_worker(
     pubkey: Option<WorkerPublicKey>,
     uri: String,
 ) -> Result<(WorkerPublicKey, Instant)> {
     debug!("probing worker {pubkey:?} at {uri}");
-    let prpc = phactory_api::pruntime_client::new_pruntime_client_no_log(uri);
-    let info = prpc.get_info(()).await?;
+    let info = get_info(&uri).await?;
     let Some(public_key) = &info.public_key else {
         return Err(anyhow::anyhow!("worker is uninitialized"));
     };
@@ -340,6 +347,8 @@ impl App {
             info!(latency=?worker.latency().unwrap_or(Duration::MAX), "  {}", worker.pubkey);
         }
         let worker = &top_workers[0];
+        let _ = get_info(&worker.uri).await;
+        debug!("Getting profiles from {}", self.config.factory_contract);
         let contracts: Vec<(AccountId, ContractId)> = tokio::time::timeout(
             self.config.poll_timeout,
             pink_query::<_, crate::contracts::UserProfilesResponse>(
@@ -354,13 +363,15 @@ impl App {
         .await
         .context("Get profiles timeout")??
         .or(Err(anyhow::anyhow!("query failed")))?;
+        info!("{} contracts found", contracts.len());
 
-        let mut poll_handles = Vec::with_capacity(contracts.len());
+        // let mut poll_handles = Vec::with_capacity(contracts.len());
 
         let mut worker_index = 0;
         for (user, profile) in contracts {
             // call contract poll with workers in robin round
             let worker = &top_workers[worker_index];
+            let _ = get_info(&worker.uri).await;
             debug!(
                 "adding poll, user={user}, profile={profile:?}, worker={}",
                 worker.pubkey
@@ -379,12 +390,13 @@ impl App {
                     self.config.caller.clone(),
                 ),
             );
-            poll_handles.push(handle);
+            handle.await??;
+            // poll_handles.push(handle);
             worker_index = (worker_index + 1) % top_workers.len();
         }
-        info!(count = poll_handles.len(), "polling contracts");
-        let poll_results = futures::future::join_all(poll_handles).await;
-        info!(count = poll_results.len(), "contracts polled");
+        // info!(count = poll_handles.len(), "polling contracts");
+        // let poll_results = futures::future::join_all(poll_handles).await;
+        // info!(count = poll_results.len(), "contracts polled");
         Ok(())
     }
 }
@@ -422,6 +434,7 @@ async fn poll_contract_inner(
     weak_app: Weak<App>,
     caller: KeyPair,
 ) -> Result<()> {
+    debug!("Querying workflow count");
     let count = pink_query::<(), u64>(
         &worker.pubkey,
         &worker.uri,
@@ -431,7 +444,8 @@ async fn poll_contract_inner(
         &caller,
     )
     .await?;
-
+    debug!("Workflow count: {}", count);
+    let _ = get_info(&worker.uri).await;
     let app = weak_app
         .upgrade()
         .ok_or_else(|| anyhow::anyhow!("app gone"))?;
@@ -446,10 +460,12 @@ async fn poll_contract_inner(
             app.config.poll_timeout,
             poll_workflow(worker.clone(), profile, i, caller.clone()),
         );
-        handles.push(handle);
+        handles.push(handle.await);
+        // handles.push(handle);
     }
-    info!(count = handles.len(), ?profile, "polling workflows");
-    let results = futures::future::join_all(handles).await;
+    // info!(count = handles.len(), ?profile, "polling workflows");
+    // let results = futures::future::join_all(handles).await;
+    let results = handles;
     let errors = results
         .into_iter()
         .enumerate()
@@ -480,6 +496,7 @@ async fn poll_workflow(
     )
     .await;
     debug!("result: {result:?}");
+    let _ = get_info(&worker.uri).await;
     result?.map_err(|e| anyhow!("{e:?}"))
 }
 
