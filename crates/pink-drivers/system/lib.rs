@@ -10,11 +10,27 @@ pub use system::System;
 mod system {
     use super::pink;
     use alloc::string::String;
+    use alloc::vec::Vec;
     use ink::{codegen::Env, storage::Mapping};
     use pink::system::{CodeType, ContractDeposit, ContractDepositRef, DriverError, Error, Result};
     use pink::{HookPoint, PinkEnvironment};
 
     use this_crate::{version_tuple, VersionTuple};
+
+    /// A new driver is set.
+    #[ink(event)]
+    pub struct DriverChanged {
+        #[ink(topic)]
+        name: String,
+        previous: Option<AccountId>,
+        current: AccountId,
+    }
+
+    /// A new administrator is added.
+    #[ink(event)]
+    pub struct AdministratorAdded {
+        user: AccountId,
+    }
 
     /// Pink's system contract.
     #[ink(storage)]
@@ -23,8 +39,12 @@ mod system {
         owner: AccountId,
         /// The administrators
         administrators: Mapping<AccountId, ()>,
-        /// The drivers
+        /// The drivers (deprecated)
         drivers: Mapping<String, AccountId>,
+        /// The drivers
+        drivers2: Mapping<String, (BlockNumber, AccountId)>,
+        /// The history of drivers
+        drivers_history: Mapping<String, Vec<(BlockNumber, AccountId)>>,
     }
 
     impl System {
@@ -34,6 +54,8 @@ mod system {
                 owner: Self::env().caller(),
                 administrators: Default::default(),
                 drivers: Default::default(),
+                drivers2: Default::default(),
+                drivers_history: Default::default(),
             }
         }
 
@@ -96,7 +118,9 @@ mod system {
         #[ink(message)]
         fn grant_admin(&mut self, contract_id: AccountId) -> Result<()> {
             self.ensure_owner()?;
-            self.administrators.insert(contract_id, &());
+            self.administrators.insert(&contract_id, &());
+            self.env()
+                .emit_event(AdministratorAdded { user: contract_id });
             Ok(())
         }
 
@@ -109,13 +133,36 @@ mod system {
                 }
                 _ => {}
             }
-            self.drivers.insert(name, &contract_id);
+
+            let previous = self.get_driver2(name.clone());
+            if let Some((block, previous)) = previous {
+                if previous == contract_id {
+                    return Ok(());
+                }
+                let mut history = self.drivers_history.get(&name).unwrap_or_default();
+                history.push((block, previous));
+                self.drivers_history.insert(&name, &history);
+            }
+            self.drivers2
+                .insert(&name, &(self.env().block_number(), contract_id));
+            self.env().emit_event(DriverChanged {
+                name,
+                previous: previous.map(|(_, id)| id),
+                current: contract_id,
+            });
             Ok(())
         }
 
         #[ink(message)]
         fn get_driver(&self, name: String) -> Option<AccountId> {
-            self.drivers.get(&name)
+            self.get_driver2(name).map(|(_, id)| id)
+        }
+
+        #[ink(message)]
+        fn get_driver2(&self, name: String) -> Option<(BlockNumber, AccountId)> {
+            self.drivers2
+                .get(&name)
+                .or_else(|| self.drivers.get(&name).map(|id| (0, id)))
         }
 
         #[ink(message)]
@@ -221,6 +268,16 @@ mod system {
         #[ink(message)]
         fn code_exists(&self, code_hash: [u8; 32], code_type: CodeType) -> bool {
             pink::ext().code_exists(code_hash.into(), code_type.is_sidevm())
+        }
+
+        #[ink(message)]
+        fn code_hash(&self, account: AccountId) -> Option<ink::primitives::Hash> {
+            self.env().code_hash(&account).ok()
+        }
+
+        #[ink(message)]
+        fn driver_history(&self, name: String) -> Option<Vec<(BlockNumber, AccountId)>> {
+            self.drivers_history.get(&name)
         }
     }
 
