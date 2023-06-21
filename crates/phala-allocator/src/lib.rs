@@ -76,41 +76,24 @@ impl<T: GlobalAlloc> StatSizeAllocator<T> {
             }
         }
     }
+}
 
-    #[cfg(feature = "track")]
-    fn track_alloc(&self, ptr: *mut u8, size: usize) -> *mut u8 {
-        if !self.track_enabled.load(Ordering::Relaxed) {
-            return ptr;
-        }
-        with_tracking(|| {
-            println!("alloc: {ptr:?} {size}");
-            println!("stack trace: {:#?}", std::backtrace::Backtrace::force_capture());
-            let stack = format!("{:?}", std::backtrace::Backtrace::force_capture());
-            if size == 116 && stack.contains("tracing_core::dispatcher::get_default") {
-                panic!("bad alloc");
-            }
-        });
-        ptr
-    }
+#[cfg(feature = "track")]
+#[no_mangle]
+#[inline(never)]
+extern "C" fn track_dealloc(ptr: *mut u8, size: usize) {
+    with_tracking(|| {
+        println!("dealloc: {ptr:?} {size}");
+    });
+}
 
-    #[cfg(feature = "track")]
-    fn track_dealloc(&self, ptr: *mut u8, size: usize) {
-        if !self.track_enabled.load(Ordering::Relaxed) {
-            return;
-        }
-        with_tracking(|| {
-            println!("dealloc: {ptr:?} {size}");
-            println!("stack trace: {:#?}", std::backtrace::Backtrace::force_capture());
-        });
-    }
-
-    #[cfg(not(feature = "track"))]
-    fn track_alloc(&self, ptr: *mut u8) -> *mut u8 {
-        ptr
-    }
-
-    #[cfg(not(feature = "track"))]
-    fn track_dealloc(&self, _ptr: *mut u8) {}
+#[cfg(feature = "track")]
+#[no_mangle]
+#[inline(never)]
+extern "C" fn track_alloc(ptr: *mut u8, size: usize) {
+    with_tracking(|| {
+        println!("alloc: {ptr:?} {size}");
+    });
 }
 
 fn with_tracking<F, R>(f: F) -> Option<R>
@@ -135,13 +118,21 @@ where
 unsafe impl<T: GlobalAlloc> GlobalAlloc for StatSizeAllocator<T> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         self.add_alloced_size(layout.size());
-        self.track_alloc(self.inner.alloc(layout), layout.size())
+        let ptr = self.inner.alloc(layout);
+        #[cfg(feature = "track")]
+        if self.track_enabled.load(Ordering::Relaxed) {
+            track_alloc(ptr, layout.size());
+        }
+        ptr
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         self.current.fetch_sub(layout.size(), Ordering::SeqCst);
         self.inner.dealloc(ptr, layout);
-        self.track_dealloc(ptr, layout.size());
+        #[cfg(feature = "track")]
+        if self.track_enabled.load(Ordering::Relaxed) {
+            track_dealloc(ptr, layout.size());
+        }
     }
 
     #[cfg(not(feature = "track"))]
