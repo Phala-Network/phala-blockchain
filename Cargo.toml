@@ -1,6 +1,7 @@
 [profile.release]
 panic = "abort"
 opt-level = 3
+debug = true
 
 # make sure dev builds with backtrace do
 # not slow us down

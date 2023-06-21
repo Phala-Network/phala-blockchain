@@ -149,6 +149,11 @@ fn help() -> String {
     phactory_api::prpc::PROTO_DEF.to_string()
 }
 
+#[get("/enable-mtrack")]
+fn enable_mtrack() {
+    crate::pal_gramine::enable_mtrack();
+}
+
 enum RpcType {
     Public,
     Private,
@@ -403,7 +408,7 @@ pub(super) fn rocket(args: &super::Args, storage_path: &str) -> rocket::Rocket<i
                 ),
             ],
         )
-        .mount("/", routes![getinfo, help]);
+        .mount("/", routes![getinfo, help, enable_mtrack]);
 
     if args.enable_kick_api {
         info!("ENABLE `kick` API");

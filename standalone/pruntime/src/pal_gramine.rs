@@ -120,6 +120,10 @@ impl Machine for GraminePlatform {
 #[global_allocator]
 static ALLOCATOR: StatSizeAllocator<System> = StatSizeAllocator::new(System);
 
+pub fn enable_mtrack() {
+    ALLOCATOR.enable_track();
+}
+
 impl MemoryStats for GraminePlatform {
     fn memory_usage(&self) -> MemoryUsage {
         let stats = ALLOCATOR.stats();

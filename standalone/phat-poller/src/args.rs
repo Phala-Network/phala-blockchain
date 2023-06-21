@@ -13,6 +13,8 @@ pub struct AppArgs {
 pub enum Action {
     /// Run
     Run(RunArgs),
+    /// Eval js
+    Eval(EvalArgs),
 }
 
 #[derive(Parser)]
@@ -64,6 +66,25 @@ pub struct RunArgs {
     /// Contract caller SR25519 private key mnemonic, private key seed, or derive path
     #[arg(long, value_parser = parse_sr25519, default_value = "//Alice")]
     pub caller: sp_core::sr25519::Pair,
+}
+
+#[derive(Parser)]
+pub struct EvalArgs {
+    /// The worker URL used to development
+    #[arg(long)]
+    pub worker_uri: String,
+
+    /// Contract caller SR25519 private key mnemonic, private key seed, or derive path
+    #[arg(long, value_parser = parse_sr25519, default_value = "//Alice")]
+    pub caller: sp_core::sr25519::Pair,
+
+    /// Contract ID for the BricksProfileFactory to poll
+    #[arg(value_parser = parse_hash)]
+    pub contract: H256,
+
+    /// Js file
+    #[arg(value_hint = clap::ValueHint::FilePath)]
+    pub js_file: String,
 }
 
 #[derive(Debug)]

@@ -1,12 +1,14 @@
-#![no_std]
+#[cfg_attr(not(feature = "std"), no_std)]
 use core::alloc::{GlobalAlloc, Layout};
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 pub struct StatSizeAllocator<T> {
     inner: T,
     current: AtomicUsize,
     spike: AtomicUsize,
     peak: AtomicUsize,
+    #[cfg(feature = "track")]
+    track_enabled: AtomicBool,
 }
 
 #[derive(Debug)]
@@ -26,6 +28,8 @@ impl<T> StatSizeAllocator<T> {
             current: AtomicUsize::new(0),
             spike: AtomicUsize::new(0),
             peak: AtomicUsize::new(0),
+            #[cfg(feature = "track")]
+            track_enabled: AtomicBool::new(false),
         }
     }
 
@@ -39,6 +43,11 @@ impl<T> StatSizeAllocator<T> {
             spike,
             peak,
         }
+    }
+
+    #[cfg(feature = "track")]
+    pub fn enable_track(&self) {
+        self.track_enabled.store(true, Ordering::Relaxed);
     }
 }
 
@@ -67,24 +76,81 @@ impl<T: GlobalAlloc> StatSizeAllocator<T> {
             }
         }
     }
+
+    #[cfg(feature = "track")]
+    fn track_alloc(&self, ptr: *mut u8, size: usize) -> *mut u8 {
+        if !self.track_enabled.load(Ordering::Relaxed) {
+            return ptr;
+        }
+        with_tracking(|| {
+            println!("alloc: {ptr:?} {size}");
+            println!("stack trace: {:#?}", std::backtrace::Backtrace::force_capture());
+            let stack = format!("{:?}", std::backtrace::Backtrace::force_capture());
+            if size == 116 && stack.contains("tracing_core::dispatcher::get_default") {
+                panic!("bad alloc");
+            }
+        });
+        ptr
+    }
+
+    #[cfg(feature = "track")]
+    fn track_dealloc(&self, ptr: *mut u8, size: usize) {
+        if !self.track_enabled.load(Ordering::Relaxed) {
+            return;
+        }
+        with_tracking(|| {
+            println!("dealloc: {ptr:?} {size}");
+            println!("stack trace: {:#?}", std::backtrace::Backtrace::force_capture());
+        });
+    }
+
+    #[cfg(not(feature = "track"))]
+    fn track_alloc(&self, ptr: *mut u8) -> *mut u8 {
+        ptr
+    }
+
+    #[cfg(not(feature = "track"))]
+    fn track_dealloc(&self, _ptr: *mut u8) {}
+}
+
+fn with_tracking<F, R>(f: F) -> Option<R>
+where
+    F: FnOnce() -> R,
+{
+    std::thread_local! {
+        pub static TRACKING: std::cell::Cell<bool> = Default::default();
+    }
+    TRACKING.with(|t| {
+        if t.get() {
+            None
+        } else {
+            t.set(true);
+            let r = f();
+            t.set(false);
+            Some(r)
+        }
+    })
 }
 
 unsafe impl<T: GlobalAlloc> GlobalAlloc for StatSizeAllocator<T> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         self.add_alloced_size(layout.size());
-        self.inner.alloc(layout)
+        self.track_alloc(self.inner.alloc(layout), layout.size())
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         self.current.fetch_sub(layout.size(), Ordering::SeqCst);
-        self.inner.dealloc(ptr, layout)
+        self.inner.dealloc(ptr, layout);
+        self.track_dealloc(ptr, layout.size());
     }
 
+    #[cfg(not(feature = "track"))]
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         self.add_alloced_size(layout.size());
         self.inner.alloc_zeroed(layout)
     }
 
+    #[cfg(not(feature = "track"))]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         use core::cmp::Ordering::*;
         match new_size.cmp(&layout.size()) {
