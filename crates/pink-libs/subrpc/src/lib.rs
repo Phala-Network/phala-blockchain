@@ -8,10 +8,19 @@ extern crate alloc;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use pink_extension::chain_extension::{signing, SigType};
 
 use pink_json as json;
+use primitive_types::H256;
 use scale::{Compact, Decode, Encode};
+
+use objects::*;
+use pink_extension::chain_extension::{signing, SigType};
+pub use primitives::era::Era;
+use rpc::call_rpc;
+pub use ss58::{get_ss58addr_version, Ss58Codec};
+use traits::common::Error;
+use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
+use crate::wasm_contracts::ContractQueryResult;
 
 pub mod hasher;
 mod objects;
@@ -20,12 +29,7 @@ mod rpc;
 mod ss58;
 pub mod storage;
 mod transaction;
-
-use objects::*;
-pub use primitives::era::Era;
-use rpc::call_rpc;
-pub use ss58::{get_ss58addr_version, Ss58Codec};
-use transaction::{MultiAddress, MultiSignature, Signature, UnsignedExtrinsic};
+pub mod wasm_contracts;
 
 pub mod traits {
     pub mod common {
@@ -43,10 +47,6 @@ pub mod traits {
         }
     }
 }
-use traits::common::Error;
-
-use primitive_types::H256;
-use crate::transaction::ContractQueryResult;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -352,11 +352,7 @@ pub fn query_contract<E: scale::Decode, B: scale::Decode>(rpc_node: &str, query:
     );
 
     let resp_body = call_rpc(rpc_node, query.into_bytes())?;
-
-    println!("response: : {:02x?}", resp_body);
     let resp: QueryContractResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
-
-    println!("resp: : {:?}", resp);
 
     let result = match resp.result {
         Some(h) => hex::decode(&h[2..]).or(Err(Error::InvalidBody))?,
@@ -375,12 +371,10 @@ pub fn query_contract<E: scale::Decode, B: scale::Decode>(rpc_node: &str, query:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cmp;
     use hex_literal::hex;
     use scale::{Compact, Encode};
-    use pink_extension::{ResultExt};
-    use crate::transaction::{ContractCall, ContractQuery, WeightV2};
-    use crate::transaction::StorageDeposit::Charge;
+    use pink_extension::ResultExt;
+    use crate::wasm_contracts;
 
     /// Test data:
     ///
@@ -592,147 +586,40 @@ mod tests {
         _ = dbg!(r);
     }
 
-    fn compare (a: &[u8], b: &[u8]) -> cmp::Ordering {
-        a.iter()
-            .zip(b)
-            .map(|(x, y)| x.cmp(y))
-            .find(|&ord| ord != cmp::Ordering::Equal)
-            .unwrap_or(a.len().cmp(&b.len()))
-    }
-
-    #[test]
-    fn test_encode_contract_query() {
-
-        let origin : [u8;32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
-        let contract_id : [u8;32]  = hex_literal::hex!("f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5");
-        //let contract_method = ink::selector_bytes!("get");
-        let contract_method = hex_literal::hex!("2f865bd9");
-        let contract_args:Option<Vec<u8>> = None;// no args
-
-        let mut data = Vec::new();
-        contract_method.encode_to(&mut data);
-        //contract_args.encode_to(&mut data);
-
-        let call :ContractQuery<[u8;32], u128> = ContractQuery {
-            origin: origin.into(),
-            dest: contract_id.into(),
-            value: 0,
-            gas_limit: None,
-            storage_deposit_limit: None,
-            data,
-        };
-        let encoded_call = scale::Encode::encode(&call);
-
-        println!("result: {:02x?}" , encoded_call);
-        let expected =  hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27df77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5000000000000000000000000000000000000102f865bd9");
-        assert_eq!(cmp::Ordering::Equal, compare(&expected, &encoded_call));
-    }
-
-
-
-    #[test]
-    fn test_decode_contract_query_result() {
-        let result =  hex_literal::hex!("d6b2469e3a3d0100030000eced020008000100000000000000000000000000000000000000000000140003000000");
-
-        let contract_query_result = <ContractQueryResult<Error, u128>>::decode(&mut result.as_slice()).unwrap();
-
-        println!("result: {:?}" , contract_query_result);
-
-        assert_eq!(663858357u64, contract_query_result.gas_consumed.ref_time);
-        assert_eq!(20302u64, contract_query_result.gas_consumed.proof_size);
-        assert_eq!(3991666688u64, contract_query_result.gas_required.ref_time);
-        assert_eq!(131072u64, contract_query_result.gas_required.proof_size);
-
-        assert_eq!(Charge(0), contract_query_result.storage_deposit);
-        assert_eq!(0u32, contract_query_result.result.flags);
-        assert!(contract_query_result.result.data.is_ok());
-        let result = contract_query_result.result.data.unwrap();
-        let data = <core::result::Result<i32, Error>>::decode(&mut result.as_slice()).unwrap();
-
-        assert!(data.is_ok());
-        assert_eq!(3i32, data.unwrap());
-    }
-
-
-    fn create_contract_call<ARGS: Encode>(
-        contract_id: &[u8;32],
-        contract_method: [u8; 4],
-        contract_args: ARGS,
-        gas_limit: WeightV2,
-    ) -> ContractCall {
-
-        let storage_deposit_limit = None;
-
-        let mut data = Vec::new();
-        contract_method.encode_to(&mut data);
-        contract_args.encode_to(&mut data);
-
-        ContractCall {
-            dest: MultiAddress::Id(*contract_id),
-            //value: Compact(0),
-            value: 0,
-            gas_limit,
-            storage_deposit_limit,
-            data,
-        }
-
-    }
-
-
-
-
 
     /// Call and query a wasm smart contract deployed in Shibuya (Astar testnet)
     #[test]
-    //#[ignore = "only for demonstration purposes"]
+    #[ignore = "only for demonstration purposes"]
     fn test_query_and_call_wasm_smart_contract() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         let rpc = "http://127.0.0.1:9944";
-        let contract_id : [u8; 32] = hex_literal::hex!("f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5");
-        let contract_method = hex_literal::hex!("1d32619f");
-        let contract_args : i32 = 2;
 
-        println!("dry run method for query the gaz");
-
-        let mut data = Vec::new();
-        contract_method.encode_to(&mut data);
-        let encoded_contract_args = 2.encode();
-        data.append(&mut encoded_contract_args.clone());
-
-        // Alice
+        // public key of test account `//Alice`
         let origin : [u8;32] = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
         // Secret key of test account `//Alice`
         let signer:[u8; 32] = hex_literal::hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
 
-        let call :ContractQuery<[u8;32], u128> = ContractQuery {
-            origin: origin.into(),
-            dest: contract_id,
-            value: 0,
-            gas_limit: None,
-            storage_deposit_limit: None,
-            data,
-        };
+        let contract_id : [u8; 32] = hex_literal::hex!("f77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5");
+        let contract_method = hex_literal::hex!("1d32619f");
+        let contract_args : i32 = 2;
+
+        //dry run method for query the required gaz"
+        let call = wasm_contracts::create_contract_query(
+            origin.into(), contract_id, contract_method, Some(contract_args), 0
+        );
         let encoded_call = scale::Encode::encode(&call);
         println!("encoded query: {:02x?}", encoded_call);
-
-        let expected = hex_literal::hex!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27df77bfd16d61d39dcd8c4413ac88642354f5726bb5915bf52bc4f502a671f1aa5000000000000000000000000000000000000201d32619f02000000");
-        //assert_eq!(cmp::Ordering::Equal, compare(&expected, &encoded_call));
 
         let contract_query_result: ContractQueryResult<Error, u128> = query_contract(rpc, &encoded_call, None)
             .log_err("Failed to dry run the method")
             .unwrap();
-
         println!("query result: {:02x?}", contract_query_result);
 
         // call the contract
-        let call = create_contract_call(
-            &contract_id,
-            contract_method,
-            contract_args,
-            contract_query_result.gas_required
+        let call = wasm_contracts::create_contract_call(
+            contract_id, contract_method, Some(contract_args), 0, contract_query_result.gas_required
         );
-
 
         let signed_tx = create_transaction(
             &signer,
