@@ -247,7 +247,7 @@ pub fn create_transaction_ext<T: Encode>(
         Signature::try_from(signature.as_slice()).or(Err(Error::InvalidSignature))?;
     let multi_signature = MultiSignature::Sr25519(signature_type);
 
-    let src_account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(*public_key);
+    let src_account_id: MultiAddress<[u8; 32], u32> = MultiAddress::Id(*public_key);
 
     // Encode Extrinsic
     let extrinsic = {
@@ -450,7 +450,7 @@ mod tests {
         let public_key: [u8; 32] = signing::get_public_key(&signer, SigType::Sr25519)
             .try_into()
             .unwrap();
-        let account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(public_key);
+        let account_id: MultiAddress<[u8; 32], u32> = MultiAddress::Id(public_key);
         {
             let mut bytes = Vec::new();
             account_id.encode_to(&mut bytes);
@@ -520,9 +520,9 @@ mod tests {
             ),
         );
 
-        let dest_weight: std::option::Option<u64> = None;
+        let dest_weight: Option<u64> = None;
 
-        let call_data = transaction::UnsignedExtrinsic {
+        let call_data = UnsignedExtrinsic {
             pallet_id: 0x52u8,
             call_id: 0x0u8,
             call: (multi_asset.clone(), dest.clone(), dest_weight),
@@ -608,7 +608,7 @@ mod tests {
         let call = wasm_contracts::create_contract_query(
             origin.into(), contract_id, contract_method, Some(contract_args), 0
         );
-        let encoded_call = scale::Encode::encode(&call);
+        let encoded_call = Encode::encode(&call);
         println!("encoded query: {:02x?}", encoded_call);
 
         let contract_query_result: ContractQueryResult<Error, u128> = query_contract(rpc, &encoded_call, None)
