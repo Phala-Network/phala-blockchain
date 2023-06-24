@@ -93,10 +93,56 @@ And that is basic workaround with Phat Contract, it may cover almost all of your
 
 ## Adavantage Topics
 
-TODO
+### Sign Certificate with Browser Wallet Extensions
+
+The `signCertificate` works a bit different with Browser Wallet Extensions, include the original [polkadot{js} extension](https://polkadot.js.org/docs/extension), [Talisman](https://www.talisman.xyz/), and [SubWallet](https://www.subwallet.app/).
+
+We have two ways interact with extensions.
+
+First one is the documented in the [polkadot{js} extension documentation](https://polkadot.js.org/docs/extension/cookbook):
+
+```javascript
+import { web3Accounts, web3Enable, web3FromSource } from '@polkadot/extension-dapp';
+
+// this call fires up the authorization popup
+const extensions = await web3Enable('My cool Phat Contract dApp');
+
+const availableAccounts = await web3Accounts();
+const account = availableAccounts[0]; // assume you choice the first visible account.
+const injector = await web3FromSource(account.meta.source);
+const signer = injector.signer;
+
+const cert = await signCertificate({ api, signer, account });
+```
+
+The second one is less document but more progressive one. You can access the `window.injectedWeb3` object and inspect which Wallet Extension has been installed, let the user pick the one already in used, and interact with it directly.
+
+```javascript
+// polkadot-js: the original polkadot-js extension
+// talisman: the Talisman extension
+// subwallet-js: the SubWallet extension
+const provider = 'polkadot-js';
+
+const injector = window.injectedWeb3[provider];
+const extension = await injector.enable('My cool Phat Contract dApp');
+const accounts = await extension.accounts.get(true);
+const account = availableAccounts[0]; // assume you choice the first visible account.
+const signer = extension.signer;
+
+const cert = await signCertificate({ api, signer, account });
+```
+
 
 ### Upload & Instantiate Contracts
 
+TODO
+
+
 ### Use specified Cluster & Worker
 
+TODO
+
+
 ### Cluster tokenomics & staking for computations
+
+TODO
