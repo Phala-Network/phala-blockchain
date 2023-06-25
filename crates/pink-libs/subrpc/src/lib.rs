@@ -44,6 +44,7 @@ pub mod traits {
             Ss58,
             ParseFailed,
             DecodeFailed,
+            ContractError,
         }
     }
 }
@@ -361,6 +362,11 @@ pub fn query_contract<E: scale::Decode, B: scale::Decode>(rpc_node: &str, query:
 
     let contract_query_result = <ContractQueryResult<E, B>>::decode(&mut result.as_slice())
         .map_err(|_| Error::DecodeFailed)?;
+
+    if contract_query_result.result.flags != 0 {
+        // it means the contracts returns an error
+        return Err(Error::ContractError);
+    }
 
     Ok(contract_query_result)
 
