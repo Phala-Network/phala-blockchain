@@ -3,13 +3,14 @@ use scale::{Compact, Decode, Encode};
 use crate::transaction::MultiAddress;
 
 
-pub fn create_contract_call<ARGS: Encode>(
-    contract_id: [u8;32],
+// TODO u32 should be parametrized
+pub fn create_contract_call<AccountId, ARGS: Encode>(
+    contract_id: AccountId,
     contract_method: [u8;4],
     contract_args: Option<ARGS>,
     value: u128,
     gas_limit: WeightV2,
-) -> ContractCall<[u8;32], u32, u128> {
+) -> ContractCall<AccountId, u32, u128> {
 
     let storage_deposit_limit = None;
 
@@ -30,13 +31,14 @@ pub fn create_contract_call<ARGS: Encode>(
 }
 
 
-pub fn create_contract_query<ARGS: Encode>(
-    origin: [u8;32],
-    contract_id: [u8;32],
+pub fn create_contract_query<AccountId, ARGS: Encode>(
+    origin: AccountId,
+    //contract_id: [u8;32],
+    contract_id: AccountId,
     contract_method: [u8;4],
     contract_args: Option<ARGS>,
     value: u128,
-) -> ContractQuery<[u8;32], u128> {
+) -> ContractQuery<AccountId, u128> {
 
     let mut data = Vec::new();
     contract_method.encode_to(&mut data);

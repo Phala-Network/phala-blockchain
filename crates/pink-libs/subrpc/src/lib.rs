@@ -589,7 +589,7 @@ mod tests {
 
     /// Call and query a wasm smart contract deployed in Shibuya (Astar testnet)
     #[test]
-    #[ignore = "only for demonstration purposes"]
+    //#[ignore = "only for demonstration purposes"]
     fn test_query_and_call_wasm_smart_contract() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
