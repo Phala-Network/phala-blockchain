@@ -319,7 +319,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		/// Creates a new stake pool
 		#[pallet::call_index(0)]
@@ -994,7 +994,7 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		pub fn do_start_computing(
 			owner: &T::AccountId,
@@ -1206,7 +1206,7 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		/// Called when gk send new payout information.
 		/// Append specific worker's reward balance of current round,
@@ -1239,7 +1239,7 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Usually called on worker force unbinding (force == true), but it's also possible
@@ -1261,7 +1261,7 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		fn on_stopped(
 			_worker: &WorkerPublicKey,

@@ -171,8 +171,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config,
-		T: pallet_balances::Config<Balance = BalanceOf<T>>,
+		T: pallet_balances::Config<Balance = BalanceOf<T>> + vault::Config,
 	{
 		type Balance = BalanceOf<T>;
 		type PositiveImbalance = PositiveImbalanceOf<T>;
@@ -288,8 +287,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config,
-		T: pallet_balances::Config<Balance = BalanceOf<T>>,
+		T: pallet_balances::Config<Balance = BalanceOf<T>> + vault::Config,
 	{
 		fn can_reserve(who: &T::AccountId, value: Self::Balance) -> bool {
 			Self::total_balance(who) >= value
@@ -361,8 +359,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config,
-		T: pallet_balances::Config<Balance = BalanceOf<T>>,
+		T: pallet_balances::Config<Balance = BalanceOf<T>> + vault::Config,
 	{
 		type Moment = T::BlockNumber;
 		type MaxLocks = T::MaxLocks;
@@ -404,7 +401,7 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		fn pre_check(
 			_sender: &T::AccountId,
@@ -445,8 +442,7 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
-		T: Config + pallet_balances::Config + vault::Config,
-		T: pallet_balances::Config<Balance = BalanceOf<T>>,
+		T: pallet_balances::Config<Balance = BalanceOf<T>> + vault::Config,
 	{
 		/// Wraps some pha and gain equal amount of W-PHA
 		///
@@ -665,7 +661,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config,
+		T: vault::Config,
 	{
 		/// Gets W-PHA's asset id
 		pub fn get_asset_id() -> u32 {
