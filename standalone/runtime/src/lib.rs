@@ -1454,6 +1454,7 @@ impl pallet_wrapped_balances::Config for Runtime {
     type WPhaAssetId = ConstU32<10000>;
     type WrappedBalancesAccountId = WrappedBalancesPalletAccount;
     type OnSlashed = Treasury;
+    type ElectionPalletId = ElectionsPhragmenPalletId;
 }
 
 pub struct MigrationAccount;

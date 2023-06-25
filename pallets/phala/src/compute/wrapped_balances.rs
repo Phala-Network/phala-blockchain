@@ -9,14 +9,13 @@ pub mod pallet {
 	use crate::registry;
 	use crate::vault;
 	use crate::{BalanceOf, NegativeImbalanceOf, PhalaConfig, PositiveImbalanceOf};
-	use frame_support::traits::tokens::{Fortitude, Precision};
 	use frame_support::{
 		pallet_prelude::*,
 		traits::{
 			tokens::nonfungibles::InspectEnumerable,
 			tokens::{
 				fungibles::{Inspect, Mutate},
-				BalanceStatus,
+				BalanceStatus, Fortitude, Precision,
 			},
 			Currency, ExistenceRequirement, Imbalance, LockIdentifier, LockableCurrency,
 			OnUnbalanced, ReservableCurrency, SignedImbalance, StorageVersion, WithdrawReasons,
@@ -50,6 +49,8 @@ pub mod pallet {
 		type WrappedBalancesAccountId: Get<Self::AccountId>;
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
+		/// Council election call origin
+		type ElectionPalletId: Get<LockIdentifier>;
 	}
 
 	/// User's asset status proxy
@@ -170,7 +171,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
+		T: Config + pallet_balances::Config + vault::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		type Balance = BalanceOf<T>;
@@ -287,7 +288,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
+		T: Config + pallet_balances::Config + vault::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		fn can_reserve(who: &T::AccountId, value: Self::Balance) -> bool {
@@ -360,7 +361,7 @@ pub mod pallet {
 	where
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
+		T: Config + pallet_balances::Config + vault::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		type Moment = T::BlockNumber;
@@ -403,7 +404,7 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
-		T: Config + vault::Config + pallet_elections_phragmen::Config,
+		T: Config + vault::Config,
 	{
 		fn pre_check(
 			_sender: &T::AccountId,
@@ -444,7 +445,7 @@ pub mod pallet {
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
 		T: pallet_democracy::Config<Currency = <T as crate::PhalaConfig>::Currency>,
-		T: Config + pallet_balances::Config + vault::Config + pallet_elections_phragmen::Config,
+		T: Config + pallet_balances::Config + vault::Config,
 		T: pallet_balances::Config<Balance = BalanceOf<T>>,
 	{
 		/// Wraps some pha and gain equal amount of W-PHA
@@ -664,7 +665,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
-		T: Config + vault::Config + pallet_elections_phragmen::Config,
+		T: Config + vault::Config,
 	{
 		/// Gets W-PHA's asset id
 		pub fn get_asset_id() -> u32 {
@@ -818,7 +819,7 @@ pub mod pallet {
 		}
 
 		fn ensure_lock_id_supported(id: LockIdentifier) {
-			if id != <T as pallet_elections_phragmen::Config>::PalletId::get() {
+			if id != T::ElectionPalletId::get() {
 				panic!("LockIdentifier is not supported.");
 			}
 		}
