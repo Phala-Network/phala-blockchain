@@ -147,6 +147,7 @@ pub mod pallet {
 		BalanceOf<T>: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 		T: pallet_uniques::Config<CollectionId = CollectionId, ItemId = NftId>,
 		T: pallet_assets::Config<AssetId = u32, Balance = BalanceOf<T>>,
+		T: Config + pallet_elections_phragmen::Config,
 	{
 		/// Creates a new vault
 		#[pallet::call_index(0)]
