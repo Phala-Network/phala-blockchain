@@ -87,6 +87,10 @@ struct Args {
     /// The timeout of getting the attestation report. (in seconds)
     #[arg(long, value_parser = parse_duration, default_value = "8s")]
     ra_timeout: Duration,
+
+    /// The max retry times of getting the attestation report.
+    #[arg(long, default_value = "1")]
+    ra_max_retries: u32,
 }
 
 #[rocket::main]
@@ -153,6 +157,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
             safe_mode_level: args.safe_mode_level,
             no_rcu: args.no_rcu,
             ra_timeout: args.ra_timeout,
+            ra_max_retries: args.ra_max_retries,
         }
     };
     info!("init_args: {:#?}", init_args);

@@ -564,6 +564,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 self.attestation_provider,
                 &runtime_info_hash,
                 self.args.ra_timeout,
+                self.args.ra_max_retries,
             )?;
             cached_resp.attestation = Some(report);
         }
@@ -1235,16 +1236,26 @@ fn create_attestation_report_on<Platform: pal::Platform>(
     attestation_provider: Option<AttestationProvider>,
     data: &[u8],
     timeout: Duration,
+    max_retries: u32,
 ) -> RpcResult<pb::Attestation> {
-    let encoded_report =
-        match platform.create_attestation_report(attestation_provider, data, timeout) {
+    let mut tried = 0;
+    let encoded_report = loop {
+        break match platform.create_attestation_report(attestation_provider, data, timeout) {
             Ok(r) => r,
             Err(e) => {
                 let message = format!("Failed to create attestation report: {e:?}");
                 error!("{}", message);
-                return Err(from_display(message));
+                if tried >= max_retries {
+                    return Err(from_display(message));
+                }
+                let sleep_secs = (1 << tried).min(8);
+                info!("Retrying after {} seconds...", sleep_secs);
+                std::thread::sleep(Duration::from_secs(sleep_secs));
+                tried += 1;
+                continue;
             }
         };
+    };
     Ok(pb::Attestation {
         version: 1,
         provider: serde_json::to_string(&attestation_provider).unwrap(),
@@ -1625,6 +1636,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 attestation_provider,
                 &worker_key_hash,
                 phactory.args.ra_timeout,
+                phactory.args.ra_max_retries,
             )?)
         } else {
             info!("Omit RA report in workerkey response in dev mode");
@@ -1682,6 +1694,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 Some(AttestationProvider::Ias),
                 &handler_hash,
                 phactory.args.ra_timeout,
+                phactory.args.ra_max_retries,
             )?)
         } else {
             info!("Omit client RA report for dev mode challenge");
