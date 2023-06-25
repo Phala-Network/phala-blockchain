@@ -150,8 +150,8 @@ async function estimateFeeOn(endpoint, callHex) {
 }
 
 program
-    .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
-    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint. Supported builtin endpoints: phala, khala.', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--chain, --substrate-ws-endpoint <url>', 'Substrate WS endpoint. Supported builtin endpoints: phala, khala.', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--pruntime, --pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
     .option('--substrate-no-retry', false)
     .option('--at <hash>', 'access the state at a certain block', null)
     .option('--key-type <type>', 'key type', 'sr25519')
