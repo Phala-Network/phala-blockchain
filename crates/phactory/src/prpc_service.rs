@@ -4,6 +4,7 @@ use std::future::Future;
 use std::io::Read;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
 use crate::benchmark::Flags;
 use crate::system::{System, MAX_SUPPORTED_CONSENSUS_VERSION};
@@ -558,25 +559,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             info!("Encoded runtime info");
             info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
 
-            let encoded_report = match self
-                .platform
-                .create_attestation_report(self.attestation_provider, &runtime_info_hash)
-            {
-                Ok(r) => r,
-                Err(e) => {
-                    let message = format!("Failed to create attestation report: {e:?}");
-                    error!("{}", message);
-                    return Err(from_display(message));
-                }
-            };
-
-            cached_resp.attestation = Some(pb::Attestation {
-                version: 1,
-                provider: serde_json::to_string(&self.attestation_provider).unwrap(),
-                payload: None,
-                encoded_report,
-                timestamp: now(),
-            });
+            let report = create_attestation_report_on(
+                &self.platform,
+                self.attestation_provider,
+                &runtime_info_hash,
+                self.args.ra_timeout,
+            )?;
+            cached_resp.attestation = Some(report);
         }
 
         Ok(cached_resp.clone())
@@ -1245,15 +1234,17 @@ fn create_attestation_report_on<Platform: pal::Platform>(
     platform: &Platform,
     attestation_provider: Option<AttestationProvider>,
     data: &[u8],
+    timeout: Duration,
 ) -> RpcResult<pb::Attestation> {
-    let encoded_report = match platform.create_attestation_report(attestation_provider, data) {
-        Ok(r) => r,
-        Err(e) => {
-            let message = format!("Failed to create attestation report: {e:?}");
-            error!("{}", message);
-            return Err(from_display(message));
-        }
-    };
+    let encoded_report =
+        match platform.create_attestation_report(attestation_provider, data, timeout) {
+            Ok(r) => r,
+            Err(e) => {
+                let message = format!("Failed to create attestation report: {e:?}");
+                error!("{}", message);
+                return Err(from_display(message));
+            }
+        };
     Ok(pb::Attestation {
         version: 1,
         provider: serde_json::to_string(&attestation_provider).unwrap(),
@@ -1633,6 +1624,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 &phactory.platform,
                 attestation_provider,
                 &worker_key_hash,
+                phactory.args.ra_timeout,
             )?)
         } else {
             info!("Omit RA report in workerkey response in dev mode");
@@ -1689,6 +1681,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for Rpc
                 &phactory.platform,
                 Some(AttestationProvider::Ias),
                 &handler_hash,
+                phactory.args.ra_timeout,
             )?)
         } else {
             info!("Omit client RA report for dev mode challenge");

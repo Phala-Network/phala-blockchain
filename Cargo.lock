@@ -7906,6 +7906,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-clap-parsers"
+version = "0.1.0"
+
+[[package]]
 name = "phala-crypto"
 version = "0.1.0"
 dependencies = [
@@ -8311,6 +8315,7 @@ dependencies = [
  "pallet-contracts-primitives",
  "parity-scale-codec",
  "phactory-api",
+ "phala-clap-parsers",
  "phala-crypto",
  "phala-types",
  "phaxt",

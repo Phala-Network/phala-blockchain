@@ -4,12 +4,14 @@ mod pal_gramine;
 mod runtime;
 
 use std::{env, thread};
+use std::time::Duration;
 
 use clap::Parser;
 use tracing::{error, info, info_span, Instrument};
 
 use phactory_api::ecall_args::InitArgs;
 use phala_git_revision::git_revision_with_ts;
+use phala_clap_parsers::parse_duration;
 
 mod handover;
 use phala_sanitized_logger as logger;
@@ -81,6 +83,10 @@ struct Args {
     /// Disable the RCU policy to update the Phactory state.
     #[arg(long)]
     no_rcu: bool,
+
+    /// The timeout of getting the attestation report. (in seconds)
+    #[arg(long, value_parser = parse_duration, default_value = "8s")]
+    ra_timeout: Duration,
 }
 
 #[rocket::main]
@@ -146,6 +152,7 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
             public_port: args.public_port,
             safe_mode_level: args.safe_mode_level,
             no_rcu: args.no_rcu,
+            ra_timeout: args.ra_timeout,
         }
     };
     info!("init_args: {:#?}", init_args);

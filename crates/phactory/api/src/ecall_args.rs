@@ -1,8 +1,8 @@
 use alloc::string::String;
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
+use core::time::Duration;
 
-#[derive(Serialize, Deserialize, Debug, Encode, Decode, Default, Clone)]
+#[derive(Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
     /// The GK master key sealing path.
     pub sealing_path: String,
@@ -42,6 +42,9 @@ pub struct InitArgs {
 
     /// Disable the RCU policy to update the Phactory state.
     pub no_rcu: bool,
+
+    /// The timeout of getting the attestation report.
+    pub ra_timeout: Duration,
 }
 
 pub use phala_git_revision::git_revision;
