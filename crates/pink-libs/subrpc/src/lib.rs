@@ -364,7 +364,7 @@ pub fn query_contract<E: scale::Decode, B: scale::Decode>(rpc_node: &str, query:
         .map_err(|_| Error::DecodeFailed)?;
 
     if contract_query_result.result.flags != 0 {
-        // it means the contracts returns an error
+        // it means the contract returns an error
         return Err(Error::ContractError);
     }
 
