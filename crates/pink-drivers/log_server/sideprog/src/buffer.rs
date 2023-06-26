@@ -5,7 +5,7 @@ pub struct Buffer {
     next_sequence: u64,
     capacity: usize,
     current_size: usize,
-    records: VecDeque<Record>,
+    records: VecDeque<Box<Record>>,
 }
 
 struct Record {
@@ -222,20 +222,20 @@ impl Buffer {
             self.pop();
         }
         self.current_size += size;
-        self.records.push_back(Record {
+        self.records.push_back(Box::new(Record {
             contract_id,
             entry_contract,
             message: Message::Origin(message),
             size,
             sequence: self.next_sequence,
-        });
+        }));
         self.next_sequence += 1;
     }
 
     fn pop(&mut self) -> Option<Record> {
         let rec = self.records.pop_front()?;
         self.current_size -= rec.size;
-        Some(rec)
+        Some(*rec)
     }
 
     pub fn get_records(&mut self, contract: &str, from: u64, count: u64) -> String {
