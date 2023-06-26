@@ -392,6 +392,7 @@ pub fn fd_tell(
     Errno::Nosys
 }
 
+#[tracing::instrument(skip_all, fields(fd = fd))]
 pub fn fd_write(
     ctx: FunctionEnvMut<WasiEnv>,
     fd: wasi::Fd,
@@ -428,7 +429,11 @@ fn fd_write_stdio(
         };
         let bytes = buf.as_ref();
         for line in String::from_utf8_lossy(&bytes[..bytes.len().min(1024)]).lines() {
-            info!(fd, "guest write: {}", line);
+            if fd == 2 {
+                error!(target: "sidevm", "{}", line);
+            } else {
+                info!(target: "sidevm", "{}", line);
+            }
         }
         written += buf.len();
     }
