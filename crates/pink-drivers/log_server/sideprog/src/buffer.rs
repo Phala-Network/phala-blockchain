@@ -279,10 +279,11 @@ mod tests {
         buffer.push(SystemMessage::PinkLog {
             block_number: 0,
             contract: [1u8; 32],
-            in_query: true,
             timestamp_ms: 1,
             level: 0,
             message: "hello".into(),
+            entry: [1u8; 32],
+            exec_mode: "query".into(),
         });
         buffer.push(SystemMessage::PinkEvent {
             block_number: 1,
