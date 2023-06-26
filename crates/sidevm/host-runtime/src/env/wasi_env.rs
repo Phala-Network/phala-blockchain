@@ -2,8 +2,10 @@ use super::{Env as WasiEnv, Result};
 use libc::{clock_getres, clock_gettime, timespec, CLOCK_MONOTONIC, CLOCK_REALTIME};
 use sidevm_env::{OcallError, OcallFuncs};
 use thiserror::Error;
+use tracing::{error, info};
 use wasmer::{
-    namespace, AsStoreMut, Exports, Function, FunctionEnv, FunctionEnvMut, Memory32, WasmPtr,
+    namespace, AsStoreMut, Exports, Function, FunctionEnv, FunctionEnvMut, Memory32,
+    MemoryAccessError, WasmPtr,
 };
 use wasmer_wasix_types::{
     types::*,
@@ -32,6 +34,43 @@ macro_rules! wasi_try {
         let opt: Option<_> = $expr;
         wasi_try!(opt.ok_or($e))
     }};
+}
+
+/// Like the `try!` macro or `?` syntax: returns the value if the computation
+/// succeeded or returns the error value. Results are wrapped in an Ok
+macro_rules! wasi_try_ok {
+    ($expr:expr) => {{
+        let res: Result<_, Errno> = $expr;
+        match res {
+            Ok(val) => val,
+            Err(err) => {
+                return Ok(err);
+            }
+        }
+    }};
+}
+
+/// Like `wasi_try` but converts a `MemoryAccessError` to a `wasi::Errno`.
+macro_rules! wasi_try_mem_ok {
+    ($expr:expr) => {{
+        wasi_try_ok!($expr.map_err(mem_error_to_wasi))
+    }};
+}
+
+/// Like `wasi_try` but converts a `MemoryAccessError` to a `wasi::Errno`.
+macro_rules! wasi_try_block_ok {
+    ($expr:expr) => {{
+        wasi_try_ok!(|| -> Result<_, Errno> { Ok($expr) }())
+    }};
+}
+
+fn mem_error_to_wasi(err: MemoryAccessError) -> Errno {
+    match err {
+        MemoryAccessError::HeapOutOfBounds => Errno::Memviolation,
+        MemoryAccessError::Overflow => Errno::Overflow,
+        MemoryAccessError::NonUtf8String => Errno::Inval,
+        _ => Errno::Unknown,
+    }
 }
 
 pub(crate) fn wasi_imports(store: &mut impl AsStoreMut, env: &FunctionEnv<WasiEnv>) -> Exports {
@@ -354,13 +393,49 @@ pub fn fd_tell(
 }
 
 pub fn fd_write(
-    _env: FunctionEnvMut<WasiEnv>,
-    _fd: wasi::Fd,
-    _iovs: WasmPtr<__wasi_ciovec_t<Memory32>>,
-    _iovs_len: u32,
-    _nwritten: WasmPtr<u32>,
-) -> Errno {
-    Errno::Success
+    ctx: FunctionEnvMut<WasiEnv>,
+    fd: wasi::Fd,
+    iovs: WasmPtr<__wasi_ciovec_t<Memory32>>,
+    iovs_len: u32,
+    nwritten: WasmPtr<u32>,
+) -> Result<Errno, WasiError> {
+    if fd != 1 && fd != 2 {
+        return Ok(Errno::Badf);
+    }
+    fd_write_stdio(ctx, fd, iovs, iovs_len, nwritten)
+}
+
+fn fd_write_stdio(
+    ctx: FunctionEnvMut<'_, WasiEnv>,
+    fd: wasi::Fd,
+    iovs: WasmPtr<__wasi_ciovec_t<Memory32>>,
+    iovs_len: u32,
+    nwritten: WasmPtr<u32>,
+) -> Result<Errno, WasiError> {
+    let env = ctx.data();
+    let memory = env.memory();
+    let memory = memory.view(&ctx);
+    let iovs_arr = wasi_try_mem_ok!(iovs.slice(&memory, iovs_len));
+    let iovs_arr = wasi_try_mem_ok!(iovs_arr.access());
+    let mut written = 0usize;
+    for iovs in iovs_arr.iter() {
+        let buf = wasi_try_block_ok! {
+            WasmPtr::<u8>::new(iovs.buf)
+                .slice(&memory, iovs.buf_len)
+                .map_err(mem_error_to_wasi)?
+                .access()
+                .map_err(mem_error_to_wasi)?
+        };
+        let bytes = buf.as_ref();
+        for line in String::from_utf8_lossy(&bytes[..bytes.len().min(1024)]).lines() {
+            info!(fd, "guest write: {}", line);
+        }
+        written += buf.len();
+    }
+    let nwritten_ref = nwritten.deref(&memory);
+    let written: u32 = wasi_try_ok!(written.try_into().map_err(|_| Errno::Overflow));
+    wasi_try_mem_ok!(nwritten_ref.write(written));
+    Ok(Errno::Success)
 }
 
 pub fn path_create_directory(
