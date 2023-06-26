@@ -218,7 +218,7 @@ impl Buffer {
             message = SerMessage::TooLarge;
             size = message.size();
         }
-        while self.capacity < self.current_size + size {
+        while self.capacity < crate::allocator::mem_usage() + size {
             self.pop();
         }
         self.current_size += size;
