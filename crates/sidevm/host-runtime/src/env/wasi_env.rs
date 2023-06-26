@@ -37,7 +37,7 @@ macro_rules! wasi_try {
 }
 
 /// Like the `try!` macro or `?` syntax: returns the value if the computation
-/// succeeded or returns the error value. Results are wrapped in an Ok
+/// succeeded or returns the error value. Results are wrapped as an `Ok(errno)`.
 macro_rules! wasi_try_ok {
     ($expr:expr) => {{
         let res: Result<_, Errno> = $expr;
@@ -57,7 +57,7 @@ macro_rules! wasi_try_mem_ok {
     }};
 }
 
-/// Like `wasi_try` but converts a `MemoryAccessError` to a `wasi::Errno`.
+/// Like `wasi_try` but allow the inner block to use `?` syntax on a Result<_, Errno>.
 macro_rules! wasi_try_block_ok {
     ($expr:expr) => {{
         wasi_try_ok!(|| -> Result<_, Errno> { Ok($expr) }())
