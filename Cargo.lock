@@ -8175,6 +8175,7 @@ dependencies = [
  "pallet-balances",
  "pallet-collective",
  "pallet-democracy",
+ "pallet-elections-phragmen",
  "pallet-insecure-randomness-collective-flip",
  "pallet-preimage",
  "pallet-rmrk-core",
