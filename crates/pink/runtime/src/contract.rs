@@ -5,16 +5,21 @@ use pink_capi::{types::ExecutionMode, v1::ecall::TransactionArguments};
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{Contracts, Pink as PalletPink},
+    runtime::{Contracts, Pink as PalletPink, PinkRuntime},
     types::{AccountId, Balance, Hash},
 };
 use anyhow::Result;
 
-type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
+type EventRecord = frame_system::EventRecord<
+    <PinkRuntime as frame_system::Config>::RuntimeEvent,
+    <PinkRuntime as frame_system::Config>::Hash,
+>;
+
+type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance, EventRecord>;
 type ContractInstantiateResult =
-    pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
+    pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance, EventRecord>;
 type ContractResult<T> =
-    pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance>;
+    pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance, EventRecord>;
 
 macro_rules! define_mask_fn {
     ($name: ident, $bits: expr, $typ: ty) => {
@@ -158,7 +163,8 @@ pub fn instantiate(
             pallet_contracts_primitives::Code::Existing(code_hash),
             input_data,
             salt,
-            true,
+            pallet_contracts::DebugInfo::UnsafeDebug,
+            pallet_contracts::CollectEvents::UnsafeCollect,
         )
     });
     log::info!("Contract instantiation result: {:?}", &result.result);
@@ -202,7 +208,8 @@ pub fn bare_call(
             gas_limit,
             storage_deposit_limit,
             input_data,
-            true,
+            pallet_contracts::DebugInfo::UnsafeDebug,
+            pallet_contracts::CollectEvents::UnsafeCollect,
             determinism,
         )
     });
@@ -226,6 +233,7 @@ fn contract_tx<T>(
             storage_deposit: Default::default(),
             debug_message: Default::default(),
             result: Err(DispatchError::Other("InsufficientBalance")),
+            events: None,
         };
     }
     let result = tx_fn();

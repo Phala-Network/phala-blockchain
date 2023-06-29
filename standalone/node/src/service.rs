@@ -367,12 +367,6 @@ pub fn new_full_base(
         grandpa_protocol_name.clone(),
     ));
 
-    config
-        .network
-        .extra_sets
-        .push(grandpa::grandpa_peers_set_config(
-            grandpa_protocol_name.clone(),
-        ));
     let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
         backend.clone(),
         import_setup.1.shared_authority_set().clone(),
