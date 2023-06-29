@@ -126,8 +126,8 @@ macro_rules! http_req {
 /// Make a simple HTTP GET request
 ///
 /// # Arguments
-/// url: The URL to GET
-/// headers: The headers to send with the request
+/// - url: The URL to GET
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
@@ -156,9 +156,9 @@ macro_rules! http_get {
 /// Make a simple HTTP POST request
 ///
 /// # Arguments
-/// url: The URL to POST
-/// data: The payload to POST
-/// headers: The headers to send with the request
+/// - url: The URL to POST
+/// - data: The payload to POST
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
@@ -187,9 +187,9 @@ macro_rules! http_post {
 /// Make a simple HTTP PUT request
 ///
 /// # Arguments
-/// url: The destination URL
-/// data: The payload to PUT
-/// headers: The headers to send with the request
+/// - url: The destination URL
+/// - data: The payload to PUT
+/// - headers: The headers to send with the request
 ///
 /// # Examples
 ///
