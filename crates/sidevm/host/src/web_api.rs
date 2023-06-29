@@ -63,7 +63,7 @@ impl App {
             .spawner
             .start(
                 &wasm_bytes,
-                1024,
+                inner.args.max_memory_pages,
                 vmid,
                 inner.args.gas_per_breath,
                 crate::simple_cache(),

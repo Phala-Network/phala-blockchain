@@ -42,6 +42,35 @@ impl Subscriber for SanitizedSubscriber {
     fn exit(&self, span: &span::Id) {
         self.0.exit(span)
     }
+
+    fn event_enabled(&self, event: &Event<'_>) -> bool {
+        self.0.event_enabled(event)
+    }
+
+    fn current_span(&self) -> span::Current {
+        self.0.current_span()
+    }
+
+    fn clone_span(&self, id: &span::Id) -> span::Id {
+        self.0.clone_span(id)
+    }
+
+    fn try_close(&self, id: span::Id) -> bool {
+        self.0.try_close(id)
+    }
+
+    fn max_level_hint(&self) -> Option<LevelFilter> {
+        self.0.max_level_hint()
+    }
+
+    fn register_callsite(&self, metadata: &'static Metadata<'static>) -> tracing_core::Interest {
+        self.0.register_callsite(metadata)
+    }
+
+    fn drop_span(&self, id: span::Id) {
+        #[allow(deprecated)]
+        self.0.drop_span(id);
+    }
 }
 
 pub fn init_subscriber(sanitized: bool) {

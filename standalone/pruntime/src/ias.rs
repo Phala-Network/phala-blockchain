@@ -7,17 +7,20 @@ use reqwest_env_proxy::EnvProxyBuilder as _;
 pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
-fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String, String)> {
+fn get_report_from_intel(
+    quote: &[u8],
+    ias_key: &str,
+    timeout: Duration,
+) -> Result<(String, String, String)> {
     let encoded_quote = base64::encode(quote);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{encoded_quote}\"}}\r\n");
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
-    let timeout = Some(Duration::from_secs(8));
 
     let url: reqwest::Url = format!("https://{IAS_HOST}{IAS_REPORT_ENDPOINT}").parse()?;
     info!(from=%url, "Getting RA report");
     let mut res = reqwest::blocking::Client::builder()
-        .timeout(timeout)
+        .timeout(Some(timeout))
         .env_proxy(url.domain().unwrap_or_default())
         .build()
         .context("Failed to create http client, maybe invalid IAS URI")?
@@ -93,9 +96,13 @@ pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
     Ok(fs::read("/dev/attestation/quote")?)
 }
 
-pub fn create_attestation_report(data: &[u8], ias_key: &str) -> Result<(String, Vec<u8>, Vec<u8>)> {
+pub fn create_attestation_report(
+    data: &[u8],
+    ias_key: &str,
+    timeout: Duration,
+) -> Result<(String, Vec<u8>, Vec<u8>)> {
     let quote_vec = create_quote_vec(data)?;
-    let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key)?;
+    let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key, timeout)?;
 
     let sig = base64::decode(sig).expect("Sig should be a valid base64");
     let cert = base64::decode(cert).expect("SigCert should be a valid base64");
