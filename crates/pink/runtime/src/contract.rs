@@ -164,7 +164,7 @@ pub fn instantiate(
             input_data,
             salt,
             pallet_contracts::DebugInfo::UnsafeDebug,
-            pallet_contracts::CollectEvents::UnsafeCollect,
+            pallet_contracts::CollectEvents::Skip,
         )
     });
     log::info!("Contract instantiation result: {:?}", &result.result);
@@ -209,7 +209,7 @@ pub fn bare_call(
             storage_deposit_limit,
             input_data,
             pallet_contracts::DebugInfo::UnsafeDebug,
-            pallet_contracts::CollectEvents::UnsafeCollect,
+            pallet_contracts::CollectEvents::Skip,
             determinism,
         )
     });
