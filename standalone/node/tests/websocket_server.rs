@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 use core::pin::Pin;
 use futures::prelude::*;
 use soketto::handshake::{server::Response, Server};

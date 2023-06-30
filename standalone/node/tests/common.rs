@@ -1,22 +1,6 @@
-// This file is part of Substrate.
-
-// Copyright (C) Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 #![allow(unused)]
+#![allow(clippy::all)]
+
 #![cfg(unix)]
 
 use assert_cmd::cargo::cargo_bin;
@@ -66,7 +50,7 @@ pub fn start_node() -> Child {
     Command::new(cargo_bin("phala-node"))
         .stdout(process::Stdio::piped())
         .stderr(process::Stdio::piped())
-        .args(&["--dev", "--tmp", "--rpc-port=45789", "--no-hardware-benchmarks"])
+        .args(["--dev", "--tmp", "--rpc-port=45789", "--no-hardware-benchmarks"])
         .spawn()
         .unwrap()
 }
@@ -110,7 +94,7 @@ pub fn build_substrate(args: &[&str]) {
         .args(args)
         .current_dir(root_dir)
         .output()
-        .expect(format!("Failed to execute 'cargo b' with args {:?}'", args).as_str());
+        .unwrap_or_else(|_| panic!("Failed to execute 'cargo b' with args {:?}'", args));
 
     if !output.status.success() {
         panic!(
@@ -301,12 +285,12 @@ pub fn extract_info_from_output(read: impl Read + Send) -> (NodeInfo, String) {
         .find_map(|line| {
             let line = line.expect("failed to obtain next line while extracting node info");
             data.push_str(&line);
-            data.push_str("\n");
+            data.push('\n');
 
             // does the line contain our port (we expect this specific output from substrate).
             let sock_addr = match line.split_once("Running JSON-RPC server: addr=") {
                 None => return None,
-                Some((_, after)) => after.split_once(",").unwrap().0,
+                Some((_, after)) => after.split_once(',').unwrap().0,
             };
 
             Some(format!("ws://{}", sock_addr))
