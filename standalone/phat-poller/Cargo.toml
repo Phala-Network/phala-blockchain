@@ -30,5 +30,5 @@ rand = "0.8"
 hex = "0.4"
 
 # For our forked legacy ContractResult
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-sp-weights = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+scale-info = { version = "2.5.0", features = ["derive"] }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.43" }
