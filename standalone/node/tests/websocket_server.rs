@@ -1,22 +1,3 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2021-2022 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-#![allow(clippy::all)]
-
 use core::pin::Pin;
 use futures::prelude::*;
 use soketto::handshake::{server::Response, Server};
@@ -74,11 +55,11 @@ pub struct WsServer {
         Pin<
             Box<
                 dyn Future<
-                        Output = Result<
-                            Server<'static, Compat<TcpStream>>,
-                            Box<dyn std::error::Error>,
-                        >,
-                    > + Send,
+                    Output = Result<
+                        Server<'static, Compat<TcpStream>>,
+                        Box<dyn std::error::Error>,
+                    >,
+                > + Send,
             >,
         >,
     >,
@@ -129,20 +110,15 @@ impl WsServer {
             let mut server = Server::new(pending_incoming.compat());
 
             let websocket_key = match server.receive_request().await {
-                Ok(req) => req.into_key(),
+                Ok(req) => req.key(),
                 Err(err) => return Err(Box::new(err) as Box<_>),
             };
 
             match server
-                .send_response(&{
-                    Response::Accept {
-                        key: &websocket_key,
-                        protocol: None,
-                    }
-                })
+                .send_response(&{ Response::Accept { key: websocket_key, protocol: None } })
                 .await
             {
-                Ok(()) => {}
+                Ok(()) => {},
                 Err(err) => return Err(Box::new(err) as Box<_>),
             };
 

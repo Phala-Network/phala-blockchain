@@ -27,20 +27,12 @@ fn expected_regex() -> Regex {
 #[test]
 fn version_is_full() {
     let expected = expected_regex();
-    let output = Command::new(cargo_bin("phala-node"))
-        .args(["--version"])
-        .output()
-        .unwrap();
+    let output = Command::new(cargo_bin("phala-node")).args(&["--version"]).output().unwrap();
 
-    assert!(
-        output.status.success(),
-        "command returned with non-success exit code"
-    );
+    assert!(output.status.success(), "command returned with non-success exit code");
 
     let output = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    let captures = expected
-        .captures(output.as_str())
-        .expect("could not parse version in output");
+    let captures = expected.captures(output.as_str()).expect("could not parse version in output");
 
     assert_eq!(&captures[1], env!("CARGO_PKG_VERSION"));
 }

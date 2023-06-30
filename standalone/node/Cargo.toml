@@ -112,14 +112,15 @@ sc-service-test = { git = "https://github.com/paritytech/substrate", branch = "p
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
-futures = "0.3.19"
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+futures = "0.3.21"
 tempfile = "3.1.0"
 assert_cmd = "2.0.2"
-nix = "0.26.2"
+nix = { version = "0.26.1", features = ["signal"] }
 serde_json = "1.0"
-regex = "1"
-platforms = "2.0"
-soketto = "0.4.2"
+regex = "1.6.0"
+platforms = "3.0"
+soketto = "0.7.1"
 criterion = { version = "0.4.0", features = ["async_tokio"] }
 tokio = { version = "1.24.2", features = ["macros", "time", "parking_lot"] }
 tokio-util = { version = "0.7.4", features = ["compat"] }
