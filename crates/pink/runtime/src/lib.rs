@@ -6,6 +6,8 @@ mod runtime;
 mod storage;
 mod types;
 
+pub use crate::contract::{ContractResult, ContractInstantiateResult, ContractExecResult};
+
 /// Returns a tuple containing the major and minor version numbers of the current crate.
 ///
 /// # Examples

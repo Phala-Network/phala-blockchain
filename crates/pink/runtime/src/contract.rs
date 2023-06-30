@@ -15,10 +15,10 @@ type EventRecord = frame_system::EventRecord<
     <PinkRuntime as frame_system::Config>::Hash,
 >;
 
-type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance, EventRecord>;
-type ContractInstantiateResult =
+pub type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance, EventRecord>;
+pub type ContractInstantiateResult =
     pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance, EventRecord>;
-type ContractResult<T> =
+pub type ContractResult<T> =
     pallet_contracts_primitives::ContractResult<Result<T, DispatchError>, Balance, EventRecord>;
 
 macro_rules! define_mask_fn {

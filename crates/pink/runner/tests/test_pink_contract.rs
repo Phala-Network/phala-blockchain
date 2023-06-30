@@ -264,7 +264,7 @@ mod test_cluster {
         local_cache::{self, StorageQuotaExceeded},
         runtimes::v1::{using_ocalls, Runtime},
         storage::ClusterStorage,
-        types::{AccountId, Balance, ExecSideEffects, ExecutionMode, Hash, TransactionArguments},
+        types::{AccountId, ExecSideEffects, ExecutionMode, Hash, TransactionArguments},
     };
     use scale::{Decode, Encode};
     use sp_runtime::DispatchError;
@@ -273,9 +273,8 @@ mod test_cluster {
 
     use super::ALICE;
 
-    pub type ContractExecResult = pallet_contracts_primitives::ContractExecResult<Balance>;
-    pub type ContractInstantiateResult =
-        pallet_contracts_primitives::ContractInstantiateResult<AccountId, Balance>;
+    pub type ContractExecResult = pink::ContractExecResult;
+    pub type ContractInstantiateResult = pink::ContractInstantiateResult;
 
     pub struct TestCluster {
         pub storage: ClusterStorage,
