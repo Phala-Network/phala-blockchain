@@ -1,4 +1,4 @@
-RUST_TOOLCHAIN=1.69
+RUST_TOOLCHAIN=1.70.0
 cd /root && \
 curl 'https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init' --output /root/rustup-init && \
 chmod +x /root/rustup-init && \
