@@ -257,6 +257,20 @@ pub trait PinkExt {
     ///
     /// * `Result<(), StorageQuotaExceeded>` - `Ok(())` or `Err(StorageQuotaExceeded)` if the storage quota is exceeded.
     ///
+    /// <p style="background:rgba(255,181,77,0.16);padding:0.75em;">
+    /// <strong>Warning:</strong>
+    /// The cache is not guaranteed to be persistent. It may be cleared at any time due
+    ///     to various reasons:
+    ///
+    /// - The cached item is expired.
+    /// - The entire cache in pRuntime is full and a new value needs to be stored (either from the contract itself or
+    ///   other contracts).
+    /// - The worker is restarted.
+    /// </p>
+    ///
+    /// In order to use cache, the contract need to be staked via the phala on-chain API `PhatTokenomic::adjust_stake`.
+    /// All contracts will share the 20MB cache storage by the ratio of stake.
+    ///
     /// # Example
     ///
     /// ```
