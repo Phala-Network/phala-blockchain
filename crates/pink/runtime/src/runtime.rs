@@ -20,7 +20,7 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRunt
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
 
 frame_support::construct_runtime! {
-    pub enum PinkRuntime where
+    pub struct PinkRuntime where
         Block = Block,
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,

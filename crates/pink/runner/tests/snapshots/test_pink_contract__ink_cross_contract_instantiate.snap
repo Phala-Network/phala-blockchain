@@ -5,12 +5,12 @@ expression: result
 ---
 ContractResult {
     gas_consumed: Weight {
-        ref_time: 1902834726,
-        proof_size: 45015,
+        ref_time: 1937672703,
+        proof_size: 45025,
     },
     gas_required: Weight {
-        ref_time: 79195633637,
-        proof_size: 2113745,
+        ref_time: 80262073626,
+        proof_size: 2113748,
     },
     storage_deposit: StorageDeposit::Charge(
         4,
@@ -25,4 +25,5 @@ ContractResult {
             account_id: 056a8ab55cc7f7405e121302a0af5b46d8c5fd78d2dbc8c2ac994802bdfb71dc (5CBokECH...),
         },
     ),
+    events: None,
 }
