@@ -55,7 +55,7 @@ pub fn system(arg: TokenStream, input: TokenStream) -> TokenStream {
 /// Below, the `SidevmOperation` trait is annotated with `#[pink::driver]`. This marks it
 /// as a driver contract, enabling it to manage SideVM deployments.
 ///
-/// ```rust
+/// ```ignore
 /// #[pink::driver]
 /// #[ink::trait_definition]
 /// pub trait SidevmOperation {
@@ -75,7 +75,7 @@ pub fn system(arg: TokenStream, input: TokenStream) -> TokenStream {
 /// The actual driver can then be retrieved and its methods, defined by the trait, can be used.
 /// For instance, to start a SideVM, one would get the driver instance and call its `deploy` method:
 ///
-/// ```rust
+/// ```ignore
 /// pub fn start_sidevm(code_hash: Hash) -> Result<(), system::DriverError> {
 ///     let driver =
 ///         SidevmOperationRef::instance().ok_or(system::Error::DriverNotFound)?;

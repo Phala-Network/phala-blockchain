@@ -8,6 +8,9 @@ pub use signing::SigType;
 
 use crate::{Balance, EcdsaPublicKey, EcdsaSignature, Hash};
 
+#[cfg(doc)]
+use crate::{http_get, http_post, http_put, debug, info, warn, error};
+
 mod http_request;
 pub mod signing;
 
@@ -116,15 +119,15 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let request = HttpRequest::new("https://httpbin.org/get", "GET", Defualt::default(), Defualt::default());
     /// let response = pink::ext().http_request(request);
     /// ```
     ///
     /// There are also some shortcut macros for this function:
-    /// - [`crate::http_get!`]
-    /// - [`crate::http_post!`]
-    /// - [`crate::http_put!`]
+    /// - [`http_get!`]
+    /// - [`http_post!`]
+    /// - [`http_put!`]
     ///
     /// # Availability
     /// any contract | query only
@@ -145,7 +148,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let derived_key = pink::ext().derive_sr25519_key(b"some salt".into());
     /// let message = b"Hello, world!";
     /// let signature = pink::ext().sign(SigType::Sr25519, &key, message);
@@ -179,7 +182,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let derived_key = pink::ext().derive_sr25519_key(b"some salt".into());
     /// let message = b"Hello, world!";
     /// let signature = pink::ext().sign(SigType::Sr25519, &key, message);
@@ -207,7 +210,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let derived_key = pink::ext().derive_sr25519_key(b"some salt".into());
     /// ```
     ///
@@ -231,7 +234,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let derived_key = pink::ext().derive_sr25519_key(b"some salt".into());
     /// let pubkey = pink::ext().get_public_key(SigType::Sr25519, &derived_key);
     /// ```
@@ -273,7 +276,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let key = b"my key";
     /// let value = b"my value";
     /// let result = pink::ext().cache_set(key, value);
@@ -295,7 +298,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let key = b"my key";
     /// let expire = 60; // 1 minute
     /// pink::ext().cache_set_expiration(key, expire);
@@ -322,7 +325,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let key = b"my key";
     /// let value = pink::ext().cache_get(key);
     /// ```
@@ -362,7 +365,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let level = 1;
     /// let message = "Hello, world!";
     /// pink::ext().log(level, message);
@@ -371,10 +374,10 @@ pub trait PinkExt {
     /// # Note
     /// This is the low-level method for logging. It is recommended to use shortcuts macros below instead:
     ///
-    /// - [`crate::debug!`]
-    /// - [`crate::info!`]
-    /// - [`crate::warn!`]
-    /// - [`crate::error!`]
+    /// - [`debug!`]
+    /// - [`info!`]
+    /// - [`warn!`]
+    /// - [`error!`]
     ///
     /// # Availability
     /// any contract | query | transaction
@@ -400,7 +403,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let length = 32;
     /// let random_bytes = pink::ext().getrandom(length);
     /// ```
@@ -418,6 +421,7 @@ pub trait PinkExt {
     ///
     /// # Availability
     /// any contract | query | transaction
+    #[allow(clippy::wrong_self_convention)]
     #[ink(extension = 12, handle_status = false)]
     fn is_in_transaction() -> bool;
 
@@ -436,7 +440,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let key = [0u8; 32]; // replace with actual key
     /// let message_hash = Hash::zero(); // replace with actual hash
     /// let signature = pink::ext().ecdsa_sign_prehashed(&key, message_hash);
@@ -463,7 +467,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let signature = EcdsaSignature::default(); // replace with actual signature
     /// let message_hash = Hash::zero(); // replace with actual hash
     /// let pubkey = EcdsaPublicKey::default(); // replace with actual pubkey
@@ -525,7 +529,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let current_millis = pink::ext().untrusted_millis_since_unix_epoch();
     /// ```
     ///
@@ -542,7 +546,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let code_hash = Hash::zero(); // replace with actual code hash
     /// let exists = pink::ext().code_exists(code_hash, false);
     /// ```
@@ -560,7 +564,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let payer = AccountId::default(); // replace with actual payer id
     /// let code_hash = pink::ext().import_latest_system_code(payer);
     /// ```
@@ -578,7 +582,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let (major, minor) = pink::ext().runtime_version();
     /// ```
     ///
@@ -602,7 +606,7 @@ pub trait PinkExt {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// let requests = vec![
     ///     HttpRequest::new("https://httpbin.org/get",
     ///         "GET",

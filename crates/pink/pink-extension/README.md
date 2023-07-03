@@ -22,7 +22,7 @@ std = [
 
 Then, you can use the `http_get!` macro to make a GET request to a remote server:
 
-```rust
+```ignore
 #[ink::message]
 fn http_get_example(&self) {
     let response = pink::http_get!("https://httpbin.org/get");
@@ -59,7 +59,7 @@ There are two ways to use JavaScript in your contract:
 
 -   For the simplest integration, consider using the [`phat_js`](https://docs.rs/phat_js/) crate. It provides an `eval` function that lets you evaluate JavaScript code snippets directly.
     For example:
-    ```rust
+    ```ignore
     #[ink::message]
     fn eval_js_example(&self) {
         let result = phat_js::eval("'Hello,' + 'World'", &[]);

@@ -1,8 +1,9 @@
 ---
 source: crates/pink/pink-extension/macro/src/driver_system.rs
-assertion_line: 250
+assertion_line: 286
 expression: "rustfmt_snippet::rustfmt_token_stream(&stream).unwrap()"
 ---
+#[doc = "**The doc is messed up by the ink macro. See [`SystemForDoc`] for a clean version**\n\n"]
 #[ink::trait_definition(namespace = "pink_system")]
 pub trait System {
     #[ink(message)]
@@ -10,6 +11,13 @@ pub trait System {
     #[ink(message)]
     fn set_driver(&self, name: String, driver: AccountId);
     #[ink(message)]
+    fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()>;
+}
+#[cfg(doc)]
+#[doc = "**This is the clean version doc of [`System`]**\n\n"]
+pub trait SystemForDoc {
+    fn get_driver(&self, name: String) -> Option<AccountId>;
+    fn set_driver(&self, name: String, driver: AccountId);
     fn deploy_sidevm_to(&self, code_hash: Hash, contract_id: AccountId) -> Result<()>;
 }
 pub use _pink_system_impl::SystemRef;
