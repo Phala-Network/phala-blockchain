@@ -335,7 +335,8 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     | RuntimeCall::Elections(..)
                     | RuntimeCall::Treasury(..)
             ),
-            ProxyType::Staking => matches!(c, RuntimeCall::Staking(..)),
+            ProxyType::Staking =>
+                matches!(c, RuntimeCall::Staking(..) | RuntimeCall::FastUnstake(..)),
             ProxyType::StakePoolManager => matches!(
                 c,
                 RuntimeCall::Utility { .. }
@@ -1086,6 +1087,7 @@ impl pallet_tips::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type RuntimeCall = RuntimeCall;
+    type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {

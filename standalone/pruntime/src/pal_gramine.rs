@@ -7,6 +7,7 @@ use phactory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Seali
 use phala_allocator::StatSizeAllocator;
 use std::io::ErrorKind;
 use std::str::FromStr as _;
+use std::time::Duration;
 
 use crate::ias;
 
@@ -46,6 +47,7 @@ impl RA for GraminePlatform {
         &self,
         provider: Option<AttestationProvider>,
         data: &[u8],
+        timeout: Duration,
     ) -> Result<Vec<u8>, Self::Error> {
         match provider {
             Some(AttestationProvider::Ias) => {
@@ -53,7 +55,7 @@ impl RA for GraminePlatform {
                 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
                 let (attn_report, sig, cert) =
-                    ias::create_attestation_report(data, IAS_API_KEY_STR)?;
+                    ias::create_attestation_report(data, IAS_API_KEY_STR, timeout)?;
                 let attestation_report = Some(phala_types::AttestationReport::SgxIas {
                     ra_report: attn_report.as_bytes().to_vec(),
                     signature: sig,
@@ -183,8 +185,14 @@ pub(crate) fn print_target_info() {
             sgx_api_lite::report(&target_info, &[0; 64]).expect("Failed to get sgx report");
         println!("mr_enclave  : 0x{}", HexFmt(&report.body.mr_enclave.m));
         println!("mr_signer   : 0x{}", HexFmt(&report.body.mr_signer.m));
-        println!("isv_svn     : 0x{:?}", HexFmt(report.body.isv_svn.to_ne_bytes()));
-        println!("isv_prod_id : 0x{:?}", HexFmt(report.body.isv_prod_id.to_ne_bytes()));
+        println!(
+            "isv_svn     : 0x{:?}",
+            HexFmt(report.body.isv_svn.to_ne_bytes())
+        );
+        println!(
+            "isv_prod_id : 0x{:?}",
+            HexFmt(report.body.isv_prod_id.to_ne_bytes())
+        );
     } else {
         println!("Running in Native mode");
     }

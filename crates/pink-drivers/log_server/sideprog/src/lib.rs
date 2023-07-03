@@ -96,3 +96,15 @@ async fn main() {
         app.log_buffer.borrow_mut().push(message);
     }
 }
+
+mod allocator {
+    use phala_allocator::StatSizeAllocator;
+    use std::alloc::System;
+
+    #[global_allocator]
+    pub static ALLOC: StatSizeAllocator<System> = StatSizeAllocator::new(System);
+
+    pub fn mem_usage() -> usize {
+        ALLOC.stats().current
+    }
+}

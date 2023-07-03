@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 use std::path::Path;
+use core::time::Duration;
 
 use phala_types::AttestationProvider;
 
@@ -24,6 +25,7 @@ pub trait RA {
         &self,
         provider: Option<AttestationProvider>,
         data: &[u8],
+        timeout: Duration,
     ) -> Result<Vec<u8>, Self::Error>;
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
     fn measurement(&self) -> Option<Vec<u8>>;

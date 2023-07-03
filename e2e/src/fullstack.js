@@ -1296,13 +1296,13 @@ function waitNodeOutput(p) {
 }
 
 
-function newNode(wsPort, tmpPath, name = 'node') {
+function newNode(rpcPort, tmpPath, name = 'node') {
     const cli = [
         pathNode, [
             '--dev',
             '--block-millisecs=1000',
             '--base-path=' + path.resolve(tmpPath, 'phala-node'),
-            `--ws-port=${wsPort}`,
+            `--rpc-port=${rpcPort}`,
             '--rpc-methods=Unsafe',
             '--pruning=archive',
         ]

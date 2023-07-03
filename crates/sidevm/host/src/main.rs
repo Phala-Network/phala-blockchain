@@ -17,6 +17,9 @@ pub struct Args {
     workers: usize,
     /// The WASM program to run
     program: Option<String>,
+    /// Max memory pages
+    #[arg(long, default_value_t = 256)]
+    max_memory_pages: u32,
 }
 
 fn simple_cache() -> DynCacheOps {
@@ -56,7 +59,7 @@ fn simple_cache() -> DynCacheOps {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     if std::env::var("ROCKET_PORT").is_err() {
         std::env::set_var("ROCKET_PORT", "8003");
     }

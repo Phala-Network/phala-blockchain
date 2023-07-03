@@ -5,7 +5,7 @@ pub struct Buffer {
     next_sequence: u64,
     capacity: usize,
     current_size: usize,
-    records: VecDeque<Record>,
+    records: VecDeque<Box<Record>>,
 }
 
 struct Record {
@@ -218,24 +218,24 @@ impl Buffer {
             message = SerMessage::TooLarge;
             size = message.size();
         }
-        while self.capacity < self.current_size + size {
+        while self.capacity < crate::allocator::mem_usage() + size {
             self.pop();
         }
         self.current_size += size;
-        self.records.push_back(Record {
+        self.records.push_back(Box::new(Record {
             contract_id,
             entry_contract,
             message: Message::Origin(message),
             size,
             sequence: self.next_sequence,
-        });
+        }));
         self.next_sequence += 1;
     }
 
     fn pop(&mut self) -> Option<Record> {
         let rec = self.records.pop_front()?;
         self.current_size -= rec.size;
-        Some(rec)
+        Some(*rec)
     }
 
     pub fn get_records(&mut self, contract: &str, from: u64, count: u64) -> String {
@@ -279,10 +279,11 @@ mod tests {
         buffer.push(SystemMessage::PinkLog {
             block_number: 0,
             contract: [1u8; 32],
-            in_query: true,
             timestamp_ms: 1,
             level: 0,
             message: "hello".into(),
+            entry: [1u8; 32],
+            exec_mode: "query".into(),
         });
         buffer.push(SystemMessage::PinkEvent {
             block_number: 1,

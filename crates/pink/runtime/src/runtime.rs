@@ -22,7 +22,7 @@ type Block = frame_system::mocking::MockBlock<PinkRuntime>;
 pub type SystemEvents = Vec<frame_system::EventRecord<RuntimeEvent, Hash>>;
 
 frame_support::construct_runtime! {
-    pub enum PinkRuntime where
+    pub struct PinkRuntime where
         Block = Block,
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
